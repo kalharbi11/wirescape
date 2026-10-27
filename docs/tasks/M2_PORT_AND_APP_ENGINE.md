@@ -12,7 +12,8 @@ The M2 milestone, split into seven Codex tasks and a Claude review. Each task ha
 ## Gate and order
 - **M2-0** may start now. It must not touch `.github/` until PR #22 (M1-3) is merged.
 - **M2-1 to M2-5** start only when PR #22 is merged into `main`. They are independent of each other and each branches from `main`. When two of them touch the same CMake list or test registry, the later one merges `main` in (merge commit, no rebase) after the earlier one lands.
-- **M2-6** starts only when M2-1, M2-2, M2-3 and M2-5 are merged. If they aren't, post a handoff on M2-6 and stop.
+- **M1-3b** (#32, Windows mono gap) starts when PR #22 is merged. It touches the engine and SDK hot path, so it runs before or after the ports, not interleaved with a port that edits the same file.
+- **M2-6** starts only when M1-3b, M2-1, M2-2, M2-3 and M2-5 are merged. If they aren't, post a handoff on M2-6 and stop. (M1-3b may instead be closed by Claude accepting a written explanation; the issue will say so.)
 - **M2-R** (Claude) reviews the milestone once M2-6 is in `status/review`.
 
 ## Ground rules (every M2 task)
@@ -39,6 +40,7 @@ Why Codex: needs the Pi and a native build.
 3. **A voice budget mode:** `--budget` raises `voices:<n>` from 1 to 16 and reports the largest n whose p99 stays below 50% of the block period.
 4. A new guide, BENCHMARKING.md in `docs/`: how to run `abi2_cost.py`, `compare_bench.py` and `wirescape_soak`, locally and on a Linux ARM64 board. No machine-specific paths or host names.
 5. **After PR #22 is merged** (merge `main` in first): change `.github/workflows/ci.yml` so both `linux-arm64` and `windows-x64` print `build_reports/abi2/benchmark.json` into the job log and the step summary. Today Windows writes no summary and the numbers are only in artifacts, which some agent environments cannot download. Change only that summary step. Allowed protected path: `.github/workflows/ci.yml`, this step only.
+6. **After PR #22 is merged:** re-run the Pi evidence below on the merged `main` (the first run measured `main` at `6cc87f9`, before the M1-3 speed-ups) and post it as a second table next to the first. Same toolchain line.
 
 **Pi evidence (PR comment):** Release build on the Pi, then `wirescape_soak` for 10 minutes each at 48k with blocks 64, 128 and 256 on the `poly8` and `six_essentials_shim` graphs, plus `--budget` at 48k/128. Report the table, overruns and the toolchain line.
 
@@ -68,7 +70,8 @@ Why Codex: native ports with an equivalence harness.
 Port **mixer, noise, output, scale_offset and slew** to `native/modules2/<name>/` (`dsp.h`, `module.cpp`, `module.json`, `README.md`, `DESIGN.md`, `tests.cpp`, `LICENSE` as in the existing ports). **One commit per module.** Add each to the equivalence harness and the ABI 2 test registry.
 
 Watch for:
-- `noise`: the PRNG sequence and its advance-while-muted behaviour must match bit for bit; seed from the engine seed and channel seed so voices differ deterministically.
+- `noise`: the PRNG sequence and its advance-while-muted behaviour must match bit for bit. **Channel 0 uses the ABI 1 seed `0x12345678` exactly** (equivalence is mono). Channel `c > 0` uses a fixed, documented derivation from that seed and `c` (for example a splitmix32 step), so voices differ deterministically. There is no engine seed today; don't add one.
+- **Banned-include test (M1-3 review L-c):** `tools/foundation/tests/test_banned_includes.py` scans every `.cpp` under `native/modules2/`. Exempt files named `tests.cpp` (host-side test code) and add a test that a `tests.cpp` with `<vector>` passes while a `dsp.h` with it fails. `dsp.h` and `module.cpp` stay strict.
 - `slew` and `scale_offset`: unpatched behaviour (see the ground rules).
 - `mixer` and `output`: missing inputs read as zero; `output` is the bus sink; check how engine2 binds buses before choosing its shape and document it in `DESIGN.md`.
 
@@ -141,6 +144,43 @@ Why Codex: app integration, Windows UI tests and the Pi.
 **Never** run a real audio device. The user does the first live session on Windows.
 
 **Acceptance:** all four CI jobs green; Pi table posted; `docs/ARCHITECTURE.md` updated. Expected size: 600–900 lines.
+
+---
+
+## M1-3b: close the Windows (MSVC) mono gap and gate Ir in CI (issue #32, size/m, after #22)
+Why Codex: needs MSVC on the user's Windows laptop, profiling and CI runs. Background: `docs/reviews/M1-3_REVIEW.md`.
+
+The `windows-x64` runner measured ABI 2/ABI 1 mono at 1.097×. Every other measure passes (arm64 0.865×, Pi 0.711×, Ir 0.860×), so the likely cause is MSVC codegen, not framework design. Don't assume that; measure it.
+
+1. **Baseline first.** Build `main` at `6cc87f9` (before M1-3) and current `main` with the same interleaved benchmark driver, the way the Pi baseline was done for #22. Run both on the laptop (MSVC Release, plugged in, nothing else running), 5 runs each. Report the medians and the run-to-run spread. Then get three `windows-x64` CI runs of current `main` (re-run the job; don't push empty commits) and report all three ratios.
+2. **Find the cause.** Use `/Qvec-report:2` on `engine2.cpp`, `wirescape_sdk.h` users and the five `modules2` DSPs to see which hot loops MSVC didn't vectorize: `ws::finite_samples`, the VCA row loop, the parameter fill loop and the input copy loop. Optionally build the same code with `clang-cl` to separate compiler from code. Report per-probe medians for `abi2_mono`, `vcf_constant` and `vcf_audio_rate_cutoff`.
+3. **Fix within scope.** Engine/SDK/module-port code only, no ABI header change, no DSP math change, and no `/fp:fast` or other global flags that change results. Typical fixes: `__restrict` or local copies so MSVC can prove there's no aliasing; replacing `std::max` in the exponent reduction with an OR-reduce; hoisting loop-invariant loads.
+4. **CI gate on Ir (review L-b).** Add `--gate` to `tools/bench/abi2_cost.py` (exit 1 when `mono_ratio > 1.05`), with unit tests, and use it in the `sanitizers` job's callgrind step. Allowed protected path: `.github/workflows/ci.yml`, that step only.
+
+**Acceptance:** `windows-x64` mono ≤ 1.05× in at least 2 of 3 CI runs, and on the laptop; arm64 and Ir ratios not worse than #22 (0.865× / 0.860×) by more than 0.01; equivalence max error 0, shim bit-identical, zero allocations and the poly WAV hash unchanged; all four CI jobs green. Expected size: 100–250 lines. **Stop rule:** if two reasonable attempts don't get there, set `status/blocked` with the vectorizer report, medians and spreads. Claude then decides whether to accept the gap with a written explanation.
+
+---
+
+## Codex continuous queue (run in this order; don't wait for review between tasks)
+Codex runs this list top to bottom in one long session. Open one draft PR per issue, post a handoff on each issue when it's done, set `status/review` and move straight on to the next item. **Never merge.** When an item's prerequisite isn't merged yet, skip it (post a one-line "waiting on #N" handoff) and take the next one; come back when it's merged.
+
+| # | Item | Prerequisite | Machine |
+|---|---|---|---|
+| 1 | #23 M2-0 deliverables 5 and 6 (CI summary step, Pi re-run on merged `main`) | #22 merged | cloud + Pi |
+| 2 | #32 M1-3b Windows mono gap and Ir gate | #22 merged | laptop + CI |
+| 3 | #24 M2-1 per-bus latency and staged reconfigure | #22 merged | cloud |
+| 4 | #25 M2-2 port mixer, noise, output, scale_offset, slew | #22 merged; PR #17 (inventory) merged | cloud |
+| 5 | #26 M2-3 port clock, function_envelope, ladder | #22 merged | cloud |
+| 6 | #27 M2-4 behaviour regressions and per-module CV | #22 merged; for item 2 of the task, #25 and #26 merged (otherwise do the five existing ports and list the rest) | cloud |
+| 7 | #28 M2-5 patch v2 and lossless v1 migration | #22 merged | cloud |
+| 8 | #29 M2-6 engine2 becomes the app engine | #32, #24, #25, #26, #28 merged | laptop + Pi |
+
+Rules for the queue:
+- Each item branches from the latest `main`. If an earlier item touches the same CMake list or test registry and merges first, merge `main` into your branch (merge commit, no rebase).
+- Run `python tools/dev.py test` before every final push. The final push of each PR runs CI; WIP pushes may use `[skip ci]`.
+- If a PR gets review comments from Claude while you're on a later item, finish your current commit, fix the comments on the earlier branch, push and return.
+- Hard stops: any ABI header edit, any non-zero equivalence delta, any test removal or tolerance change, a diff past its size budget, or two failed attempts at the same failure. Post a `status/blocked` handoff for that item and take the next one.
+- Collect every "Provenance: to be confirmed by the user" in one comment on #29 so the user can answer them in one go.
 
 ---
 
