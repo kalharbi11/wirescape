@@ -211,7 +211,7 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Direction/index | ID | Signal kind | Unpatched default | Source |
 |---|---|---|---|---|
-| input 0 | `audio` | audio | UNKNOWN (engine buffer or process fallback not fully traced) | `native/modules/output/module.cpp:15-33`; `native/modules/output/module.json:1` |
+| input 0 | `audio` | audio | null input port resolves to silence (`native/modules/output/module.cpp:10-14`) | `native/modules/output/module.cpp:15-33`; `native/modules/output/module.json:1` |
 | output 0 | `audio` | audio | n/a | `native/modules/output/module.cpp:15-33`; `native/modules/output/module.json:1` |
 
 **3. Parameters** (ID mapping: `module.json`; bounds/defaults/units: C++ descriptor).
@@ -220,11 +220,11 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 |---|---|---|---:|---:|---:|---|---|---|
 | — | none | — | — | — | — | — | — | `native/modules/output/module.cpp:15-33` |
 
-**4. State.** Runtime state and reset/prepare/event/process implementation: `native/modules/output/module.cpp:1-14`. Extra serialized state/version beyond parameter values: **UNKNOWN (looked in native/modules/output/module.cpp, native/modules/output/module.json; patch document saving and loading not fully audited)**.
+**4. State.** Empty module State, no-op reset and event, prepare returns 0 (`native/modules/output/module.cpp:4-9`). No numeric parameters or module-local save/load (`native/modules/output/module.cpp:17-32`). The reader retains source patch JSON (`native/document/document_reader.cpp:34-36,50-51`); no extra per-module runtime state to serialize.
 
 **5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 differences **UNKNOWN** until port exists.
 
-**6. Port notes.** DSP, lifecycle and runtime assumptions: `native/modules/output/module.cpp:1-33`. Third-party dependencies, pinned revisions and licence: **UNKNOWN (looked in native/modules/output/module.cpp and native/modules/output/module.json; DESIGN.md not comprehensively audited)**. Process-time allocation, locks and mutable globals: **UNKNOWN (requires full audit)**.
+**6. Port notes.** Output is transparent mono pass-through; a null `in[0]` yields literal zero (not an uninitialized sample) (`native/modules/output/module.cpp:10-14`). No sample-rate assumptions or dynamic dependencies in processing. Bounded per-frame writes, **no allocation, locks, I/O or mutable globals** (`native/modules/output/module.cpp:4-14`); heap allocation only in `create` (`native/modules/output/module.cpp:5-6`). No `native/modules/output/DESIGN.md` at inspected ref; third-party source / pinned revision **UNKNOWN** (looked in `native/modules/output/module.cpp:1-2`, DESIGN.md absent).
 
 ## scale_offset
 
