@@ -70,9 +70,11 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 **4. State.** Per-instance phase, reset-edge flag, tempo ramp and ticks/duty/run (`native/modules/clock/module.cpp:21-39`); no module save callback (`native/modules/clock/module.cpp:70-72`). Patch inspect retains JSON bytes/object (`native/document/document_reader.cpp:34-36,50-51`).
 
-**5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 differences **UNKNOWN** until port exists.
+**5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 interface comparison **not applicable**: no `native/modules2/clock/dsp.h` in the inspected ABI 2 module set.
 
 **6. Port notes.** BPM ramps, ticks rounded, duty direct, run thresholded; output high window and sample-rate phase from (`native/modules/clock/module.cpp:40-65`). Process has bounded loop, no allocation, locking, I/O or mutable globals (`native/modules/clock/module.cpp:51-66`); only create allocates (`native/modules/clock/module.cpp:27-28`). `DESIGN.md:9,13` describes fixed instance state, original DSP, no external third-party DSP code or pinned revision; sample rate 1..384000 Hz (`native/modules/clock/module.cpp:11-15`).
+
+**Second-pass migration details.** The reset input is read as `in ? in[0] : nullptr`; null, nonfinite, or below-0.5 samples count as low, and only a **rising** reset sets `phase=0` (`native/modules/clock/module.cpp:51-58`). BPM is a continuous ramp target, Ticks per beat is rounded with `floor(value + 0.5)` after range validation, Duty remains continuous, and Run is retained as a float but interpreted as a switch at `>=0.5` (`native/modules/clock/module.cpp:40-49,59-64`). When stopped the output is zero and phase does not advance (`native/modules/clock/module.cpp:59-65`). `process` uses private state, finite checks and a bounded sample loop; **no allocation, locks, I/O or process-wide mutable globals** (`native/modules/clock/module.cpp:16-25,51-66`). `DESIGN.md` explicitly says original DSP, **no external third-party DSP, no external pinned revision**, with inherited GPLv3 `LinearRamp` contract (`native/modules/clock/DESIGN.md:9-13`).
 
 ## function_envelope
 
