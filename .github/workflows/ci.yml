@@ -31,7 +31,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -48,7 +48,7 @@ jobs:
           cache: true
       - name: Fetch pinned PortAudio source
         if: runner.os == 'Windows'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: PortAudio/portaudio
           ref: 147dd722548358763a8b649b3e4b41dfffbcfbb6
@@ -160,7 +160,7 @@ jobs:
   #   runs-on: [self-hosted, linux, ARM64, pi5]
   #   timeout-minutes: 30
   #   steps:
-  #     - uses: actions/checkout@v4
+  #     - uses: actions/checkout@v7
   #     - run: python tools/dev.py build --headless
   #     - run: python tools/dev.py test
   sanitizers:
@@ -172,7 +172,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
