@@ -72,6 +72,15 @@ struct ParamProbe {
  void prepare(const ws::Setup&){}void reset(){}
  void process(ws::Block&b){b.out(0).set_channels(b.channels());b.out(0).mark_constant(b.param(0).constant());for(uint32_t c=0;c<b.channels();++c)for(uint32_t i=0;i<(b.param(0).constant()?1u:b.frames());++i)b.out(0).ch(c)[i]=b.param(0).value(c,i);}
 };
+template<uint32_t Taper>struct CachedTaperProbe:ParamProbe {
+ static constexpr std::array params{ws::param("value","Value",1,100,10,"",WS2_MODULATABLE,Taper)};
+};
+template<uint32_t Taper>static void cached_taper(){
+ Engine e;CHECK(e.add_node(1,ws::Module<Source>::descriptor()));CHECK(e.add_node(2,ws::Module<CachedTaperProbe<Taper>>::descriptor()));CHECK(e.modulate(1,0,2,0,.125f));CHECK(e.prepare());
+ float out[256]{};float*outputs[]={out};CHECK(e.render(outputs,1,256)==WS2_OK);
+ const auto&p=CachedTaperProbe<Taper>::params[0];float expected=static_cast<float>(ws::to_plain(p,ws::to_normal(p,p.initial)+.125f));
+ CHECK(e.output_sample(2,0,0,0)==expected);
+}
 struct LatencyProbe:Pass<WS2_POLY>{uint32_t latency_frames()const{return 7;}};
 static ws2_event event(uint32_t type,float value=1,uint32_t index=0){ws2_event e{};e.struct_size=sizeof(e);e.type=type;e.value=value;e.index=index;e.note_id=1;e.channel=0;e.key=60;e.source_id=1;return e;}
 static void render(Engine&e,uint32_t frames=256){std::array<float,4096>a{},b{};float*out[]={a.data(),b.data()};CHECK(e.render(out,2,frames)==WS2_OK);}
@@ -149,7 +158,7 @@ int main(){
  {std::thread warm([](){});warm.join();}
  _CrtMemState before{},after{},difference{};_CrtMemCheckpoint(&before);
 #endif
- signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
+ cached_taper<WS2_LINEAR>();cached_taper<WS2_LOG>();cached_taper<WS2_EXP>();signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
 #if defined(_MSC_VER)&&defined(_DEBUG)
  CHECK(_CrtCheckMemory());_CrtMemCheckpoint(&after);if(_CrtMemDifference(&difference,&before,&after)){
   std::fprintf(stderr,"Debug CRT normal blocks %zu -> %zu, bytes %zu -> %zu; client blocks %zu -> %zu\n",before.lCounts[_NORMAL_BLOCK],after.lCounts[_NORMAL_BLOCK],before.lSizes[_NORMAL_BLOCK],after.lSizes[_NORMAL_BLOCK],before.lCounts[_CLIENT_BLOCK],after.lCounts[_CLIENT_BLOCK]);return 1;

@@ -70,13 +70,28 @@ struct Parameter {
     ws2_param info{};ws::LinearRamp base;
     std::array<float,WS2_MAX_CHANNELS>offset{};
     bool requested=false;
-    explicit Parameter(ws2_param p):info(p),base(ws::to_normal(p,p.initial)){}
+    double log_min=0,log_ratio=0,exp_curve=0;
+    explicit Parameter(ws2_param p):info(p),base(ws::to_normal(p,p.initial)) {
+        if(p.taper==WS2_LOG){log_min=std::log(static_cast<double>(p.minimum));log_ratio=std::log(static_cast<double>(p.maximum)/p.minimum);}
+        if(p.taper==WS2_EXP)exp_curve=std::expm1(static_cast<double>(p.curve));
+    }
+    double plain(double x)const noexcept {
+        const auto&p=info;x=std::clamp(x,0.,1.);double y=x;
+        if(p.taper==WS2_LOG)y=std::exp(log_min+x*log_ratio);
+        if(p.taper==WS2_EXP&&std::abs(p.curve)>1.e-8)y=std::expm1(p.curve*x)/exp_curve;
+        double value=p.taper==WS2_LOG?y:p.minimum+(p.maximum-p.minimum)*y;
+        if(p.step>0)value=p.minimum+std::round((value-p.minimum)/p.step)*p.step;
+        return std::clamp(value,static_cast<double>(p.minimum),static_cast<double>(p.maximum));
+    }
 };
+struct Edge;
 struct Node {
     uint32_t id=0,index=0,component=0;const ws2_descriptor*d=nullptr;
     const ws_module_descriptor*legacy=nullptr;void*instance=nullptr;
     std::vector<ws2_port>inputs,outputs;
     std::vector<ws2_param>parameters;std::vector<std::string>legacy_ids;
+    std::vector<Edge*>incoming,signal_edges;
+    std::vector<std::vector<Edge*>>modulation,outgoing;
     std::vector<Parameter>state;std::vector<uint8_t>config,preserved;
     std::vector<Allocation>allocations;
     std::vector<Buffer>in,local_out,global_out,param;
@@ -110,12 +125,13 @@ struct Edge {
     Buffer delay;std::vector<uint32_t>delay_channels;uint32_t head=0;
 };
 struct Component {std::vector<Node*>nodes;bool loop=false;};
-struct Bus {uint32_t node,port,channel;};
+struct Bus {uint32_t node,port,channel;Node*source=nullptr;};
 }
 
 struct Engine::Impl {
     Config cfg;std::string error;
     std::vector<std::unique_ptr<Node>>nodes;std::vector<Edge>edges;std::vector<Component>components;
+    std::vector<std::pair<uint32_t,Node*>>node_table;
     std::vector<Bus>buses;std::array<std::unique_ptr<Producer>,32>producers;
     uint32_t producer_count=0,dropped_connections=0;
     std::unique_ptr<Producer>egress;
@@ -132,7 +148,10 @@ struct Engine::Impl {
     explicit Impl(Config c):cfg(c),anchor_ns(c.epoch_ns),frames_per_ns(c.sample_rate/1.e9) {
         nodes.reserve(cfg.max_nodes);future.reserve(cfg.future_capacity);
     }
-    Node*find(uint32_t id)const {for(auto&n:nodes)if(n->id==id)return n.get();return nullptr;}
+    Node*find(uint32_t id)const {
+        if(prepared){auto it=std::lower_bound(node_table.begin(),node_table.end(),id,[](const auto&entry,uint32_t key){return entry.first<key;});return it!=node_table.end()&&it->first==id?it->second:nullptr;}
+        for(auto&n:nodes)if(n->id==id)return n.get();return nullptr;
+    }
     bool fail(const char*s){error=s;return false;}
     uint64_t map_time(uint64_t ns)const noexcept {
         const bool before=ns<anchor_ns;const uint64_t delta=before?anchor_ns-ns:ns-anchor_ns;
@@ -229,6 +248,13 @@ bool Engine::Impl::topology() {
         if(e.kind==2){if(e.source->outputs[e.output].kind!=WS2_SIGNAL||!(e.destination->parameters[e.input].flags&WS2_MODULATABLE))return fail("Invalid modulation target");}
         else if(e.source->outputs[e.output].kind!=e.destination->inputs[e.input].kind)return fail("Signal/event kind mismatch");
     }
+    node_table.clear();
+    for(auto&n:nodes){node_table.emplace_back(n->id,n.get());n->incoming.assign(n->inputs.size(),nullptr);n->signal_edges.clear();n->modulation.assign(n->parameters.size(),{});n->outgoing.assign(n->outputs.size(),{});}
+    for(auto&e:edges)if(!e.removed){
+        if(e.kind==0)e.destination->incoming[e.input]=&e;
+        if(e.kind==2)e.destination->modulation[e.input].push_back(&e);
+        if(e.kind==1)e.source->outgoing[e.output].push_back(&e);else e.destination->signal_edges.push_back(&e);
+    }
     const uint32_t count=static_cast<uint32_t>(nodes.size());
     std::vector<int>index(count,-1),low(count),stack;std::vector<bool>on(count,false);int next=0;components.clear();
     std::function<void(uint32_t)>visit=[&](uint32_t v){
@@ -319,7 +345,7 @@ bool Engine::Impl::route(uint32_t port,const ws2_event&source) {
     if(release(source))++critical_used;else ++ordinary_used;++event_count;
     const uint64_t frame=block_start+processing_start+source.offset;
     bool routed=false,okay=true;
-    for(auto&e:edges)if(!e.removed&&e.kind==1&&e.source==processing&&e.output==port){
+    for(auto*edge:processing->outgoing[port]){auto&e=*edge;
         routed=true;const uint64_t destination_frame=frame+(e.back?cfg.feedback_block:0);
         if(destination_frame<block_start+block_frames)okay=admit(*e.destination,e.input,source,destination_frame,(UINT64_C(1)<<63)|sequence++)&&okay;
         else {
@@ -355,12 +381,11 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         return channel<buffer.channels?buffer.data[channel][(buffer.flags&WS2_CONSTANT)?0:start+i]:0.f;
     };
     uint32_t channels=n.forced_channels>0?static_cast<uint32_t>(n.forced_channels):1;
-    if(!n.legacy)for(const auto&e:edges)if(!e.removed&&e.destination==&n&&e.kind!=1&&
-        (e.kind==2||n.inputs[e.input].poly==WS2_POLY))channels=std::max(channels,raw_channels(e));
+    if(!n.legacy)for(const auto*edge:n.signal_edges){const auto&e=*edge;if(e.kind==2||n.inputs[e.input].poly==WS2_POLY)channels=std::max(channels,raw_channels(e));}
     channels=std::min(channels,cfg.max_channels);n.channels=channels;
     for(uint32_t j=0;j<n.inputs.size();++j){
         const auto&port=n.inputs[j];auto&buffer=n.in[j];const Edge*source=nullptr;
-        if(port.kind==WS2_SIGNAL)for(const auto&e:edges)if(!e.removed&&e.destination==&n&&e.input==j&&e.kind==0){source=&e;break;}
+        if(port.kind==WS2_SIGNAL)source=n.incoming[j];
         uint32_t source_channels=source?raw_channels(*source):0;
         bool connected=source_channels>0;
         bool constant=!connected||(!source->back&&(source->source->global_out[source->output].flags&WS2_CONSTANT));
@@ -380,7 +405,7 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
     if(!n.legacy)for(uint32_t j=0;j<n.parameters.size();++j){
         auto&p=n.state[j];auto&buffer=n.param[j];bool poly=false,constant=p.base.constant();
         for(uint32_t c=1;c<channels;++c)poly|=p.offset[c]!=p.offset[0];
-        for(const auto&e:edges)if(!e.removed&&e.kind==2&&e.destination==&n&&e.input==j){poly|=raw_channels(e)>1;constant&=!e.back&&(e.source->global_out[e.output].flags&WS2_CONSTANT);}
+        for(const auto*edge:n.modulation[j]){const auto&e=*edge;poly|=raw_channels(e)>1;constant&=!e.back&&(e.source->global_out[e.output].flags&WS2_CONSTANT);}
         for(const auto&e:n.events)if((e.type==WS2_PARAM||e.type==WS2_PARAM_MOD)&&e.index==j){constant=false;if(e.type==WS2_PARAM_MOD&&e.channel>=0)poly=true;}
         buffer.channels=poly?channels:1;buffer.flags=constant?WS2_CONSTANT:0;
         uint32_t cursor=0;const uint32_t length=constant?1:frames;
@@ -393,8 +418,8 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
             const double base=p.base.next();
             for(uint32_t c=0;c<buffer.channels;++c){
                 double effective=base+p.offset[c];
-                for(const auto&e:edges)if(!e.removed&&e.kind==2&&e.destination==&n&&e.input==j)effective+=e.amount*value(e,c,i);
-                buffer.data[c][i]=static_cast<float>(ws::to_plain(p.info,effective));
+                for(const auto*edge:n.modulation[j])effective+=edge->amount*value(*edge,c,i);
+                buffer.data[c][i]=static_cast<float>(p.plain(effective));
                 if(i&&buffer.data[c][i]!=buffer.data[c][0])actually_constant=false;
             }
         }
@@ -491,7 +516,7 @@ bool Engine::prepare(){
     p.setup_bytes=0;
     for(auto&n:p.nodes)if(!p.setup(*n))return false;
     if(!p.topology())return false;
-    for(auto&bus:p.buses){auto*n=p.find(bus.node);if(!n||bus.port>=n->outputs.size())return p.fail("Output no longer exists");}
+    for(auto&bus:p.buses){auto*n=p.find(bus.node);if(!n||bus.port>=n->outputs.size())return p.fail("Output no longer exists");bus.source=n;}
     p.arena.resize(p.cfg.message_arena_bytes);p.egress=std::make_unique<Producer>(p.cfg.ring_capacity);
     p.prepared=true;p.applied.store(p.generation.load());return true;
 }
@@ -570,7 +595,7 @@ int Engine::render(float*const*outputs,uint32_t output_channels,uint32_t frames,
     }
     for(uint32_t c=0;c<output_channels;++c)std::fill_n(outputs[c],frames,0.f);
     bool bus_written[32]{};
-    for(auto&bus:p.buses)if(bus.channel<output_channels){auto*n=p.find(bus.node);const auto&buffer=n->global_out[bus.port];
+    for(auto&bus:p.buses)if(bus.channel<output_channels){const auto&buffer=bus.source->global_out[bus.port];
         for(uint32_t c=0;c<buffer.channels;++c){
             for(uint32_t i=0;i<frames;++i){const float sample=buffer.data[c][(buffer.flags&WS2_CONSTANT)?0:i];
                 if(!bus_written[bus.channel])outputs[bus.channel][i]=sample;else outputs[bus.channel][i]+=sample;}
