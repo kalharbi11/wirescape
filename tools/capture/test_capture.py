@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Synthetic and offline engine self-tests. Never launches a capture executable."""
 import argparse
+import array
+import contextlib
+import io
+import tempfile
+from unittest.mock import patch
+import run
 import json
 from pathlib import Path
 import unittest
@@ -98,6 +104,87 @@ class EngineTests(unittest.TestCase):
         b, _ = render(ARGS.engine, ARGS.modules, patch, seconds=0.2)
         self.assertEqual(a, b)
         self.assertGreater(max(map(abs, a)), 1e-5)
+
+
+class RunnerTests(unittest.TestCase):
+    def test_confirmation_gate_precedes_rendering_and_process_creation(self):
+        with patch.object(run, 'render') as render_mock, patch.object(run, 'run_native') as native_mock:
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as caught:
+                run.main([])
+            self.assertEqual(caught.exception.code, 2)
+            render_mock.assert_not_called()
+            native_mock.assert_not_called()
+
+    def simulate(self, mutate=lambda meta, data: (meta, data), code=0):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            helper = root / 'fake-helper.exe'
+            helper.write_bytes(b'not executable; mocked throughout')
+            def fake_native(executable, directory):
+                data = (directory / 'reference.f32').read_bytes()
+                data = b'\0' * (960 * 8) + data + b'\0' * (960 * 8)
+                meta = dict(status='captured', message='', isolation='process_tree', target_pid=42,
+                            endpoint_id='synthetic only', stopped_cleanly=True, rate=48000, channels=2,
+                            frames=len(data) // 8, transport_counters=dict(discontinuities=0,
+                            timestamp_errors=0, position_gaps=0, render_starvations=0))
+                meta, data = mutate(meta, data)
+                (directory / 'capture.f32').write_bytes(data)
+                (directory / 'native.json').write_text(json.dumps(meta))
+                return 42, code
+            with patch.object(run, 'ROOT', root), patch.object(run, 'is_windows', return_value=True), \
+                 patch.object(run, 'run_native', side_effect=fake_native), \
+                 patch.object(run.subprocess, 'check_output', return_value='synthetic-commit\n'):
+                result = run.main(['--confirm-audio', '--stimulus', 'tone', '--seconds', '.1', '--native', str(helper)])
+            directory = next((root / 'build_reports/capture').iterdir())
+            report = json.loads((directory / 'report.json').read_text())
+            self.assertTrue((directory / 'report.md').is_file())
+            self.assertEqual((directory / 'reference.wav').read_bytes()[:4], b'RIFF')
+            self.assertIn('reference.f32', report['files_sha256'])
+            return result, report
+
+    def test_synthetic_runner_produces_report_and_channel_mapping(self):
+        result, report = self.simulate()
+        self.assertEqual(result, 0, report)
+        self.assertEqual(report['status'], 'pass')
+        self.assertEqual(len(report['channel_map']), 2)
+        self.assertFalse(report['application_faults'])
+        self.assertIsNone(report['capture_failure'])
+
+    def test_transport_fault_is_separate_from_signal(self):
+        def fault(meta, data):
+            meta['transport_counters']['discontinuities'] = 1
+            return meta, data
+        result, report = self.simulate(fault)
+        self.assertEqual(result, 1)
+        self.assertEqual(report['status'], 'transport_failure')
+        self.assertTrue(all(r['status'] == 'pass' for r in report['signal_analysis']))
+
+    def test_ambiguous_isolation_never_passes(self):
+        def fault(meta, data):
+            meta['isolation'] = 'endpoint_mix'
+            return meta, data
+        result, report = self.simulate(fault)
+        self.assertEqual(report['status'], 'ambiguous')
+        self.assertNotEqual(result, 0)
+
+    def test_unavailable_is_a_distinct_result(self):
+        def fault(meta, data):
+            meta.update(status='unavailable', message='synthetic unsupported backend')
+            return meta, data
+        result, report = self.simulate(fault, code=3)
+        self.assertEqual((result, report['status']), (3, 'unavailable'))
+
+    def test_corrupt_capture_is_not_a_signal_mismatch(self):
+        result, report = self.simulate(lambda meta, data: (meta, data[:-1]))
+        self.assertEqual((result, report['status']), (1, 'capture_failure'))
+
+    def test_swapped_channels_are_detected_by_pilots(self):
+        def fault(meta, data):
+            values = array.array('f'); values.frombytes(data)
+            left = values[::2]; values[::2] = values[1::2]; values[1::2] = left
+            return meta, values.tobytes()
+        result, report = self.simulate(fault)
+        self.assertEqual((result, report['status']), (1, 'signal_mismatch'))
 
 
 if __name__ == '__main__':
