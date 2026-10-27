@@ -23,6 +23,7 @@ struct Meter {
     uint32_t arena_used=0,feedback_edges=0,latency_frames=0;
     size_t setup_bytes=0;
 };
+struct FeedbackLoop {std::vector<uint32_t>nodes;uint32_t delay_frames=0;};
 struct Outgoing {
     uint32_t node=0,port=0;uint64_t frame=0,time_ns=0,generation=0;
     ws2_event event{};uint8_t payload[WS2_MAX_PAYLOAD]{};
@@ -62,6 +63,8 @@ public:
     bool output_constant(uint32_t node,uint32_t port)const;
     float output_sample(uint32_t node,uint32_t port,uint32_t channel,uint32_t frame)const;
     uint32_t feedback_edges()const;
+    uint32_t latency_frames(uint32_t bus_channel)const;
+    std::vector<FeedbackLoop> feedback_loops()const;
     std::vector<uint8_t>save_state(uint32_t node);
     int load_state(uint32_t node,const std::vector<uint8_t>&bytes);
     const std::vector<uint8_t>&preserved_state(uint32_t node)const;
