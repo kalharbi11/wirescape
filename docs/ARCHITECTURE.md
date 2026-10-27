@@ -125,3 +125,6 @@ under its MIT licence (`LICENSE.txt` upstream); `WIRESCAPE_PORTAUDIO` locates th
 Summary JSON and ARM64 benchmark numbers are artifacts; full logs upload on failure.
 `guard` enforces protected paths, test retention, private/binary exclusions and portable paths.
 Protected CI changes require `allow-protected`; test removal requires `allow-test-removal`.
+
+ABI2 non-loop components write directly to global output buffers and alias compatible signal inputs; reductions, delays and loop spans retain prepared scratch buffers.
+The `sanitizers` job runs headless ASan+UBSan and TSan ABI2 suites on Linux ARM64, including bounded panic/egress stress, and appends callgrind Ir/block measurements to its summary.
