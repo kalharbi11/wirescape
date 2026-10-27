@@ -49,6 +49,14 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(result['status'], 'pass', result)
         self.assertTrue(result['metrics']['resampled'])
 
+    def test_audio_outside_reference_is_detected(self):
+        result = analyse(self.reference, self.reference + [0.02] * 4800)
+        self.assertIn('unexpected_audio', result['failures'])
+
+    def test_shifted_envelope_edges_are_detected(self):
+        x = self.reference[:1280] + [0.0] * 2000 + self.reference[1280:]
+        self.assertIn('timing', analyse(self.reference, x)['failures'])
+
     def test_bounds_and_nonfinite(self):
         for x in ([], [float('nan')] * 2000):
             with self.assertRaises(ValueError):

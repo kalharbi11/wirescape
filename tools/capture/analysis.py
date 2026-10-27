@@ -66,6 +66,7 @@ def analyse(reference, capture, capture_rate=RATE, rate=RATE):
         raise ValueError('non-finite samples')
     capture = resample(capture, capture_rate, rate)
     lag, confidence = align(reference, capture, rate)
+    outside = capture[:lag] + capture[lag + len(reference):]
     x = capture[lag:lag + len(reference)]
     complete = len(x) == len(reference)
     x += [0.0] * (len(reference) - len(x))
@@ -93,13 +94,13 @@ def analyse(reference, capture, capture_rate=RATE, rate=RATE):
         if ref > 1e-5:
             response[str(hz)] = 20 * math.log10(max(1e-12, got / max(abs(gain) * ref, 1e-30)))
     metrics = dict(rms=rms(x), peak=max(map(abs, capture), default=0), dc=sum(x) / len(x),
-                   gain=gain, relative_error=relative, correlation=confidence,
+                   outside_rms=rms(outside), gain=gain, relative_error=relative, correlation=confidence,
                    latency_ms=lag * 1000 / rate, dropout_windows=dropouts,
                    discontinuities=sum(abs(error[i] - error[i - 1]) > 0.03 for i in range(1, len(error))),
                    envelope_clock_edge_count=len(b), expected_edge_count=len(a), timing_error_ms=timing,
                    response_db=response, complete=complete, resampled=capture_rate != rate)
     failures = []
-    tests = {'silence': metrics['rms'] >= 1e-5, 'clipping': metrics['peak'] < 0.999,
+    tests = {'unexpected_audio': rms(outside) < 0.001, 'silence': metrics['rms'] >= 1e-5, 'clipping': metrics['peak'] < 0.999,
              'mismatch': confidence >= 0.95 and relative <= 0.15 and 0.5 <= gain <= 1.5,
              'dropout': dropouts == 0 and complete, 'discontinuity': metrics['discontinuities'] == 0,
              'timing': len(a) == len(b) and timing <= 20,
