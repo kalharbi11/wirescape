@@ -96,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build_reports/foundation
-          python -m unittest discover -s tools/foundation/tests -v 2>&1 | tee build_reports/foundation/python-tests.log
+          python -m unittest discover -s tools/foundation/tests -v -b 2>&1 | tee build_reports/foundation/python-tests.log
           if [[ '${{ matrix.os }}' == linux-arm64 ]]; then
             python tools/dev.py build --headless
           else
