@@ -79,7 +79,7 @@ jobs:
             "WIRESCAPE_QT_DIR=$env:QT_ROOT_DIR" >> $env:GITHUB_ENV
             $generator = python -c "import sys; sys.path.insert(0, 'tools'); from foundation.helpers import discover_toolchain; print(discover_toolchain()['generator'])"
             if ($LASTEXITCODE -or !$generator.StartsWith('Visual Studio')) { throw 'MSVC generator not found' }
-            cmake -S .tools/portaudio-src -B .tools/portaudio-build -G "$generator" -A x64 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DPA_BUILD_SHARED=ON -DPA_BUILD_STATIC=OFF -DPA_BUILD_TESTS=OFF -DPA_BUILD_EXAMPLES=OFF -DPA_USE_ASIO=OFF 2>&1 | Tee-Object -FilePath build_reports/foundation/portaudio-configure.log
+            cmake -S .tools/portaudio-src -B .tools/portaudio-build -G "$generator" -A x64 "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" -DPA_BUILD_SHARED=ON -DPA_BUILD_STATIC=OFF -DPA_BUILD_TESTS=OFF -DPA_BUILD_EXAMPLES=OFF -DPA_USE_ASIO=OFF 2>&1 | Tee-Object -FilePath build_reports/foundation/portaudio-configure.log
             if ($LASTEXITCODE) { throw "Native command failed: $LASTEXITCODE" }
             cmake --build .tools/portaudio-build --config Release --parallel 2 2>&1 | Tee-Object -FilePath build_reports/foundation/portaudio-build.log
             if ($LASTEXITCODE) { throw "Native command failed: $LASTEXITCODE" }
