@@ -40,7 +40,7 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
 - **M0 Migration** to `github.com/kalharbi11/wirescape`
   - [x] M0-1 Local cleanup and clean tree (`docs/tasks/M0-1_LOCAL_CLEANUP.md`, Codex, local)
   - [x] M0-2 First push, labels, milestones and issues (`docs/tasks/M0-2_GITHUB_PUSH.md`, Copilot, local)
-  - [ ] M0-3 CI and repo hygiene (`docs/tasks/M0-3_CI_SETUP.md`, issue #1, PR #4). Reviewed 2026-10-27: safe to merge; then set branch protection (checks `linux-arm64`, `guard`, `windows-x64`; no approvals)
+  - [x] M0-3 CI and repo hygiene (`docs/tasks/M0-3_CI_SETUP.md`, issue #1, PR #4). Merged 2026-10-27
   - [ ] M0-4 Guard hardening and CI trigger cleanup (`docs/tasks/M0-4_GUARD_HARDENING.md`, issue #5, size/s). Findings from the PR #4 review: the guard must run the base branch's rules, use merge-base diffs and protect `tools/ci/`. **Merge before M1-3 touches `ci.yml`**
 - **M1 ABI 2 foundation**: contract, SDK, engine2, voice allocator, 5 modules ported. **Stops for review.**
   - [x] M1-1 Foundation slice: built before the migration. Review package: `docs/reviews/M1_FOUNDATION_SLICE_REVIEW.md`. Functional tests A–M pass offline. **Known gate:** mono throughput is about 1.89× ABI 1 (target ≤ 1.05×). ARM64 is unverified until CI.
@@ -60,10 +60,12 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
 - **M8 Portability proofs** (B6): CLAP adapter (VST3 via clap-wrapper), Daisy static build, export bundle spec. Future: Python and Faust script modules, Serial, DMX (Art-Net/sACN).
 
 ## Current milestone: M0 → M1
-1. The user merges PR #4 (M0-3), sets branch protection and merges the planner's docs PR (this plan, the M1-R review and the M0-4/M1-3 task files).
-2. M0-4 guard hardening (small; its own PR merges with a one-time admin bypass, because `pull_request_target` can't run a guard that `main` doesn't have yet).
-3. M1-3 slice fixes (Codex). Part A (performance) may start right after step 1; the `ci.yml` sanitizer job waits for M0-4. M1-2 continues in parallel.
-4. Claude reviews M1-3 against the go/no-go conditions in `docs/reviews/M1-R_PLANNER_REVIEW.md`, then drafts the M2 issues. Nothing else is ported, and no Track C work starts, until then.
+Updated 2026-10-27. PR #4 and the planner docs PR #7 are merged.
+1. M0-4 guard hardening (#5, PR #12, Copilot). Reviewed: it needs one small fix round, then the guard proof on a temporary base branch. It merges with a one-time admin bypass, because `pull_request_target` can't run a guard that `main` doesn't have yet. After that, the Dependabot action bumps (#8–#11) merge one at a time with `allow-protected`.
+2. M1-2 capture harness (#3, PR #13, Codex): Stages 1–2. The user runs the `--confirm-audio` capture once, after review.
+3. M1-3 slice fixes (#6, Codex): Part A, then Part B, then C. The `ci.yml` sanitizer job waits for M0-4. Codex posts a checkpoint handoff after Part A, for an early review.
+4. Side tasks that don't touch Codex's files: M0-5 docs link checker (#14, Copilot), M0-6 SPDX rule in the guard (#15, Copilot, after #12 merges), M2-prep module inventory (#16, ChatGPT, read-only).
+5. Claude reviews M1-3 against the go/no-go conditions in `docs/reviews/M1-R_PLANNER_REVIEW.md`, then drafts the M2 issues from the #16 inventory. Nothing else is ported, and no Track C work starts, until then.
 
 ## How work flows
 - **The board is GitHub Issues** (labels and milestones in `AGENTS.md`). Each issue points to a `docs/tasks/` file.
