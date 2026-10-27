@@ -14,6 +14,17 @@ from foundation.helpers import run_logged, source_provenance
 
 
 class ReportingTests(unittest.TestCase):
+    def test_doctor_missing_native_project_is_failure(self):
+        with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as folder:
+            root = Path(folder)
+            toolchain = {"cmake": "cmake", "generator": "Ninja", "architecture": "x64",
+                         "ninja": "ninja", "make": None, "visual_studio": None}
+            with patch.object(dev, "ROOT", root), \
+                 patch.object(dev, "_base_record", return_value={"action": "doctor"}), \
+                 patch.object(dev, "discover_toolchain", return_value=toolchain), \
+                 patch.object(dev, "_save_record", return_value=root / "doctor.json"):
+                self.assertEqual(dev.command_doctor(argparse.Namespace(json=True)), 1)
+
     def test_native_suite_failure_is_nonzero_and_prints_suite(self):
         with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as folder:
             root = Path(folder)

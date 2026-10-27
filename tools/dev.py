@@ -167,7 +167,7 @@ def command_doctor(args: argparse.Namespace) -> int:
     record["summary"] = "; ".join(issues) if issues else f"CMake and {discovered['generator']} are available"
     report = _save_record(record)
     _print_record(record, report, args.json)
-    return 0 if not issues[:2] else 1
+    return 0 if not issues else 1
 
 
 def _cmake_and_generator() -> tuple[str | None, str | None, str | None]:
