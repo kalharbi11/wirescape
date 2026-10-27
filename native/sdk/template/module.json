@@ -1,0 +1,1 @@
+{"schema_version":2,"abi_version":2,"id":"example.gain2","name":"Example Gain","library":"ws2_sdk_template","parameters":{"gain":0},"inputs":{"audio":"signal"},"outputs":{"audio":"signal"}}

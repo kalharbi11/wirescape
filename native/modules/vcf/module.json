@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "essentials.vcf",
+  "name": "VCF",
+  "abi_version": 1,
+  "library": "ws_vcf",
+  "description": "Two-output four-pole TPT low pass filter",
+  "parameters": {
+    "cutoff": 0,
+    "resonance": 1
+  },
+  "inputs": {
+    "audio": "audio"
+  },
+  "outputs": {
+    "low12": "audio",
+    "low24": "audio"
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "delivery": "One source-only submissions/<folder> module with tests and documented behavior; unchanged ABI/host; no GUI/devices.",
+  "rates_hz": [
+    44100,
+    48000,
+    96000
+  ],
+  "partitions": [
+    1,
+    17,
+    64,
+    128,
+    512
+  ],
+  "review": "Local host/Windows integration and review required even after kit tests pass.",
+  "folder": "function_envelope",
+  "id": "essentials.function_envelope",
+  "library": "ws_function_envelope",
+  "name": "Function Envelope",
+  "status": "READY",
+  "parameters": [
+    {
+      "id": 0,
+      "name": "Rise",
+      "minimum": 0.0001,
+      "maximum": 30,
+      "initial": 0.01,
+      "unit": "s"
+    },
+    {
+      "id": 1,
+      "name": "Fall",
+      "minimum": 0.0001,
+      "maximum": 30,
+      "initial": 0.1,
+      "unit": "s"
+    },
+    {
+      "id": 2,
+      "name": "Curve",
+      "minimum": -1,
+      "maximum": 1,
+      "initial": 0,
+      "unit": ""
+    }
+  ],
+  "inputs": {
+    "gate": "control"
+  },
+  "outputs": {
+    "envelope": "control"
+  },
+  "behavior": [
+    "Original gated AR: unpatched gate0; >=.5 means high. On rising edge rise from current level to1; hold1 while high; on falling edge fall from current level to0; hold0 while low.",
+    "Repeated high does not retrigger. Edges during rise/fall start the corresponding segment continuously from current level. Reset level0/gate low; retain parameter targets.",
+    "Latch segment duration N=max(1,llround(seconds*sampleRate)) and Curve at each edge. Output next endpoint fraction u=elapsed/N, clamp exact endpoint at N.",
+    "Shape F(u)=expm1(k*u)/expm1(k), k=4*Curve; at Curve0 use F(u)=u. Output=start+(end-start)*F(u). Negative Curve is fast-start/log-like; positive slow-start/exp-like.",
+    "No extra smoothing across gate edges; curves and times are latched for a segment, no cycle/trigger/extra Maths channels in v1."
+  ],
+  "acceptance": [
+    "Analytic midpoint/endpoints at Curve -1/0/+1; continuous retrigger from nonzero level.",
+    "Held-high hold1; released gate reaches0 after exact Fall samples; early release during Rise.",
+    "All rates/partitions, reset/unpatched behavior; no claim of exact MATHS analog behavior."
+  ]
+}

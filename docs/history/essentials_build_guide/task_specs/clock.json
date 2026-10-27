@@ -1,0 +1,73 @@
+{
+  "delivery": "One source-only submissions/<folder> module with tests and documented behavior; unchanged ABI/host; no GUI/devices.",
+  "rates_hz": [
+    44100,
+    48000,
+    96000
+  ],
+  "partitions": [
+    1,
+    17,
+    64,
+    128,
+    512
+  ],
+  "review": "Local host/Windows integration and review required even after kit tests pass.",
+  "folder": "clock",
+  "id": "essentials.clock",
+  "library": "ws_clock",
+  "name": "Clock",
+  "status": "READY",
+  "parameters": [
+    {
+      "id": 0,
+      "name": "BPM",
+      "minimum": 20,
+      "maximum": 300,
+      "initial": 120,
+      "unit": "BPM"
+    },
+    {
+      "id": 1,
+      "name": "Ticks per beat",
+      "minimum": 1,
+      "maximum": 24,
+      "initial": 1,
+      "unit": ""
+    },
+    {
+      "id": 2,
+      "name": "Duty",
+      "minimum": 0.01,
+      "maximum": 0.99,
+      "initial": 0.5,
+      "unit": ""
+    },
+    {
+      "id": 3,
+      "name": "Run",
+      "minimum": 0,
+      "maximum": 1,
+      "initial": 1,
+      "unit": ""
+    }
+  ],
+  "inputs": {
+    "reset": "control"
+  },
+  "outputs": {
+    "clock": "control"
+  },
+  "behavior": [
+    "CONTROL pulse oscillator, not host transport or MIDI/event clock. Frequency=BPM/60*integerTicksPerBeat.",
+    "Round Ticks per beat to nearest integer (ties upward), latch live selector per event; Run>=.5 starts, otherwise exact output0 and freeze phase. Do not smooth discrete selectors or reset edges.",
+    "Initial/reset phase0; reset input rising edge >=.5 sets phase0, held reset does not retrigger. Reset preserves knob targets and clears reset-edge memory.",
+    "At phase0 running output1, while phase<Duty output1 else0; advance phase after output each sample with bounded wrap. BPM uses shared5ms ramp; Duty immediate threshold.",
+    "Host graph reset phase0, no wall clock and no global tempo singleton; pulse width/sample quantization documented."
+  ],
+  "acceptance": [
+    "120BPM, one tick and duty.5: 2Hz pulse sequence and exact edge counts at 48k.",
+    "Several ticks/rates, held/reset edge, run-stop phase freeze, parameter changes at exact sample positions.",
+    "Uneven partition equivalence; output exactly0 or1; finite and bounded pending state."
+  ]
+}

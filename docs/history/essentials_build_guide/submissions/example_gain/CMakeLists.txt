@@ -1,0 +1,1 @@
+wirescape_add_module(ws_example_gain)

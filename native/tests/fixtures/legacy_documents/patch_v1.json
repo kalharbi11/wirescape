@@ -1,0 +1,16 @@
+{
+  "format": "wirescape.patch",
+  "version": 1,
+  "theme": "studio",
+  "motion": true,
+  "modules": [
+    {"id": "mod-1", "type": "modulator", "x": 120, "y": 80, "values": {"RATE": 60, "DEPTH": 100}, "mode": 0},
+    {"id": "chaos-1", "type": "chaos", "x": 420, "y": 80, "values": {"MORPH": 50, "CHAOS": 30}, "mode": 0},
+    {"id": "io-1", "type": "interface", "x": 760, "y": 80, "values": {"OUTPUT LEVEL": 71}, "mode": 0}
+  ],
+  "connections": [
+    {"from": "mod-1:modA", "to": "chaos-1:chaos"},
+    {"from": "chaos-1:left", "to": "io-1:inL"},
+    {"from": "chaos-1:right", "to": "io-1:inR"}
+  ]
+}

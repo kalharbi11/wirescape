@@ -1,0 +1,24 @@
+{
+  "format": "wirescape.chaos.preset",
+  "version": 1,
+  "advanced": {},
+  "raw": {},
+  "name": "Cracked Choir",
+  "mode": 0,
+  "values": {
+    "MORPH": 58,
+    "CHAOS": 20,
+    "FOLD": 16,
+    "CUTOFF": 67,
+    "DETUNE": 28,
+    "CLUSTER": 25,
+    "DRIFT": 27,
+    "BODY": 33,
+    "FEEDBACK": 25,
+    "SPACE": 44,
+    "B_ATTACK": 66,
+    "B_RELEASE": 76,
+    "A_ATTACK": 24,
+    "A_RELEASE": 66
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "essentials.noise",
+  "name": "Noise",
+  "abi_version": 1,
+  "library": "ws_noise",
+  "description": "Fixed-seed white noise",
+  "parameters": {
+    "level": 0
+  },
+  "inputs": {},
+  "outputs": {
+    "audio": "audio"
+  }
+}

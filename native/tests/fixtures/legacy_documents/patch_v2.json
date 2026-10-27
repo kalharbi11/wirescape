@@ -1,0 +1,17 @@
+{
+  "format": "wirescape.patch",
+  "version": 2,
+  "theme": "studio",
+  "motion": true,
+  "modules": [
+    {"id": "seq-1", "type": "sequencer", "x": 80, "y": 100, "values": {"RUN": 100, "BPM": 50}, "sequence": {"steps": [{"enabled": true, "root": 48, "quality": "minor"}]}},
+    {"id": "chaos-1", "type": "chaos", "x": 400, "y": 100},
+    {"id": "io-1", "type": "interface", "x": 740, "y": 100}
+  ],
+  "connections": [
+    {"from": "seq-1:notes", "to": "chaos-1:notes"},
+    {"from": "seq-1:mod", "to": "chaos-1:cutoff"},
+    {"from": "chaos-1:left", "to": "io-1:inL"},
+    {"from": "chaos-1:right", "to": "io-1:inR"}
+  ]
+}

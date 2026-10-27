@@ -1,0 +1,58 @@
+{
+  "delivery": "One source-only submissions/<folder> module with tests and documented behavior; unchanged ABI/host; no GUI/devices.",
+  "rates_hz": [
+    44100,
+    48000,
+    96000
+  ],
+  "partitions": [
+    1,
+    17,
+    64,
+    128,
+    512
+  ],
+  "review": "Local host/Windows integration and review required even after kit tests pass.",
+  "folder": "vcf",
+  "id": "essentials.vcf",
+  "library": "ws_vcf",
+  "name": "VCF",
+  "status": "READY_ADVANCED_REVIEW",
+  "parameters": [
+    {
+      "id": 0,
+      "name": "Cutoff",
+      "minimum": 20,
+      "maximum": 20000,
+      "initial": 1000,
+      "unit": "Hz"
+    },
+    {
+      "id": 1,
+      "name": "Resonance",
+      "minimum": 0,
+      "maximum": 0.95,
+      "initial": 0,
+      "unit": ""
+    }
+  ],
+  "inputs": {
+    "audio": "audio"
+  },
+  "outputs": {
+    "low12": "audio",
+    "low24": "audio"
+  },
+  "behavior": [
+    "Low-pass filter with separate 12dB/oct and24dB/oct output buffers to avoid inventing enum UI/mode-switch semantics.",
+    "Unpatched audio0; internal cutoff bounded to min(descriptor target,.45*sampleRate). Use shared5ms cutoff/resonance ramps, prepared coefficients/state and stable bounded algorithm.",
+    "Document exact resonance mapping and algorithm; do not claim Butterworth/analog equivalence without correct design and independent evidence.",
+    "Outputs raw; no hidden host output gain or arbitrary clipping to hide instability. Reset state to0 and snap parameter targets.",
+    "Include DESIGN.md source/derivation, response expectations and any resonance/input limits; advanced review before integration."
+  ],
+  "acceptance": [
+    "DC/unity low-frequency gain at zero resonance after settling, impulse decay and expected far-from-cutoff 12/24 stopband slopes with justified tolerances.",
+    "Finite output at cutoff/resonance endpoints and alternating/ramped modulation for 44.1/48/96k; quiet tail/denormal handling.",
+    "Independent instances, state/reset, guards, variable spans; actual DLL two-output descriptor discovery."
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "api_version": 1,
+  "id": "sequencer",
+  "name": "CHORD / SEQUENCER",
+  "version": "0.1.0",
+  "description": "Polyphonic 16-step chord events and bipolar modulation",
+  "entry": "plugin:register",
+  "assets": [
+    "editor.js",
+    "editor.css"
+  ]
+}

@@ -1,0 +1,5 @@
+> Legacy Python/browser kit for the preserved old build. For the current standalone Wirescape Essentials, use [the updated kit](../essentials_build_guide/README.md). Do not use this legacy API for new Essentials modules.
+
+# Wirescape Agent Handoff — concise contract
+
+Build a single module **folder**, never an integrated Wirescape distribution. Read `START_HERE.md` first and follow `PLUGIN_API_V1.md`, `MANIFEST_AND_UI.md`, `STYLE_GUIDE.md` and `RELEASE_CHECKLIST.md`. The module goes in `modules/<id>/`, has a valid `module.json`, defines `plugin.py:register()`, provides `engine.py` or other local code, and optionally provides `editor.js`/`editor.css` for custom controls. Wirescape 0.5+ automatically discovers it via **MODULES ↻ → SCAN** and loads it after explicit **ENABLE**. No central file edits. If the requested feature exceeds v1 (visual processing, sample-accurate MIDI, async processing), document a `HOST_CHANGE_REQUEST.md` instead of faking functionality. Deliver a ZIP rooted in `modules/<id>/`, tests, known limitations, dependencies and platform notes. Never distribute proprietary font files or precompiled Windows-only Surge binaries.

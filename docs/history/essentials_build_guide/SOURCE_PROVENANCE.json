@@ -1,0 +1,52 @@
+{
+  "snapshot_commit": "d24afb5e0b6facff2d6cbc9c013098043260a22f",
+  "working_tree_dirty": true,
+  "experimental_abi": 1,
+  "sources": {
+    "include/wirescape/module.h": {
+      "source": "native/include/wirescape/module.h",
+      "sha256": "e57b98c2bc8019311164ffb5f18134476923c779132cc53c2f613e7a34b3cde9"
+    },
+    "include/wirescape/engine.h": {
+      "source": "native/include/wirescape/engine.h",
+      "sha256": "7af360ab8a7ad38086ecda87fc42b2faf84e49a007701c6a4a6cb5791d331274"
+    },
+    "include/wirescape/linear_ramp.h": {
+      "source": "native/include/wirescape/linear_ramp.h",
+      "sha256": "578ed06d5e7f1a837414b71a54627286beedf3db3e888c0c921c55e98abbd2e2"
+    },
+    "host/engine.cpp": {
+      "source": "native/src/engine.cpp",
+      "sha256": "59909b7373fa2d53dd152817a11b4f0a57164304d9fb3f0f7da9fb4f08eacb5c"
+    },
+    "LICENSE": {
+      "source": "LICENSE",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    "reference/scale_offset/module.cpp": {
+      "source": "native/modules/scale_offset/module.cpp",
+      "sha256": "8e374a51753d99bda8d04a8dde89506932cdd24bedac7281c1b8e1ad05628935"
+    },
+    "reference/scale_offset/module.json": {
+      "source": "native/modules/scale_offset/module.json",
+      "sha256": "788c6856e769f6c2a930691c32ac4de72d20ee7c7890d8dda35f512ae11bbbed"
+    },
+    "reference/scale_offset/CMakeLists.txt": {
+      "source": "native/modules/scale_offset/CMakeLists.txt",
+      "sha256": "e2834c66baad672b1fd2aa4dfa9b386ee599ec7ada83eefc761e5b65dad28ae7"
+    },
+    "reference/lfo/module.cpp": {
+      "source": "native/modules/lfo/module.cpp",
+      "sha256": "4d72ea6ca68da559554353493e2213b07e7d01539c46d66b85bddb3909c5f58e"
+    },
+    "reference/lfo/module.json": {
+      "source": "native/modules/lfo/module.json",
+      "sha256": "c0aea7144bf786d63626d2b5399b1b2eb579865c4b7ea53640a4bc355b4c65f9"
+    },
+    "reference/lfo/CMakeLists.txt": {
+      "source": "native/modules/lfo/CMakeLists.txt",
+      "sha256": "3103290855ca86c715bde50e7911c9a2cefe0175ac83baf24bafccdba3b98681"
+    }
+  },
+  "scope": "source snapshot, not a stable SDK or hardware verification"
+}

@@ -1,0 +1,138 @@
+{
+  "format": "wirescape.native.patch",
+  "version": 1,
+  "name": "Six Essentials demo",
+  "outputNode": 8,
+  "modules": [
+    {
+      "id": 1,
+      "type": "essentials.noise",
+      "x": 40,
+      "y": 80,
+      "values": {
+        "0": 0.2
+      }
+    },
+    {
+      "id": 2,
+      "type": "essentials.clock",
+      "x": 40,
+      "y": 330,
+      "values": {
+        "0": 137,
+        "1": 1,
+        "2": 0.5,
+        "3": 1
+      }
+    },
+    {
+      "id": 3,
+      "type": "essentials.function_envelope",
+      "x": 350,
+      "y": 330,
+      "values": {
+        "0": 0.01,
+        "1": 0.1,
+        "2": 0
+      }
+    },
+    {
+      "id": 4,
+      "type": "essentials.slew",
+      "x": 660,
+      "y": 330,
+      "values": {
+        "0": 0.02,
+        "1": 0.02
+      }
+    },
+    {
+      "id": 5,
+      "type": "essentials.vcf",
+      "x": 350,
+      "y": 80,
+      "values": {
+        "0": 1800,
+        "1": 0.2
+      }
+    },
+    {
+      "id": 6,
+      "type": "essentials.ladder",
+      "x": 660,
+      "y": 80,
+      "values": {
+        "0": 3500,
+        "1": 0.2,
+        "2": 0.5
+      }
+    },
+    {
+      "id": 7,
+      "type": "essentials.vca",
+      "x": 970,
+      "y": 180,
+      "values": {
+        "0": 1
+      }
+    },
+    {
+      "id": 8,
+      "type": "essentials.output",
+      "x": 1280,
+      "y": 180,
+      "values": {}
+    }
+  ],
+  "connections": [
+    {
+      "fromNode": 1,
+      "fromPort": "audio",
+      "toNode": 5,
+      "toPort": "audio",
+      "kind": "audio"
+    },
+    {
+      "fromNode": 5,
+      "fromPort": "low24",
+      "toNode": 6,
+      "toPort": "audio",
+      "kind": "audio"
+    },
+    {
+      "fromNode": 6,
+      "fromPort": "audio",
+      "toNode": 7,
+      "toPort": "audio",
+      "kind": "audio"
+    },
+    {
+      "fromNode": 2,
+      "fromPort": "clock",
+      "toNode": 3,
+      "toPort": "gate",
+      "kind": "control"
+    },
+    {
+      "fromNode": 3,
+      "fromPort": "envelope",
+      "toNode": 4,
+      "toPort": "control",
+      "kind": "control"
+    },
+    {
+      "fromNode": 4,
+      "fromPort": "control",
+      "toNode": 7,
+      "toPort": "gain_cv",
+      "kind": "control"
+    },
+    {
+      "fromNode": 7,
+      "fromPort": "audio",
+      "toNode": 8,
+      "toPort": "audio",
+      "kind": "audio"
+    }
+  ]
+}

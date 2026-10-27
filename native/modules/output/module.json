@@ -1,0 +1,1 @@
+{"schema_version":1,"id":"essentials.output","name":"Output","abi_version":1,"library":"ws_output","description":"Mono graph output sink; opens no audio device.","inputs":{"audio":"audio"},"outputs":{"audio":"audio"}}

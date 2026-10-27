@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "essentials.vcf",
+  "name": "VCF",
+  "library": "ws2_vcf",
+  "parameters": {
+    "cutoff": 0,
+    "resonance": 1
+  },
+  "inputs": {
+    "audio": "signal"
+  },
+  "outputs": {
+    "low12": "signal",
+    "low24": "signal"
+  }
+}

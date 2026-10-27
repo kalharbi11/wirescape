@@ -1,0 +1,6 @@
+# Wirescape host: use Python 3.12 matching the original CHAOS compiled surgepy.
+numpy>=1.26,<3
+scipy>=1.11,<2
+aiohttp>=3.9,<4
+sounddevice>=0.4.6,<1
+soundfile>=0.12,<1

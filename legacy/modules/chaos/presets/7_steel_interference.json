@@ -1,0 +1,25 @@
+{
+  "format": "wirescape.chaos.preset",
+  "version": 1,
+  "advanced": {},
+  "raw": {},
+  "name": "Steel Interference",
+  "mode": 1,
+  "values": {
+    "MORPH": 54,
+    "CHAOS": 37,
+    "FOLD": 44,
+    "CUTOFF": 59,
+    "DETUNE": 10,
+    "FM": 75,
+    "COUPLE": 65,
+    "BODY": 42,
+    "TONE": 76,
+    "FEEDBACK": 40,
+    "SPACE": 16,
+    "A_ATTACK": 13,
+    "A_RELEASE": 42,
+    "B_ATTACK": 42,
+    "B_RELEASE": 64
+  }
+}

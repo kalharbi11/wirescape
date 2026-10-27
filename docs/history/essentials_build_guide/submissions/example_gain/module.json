@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "example.gain",
+  "name": "Example Gain",
+  "abi_version": 1,
+  "library": "ws_example_gain",
+  "description": "Mono audio gain with a short parameter transition.",
+  "parameters": {"gain": 0},
+  "inputs": {"audio": "audio"},
+  "outputs": {"audio": "audio"}
+}

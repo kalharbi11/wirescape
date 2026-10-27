@@ -1,0 +1,21 @@
+{
+  "note": "tape AGE + reverse half-speed looper, self-mod LFO on LOOP SPEED",
+  "hold_notes": [
+    57,
+    60,
+    63
+  ],
+  "macros": {
+    "TAPE": 0.7,
+    "LOOP_SPEED": -0.5,
+    "LOOP_FEEDBACK": 0.7,
+    "LOOP_MIX": 0.7,
+    "SPACE_MIX": 0.3,
+    "CUTOFF": 0.6,
+    "LFO_RATE": 0.2,
+    "LFO_DEPTH": 0.4,
+    "LFO_SELF": 0.6
+  },
+  "lfo_shape": "smooth",
+  "lfo_target": "LOOP_SPEED"
+}

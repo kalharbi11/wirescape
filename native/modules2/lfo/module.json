@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "essentials.lfo",
+  "name": "LFO",
+  "library": "ws2_lfo",
+  "parameters": {
+    "rate": 0,
+    "depth": 1,
+    "offset": 2,
+    "sync": 3,
+    "beats": 4
+  },
+  "inputs": {},
+  "outputs": {
+    "control": "signal"
+  }
+}

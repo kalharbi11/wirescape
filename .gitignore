@@ -1,0 +1,52 @@
+# Build and tooling
+build/
+build_reports/
+.foundation-venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.so
+*.pyd
+*.dll
+*.exe
+*.lib
+*.pdb
+*.obj
+
+# Private / local only (NEVER commit)
+.tools/
+local_backups/
+user_data/
+incoming_modules/
+deliverables/
+*.ttf
+*.otf
+*.woff
+*.woff2
+*Licensing*.pdf
+.env
+*.pem
+*.key
+
+# Third-party binaries kept outside the repo
+surge/
+surgepy_bin/
+legacy/modules/chaos/surge/
+legacy/modules/chaos/surgepy_bin/
+
+# Logs, renders and archives
+*.log
+*.wav
+*.aiff
+*.flac
+*.zip
+*.bundle
+
+# Editors and OS
+.vscode/
+.idea/
+*.user
+*.suo
+.DS_Store
+Thumbs.db

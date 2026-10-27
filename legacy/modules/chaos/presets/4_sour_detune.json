@@ -1,0 +1,11 @@
+{
+  "note": "sweep DETUNE 3->40c, then play an octave up/down: beat rate follows register (Fig 4B)",
+  "hold_notes": [
+    69
+  ],
+  "macros": {
+    "DETUNE": 6,
+    "VOICES": 2,
+    "CUTOFF": 0.8
+  }
+}

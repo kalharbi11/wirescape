@@ -1,0 +1,13 @@
+/* Directly extracted from Wirescape Studio interface. Font files are not included. */
+:root {
+  color-scheme: light;
+  /* STUDIO / 01 — warm-white paper, graphite controls, restrained rust-orange motion. */
+  --ground:#eeede9;--rail:#f5f4f0;--surface:#faf9f6;--surface-2:#f3f1ed;
+  --ink:#393b39;--ink-strong:#262824;--sub:#858681;--sub-light:#a7a8a1;
+  --line:#d9d8d2;--hair:#e9e7e1;--grid:rgba(93,94,85,.075);
+  --accent:#c5774c;--muted-accent:#dec2ac;
+  --wire-a:#777e79;--wire-m:#c17853;--wire-g:#abb0a7;
+  --dial:#333634;--dial-marker:#f3f1e8;--dial-stroke:#40413e;
+  --radius:13px;--small-radius:7px;--module-shadow:0 3px 16px rgba(55,50,41,.035),0 1px 1px rgba(55,50,41,.03);
+  font-family:'ABC Areal','ABCAreal',Arial,Helvetica,sans-serif;
+}

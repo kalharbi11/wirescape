@@ -1,0 +1,17 @@
+{
+  "note": "after Threnody: quarter-tone cluster, drift, slow fall (Fig 7C)",
+  "hold_notes": [
+    60
+  ],
+  "macros": {
+    "CLUSTER": 12,
+    "QUARTER": 1,
+    "DRIFT": 1.0,
+    "DETUNE": 25,
+    "VOICES": 3,
+    "FALL": 0.1,
+    "CUTOFF": 0.7,
+    "SPACE": 0.7,
+    "SPACE_MIX": 0.35
+  }
+}

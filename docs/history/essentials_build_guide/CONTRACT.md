@@ -1,0 +1,19 @@
+# Frozen packet contract
+
+Source of truth: include/wirescape/module.h, engine.h and linear_ramp.h; exact bytes match the current project snapshot. C++17, C ABI version 1 experimental. The engine uses current descriptor data; manifests are inventory metadata, not a capability/trust layer.
+
+- IDs/port IDs/parameter IDs are permanent saved identities. Use the assigned namespace and `ws_<folder>` library. A parameter manifest maps names to numeric IDs. Never silently remap defaults/units or an existing module.
+- Mono float AUDIO and CONTROL buffers; CONTROL may be sample-rate. One incoming cable per input. Declared same-type ports only. Missing inputs contribute the task's defined value; outputs are owned by host and every requested sample must be written. No hidden final output gain/clamp.
+- create/prepare/destroy are quiescent. process/event/reset are bounded, allocation-free, lock-free, no file/network/device/Qt/Python/logging, and no exceptions across C callbacks. Prepare reusable storage. No global/shared mutable DSP state. No std::random_device or system clock in rendering.
+- Honor actual process span 0..max_block_frames, not a presumed 512. Event-split spans can be 1 sample. Tests cover 44.1/48/96 kHz and splits 1/17/64/128/512 where configured, including uneven tails. Compare sample sequences at identical absolute event frames, not events shifted to arbitrary block boundaries.
+- Preserve targets across reset. Use existing LinearRamp for parameters when specified: 5ms sample-counted, initial settings/reset snap, repeated targets do not postpone. Discrete selectors/gates are NOT ramped. Module-specific time/curve latching rules override generic smoothing and must be explicit.
+- Valid inputs are finite; engine validates parameter bounds. For nonsensical prepare config, return failure rather than UB. Define how finite extreme control/audio values are bounded without secretly changing ordinary ranges. Test NaN/Inf behavior where applicable, but do not hide upstream faults with misleading normal results.
+- No event/message outputs, channel/voice extension, arbitrary state formats or new enums in copied headers. Use existing AUDIO/CONTROL only. Gate buffers in ready tasks are thresholded at .5 (unpatched 0); event gates are a separate existing mechanism. No automatic timing conversion or module-specific host branches.
+- Tests: defaults, missing inputs, parameter endpoints, immediate guards before/after requested span, zero frames, reset/reprepare, independent instances, multiple rates, partition equivalence, mid-stream parameter events/ramps, finite output under extremes, and actual DLL/.so discovery via the copied engine. Tests should assert mathematical/musical behavior, not repeat the implementation line by line. Add independent reference calculations where possible.
+- DSP-specific tests: exact deterministic noise state/statistics, analytic slew/envelope timing, clock pulse periods/duty/reset, filter impulse/DC/frequency slopes/resonance/time-varying stress. Identify any allocation instrumentation limits. Offline timing is not realtime stability; do not optimize by changing quality unnoticed.
+
+This kit excludes GUI/fonts/devices/user presets. Do not add pip dependencies or runtime installers. If you need a generic capability absent here, return a contract question; Codex will integrate it locally.
+
+## Hardware reuse requirement
+
+Read EMBEDDED_PORTABILITY.md. New DSP should be reusable under a small C++ firmware adapter without Qt/Python/OS or the desktop engine. Prefer a small dsp.h/source and thin module.cpp wrapper; record memory/dependency/precision requirements in DESIGN.md. Keep DSP results, current ABI and ready-task specs intact. Do not build a Daisy adapter, change existing headers, or claim hardware support. The desktop host is a test harness, not the mandatory embedded runtime.

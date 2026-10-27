@@ -1,0 +1,1 @@
+ABI2 minimal gain example. Mono broadcasts; channels carry voices. Gain is in plain units after host smoothing/modulation. No audio device is opened. Build target ws2_sdk_template; test abi2_template_tests.

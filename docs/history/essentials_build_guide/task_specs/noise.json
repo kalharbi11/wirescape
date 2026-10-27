@@ -1,0 +1,46 @@
+{
+  "delivery": "One source-only submissions/<folder> module with tests and documented behavior; unchanged ABI/host; no GUI/devices.",
+  "rates_hz": [
+    44100,
+    48000,
+    96000
+  ],
+  "partitions": [
+    1,
+    17,
+    64,
+    128,
+    512
+  ],
+  "review": "Local host/Windows integration and review required even after kit tests pass.",
+  "folder": "noise",
+  "id": "essentials.noise",
+  "library": "ws_noise",
+  "name": "Noise",
+  "status": "READY",
+  "parameters": [
+    {
+      "id": 0,
+      "name": "Level",
+      "minimum": 0,
+      "maximum": 1,
+      "initial": 0.2,
+      "unit": ""
+    }
+  ],
+  "inputs": {},
+  "outputs": {
+    "audio": "audio"
+  },
+  "behavior": [
+    "White noise first; additional colours are a later enhancement, not an undocumented substitute.",
+    "Use fixed documented integer PRNG state per instance (no OS RNG); reset returns to the documented seed.",
+    "Map to bipolar raw audio, Level uses 5ms shared ramp; initial/reset snaps.",
+    "No per-sample allocations, locks or denormal-producing recursive state."
+  ],
+  "acceptance": [
+    "Identical sequence across process partitions and reset, independent instances.",
+    "At level1, fixed-seed sample bounds, mean near0 and variance near1/3 with broad deterministic tolerances over a documented sample count.",
+    "Level0 produces exact zero after ramp, and no host 0.2 output gain is applied here."
+  ]
+}

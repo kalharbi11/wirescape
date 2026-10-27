@@ -1,0 +1,9 @@
+{
+  "api_version": 1,
+  "id": "example_saturator",
+  "name": "EXAMPLE SATURATOR",
+  "version": "0.1.0",
+  "description": "Self-contained stereo waveshaper demonstrating the folder plugin contract",
+  "entry": "plugin:register",
+  "assets": []
+}

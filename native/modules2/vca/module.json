@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "essentials.vca",
+  "name": "VCA",
+  "library": "ws2_vca",
+  "parameters": {
+    "gain": 0
+  },
+  "inputs": {
+    "audio": "signal",
+    "gain_cv": "signal"
+  },
+  "outputs": {
+    "audio": "signal"
+  }
+}

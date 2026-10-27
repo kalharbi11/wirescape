@@ -1,0 +1,3 @@
+# Example Ring Mod design
+
+Original MIT-licensed example. Every output sample is `A * B * Level`, with Level in plain units from 0 to 1. The two input signals are independent poly inputs: the host resolves mono broadcast to the output channel count before calling the processor. A disconnected input contributes its declared unpatched value of zero. The output is marked CONSTANT only when both inputs and Level are CONSTANT. No internal state, allocation, latency, nonlinear approximation, randomness or operating-system facility is used; reset is a no-op. This is a mathematical ring modulator and does not include oversampling or antialiasing.

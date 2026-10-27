@@ -1,0 +1,55 @@
+find_package(Qt6 6.5 QUIET COMPONENTS Core Gui Qml Quick QuickControls2)
+file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/wirescape-ui-enabled.txt")
+if(NOT Qt6_FOUND)
+  message(STATUS "Qt Quick SDK unavailable: headless engine and tests remain enabled")
+  return()
+endif()
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/wirescape-ui-enabled.txt" "Qt=${Qt6_DIR}\n")
+set(CMAKE_AUTOMOC ON)
+qt_add_executable(wirescape_studio WIN32 main.cpp studio_controller.cpp audio_device.cpp)
+if(WIN32)
+  target_sources(wirescape_studio PRIVATE assets/wirescape.rc)
+endif()
+qt_add_resources(wirescape_studio studio_icon PREFIX "/" FILES assets/wirescape.png)
+target_link_libraries(wirescape_studio PRIVATE wirescape_engine wirescape_document Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2)
+target_include_directories(wirescape_studio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+set_target_properties(wirescape_studio PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/Release"
+  RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/Debug")
+file(GLOB_RECURSE WIRESCAPE_QML CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "qml/*.qml")
+qt_add_resources(wirescape_studio studio_resources PREFIX "/" FILES ${WIRESCAPE_QML})
+if(MSVC)
+  target_compile_options(wirescape_studio PRIVATE /W4 /permissive- /utf-8)
+endif()
+find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
+qt_add_executable(studio_ui_tests tests/ui_tests.cpp studio_controller.cpp audio_device.cpp)
+target_link_libraries(studio_ui_tests PRIVATE wirescape_engine wirescape_document Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Test)
+target_include_directories(studio_ui_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+qt_add_resources(studio_ui_tests test_resources PREFIX "/" FILES ${WIRESCAPE_QML})
+add_test(NAME studio_ui_tests COMMAND studio_ui_tests)
+set_tests_properties(studio_ui_tests PROPERTIES TIMEOUT 60
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_FORCE_STDERR_LOGGING=1;PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
+add_executable(audio_device_tests ../tests/audio_device_tests.cpp audio_device.cpp)
+target_compile_definitions(audio_device_tests PRIVATE WS_ENGINE_BUILD)
+target_include_directories(audio_device_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(audio_device_tests PRIVATE Qt6::Core Threads::Threads)
+add_test(NAME audio_device_tests COMMAND audio_device_tests)
+set_tests_properties(audio_device_tests PROPERTIES TIMEOUT 15
+  ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
+add_library(ws_prepare_failure SHARED ../tests/fixtures/prepare_failure.cpp)
+target_include_directories(ws_prepare_failure PRIVATE ${PROJECT_SOURCE_DIR}/include)
+set_target_properties(ws_prepare_failure PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test_fixtures"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test_fixtures")
+qt_add_executable(controller_failure_tests tests/controller_failure_tests.cpp studio_controller.cpp audio_device.cpp)
+target_include_directories(controller_failure_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(controller_failure_tests PRIVATE wirescape_engine wirescape_document Qt6::Core)
+add_test(NAME controller_failure_tests COMMAND controller_failure_tests $<TARGET_FILE:ws_prepare_failure> "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
+set_tests_properties(controller_failure_tests PROPERTIES TIMEOUT 30
+  ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
+
+# Explicitly invoked hardware session only; never registered with CTest/check.
+qt_add_executable(wirescape_audio_session audio_session_probe.cpp studio_controller.cpp audio_device.cpp)
+target_include_directories(wirescape_audio_session PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(wirescape_audio_session PRIVATE wirescape_engine wirescape_document Qt6::Core)
+

@@ -1,0 +1,218 @@
+{
+  "full_check_report": "build_reports/foundation/check-20261026T230043Z.json",
+  "abi2_evidence": {
+    "created_utc": "2026-10-26T23:00:50.073011+00:00",
+    "functional_passed": true,
+    "physical_audio_opened": false,
+    "commands": [
+      {
+        "command": [
+          "ctest",
+          "--test-dir",
+          "<repo>\\build\\native",
+          "-C",
+          "Release",
+          "-R",
+          "^abi2_",
+          "--output-on-failure"
+        ],
+        "returncode": 0,
+        "passed": true,
+        "log": "build_reports\\abi2\\acceptance-0.log"
+      },
+      {
+        "command": [
+          "<repo>\\build\\native\\Debug\\abi2_engine_tests.exe"
+        ],
+        "returncode": 0,
+        "passed": true,
+        "log": "build_reports\\abi2\\acceptance-1.log"
+      }
+    ],
+    "protected_count": 92,
+    "protected_changed": [],
+    "forbidden_dsp_headers": [],
+    "waves": [
+      {
+        "path": "build_reports\\abi2\\poly_synth.wav",
+        "sha256": "ad8aec749c34440fe148faf9931a5e80d0a887c203f3166e2a1303ea55a8f411",
+        "frames": 96000,
+        "channels": 2,
+        "sample_rate": 48000,
+        "finite": true,
+        "peak": 4.873093605041504,
+        "rms": 0.8521571860584084
+      },
+      {
+        "path": "build_reports\\abi2\\shim_scripted.wav",
+        "sha256": "384367b8a00f146c6d005387f48c48d7eba1863d83e0d65e3451711a526e57ac",
+        "frames": 16384,
+        "channels": 1,
+        "sample_rate": 48000,
+        "finite": true,
+        "peak": 0.06274696439504623,
+        "rms": 0.00863848058981888
+      },
+      {
+        "path": "build_reports\\abi2\\shim_steady.wav",
+        "sha256": "9563d172bcec3631f4f49392986fa20bd8db1dee2cf19262ae816f7483455ac8",
+        "frames": 16384,
+        "channels": 1,
+        "sample_rate": 48000,
+        "finite": true,
+        "peak": 0.05776999145746231,
+        "rms": 0.015038507379516291
+      }
+    ],
+    "abi2_dll_exports": [
+      {
+        "library": "ws2_adsr.dll",
+        "passed": true
+      },
+      {
+        "library": "ws2_guide_ringmod.dll",
+        "passed": true
+      },
+      {
+        "library": "ws2_lfo.dll",
+        "passed": true
+      },
+      {
+        "library": "ws2_sdk_template.dll",
+        "passed": true
+      },
+      {
+        "library": "ws2_test_notes.dll",
+        "passed": true
+      },
+      {
+        "library": "ws2_test_rows.dll",
+        "passed": true
+      },
+      {
+        "library": "ws2_vca.dll",
+        "passed": true
+      },
+      {
+        "library": "ws2_vcf.dll",
+        "passed": true
+      },
+      {
+        "library": "ws2_vco.dll",
+        "passed": true
+      }
+    ],
+    "frozen_fixture_changes": [],
+    "abi2_binary_hashes": {
+      "abi2_benchmark.exe": "1ffe8de5faf3277e015cd84943c6e5f33408d701e9e2556be755c04a2e047f6a",
+      "abi2_engine_tests.exe": "18ab3a7c9f8a3c36eba1aa0e02093026a91fcaa2e661a1b5175aee17a6a3a0cd",
+      "abi2_guide_tests.exe": "60144aa0273de8b94fa5af162810e4b032be60a4ec16bbf12883444b1056d0f9",
+      "abi2_header_c99.exe": "9dd7b85401ae757b75ae38ebdc34bea4366bbf759d463d9e2a719dcb662278c8",
+      "abi2_integration_tests.exe": "1f9b8e5997389d73a2fc7a0d5954f2f6bfe36be13824b0ab5b441a33bdea048d",
+      "abi2_module_tests.exe": "daf436ef844c02cafdbd65717a24c7c80ff135e6aea392e463cf9d7c07197824",
+      "abi2_portable_ports.exe": "ab8f4b59dc3fc54c4f4db8e799b6957d2a9de802fb4c5a6d5ed54681bc880b42",
+      "abi2_scalar_ports.exe": "2b16a52ff793b2d35933082865c5320879936f43b24f81f03b0f4a86150002e2",
+      "abi2_sdk_scalar_tests.exe": "66da2605d35b78adf29bfe1c16dde9203abe4fdfce003efd22702c42fb8cddd9",
+      "abi2_sdk_tests.exe": "00e40732090a5d45bae74b039bcd4ac93c3f690f17e3f7e52acf3a56ba69b3c8",
+      "abi2_template_tests.exe": "4cfbeab4cc8dbd68915a9404a6337611b6e3524fc2c5c5bdf94b2c53bf00a05b",
+      "abi2_voice_tests.exe": "84dbaa114161bd5d046dc29f3fba7c61297ff9c69d58c87d8c1f646f4f104fca",
+      "ws2_adsr.dll": "ed7810b49c35847765616c2a0a270aac8e011eb17337837e0e166ee92524053f",
+      "ws2_guide_ringmod.dll": "6aadd0290000852fef28989ec8496dd5a9fbcfd41d8140193fa8dc78e516dad9",
+      "ws2_lfo.dll": "028bfe407b0c28e34c48785e29066d6f91fd22c8f9fe66eeb0be538f98d72e4e",
+      "ws2_sdk_template.dll": "1891c18e0f778c8d829d9e75b302bd45c75041b7ac3e5a704630c3f4db3abbec",
+      "ws2_test_notes.dll": "6bc696fa6f85dcafeb630c0d4b96248f6f0fed7587b2dd2a09a5d44f174bdd4a",
+      "ws2_test_rows.dll": "eac3aebc1b2928daeeb61965bf314683e07788f0f06662e4334de3cfd8f1702e",
+      "ws2_vca.dll": "e201638d7abc29654283d74e1e1a40914719a89e34511bcf14ca4ea9dae96e43",
+      "ws2_vcf.dll": "a897b0256a10a22122fd6b98f66e73f239fb92f00853b2a8a3fc1fca3b52e8b1",
+      "ws2_vco.dll": "66261cdbaf94f8728e4257399b76f6c06a74aa1d76c985410c3e716f4d06d713"
+    },
+    "equivalence": {
+      "modules": [
+        {
+          "name": "vco",
+          "max_abs_error": 0,
+          "passed": true
+        },
+        {
+          "name": "lfo",
+          "max_abs_error": 0,
+          "passed": true
+        },
+        {
+          "name": "vcf",
+          "max_abs_error": 0,
+          "passed": true
+        },
+        {
+          "name": "adsr",
+          "max_abs_error": 0,
+          "passed": true
+        },
+        {
+          "name": "vca",
+          "max_abs_error": 0,
+          "passed": true
+        }
+      ]
+    },
+    "benchmark": {
+      "sample_rate": 48000,
+      "frames": 256,
+      "warmup_blocks": 256,
+      "measured_blocks": 4000,
+      "rows": [
+        {
+          "name": "abi1_mono",
+          "mean_ns": 5693.075,
+          "worst_ns": 22600.0,
+          "p99_ns": 6700.0
+        },
+        {
+          "name": "abi2_mono",
+          "mean_ns": 10759.125,
+          "worst_ns": 80800.0,
+          "p99_ns": 14100.0
+        },
+        {
+          "name": "abi2_poly8",
+          "mean_ns": 76922.275,
+          "worst_ns": 202400.0,
+          "p99_ns": 90500.0
+        },
+        {
+          "name": "abi2_eight_mono",
+          "mean_ns": 84266.0,
+          "worst_ns": 1014600.0,
+          "p99_ns": 114300.0
+        },
+        {
+          "name": "abi2_modulated",
+          "mean_ns": 18199.825,
+          "worst_ns": 91900.0,
+          "p99_ns": 25300.0
+        },
+        {
+          "name": "vcf_constant",
+          "mean_ns": 4245.725,
+          "worst_ns": 38400.0,
+          "p99_ns": 4500.0
+        },
+        {
+          "name": "vcf_audio_rate_cutoff",
+          "mean_ns": 4853.525,
+          "worst_ns": 875100.0,
+          "p99_ns": 4700.0
+        }
+      ],
+      "mono_ratio": 1.88986181,
+      "poly8_vs_eight_mono_ratio": 0.912850675,
+      "modulated_ratio": 1.69157111
+    },
+    "mono_performance_target_passed": false,
+    "limitations": [
+      "No ARM compiler or hardware proof; Debug CRT is not ASan.",
+      "Allocation hook observes C++ new/new[] including aligned/nothrow, not arbitrary malloc inside third-party DLLs.",
+      "Worst timing is the largest observed block, not a hard real-time bound."
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+"""Optional integration test: requires Chromium and playwright."""
+import os, time, json
+from playwright.sync_api import sync_playwright
+URL=os.environ.get('WIRESCAPE_URL','file:///mnt/data/wirescape_work/WIRESCAPE/web/index.html')
+with sync_playwright() as p:
+ browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+ page=browser.new_page(viewport={'width':1600,'height':970},device_scale_factor=1)
+ errors=[]
+ page.on('pageerror',lambda e:errors.append(str(e)))
+ page.goto(URL,wait_until='networkidle',timeout=25000)
+ time.sleep(.4)
+ print('title=',page.title())
+ print('module.count=',page.locator('.module').count())
+ print('bridge=',page.evaluate('typeof window.wirescapeBridge'))
+ print('state=',page.evaluate('window.__wirescapeTest.state().format'))
+ print('status=',page.locator('#engineBadge').inner_text())
+ print('errors=',errors)
+ page.locator('[data-id="node-2"] .module-header').click()
+ page.locator('#deepLaunch').click()
+ print('deep tabs=',page.locator('.deep-tabs button').all_inner_texts())
+ page.get_by_role('button',name='MACROS',exact=True).click()
+ print('macro sliders=',page.locator('#deepBody input[type=range]').count())
+ page.get_by_role('button',name='RAW A',exact=True).click()
+ print('raw sliders=',page.locator('#deepBody input[type=range]').count())
+ page.locator('#closeDeep').click()
+ page.locator('#deviceBtn').click()
+ print('devicepanel=',page.locator('#devicePanel').get_attribute('class'))
+ page.locator('#closeDevices').click()
+ page.screenshot(path='/mnt/data/wirescape_work/wirescape_first_render.png',full_page=True)
+ print('page errors final=',errors)
+ browser.close()

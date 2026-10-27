@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "essentials.vco",
+  "name": "VCO",
+  "library": "ws2_vco",
+  "parameters": {
+    "frequency": 0
+  },
+  "inputs": {
+    "pitch": "signal",
+    "fm": "signal",
+    "notes": "event"
+  },
+  "outputs": {
+    "audio": "signal"
+  }
+}

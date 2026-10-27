@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "essentials.adsr",
+  "name": "ADSR",
+  "library": "ws2_adsr",
+  "parameters": {
+    "attack": 0,
+    "decay": 1,
+    "sustain": 2,
+    "release": 3
+  },
+  "inputs": {
+    "gate": "signal",
+    "notes": "event"
+  },
+  "outputs": {
+    "envelope": "signal"
+  }
+}

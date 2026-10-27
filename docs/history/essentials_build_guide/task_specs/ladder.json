@@ -1,0 +1,65 @@
+{
+  "delivery": "One source-only submissions/<folder> module with tests and documented behavior; unchanged ABI/host; no GUI/devices.",
+  "rates_hz": [
+    44100,
+    48000,
+    96000
+  ],
+  "partitions": [
+    1,
+    17,
+    64,
+    128,
+    512
+  ],
+  "review": "Local host/Windows integration and review required even after kit tests pass.",
+  "folder": "ladder",
+  "id": "essentials.ladder",
+  "library": "ws_ladder",
+  "name": "Ladder Filter",
+  "status": "READY_ADVANCED_REVIEW",
+  "parameters": [
+    {
+      "id": 0,
+      "name": "Cutoff",
+      "minimum": 20,
+      "maximum": 20000,
+      "initial": 1000,
+      "unit": "Hz"
+    },
+    {
+      "id": 1,
+      "name": "Resonance",
+      "minimum": 0,
+      "maximum": 1,
+      "initial": 0,
+      "unit": ""
+    },
+    {
+      "id": 2,
+      "name": "Drive",
+      "minimum": 0,
+      "maximum": 2,
+      "initial": 0,
+      "unit": ""
+    }
+  ],
+  "inputs": {
+    "audio": "audio"
+  },
+  "outputs": {
+    "audio": "audio"
+  },
+  "behavior": [
+    "Four-pole low-pass ladder-inspired design; document algorithm/normalization/feedback/drive and what is approximated. Do not promise a named analog circuit match.",
+    "Internal cutoff clamp min(target,.45*sampleRate); shared5ms cutoff/resonance/drive ramps. Unpatched input0; reset zero internal state and snap targets.",
+    "Any nonlinear solve/oversampling has fixed declared iteration/work/memory bounds prepared outside rendering. No recursive unlimited convergence loop, allocation, locking or per-block randomization.",
+    "Choose a demonstrably stable resonance mapping over0..1; no self-oscillation claim unless implemented and tested. Do not silence instability via unconditional final clipping.",
+    "Provide derivation or pinned lawful source and notices. Advanced numerical review is mandatory before host acceptance."
+  ],
+  "acceptance": [
+    "Impulse/step/DC and four-pole stopband response at resonance0; documented gain normalization.",
+    "Endpoint, high-drive/resonance and rapid-cutoff sweeps remain finite at every tested rate; bounded output and tails with justified thresholds.",
+    "Partition/state/reset/guards plus nonlinear distortion/aliasing limitations documented, not disguised as quality improvements."
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wirescape.invalid/schema/patch-v2-draft.json",
+  "title": "Wirescape patch v2 draft (not implemented)",
+  "description": "Design-only patch format proposal. Unknown fields are permitted for forward-compatible preservation; this schema is not consumed by the application.",
+  "type": "object",
+  "required": ["format", "version", "settings", "modules", "connections", "outputs"],
+  "properties": {
+    "format": { "const": "wirescape.native.patch" },
+    "version": { "const": 2 },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "sample_rate": { "type": "number", "exclusiveMinimum": 0 },
+        "max_block_frames": { "type": "integer", "minimum": 1 },
+        "max_channels": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "feedback_block": { "type": "integer", "minimum": 1 },
+        "seed": { "type": "integer", "minimum": 0 },
+        "timing_mode": { "enum": ["immediate", "timestamped"] }
+      },
+      "additionalProperties": true
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "module", "version", "parameters"],
+        "properties": {
+          "id": { "type": "integer", "minimum": 1 },
+          "module": { "type": "string", "minLength": 1 },
+          "version": { "type": "integer", "minimum": 1 },
+          "config": { "type": "object", "additionalProperties": true },
+          "parameters": {
+            "type": "object",
+            "description": "Stable string parameter IDs mapped to plain-unit base values.",
+            "additionalProperties": { "type": "number" }
+          },
+          "state": {
+            "type": "object",
+            "properties": {
+              "version": { "type": "integer", "minimum": 0 },
+              "encoding": { "const": "base64" },
+              "data": { "type": "string", "contentEncoding": "base64" }
+            },
+            "required": ["version", "encoding", "data"],
+            "additionalProperties": true
+          },
+          "channel_seed": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "connections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "from", "to"],
+        "properties": {
+          "kind": { "enum": ["signal", "modulation", "event"] },
+          "from": {
+            "type": "object",
+            "required": ["module", "port"],
+            "properties": {
+              "module": { "type": "integer", "minimum": 0 },
+              "port": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": true
+          },
+          "to": {
+            "type": "object",
+            "required": ["module", "port"],
+            "properties": {
+              "module": { "type": "integer", "minimum": 0 },
+              "port": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": true
+          },
+          "amount": { "type": "number", "minimum": -1, "maximum": 1 },
+          "feedback": { "type": "boolean", "default": false },
+          "stereo_pair": { "type": "string" }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "kind": { "const": "modulation" } }, "required": ["kind"] },
+            "then": { "required": ["amount"] }
+          }
+        ],
+        "additionalProperties": true
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["module", "port", "bus_channel"],
+        "properties": {
+          "module": { "type": "integer", "minimum": 0 },
+          "port": { "type": "string", "minLength": 1 },
+          "bus_channel": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "host_mappings": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "devices": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" } }, "additionalProperties": true } }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,14 @@
+{
+  "format": "wirescape.visual.study",
+  "version": 4,
+  "theme": "studio",
+  "motion": true,
+  "modules": [
+    {"id": "chaos-1", "type": "chaos", "x": 300, "y": 120, "values": {"MORPH": 50}, "mode": 0, "monitor": true},
+    {"id": "io-1", "type": "interface", "x": 700, "y": 120, "values": {}, "mode": 0, "monitor": true}
+  ],
+  "connections": [
+    {"from": "chaos-1:left", "to": "io-1:inL"},
+    {"from": "chaos-1:right", "to": "io-1:inR"}
+  ]
+}

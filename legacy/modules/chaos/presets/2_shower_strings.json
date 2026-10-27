@@ -1,0 +1,16 @@
+{
+  "note": "after Psycho: minor 2nd up high, broken, 70 Hz rough",
+  "hold_notes": [
+    79,
+    80
+  ],
+  "macros": {
+    "BREAK": 0.6,
+    "ROUGH_RATE": 70,
+    "ROUGH_DEPTH": 0.6,
+    "JITTER": 0.4,
+    "CUTOFF": 0.95,
+    "SPACE_MIX": 0.25,
+    "DRIVE_TYPE": 3
+  }
+}

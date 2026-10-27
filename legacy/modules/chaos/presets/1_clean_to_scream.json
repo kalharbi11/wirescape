@@ -1,0 +1,10 @@
+{
+  "note": "hold a note, sweep BREAK 0->1 (Fig 1F)",
+  "hold_notes": [
+    57
+  ],
+  "macros": {
+    "CUTOFF": 0.85,
+    "BREAK": 0.0
+  }
+}

@@ -1,0 +1,1 @@
+{"schema_version":1,"id":"essentials.adsr","name":"ADSR","abi_version":1,"library":"ws_adsr","description":"Linear sample-counted monophonic envelope; latest note source/id owns release; gate state is edge-sensitive.","parameters":{"attack":0,"decay":1,"sustain":2,"release":3},"outputs":{"envelope":"control"}}

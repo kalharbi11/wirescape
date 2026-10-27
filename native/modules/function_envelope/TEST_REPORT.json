@@ -1,0 +1,81 @@
+{
+  "module": "essentials.function_envelope",
+  "library": "ws_function_envelope",
+  "folder": "submissions/function_envelope",
+  "result": "passed_offline_requires_local_review",
+  "environment": {
+    "system": "Linux",
+    "architecture": "x86_64",
+    "compiler": "c++ (Debian 14.2.0-19) 14.2.0",
+    "cmake": "cmake version 3.31.6",
+    "cxx_standard": "C++17",
+    "framework": "Bundled offline Wirescape engine, ABI version 1, CTest"
+  },
+  "commands_actually_executed": [
+    "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release",
+    "cmake --build build --config Release --parallel 2",
+    "ctest --test-dir build --output-on-failure -C Release",
+    "python tools/run_checks.py --build-dir build --timeout 120",
+    "python tools/verify_submission.py submissions/function_envelope"
+  ],
+  "validation": {
+    "structure": {
+      "result": "passed",
+      "tool": "tools/verify_submission.py"
+    },
+    "cmake_configure": {
+      "result": "passed"
+    },
+    "cmake_build": {
+      "result": "passed"
+    },
+    "offline_engine_shared_library_discovery": {
+      "result": "passed",
+      "evidence": "CTest function_envelope: PASS; ws_engine_load_module called by tests.cpp"
+    },
+    "ctest_module_suite": {
+      "result": "passed",
+      "name": "function_envelope"
+    },
+    "full_ctest_suite": {
+      "result": "passed",
+      "suites_passed": 7,
+      "suites_total": 7
+    },
+    "supported_sample_rates_hz": [
+      44100,
+      48000,
+      96000
+    ],
+    "sample_partition_lengths": [
+      1,
+      17,
+      64,
+      128,
+      512
+    ],
+    "additional_cases": [
+      "analytical curve -1/0/+1 at midpoint and endpoints",
+      "latched segment duration and curve, gate hold and interrupt",
+      "early release, retrigger, 30 s and minimum time endpoints"
+    ],
+    "common_cases": [
+      "manifest and ABI/ports/parameter ranges/defaults",
+      "adjacent output guard bytes/sentinels and zero-frame",
+      "missing inputs",
+      "reset/reprepare and independent instances",
+      "invalid/nonfinite parameter events",
+      "mid-stream events on absolute sample boundaries",
+      "whole vs uneven buffer partitions"
+    ]
+  },
+  "limitations": [
+    "Windows/MSVC and integration into the full Wirescape app not run",
+    "Raspberry Pi/ARM not run",
+    "Listening tests, actual audio interface, plugin-host realtime scheduling and latency not run",
+    "Realtime memory-allocation/lock instrumentation and CPU benchmarks not run",
+    "Cross-platform numerical/ABI behavior not established"
+  ],
+  "blocked": false,
+  "test_report_generated_from_actual_run": true
+}

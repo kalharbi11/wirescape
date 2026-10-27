@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "essentials.clock",
+  "name": "Clock",
+  "abi_version": 1,
+  "library": "ws_clock",
+  "description": "Sample-rate patchable control pulse oscillator",
+  "parameters": {
+    "bpm": 0,
+    "ticks_per_beat": 1,
+    "duty": 2,
+    "run": 3
+  },
+  "inputs": {
+    "reset": "control"
+  },
+  "outputs": {
+    "clock": "control"
+  }
+}

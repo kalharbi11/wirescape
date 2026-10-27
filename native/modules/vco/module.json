@@ -1,0 +1,1 @@
+{"schema_version":1,"id":"essentials.vco","name":"VCO","abi_version":1,"library":"ws_vco","description":"Sine oscillator; MIDI note or frequency parameter; frequency capped at 0.49 sample rate.","parameters":{"frequency":0},"outputs":{"audio":"audio"}}

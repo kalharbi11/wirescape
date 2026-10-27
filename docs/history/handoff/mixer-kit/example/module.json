@@ -1,0 +1,1 @@
+{"schema_version":1,"id":"essentials.vca","name":"VCA","abi_version":1,"library":"ws_vca","description":"Audio times gain parameter times gain CV; unpatched CV is unity, connected zero is silence.","parameters":{"gain":0},"inputs":{"audio":"audio","gain_cv":"control"},"outputs":{"audio":"audio"}}

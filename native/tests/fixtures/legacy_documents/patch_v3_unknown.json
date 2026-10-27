@@ -1,0 +1,14 @@
+{
+  "format": "wirescape.patch",
+  "version": 3,
+  "theme": "studio",
+  "motion": false,
+  "vendor_document_field": {"kept": "synthetic unknown payload"},
+  "modules": [
+    {"id": "seq-1", "type": "sequencer", "x": 80, "y": 100, "values": {"RUN": 100}, "module_state": {"steps": []}, "vendor_module_field": [1, 2]},
+    {"id": "vendor-1", "type": "vendor.future_synth", "x": 400, "y": 100, "opaque_state": {"blob": "synthetic"}}
+  ],
+  "connections": [
+    {"from": "seq-1:notes", "to": "vendor-1:notes", "vendor_cable_field": "retain-me"}
+  ]
+}

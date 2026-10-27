@@ -1,0 +1,1 @@
+Original MIT source. Multiplication only, zero latency, no internal memory beyond the SDK instance. CONSTANT is set only when both audio and gain are constant. Parameter modulation/smoothing and poly policy are host responsibilities.

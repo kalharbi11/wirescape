@@ -1,0 +1,1 @@
+{"schema_version":2,"abi_version":2,"id":"example.ringmod2","name":"Example Ring Mod","library":"ws2_guide_ringmod","parameters":{"level":0},"inputs":{"a":"signal","b":"signal"},"outputs":{"audio":"signal"}}

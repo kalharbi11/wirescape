@@ -1,0 +1,51 @@
+{
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 256,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 1,
+    "timing_mode": "timestamped"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "essentials.vco",
+      "version": 1,
+      "config": {},
+      "parameters": { "frequency": 261.6256, "level": 0.5 },
+      "state": { "version": 1, "encoding": "base64", "data": "" },
+      "channel_seed": 1001
+    },
+    {
+      "id": 2,
+      "module": "essentials.vca",
+      "version": 1,
+      "config": {},
+      "parameters": { "gain": 0.5 },
+      "channel_seed": 1002
+    },
+    {
+      "id": 3,
+      "module": "essentials.output",
+      "version": 1,
+      "config": {},
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    { "kind": "signal", "from": { "module": 1, "port": "audio" }, "to": { "module": 2, "port": "audio" } },
+    { "kind": "modulation", "from": { "module": 1, "port": "audio" }, "to": { "module": 2, "port": "gain" }, "amount": 0.1 },
+    { "kind": "signal", "from": { "module": 2, "port": "audio" }, "to": { "module": 3, "port": "left" } },
+    { "kind": "signal", "from": { "module": 2, "port": "audio" }, "to": { "module": 3, "port": "right" }, "stereo_pair": "main" }
+  ],
+  "outputs": [
+    { "module": 3, "port": "left", "bus_channel": 0 },
+    { "module": 3, "port": "right", "bus_channel": 1 }
+  ],
+  "host_mappings": [],
+  "devices": [],
+  "future_metadata": { "preserve_me": true }
+}

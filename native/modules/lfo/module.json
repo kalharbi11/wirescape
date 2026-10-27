@@ -1,0 +1,1 @@
+{"schema_version":1,"id":"essentials.lfo","name":"LFO","abi_version":1,"library":"ws_lfo","description":"Bipolar sine control oscillator with Rate, Depth and Offset parameters.","parameters":{"rate":0,"depth":1,"offset":2},"outputs":{"control":"control"}}

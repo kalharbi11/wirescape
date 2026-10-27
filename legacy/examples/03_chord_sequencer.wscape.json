@@ -1,0 +1,348 @@
+{
+  "format": "wirescape.patch",
+  "version": 3,
+  "theme": "studio",
+  "motion": true,
+  "modules": [
+    {
+      "id": "node-1",
+      "type": "sequencer",
+      "x": 30,
+      "y": 130,
+      "mode": 0,
+      "values": {
+        "RUN": 100,
+        "BPM": 50,
+        "SWING": 7,
+        "DEPTH": 75,
+        "DECAY": 35
+      },
+      "module_state": {
+        "length": 16,
+        "mod_length": 16,
+        "mod_division": 1,
+        "steps": [
+          {
+            "root": 0,
+            "octave": 3,
+            "quality": "m7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": true,
+            "trig": true,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": -0.55
+          },
+          {
+            "root": 0,
+            "octave": 3,
+            "quality": "m7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": false,
+            "trig": false,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": -0.55
+          },
+          {
+            "root": 0,
+            "octave": 3,
+            "quality": "m7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": false,
+            "trig": false,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": -0.55
+          },
+          {
+            "root": 0,
+            "octave": 3,
+            "quality": "m7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": false,
+            "trig": false,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": -0.55
+          },
+          {
+            "root": 8,
+            "octave": 3,
+            "quality": "maj7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": true,
+            "trig": true,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": 0.4
+          },
+          {
+            "root": 8,
+            "octave": 3,
+            "quality": "maj7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": false,
+            "trig": false,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": 0.4
+          },
+          {
+            "root": 8,
+            "octave": 3,
+            "quality": "maj7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": false,
+            "trig": false,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": 0.4
+          },
+          {
+            "root": 8,
+            "octave": 3,
+            "quality": "maj7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": false,
+            "trig": false,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": 0.4
+          },
+          {
+            "root": 3,
+            "octave": 3,
+            "quality": "m7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": true,
+            "trig": true,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": -0.1
+          },
+          {
+            "root": 3,
+            "octave": 3,
+            "quality": "m7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": false,
+            "trig": false,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": -0.1
+          },
+          {
+            "root": 3,
+            "octave": 3,
+            "quality": "m7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": false,
+            "trig": false,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": -0.1
+          },
+          {
+            "root": 3,
+            "octave": 3,
+            "quality": "m7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": false,
+            "trig": false,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": -0.1
+          },
+          {
+            "root": 10,
+            "octave": 3,
+            "quality": "7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": true,
+            "trig": true,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": 0.7
+          },
+          {
+            "root": 10,
+            "octave": 3,
+            "quality": "7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": false,
+            "trig": false,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": 0.7
+          },
+          {
+            "root": 10,
+            "octave": 3,
+            "quality": "7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": false,
+            "trig": false,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": 0.7
+          },
+          {
+            "root": 10,
+            "octave": 3,
+            "quality": "7",
+            "inversion": 0,
+            "spread": false,
+            "strum_ms": 0,
+            "probability": 1.0,
+            "enabled": false,
+            "trig": false,
+            "gate": 0.85,
+            "duration_steps": 4,
+            "every": 1,
+            "mod": 0.7
+          }
+        ],
+        "modulation": [
+          0.0,
+          0.249,
+          0.46,
+          0.601,
+          0.65,
+          0.601,
+          0.46,
+          0.249,
+          0.0,
+          -0.249,
+          -0.46,
+          -0.601,
+          -0.65,
+          -0.601,
+          -0.46,
+          -0.249
+        ]
+      }
+    },
+    {
+      "id": "node-2",
+      "type": "modulator",
+      "x": 40,
+      "y": 730,
+      "values": {
+        "RATE": 45,
+        "SHAPE": 50,
+        "DEPTH": 40,
+        "RANDOM": 20
+      },
+      "mode": 1
+    },
+    {
+      "id": "node-3",
+      "type": "chaos",
+      "x": 760,
+      "y": 65,
+      "values": {
+        "CUTOFF": 52,
+        "CHAOS": 18,
+        "MORPH": 10
+      },
+      "mode": 0
+    },
+    {
+      "id": "node-4",
+      "type": "interface",
+      "x": 1950,
+      "y": 240,
+      "values": {
+        "OUTPUT LEVEL": 71
+      },
+      "mode": 0
+    }
+  ],
+  "connections": [
+    {
+      "from": "node-1:notes",
+      "to": "node-3:notes"
+    },
+    {
+      "from": "node-1:mod",
+      "to": "node-3:cutoff"
+    },
+    {
+      "from": "node-1:trig",
+      "to": "node-2:clock"
+    },
+    {
+      "from": "node-2:modA",
+      "to": "node-3:morph"
+    },
+    {
+      "from": "node-3:left",
+      "to": "node-4:inL"
+    },
+    {
+      "from": "node-3:right",
+      "to": "node-4:inR"
+    }
+  ]
+}

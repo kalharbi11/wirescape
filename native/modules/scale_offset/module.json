@@ -1,0 +1,1 @@
+{"schema_version":1,"id":"essentials.scale_offset","name":"Scale/Offset","abi_version":1,"library":"ws_scale_offset","description":"Control output equals control input times Scale plus Offset; an unpatched input is zero.","parameters":{"scale":0,"offset":1},"inputs":{"control":"control"},"outputs":{"control":"control"}}

@@ -1,0 +1,1 @@
+{"schema_version":1,"id":"essentials.mixer","name":"Mixer","abi_version":1,"library":"ws_mixer","description":"Two mono audio inputs summed at independent Level A and Level B gains; unpatched inputs contribute silence.","parameters":{"level_a":0,"level_b":1},"inputs":{"a":"audio","b":"audio"},"outputs":{"audio":"audio"}}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/wirescape/module_api_v1_manifest.schema.json",
+  "title": "Wirescape module.json — API v1 (reference)",
+  "type": "object",
+  "required": ["api_version", "id", "name", "version", "entry"],
+  "properties": {
+    "api_version": {"const": 1},
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{1,48}$"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 100},
+    "version": {"type": "string", "minLength": 1, "maxLength": 60},
+    "description": {"type": "string"},
+    "entry": {"const": "plugin:register"},
+    "assets": {"type": "array", "items": {"type": "string", "pattern": "^[a-zA-Z0-9_.-]{1,90}\\.(js|css)$"}}
+  },
+  "additionalProperties": true
+}

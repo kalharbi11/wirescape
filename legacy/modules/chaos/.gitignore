@@ -1,0 +1,14 @@
+# OS / editors / Python
+.DS_Store
+.vscode/
+__pycache__/
+*.py[cod]
+.venv/
+# generated artifacts
+renders/
+takes/
+out/
+*.wav
+# Surge is fetched and compiled separately; never vendor upstream builds
+surge/
+surgepy_bin/

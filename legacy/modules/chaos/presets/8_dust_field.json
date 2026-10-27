@@ -1,0 +1,26 @@
+{
+  "format": "wirescape.chaos.preset",
+  "version": 1,
+  "advanced": {},
+  "raw": {},
+  "name": "Dust Field",
+  "mode": 2,
+  "values": {
+    "MORPH": 28,
+    "CHAOS": 31,
+    "FOLD": 28,
+    "CUTOFF": 49,
+    "ROUGH": 38,
+    "JITTER": 16,
+    "TAPE": 54,
+    "BODY": 48,
+    "TONE": 26,
+    "SPACE": 51,
+    "MOTION": 28,
+    "RATE": 19,
+    "A_ATTACK": 35,
+    "A_RELEASE": 68,
+    "B_ATTACK": 65,
+    "B_RELEASE": 75
+  }
+}

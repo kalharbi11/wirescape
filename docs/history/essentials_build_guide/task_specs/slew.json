@@ -1,0 +1,56 @@
+{
+  "delivery": "One source-only submissions/<folder> module with tests and documented behavior; unchanged ABI/host; no GUI/devices.",
+  "rates_hz": [
+    44100,
+    48000,
+    96000
+  ],
+  "partitions": [
+    1,
+    17,
+    64,
+    128,
+    512
+  ],
+  "review": "Local host/Windows integration and review required even after kit tests pass.",
+  "folder": "slew",
+  "id": "essentials.slew",
+  "library": "ws_slew",
+  "name": "Slew",
+  "status": "READY",
+  "parameters": [
+    {
+      "id": 0,
+      "name": "Rise",
+      "minimum": 0,
+      "maximum": 10,
+      "initial": 0.1,
+      "unit": "s/unit"
+    },
+    {
+      "id": 1,
+      "name": "Fall",
+      "minimum": 0,
+      "maximum": 10,
+      "initial": 0.1,
+      "unit": "s/unit"
+    }
+  ],
+  "inputs": {
+    "control": "control"
+  },
+  "outputs": {
+    "control": "control"
+  },
+  "behavior": [
+    "Linear slew: seconds are duration for one unit of change, not exponential time constant. Output moves toward input by at most 1/(sampleRate*time) per sample, never overshoots.",
+    "Zero selected time snaps for that direction. Unpatched target0; negative and >1 controls are valid, not clipped. Reset output0; retain Rise/Fall targets.",
+    "Read live target/time per sample; no block-quantized decisions; time parameters are immediate rate limits, not generic amplitude ramps.",
+    "Exponential Lag mode is explicitly deferred rather than silently changing the linear time semantics."
+  ],
+  "acceptance": [
+    "Positive/negative steps, separate rise/fall, exact zero-time snap, final target convergence.",
+    "One-unit step at .1s reaches target at expected sample count; multi-unit duration scales with distance.",
+    "Changing target midway, partition equality and guards."
+  ]
+}

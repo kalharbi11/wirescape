@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "essentials.ladder",
+  "name": "Ladder Filter",
+  "abi_version": 1,
+  "library": "ws_ladder",
+  "description": "Four-pole ladder-inspired nonlinear low-pass filter",
+  "parameters": {
+    "cutoff": 0,
+    "resonance": 1,
+    "drive": 2
+  },
+  "inputs": {
+    "audio": "audio"
+  },
+  "outputs": {
+    "audio": "audio"
+  }
+}

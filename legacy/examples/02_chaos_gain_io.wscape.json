@@ -1,0 +1,16 @@
+{
+ "format":"wirescape.patch","version":1,"theme":"studio","motion":true,
+ "modules":[
+  {"id":"node-1","type":"modulator","x":30,"y":94,"values":{"RATE":42,"DEPTH":55},"mode":0},
+  {"id":"node-2","type":"chaos","x":680,"y":65,"values":{"MORPH":22,"CHAOS":25,"FOLD":20,"PITCH":50,"DETUNE":12,"SPACE":20},"mode":1},
+  {"id":"gain-1","type":"gain","x":1410,"y":110,"values":{"GAIN":45,"SATURATION":15,"MIX":100}},
+  {"id":"node-3","type":"interface","x":1960,"y":110,"values":{"OUTPUT LEVEL":70,"INPUT GAIN":36}}
+ ],
+ "connections":[
+  {"from":"node-1:modA","to":"node-2:morph"},
+  {"from":"node-2:left","to":"gain-1:inL"},
+  {"from":"node-2:right","to":"gain-1:inR"},
+  {"from":"gain-1:outL","to":"node-3:inL"},
+  {"from":"gain-1:outR","to":"node-3:inR"}
+ ]
+}

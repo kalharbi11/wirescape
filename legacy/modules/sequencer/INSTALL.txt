@@ -1,0 +1,23 @@
+WIRESCAPE / CHORD SEQUENCER — DROP-IN INSTALLATION
+
+1) BACK UP YOUR ORIGINAL wirescape PROJECT AND EXPORT IMPORTANT PATCHES.
+2) EXTRACT wirescape_sequencer_module.zip IN YOUR wirescape PROJECT ROOT.
+   It must create: <your project>/modules/sequencer/
+3) EXTRACT wirescape_sequencer_main_changes.zip IN THE SAME PROJECT ROOT.
+   Allow it to replace matching project files. It does not replace CHAOS code.
+   Check INTEGRATION.md for a line-by-line explanation of every changed file.
+4) Restart the Python Wirescape host and hard-refresh the browser.
+5) In the module library add CHORD / SEQUENCER.
+   NOTES -> CHAOS NOTES IN, MOD -> CHAOS CUTOFF IN,
+   CHAOS LEFT/RIGHT -> AUDIO I/O inputs.
+6) To inspect the ready-to-play wiring, IMPORT examples/03_chord_sequencer.wscape.json.
+
+The complete integrated archive is an optional reference copy, not required if
+installing the two smaller drop-in archives into your existing project.
+Your working Surge XT Python binding is still needed to hear CHAOS audio.
+
+To test:
+  python -m unittest discover -s tests -v
+  python tools/verify.py
+
+Audio scheduling: host callback-rate precision (~10.7ms at 48k/512).
