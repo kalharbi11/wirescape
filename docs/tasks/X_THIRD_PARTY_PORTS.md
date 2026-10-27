@@ -35,7 +35,8 @@ Write `docs/design/ports/PLAITS_STUDY.md` with these sections. Mark every fact w
 4. **The sample-rate question.** Our engine runs at 44.1/48/96 kHz, and Plaits is designed for one fixed rate. Compare three options and recommend one: (a) support only 48 kHz and refuse other rates in `prepare`; (b) resample around the voice; (c) compile per-rate variants. Weigh cost, quality and Daisy impact.
 5. **SDK gaps:** anything the port needs that our SDK, `module2.h` or the engine doesn't provide. Candidates include fixed internal block sizes that don't divide the host block, trigger semantics, and large per-voice memory times 16 channels.
 6. **Test plan** following "Rules for every port", item 6.
-7. **Effort and risks:** size estimate in changed lines and files, the riskiest parts, and what a minimal first spike should include (for example two engines only).
+7. **Prior art:** how VCV Rack's port of Plaits (Audible Instruments) adapts sample rate, polyphony and controls, with its licence. Read it for ideas only; don't copy code unless its licence allows it and the study says so.
+8. **Effort and risks:** size estimate in changed lines and files, the riskiest parts, and what a minimal first spike should include (for example two engines only).
 
 Stop condition: the doc is in a draft PR, with a handoff and `status/review`. No code.
 
@@ -46,10 +47,11 @@ CHAOS (`legacy/modules/chaos/`, read-only) is a Python prototype built on Surge 
 
 Write `docs/design/ports/CHAOS_DECOMPOSITION.md` with:
 1. **Inventory:** every CHAOS block and macro from `README.md`, `ARCHITECTURE.md`, `PORTS.md`, `engine.py`, `chaos_dsp.py`, `macros.py`, `voices.py` and `params.json`. One row each: what it does, its inputs and outputs, and where it lives (file:line).
-2. **Source of each block:** an existing Essential (name it), a planned module (ROADMAP or M6), Surge XT code, an sst library (sst-basic-blocks, sst-filters, sst-waveshapers, sst-effects; verify which exist and their licences and pin a SHA), or new code.
+2. **Source of each block:** an existing Essential (name it), a planned module (ROADMAP or M6), Surge XT code, an sst library (sst-basic-blocks, sst-filters, sst-waveshapers, sst-effects; verify which exist, their licences and their CPU/SIMD requirements, for example SSE-only vs SIMDe on ARM; pin a SHA), or new code.
 3. **Contract check:** the D-numbers each block relies on (for example D2 poly channels, D7 modulation, D11 LARGE memory for the looper, D16 macros and subpatches). List anything the contract can't express.
 4. **Build order:** the first three primitive modules worth porting on their own because they're useful outside CHAOS too (for example a Surge-quality oscillator, a comb/resonator body, a tape/wow-flutter effect), each with a one-paragraph spec in the same shape as X-1 section 3. Note which pieces must wait for subpatches and macros (M7) and the Channel Expander.
-5. **A CHAOS-lite subset** that could run on a Pi 5 within 25% of a 128-frame period at 48 kHz, as a first target.
+5. **Whole engine vs components:** one paragraph on wrapping the whole Surge XT engine as one module (X-6) versus separate component modules, and why CHAOS uses components.
+6. **A CHAOS-lite subset** that could run on a Pi 5 within 25% of a 128-frame period at 48 kHz, as a first target.
 
 Stop condition: the doc is in a draft PR, with a handoff and `status/review`. No code.
 
