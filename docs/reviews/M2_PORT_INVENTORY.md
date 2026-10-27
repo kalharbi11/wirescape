@@ -164,6 +164,8 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 | Tempo sync | — (ABI1 3 params, `native/modules/lfo/module.cpp:57-59`) | `sync` 3, 0..1 / 0, stepped (`native/modules2/lfo/dsp.h:14`) | added |
 | Beats/cycle | — (`native/modules/lfo/module.cpp:57-59`) | `beats` 4, .125..16 / 1 beats (`native/modules2/lfo/dsp.h:15`) | added |
 
+**Second-pass migration details.** There are **zero ABI 1 inputs**; `process` never reads an input buffer (`native/modules/lfo/module.cpp:42-59`). Rate/Depth/Offset events feed float targets directly, **none is rounded or stepped**, and `sin(phase)*depth+offset` uses linear ramped values; radians and `fmod` are oscillator math, not parameter tapers (`native/modules/lfo/module.cpp:35-56`). `process` uses instance phase/ramps and a bounded loop; **no allocation, lock, I/O or mutable process-wide global** (`native/modules/lfo/module.cpp:8-18,42-52`). The existing ID/index/range/defaults survive in ABI 2; **new** `sync` (index 3, 0..1/default 0, stepped) and `beats` (index 4, .125..16/default 1, LOG metadata) change transport behavior but do not rename the three existing parameters (`native/modules2/lfo/dsp.h:10-15,23-30`). No `native/modules/lfo/DESIGN.md` exists at this ref; external source/licence/pin is **UNKNOWN (looked in that path and `native/modules/lfo/module.cpp:1-5`; implementation imports the project ramp)**.
+
 ## mixer
 
 **1. Identity.** `essentials.mixer`; display name from `native/modules/mixer/module.json:1`; source `native/modules/mixer/module.cpp:62-92`, `native/modules/mixer/module.json:1`.
