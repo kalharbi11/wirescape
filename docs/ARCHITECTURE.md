@@ -128,3 +128,15 @@ Protected CI changes require `allow-protected`; test removal requires `allow-tes
 
 ABI2 non-loop components write directly to global output buffers and alias compatible signal inputs; reductions, delays and loop spans retain prepared scratch buffers.
 The `sanitizers` job runs headless ASan+UBSan and TSan ABI2 suites on Linux ARM64, including bounded panic/egress stress, and appends callgrind Ir/block measurements to its summary.
+
+## Audio capture harness
+
+`tools/capture/` renders native patch v1 via ABI1 without opening devices and
+compares signals using alignment, level, timing and response metrics. CTest's
+`capture_offline_selftests` uses synthetic captures and a fully mocked runner.
+`native/tools/capture/` builds a separate Windows SDK process-loopback helper;
+`python tools/capture/run.py --confirm-audio` is the explicit manual entry point.
+It captures only the dedicated helper's render stream on Windows build 20348+,
+never microphones or an unisolated endpoint mix. Reports stay in `build_reports/`.
+Device execution is unverified and reserved for the user; CI only compiles the
+helper and runs offline tests. See `tools/capture/README.md` for bounds and scope.

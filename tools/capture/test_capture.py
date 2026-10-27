@@ -1,0 +1,295 @@
+# SPDX-License-Identifier: GPL-3.0-only
+"""Synthetic and offline engine self-tests. Never launches a capture executable."""
+import argparse
+import ast
+import array
+import contextlib
+import io
+import tempfile
+import subprocess
+from unittest.mock import patch
+import run
+import json
+from pathlib import Path
+import unittest
+from analysis import analyse, pilot, resample, stimulus
+from reference import render, tone_patch
+
+
+class AnalysisTests(unittest.TestCase):
+    def setUp(self):
+        self.reference = pilot(stimulus('pulses', 1))
+
+    def test_clean_capture_has_latency_and_passes(self):
+        report = analyse(self.reference, [0.0] * 4800 + self.reference + [0.0] * 4800)
+        self.assertEqual(report['status'], 'pass', report)
+        self.assertAlmostEqual(report['metrics']['latency_ms'], 100)
+
+    def test_silence_is_detected(self):
+        self.assertIn('silence', analyse(self.reference, [0.0] * len(self.reference))['failures'])
+
+    def test_clipping_is_detected(self):
+        x = self.reference.copy()
+        x[5000:5500] = [1.0] * 500
+        self.assertIn('clipping', analyse(self.reference, x)['failures'])
+
+    def test_mismatch_is_detected(self):
+        self.assertIn('mismatch', analyse(self.reference, pilot(stimulus('sweep', 1)))['failures'])
+
+    def test_dropout_is_detected(self):
+        x = self.reference.copy()
+        x[5000:7500] = [0.0] * 2500
+        result = analyse(self.reference, x)
+        self.assertIn('dropout', result['failures'])
+        self.assertGreater(result['metrics']['dropout_windows'], 0)
+
+    def test_discontinuity_is_detected(self):
+        x = self.reference.copy()
+        x[5000] += 0.1
+        self.assertIn('discontinuity', analyse(self.reference, x)['failures'])
+
+    def test_truncated_capture_fails(self):
+        self.assertIn('dropout', analyse(self.reference, self.reference[:-5000])['failures'])
+
+    def test_sample_rate_conversion_and_gain(self):
+        x = [0.0] * 4410 + resample(self.reference, 48000, 44100) + [0.0] * 4410
+        result = analyse(self.reference, [v * 0.8 for v in x], 44100)
+        self.assertEqual(result['status'], 'pass', result)
+        self.assertTrue(result['metrics']['resampled'])
+
+    def test_audio_outside_reference_is_detected(self):
+        result = analyse(self.reference, self.reference + [0.02] * 4800)
+        self.assertIn('unexpected_audio', result['failures'])
+
+    def test_shifted_envelope_edges_are_detected(self):
+        x = self.reference[:1280] + [0.0] * 2000 + self.reference[1280:]
+        self.assertIn('timing', analyse(self.reference, x)['failures'])
+
+    def test_bounds_and_nonfinite(self):
+        for x in ([], [float('nan')] * 2000):
+            with self.assertRaises(ValueError):
+                analyse(self.reference, x)
+        with self.assertRaises(ValueError):
+            stimulus('tone', 100)
+
+
+class EngineTests(unittest.TestCase):
+    def test_native_patch_render_is_deterministic_and_responds_to_events(self):
+        patch = tone_patch()
+        a, _ = render(ARGS.engine, ARGS.modules, patch, seconds=0.2)
+        b, _ = render(ARGS.engine, ARGS.modules, patch, seconds=0.2)
+        self.assertEqual(a, b)
+        self.assertGreater(max(a), 0.01)
+        c, _ = render(ARGS.engine, ARGS.modules, patch,
+                      [dict(frame=4800, node=1, type=1, parameter=0, value=880)], seconds=0.2)
+        self.assertEqual(a[:4800], c[:4800])
+        self.assertNotEqual(a[6000:], c[6000:])
+
+    def test_negative_event_frame_is_rejected(self):
+        with self.assertRaises(ValueError):
+            render(ARGS.engine, ARGS.modules, tone_patch(),
+                   [dict(frame=-1, node=1, type=1, value=440)], seconds=0.1)
+
+    def test_filter_patch_attenuates_known_tone(self):
+        patch = tone_patch()
+        clean, _ = render(ARGS.engine, ARGS.modules, patch, seconds=0.2)
+        patch['modules'].append(dict(id=3, type='essentials.vcf', values={'0': 100, '1': 0.2}))
+        patch['connections'] = [dict(fromNode=1, fromPort='audio', toNode=3, toPort='audio'),
+                                dict(fromNode=3, fromPort='low24', toNode=2, toPort='audio')]
+        filtered, _ = render(ARGS.engine, ARGS.modules, patch, seconds=0.2)
+        self.assertLess(sum(v * v for v in filtered[4800:]), sum(v * v for v in clean[4800:]) * 0.05)
+
+    def test_combined_noise_demo_is_reproducible(self):
+        path = Path(__file__).resolve().parents[2] / 'native/examples/Six_Essentials_Demo.json'
+        patch = json.loads(path.read_text())
+        a, _ = render(ARGS.engine, ARGS.modules, patch, seconds=0.2)
+        b, _ = render(ARGS.engine, ARGS.modules, patch, seconds=0.2)
+        self.assertEqual(a, b)
+        self.assertGreater(max(map(abs, a)), 1e-5)
+
+
+class RunnerTests(unittest.TestCase):
+    def test_confirmation_gate_precedes_rendering_and_process_creation(self):
+        with patch.object(run, 'render') as render_mock, patch.object(run, 'run_native') as native_mock:
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as caught:
+                run.main([])
+            self.assertEqual(caught.exception.code, 2)
+            render_mock.assert_not_called()
+            native_mock.assert_not_called()
+
+    def test_invalid_duration_never_invokes_backend(self):
+        with patch.object(run, 'run_native') as native_mock:
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                run.main(['--confirm-audio', '--seconds', '20'])
+            native_mock.assert_not_called()
+
+    def test_watchdog_kills_only_owned_helper(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(run.subprocess, 'Popen') as create:
+            child = create.return_value
+            child.wait.side_effect = [subprocess.TimeoutExpired('fake-helper', 12), 0]
+            with self.assertRaises(subprocess.TimeoutExpired):
+                run.run_native(Path('fake-helper'), Path(folder))
+            child.kill.assert_called_once()
+            self.assertEqual(child.wait.call_count, 2)
+
+    def test_application_render_error_precedes_capture(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(run, 'ROOT', Path(folder)), \
+             patch.object(run, 'render', side_effect=RuntimeError('synthetic render fault')), \
+             patch.object(run, 'run_native') as native_mock:
+            self.assertEqual(run.main(['--confirm-audio']), 1)
+            file = next((Path(folder) / 'build_reports/capture').glob('*/report.json'))
+            report = json.loads(file.read_text())
+            self.assertEqual(report['status'], 'application_fault')
+            self.assertEqual(report['application_faults'], ['synthetic render fault'])
+            native_mock.assert_not_called()
+
+    def simulate(self, mutate=lambda meta, data: (meta, data), code=0):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            helper = root / 'fake-helper.exe'
+            helper.write_bytes(b'not executable; mocked throughout')
+            def fake_native(executable, directory):
+                data = (directory / 'reference.f32').read_bytes()
+                data = b'\0' * (960 * 8) + data + b'\0' * (960 * 8)
+                meta = dict(status='captured', message='', isolation='process_tree', target_pid=42,
+                            endpoint_id='synthetic only', stopped_cleanly=True, rate=48000, channels=2,
+                            frames=len(data) // 8, transport_counters=dict(discontinuities=0,
+                            timestamp_errors=0, position_gaps=0, render_starvations=0))
+                meta, data = mutate(meta, data)
+                (directory / 'capture.f32').write_bytes(data)
+                (directory / 'native.json').write_text(json.dumps(meta))
+                return 42, code
+            with patch.object(run, 'ROOT', root), patch.object(run, 'is_windows', return_value=True), \
+                 patch.object(run, 'run_native', side_effect=fake_native), \
+                 patch.object(run.subprocess, 'check_output', return_value='synthetic-commit\n'):
+                result = run.main(['--confirm-audio', '--stimulus', 'tone', '--seconds', '.1', '--native', str(helper)])
+            directory = next((root / 'build_reports/capture').iterdir())
+            report = json.loads((directory / 'report.json').read_text())
+            self.assertTrue((directory / 'report.md').is_file())
+            def no_machine_path(value):
+                if isinstance(value, dict):
+                    for key, item in value.items():
+                        no_machine_path(key); no_machine_path(item)
+                elif isinstance(value, list):
+                    for item in value: no_machine_path(item)
+                elif isinstance(value, str):
+                    self.assertNotIn(str(root), value)
+                    self.assertNotIn(str(root.resolve()), value)
+            no_machine_path(report)
+            self.assertEqual((directory / 'reference.wav').read_bytes()[:4], b'RIFF')
+            self.assertIn('reference.f32', report['files_sha256'])
+            return result, report
+
+    def test_synthetic_runner_produces_report_and_channel_mapping(self):
+        result, report = self.simulate()
+        self.assertEqual(result, 0, report)
+        self.assertEqual(report['status'], 'pass')
+        self.assertEqual(len(report['channel_map']), 2)
+        self.assertFalse(report['application_faults'])
+        self.assertIsNone(report['capture_failure'])
+
+    def test_transport_fault_is_separate_from_signal(self):
+        def fault(meta, data):
+            meta['transport_counters']['discontinuities'] = 1
+            return meta, data
+        result, report = self.simulate(fault)
+        self.assertEqual(result, 1)
+        self.assertEqual(report['status'], 'transport_failure')
+        self.assertTrue(all(r['status'] == 'pass' for r in report['signal_analysis']))
+
+    def test_ambiguous_isolation_never_passes(self):
+        def fault(meta, data):
+            meta['isolation'] = 'endpoint_mix'
+            return meta, data
+        result, report = self.simulate(fault)
+        self.assertEqual(report['status'], 'ambiguous')
+        self.assertNotEqual(result, 0)
+
+    def test_unavailable_is_a_distinct_result(self):
+        def fault(meta, data):
+            meta.update(status='unavailable', message='synthetic unsupported backend')
+            return meta, data
+        result, report = self.simulate(fault, code=3)
+        self.assertEqual((result, report['status']), (3, 'unavailable'))
+
+    def test_activation_success_then_initialize_failure_is_capture_failure(self):
+        def fault(meta, data):
+            meta.update(status='capture_failure', message='capture Initialize HRESULT=2147500037',
+                        stopped_cleanly=False)
+            return meta, data
+        result, report = self.simulate(fault, code=2)
+        self.assertEqual((result, report['status']), (1, 'capture_failure'))
+        self.assertIn('capture Initialize', report['capture_failure'])
+        self.assertFalse(report['application_faults'])
+
+    def test_native_file_error_does_not_expose_report_directory(self):
+        def fault(meta, data):
+            # Native filesystem exceptions may include the full report directory.
+            meta.update(status='application_fault', message=str(run.ROOT / 'build_reports/reference.f32'))
+            return meta, data
+        result, report = self.simulate(fault, code=2)
+        self.assertEqual((result, report['status']), (1, 'application_fault'))
+        self.assertEqual(report['application_faults'], ['<repository>' + str(Path('/build_reports/reference.f32'))])
+
+    def test_native_reference_error_is_application_fault(self):
+        def fault(meta, data):
+            meta.update(status='application_fault', message='invalid reference bounds')
+            return meta, data
+        result, report = self.simulate(fault, code=2)
+        self.assertEqual((result, report['status']), (1, 'application_fault'))
+        self.assertEqual(report['application_faults'], ['invalid reference bounds'])
+
+    def test_capture_configuration_and_sources_support_python39(self):
+        root = Path(__file__).resolve().parents[2]
+        cmake = (root / 'native/tools/capture/CMakeLists.txt').read_text()
+        self.assertIn('find_package(Python3 3.9 REQUIRED', cmake)
+        for name in ('analysis.py', 'reference.py', 'run.py', 'test_capture.py'):
+            ast.parse((root / 'tools/capture' / name).read_text(), feature_version=(3, 9))
+
+    def test_engine_binary_provenance_has_no_absolute_paths(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            engine = root / 'engine.so'
+            engine.write_bytes(b'fake engine')
+            module = root / 'module.so'
+            module.write_bytes(b'fake module')
+            with patch.object(run, 'ROOT', root), patch.object(run, 'is_windows', return_value=False), \
+                 patch.object(run, 'render', return_value=(stimulus('tone', .1), [module])), \
+                 patch.object(run.subprocess, 'check_output', return_value='synthetic-commit'):
+                run.main(['--confirm-audio', '--seconds', '.1', '--engine', str(engine), '--modules', str(root)])
+            report = next(root.glob('build_reports/capture/*/report.json')).read_text()
+            self.assertNotIn(str(root), report)
+            self.assertEqual(set(json.loads(report)['binary_sha256']), {'engine.so', 'module.so'})
+
+    def test_report_paths_preserve_provenance_without_machine_directories(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            library = root / 'build/native/engine.so'
+            external = root.parent / 'private-user-home' / 'module.so'
+            with patch.object(run, 'ROOT', root):
+                self.assertEqual(run.report_path(library), 'build/native/engine.so')
+                self.assertEqual(run.report_path(external), 'module.so')
+                self.assertEqual(run.report_error(OSError(str(external)), [external]), 'module.so')
+        # The fake backend supplies an absolute --native path in config.
+        _, report = self.simulate()
+        self.assertEqual(report['config']['native'], 'fake-helper.exe')
+
+    def test_corrupt_capture_is_not_a_signal_mismatch(self):
+        result, report = self.simulate(lambda meta, data: (meta, data[:-1]))
+        self.assertEqual((result, report['status']), (1, 'capture_failure'))
+
+    def test_swapped_channels_are_detected_by_pilots(self):
+        def fault(meta, data):
+            values = array.array('f'); values.frombytes(data)
+            left = values[::2]; values[::2] = values[1::2]; values[1::2] = left
+            return meta, values.tobytes()
+        result, report = self.simulate(fault)
+        self.assertEqual((result, report['status']), (1, 'signal_mismatch'))
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--engine', required=True)
+    parser.add_argument('--modules', required=True)
+    ARGS, rest = parser.parse_known_args()
+    unittest.main(argv=[__file__] + rest, verbosity=2)
