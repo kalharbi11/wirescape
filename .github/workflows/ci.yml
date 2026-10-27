@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .tools/pip-cache
           key: tools-${{ runner.os }}-${{ runner.arch }}-cmake-4.2.3-ninja-1.13.0
