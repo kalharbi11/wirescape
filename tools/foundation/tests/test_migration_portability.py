@@ -11,7 +11,7 @@ import dev
 class MigrationPortabilityTests(unittest.TestCase):
     def test_qt_environment_priority_and_exact_fallback(self):
         with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
+            root = Path(folder).resolve()
             paths = [root/'environment', root/'prefix', root/'.tools/qt/6.10.3/msvc2022_64']
             for path in paths:
                 config = path/'lib/cmake/Qt6/Qt6Config.cmake'
