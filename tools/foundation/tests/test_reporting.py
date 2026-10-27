@@ -14,6 +14,34 @@ from foundation.helpers import run_logged, source_provenance
 
 
 class ReportingTests(unittest.TestCase):
+    def test_native_suite_failure_is_nonzero_and_prints_suite(self):
+        with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as folder:
+            root = Path(folder)
+            (root / "CMakeCache.txt").touch()
+            log = root / "ctest.log"
+            log.write_text("1/1 Test #1: abi2_engine_tests ...***Failed 0.01 sec\n")
+            output = __import__("io").StringIO()
+            with patch.object(dev, "BUILD_DIR", root), \
+                 patch.object(dev, "_base_record", return_value={"action": "test", "source": {}}), \
+                 patch.object(dev, "_refresh_build_metadata", return_value=({}, True)), \
+                 patch.object(dev, "discover_toolchain", return_value={"cmake": "cmake", "ctest": "ctest"}), \
+                 patch.object(dev, "run_logged", side_effect=[{"exit_code": 0}, {"exit_code": 8, "log": str(log)}]), \
+                 patch.object(dev, "_save_record", return_value=root / "test.json"), \
+                 __import__("contextlib").redirect_stdout(output):
+                self.assertEqual(dev.command_test(argparse.Namespace(config="Release", json=False)), 8)
+            self.assertIn("abi2_engine_tests", output.getvalue())
+            self.assertIn("***Failed", output.getvalue())
+
+    def test_benchmark_failure_preserves_exit_status(self):
+        with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as folder:
+            root = Path(folder)
+            with patch.object(dev, "_base_record", return_value={"action": "benchmark"}), \
+                 patch.object(dev, "_native_cli", return_value=root / "cli"), \
+                 patch.object(dev, "_unique_report_path", return_value=root / "missing.json"), \
+                 patch.object(dev, "run_logged", return_value={"exit_code": 7}), \
+                 patch.object(dev, "_save_record", return_value=root / "report.json"):
+                self.assertEqual(dev.command_benchmark(argparse.Namespace(config="Release", blocks=2, json=True)), 7)
+
     def test_functional_only_defers_benchmark_and_default_check_keeps_it(self):
         for functional_only in (True, False):
             with self.subTest(functional_only=functional_only), tempfile.TemporaryDirectory(dir=TEMP_ROOT) as folder:

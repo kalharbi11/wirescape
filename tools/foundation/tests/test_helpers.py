@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 import zipfile
 from pathlib import Path
@@ -85,6 +86,10 @@ class CommandLogTests(unittest.TestCase):
                     for _ in range(30):
                         try: os.kill(pid, 0)
                         except OSError: break
+                        # Minimal containers may retain a dead orphan as a zombie.
+                        stat = Path(f"/proc/{pid}/stat")
+                        if sys.platform == "linux" and stat.exists() and stat.read_text().split(") ", 1)[1].startswith("Z"):
+                            break
                         time.sleep(.05)
                     else: self.fail(f"owned descendant {pid} survived timeout")
                 self.assertIsNone(unrelated.poll())
