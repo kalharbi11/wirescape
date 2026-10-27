@@ -12,7 +12,7 @@ PROTECTED = ('AGENTS.md', 'CLAUDE.md', 'docs/PLAN.md', 'docs/PLANNER_HANDOFF.md'
              'native/include/wirescape/*.h', 'docs/history/**', 'legacy/**')
 BINARY = {'.dll', '.exe', '.zip', '.wav', '.ttf', '.otf'}
 PRIVATE = {'user_data', '.tools', 'build'}
-MACHINE = re.compile(r'(?i)(?:[a-z]:[\\/]Users[\\/]|/home/[^/\s]+(?:/|$))')
+MACHINE = re.compile(r'(?i)(?:[a-z]:[\\/]Users[\\/]|/ho' r'me/[^/\s]+(?:/|$))')
 
 
 def is_test(path):

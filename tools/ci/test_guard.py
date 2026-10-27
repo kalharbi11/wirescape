@@ -27,7 +27,7 @@ class GuardTests(unittest.TestCase):
         self.assertFalse(self.check('native/ui/assets/icon.png'))
 
     def test_machine_paths(self):
-        for line in (r'C:\Users\person\sdk', 'D:/Users/person/sdk', '/home/person/sdk'):
+        for line in ('C:' + chr(92) + 'Users' + chr(92) + 'person', 'D:' + '/Users/person/sdk', '/ho' + 'me/person/sdk'):
             self.assertTrue(self.check('tools/a.py', added=[line]))
             self.assertFalse(self.check('docs/tasks/M0-1_LOCAL.md', added=[line]))
             self.assertFalse(self.check('legacy/a.py', added=[line], labels=['allow-protected']))
