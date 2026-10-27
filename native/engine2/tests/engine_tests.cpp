@@ -40,6 +40,18 @@ static void producer_validation(){
  float out[256]{};float*outputs[]={out};CHECK(e.render(outputs,1,256)==WS2_OK);CHECK(e.meter().faults==1);CHECK(e.output_constant(1,0));CHECK(e.output_sample(1,0,0,0)==0);CHECK(e.output_sample(2,0,0,0)==0);
  float finite[]={0.f,-0.f,1.f,-2.f,3.e38f};CHECK(ws::finite_samples(finite,5));
  finite[4]=std::nanf("");CHECK(!ws::finite_samples(finite,5));finite[4]=INFINITY;CHECK(!ws::finite_samples(finite,5));
+ // 1 and 2 are finite although their exponent bits OR to the Inf/NaN pattern.
+ CHECK(ws::finite_samples(nullptr,0));
+ std::array<float,258>samples{};
+ for(uint32_t shift:{0u,1u})for(uint32_t count:{1u,2u,3u,4u,7u,17u,256u,257u}){
+  for(uint32_t i=0;i<count;++i)samples[shift+i]=(i&1)?2.f:1.f;
+  CHECK(ws::finite_samples(samples.data()+shift,count));
+  for(float invalid:{std::nanf(""),INFINITY,-INFINITY})for(uint32_t index:{0u,count/2,count-1}){
+   const float saved=samples[shift+index];samples[shift+index]=invalid;
+   CHECK(!ws::finite_samples(samples.data()+shift,count));samples[shift+index]=saved;
+  }
+ }
+
 }
 struct AddressSource:Source {
  static inline const float*written=nullptr;

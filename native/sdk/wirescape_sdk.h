@@ -42,7 +42,8 @@ inline double to_normal(const ws2_param&p,double value) noexcept {
 }
 inline bool finite_samples(const float*data,uint32_t count) noexcept {
     uint32_t exponent=0;
-    for(uint32_t i=0;i<count;++i){uint32_t bits;std::memcpy(&bits,data+i,sizeof(bits));exponent=std::max(exponent,bits&UINT32_C(0x7f800000));}
+    for(uint32_t i=0;i<count;++i){uint32_t bits;std::memcpy(&bits,data+i,sizeof(bits));exponent|=bits&UINT32_C(0x7f800000);}
+    // Mixed finite exponents can also OR to all ones; only the exact rescan rejects.
     if(exponent==UINT32_C(0x7f800000))for(uint32_t i=0;i<count;++i)if(!std::isfinite(data[i]))return false;
     return true;
 }
