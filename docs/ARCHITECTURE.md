@@ -113,3 +113,14 @@ assets, not compiled application binaries. Shortcut installer takes a mandatory 
 `build/`, `build_reports/`, `.tools/`, `user_data/` and private backups are ignored local-only data.
 The generated build/cache/test reports contain local paths and must never be committed.
 Manual real-device probes require explicit confirmation/authorization and are never in CTest.
+
+## CI
+
+`linux-arm64` runs the headless native/ABI2 suites and ABI2 benchmark on every push and PR.
+`windows-x64` runs MSVC/Qt 6.10.3 build, native tests and offscreen UI checks on main,
+manual runs, ready PRs, or draft PRs labelled `ci/windows`. Audio/MIDI devices stay off.
+PortAudio v19.7.0 is built at `147dd722548358763a8b649b3e4b41dfffbcfbb6`
+under its MIT licence (`LICENSE.txt` upstream); `WIRESCAPE_PORTAUDIO` locates the DLL.
+Summary JSON and ARM64 benchmark numbers are artifacts; full logs upload on failure.
+`guard` enforces protected paths, test retention, private/binary exclusions and portable paths.
+Protected CI changes require `allow-protected`; test removal requires `allow-test-removal`.

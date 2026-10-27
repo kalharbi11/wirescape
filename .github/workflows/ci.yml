@@ -1,0 +1,118 @@
+# SPDX-License-Identifier: GPL-3.0-only
+name: CI
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tools/ci -v
+      - name: Guard changed paths and added lines
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: python tools/ci/guard.py --base "$BASE" --head "$HEAD" --labels-json "$LABELS"
+  native:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON((github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'ci/windows')))) && '[{"os":"linux-arm64","runner":"ubuntu-24.04-arm"},{"os":"windows-x64","runner":"windows-latest"}]' || '[{"os":"linux-arm64","runner":"ubuntu-24.04-arm"}]') }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    concurrency:
+      group: ci-${{ github.ref }}-${{ matrix.os }}
+      cancel-in-progress: true
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: '2'
+      QT_QPA_PLATFORM: offscreen
+      QT_QUICK_BACKEND: software
+      PIP_CACHE_DIR: ${{ github.workspace }}/.tools/pip-cache
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: .tools/pip-cache
+          key: tools-${{ runner.os }}-${{ runner.arch }}-cmake-3.31.10-ninja-1.13.0
+      - run: python -m pip install cmake==3.31.10 ninja==1.13.0
+      - uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
+        if: runner.os == 'Windows'
+        with:
+          version: '6.10.3'
+          arch: win64_msvc2022_64
+          cache: true
+      - name: Build pinned PortAudio (MIT, v19.7.0)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "WIRESCAPE_QT_DIR=$env:QT_ROOT_DIR" >> $env:GITHUB_ENV
+          git clone https://github.com/PortAudio/portaudio.git .tools/portaudio-src
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          git -C .tools/portaudio-src checkout 147dd722548358763a8b649b3e4b41dfffbcfbb6
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake -S .tools/portaudio-src -B .tools/portaudio-build -A x64 -DPA_BUILD_SHARED=ON -DPA_BUILD_STATIC=OFF -DPA_BUILD_TESTS=OFF -DPA_BUILD_EXAMPLES=OFF -DPA_USE_ASIO=OFF
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build .tools/portaudio-build --config Release --parallel 2
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $dll = Get-ChildItem .tools/portaudio-build -Recurse -Filter '*portaudio*.dll' | Select-Object -First 1
+          if (!$dll) { throw 'PortAudio DLL missing' }
+          "WIRESCAPE_PORTAUDIO=$($dll.FullName)" >> $env:GITHUB_ENV
+      - name: Build and test (devices stay off)
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s tools/foundation/tests -v
+          if [[ '${{ matrix.os }}' == linux-arm64 ]]; then
+            python tools/dev.py build --headless
+          else
+            python tools/dev.py build
+            test -f build/native/ui/wirescape-ui-enabled.txt
+          fi
+          python tools/dev.py test
+          if [[ '${{ matrix.os }}' == windows-x64 ]]; then python tools/dev.py ui-test; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.os }}-summaries
+          path: |
+            build_reports/foundation/*.json
+            build_reports/abi2/*.json
+            build/native/abi2_equivalence.json
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ${{ matrix.os }}-failure-logs
+          path: |
+            build_reports/**/*.log
+            build/native/Testing/Temporary/LastTest.log
+  # Register a dedicated runner: Settings > Actions > Runners > New self-hosted runner.
+  # Use the Linux ARM64 instructions and add the custom label pi5. Never expose
+  # this runner to fork PR code; enable only for trusted branches in this repo.
+  # pi5:
+  #   if: github.event_name == 'push' && github.repository == 'kalharbi11/wirescape'
+  #   runs-on: [self-hosted, linux, ARM64, pi5]
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - run: python tools/dev.py build --headless
+  #     - run: python tools/dev.py test
