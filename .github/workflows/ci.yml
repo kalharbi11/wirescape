@@ -135,7 +135,7 @@ jobs:
               text = str(path) + '\n' + path.read_text(errors='replace')[-3000:]
               print('::error::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           PYTHON
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ${{ matrix.os }}-summaries
@@ -144,7 +144,7 @@ jobs:
             build_reports/abi2/*.json
             build/native/abi2_equivalence.json
           if-no-files-found: warn
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: ${{ matrix.os }}-failure-logs
