@@ -34,7 +34,7 @@ static void matrix(){
 }
 #ifndef WS2_PORTABLE_TEST
 static void equivalence(const char*directory,const char*report){
- ModuleLoader loader(directory);FILE*file=nullptr;fopen_s(&file,report,"w");VERIFY(file);std::fprintf(file,"{\"modules\":[");
+ ModuleLoader loader(directory);FILE*file=std::fopen(report,"w");VERIFY(file);std::fprintf(file,"{\"modules\":[");
  for(uint32_t m=0;m<5;++m){auto*old=loader.abi1(names[m]);double worst=0;
   for(double rate:{44100.,48000.,96000.})for(uint32_t block:{1u,17u,256u}){
    auto f=std::make_unique<DspFixture>(descriptors[m],rate,1);void*state=old->create(rate);VERIFY(state);ws_module_config cfg{sizeof(cfg),256,rate,1};VERIFY(old->prepare(state,&cfg)==0);

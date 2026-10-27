@@ -167,7 +167,7 @@ def command_doctor(args: argparse.Namespace) -> int:
     record["summary"] = "; ".join(issues) if issues else f"CMake and {discovered['generator']} are available"
     report = _save_record(record)
     _print_record(record, report, args.json)
-    return 0 if not issues[:2] else 1
+    return 0 if not issues else 1
 
 
 def _cmake_and_generator() -> tuple[str | None, str | None, str | None]:
@@ -274,6 +274,12 @@ def command_test(args: argparse.Namespace) -> int:
                 ctest = [ctest_exe, "--test-dir", str(BUILD_DIR), "-C", args.config, "--output-on-failure", "--timeout", "60"]
                 test_result = run_logged(ctest, ROOT, _unique_report_path("test-ctest", ".log"))
                 steps.append({"name": "ctest", **test_result})
+                import re
+                text = Path(test_result["log"]).read_text(encoding="utf-8", errors="replace")
+                for line in text.splitlines():
+                    if re.search(r"\bTest\s+#\d+:", line):
+                        print(line.strip())
+
             else:
                 record.update(status="skipped", summary="Tests skipped: ctest was not found")
                 report = _save_record(record)
@@ -421,7 +427,7 @@ def command_benchmark(args: argparse.Namespace) -> int:
     record["summary"] = f"Benchmark recorded {args.blocks} blocks" if success else f"Benchmark failed (exit {result['exit_code']})"
     path = _save_record(record)
     _print_record(record, path, args.json)
-    return 0 if success else (layouts[-1]["command_result"].get("exit_code") or 1 if layouts else 1)
+    return 0 if success else (result["exit_code"] or 1)
 
 
 def command_render(args: argparse.Namespace) -> int:
