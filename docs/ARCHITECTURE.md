@@ -124,3 +124,10 @@ under its MIT licence (`LICENSE.txt` upstream); `WIRESCAPE_PORTAUDIO` locates th
 Summary JSON and ARM64 benchmark numbers are artifacts; full logs upload on failure.
 `guard` enforces protected paths, test retention, private/binary exclusions and portable paths.
 Protected CI changes require `allow-protected`; test removal requires `allow-test-removal`.
+
+## Offline capture analysis
+
+`tools/capture/` renders native patch v1 via ABI1 without opening devices and
+compares synthetic captures using alignment, level, timing and response metrics.
+CTest's `capture_offline_selftests` includes deterministic engine references;
+real endpoint capture remains an explicit manual operation, never a CI test.
