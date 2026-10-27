@@ -133,6 +133,7 @@ struct Engine::Impl {
     Config cfg;std::string error;
     std::vector<std::unique_ptr<Node>>nodes;std::vector<Edge>edges;std::vector<Component>components;
     std::vector<std::pair<uint32_t,Node*>>node_table;
+    std::array<uint32_t,32>bus_latency{};
     std::vector<Bus>buses;std::array<std::unique_ptr<Producer>,32>producers;
     uint32_t producer_count=0,dropped_connections=0;
     std::unique_ptr<Producer>egress;
@@ -185,6 +186,7 @@ struct Engine::Impl {
         future.clear();
     }
     bool topology();
+    bool finish_prepare();
     bool setup(Node&);
     bool admit(Node&,uint32_t,const ws2_event&,uint64_t,uint64_t);
     void collect();
@@ -239,6 +241,13 @@ bool Engine::Impl::setup(Node&n) {
     return true;
 }
 
+bool Engine::Impl::finish_prepare() {
+    if(!topology())return false;
+    for(auto&bus:buses){auto*n=find(bus.node);if(!n||bus.port>=n->outputs.size())return fail("Output no longer exists");bus.source=n;}
+    arena.resize(cfg.message_arena_bytes);egress=std::make_unique<Producer>(cfg.ring_capacity);
+    prepared=true;applied.store(generation.load());return true;
+}
+
 bool Engine::Impl::topology() {
     std::sort(nodes.begin(),nodes.end(),[](const auto&a,const auto&b){return a->id<b->id;});
     for(uint32_t i=0;i<nodes.size();++i)nodes[i]->index=i;
@@ -290,8 +299,13 @@ bool Engine::Impl::topology() {
     }components=std::move(ordered_components);
     for(auto&e:edges)if(e.back&&e.kind!=1){e.delay.prepare(cfg.max_channels,cfg.feedback_block);e.delay_channels.assign(cfg.feedback_block,0);e.head=0;}
     for(auto&component:components)for(auto*n:component.nodes)n->loop=component.loop;
-    latency=0;
-    for(auto&component:components)for(auto*n:component.nodes){uint32_t upstream=0;for(auto&e:edges)if(!e.removed&&!e.back&&e.destination==n)upstream=std::max(upstream,e.source->latency);n->latency+=upstream;latency=std::max(latency,n->latency);}
+    std::vector<uint32_t>distance(nodes.size(),0);bus_latency.fill(0);latency=0;
+    for(auto&component:components)for(auto*n:component.nodes){
+        uint32_t upstream=0;
+        for(auto&e:edges)if(!e.removed&&!e.back&&e.kind==0&&e.destination==n)upstream=std::max(upstream,distance[e.source->index]);
+        distance[n->index]=static_cast<uint32_t>(std::min<uint64_t>(UINT32_MAX,uint64_t(upstream)+n->latency));
+    }
+    for(auto&bus:buses){auto*n=find(bus.node);if(n){bus_latency[bus.channel]=std::max(bus_latency[bus.channel],distance[n->index]);latency=std::max(latency,bus_latency[bus.channel]);}}
     return true;
 }
 
@@ -529,10 +543,7 @@ bool Engine::prepare(){
        !p.cfg.feedback_block||p.cfg.feedback_block>p.cfg.max_block||p.cfg.message_arena_bytes>64*1024*1024)return p.fail("Invalid engine2 configuration");
     p.setup_bytes=0;
     for(auto&n:p.nodes)if(!p.setup(*n))return false;
-    if(!p.topology())return false;
-    for(auto&bus:p.buses){auto*n=p.find(bus.node);if(!n||bus.port>=n->outputs.size())return p.fail("Output no longer exists");bus.source=n;}
-    p.arena.resize(p.cfg.message_arena_bytes);p.egress=std::make_unique<Producer>(p.cfg.ring_capacity);
-    p.prepared=true;p.applied.store(p.generation.load());return true;
+    return p.finish_prepare();
 }
 bool Engine::set_parameter(uint32_t node,uint32_t index,float plain){auto&p=*p_;auto*n=p.find(node);if(!n||index>=n->parameters.size()||!std::isfinite(plain))return false;auto&v=n->state[index];if(plain<v.info.minimum||plain>v.info.maximum)return false;
     if(p.prepared&&p.position.load()!=0)return p.fail("Use PARAM ingress for live changes");
@@ -652,6 +663,13 @@ bool Engine::output_constant(uint32_t node,uint32_t port)const{auto*n=p_->find(n
 float Engine::output_sample(uint32_t node,uint32_t port,uint32_t channel,uint32_t frame)const{auto*n=p_->find(node);if(!n||port>=n->global_out.size())return 0;auto&b=n->global_out[port];return channel<b.channels&&frame<p_->cfg.max_block?b.data[channel][(b.flags&WS2_CONSTANT)?0:frame]:0;}
 uint32_t Engine::feedback_edges()const{return p_->feedback_count;}
 
+uint32_t Engine::latency_frames(uint32_t bus)const{return bus<p_->bus_latency.size()?p_->bus_latency[bus]:0;}
+std::vector<FeedbackLoop>Engine::feedback_loops()const{
+    std::vector<FeedbackLoop>result;
+    for(auto&component:p_->components)if(component.loop){FeedbackLoop loop;loop.delay_frames=p_->cfg.feedback_block;for(auto*n:component.nodes)loop.nodes.push_back(n->id);std::sort(loop.nodes.begin(),loop.nodes.end());result.push_back(std::move(loop));}
+    return result;
+}
+
 std::vector<uint8_t>Engine::save_state(uint32_t node){
     auto*n=p_->find(node);if(!n||n->legacy)return {};
     if(!n->preserved.empty())return n->preserved;
@@ -668,26 +686,57 @@ int Engine::load_state(uint32_t node,const std::vector<uint8_t>&bytes){
 const std::vector<uint8_t>&Engine::preserved_state(uint32_t node)const {auto*n=p_->find(node);if(n)return n->preserved;static const std::vector<uint8_t>empty;return empty;}
 uint32_t Engine::dropped_connections()const{return p_->dropped_connections;}
 bool Engine::reconfigure(uint32_t node,const std::vector<uint8_t>&config){
-    auto&old=*p_;if(!old.prepared||!old.find(node))return false;
+    auto&old=*p_;auto*changed=old.find(node);if(!old.prepared||!changed)return false;
+    if(config==changed->config){old.dropped_connections=0;return true;}
     Engine next(old.cfg);auto&fresh=*next.p_;
+    // Stage metadata for retained nodes; only the changed node creates/prepares DSP.
     for(auto&n:old.nodes){
-        bool added=n->legacy?next.add_abi1(n->id,n->legacy):next.add_node(n->id,n->d,n->id==node?config:n->config);
-        if(!added)return old.fail("Cannot stage reconfiguration");
-        auto*target=fresh.find(n->id);target->forced_channels=n->forced_channels;
-        for(uint32_t i=0;i<n->state.size();++i)if(n->state[i].requested)next.set_parameter(n->id,i,static_cast<float>(ws::to_plain(n->state[i].info,n->state[i].base.value())));
+        if(n->id==node){
+            if(!(n->legacy?next.add_abi1(n->id,n->legacy):next.add_node(n->id,n->d,config)))return old.fail("Cannot stage reconfiguration");
+            auto*target=fresh.find(node);target->config=config;
+            target->forced_channels=n->forced_channels;target->state=n->state;
+            for(uint32_t i=0;i<target->state.size();++i)target->state[i].info=target->parameters[i];
+            if(n->legacy&&!fresh.setup(*target))return old.fail("Staged shim prepare failed");
+        }else{
+            auto target=std::make_unique<Node>();target->id=n->id;target->d=n->d;target->legacy=n->legacy;
+            target->inputs=n->inputs;target->outputs=n->outputs;target->parameters=n->parameters;
+            target->forced_channels=n->forced_channels;target->latency=n->latency;
+            fresh.nodes.push_back(std::move(target));
+        }
     }
-    for(auto&n:fresh.nodes)if(!fresh.setup(*n))return old.fail("Staged query/prepare failed");
     auto index_of=[](const auto&ports,const char*id){for(uint32_t i=0;i<ports.size();++i)if(!std::strcmp(ports[i].id,id))return i;return UINT32_MAX;};
     for(auto&e:old.edges)if(!e.removed){auto*a=fresh.find(e.from),*b=fresh.find(e.to);auto sp=index_of(a->outputs,e.source->outputs[e.output].id);uint32_t dp=UINT32_MAX;
         if(e.kind==2)dp=index_of(b->parameters,e.destination->parameters[e.input].id);else dp=index_of(b->inputs,e.destination->inputs[e.input].id);
         if(sp==UINT32_MAX||dp==UINT32_MAX){++fresh.dropped_connections;continue;}
-        if(e.kind==2){if(!next.modulate(e.from,sp,e.to,dp,e.amount))return false;}
-        else if(!next.connect(e.from,sp,e.to,dp))return false;
+        if(e.kind==2){if(!next.modulate(e.from,sp,e.to,dp,e.amount))return old.fail("Staged modulation failed");}
+        else if(!next.connect(e.from,sp,e.to,dp))return old.fail("Staged connection failed");
     }
-    for(auto&bus:old.buses){auto*source=old.find(bus.node),*target=fresh.find(bus.node);uint32_t port=index_of(target->outputs,source->outputs[bus.port].id);if(port==UINT32_MAX){++fresh.dropped_connections;continue;}if(!next.output(bus.node,port,bus.channel))return false;}
-    for(uint32_t i=0;i<old.producer_count;++i)next.register_producer();
-    if(!next.prepare())return old.fail("Staged graph prepare failed");
-    for(auto&n:old.nodes)if(!n->legacy){auto bytes=save_state(n->id);if(!bytes.empty())next.load_state(n->id,bytes);}
+    for(auto&bus:old.buses){auto*source=old.find(bus.node),*target=fresh.find(bus.node);uint32_t port=index_of(target->outputs,source->outputs[bus.port].id);if(port==UINT32_MAX){++fresh.dropped_connections;continue;}if(!next.output(bus.node,port,bus.channel))return old.fail("Staged bus failed");}
+    for(uint32_t i=0;i<old.producer_count;++i)if(next.register_producer()<0)return old.fail("Staged producer failed");
+    if(!fresh.finish_prepare())return old.fail("Staged graph prepare failed");
+    if(!changed->legacy){auto bytes=save_state(node);if(!bytes.empty()){int r=next.load_state(node,bytes);if(r!=WS2_OK&&r!=WS2_UNSUPPORTED)return old.fail("Staged state restore failed");}}
+    std::vector<Node*>actual;actual.reserve(fresh.nodes.size());
+    for(auto&n:fresh.nodes)actual.push_back(n->id==node?n.get():old.find(n->id));
+    // Preserve unchanged loop delay lines as well as processor state.
+    std::vector<bool>used(old.edges.size(),false);std::vector<std::pair<size_t,size_t>>delays;
+    for(size_t i=0;i<fresh.edges.size();++i){auto&e=fresh.edges[i];if(!e.back||e.kind==1||e.from==node||e.to==node)continue;
+        for(size_t j=0;j<old.edges.size();++j){auto&v=old.edges[j];if(!used[j]&&!v.removed&&v.back&&std::tie(e.from,e.output,e.to,e.input,e.kind,e.amount)==std::tie(v.from,v.output,v.to,v.input,v.kind,v.amount)){used[j]=true;delays.emplace_back(i,j);break;}}
+    }
+    // Commit: all potentially failing work/allocations precede these swaps.
+    for(size_t i=0;i<fresh.nodes.size();++i)if(fresh.nodes[i]->id!=node){
+        auto&retained=*old.nodes[i];auto&layout=*fresh.nodes[i];
+        retained.index=layout.index;retained.component=layout.component;retained.loop=layout.loop;
+        retained.incoming.swap(layout.incoming);retained.signal_edges.swap(layout.signal_edges);
+        retained.modulation.swap(layout.modulation);retained.outgoing.swap(layout.outgoing);
+        for(uint32_t j=0;j<retained.event_outputs.size();++j)retained.event_outputs[j]={sizeof(ws2_event_out),&fresh,j,Impl::emit};
+        fresh.nodes[i].swap(old.nodes[i]);
+    }
+    for(auto&e:fresh.edges){e.source=actual[e.source->index];e.destination=actual[e.destination->index];}
+    for(auto&component:fresh.components)for(auto*&n:component.nodes)n=actual[n->index];
+    for(auto&entry:fresh.node_table)entry.second=actual[entry.second->index];
+    for(auto&bus:fresh.buses)bus.source=actual[bus.source->index];
+    for(auto pair:delays){auto&e=fresh.edges[pair.first];auto&v=old.edges[pair.second];std::swap(e.delay,v.delay);e.delay_channels.swap(v.delay_channels);std::swap(e.head,v.head);}
+    fresh.setup_bytes=0;for(auto&n:fresh.nodes)fresh.setup_bytes+=n->requested_fast+n->requested_large;
     fresh.position.store(old.position.load());fresh.beat=old.beat;fresh.anchor_frame=old.anchor_frame;fresh.anchor_ns=old.anchor_ns;fresh.frames_per_ns=old.frames_per_ns;
     fresh.generation.store(old.generation.load()+1);fresh.applied.store(fresh.generation.load());p_.swap(next.p_);return true;
 }
