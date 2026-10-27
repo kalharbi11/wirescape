@@ -315,7 +315,7 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Direction/index | ID | Signal kind | Unpatched default | Source |
 |---|---|---|---|---|
-| input 0 | `audio` | audio | UNKNOWN (engine buffer or process fallback not fully traced) | `native/modules/vcf/module.cpp:85-91`; `native/modules/vcf/module.json:1` |
+| input 0 | `audio` | audio | null/missing input -> 0; nonfinite sample -> 0 (`native/modules/vcf/module.cpp:63-69`) | `native/modules/vcf/module.cpp:85-91`; `native/modules/vcf/module.json:1` |
 | output 0 | `low12` | audio | n/a | `native/modules/vcf/module.cpp:85-91`; `native/modules/vcf/module.json:1` |
 | output 1 | `low24` | audio | n/a | `native/modules/vcf/module.cpp:85-91`; `native/modules/vcf/module.json:1` |
 
@@ -323,14 +323,24 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Index | ID | Name | Min | Max | Default | Units/taper | Stepped | Source |
 |---|---|---|---:|---:|---:|---|---|---|
-| 0 | `cutoff` | cutoff | 20 | 20000 | 1000 | Hz / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/vcf/module.cpp:85-91`; `native/modules/vcf/module.json:1` |
-| 1 | `resonance` | resonance | 0 | .95 | 0 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/vcf/module.cpp:85-91`; `native/modules/vcf/module.json:1` |
+| 0 | `cutoff` | cutoff | 20 | 20000 | 1000 | Hz / raw ramp feeding tan(pi*f/fs), not UI taper (`native/modules/vcf/module.cpp:33-36,60,69`) | No: continuous float, no cast or rounding (`native/modules/vcf/module.cpp:57-62`) | `native/modules/vcf/module.cpp:85-91`; `native/modules/vcf/module.json:1` |
+| 1 | `resonance` | resonance | 0 | .95 | 0 | none / raw linear parameter ramp (`native/modules/vcf/module.cpp:61,70`) | No: continuous float, no cast or rounding (`native/modules/vcf/module.cpp:57-62`) | `native/modules/vcf/module.cpp:85-91`; `native/modules/vcf/module.json:1` |
 
-**4. State.** Runtime state and reset/prepare/event/process implementation: `native/modules/vcf/module.cpp:1-84`. Extra serialized state/version beyond parameter values: **UNKNOWN (looked in native/modules/vcf/module.cpp, native/modules/vcf/module.json; patch document saving and loading not fully audited)**.
+**4. State.** Per-instance double state for four poles, cutoff/resonance LinearRamp targets, sample rate and frame limit (`native/modules/vcf/module.cpp:38-43`); prepare/reset clear poles (`native/modules/vcf/module.cpp:46-56`). No module save-state callback (`native/modules/vcf/module.cpp:88-90`); document reader retains original JSON, not internal filter state (`native/document/document_reader.cpp:34-36,50-51,82-85`).
 
-**5. ABI 2 status.** Ported. `native/modules2/vcf/dsp.h:6-10`: IDs, order, ranges/defaults retained; log taper descriptor and per-voice coefficient caching differ (**cosmetic** descriptor and behaviour pending equivalence tests) (`native/modules2/vcf/dsp.h:10-31`; `native/modules/vcf/module.cpp:63-87`). Classification **range/default change:** none found for retained parameters. Full behavioural equivalence **UNKNOWN**.
+**5. ABI 2 status.** Ported. Port/parameter IDs, per-direction order and parameter ranges/defaults retained (`native/modules/vcf/module.cpp:85-90`; `native/modules2/vcf/dsp.h:6-10`). ABI 2 supplies LOG cutoff descriptor taper (cosmetic metadata), and changes to poly state/cache (`native/modules2/vcf/dsp.h:10-31`) rather than ABI 1 singleton ramped coefficients (`native/modules/vcf/module.cpp:63-83`). No ID-breaking or range/default change to existing fields; behavioural matching UNKNOWN until DSP tests.
 
-**6. Port notes.** DSP, lifecycle and runtime assumptions: `native/modules/vcf/module.cpp:1-91`. Third-party dependencies, pinned revisions and licence: **UNKNOWN (looked in native/modules/vcf/module.cpp and native/modules/vcf/module.json; DESIGN.md not comprehensively audited)**. Process-time allocation, locks and mutable globals: **UNKNOWN (requires full audit)**.
+**6. Port notes.** Original four-pole trapezoidal/TPT lowpass; cutoff capped to .45 sample rate, resonance feeds algebraically solved zero-delay feedback, low12/low24 taps at stages 2/4 (`native/modules/vcf/module.cpp:21-36,63-83`; `native/modules/vcf/DESIGN.md:3-5`). DSP process is bounded, **no allocation, locks, I/O, mutable globals** (`native/modules/vcf/module.cpp:63-84`); allocation only in `create` (`native/modules/vcf/module.cpp:44-45`). Sample rate validated from 1 to 384000 Hz (`native/modules/vcf/module.cpp:11-15`). `DESIGN.md` confirms original DSP, no external third-party source or pinned revision, inherited GPLv3 LinearRamp contract (`native/modules/vcf/DESIGN.md:7-13`).
+
+**ABI 1 vs ABI 2 full interface (per-direction indices):**
+
+| Element | ABI 1 ID/index/range/default | ABI 2 ID/index/range/default | Classification |
+|---|---|---|---|
+| Input audio | `audio` 0, WS_AUDIO, null=0 (`native/modules/vcf/module.cpp:63-68,85`) | `audio` 0 WS2_AUDIO (`native/modules2/vcf/dsp.h:7`) | identical |
+| Output low12 | `low12` 0 WS_AUDIO (`native/modules/vcf/module.cpp:86`) | `low12` 0 WS2_AUDIO (`native/modules2/vcf/dsp.h:8`) | identical |
+| Output low24 | `low24` 1 WS_AUDIO (`native/modules/vcf/module.cpp:86`) | `low24` 1 WS2_AUDIO (`native/modules2/vcf/dsp.h:8`) | identical |
+| Cutoff | `cutoff` 0, 20..20000 / 1000 Hz (`native/modules/vcf/module.json:9`; `native/modules/vcf/module.cpp:87`) | `cutoff` 0, 20..20000 / 1000 Hz, LOG taper (`native/modules2/vcf/dsp.h:10`) | identical range/default, cosmetic taper descriptor |
+| Resonance | `resonance` 1, 0..0.95 / 0 (`native/modules/vcf/module.json:10`; `native/modules/vcf/module.cpp:87`) | `resonance` 1, 0..0.95 / 0 (`native/modules2/vcf/dsp.h:10`) | identical |
 
 ## vco
 
