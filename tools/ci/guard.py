@@ -22,6 +22,16 @@ def is_test(path):
     return any(part.lower().startswith('test') for part in p.parts) or 'test' in p.stem.lower()
 
 
+def is_spdx_exempt(path):
+    p = PurePosixPath(path)
+    return (
+        p.suffix.lower() in {'.json', '.png', '.svg', '.ico', '.wav', '.flac'}
+        or p.name.startswith('LICENSE')
+        or path.startswith(('LICENSES/', 'docs/history/', 'legacy/', 'native/tests/fixtures/'))
+        or path in {'.gitignore', '.gitattributes', '.github/CODEOWNERS'}
+    )
+
+
 def is_allowed_fixture_audio(path, suffix):
     p = PurePosixPath(path)
     return suffix in FIXTURE_AUDIO and p.parts[:3] == ('native', 'tests', 'fixtures')
@@ -43,6 +53,10 @@ def violations(status, paths, added, labels):
         exempt = path.startswith(('docs/history/', 'legacy/', 'docs/tasks/M0-1', 'docs/tasks/M0-2'))
         if not exempt and any(MACHINE.search(line) for line in added):
             errors.append('machine-specific user path is forbidden')
+    if status[0] == 'A':
+        path = paths[-1]
+        if not is_spdx_exempt(path) and not any('SPDX-License-Identifier:' in line for line in added[:5]):
+            errors.append('missing SPDX header')
     return errors
 
 
