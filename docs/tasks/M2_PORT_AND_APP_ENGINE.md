@@ -177,17 +177,17 @@ The `windows-x64` runner measured ABI 2/ABI 1 mono at 1.097×. Every other measu
 ## Codex continuous queue (run in this order; don't wait for review between tasks)
 Codex runs this list top to bottom in one long session. Open one draft PR per issue, post a handoff on each issue when it's done, set `status/review` and move straight on to the next item. **Never merge.** When an item's prerequisite isn't merged yet, skip it (post a one-line "waiting on #N" handoff) and take the next one; come back when it's merged.
 
-Updated 2026-10-27 (evening check-in). Done and reviewed: M2-0b (#42), M2-1 (PR #38), M2-2 (PR #39), M2-3 (PR #40) and M2-4 (PR #41), all accepted by Claude and waiting for the user to merge in that order.
+Updated 2026-10-27 (late check-in). Merged: M2-1 (#38) and the portability probe (#55). Accepted and waiting for the user to merge, in this order: #39 (M2-2), #37 (M1-3b, accepted with the gap moved to #64), then #40 and #41.
 
 | # | Item | Prerequisite | Machine |
 |---|---|---|---|
-| 1 | **Merge upkeep for #39, #40 and #41.** Every pair conflicts only in `native/engine2/CMakeLists.txt` (plus the shared harness files for #39/#40). As soon as the PR ahead of it is merged, merge `main` into the next one (merge commit), keep both sides' test registrations, run `python tools/dev.py test`, push and confirm CI is green. Skip any that the user or Claude already updated | the previous PR in the order #38 → #39 → #40 → #41 merged | cloud |
-| 2 | #32 M1-3b Windows mono gap (PR #37). The baseline is complete: the three CI ratios (1.083/1.168/1.094) are posted on #32 and the laptop measured 1.164. Diagnose with `/Qvec-report:2` and per-probe medians, then up to two measured fixes. The M2-6 blocker | none | **laptop** + CI |
-| 3 | #28 M2-5 patch v2 and lossless v1 migration (draft PR #48; CI is red). Make CI green, finish, add Pi evidence | none | Pi |
-| 4 | #49 M2-4b CV coverage for the eight new ports: **moved to Copilot** (CI is enough proof); Codex skips it | — | — |
-| 5 | #50 M2-0c soak: thread CPU time vs wall time (is the 4 ms tail preemption?) | none; never at the same time as another Pi run | Pi |
-| 6 | #56 M2-Pa `uint32_t` literal fix so all modules compile for Cortex-M7, then make the portability probe blocking: **moved to Copilot**; Codex skips it | — | — |
-| 7 | #29 M2-6 engine2 becomes the app engine | #32, #24, #25, #26, #28 merged | Pi + laptop |
+| 1 | **Merge upkeep:** after #39 merges, merge `main` into #40, then (after #40) into #41. Keep both sides' test registrations, run `python tools/dev.py test`, push, and confirm CI is green | the PR ahead of it merged | cloud |
+| 2 | #28 M2-5 (draft PR #48, CI green): finish it, add Pi evidence, handoff, `status/review` | none | Pi |
+| 3 | #50 M2-0c (draft PR #63, CI green): post the 600 s Pi run with the preempted-block count, handoff, `status/review` | no other Pi run at the same time | Pi |
+| 4 | #64 M1-3c clang-cl comparison (measurement only, no source changes) | #37 merged; laptop on | **laptop** |
+| 5 | #29 M2-6 engine2 becomes the app engine. **#32 no longer blocks it** (see the decision on #32) | #39, #40, #48 merged (#38 is in) | Pi + laptop |
+
+Copilot owns #49 and #56 (after the reset on Oct 31); Codex skips them. ChatGPT owns the docs studies.
 
 Rules for the queue:
 - Every PR ends with the "Machine evidence" comment from the Machines section. Run the Pi work while CI runs, so it doesn't add wall time. Never run two Pi benchmarks or soaks at once.
