@@ -21,13 +21,14 @@ static QJsonObject v1() {
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     try {
-        check(argc == 2, "fixture path"); ModuleCatalog catalog; QString error;
+        check(argc == 3, "fixture and finalized example paths"); ModuleCatalog catalog; QString error;
         QJsonObject manifest{{"id", "essentials.vco"}, {"parameters", QJsonObject{{"frequency", 0}}}};
         check(add_manifest(catalog, manifest, "audio", &error), "catalog mapping");
         auto before = catalog; check(!add_manifest(catalog, manifest, "audio", &error) && catalog.size() == before.size(), "duplicate catalog ID atomic");
         manifest["id"] = "invalid"; manifest["parameters"] = QJsonObject{{"x", 0}, {"y", 0}};
         check(!add_manifest(catalog, manifest, "audio", &error) && !catalog.contains("invalid"), "duplicate numeric mapping rejected");
         manifest["parameters"] = QJsonObject{{"x", 1.5}}; check(!add_manifest(catalog, manifest, "audio", &error), "fractional mapping rejected");
+        check(read_patch(read(QString::fromLocal8Bit(argv[2])), catalog).valid(), "finalized schema example loads");
         const auto original = v1(); const auto raw = QByteArray(" \n") + encode(original) + '\n';
         const auto patch = read_patch(raw, catalog); check(patch.valid() && patch.source_version == 1, "v1 migrated");
         check(patch.object["version"] == 2 && patch.original_bytes == raw, "version and original bytes");
@@ -44,6 +45,17 @@ int main(int argc, char** argv) {
         const auto um = u.object["modules"].toArray()[0].toObject(); check(um["inactive"] == true && um["preserved"] == item, "whole unknown module verbatim");
         check(u.object["connections"].toArray().size() == 1 && u.object["connections"].toArray()[0].toObject()["vendor"] == unknown["connections"].toArray()[0].toObject()["vendor"], "unknown cable retained");
         check(read_patch(encode(u.object), catalog).object == u.object, "unknown v1-v2-v2 roundtrip");
+        auto collision = original;
+        collision["settings"] = QJsonObject{{"sample_rate", false}, {"seed", "opaque"}, {"vendor", QJsonArray{3}}};
+        collision["devices"] = "opaque"; collision["host_mappings"] = 17; collision["outputs"] = false;
+        auto collisionModules = collision["modules"].toArray(); auto collisionModule = collisionModules[0].toObject();
+        collisionModule["config"] = 7; collisionModule["inactive"] = "opaque"; collisionModule["channel_seed"] = "opaque"; collisionModule["state"] = "opaque";
+        collisionModules[0] = collisionModule; collision["modules"] = collisionModules;
+        collision["connections"] = QJsonArray{QJsonObject{{"kind", "audio"}, {"fromNode", 1}, {"fromPort", "audio"}, {"toNode", 1}, {"toPort", "input"}, {"feedback", "opaque"}, {"amount", "opaque"}}};
+        const auto collided = read_patch(encode(collision), catalog);
+        check(collided.valid() && collided.object["preserved"] == collision, "new v2 structural names cannot destroy opaque v1 fields");
+        check(collided.object["modules"].toArray()[0].toObject()["preserved"] == collisionModule, "module structural collisions retained verbatim");
+        check(read_patch(encode(collided.object), catalog).object == collided.object, "collision envelopes stable across v2 roundtrip");
         const QByteArray duplicates[] = {"{\"format\":1,\"format\":2}", "{\"x\":{\"a\":1,\"\\u0061\":2}}", "{\"x\":[{\"z\":1,\"z\":2}]}"};
         for (const auto& bytes : duplicates) { auto bad = read_patch(bytes, catalog); check(!bad.valid() && bad.error.contains("Duplicate"), "duplicate raw/escaped/nested keys rejected"); }
         auto decorated = patch.object;

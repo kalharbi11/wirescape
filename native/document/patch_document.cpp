@@ -97,7 +97,7 @@ bool validate_patch(const QJsonObject& o, QString* error) {
         return fail(error, "Invalid sample_rate.");
     if (settings["feedback_block"].toInt(1) > settings["max_block_frames"].toInt(256))
         return fail(error, "feedback_block exceeds max_block_frames.");
-    if (settings.contains("seed") && !integer(settings["seed"], 0, 9007199254740991.)) return fail(error, "Invalid seed.");
+    if (settings.contains("seed") && !integer(settings["seed"], 0, std::numeric_limits<double>::max())) return fail(error, "Invalid seed.");
     if (settings.contains("timing_mode") && settings["timing_mode"] != "immediate" && settings["timing_mode"] != "timestamped")
         return fail(error, "Invalid timing_mode.");
     QSet<quint32> ids;
@@ -114,7 +114,7 @@ bool validate_patch(const QJsonObject& o, QString* error) {
             if (p.key().isEmpty() || !number(p.value())) return fail(error, "Invalid plain parameter value.");
         if (m.contains("config") && !m["config"].isObject()) return fail(error, "Invalid module config.");
         if (m.contains("inactive") && !m["inactive"].isBool()) return fail(error, "Invalid inactive flag.");
-        if (m.contains("channel_seed") && !integer(m["channel_seed"], 0, 9007199254740991.)) return fail(error, "Invalid channel seed.");
+        if (m.contains("channel_seed") && !integer(m["channel_seed"], 0, std::numeric_limits<double>::max())) return fail(error, "Invalid channel seed.");
         if (m.contains("state")) {
             const auto state = m["state"].toObject();
             if (!m["state"].isObject() || !integer(state["version"], 0, MaximumId) || state["encoding"] != "base64" || !state["data"].isString())
@@ -170,6 +170,7 @@ PatchDocument read_patch(const QByteArray& bytes, const ModuleCatalog& catalog) 
                 }
             }
             m.remove("type"); m.remove("values"); m.remove("state");
+            m.remove("inactive"); m.remove("channel_seed"); m["config"] = QJsonObject{};
             m["module"] = type; m["version"] = 1; m["parameters"] = parameters; m["preserved"] = old;
             if (found == catalog.cend()) m["inactive"] = true;
             modules.append(m);
@@ -181,6 +182,7 @@ PatchDocument read_patch(const QByteArray& bytes, const ModuleCatalog& catalog) 
         for (const auto& item : original["connections"].toArray()) {
             auto c = item.toObject(); const auto kind = c["kind"].toString();
             c["kind"] = (kind == "audio" || kind == "control") ? "signal" : kind;
+            if (kind == "audio" || kind == "control") { c.remove("amount"); c.remove("feedback"); c.remove("stereo_pair"); }
             c["from"] = QJsonObject{{"module", c["fromNode"]}, {"port", c["fromPort"]}};
             c["to"] = QJsonObject{{"module", c["toNode"]}, {"port", c["toPort"]}};
             c.remove("fromNode"); c.remove("fromPort"); c.remove("toNode"); c.remove("toPort"); cables.append(c);
@@ -191,10 +193,12 @@ PatchDocument read_patch(const QByteArray& bytes, const ModuleCatalog& catalog) 
             if (!found) { result.error = "v1 outputNode references a missing module."; return result; }
         }
         auto settings = original["settings"].toObject();
-        if (!settings.contains("sample_rate")) settings["sample_rate"] = 48000;
-        if (!settings.contains("max_block_frames")) settings["max_block_frames"] = 256;
-        if (!settings.contains("max_channels")) settings["max_channels"] = 16;
-        if (!settings.contains("feedback_block")) settings["feedback_block"] = 1;
+        settings["sample_rate"] = 48000;
+        settings["max_block_frames"] = 256;
+        settings["max_channels"] = 16;
+        settings["feedback_block"] = 1;
+        settings.remove("seed"); settings.remove("timing_mode");
+        result.object["host_mappings"] = QJsonArray{}; result.object["devices"] = QJsonArray{};
         result.object["version"] = 2; result.object["settings"] = settings;
         result.object["modules"] = modules; result.object["connections"] = cables; result.object["outputs"] = outputs;
     }
