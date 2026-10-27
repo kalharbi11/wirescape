@@ -95,6 +95,7 @@ struct Node {
     std::vector<Parameter>state;std::vector<uint8_t>config,preserved;
     std::vector<Allocation>allocations;
     std::vector<Buffer>in,local_out,global_out,param;
+    std::vector<double>modulation_sum;
     std::vector<ws2_signal>in_view,param_view;std::vector<ws2_signal_out>out_view;
     std::vector<std::vector<ws2_event>>port_events;
     std::vector<ws2_event_list>event_view;std::vector<ws2_event_out>event_outputs;
@@ -226,6 +227,7 @@ bool Engine::Impl::setup(Node&n) {
     if(!check_ports(n.inputs)||!check_ports(n.outputs))return fail("Invalid/duplicate port descriptor");
     n.in.resize(n.inputs.size());n.local_out.resize(n.outputs.size());n.global_out.resize(n.outputs.size());n.param.resize(n.parameters.size());
     for(auto*buffers:{&n.in,&n.local_out,&n.global_out,&n.param})for(auto&b:*buffers)b.prepare(cfg.max_channels,cfg.max_block);
+    n.modulation_sum.resize(size_t(cfg.max_channels)*cfg.max_block);
     n.in_view.resize(n.in.size());n.out_view.resize(n.local_out.size());n.param_view.resize(n.param.size());
     n.port_events.resize(n.inputs.size());n.event_view.resize(n.inputs.size());n.event_outputs.resize(n.outputs.size());
     for(auto&events:n.port_events)events.reserve(cfg.event_budget);
@@ -413,6 +415,11 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         for(const auto&e:n.events)if((e.type==WS2_PARAM||e.type==WS2_PARAM_MOD)&&e.index==j){constant=false;if(e.type==WS2_PARAM_MOD&&e.channel>=0)poly=true;}
         buffer.channels=poly?channels:1;buffer.flags=constant?WS2_CONSTANT:0;
         uint32_t cursor=0;const uint32_t length=constant?1:frames;
+        const bool modulated=!n.modulation[j].empty();
+        if(modulated)for(uint32_t c=0;c<buffer.channels;++c){
+            double*sum=n.modulation_sum.data()+size_t(c)*cfg.max_block;std::fill_n(sum,length,0.);
+            for(const auto*edge:n.modulation[j])for(uint32_t i=0;i<length;++i)sum[i]+=edge->amount*value(*edge,c,i);
+        }
         bool actually_constant=true;
         for(uint32_t i=0;i<length;++i){
             while(cursor<n.events.size()&&n.events[cursor].offset<=i){const auto&e=n.events[cursor++];
@@ -422,7 +429,7 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
             const double base=p.base.next();
             for(uint32_t c=0;c<buffer.channels;++c){
                 double effective=base+p.offset[c];
-                for(const auto*edge:n.modulation[j])effective+=edge->amount*value(*edge,c,i);
+                if(modulated)effective+=n.modulation_sum[size_t(c)*cfg.max_block+i];
                 buffer.data[c][i]=static_cast<float>(p.plain(effective));
                 if(i&&buffer.data[c][i]!=buffer.data[c][0])actually_constant=false;
             }
