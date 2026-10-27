@@ -88,3 +88,13 @@ add_test(NAME abi2_feedback_tests COMMAND abi2_feedback_tests)
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
 add_test(NAME abi2_banned_includes COMMAND ${Python3_EXECUTABLE} -m unittest discover
   -s ${PROJECT_SOURCE_DIR}/../tools/foundation/tests -p test_banned_includes.py -v)
+
+add_executable(wirescape_soak tests/soak.cpp ../tests2/allocation_watch.cpp)
+target_link_libraries(wirescape_soak PRIVATE wirescape_engine2 ${CMAKE_DL_LIBS} Threads::Threads)
+add_test(NAME abi2_soak_smoke COMMAND wirescape_soak --graph poly8 --rate 48000 --block 128 --seconds 1)
+set_tests_properties(abi2_soak_smoke PROPERTIES TIMEOUT 30)
+add_executable(abi2_soak_stats_tests tests/soak_stats_tests.cpp)
+add_test(NAME abi2_soak_stats_tests COMMAND abi2_soak_stats_tests)
+add_test(NAME abi2_soak_cli COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/../tools/foundation/tests/test_soak.py
+  $<TARGET_FILE:wirescape_soak> $<TARGET_FILE_DIR:ws_vco>)
+set_tests_properties(abi2_soak_cli PROPERTIES TIMEOUT 60)

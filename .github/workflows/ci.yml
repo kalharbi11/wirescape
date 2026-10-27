@@ -90,8 +90,9 @@ jobs:
           fi
           python tools/dev.py test
           if [[ '${{ matrix.os }}' == windows-x64 ]]; then python tools/dev.py ui-test; fi
-      - name: Summarize ABI2 benchmark (linux-arm64)
-        if: matrix.os == 'linux-arm64'
+      - name: Summarize ABI2 benchmark
+        env:
+          ABI2_RUNNER: ${{ matrix.os }}
         run: |
           python - <<'PYTHON'
           import json
@@ -103,13 +104,15 @@ jobs:
               print('::warning::benchmark summary skipped: build_reports/abi2/benchmark.json not found')
               raise SystemExit(0)
 
-          benchmark = json.loads(benchmark_path.read_text(encoding='utf-8'))
+          raw = benchmark_path.read_text(encoding='utf-8')
+          print(raw)
+          benchmark = json.loads(raw)
           summary_path = Path(os.environ['GITHUB_STEP_SUMMARY'])
           rows = benchmark.get('rows', [])
           lines = [
               '',
-              '### ABI2 benchmark (linux-arm64)',
-              '| Row | Mean ns | P99 ns | Worst ns |',
+              f"### ABI2 benchmark ({os.environ['ABI2_RUNNER']})",
+              '| Row | Median ns | P99 ns | Worst ns |',
               '|---|---:|---:|---:|',
           ]
           for row in rows:
@@ -122,7 +125,7 @@ jobs:
               f"- mono_ratio: {benchmark.get('mono_ratio', 0):.6g}",
               f"- poly8_vs_eight_mono_ratio: {benchmark.get('poly8_vs_eight_mono_ratio', 0):.6g}",
               f"- modulated_ratio: {benchmark.get('modulated_ratio', 0):.6g}",
-              '',
+              '', '```json', raw, '```', '',
           ])
           with summary_path.open('a', encoding='utf-8') as handle:
               handle.write('\n'.join(lines))
