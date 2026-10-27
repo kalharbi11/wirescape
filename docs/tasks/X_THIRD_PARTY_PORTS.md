@@ -20,7 +20,10 @@ Read first, every Track X task: `AGENTS.md`, `docs/SDK_AUTHOR_GUIDE.md`, `native
 3. **Names and trademarks.** Don't use a vendor's brand as the module's name. For example, call the port "Macro Oscillator", with a README line that says it is a port of Mutable Instruments Plaits at commit X. Module IDs use a `ports.` prefix (for example `ports.macro_oscillator`), never `essentials.`.
 4. **Our contract wins.** The module follows `ABI2_PLAN.md` section 6: no allocation, locks, I/O or exceptions in `process`; memory requested through `memory_requirements` and the host allocator; per-voice state for all 16 channels; state save/load; finite outputs. If upstream code needs something the SDK can't give, that's a finding. Write it down rather than working around the contract.
 5. **No DSP changes in the first port.** Wrap upstream code; don't rewrite it. Behaviour must match upstream bit for bit wherever the host conditions match.
-6. **Tests:** reference equivalence against the upstream code built directly in the test (same sources, same inputs), determinism after reset, state round-trip, zero allocations in `process`, the rate × block × channel matrix the module supports, and a clear refusal (`prepare` fails) for the conditions it doesn't support.
+6. **Digital DSP only.** Port modules whose sound comes from published DSP code (for example Plaits, Rings, Clouds, Braids). Skip modules whose character comes from analogue circuitry (schematics aren't a DSP implementation; those would need analogue modelling, which is a separate project).
+7. **Every target, from the first commit.** Upstream code often assumes x86 SIMD (Surge's sst libraries use SSE, with a SIMDe compatibility layer for other CPUs) or a single CPU family. A port must build and pass its tests on the `linux-arm64` and `windows-x64` CI jobs, and the portability probe (`.github/workflows/portability.yml`) must report it. Record any target it can't support (for example "desktop only, too large for Daisy") in its `DESIGN.md`.
+8. **Measure the cost.** Report CPU per block on the Pi 5 (with `wirescape_soak` or a dedicated probe) and memory per voice × 16 channels, so we know what polyphony costs.
+9. **Tests:** reference equivalence against the upstream code built directly in the test (same sources, same inputs), determinism after reset, state round-trip, zero allocations in `process`, the rate × block × channel matrix the module supports, and a clear refusal (`prepare` fails) for the conditions it doesn't support.
 
 ---
 
@@ -54,6 +57,11 @@ Stop condition: the doc is in a draft PR, with a handoff and `status/review`. No
 
 ## Later (not yet issued): spikes
 These get issues after X-1/X-2 are reviewed, and only when they don't compete with M2 for Codex time.
+
+**Why they matter:** X-3 and X-4 are the **external-DSP compatibility test**. The ABI 2 header and SDK stay experimental until M2's phase B4 finishes (`ABI2_PLAN.md`), and they are **not frozen until both spikes have run**. Each spike reports: adapter size (lines of wrapper vs upstream code), any engine or SDK change it needed (the goal is none), equivalence with upstream, Pi CPU and memory per voice, and the portability-probe result. Friction found here gets fixed in the SDK before the freeze, while that's still cheap.
 - **X-3 Plaits spike:** two engines, 48 kHz only (unless X-1 recommends otherwise), every rule above.
 - **X-4 first Surge/sst primitive:** the top item from X-2 section 4.
 - **X-5 CHAOS-lite:** after M7 subpatches and macros exist.
+- **X-6 (optional, desktop) whole-Surge module:** the complete Surge XT engine inside one module, with its own voices and patches. Its internal signal paths would be hidden from the patch graph, and it's a much bigger integration (notes, automation, presets, resources, state). It's a separate desktop feature, not part of the CHAOS rebuild, and not before Beta 0.8.
+
+**Rough effort guide** (an external estimate, not a promise): a small standalone oscillator or filter takes days to two weeks to integrate properly; one sst filter or effect, one to three weeks; Plaits, two to four weeks; a whole-Surge module, one to three months or more. Getting first sound is much faster than making a module reliable and pleasant to use.
