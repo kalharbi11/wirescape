@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Report-only probe: which ABI2 modules compile for a Daisy-class Cortex-M7 target.
+name: Portability probe
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+jobs:
+  cortex-m7:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install arm-none-eabi toolchain
+        run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi libstdc++-arm-none-eabi-newlib
+      - name: Compile each module.cpp (report only)
+        continue-on-error: true
+        shell: bash
+        run: |
+          flags=(-std=c++17 -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -O2 -ffunction-sections
+                 -I native/sdk -I native/include -DWS_SIMD_SCALAR)
+          arm-none-eabi-g++ --version | head -1 | tee -a "$GITHUB_STEP_SUMMARY"
+          {
+            echo
+            echo '| Module | Default | -fno-exceptions -fno-rtti |'
+            echo '|---|---|---|'
+          } >> "$GITHUB_STEP_SUMMARY"
+          for source in native/modules2/*/module.cpp; do
+            module=$(basename "$(dirname "$source")")
+            row="| $module |"
+            for extra in "" "-fno-exceptions -fno-rtti"; do
+              log=$(mktemp)
+              # shellcheck disable=SC2086
+              if arm-none-eabi-g++ "${flags[@]}" $extra -c "$source" -o /dev/null 2>"$log"; then
+                row="$row pass |"
+              else
+                first=$(grep -m1 -E 'error' "$log" | sed 's/|/\\|/g' | cut -c1-200)
+                row="$row **fail**: \`${first:-see log}\` |"
+                echo "::group::$module $extra"; cat "$log"; echo "::endgroup::"
+              fi
+            done
+            echo "$row" >> "$GITHUB_STEP_SUMMARY"
+          done
