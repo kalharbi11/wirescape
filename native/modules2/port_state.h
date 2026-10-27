@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include "wirescape_sdk.h"
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <cstring>
 namespace ws2ports {
 inline bool write_double(ws::Writer w,double x){uint64_t bits;static_assert(sizeof(bits)==sizeof(x),"binary64");std::memcpy(&bits,&x,8);return w.u32(uint32_t(bits))&&w.u32(uint32_t(bits>>32));}
 inline bool read_double(ws::Reader r,double&x){uint32_t lo,hi;if(!r.u32(lo)||!r.u32(hi))return false;uint64_t bits=uint64_t(lo)|(uint64_t(hi)<<32);std::memcpy(&x,&bits,8);return std::isfinite(x);}
