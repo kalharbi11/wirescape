@@ -6,6 +6,7 @@
 #include "../modules2/adsr/dsp.h"
 #include "../modules2/vca/dsp.h"
 #include "../modules2/clock/dsp.h"
+#include "../modules2/function_envelope/dsp.h"
 #include <cstdio>
 #include <cstdlib>
 #define VERIFY(x) do{if(!(x)){std::fprintf(stderr,"ABI2 fixture line %d: %s\n",__LINE__,#x);std::abort();}}while(0)

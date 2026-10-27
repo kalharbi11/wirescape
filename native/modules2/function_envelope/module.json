@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "id": "essentials.function_envelope",
+  "name": "Function Envelope",
+  "abi_version": 2,
+  "library": "ws2_function_envelope",
+  "description": "Single-channel gated AR function generator",
+  "parameters": {
+    "rise": 0,
+    "fall": 1,
+    "curve": 2
+  },
+  "inputs": {
+    "gate": "signal"
+  },
+  "outputs": {
+    "envelope": "signal"
+  },
+  "license": "GPL-3.0-only"
+}
