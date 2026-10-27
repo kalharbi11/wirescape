@@ -2,31 +2,15 @@
 name: CI
 on:
   push:
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  guard:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: python -m unittest discover -s tools/ci -v
-      - name: Guard changed paths and added lines
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
-          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-        run: python tools/ci/guard.py --base "$BASE" --head "$HEAD" --labels-json "$LABELS"
   native:
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled') || github.event.label.name == 'ci/windows'
     name: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -105,6 +89,43 @@ jobs:
           fi
           python tools/dev.py test
           if [[ '${{ matrix.os }}' == windows-x64 ]]; then python tools/dev.py ui-test; fi
+      - name: Summarize ABI2 benchmark (linux-arm64)
+        if: matrix.os == 'linux-arm64'
+        run: |
+          python - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+
+          benchmark_path = Path('build_reports/abi2/benchmark.json')
+          if not benchmark_path.is_file():
+              print('::warning::benchmark summary skipped: build_reports/abi2/benchmark.json not found')
+              raise SystemExit(0)
+
+          benchmark = json.loads(benchmark_path.read_text(encoding='utf-8'))
+          summary_path = Path(os.environ['GITHUB_STEP_SUMMARY'])
+          rows = benchmark.get('rows', [])
+          lines = [
+              '',
+              '### ABI2 benchmark (linux-arm64)',
+              '| Row | Mean ns | P99 ns | Worst ns |',
+              '|---|---:|---:|---:|',
+          ]
+          for row in rows:
+              lines.append(
+                  f"| {row.get('name', '')} | {row.get('mean_ns', 0):.3f} | "
+                  f"{row.get('p99_ns', 0):.3f} | {row.get('worst_ns', 0):.3f} |"
+              )
+          lines.extend([
+              '',
+              f"- mono_ratio: {benchmark.get('mono_ratio', 0):.6g}",
+              f"- poly8_vs_eight_mono_ratio: {benchmark.get('poly8_vs_eight_mono_ratio', 0):.6g}",
+              f"- modulated_ratio: {benchmark.get('modulated_ratio', 0):.6g}",
+              '',
+          ])
+          with summary_path.open('a', encoding='utf-8') as handle:
+              handle.write('\n'.join(lines))
+          PYTHON
       - name: Summarize failures
         if: failure()
         run: |

@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-3.0-only
+name: Guard
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+permissions:
+  contents: read
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch PR head (data only)
+        run: git fetch --no-tags origin +refs/pull/${{ github.event.pull_request.number }}/head:refs/remotes/pr/head
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tools/ci -v
+      - name: Guard changed paths and added lines
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: refs/remotes/pr/head
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: python tools/ci/guard.py --base "$BASE" --head "$HEAD" --labels-json "$LABELS"
