@@ -327,6 +327,8 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 | Output audio | `audio` 0, WS_AUDIO (`native/modules/vca/module.cpp:31-33`) | `audio` 0, WS2_AUDIO (`native/modules2/vca/dsp.h:8`) | identical |
 | Gain | `gain` 0, 0..2 / 1 (`native/modules/vca/module.json:1`; `native/modules/vca/module.cpp:34`) | `gain` 0, 0..2 / 1 (`native/modules2/vca/dsp.h:9`) | identical |
 
+**Second-pass migration details.** The *audio buffer* `in[0] == nullptr` contributes zero; **gain CV buffer** `in[1] == nullptr` contributes **unity**, not zero. The enclosing `in` array must exist because `process` dereferences it (`native/modules/vca/module.cpp:24-30`). ABI 1 Gain is continuously ramped; `event` does no integer coercion, and `process` multiplies audio × CV × gain without nonlinear parameter taper (`native/modules/vca/module.cpp:18-29`). **No allocation, lock, I/O or mutable process-wide global in process** (`native/modules/vca/module.cpp:6-10,24-30`). No `native/modules/vca/DESIGN.md` exists at this ref; third-party provenance/licence/pin is **UNKNOWN (looked there and `native/modules/vca/module.cpp:1-4`)**. The ABI 2 descriptor expressly supplies CV default 1 (`native/modules2/vca/dsp.h:7`); the descriptor identity matches, but ABI 1 ramp timing versus ABI 2 `b.param`/constant path should be regression-tested (`native/modules/vca/module.cpp:18-29`; `native/modules2/vca/dsp.h:11-19`).
+
 ## vcf
 
 **1. Identity.** `essentials.vcf`; display name from `native/modules/vcf/module.json:1`; source `native/modules/vcf/module.cpp:85-91`, `native/modules/vcf/module.json:1`.
