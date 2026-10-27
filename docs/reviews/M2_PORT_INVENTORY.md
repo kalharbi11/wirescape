@@ -135,15 +135,26 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Index | ID | Name | Min | Max | Default | Units/taper | Stepped | Source |
 |---|---|---|---:|---:|---:|---|---|---|
-| 0 | `rate` | rate | .01 | 20 | 1 | Hz / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/lfo/module.cpp:53-61`; `native/modules/lfo/module.json:1` |
-| 1 | `depth` | depth | 0 | 1 | 1 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/lfo/module.cpp:53-61`; `native/modules/lfo/module.json:1` |
-| 2 | `offset` | offset | -1 | 1 | 0 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/lfo/module.cpp:53-61`; `native/modules/lfo/module.json:1` |
+| 0 | `rate` | rate | .01 | 20 | 1 | Hz / plain value: LinearRamp (no ABI1 taper) | No: float accepted without rounding (`native/modules/lfo/module.cpp:35-40`) | `native/modules/lfo/module.cpp:53-61`; `native/modules/lfo/module.json:1` |
+| 1 | `depth` | depth | 0 | 1 | 1 | none / plain value: LinearRamp (no ABI1 taper) | No: float accepted without rounding (`native/modules/lfo/module.cpp:35-40`) | `native/modules/lfo/module.cpp:53-61`; `native/modules/lfo/module.json:1` |
+| 2 | `offset` | offset | -1 | 1 | 0 | none / plain value: LinearRamp (no ABI1 taper) | No: float accepted without rounding (`native/modules/lfo/module.cpp:35-40`) | `native/modules/lfo/module.cpp:53-61`; `native/modules/lfo/module.json:1` |
 
-**4. State.** Runtime state and reset/prepare/event/process implementation: `native/modules/lfo/module.cpp:1-52`. Extra serialized state/version beyond parameter values: **UNKNOWN (looked in native/modules/lfo/module.cpp, native/modules/lfo/module.json; patch document saving and loading not fully audited)**.
+**4. State.** Instance `double` phase, sample rate, and three `LinearRamp` parameter targets (`native/modules/lfo/module.cpp:8-14`); reset zeroes phase and resets ramps (`native/modules/lfo/module.cpp:21-33`). No save/load callback (`native/modules/lfo/module.cpp:57-59`); native document reader preserves original bytes/object, not DSP phase (`native/document/document_reader.cpp:34-36,50-51,82-85`).
 
-**5. ABI 2 status.** Ported. `native/modules2/lfo/dsp.h:6-15`: existing rate/depth/offset parameters retained; added `sync` index 3 and `beats` index 4 (**ID-breaking** schema extension, previous indices stable). Tempo transport mode changes behaviour (`native/modules2/lfo/dsp.h:24-29`; `native/modules/lfo/module.cpp:35-50`). Classification **range/default change:** none found for retained parameters. Full behavioural equivalence **UNKNOWN**.
+**5. ABI 2 status.** Ported. ABI1 rate/depth/offset values and indices retained; ABI2 adds sync and beats (`native/modules/lfo/module.cpp:53-59`; `native/modules2/lfo/dsp.h:6-15`). Transport-synchronized phase is additional behaviour (`native/modules2/lfo/dsp.h:23-29`; `native/modules/lfo/module.cpp:42-50`). **No ID-breaking change found to existing IDs; additions require v1 migration defaults.**
 
-**6. Port notes.** DSP, lifecycle and runtime assumptions: `native/modules/lfo/module.cpp:1-61`. Third-party dependencies, pinned revisions and licence: **UNKNOWN (looked in native/modules/lfo/module.cpp and native/modules/lfo/module.json; DESIGN.md not comprehensively audited)**. Process-time allocation, locks and mutable globals: **UNKNOWN (requires full audit)**.
+**6. Port notes.** No inputs; `sin(phase)*depth+offset`, phase increment `tau*rate/sample_rate`, wraps by `fmod` (`native/modules/lfo/module.cpp:42-52`). Event values become ramp targets without integer casts (`native/modules/lfo/module.cpp:35-40`); plain-units ramp, not log/exponential taper. `process` has no allocation, locks, I/O or mutable globals; `new` only in create (`native/modules/lfo/module.cpp:15-18,42-52`). No `native/modules/lfo/DESIGN.md` at inspected ref (**UNKNOWN third-party revision/licence**; searched that exact path and `native/modules/lfo/module.cpp:1-4` only shows project SDK/ramp). ABI2 uses 16 double phases and transport (`native/modules2/lfo/dsp.h:16-30`).
+
+**ABI 1 vs ABI 2 interface (within-direction indices):**
+
+| Element | ABI 1 ID/index/range/default | ABI 2 ID/index/range/default | Classification |
+|---|---|---|---|
+| output | `control` 0, control (`native/modules/lfo/module.cpp:53`) | `control` 0, bipolar CV (`native/modules2/lfo/dsp.h:8`) | identical ID/order; cosmetic signal hint |
+| Rate | `rate` 0, .01..20 / 1 Hz (`native/modules/lfo/module.json:1`; `native/modules/lfo/module.cpp:54`) | `rate` 0, .01..20 / 1 Hz (`native/modules2/lfo/dsp.h:11`) | identical |
+| Depth | `depth` 1, 0..1 / 1 (`native/modules/lfo/module.json:1`; `native/modules/lfo/module.cpp:55`) | `depth` 1, 0..1 / 1 (`native/modules2/lfo/dsp.h:12`) | identical |
+| Offset | `offset` 2, -1..1 / 0 (`native/modules/lfo/module.json:1`; `native/modules/lfo/module.cpp:56`) | `offset` 2, -1..1 / 0 (`native/modules2/lfo/dsp.h:13`) | identical |
+| Tempo sync | — (ABI1 3 params, `native/modules/lfo/module.cpp:57-59`) | `sync` 3, 0..1 / 0, stepped (`native/modules2/lfo/dsp.h:14`) | added |
+| Beats/cycle | — (`native/modules/lfo/module.cpp:57-59`) | `beats` 4, .125..16 / 1 beats (`native/modules2/lfo/dsp.h:15`) | added |
 
 ## mixer
 
