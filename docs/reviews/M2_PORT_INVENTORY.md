@@ -80,22 +80,22 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Direction/index | ID | Signal kind | Unpatched default | Source |
 |---|---|---|---|---|
-| input 0 | `gate` | gate | UNKNOWN (engine buffer or process fallback not fully traced) | `native/modules/function_envelope/module.cpp:74-80`; `native/modules/function_envelope/module.json:1` |
+| input 0 | `gate` | gate | null/unpatched gate = low; falling segment begins if previously high (`native/modules/function_envelope/module.cpp:57-71`) | `native/modules/function_envelope/module.cpp:74-80`; `native/modules/function_envelope/module.json:1` |
 | output 0 | `envelope` | CV | n/a | `native/modules/function_envelope/module.cpp:74-80`; `native/modules/function_envelope/module.json:1` |
 
 **3. Parameters** (ID mapping: `module.json`; bounds/defaults/units: C++ descriptor).
 
 | Index | ID | Name | Min | Max | Default | Units/taper | Stepped | Source |
 |---|---|---|---:|---:|---:|---|---|---|
-| 0 | `rise` | rise | .0001 | 30 | .01 | s / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/function_envelope/module.cpp:74-80`; `native/modules/function_envelope/module.json:1` |
-| 1 | `fall` | fall | .0001 | 30 | .1 | s / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/function_envelope/module.cpp:74-80`; `native/modules/function_envelope/module.json:1` |
-| 2 | `curve` | curve | -1 | 1 | 0 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/function_envelope/module.cpp:74-80`; `native/modules/function_envelope/module.json:1` |
+| 0 | `rise` | rise | .0001 | 30 | .01 | s / plain units, curve shapes envelope (not a UI taper) | No parameter rounding (`native/modules/function_envelope/module.cpp:40-52`) | `native/modules/function_envelope/module.cpp:74-80`; `native/modules/function_envelope/module.json:1` |
+| 1 | `fall` | fall | .0001 | 30 | .1 | s / plain units, curve shapes envelope (not a UI taper) | No parameter rounding (`native/modules/function_envelope/module.cpp:40-52`) | `native/modules/function_envelope/module.cpp:74-80`; `native/modules/function_envelope/module.json:1` |
+| 2 | `curve` | curve | -1 | 1 | 0 | none / plain units, curve shapes envelope (not a UI taper) | No parameter rounding (`native/modules/function_envelope/module.cpp:40-52`) | `native/modules/function_envelope/module.cpp:74-80`; `native/modules/function_envelope/module.json:1` |
 
-**4. State.** Runtime state and reset/prepare/event/process implementation: `native/modules/function_envelope/module.cpp:1-73`. Extra serialized state/version beyond parameter values: **UNKNOWN (looked in native/modules/function_envelope/module.cpp, native/modules/function_envelope/module.json; patch document saving and loading not fully audited)**.
+**4. State.** Per-instance level/start/endpoint, high flag, elapsed/length and latched curve; reset zeroes segment (`native/modules/function_envelope/module.cpp:21-36,47-52`). ABI1 has no module-local state save callback (`native/modules/function_envelope/module.cpp:77-79`); native document inspection retains raw JSON only (`native/document/document_reader.cpp:34-36,82-85`).
 
 **5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 differences **UNKNOWN** until port exists.
 
-**6. Port notes.** DSP, lifecycle and runtime assumptions: `native/modules/function_envelope/module.cpp:1-80`. Third-party dependencies, pinned revisions and licence: **UNKNOWN (looked in native/modules/function_envelope/module.cpp and native/modules/function_envelope/module.json; DESIGN.md not comprehensively audited)**. Process-time allocation, locks and mutable globals: **UNKNOWN (requires full audit)**.
+**6. Port notes.** Rise/fall are seconds converted with `llround(time * sample_rate)` into a discrete *duration*, but parameter values remain continuous; Curve is a continuous `expm1(4*Curve*u)/expm1(4*Curve)` shape, not log parameter taper (`native/modules/function_envelope/module.cpp:40-52,61-71`). Bounded per-frame work; no allocation, locks, I/O or globals inside `process` (`native/modules/function_envelope/module.cpp:54-73`), allocation only in create (`native/modules/function_envelope/module.cpp:28-29`). Sample rate accepted 1..384000 Hz (`native/modules/function_envelope/module.cpp:11-15`). `native/modules/function_envelope/DESIGN.md:3-13`: original gated AR DSP with no external third-party code/pinned revision, fixed instance state.
 
 ## ladder
 
