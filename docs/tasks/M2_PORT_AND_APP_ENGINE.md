@@ -184,9 +184,9 @@ Updated 2026-10-27 (evening check-in). Done and reviewed: M2-0b (#42), M2-1 (PR 
 | 1 | **Merge upkeep for #39, #40 and #41.** Every pair conflicts only in `native/engine2/CMakeLists.txt` (plus the shared harness files for #39/#40). As soon as the PR ahead of it is merged, merge `main` into the next one (merge commit), keep both sides' test registrations, run `python tools/dev.py test`, push and confirm CI is green. Skip any that the user or Claude already updated | the previous PR in the order #38 → #39 → #40 → #41 merged | cloud |
 | 2 | #32 M1-3b Windows mono gap (PR #37). The baseline is complete: the three CI ratios (1.083/1.168/1.094) are posted on #32 and the laptop measured 1.164. Diagnose with `/Qvec-report:2` and per-probe medians, then up to two measured fixes. The M2-6 blocker | none | **laptop** + CI |
 | 3 | #28 M2-5 patch v2 and lossless v1 migration (draft PR #48; CI is red). Make CI green, finish, add Pi evidence | none | Pi |
-| 4 | #49 M2-4b CV coverage for the eight new ports | #39 and #40 merged | Pi |
+| 4 | #49 M2-4b CV coverage for the eight new ports: **moved to Copilot** (CI is enough proof); Codex skips it | — | — |
 | 5 | #50 M2-0c soak: thread CPU time vs wall time (is the 4 ms tail preemption?) | none; never at the same time as another Pi run | Pi |
-| 6 | #56 M2-Pa `uint32_t` literal fix so all modules compile for Cortex-M7, then make the portability probe blocking | #39, #40 and PR #55 merged | cloud |
+| 6 | #56 M2-Pa `uint32_t` literal fix so all modules compile for Cortex-M7, then make the portability probe blocking: **moved to Copilot**; Codex skips it | — | — |
 | 7 | #29 M2-6 engine2 becomes the app engine | #32, #24, #25, #26, #28 merged | Pi + laptop |
 
 Rules for the queue:
