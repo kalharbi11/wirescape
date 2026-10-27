@@ -46,6 +46,10 @@ inline bool finite_samples(const float*data,uint32_t count) noexcept {
     if(exponent==UINT32_C(0x7f800000))for(uint32_t i=0;i<count;++i)if(!std::isfinite(data[i]))return false;
     return true;
 }
+inline bool valid_event(const ws2_event&e) noexcept {
+    return e.struct_size>=sizeof(ws2_event)&&e.type>=WS2_NOTE_ON&&e.type<=WS2_MESSAGE&&
+        std::isfinite(e.value)&&std::isfinite(e.value2)&&e.bytes<=WS2_MAX_PAYLOAD&&(!e.bytes||e.data)&&e.ump_words<=4;
+}
 inline void silence_outputs(ws2_process*c,uint32_t max_channels=WS2_MAX_CHANNELS) noexcept {
             if(!c||c->struct_size<sizeof(ws2_process)||!c->outputs||c->output_count>WS2_MAX_PORTS)return;
             for(uint32_t j=0;j<c->output_count;++j){auto&o=c->outputs[j];
@@ -224,7 +228,7 @@ template<class T>class Module {
         for(uint32_t i=0;i<c->param_count;++i)if(!valid(c->params[i])){return invalid();}
         if(c->events.count&&(!c->events.items||c->events.struct_size<sizeof(ws2_event_list)))return invalid();
         uint32_t previous=0;
-        for(uint32_t i=0;i<c->events.count;++i){const auto&e=c->events.items[i];if(e.struct_size<sizeof(ws2_event)||e.offset>=c->frames||(i&&e.offset<previous)||!std::isfinite(e.value)||!std::isfinite(e.value2)||e.bytes>WS2_MAX_PAYLOAD||(e.bytes&&!e.data)||e.ump_words>4)return invalid();previous=e.offset;}
+        for(uint32_t i=0;i<c->events.count;++i){const auto&e=c->events.items[i];if(!valid_event(e)||e.offset>=c->frames||(i&&e.offset<previous))return invalid();previous=e.offset;}
         int result=guarded([&](){Block block(*c);x.dsp.process(block);return WS2_OK;});
         if(result!=WS2_OK){silence();return result;}
         for(uint32_t j=0;j<c->output_count;++j){const auto&o=c->outputs[j];

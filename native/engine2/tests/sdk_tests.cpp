@@ -43,6 +43,12 @@ int main(){
   if(failure==3){invalid.events.struct_size=sizeof(ws2_event_list);invalid.events.count=1;invalid.events.items=nullptr;}
   CHECK(d->process(instance,&invalid)==WS2_INVALID);CHECK(storage[0][0]==0);CHECK(out.flags&WS2_CONSTANT);
  }
+ for(int failure=0;failure<6;++failure){ws2_event e{};e.struct_size=sizeof(e);e.type=WS2_NOTE_ON;
+  if(failure==0)e.value2=std::nanf("");if(failure==1)e.ump_words=5;if(failure==2)e.type=0;
+  if(failure==3)e.bytes=WS2_MAX_PAYLOAD+1;if(failure==4)e.bytes=1;if(failure==5)e.struct_size=0;
+  auto invalid=ctx;invalid.events={sizeof(ws2_event_list),1,&e};storage[0][0]=99;
+  CHECK(d->process(instance,&invalid)==WS2_INVALID);CHECK(storage[0][0]==0);
+ }
  d->reset(instance);d->destroy(instance);CHECK(pool.used==allocated);
  std::puts("PASS SDK ramp/gate/trigger/PRNG/SIMD/taper/fastmath");
 }

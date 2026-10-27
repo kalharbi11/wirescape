@@ -341,7 +341,7 @@ void Engine::Impl::collect() {
 
 bool Engine::Impl::route(uint32_t port,const ws2_event&source) {
     if(!processing||port>=processing->outputs.size()||processing->outputs[port].kind!=WS2_EVENT||source.offset>=processing_frames||
-       source.bytes>WS2_MAX_PAYLOAD||(source.bytes&&!source.data)||source.type<WS2_NOTE_ON||source.type>WS2_MESSAGE||!std::isfinite(source.value))return false;
+       !ws::valid_event(source))return false;
     if(ordinary_used+critical_used>=cfg.event_budget||(!release(source)&&ordinary_used>=cfg.event_budget-cfg.release_reserve)){
         if(release(source))emergency();else ++dropped;return false;
     }
@@ -546,7 +546,7 @@ int Engine::enqueue(uint32_t producer,uint32_t node,uint32_t port,const ws2_even
     const auto gen=p.generation.load(std::memory_order_acquire);
     if(gen!=p.applied.load(std::memory_order_acquire)||(wanted_generation&&wanted_generation!=gen))return WS2_STATE;
     auto*n=p.find(node);
-    if(!n||event.struct_size<sizeof(ws2_event)||event.type<WS2_NOTE_ON||event.type>WS2_MESSAGE||!std::isfinite(event.value)||!std::isfinite(event.value2)||event.bytes>WS2_MAX_PAYLOAD||(event.bytes&&!event.data)||event.ump_words>4)return WS2_INVALID;
+    if(!n||!ws::valid_event(event))return WS2_INVALID;
     if(port!=WS2_DIRECT_PORT&&(port>=n->inputs.size()||n->inputs[port].kind!=WS2_EVENT))return WS2_INVALID;
     if(event.type==WS2_PARAM||event.type==WS2_PARAM_MOD){
         if(event.index>=n->parameters.size())return WS2_INVALID;

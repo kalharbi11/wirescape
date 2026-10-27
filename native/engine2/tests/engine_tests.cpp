@@ -91,6 +91,14 @@ struct Echo {
  void prepare(const ws::Setup&){}void reset(){}
  void process(ws::Block&b){b.out(0).set_channels(0);for(auto&e:b.events())b.emit(0,e);}
 };
+struct BadEmitter:Echo {
+ void process(ws::Block&b){b.out(0).set_channels(0);auto e=ws2_event{};e.struct_size=sizeof(e);e.type=WS2_NOTE_ON;e.value2=std::nanf("");CHECK(!b.emit(0,e));e.value2=0;e.ump_words=5;CHECK(!b.emit(0,e));}
+};
+static void invalid_events(){
+ Engine e;CHECK(e.add_node(1,ws::Module<BadEmitter>::descriptor()));CHECK(e.register_producer()==0);CHECK(e.prepare());
+ auto bad=ws2_event{};bad.struct_size=sizeof(bad);bad.type=WS2_NOTE_ON;bad.value2=std::nanf("");CHECK(e.enqueue(0,1,0,bad,0)==WS2_INVALID);bad.value2=0;bad.ump_words=5;CHECK(e.enqueue(0,1,0,bad,0)==WS2_INVALID);
+ float out[17]{};float*outputs[]={out};CHECK(e.render(outputs,1,17)==WS2_OK);Outgoing outgoing;CHECK(!e.pop_egress(outgoing));CHECK(e.meter().events==0);
+}
 struct ParamProbe {
  static constexpr ws::Info info{"test.param","Parameter",1};
  static constexpr std::array<ws2_port,0>inputs{};
@@ -202,7 +210,7 @@ int main(){
  {std::thread warm([](){});warm.join();}
  _CrtMemState before{},after{},difference{};_CrtMemCheckpoint(&before);
 #endif
- parameter_channels();modulation_spans();producer_validation();zero_copy();cached_taper<WS2_LINEAR>();cached_taper<WS2_LOG>();cached_taper<WS2_EXP>();signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
+ invalid_events();parameter_channels();modulation_spans();producer_validation();zero_copy();cached_taper<WS2_LINEAR>();cached_taper<WS2_LOG>();cached_taper<WS2_EXP>();signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
 #if defined(_MSC_VER)&&defined(_DEBUG)
  CHECK(_CrtCheckMemory());_CrtMemCheckpoint(&after);if(_CrtMemDifference(&difference,&before,&after)){
   std::fprintf(stderr,"Debug CRT normal blocks %zu -> %zu, bytes %zu -> %zu; client blocks %zu -> %zu\n",before.lCounts[_NORMAL_BLOCK],after.lCounts[_NORMAL_BLOCK],before.lSizes[_NORMAL_BLOCK],after.lSizes[_NORMAL_BLOCK],before.lCounts[_CLIENT_BLOCK],after.lCounts[_CLIENT_BLOCK]);return 1;
