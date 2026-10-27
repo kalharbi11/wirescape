@@ -60,6 +60,19 @@ def run_native(executable, directory):
             raise
 
 
+def report_path(path):
+    """Keep repository provenance without publishing machine-specific directories."""
+    resolved = path.resolve()
+    return resolved.relative_to(ROOT.resolve()).as_posix() if resolved.is_relative_to(ROOT.resolve()) else path.name
+
+
+def report_error(exc, paths):
+    message = str(exc) or "interrupted"
+    for path in sorted((p for p in paths if isinstance(p, Path)), key=lambda p: len(str(p)), reverse=True):
+        message = message.replace(str(path.resolve()), report_path(path)).replace(str(path), report_path(path))
+    return message.replace(str(ROOT.resolve()), "<repository>")
+
+
 def save(directory, report):
     report['files_sha256'] = {p.name: digest(p) for p in directory.iterdir()
                               if p.is_file() and p.suffix in ('.f32', '.wav', '.json')}
@@ -89,9 +102,9 @@ def main(argv=None):
     base = ROOT / 'build/native' / ('Release' if is_windows() else '')
     engine = args.engine or base / ('wirescape_engine.dll' if is_windows() else 'libwirescape_engine.so')
     modules, native = args.modules or base, args.native or base / 'wirescape_capture.exe'
-    reports = ROOT.resolve() / 'build_reports'
-    parent = reports / 'capture'
-    if not parent.resolve().is_relative_to(reports):
+    reports_root = ROOT.resolve() / 'build_reports'
+    parent = reports_root / 'capture'
+    if not parent.resolve().is_relative_to(reports_root):
         parser.error('report directory must not redirect outside build_reports')
     parent.mkdir(parents=True, exist_ok=True)
     directory = Path(tempfile.mkdtemp(prefix='run-', dir=parent))
@@ -100,13 +113,13 @@ def main(argv=None):
                   'not speakers, endpoint post-processing, GUI live callbacks or PortAudio. No perceptual certification.',
                   application_faults=[], live_application_faults='not measured', transport_device_counters={},
                   capture_failure=None, signal_mismatch=[], config=vars(args).copy(), platform=sys.platform)
-    report['config'] = {k: str(v) if isinstance(v, Path) else v for k, v in report['config'].items()}
+    report['config'] = {k: report_path(v) if isinstance(v, Path) else v for k, v in report['config'].items()}
     try:
         patch = (read_json(args.patch) if args.patch else tone_patch()) if args.stimulus == 'engine' else None
         events = read_json(args.events) if args.events else []
         if args.stimulus == 'engine':
             data, libraries = render(engine, modules, patch, events, args.seconds)
-            report['binary_sha256'] = {str(p.resolve()): digest(p) for p in [engine] + libraries}
+            report['binary_sha256'] = {report_path(p): digest(p) for p in [engine] + libraries}
         else:
             data = stimulus(args.stimulus, args.seconds)
         mono = pilot(data)
@@ -120,7 +133,7 @@ def main(argv=None):
             seconds=args.seconds, rate=48000, engine_gain=0.05 if args.stimulus == 'engine' else None, pilot_seed=731, right_pilot_inverted=True), indent=2), encoding='utf-8')
         report['commit'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     except Exception as exc:
-        report['application_faults'].append(str(exc))
+        report['application_faults'].append(report_error(exc, [engine, modules, native, args.patch, args.events]))
         return save(directory, report)
     if not is_windows() or not native.is_file():
         report.update(status='unavailable', capture_failure='Windows build 20348+ and the compiled manual helper are required')
@@ -129,9 +142,13 @@ def main(argv=None):
         report['capture_binary_sha256'] = digest(native)
         pid, code = run_native(native.resolve(), directory)
         meta = read_json(directory / 'native.json')
+        meta['message'] = report_error(meta.get('message', ''), [directory, engine, modules, native, args.patch, args.events]) if meta.get('message') else ''
         report['capture'] = meta
         if meta['status'] == 'unavailable' and code == 3:
             report.update(status='unavailable', capture_failure=meta['message'])
+            return save(directory, report)
+        if meta['status'] == 'application_fault' and code != 0:
+            report['application_faults'].append(meta['message'])
             return save(directory, report)
         if meta.get('isolation') != 'process_tree' or meta.get('target_pid') != pid:
             report.update(status='ambiguous', capture_failure='capture process isolation could not be established')
@@ -147,19 +164,19 @@ def main(argv=None):
         wav(directory / 'capture.wav', raw)
         captured = array.array('f'); captured.frombytes(raw)
         if sys.byteorder != 'little': captured.byteswap()
-        reports = [analyse(ref, list(captured[ch::2]), meta['rate']) for ch, ref in enumerate((mono, right))]
+        channel_reports = [analyse(ref, list(captured[ch::2]), meta['rate']) for ch, ref in enumerate((mono, right))]
         report['channel_map'] = ['reference L -> capture 0', 'reference R -> capture 1']
-        report['signal_analysis'] = reports
-        report['signal_mismatch'] = [dict(channel=i, failures=r['failures']) for i, r in enumerate(reports) if r['status'] != 'pass']
+        report['signal_analysis'] = channel_reports
+        report['signal_mismatch'] = [dict(channel=i, failures=r['failures']) for i, r in enumerate(channel_reports) if r['status'] != 'pass']
         counters = meta['transport_counters']
         required = {'discontinuities', 'timestamp_errors', 'position_gaps', 'render_starvations'}
         if not required <= counters.keys() or any(type(v) is not int or v < 0 for v in counters.values()):
             raise ValueError('missing or invalid transport counters')
         report['transport_device_counters'] = counters
         report['status'] = ('transport_failure' if any(counters.values()) else
-                            'signal_mismatch' if any(r['status'] != 'pass' for r in reports) else 'pass')
+                            'signal_mismatch' if any(r['status'] != 'pass' for r in channel_reports) else 'pass')
     except (Exception, KeyboardInterrupt) as exc:
-        report.update(status='capture_failure', capture_failure=str(exc) or 'interrupted')
+        report.update(status='capture_failure', capture_failure=report_error(exc, [engine, modules, native, args.patch, args.events]))
     return save(directory, report)
 
 

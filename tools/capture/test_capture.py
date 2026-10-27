@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Synthetic and offline engine self-tests. Never launches a capture executable."""
 import argparse
+import ast
 import array
 import contextlib
 import io
@@ -165,6 +166,8 @@ class RunnerTests(unittest.TestCase):
             directory = next((root / 'build_reports/capture').iterdir())
             report = json.loads((directory / 'report.json').read_text())
             self.assertTrue((directory / 'report.md').is_file())
+            for name in ('report.json', 'report.md'):
+                self.assertNotIn(str(root), (directory / name).read_text())
             self.assertEqual((directory / 'reference.wav').read_bytes()[:4], b'RIFF')
             self.assertIn('reference.f32', report['files_sha256'])
             return result, report
@@ -200,6 +203,68 @@ class RunnerTests(unittest.TestCase):
             return meta, data
         result, report = self.simulate(fault, code=3)
         self.assertEqual((result, report['status']), (3, 'unavailable'))
+
+    def test_activation_success_then_initialize_failure_is_capture_failure(self):
+        def fault(meta, data):
+            meta.update(status='capture_failure', message='capture Initialize HRESULT=2147500037',
+                        stopped_cleanly=False)
+            return meta, data
+        result, report = self.simulate(fault, code=2)
+        self.assertEqual((result, report['status']), (1, 'capture_failure'))
+        self.assertIn('capture Initialize', report['capture_failure'])
+        self.assertFalse(report['application_faults'])
+
+    def test_native_file_error_does_not_expose_report_directory(self):
+        def fault(meta, data):
+            # Native filesystem exceptions may include the full report directory.
+            meta.update(status='application_fault', message=str(run.ROOT / 'build_reports/reference.f32'))
+            return meta, data
+        result, report = self.simulate(fault, code=2)
+        self.assertEqual((result, report['status']), (1, 'application_fault'))
+        self.assertEqual(report['application_faults'], ['<repository>/build_reports/reference.f32'])
+
+    def test_native_reference_error_is_application_fault(self):
+        def fault(meta, data):
+            meta.update(status='application_fault', message='invalid reference bounds')
+            return meta, data
+        result, report = self.simulate(fault, code=2)
+        self.assertEqual((result, report['status']), (1, 'application_fault'))
+        self.assertEqual(report['application_faults'], ['invalid reference bounds'])
+
+    def test_capture_configuration_and_sources_support_python39(self):
+        root = Path(__file__).resolve().parents[2]
+        cmake = (root / 'native/tools/capture/CMakeLists.txt').read_text()
+        self.assertIn('find_package(Python3 3.9 REQUIRED', cmake)
+        for name in ('analysis.py', 'reference.py', 'run.py', 'test_capture.py'):
+            ast.parse((root / 'tools/capture' / name).read_text(), feature_version=(3, 9))
+
+    def test_engine_binary_provenance_has_no_absolute_paths(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            engine = root / 'engine.so'
+            engine.write_bytes(b'fake engine')
+            module = root / 'module.so'
+            module.write_bytes(b'fake module')
+            with patch.object(run, 'ROOT', root), patch.object(run, 'is_windows', return_value=False), \
+                 patch.object(run, 'render', return_value=(stimulus('tone', .1), [module])), \
+                 patch.object(run.subprocess, 'check_output', return_value='synthetic-commit'):
+                run.main(['--confirm-audio', '--seconds', '.1', '--engine', str(engine), '--modules', str(root)])
+            report = next(root.glob('build_reports/capture/*/report.json')).read_text()
+            self.assertNotIn(str(root), report)
+            self.assertEqual(set(json.loads(report)['binary_sha256']), {'engine.so', 'module.so'})
+
+    def test_report_paths_preserve_provenance_without_machine_directories(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            library = root / 'build/native/engine.so'
+            external = root.parent / 'private-user-home' / 'module.so'
+            with patch.object(run, 'ROOT', root):
+                self.assertEqual(run.report_path(library), 'build/native/engine.so')
+                self.assertEqual(run.report_path(external), 'module.so')
+                self.assertEqual(run.report_error(OSError(str(external)), [external]), 'module.so')
+        # The fake backend supplies an absolute --native path in config.
+        _, report = self.simulate()
+        self.assertEqual(report['config']['native'], 'fake-helper.exe')
 
     def test_corrupt_capture_is_not_a_signal_mismatch(self):
         result, report = self.simulate(lambda meta, data: (meta, data[:-1]))

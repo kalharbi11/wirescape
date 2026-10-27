@@ -24,9 +24,18 @@ namespace {
 void check(HRESULT hr, const char* operation) {
     if (FAILED(hr)) throw std::runtime_error(std::string(operation) + " HRESULT=" + std::to_string(static_cast<unsigned long>(hr)));
 }
+struct Unavailable : std::runtime_error { using std::runtime_error::runtime_error; };
+void check_activation(HRESULT hr, const char* operation) {
+    if (FAILED(hr)) throw Unavailable(std::string(operation) + " HRESULT=" + std::to_string(static_cast<unsigned long>(hr)));
+}
 struct Apartment {
     Apartment() { check(CoInitializeEx(nullptr, COINIT_MULTITHREADED), "COM initialization"); }
     ~Apartment() { CoUninitialize(); }
+};
+struct Event {
+    HANDLE handle = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    Event() { if (!handle) throw std::runtime_error("capture event creation failed"); }
+    ~Event() { if (handle) CloseHandle(handle); }
 };
 struct Stream {
     ComPtr<IAudioClient> client;
@@ -67,10 +76,10 @@ ComPtr<IAudioClient> process_capture() {
     params.blob.cbSize = sizeof(config);
     params.blob.pBlobData = reinterpret_cast<BYTE*>(&config);
     ComPtr<IActivateAudioInterfaceAsyncOperation> operation;
-    check(ActivateAudioInterfaceAsync(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK, __uuidof(IAudioClient),
+    check_activation(ActivateAudioInterfaceAsync(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK, __uuidof(IAudioClient),
                                     &params, handler.Get(), &operation), "process loopback activation (requires build 20348+)");
     if (WaitForSingleObject(handler->done, 3000) != WAIT_OBJECT_0) throw std::runtime_error("activation timeout");
-    check(handler->result, "process loopback activation result");
+    check_activation(handler->result, "process loopback activation result");
     return handler->client;
 }
 std::string utf8(const wchar_t* value) {
@@ -102,12 +111,12 @@ int wmain(int argc, wchar_t** argv) {
         if (relative.empty() || relative == "." || relative.is_absolute()) throw std::runtime_error("invalid report directory");
         for (const auto& part : relative) if (part == "..") throw std::runtime_error("reports must remain under build_reports");
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 2; }
-    std::string status = "unavailable", message, endpoint;
+    std::string status = "application_fault", message, endpoint;
     uint64_t discontinuities = 0, timestamp_errors = 0, position_gaps = 0, starvations = 0, silent_packets = 0;
     uint64_t first_qpc = 0, last_qpc = 0, first_position = 0;
     uint32_t mix_rate = 0;
     std::vector<float> recorded;
-    bool streams_started = false, stopped = false;
+    bool stopped = false;
     try {
         auto size = fs::file_size(directory / "reference.f32");
         if (size < 1024 * 8 || size > 48000 * 6 * 8 || size % 8) throw std::runtime_error("invalid reference bounds");
@@ -115,14 +124,18 @@ int wmain(int argc, wchar_t** argv) {
         std::ifstream input(directory / "reference.f32", std::ios::binary);
         if (!input.read(reinterpret_cast<char*>(reference.data()), static_cast<std::streamsize>(size))) throw std::runtime_error("reference read failed");
         for (float value : reference) if (!std::isfinite(value) || std::abs(value) > 0.051f) throw std::runtime_error("reference exceeds low-level ceiling");
+        status = "capture_failure";
         Apartment apartment;
         ComPtr<IMMDeviceEnumerator> enumerator;
         check(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator)), "enumerator");
         ComPtr<IMMDevice> device;
-        check(enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device), "default render endpoint");
+        const HRESULT endpoint_result = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device);
+        if (endpoint_result == HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) throw Unavailable("default render endpoint absent");
+        check(endpoint_result, "default render endpoint");
         LPWSTR id = nullptr;
         check(device->GetId(&id), "endpoint ID");
         endpoint = utf8(id); CoTaskMemFree(id);
+        Event sample_ready; // Outlives both clients, including exception cleanup.
         Stream playback, capture;
         check(device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
                                reinterpret_cast<void**>(playback.client.GetAddressOf())), "render activation");
@@ -133,8 +146,9 @@ int wmain(int argc, wchar_t** argv) {
         const DWORD convert = AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
         check(playback.client->Initialize(AUDCLNT_SHAREMODE_SHARED, convert, 1000000, 0, &format, nullptr), "render Initialize");
         capture.client = process_capture();
-        check(capture.client->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK | convert,
-                                         0, 0, &format, nullptr), "capture Initialize");
+        check(capture.client->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK | convert,
+                                         200000, 0, &format, nullptr), "capture Initialize");
+        check(capture.client->SetEventHandle(sample_ready.handle), "capture SetEventHandle");
         ComPtr<IAudioRenderClient> writer;
         ComPtr<IAudioCaptureClient> reader;
         check(playback.client->GetService(IID_PPV_ARGS(&writer)), "render service");
@@ -158,13 +172,17 @@ int wmain(int argc, wchar_t** argv) {
                 sent += count;
             }
         };
-        feed(); capture.start(); streams_started = true;
+        feed(); capture.start();
         const auto start = std::chrono::steady_clock::now();
         uint64_t expected_position = 0;
         bool have_packet = false;
         while (std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() < frames / 48000.0 + 0.75) {
             if (!playback.started && std::chrono::steady_clock::now() - start >= std::chrono::milliseconds(250)) playback.start();
             if (playback.started) feed();
+            // Bound each event wait so playback feeding and the overall deadline progress.
+            const DWORD ready = WaitForSingleObject(sample_ready.handle, 5);
+            if (ready == WAIT_TIMEOUT) continue;
+            if (ready != WAIT_OBJECT_0) throw std::runtime_error("capture event wait failed");
             UINT32 packet = 0, packets = 0;
             check(reader->GetNextPacketSize(&packet), "capture packet size");
             while (packet) {
@@ -182,7 +200,6 @@ int wmain(int argc, wchar_t** argv) {
                 check(reader->ReleaseBuffer(count), "capture ReleaseBuffer");
                 check(reader->GetNextPacketSize(&packet), "capture packet size");
             }
-            Sleep(5);
         }
         playback.stop(); capture.stop(); stopped = true;
         if (sent != frames || recorded.empty()) throw std::runtime_error("incomplete playback or empty capture");
@@ -190,7 +207,8 @@ int wmain(int argc, wchar_t** argv) {
         output.write(reinterpret_cast<const char*>(recorded.data()), static_cast<std::streamsize>(recorded.size() * 4));
         if (!output) throw std::runtime_error("capture write failed");
         status = "captured";
-    } catch (const std::exception& e) { status = streams_started ? "capture_failure" : "unavailable"; message = e.what(); }
+    } catch (const Unavailable& e) { status = "unavailable"; message = e.what(); }
+      catch (const std::exception& e) { message = e.what(); }
     std::ofstream report(directory / "native.json");
     report << "{\"status\":" << json(status) << ",\"message\":" << json(message)
            << ",\"isolation\":\"process_tree\",\"target_pid\":" << GetCurrentProcessId()
