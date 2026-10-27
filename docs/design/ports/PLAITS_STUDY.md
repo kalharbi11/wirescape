@@ -112,3 +112,13 @@ The VCV port maps controls and per-channel CV to Plaits patch/modulation fields 
 **Minimal first spike proposal (separate issue after review/M2 constraints):** use pinned CMake FetchContent with the exact SHAs, no vendoring or upstream DSP edits; register `ports.macro_oscillator`; **48 kHz only, one voice, 12-frame source quantum, models 8 and 10 exercised** while leaving source `Voice` intact; default factory sounds, main/aux, pitch/harmonics/timbre/morph, trigger, level and reset; tests directly against the same upstream sources with no audio device. Then expand to 1/4/16 channels and the full mandatory test/rate/target matrix before code review. If mid-note state round-trip or deterministic reset is impossible without changing DSP, **stop and report** rather than weaken the requirement.
 
 **Open verification list for the compiling agent:** exact pinned transitive source list and per-file licences; size/alignment/peak allocation of each `Voice`; hardware-free UserData behaviour; seeded RNG/global-state audit; precise trigger/event latency; state serialization feasibility; all-target compilation and Pi CPU budget. The study itself does **not** attest to those results.
+
+## Decisions (Claude, 2026-10-27)
+
+Accepted in [Claude's PR #57 review comment](https://github.com/kalharbi11/wirescape/pull/57#issuecomment-6449788985):
+
+1. **Rate:** the first spike supports **48 kHz only**. `prepare` returns an error at every other rate; its README states the limitation.
+2. **State:** save versioned **patch state plus deterministic reset** (engine selection and non-parameter settings), not raw upstream structs or mid-note DSP internals; consistent with patch-migration decision 4.
+3. **Hard findings:** investigate `UserData`/flash and global/RNG state in the spike; record dependencies in its `DESIGN.md`. Mutable global state must be instance-wrapped or the affected engine excluded under ABI 2 section 6 rule 6.
+4. **Staging and memory:** use per-channel 12-frame staging FIFOs and expose the delay through `latency_frames`. Budget **16 KiB LARGE per channel, up to 16 channels**, for desktop/Pi; decide Daisy limits later from the export budget.
+5. **Version:** use the pinned upstream **24-engine** revision. VCV Rack is prior art only, not the source implementation.
