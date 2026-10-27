@@ -98,7 +98,7 @@ def render(engine, modules, patch, events=(), seconds=2):
         previous = -1
         for ev in events:
             frame = ev['frame']
-            if not isinstance(frame, int) or not previous <= frame < seconds * 48000:
+            if not isinstance(frame, int) or frame < 0 or not previous <= frame < seconds * 48000:
                 raise ValueError('events must be ordered and inside the reference')
             previous = frame
             value = Event(C.sizeof(Event), frame, ev['node'], ev['type'], ev.get('parameter', 0),

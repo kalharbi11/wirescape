@@ -77,6 +77,11 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(a[:4800], c[:4800])
         self.assertNotEqual(a[6000:], c[6000:])
 
+    def test_negative_event_frame_is_rejected(self):
+        with self.assertRaises(ValueError):
+            render(ARGS.engine, ARGS.modules, tone_patch(),
+                   [dict(frame=-1, node=1, type=1, value=440)], seconds=0.1)
+
     def test_filter_patch_attenuates_known_tone(self):
         patch = tone_patch()
         clean, _ = render(ARGS.engine, ARGS.modules, patch, seconds=0.2)
