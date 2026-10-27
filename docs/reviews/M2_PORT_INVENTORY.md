@@ -236,9 +236,11 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 **4. State.** Empty module State, no-op reset and event, prepare returns 0 (`native/modules/output/module.cpp:4-9`). No numeric parameters or module-local save/load (`native/modules/output/module.cpp:17-32`). The reader retains source patch JSON (`native/document/document_reader.cpp:34-36,50-51`); no extra per-module runtime state to serialize.
 
-**5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 differences **UNKNOWN** until port exists.
+**5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 interface comparison **not applicable**: no `native/modules2/output/dsp.h` in the inspected ABI 2 module set.
 
 **6. Port notes.** Output is transparent mono pass-through; a null `in[0]` yields literal zero (not an uninitialized sample) (`native/modules/output/module.cpp:10-14`). No sample-rate assumptions or dynamic dependencies in processing. Bounded per-frame writes, **no allocation, locks, I/O or mutable globals** (`native/modules/output/module.cpp:4-14`); heap allocation only in `create` (`native/modules/output/module.cpp:5-6`). No `native/modules/output/DESIGN.md` at inspected ref; third-party source / pinned revision **UNKNOWN** (looked in `native/modules/output/module.cpp:1-2`, DESIGN.md absent).
+
+**Second-pass migration details.** A **null `in[0]` buffer** is replaced with zero sample-by-sample; the `in` **array itself is not checked** and must be valid (`native/modules/output/module.cpp:10-14`). There are no parameter IDs or tapers, and `event` is a no-op (`native/modules/output/module.cpp:7-9,17-26`). `process` is pure bounded copy/zero: **no allocation, lock, I/O or mutable process-wide global**; `create` alone allocates an empty instance (`native/modules/output/module.cpp:4-14`). No `native/modules/output/DESIGN.md` exists at this ref; third-party provenance/licence/pin is **UNKNOWN (looked there and `native/modules/output/module.cpp:1-2`)**.
 
 ## scale_offset
 
