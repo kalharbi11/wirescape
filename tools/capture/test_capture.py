@@ -5,6 +5,7 @@ import array
 import contextlib
 import io
 import tempfile
+import subprocess
 from unittest.mock import patch
 import run
 import json
@@ -113,6 +114,32 @@ class RunnerTests(unittest.TestCase):
                 run.main([])
             self.assertEqual(caught.exception.code, 2)
             render_mock.assert_not_called()
+            native_mock.assert_not_called()
+
+    def test_invalid_duration_never_invokes_backend(self):
+        with patch.object(run, 'run_native') as native_mock:
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                run.main(['--confirm-audio', '--seconds', '20'])
+            native_mock.assert_not_called()
+
+    def test_watchdog_kills_only_owned_helper(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(run.subprocess, 'Popen') as create:
+            child = create.return_value
+            child.wait.side_effect = [subprocess.TimeoutExpired('fake-helper', 12), 0]
+            with self.assertRaises(subprocess.TimeoutExpired):
+                run.run_native(Path('fake-helper'), Path(folder))
+            child.kill.assert_called_once()
+            self.assertEqual(child.wait.call_count, 2)
+
+    def test_application_render_error_precedes_capture(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(run, 'ROOT', Path(folder)), \
+             patch.object(run, 'render', side_effect=RuntimeError('synthetic render fault')), \
+             patch.object(run, 'run_native') as native_mock:
+            self.assertEqual(run.main(['--confirm-audio']), 1)
+            file = next((Path(folder) / 'build_reports/capture').glob('*/report.json'))
+            report = json.loads(file.read_text())
+            self.assertEqual(report['status'], 'application_fault')
+            self.assertEqual(report['application_faults'], ['synthetic render fault'])
             native_mock.assert_not_called()
 
     def simulate(self, mutate=lambda meta, data: (meta, data), code=0):

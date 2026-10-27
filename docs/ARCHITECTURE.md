@@ -125,9 +125,14 @@ Summary JSON and ARM64 benchmark numbers are artifacts; full logs upload on fail
 `guard` enforces protected paths, test retention, private/binary exclusions and portable paths.
 Protected CI changes require `allow-protected`; test removal requires `allow-test-removal`.
 
-## Offline capture analysis
+## Audio capture harness
 
 `tools/capture/` renders native patch v1 via ABI1 without opening devices and
-compares synthetic captures using alignment, level, timing and response metrics.
-CTest's `capture_offline_selftests` includes deterministic engine references;
-real endpoint capture remains an explicit manual operation, never a CI test.
+compares signals using alignment, level, timing and response metrics. CTest's
+`capture_offline_selftests` uses synthetic captures and a fully mocked runner.
+`native/tools/capture/` builds a separate Windows SDK process-loopback helper;
+`python tools/capture/run.py --confirm-audio` is the explicit manual entry point.
+It captures only the dedicated helper's render stream on Windows build 20348+,
+never microphones or an unisolated endpoint mix. Reports stay in `build_reports/`.
+Device execution is unverified and reserved for the user; CI only compiles the
+helper and runs offline tests. See `tools/capture/README.md` for bounds and scope.
