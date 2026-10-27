@@ -100,7 +100,7 @@ static bool run(const Options&o){
   if(after>deadline)++late;std::this_thread::sleep_until(deadline);
  }
  require(allocations==0&&e->meter().faults==0&&peak>0);
- SoakStats s(times,period),cpu(cpu_times,period);auto preempted=preempted_blocks(times,cpu_times,period);
+ auto preempted=preempted_blocks(times,cpu_times,period);SoakStats s(times,period),cpu(cpu_times,period);
  std::printf("{\"graph\":\"%s\",\"sample_rate\":%.9g,\"block\":%u,\"seconds\":%.9g,\"blocks\":%zu,\"period_ns\":%.9g,\"render_ns\":{\"min\":%.9g,\"median\":%.9g,\"p99\":%.9g,\"p99_9\":%.9g,\"max\":%.9g},\"cpu_ns\":{\"min\":%.9g,\"median\":%.9g,\"p99\":%.9g,\"p99_9\":%.9g,\"max\":%.9g},\"preempted\":%zu,\"over_50_percent\":%zu,\"over_100_percent\":%zu,\"late_deadlines\":%zu,\"allocations\":%llu,\"faults\":%llu,\"peak\":%.9g}",o.graph.c_str(),o.rate,o.block,o.seconds,count,period,s.min,s.median,s.p99,s.p999,s.max,cpu.min,cpu.median,cpu.p99,cpu.p999,cpu.max,preempted,s.over_half,s.over_period,late,static_cast<unsigned long long>(allocations),static_cast<unsigned long long>(e->meter().faults),peak);
  return s.p99<period*.5;
 }
