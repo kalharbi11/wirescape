@@ -22,6 +22,7 @@ The plan and milestones are in `docs/PLAN.md`. The module contract is `docs/spec
 - Push small commits often, so hitting a usage limit never loses work. WIP-only commits may use `[skip ci]`. The final push before review must run CI.
 - Before you stop (done, near a limit, or blocked): post a handoff comment on the issue using the template below, and set the status label.
 - Never merge. The user merges after review.
+- **Never approve.** No agent submits an `APPROVE` review, enables auto-merge, dismisses a review, or changes branch protection or rulesets. Reviews from agents are `COMMENT` only. Approving is the user's act alone.
 - On a hard failure: two reasonable attempts, then stop, leave the evidence and label the issue `status/blocked`.
 - Don't widen scope. Ideas go under "Follow-ups" in the handoff, not into code.
 
@@ -41,7 +42,8 @@ The plan and milestones are in `docs/PLAN.md`. The module contract is `docs/spec
 
 ## Labels
 - Status: `status/todo`, `status/in-progress`, `status/review`, `status/handoff-ready`, `status/blocked`
-- Agent: `agent/codex`, `agent/copilot`, `agent/claude`
+- Agent: `agent/codex`, `agent/copilot`, `agent/chatgpt`, `agent/claude`
+- Review: `milestone-review` (Claude may build, profile and run sanitizers)
 - Size: `size/s`, `size/m`, `size/l`
 - Milestones: `M0` … `M8` (see `docs/PLAN.md`)
 
@@ -83,7 +85,28 @@ Qt is found through `WIRESCAPE_QT_DIR`, then `CMAKE_PREFIX_PATH`, then the local
 Default to Sol Medium. Use Luna Medium for mechanical work. Use Sol High only for concurrency, timing or architecture problems after two failed attempts. At most one worker; add a second only for genuinely independent work, and state its file ownership first.
 
 ## If you are Copilot
-Take only issues labelled `agent/copilot`. If a task turns out larger than its size label, post a handoff comment and stop.
+Take only issues labelled `agent/copilot`. If a task turns out larger than its size label, post a handoff comment and stop. Your `copilot/…` branch name is accepted in place of `task/<issue#>-<slug>`; the PR still says `Closes #<issue#>`.
+
+## If you are ChatGPT (GitHub-connected chat)
+Take only issues labelled `agent/chatgpt`, or a review-prep request the user pastes from Claude. You can read code, create branches, commit, open PRs and review, but you can't run the app, builds or tests. So:
+- Good fits: docs, task-file drafts, issue triage, small mechanical edits with existing tests, and **first-round review prep** (diff summaries, checklists, finding candidates with file:line).
+- Not a fit: anything whose acceptance needs a build, a benchmark, sanitizers, a device or the Windows/Pi machines.
+- Report back as a comment on the issue or PR, marked "ChatGPT pre-review", so Claude reads it instead of re-deriving it.
 
 ## If you are Claude
 You are the planner and reviewer. A check-in means reading `docs/PLAN.md`, the open issues and PRs, the latest handoff comments and `git log --oneline -20`. Then update `docs/PLAN.md` and the issues, review anything labelled `status/review`, and flag risks. Don't write feature code unless asked.
+- **Routine check-ins:** use a fresh session. Read `docs/PLAN.md`, the open issues and PRs, their diffs and the CI summaries only. Don't build, profile or run sanitizers. If evidence is missing, request it from the implementing agent through the issue.
+- **Milestone reviews** (issues labelled `milestone-review`) may build, profile and run sanitizers.
+- **Agent roster and routing.** Keep Codex usage low: it is the main builder and tester, and the only agent with the user's Windows laptop and Pi 5.
+  | Agent | Use for | Label |
+  |---|---|---|
+  | Codex | Native code, performance, concurrency, anything needing a build, tests, Windows or Pi | `agent/codex` |
+  | Copilot coding agent | `size/s` well-specified tasks whose proof is CI on its own PR (small fixes, tests, CI tweaks) | `agent/copilot` |
+  | ChatGPT chat (GitHub-connected) | Docs, triage, mechanical edits, first-round review prep; never anything that must be built or run | `agent/chatgpt` |
+  | Claude | Plan, task files, issues, reviews, gate decisions | `agent/claude` |
+  When writing an issue, pick the cheapest agent that can meet its acceptance criteria, and say why in one line.
+- **Before a big review** (a `milestone-review` issue, or any review `size/m` or larger): first ask the user, in one consolidated message, what to have ChatGPT prepare, as a paste-ready ChatGPT prompt (for example a diff summary per file, a checklist pass with file:line candidates, or a list of claims in the handoff that need evidence). Use its output to narrow your own reading.
+- **After every review, end your reply with "Next steps for you":**
+  1. Every manual step the user must take, at click-by-click level (which page, which button, which setting, what to type), in order.
+  2. A paste-ready prompt for each agent that should act next (Codex, Copilot, ChatGPT), naming the issue, branch, spec file and stop condition.
+  3. Which steps can run in parallel, and what to tell Claude when they're done.
