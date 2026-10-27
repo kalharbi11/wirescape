@@ -30,8 +30,25 @@ int main(){
  ws2_signal in{sizeof(in),ip,1,WS2_CONSTANT|WS2_CONNECTED},parameter{sizeof(parameter),gp,1,WS2_CONSTANT};
  ws2_signal_out out{sizeof(out),outputs,1,0,16};ws2_process ctx{};ctx.struct_size=sizeof(ctx);ctx.frames=17;ctx.sample_rate=48000;ctx.channels=4;ctx.input_count=1;ctx.output_count=1;ctx.param_count=1;ctx.inputs=&in;ctx.params=&parameter;ctx.outputs=&out;
  auto allocated=pool.used;CHECK(d->process(instance,&ctx)==WS2_OK);CHECK(pool.used==allocated);CHECK(out.channels==4&&(out.flags&WS2_CONSTANT));for(int j=0;j<4;++j)CHECK(storage[j][0]==.5f);
+ float scratch[17]{};ws::Signal signal(&in);CHECK(signal.row(3,scratch,17)==scratch);for(float v:scratch)CHECK(v==.25f);
+ in.flags=WS2_CONNECTED;CHECK(signal.row(0,scratch,17)==input);in.flags|=WS2_CONSTANT;
+ ws::Signal missing(nullptr);CHECK(missing.row(0,scratch,17)==scratch);for(float v:scratch)CHECK(v==0);
  input[0]=std::nanf("");CHECK(d->process(instance,&ctx)==WS2_INVALID);CHECK(storage[0][0]==0);input[0]=.25f;
  ctx.frames=33;CHECK(d->process(instance,&ctx)==WS2_INVALID);ctx.frames=17;ctx.struct_size=0;CHECK(d->process(instance,&ctx)==WS2_INVALID);ctx.struct_size=sizeof(ctx);
+ storage[0][0]=99;CHECK(d->process(nullptr,&ctx)==WS2_INVALID);CHECK(storage[0][0]==0);
+ for(int failure=0;failure<4;++failure){auto invalid=ctx;storage[0][0]=99;
+  if(failure==0)invalid.frames=33;
+  if(failure==1)invalid.sample_rate=44100;
+  if(failure==2)invalid.param_count=0;
+  if(failure==3){invalid.events.struct_size=sizeof(ws2_event_list);invalid.events.count=1;invalid.events.items=nullptr;}
+  CHECK(d->process(instance,&invalid)==WS2_INVALID);CHECK(storage[0][0]==0);CHECK(out.flags&WS2_CONSTANT);
+ }
+ for(int failure=0;failure<6;++failure){ws2_event e{};e.struct_size=sizeof(e);e.type=WS2_NOTE_ON;
+  if(failure==0)e.value2=std::nanf("");if(failure==1)e.ump_words=5;if(failure==2)e.type=0;
+  if(failure==3)e.bytes=WS2_MAX_PAYLOAD+1;if(failure==4)e.bytes=1;if(failure==5)e.struct_size=0;
+  auto invalid=ctx;invalid.events={sizeof(ws2_event_list),1,&e};storage[0][0]=99;
+  CHECK(d->process(instance,&invalid)==WS2_INVALID);CHECK(storage[0][0]==0);
+ }
  d->reset(instance);d->destroy(instance);CHECK(pool.used==allocated);
  std::puts("PASS SDK ramp/gate/trigger/PRNG/SIMD/taper/fastmath");
 }

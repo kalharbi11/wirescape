@@ -416,6 +416,18 @@ MIDI, OSC, UDP and Monitor implementation (Track C), sequencers, subpatch UI, th
 | Max channels default (D2) | 16 desktop | VCV-compatible mental model | 2026-10-26 |
 | Network bind default (Track C) | Approved: localhost by default, explicit "All interfaces (LAN)" toggle per module | Safe default; one firewall prompt when enabled | 2026-10-26 |
 | First implementation step | `docs/tasks/M1-1_FOUNDATION_SLICE.md` comes first, then **stop for an external review** before B2–B6 port anything else | Review the base before it spreads | 2026-10-26 |
+| M1-R 1: release emergency | Keep finite release reserve and counted fan-out; global reset/choke, with Activity counters in M4 | Bounded safety; add source-scoped emergency only after measurement | 2026-10-27 |
+| M1-R 2: timestamps | Prepared max_block lookahead and bounded ±1000 ppm EWMA; no sample-accurate claim before real MIDI measurements | Fake anchors prove scheduling, not device timing | 2026-10-27 |
+| M1-R 3: PER_VOICE | Global parameters stay mono, poly modulation uses channel 0; adapters resolve note_id to channel | Avoid splitting global controls per voice | 2026-10-27 |
+| M1-R 4: optimisation order | Cache scheduling/views, remove copies, validate producers once, then row helpers and time-vector VCA; voice-SIMD deferred | Remove framework overhead before changing DSP strategy | 2026-10-27 |
+| M1-R 5: latency (M2) | Count output-reaching signal paths per bus; show feedback delay only on back-edge markers | Separate forward latency from recirculation | 2026-10-27 |
+| M1-R 6: adversarial gates | Require panic/egress TSan stress, mixed SCC permutations and callback-boundary event tests before Track C | Exercise scheduling and generation boundaries | 2026-10-27 |
+| M1-R 7: caps | Keep 1472-byte payload, 1 MiB state, 128 MiB/allocation and 64 allocations/node; exporters use memory_requirements; revisit CHAOS tape in M7 | Explicit DSP budgets separate from desktop queues | 2026-10-27 |
+| M1-R 8: queries | Allow query before cabling on created/unprepared instances; queries cheap and side-effect-free; create never allocates LARGE memory | Configuration-dependent ports without expensive construction | 2026-10-27 |
+| M1-R 9: M4 entry | Fake-sink dispatch, ±1 ms jitter/±500 ppm drift, producer shutdown and hardware-free libremidi loopback precede authorised hardware | Prove ownership and timing before devices | 2026-10-27 |
+| M1-R 10: ARM and adapters | GCC 13 aarch64 build/tests proven; Pi 5 timing via optional runner in M2; CLAP first in M8; scalar Cortex-M7 Daisy build-only in M8 | Keep measured platform proof distinct from future portability | 2026-10-27 |
+| M1-R 11: memory ownership | Host frees allocations after destroy; rate/block change creates and prepares a new instance then loads state; future free callback trails ws2_host | Keep ownership explicit without changing the ABI | 2026-10-27 |
+| M1-R 12: finite validation | Hosts/adapters deliver finite inputs and parameters; SDK validates producer outputs; engine2 validates ABI 1 shim outputs | Single-point checks preserve finite guards without redundant scans | 2026-10-27 |
 
 ## Sources
 

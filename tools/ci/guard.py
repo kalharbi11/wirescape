@@ -8,16 +8,23 @@ import subprocess
 from pathlib import PurePosixPath
 
 PROTECTED = ('AGENTS.md', 'CLAUDE.md', 'docs/PLAN.md', 'docs/PLANNER_HANDOFF.md',
-             'docs/specs/**', 'LICENSE*', 'LICENSES/**', '.github/**',
+             'docs/specs/**', 'LICENSE*', 'LICENSES/**', '.github/**', 'tools/ci/**',
              'native/include/wirescape/*.h', 'docs/history/**', 'legacy/**')
-BINARY = {'.dll', '.exe', '.zip', '.wav', '.ttf', '.otf'}
-PRIVATE = {'user_data', '.tools', 'build'}
+BINARY = {'.dll', '.exe', '.zip', '.wav', '.flac', '.ttf', '.otf', '.so', '.dylib',
+          '.lib', '.pdb', '.obj', '.a', '.woff', '.woff2', '.mp3', '.aif', '.aiff'}
+PRIVATE = {'user_data', '.tools', 'build', 'local_backups'}
+FIXTURE_AUDIO = {'.wav', '.flac'}
 MACHINE = re.compile(r'(?i)(?:[a-z]:[\\/]Users[\\/]|/ho' r'me/[^/\s]+(?:/|$))')
 
 
 def is_test(path):
     p = PurePosixPath(path)
     return any(part.lower().startswith('test') for part in p.parts) or 'test' in p.stem.lower()
+
+
+def is_allowed_fixture_audio(path, suffix):
+    p = PurePosixPath(path)
+    return suffix in FIXTURE_AUDIO and p.parts[:3] == ('native', 'tests', 'fixtures')
 
 
 def violations(status, paths, added, labels):
@@ -30,7 +37,8 @@ def violations(status, paths, added, labels):
     if status[0] != 'D':
         path = paths[-1]
         p = PurePosixPath(path)
-        if p.suffix.lower() in BINARY or PRIVATE.intersection(p.parts):
+        suffix = p.suffix.lower()
+        if (suffix in BINARY and not is_allowed_fixture_audio(path, suffix)) or PRIVATE.intersection(p.parts):
             errors.append('binary/private file is forbidden')
         exempt = path.startswith(('docs/history/', 'legacy/', 'docs/tasks/M0-1', 'docs/tasks/M0-2'))
         if not exempt and any(MACHINE.search(line) for line in added):
@@ -43,14 +51,15 @@ def git(*args):
 
 
 def check(base, head, labels):
-    entries = iter(git('diff', '--name-status', '-z', '-M', base, head).split(b'\0')[:-1])
+    entries = iter(git('diff', '--name-status', '-z', '-M', '--merge-base', base, head).split(b'\0')[:-1])
     errors = []
     for entry in entries:
         status = entry.decode()
         paths = [next(entries).decode('utf-8', 'surrogateescape')]
         if status[0] in 'RC':
             paths.append(next(entries).decode('utf-8', 'surrogateescape'))
-        patch = git('diff', '--no-ext-diff', '--no-textconv', '--unified=0', base, head, '--', paths[-1])
+        patch = git('diff', '--no-ext-diff', '--no-textconv', '--unified=0', '--merge-base',
+                    base, head, '--', paths[-1])
         added = [line[1:] for line in patch.decode('utf-8', 'replace').splitlines()
                  if line.startswith('+') and not line.startswith('+++')]
         errors.extend(f'{paths[-1]}: {e}' for e in violations(status, paths, added, labels))

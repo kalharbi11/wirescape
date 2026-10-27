@@ -7,6 +7,7 @@
 /LICENSE* @kalharbi11
 /LICENSES/ @kalharbi11
 /.github/ @kalharbi11
+/tools/ci/ @kalharbi11
 /native/include/wirescape/*.h @kalharbi11
 /docs/history/ @kalharbi11
 /legacy/ @kalharbi11

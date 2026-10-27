@@ -22,9 +22,9 @@ All **92 protected source hashes match** [baseline manifest](ABI2_BASELINE_MANIF
 
 ## Actual evidence
 
-Final whole-project `python tools/dev.py check --package`: **PASS**, [check-20261026T230043Z.json](../../build_reports/foundation/check-20261026T230043Z.json). 27 Python tests and **28 CTest suites** (16 existing +12 ABI2), UI smoke at both sizes, startup, existing45-case offline benchmark/render and portable package passed. Audio remained off. The report records the dirty precommit source fingerprint and implementation HEAD plus dirty final test-wiring changes because testing preceded the final checkpoint; it must not be presented as a clean-HEAD provenance record.
+Final whole-project `python tools/dev.py check --package`: **PASS**, `build_reports/foundation/check-20261026T230043Z.json`. 27 Python tests and **28 CTest suites** (16 existing +12 ABI2), UI smoke at both sizes, startup, existing45-case offline benchmark/render and portable package passed. Audio remained off. The report records the dirty precommit source fingerprint and implementation HEAD plus dirty final test-wiring changes because testing preceded the final checkpoint; it must not be presented as a clean-HEAD provenance record.
 
-Frozen numeric snapshot: [ABI2_ACCEPTANCE_SNAPSHOT.json](ABI2_ACCEPTANCE_SNAPSHOT.json). ABI2-specific [summary.json](../../build_reports/abi2/summary.json) records commands, return codes, logs, WAV hashes/stats, new binary hashes/exports, baseline verification and the **separate failed performance target flag**. Reproduce after Release build and the Debug target build with `python tools/bench/abi2_foundation.py`. It performs no install/download/device action. Raw reference WAVs and immutable hashes live in native/tests/fixtures/abi2/. Fresh render bytes match those fixtures.
+Frozen numeric snapshot: [ABI2_ACCEPTANCE_SNAPSHOT.json](ABI2_ACCEPTANCE_SNAPSHOT.json). ABI2-specific `build_reports/abi2/summary.json` records commands, return codes, logs, WAV hashes/stats, new binary hashes/exports, baseline verification and the **separate failed performance target flag**. Reproduce after Release build and the Debug target build with `python tools/bench/abi2_foundation.py`. It performs no install/download/device action. Raw reference WAVs and immutable hashes live in native/tests/fixtures/abi2/. Fresh render bytes match those fixtures.
 
 | Test | Result | Exact evidence / bounds |
 |---|---|---|
@@ -45,7 +45,7 @@ Frozen numeric snapshot: [ABI2_ACCEPTANCE_SNAPSHOT.json](ABI2_ACCEPTANCE_SNAPSHO
 
 Engine tests also pass **Debug CRT heap integrity and before/after heap balance**, including threaded shutdown with joined producers. Initial16-byte difference was the debug iterator proxy of an eagerly initialized unused static empty vector; moving fallback construction to the invalid-ID branch removed it. No ASan claim. Logs: acceptance-0.log (CTest), acceptance-1.log (Debug CRT); benchmark runs inside CTest under build_reports/abi2/.
 
-Synth artifact: [poly_synth.wav](../../build_reports/abi2/poly_synth.wav) and [stats](../../build_reports/abi2/poly_synth.json):96k stereo frames, peak4.873094, RMS0.852157, release tail0, faults0. Raw voice sum can exceed1: this file is for analysis, without a limiter or normalization; do not mistake the raw mix for a mastered output. No physical loopback/audibility was tested by this slice.
+Synth artifact: `build_reports/abi2/poly_synth.wav` and `build_reports/abi2/poly_synth.json`:96k stereo frames, peak4.873094, RMS0.852157, release tail0, faults0. Raw voice sum can exceed1: this file is for analysis, without a limiter or normalization; do not mistake the raw mix for a mastered output. No physical loopback/audibility was tested by this slice.
 
 ## Benchmarks
 

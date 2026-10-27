@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-only
+import os
+import subprocess
+import tempfile
 import unittest
+from pathlib import Path
+
+from guard import check as guard_check
 from guard import violations
 
 
@@ -9,7 +15,7 @@ class GuardTests(unittest.TestCase):
 
     def test_protected(self):
         for path in ('AGENTS.md', '.github/workflows/ci.yml', 'LICENSES/MIT.txt',
-                     'native/include/wirescape/module2.h', 'docs/specs/ABI2_PLAN.md'):
+                     'native/include/wirescape/module2.h', 'docs/specs/ABI2_PLAN.md', 'tools/ci/guard.py'):
             with self.subTest(path=path):
                 self.assertTrue(self.check(path))
                 self.assertFalse(self.check(path, labels=['allow-protected']))
@@ -22,9 +28,18 @@ class GuardTests(unittest.TestCase):
 
     def test_binary_private_cannot_be_overridden(self):
         for path in ('x.DLL', 'x.exe', 'x.zip', 'x.wav', 'x.ttf', 'x.otf',
-                     'user_data/patch.json', '.tools/sdk', 'build/result'):
+                     'x.so', 'x.dylib', 'x.lib', 'x.pdb', 'x.obj', 'x.a', 'x.woff', 'x.woff2',
+                     'x.flac', 'x.mp3', 'x.aif', 'x.aiff', 'user_data/patch.json', '.tools/sdk',
+                     'build/result', 'local_backups/snapshot.zip'):
             self.assertTrue(self.check(path, labels=['allow-protected', 'allow-test-removal']))
         self.assertFalse(self.check('native/ui/assets/icon.png'))
+
+    def test_fixture_audio_allowlist(self):
+        self.assertFalse(self.check('native/tests/fixtures/impulse.wav'))
+        self.assertFalse(self.check('native/tests/fixtures/impulse.flac'))
+        self.assertTrue(self.check('native/tests/fixtures/impulse.mp3'))
+        self.assertTrue(self.check('native/tests/fixtures/icon.ttf'))
+        self.assertTrue(self.check('native/tests/not-fixtures/impulse.wav'))
 
     def test_machine_paths(self):
         for line in ('C:' + chr(92) + 'Users' + chr(92) + 'person', 'D:' + '/Users/person/sdk', '/ho' + 'me/person/sdk'):
@@ -32,6 +47,55 @@ class GuardTests(unittest.TestCase):
             self.assertFalse(self.check('docs/tasks/M0-1_LOCAL.md', added=[line]))
             self.assertFalse(self.check('legacy/a.py', added=[line], labels=['allow-protected']))
         self.assertFalse(self.check('README.md', added=['/usr/bin/python', '${HOME}/sdk']))
+
+    def test_merge_base_diff_ignores_moved_main_changes(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            self._git(repo, 'init', '-b', 'main')
+            self._write(repo / 'docs/PLAN.md', 'base\n')
+            self._write(repo / 'src/module.txt', 'base\n')
+            self._git(repo, 'add', '.')
+            self._git(repo, 'commit', '-m', 'base')
+
+            self._git(repo, 'checkout', '-b', 'feature')
+            self._write(repo / 'src/module.txt', 'feature change\n')
+            self._git(repo, 'add', 'src/module.txt')
+            self._git(repo, 'commit', '-m', 'feature change')
+
+            self._git(repo, 'checkout', 'main')
+            self._write(repo / 'docs/PLAN.md', 'main change\n')
+            self._git(repo, 'add', 'docs/PLAN.md')
+            self._git(repo, 'commit', '-m', 'main change')
+
+            current = os.getcwd()
+            try:
+                os.chdir(repo)
+                self.assertEqual([], guard_check('main', 'feature', set()))
+                self._git(repo, 'checkout', '-b', 'feature2', 'main')
+                self._write(repo / 'AGENTS.md', 'protected change\n')
+                self._git(repo, 'add', 'AGENTS.md')
+                self._git(repo, 'commit', '-m', 'protected change')
+                self.assertTrue(guard_check('main', 'feature2', set()))
+            finally:
+                os.chdir(current)
+
+    def _git(self, repo, *args):
+        command = ['git', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=', *args]
+        if args[:2] == ('commit', '-m'):
+            env = os.environ.copy()
+            env.update({
+                'GIT_AUTHOR_NAME': 'Test User',
+                'GIT_AUTHOR_EMAIL': 'test@example.com',
+                'GIT_COMMITTER_NAME': 'Test User',
+                'GIT_COMMITTER_EMAIL': 'test@example.com',
+            })
+            subprocess.run(command, cwd=repo, check=True, text=True, capture_output=True, env=env)
+            return
+        subprocess.run(command, cwd=repo, check=True, text=True, capture_output=True)
+
+    def _write(self, path, content):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding='utf-8')
 
 
 if __name__ == '__main__':

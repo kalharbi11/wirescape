@@ -32,6 +32,16 @@ static void matrix(){
  guard->input[0][0][0]=std::numeric_limits<float>::quiet_NaN();VERIFY(guard->d->process(guard->state,&guard->process)==WS2_INVALID);VERIFY(guard->outs[0].flags&WS2_CONSTANT);VERIFY(guard->output[0][0][0]==0);
  std::puts("PASS 135 DSP matrix cases, reset/determinism, scalar VCA, VCF counter, nullable/stop/locate transport");
 }
+static void vca_exact(){
+ for(double rate:{44100.,48000.,96000.})for(uint32_t channels:{1u,4u,16u})for(uint32_t frames:{1u,17u,256u})for(uint32_t mask=0;mask<8;++mask){
+  auto f=std::make_unique<DspFixture>(descriptors[4],rate,channels);f->ins[0].flags=WS2_CONNECTED|((mask&1)?WS2_CONSTANT:0);f->ins[1].flags=WS2_CONNECTED|((mask&2)?WS2_CONSTANT:0);f->pars[0].flags=(mask&4)?WS2_CONSTANT:0;
+  for(uint32_t c=0;c<channels;++c)for(uint32_t i=0;i<frames;++i)f->parameter[0][c][i]=.25f+.001f*i;
+  f->run(frames);for(uint32_t c=0;c<channels;++c)for(uint32_t i=0;i<((f->outs[0].flags&WS2_CONSTANT)?1:frames);++i){
+   float expected=f->input[0][c][(mask&1)?0:i]*f->input[1][c][(mask&2)?0:i]*f->parameter[0][0][(mask&4)?0:i];VERIFY(f->output[0][c][i]==expected);
+  }
+ }
+ std::puts("PASS exact VCA scalar equality across rate/channel/frame/constant matrix");
+}
 #ifndef WS2_PORTABLE_TEST
 static void equivalence(const char*directory,const char*report){
  ModuleLoader loader(directory);FILE*file=std::fopen(report,"w");VERIFY(file);std::fprintf(file,"{\"modules\":[");
@@ -54,7 +64,7 @@ static void equivalence(const char*directory,const char*report){
 }
 static void noalloc(){for(auto*d:descriptors){auto f=std::make_unique<DspFixture>(d,48000,16);allocation_watch::Scope watch;for(int i=0;i<16;++i){f->run(17);f->reset();}VERIFY(watch.allocations()==0);}std::puts("PASS zero new/new[]/aligned-new in static SDK/DSP process/reset");}
 #endif
-int main(int argc,char**argv){matrix();
+int main(int argc,char**argv){matrix();vca_exact();
 #ifndef WS2_PORTABLE_TEST
  noalloc();if(argc==3)equivalence(argv[1],argv[2]);
 #endif

@@ -1,6 +1,6 @@
 # Wirescape plan
 
-Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-27 (after M1-R).
+Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-27 (M1-3 merged; guard fix).
 
 ## Vision
 Wirescape is a raw, expandable modular environment for music. Its aims:
@@ -40,14 +40,24 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
 - **M0 Migration** to `github.com/kalharbi11/wirescape`
   - [x] M0-1 Local cleanup and clean tree (`docs/tasks/M0-1_LOCAL_CLEANUP.md`, Codex, local)
   - [x] M0-2 First push, labels, milestones and issues (`docs/tasks/M0-2_GITHUB_PUSH.md`, Copilot, local)
-  - [ ] M0-3 CI and repo hygiene (`docs/tasks/M0-3_CI_SETUP.md`, issue #1, PR #4). Reviewed 2026-10-27: safe to merge; then set branch protection (checks `linux-arm64`, `guard`, `windows-x64`; no approvals)
-  - [ ] M0-4 Guard hardening and CI trigger cleanup (`docs/tasks/M0-4_GUARD_HARDENING.md`, issue #5, size/s). Findings from the PR #4 review: the guard must run the base branch's rules, use merge-base diffs and protect `tools/ci/`. **Merge before M1-3 touches `ci.yml`**
+  - [x] M0-3 CI and repo hygiene (`docs/tasks/M0-3_CI_SETUP.md`, issue #1, PR #4). Reviewed 2026-10-27: safe to merge; then set branch protection (checks `linux-arm64`, `guard`, `windows-x64`; no approvals)
+  - [x] M0-4 Guard hardening and CI trigger cleanup (`docs/tasks/M0-4_GUARD_HARDENING.md`, issue #5, size/s). Findings from the PR #4 review: the guard must run the base branch's rules, use merge-base diffs and protect `tools/ci/`. **Merge before M1-3 touches `ci.yml`**
 - **M1 ABI 2 foundation**: contract, SDK, engine2, voice allocator, 5 modules ported. **Stops for review.**
   - [x] M1-1 Foundation slice: built before the migration. Review package: `docs/reviews/M1_FOUNDATION_SLICE_REVIEW.md`. Functional tests A–M pass offline. **Known gate:** mono throughput is about 1.89× ABI 1 (target ≤ 1.05×). ARM64 is unverified until CI.
   - [x] M1-R Claude review of the slice (issue #2; review: `docs/reviews/M1-R_PLANNER_REVIEW.md`). **No-go for M2 until M1-3.** The design stays. The gap is framework overhead (per-sample SDK accessors, two copies per cable, redundant finite scans), measured at 1.57× by instruction count. ARM64: all 24 suites pass in CI; ASan+UBSan and TSan clean locally.
   - [ ] M1-2 Audio capture and analysis harness (`docs/tasks/M1-2_AUDIO_CAPTURE_HARNESS.md`, independent, may run in parallel)
-  - [ ] M1-3 Slice fixes and the performance gate (`docs/tasks/M1-3_SLICE_FIXES.md`, issue #6, Codex, size/l). Gate for M2: mono ≤ 1.05× on both CI runners and by instruction count, poly ≤ 1.00×, sanitizer job green, adversarial concurrency and feedback tests
+  - [x] M1-3 Slice fixes and the performance gate (`docs/tasks/M1-3_SLICE_FIXES.md`, issue #6, PR #22, Codex, size/l). Gate for M2: mono ≤ 1.05× on both CI runners and by instruction count, poly ≤ 1.00×, sanitizer job green, adversarial concurrency and feedback tests. **Reviewed 2026-10-27 (`docs/reviews/M1-3_REVIEW.md`): conditional go.** Everything passes except Windows mono (1.097×), which moves to M1-3b and gates M2-6
+  - [ ] M1-3b Windows (MSVC) mono gap and an Ir gate in CI (issue #32, Codex, size/m). Must merge before M2-6
 - **M2 Port and patch v2** (ABI2 plan B2 to B4): engine2 becomes the app engine; all Essentials on ABI 2; per-module CV; patch v2 with lossless v1 migration. Optional: self-hosted Pi 5 runner for benchmarks.
+  Task file: `docs/tasks/M2_PORT_AND_APP_ENGINE.md`. All Codex; M2-0 may start now, M2-1 to M2-5 after PR #22 merges, M2-6 after M1-3b and M2-1/2/3/5 merge. Codex works through the "Codex continuous queue" in that file.
+  - [ ] M2-0 Benchmark tooling and Pi 5 realtime evidence (issue #23, size/m)
+  - [ ] M2-1 Per-bus latency and staged reconfigure (issue #24, size/m)
+  - [ ] M2-2 Port mixer, noise, output, scale_offset, slew (issue #25, size/m)
+  - [ ] M2-3 Port clock, function_envelope, ladder (issue #26, size/m)
+  - [ ] M2-4 Behaviour regressions for the five ports, per-module CV (issue #27, size/m)
+  - [ ] M2-5 Patch v2 and lossless v1 migration (issue #28, size/l)
+  - [ ] M2-6 engine2 becomes the app engine (issue #29, size/l)
+  - [ ] M2-R Claude milestone review
 - **M3 UI for the contract** (B5): poly cables, modulation drag-to-knob with an amount on the cable, base and modulation rings, back-edge markers, stereo pairs. → **Public beta 0.7** when M3 is green. Then file the US trademark, Class 9 (see `TRADEMARKS.md`).
 - **M4 Communication I** (`docs/specs/COMMUNICATION_MODULES_PLAN.md`, C1 to C3): endpoint registry, Activity and Learn, Mappings, Monitor, MIDI In / MIDI→CV / CC Map / MIDI Out / MIDI Clock.
 - **M5 Communication II** (C4 to C6): UDP Receive/Send, OSC In/Out, hardening.
@@ -59,11 +69,15 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
   - one Plaits or Braids port from pinned sources
 - **M8 Portability proofs** (B6): CLAP adapter (VST3 via clap-wrapper), Daisy static build, export bundle spec. Future: Python and Faust script modules, Serial, DMX (Art-Net/sACN).
 
-## Current milestone: M0 → M1
-1. The user merges PR #4 (M0-3), sets branch protection and merges the planner's docs PR (this plan, the M1-R review and the M0-4/M1-3 task files).
-2. M0-4 guard hardening (small; its own PR merges with a one-time admin bypass, because `pull_request_target` can't run a guard that `main` doesn't have yet).
-3. M1-3 slice fixes (Codex). Part A (performance) may start right after step 1; the `ci.yml` sanitizer job waits for M0-4. M1-2 continues in parallel.
-4. Claude reviews M1-3 against the go/no-go conditions in `docs/reviews/M1-R_PLANNER_REVIEW.md`, then drafts the M2 issues. Nothing else is ported, and no Track C work starts, until then.
+## Current milestone: M1 → M2
+Merged on 2026-10-27: the planner PR (#30), the M2 inventory (#17), M1-3 (#22) and the doc-link test (#19).
+1. **The user merges** the guard fix (#34; it stops stale guard re-runs), the SPDX guard (#20) and the Dependabot action bumps (#9, #10, #11; they also clear the Node 20 warning). If not done yet, add `sanitizers` to the required checks.
+2. **Codex** runs the continuous queue in `docs/tasks/M2_PORT_AND_APP_ENGINE.md`: finish M2-0, M1-3b, then M2-1 to M2-5, then M2-6. It runs the laptop and Pi work itself and posts machine evidence on each PR.
+3. **M1-2 (PR #13)** waits on the user's one `--confirm-audio` run on Windows; then Claude closes it out.
+4. **Claude** reviews each M2 PR as it reaches `status/review` (routine check-ins), then runs M2-R once M2-6 is in review.
+5. Track C (M4) stays closed until M2-R.
+
+**If a guard check is red after a label change:** don't press "Re-run". Until #34 merges, a re-run replays the old label list and fails again. Add or remove any label instead; that starts a fresh run.
 
 ## How work flows
 - **The board is GitHub Issues** (labels and milestones in `AGENTS.md`). Each issue points to a `docs/tasks/` file.
