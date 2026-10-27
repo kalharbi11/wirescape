@@ -81,6 +81,7 @@ jobs:
             if (!$dll) { throw 'PortAudio DLL missing' }
             "WIRESCAPE_PORTAUDIO=$($dll.FullName)" >> $env:GITHUB_ENV
           } catch {
+            Write-Output "::error::$($_.Exception.Message)"
             $detail = (Get-Content build_reports/foundation/portaudio.log -Tail 35) -join '%0A'
             Write-Output "::error::$detail"
             throw
