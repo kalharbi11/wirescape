@@ -105,23 +105,22 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Direction/index | ID | Signal kind | Unpatched default | Source |
 |---|---|---|---|---|
-| input 0 | `audio` | audio | UNKNOWN (engine buffer or process fallback not fully traced) | `native/modules/ladder/module.cpp:85-91`; `native/modules/ladder/module.json:1` |
+| input 0 | `audio` | audio | null `in` or `in[0]` is treated as 0.0; nonfinite samples also become 0.0 (`native/modules/ladder/module.cpp:66-71`) | `native/modules/ladder/module.cpp:85-91`; `native/modules/ladder/module.json:1` |
 | output 0 | `audio` | audio | n/a | `native/modules/ladder/module.cpp:85-91`; `native/modules/ladder/module.json:1` |
 
 **3. Parameters** (ID mapping: `module.json`; bounds/defaults/units: C++ descriptor).
 
 | Index | ID | Name | Min | Max | Default | Units/taper | Stepped | Source |
 |---|---|---|---:|---:|---:|---|---|---|
-| 0 | `cutoff` | cutoff | 20 | 20000 | 1000 | Hz / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/ladder/module.cpp:85-91`; `native/modules/ladder/module.json:1` |
-| 1 | `resonance` | resonance | 0 | 1 | 0 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/ladder/module.cpp:85-91`; `native/modules/ladder/module.json:1` |
-| 2 | `drive` | drive | 0 | 2 | 0 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/ladder/module.cpp:85-91`; `native/modules/ladder/module.json:1` |
+| 0 | `cutoff` | cutoff | 20 | 20000 | 1000 | Hz / plain Hz ramp, nonlinear DSP tan(pi*f/fs) (`native/modules/ladder/module.cpp:62,72`; `native/modules/ladder/module.cpp:33-36`) | No, continuous float accepted and ramped (`native/modules/ladder/module.cpp:59-65,70-79`) | `native/modules/ladder/module.cpp:85-91`; `native/modules/ladder/module.json:1` |
+| 1 | `resonance` | resonance | 0 | 1 | 0 | none / plain linear ramp; nonlinear feedback coefficient (`native/modules/ladder/module.cpp:63,73`) | No, continuous float accepted and ramped (`native/modules/ladder/module.cpp:59-65,70-79`) | `native/modules/ladder/module.cpp:85-91`; `native/modules/ladder/module.json:1` |
+| 2 | `drive` | drive | 0 | 2 | 0 | none / plain linear ramp; nonlinear tanh when nonzero (`native/modules/ladder/module.cpp:64,74-79`) | No, continuous float accepted and ramped (`native/modules/ladder/module.cpp:59-65,70-79`) | `native/modules/ladder/module.cpp:85-91`; `native/modules/ladder/module.json:1` |
 
-**4. State.** Runtime state and reset/prepare/event/process implementation: `native/modules/ladder/module.cpp:1-84`. Extra serialized state/version beyond parameter values: **UNKNOWN (looked in native/modules/ladder/module.cpp, native/modules/ladder/module.json; patch document saving and loading not fully audited)**.
+**4. State.** Per-instance 4 double pole delays, previous output, sample rate, max frames and 3 smoothing ramps; prepare and reset clear poles and ramps (`native/modules/ladder/module.cpp:38-58`). No module-specific save/load callback in ABI 1 descriptor (`native/modules/ladder/module.cpp:88-90`). `inspect()` keeps original bytes/object but does not interpret state (`native/document/document_reader.cpp:34-36,50-51,73-85`); no evidence that DSP delays are serialized. 
 
 **5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 differences **UNKNOWN** until port exists.
 
-**6. Port notes.** DSP, lifecycle and runtime assumptions: `native/modules/ladder/module.cpp:1-91`. Third-party dependencies, pinned revisions and licence: **UNKNOWN (looked in native/modules/ladder/module.cpp and native/modules/ladder/module.json; DESIGN.md not comprehensively audited)**. Process-time allocation, locks and mutable globals: **UNKNOWN (requires full audit)**.
-
+**6. Port notes.** Original four-stage TPT cascade with `tan(pi*cutoff/sample_rate)`, delayed resonance feedback `0.85*resonance`, optional `tanh(3*drive*x)/(3*drive)` and denormal-tail clearing (`native/modules/ladder/module.cpp:21-36,70-82`; `native/modules/ladder/DESIGN.md:3-5`). Sample-rate validation 1–384000 Hz (`native/modules/ladder/module.cpp:11-15`); cutoff bounded to 0.45 sample rate before `tan` (`native/modules/ladder/module.cpp:33-36`). `process` executes bounded fixed-state math only, **no allocation, locks, I/O or mutable globals** (`native/modules/ladder/module.cpp:66-84`); allocation only in `create` (`native/modules/ladder/module.cpp:45-46`). Per-instance state, no external DSP code or pinned revision; GPLv3 LinearRamp contract as inherited dependency (`native/modules/ladder/DESIGN.md:7-13`; `native/modules/ladder/module.cpp:2-3`).
 ## lfo
 
 **1. Identity.** `essentials.lfo`; display name from `native/modules/lfo/module.json:1`; source `native/modules/lfo/module.cpp:53-61`, `native/modules/lfo/module.json:1`.
