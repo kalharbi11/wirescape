@@ -196,4 +196,4 @@ jobs:
       - name: Callgrind instructions per block
         run: |
           set -euo pipefail
-          python tools/bench/abi2_cost.py --build-dir build/cost --output build_reports/abi2/cost.json | tee -a "$GITHUB_STEP_SUMMARY"
+          python tools/bench/abi2_cost.py --gate --build-dir build/cost --output build_reports/abi2/cost.json | tee -a "$GITHUB_STEP_SUMMARY"
