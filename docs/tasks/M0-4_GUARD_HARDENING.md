@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # M0-4: Guard hardening and CI trigger cleanup
 
-Branch `task/<issue#>-guard-hardening`, draft PR. Follow AGENTS.md. **This task is explicitly allowed to change `.github/**` and `tools/ci/**`.** Size: s (about 120 changed lines). Source: the planner review on PR #4.
+Branch `task/<issue#>-guard-hardening`, draft PR. Follow AGENTS.md. **This task is explicitly allowed to change `.github/**` and `tools/ci/**`.** Size: s (about 120 changed lines). Source: the planner review on PR #4. **Agent: Copilot coding agent.** Its `copilot/…` branch is fine.
 
 **Read first:** `.github/workflows/ci.yml`, `tools/ci/guard.py`, `tools/ci/test_guard.py`. Nothing else.
 
@@ -26,7 +26,7 @@ Branch `task/<issue#>-guard-hardening`, draft PR. Follow AGENTS.md. **This task 
 ## Acceptance
 - `linux-arm64` and `windows-x64` are green on the PR (label it `ci/windows` while it's a draft). `python -m unittest discover -s tools/ci -v` passes locally; paste the output in the handoff.
 - **Bootstrap note:** `pull_request_target` always runs the workflow file from the PR's *base* branch. `main` has no `guard.yml` until this PR merges, so **no `guard` check runs on this PR**. That's expected. Say so in the handoff. The user merges this one PR with the admin "merge without waiting for requirements" option after review.
-- **Prove the new guard before merge** with a temporary base branch:
+- **Prove the new guard before merge** with a temporary base branch. If you can't open a second PR (the Copilot coding agent can't), skip this block and say so in the handoff; Claude runs it during review:
   1. Push this PR's head as `ci-test/<issue#>-guard-base`.
   2. Open a throwaway draft PR **into that branch** containing (a) an edit to `tools/ci/guard.py` that makes `violations()` return `[]`, plus an edit to `AGENTS.md`. `guard` must be **red**, which proves the base rules judge the PR.
   3. Push (b) a deleted file under `native/tests/`. `guard` must be red without `allow-test-removal`.

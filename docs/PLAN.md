@@ -70,11 +70,13 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
 - **Roles:**
   - **Codex:** main builder, for large tasks.
   - **Copilot:** small, well-defined issues labelled `agent/copilot`.
+  - **ChatGPT chat** (GitHub-connected; can't build or run): docs, triage, mechanical edits and first-round review prep, labelled `agent/chatgpt`.
   - **Claude:** writes and updates this plan and the task files, and reviews at milestones.
 - **Switching agents** at usage limits: the next agent reads the issue's latest handoff comment and continues on the same branch.
 - **Review policy** (how cheaper models stay safe):
   - **`size/s`, no protected paths:** CI green, plus the user skims the diff and merges.
   - **`size/m`/`size/l`, or any change to protected paths** (the CI guard job and `.github/CODEOWNERS` list them): CI green, plus a Claude review at the next check-in before merge.
+  - **Approvals:** branch protection does *not* require approvals (all agents act through the owner's account, and GitHub won't let an account approve its own PR, so a required approval would block every merge). Instead, no agent may approve, enable auto-merge or touch protection settings (AGENTS.md); the user's merge click is the approval.
   - **Every merge is reversible** with the PR's "Revert" button. Force-pushes and deleting `main` are blocked by branch protection.
   - **Override labels** (`allow-protected`, `allow-test-removal`): only the user adds them, or the planner when the issue explicitly names the protected path. Builder agents never add them to their own PRs.
 - **Planner check-in prompt** (a fresh session each time):
