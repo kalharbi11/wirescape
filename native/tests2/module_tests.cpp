@@ -7,8 +7,8 @@
 #include "module_loader.h"
 #include "allocation_watch.h"
 #endif
-static const ws2_descriptor*descriptors[]={ws::Module<ws2ports::Vco>::descriptor(),ws::Module<ws2ports::Lfo>::descriptor(),ws::Module<ws2ports::Vcf>::descriptor(),ws::Module<ws2ports::Adsr>::descriptor(),ws::Module<ws2ports::Vca>::descriptor()};
-static const char*names[]={"vco","lfo","vcf","adsr","vca"};
+static const ws2_descriptor*descriptors[]={ws::Module<ws2ports::Vco>::descriptor(),ws::Module<ws2ports::Lfo>::descriptor(),ws::Module<ws2ports::Vcf>::descriptor(),ws::Module<ws2ports::Adsr>::descriptor(),ws::Module<ws2ports::Vca>::descriptor(),ws::Module<ws2ports::Mixer>::descriptor()};
+static const char*names[]={"vco","lfo","vcf","adsr","vca","mixer"};
 static void matrix(){
  for(auto*d:descriptors)for(double rate:{44100.,48000.,96000.})for(uint32_t count:{1u,4u,16u})for(uint32_t block:{1u,17u,256u}){
   auto a=std::make_unique<DspFixture>(d,rate,count),b=std::make_unique<DspFixture>(d,rate,count);
@@ -45,7 +45,7 @@ static void vca_exact(){
 #ifndef WS2_PORTABLE_TEST
 static void equivalence(const char*directory,const char*report){
  ModuleLoader loader(directory);FILE*file=std::fopen(report,"w");VERIFY(file);std::fprintf(file,"{\"modules\":[");
- for(uint32_t m=0;m<5;++m){auto*old=loader.abi1(names[m]);double worst=0;
+ for(uint32_t m=0;m<std::size(descriptors);++m){auto*old=loader.abi1(names[m]);double worst=0;
   for(double rate:{44100.,48000.,96000.})for(uint32_t block:{1u,17u,256u}){
    auto f=std::make_unique<DspFixture>(descriptors[m],rate,1);void*state=old->create(rate);VERIFY(state);ws_module_config cfg{sizeof(cfg),256,rate,1};VERIFY(old->prepare(state,&cfg)==0);
    // ABI1 VCO has no pitch/FM inputs; match its unmodulated frequency path.
@@ -59,7 +59,7 @@ static void equivalence(const char*directory,const char*report){
     f->process.events.count=0;pos+=n;
    }old->destroy(state);
   }
-  std::printf("equivalence %s max_abs_error %.9g\n",names[m],worst);std::fprintf(file,"%s{\"name\":\"%s\",\"max_abs_error\":%.12g,\"passed\":%s}",m?",":"",names[m],worst,worst<=1e-6?"true":"false");VERIFY(worst<=1e-6);
+  std::printf("equivalence %s max_abs_error %.9g\n",names[m],worst);std::fprintf(file,"%s{\"name\":\"%s\",\"max_abs_error\":%.12g,\"passed\":%s}",m?",":"",names[m],worst,worst<=1e-6?"true":"false");VERIFY(m<5?worst<=1e-6:worst==0);
  }std::fputs("]}\n",file);std::fclose(file);
 }
 static void noalloc(){for(auto*d:descriptors){auto f=std::make_unique<DspFixture>(d,48000,16);allocation_watch::Scope watch;for(int i=0;i<16;++i){f->run(17);f->reset();}VERIFY(watch.allocations()==0);}std::puts("PASS zero new/new[]/aligned-new in static SDK/DSP process/reset");}

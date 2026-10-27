@@ -15,7 +15,7 @@ def violations(root):
     return [(str(file.relative_to(root)), match.group(1))
             for directory in ('native/modules2', 'native/sdk', 'native/voice')
             for file in sorted((root / directory).rglob('*'))
-            if file.is_file() and file.suffix in ('.h', '.hpp', '.c', '.cpp', '.cc')
+            if (directory != 'native/modules2' or file.name != 'tests.cpp') and file.is_file() and file.suffix in ('.h', '.hpp', '.c', '.cpp', '.cc')
             for match in PATTERN.finditer(re.sub(r'/\*.*?\*/|//[^\n]*', '', file.read_text(), flags=re.S))]
 
 
@@ -31,3 +31,13 @@ class IncludeTests(unittest.TestCase):
                 file.parent.mkdir(parents=True)
                 file.write_text('\n'.join(f'# include <{name}>' for name in BANNED))
             self.assertEqual(len(violations(root)), 3 * len(BANNED))
+
+    def test_module_host_tests_are_exempt_but_dsp_is_strict(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            module = root / 'native/modules2/example'
+            module.mkdir(parents=True)
+            (module / 'tests.cpp').write_text('#include <vector>')
+            self.assertEqual(violations(root), [])
+            (module / 'dsp.h').write_text('#include <vector>')
+            self.assertEqual(violations(root), [('native/modules2/example/dsp.h', 'vector')])
