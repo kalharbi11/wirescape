@@ -5,6 +5,8 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 permissions:
   contents: read
+  issues: read
+  pull-requests: read
 jobs:
   guard:
     runs-on: ubuntu-latest
@@ -23,5 +25,10 @@ jobs:
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
-          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-        run: python tools/ci/guard.py --base "$BASE" --head "$HEAD" --labels-json "$LABELS"
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        # Labels are read live, not from the event snapshot, so a re-run sees labels added later.
+        run: |
+          LABELS=$(gh api "repos/${{ github.repository }}/issues/$PR/labels" --jq '[.[].name]')
+          echo "LABELS: $LABELS"
+          python tools/ci/guard.py --base "$BASE" --head "$HEAD" --labels-json "$LABELS"
