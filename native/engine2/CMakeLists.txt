@@ -74,3 +74,6 @@ foreach(module vco lfo vcf adsr vca)
   add_library(ws2_${module} SHARED ../modules2/${module}/module.cpp)
   target_link_libraries(ws2_${module} PRIVATE wirescape_sdk2)
 endforeach()
+
+add_executable(abi2_cost_probe tests/cost_probe.cpp)
+target_link_libraries(abi2_cost_probe PRIVATE wirescape_engine2 wirescape_engine ${CMAKE_DL_LIBS})
