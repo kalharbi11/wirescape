@@ -195,13 +195,13 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Index | ID | Name | Min | Max | Default | Units/taper | Stepped | Source |
 |---|---|---|---:|---:|---:|---|---|---|
-| 0 | `level` | level | 0 | 1 | .2 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/noise/module.cpp:49-55`; `native/modules/noise/module.json:1` |
+| 0 | `level` | level | 0 | 1 | .2 | none / plain level through LinearRamp; no log/exponential taper (`native/modules/noise/module.cpp:34-37,42-46`) | No: finite continuous float 0..1 (`native/modules/noise/module.cpp:34-37`) | `native/modules/noise/module.cpp:49-55`; `native/modules/noise/module.json:1` |
 
-**4. State.** Runtime state and reset/prepare/event/process implementation: `native/modules/noise/module.cpp:1-48`. Extra serialized state/version beyond parameter values: **UNKNOWN (looked in native/modules/noise/module.cpp, native/modules/noise/module.json; patch document saving and loading not fully audited)**.
+**4. State.** Per-instance 32-bit PRNG state seeded `0x12345678`, level ramp and block frame cap; reset and prepare restore seed (`native/modules/noise/module.cpp:21-33`). No module-local save/load in callback descriptor (`native/modules/noise/module.cpp:49-54`); raw patch JSON preserved by inspector (`native/document/document_reader.cpp:34-36,50-51`) but RNG state is not serialized by module source.
 
 **5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 differences **UNKNOWN** until port exists.
 
-**6. Port notes.** DSP, lifecycle and runtime assumptions: `native/modules/noise/module.cpp:1-55`. Third-party dependencies, pinned revisions and licence: **UNKNOWN (looked in native/modules/noise/module.cpp and native/modules/noise/module.json; DESIGN.md not comprehensively audited)**. Process-time allocation, locks and mutable globals: **UNKNOWN (requires full audit)**.
+**6. Port notes.** Original fixed-seed xorshift32 uniform noise generator, level even when zero consumes PRNG state (`native/modules/noise/module.cpp:21-23,39-47`; `native/modules/noise/DESIGN.md:3-5`). No input ports (`native/modules/noise/module.cpp:49-54`). Sample rate valid 1..384000 and max block >0 (`native/modules/noise/module.cpp:11-15`). No allocation, locks, I/O or mutable globals in `process` (`native/modules/noise/module.cpp:39-48`); heap allocation only in `create` (`native/modules/noise/module.cpp:24-25`). `DESIGN.md` reports original implementation, no third-party DSP / pinned revision, inherited GPLv3 LinearRamp contract (`native/modules/noise/DESIGN.md:7-13`).
 
 ## output
 
