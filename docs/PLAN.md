@@ -1,6 +1,6 @@
 # Wirescape plan
 
-Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-26 (after M0-1).
+Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-27 (after M1-R).
 
 ## Vision
 Wirescape is a raw, expandable modular environment for music. Its aims:
@@ -34,18 +34,19 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
 | SDK | Plain C++ class + header-only wrapper over a C ABI. C++17 for DSP. Own SIMD wrapper with a scalar fallback |
 | Licence | SDK MIT; app and Essentials GPL-3.0; Surge-derived modules GPL |
 | Network | Localhost by default; explicit LAN toggle per module |
-| CI | Linux ARM64 on every push. Windows on PRs that are ready for review, or with the `ci/windows` label. A self-hosted Pi 5 runner comes later (own branches only) |
+| CI | Linux ARM64 on every PR update and every push to `main` (every task has a draft PR from the start). Windows on PRs that are ready for review, or with the `ci/windows` label. The `guard` judges PRs with the base branch's rules. Sanitizers (ASan+UBSan, TSan) on ABI 2 suites from M1-3. A self-hosted Pi 5 runner comes later (own branches only) |
 
 ## Milestones
 - **M0 Migration** to `github.com/kalharbi11/wirescape`
-  - [ ] M0-1 Local cleanup and clean tree (`docs/tasks/M0-1_LOCAL_CLEANUP.md`, Codex, local)
-  - [ ] M0-2 First push, labels, milestones and issues (`docs/tasks/M0-2_GITHUB_PUSH.md`, Copilot, local)
-  - [ ] M0-3 CI and repo hygiene (`docs/tasks/M0-3_CI_SETUP.md`, Codex or Copilot)
+  - [x] M0-1 Local cleanup and clean tree (`docs/tasks/M0-1_LOCAL_CLEANUP.md`, Codex, local)
+  - [x] M0-2 First push, labels, milestones and issues (`docs/tasks/M0-2_GITHUB_PUSH.md`, Copilot, local)
+  - [ ] M0-3 CI and repo hygiene (`docs/tasks/M0-3_CI_SETUP.md`, issue #1, PR #4). Reviewed 2026-10-27: safe to merge; then set branch protection (checks `linux-arm64`, `guard`, `windows-x64`; no approvals)
+  - [ ] M0-4 Guard hardening and CI trigger cleanup (`docs/tasks/M0-4_GUARD_HARDENING.md`, issue #5, size/s). Findings from the PR #4 review: the guard must run the base branch's rules, use merge-base diffs and protect `tools/ci/`. **Merge before M1-3 touches `ci.yml`**
 - **M1 ABI 2 foundation**: contract, SDK, engine2, voice allocator, 5 modules ported. **Stops for review.**
   - [x] M1-1 Foundation slice: built before the migration. Review package: `docs/reviews/M1_FOUNDATION_SLICE_REVIEW.md`. Functional tests A–M pass offline. **Known gate:** mono throughput is about 1.89× ABI 1 (target ≤ 1.05×). ARM64 is unverified until CI.
-  - [ ] M1-R Claude review of the slice (`docs/tasks/M1-R_PLANNER_REVIEW.md`). Produces the M1-3 fix list and the go/no-go for M2.
+  - [x] M1-R Claude review of the slice (issue #2; review: `docs/reviews/M1-R_PLANNER_REVIEW.md`). **No-go for M2 until M1-3.** The design stays. The gap is framework overhead (per-sample SDK accessors, two copies per cable, redundant finite scans), measured at 1.57× by instruction count. ARM64: all 24 suites pass in CI; ASan+UBSan and TSan clean locally.
   - [ ] M1-2 Audio capture and analysis harness (`docs/tasks/M1-2_AUDIO_CAPTURE_HARNESS.md`, independent, may run in parallel)
-  - [ ] M1-3 Slice fixes from M1-R, including the performance gate (issue written by Claude after M1-R)
+  - [ ] M1-3 Slice fixes and the performance gate (`docs/tasks/M1-3_SLICE_FIXES.md`, issue #6, Codex, size/l). Gate for M2: mono ≤ 1.05× on both CI runners and by instruction count, poly ≤ 1.00×, sanitizer job green, adversarial concurrency and feedback tests
 - **M2 Port and patch v2** (ABI2 plan B2 to B4): engine2 becomes the app engine; all Essentials on ABI 2; per-module CV; patch v2 with lossless v1 migration. Optional: self-hosted Pi 5 runner for benchmarks.
 - **M3 UI for the contract** (B5): poly cables, modulation drag-to-knob with an amount on the cable, base and modulation rings, back-edge markers, stereo pairs. → **Public beta 0.7** when M3 is green. Then file the US trademark, Class 9 (see `TRADEMARKS.md`).
 - **M4 Communication I** (`docs/specs/COMMUNICATION_MODULES_PLAN.md`, C1 to C3): endpoint registry, Activity and Learn, Mappings, Monitor, MIDI In / MIDI→CV / CC Map / MIDI Out / MIDI Clock.
@@ -59,9 +60,10 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
 - **M8 Portability proofs** (B6): CLAP adapter (VST3 via clap-wrapper), Daisy static build, export bundle spec. Future: Python and Faust script modules, Serial, DMX (Art-Net/sACN).
 
 ## Current milestone: M0 → M1
-1. M0-1 (done), then M0-2 (push), then M0-3 (CI, including the ARM64 run of the slice's tests).
-2. M1-R: Claude reviews the existing slice. M1-2 may start at the same time.
-3. M1-3: fixes from the review. Nothing else is ported, and no Track C work starts, until M1-R says go.
+1. The user merges PR #4 (M0-3), sets branch protection and merges the planner's docs PR (this plan, the M1-R review and the M0-4/M1-3 task files).
+2. M0-4 guard hardening (small; its own PR merges with a one-time admin bypass, because `pull_request_target` can't run a guard that `main` doesn't have yet).
+3. M1-3 slice fixes (Codex). Part A (performance) may start right after step 1; the `ci.yml` sanitizer job waits for M0-4. M1-2 continues in parallel.
+4. Claude reviews M1-3 against the go/no-go conditions in `docs/reviews/M1-R_PLANNER_REVIEW.md`, then drafts the M2 issues. Nothing else is ported, and no Track C work starts, until then.
 
 ## How work flows
 - **The board is GitHub Issues** (labels and milestones in `AGENTS.md`). Each issue points to a `docs/tasks/` file.
@@ -74,6 +76,7 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
   - **`size/s`, no protected paths:** CI green, plus the user skims the diff and merges.
   - **`size/m`/`size/l`, or any change to protected paths** (the CI guard job and `.github/CODEOWNERS` list them): CI green, plus a Claude review at the next check-in before merge.
   - **Every merge is reversible** with the PR's "Revert" button. Force-pushes and deleting `main` are blocked by branch protection.
+  - **Override labels** (`allow-protected`, `allow-test-removal`): only the user adds them, or the planner when the issue explicitly names the protected path. Builder agents never add them to their own PRs.
 - **Planner check-in prompt** (a fresh session each time):
   > Read AGENTS.md, docs/PLAN.md, the open issues and PRs, the latest handoff comments, and `git log --oneline -20`. Update the plan and issues, review anything labelled status/review, and flag risks. Don't write code.
 
