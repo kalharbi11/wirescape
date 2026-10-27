@@ -12,7 +12,7 @@ PATTERN = re.compile(r'^\s*#\s*include\s*[<"](' + '|'.join(BANNED) + r')[>"]', r
 
 
 def violations(root):
-    return [(str(file.relative_to(root)), match.group(1))
+    return [(file.relative_to(root).as_posix(), match.group(1))
             for directory in ('native/modules2', 'native/sdk', 'native/voice')
             for file in sorted((root / directory).rglob('*'))
             if (directory != 'native/modules2' or file.name != 'tests.cpp') and file.is_file() and file.suffix in ('.h', '.hpp', '.c', '.cpp', '.cc')
