@@ -21,8 +21,8 @@ and has no bundled Surge binaries. It preserves earlier musical/design ideas, no
   Topology changes happen quiescently. Cycles and multiple signal sources per input are rejected.
 - `native/ui/studio_controller.*`: authoritative patch document, validation, staged replacement,
   generic module catalogue, parameters, save/load and offline rendering.
-- `native/document/`: optional QtCore format inspector, byte preservation and unsupported-format
-  diagnostics. The engine remains Qt-free. Historical format recognition is not musical migration.
+- `native/document/`: optional QtCore legacy inspector and native v1/v2 reader, lossless v1
+  migration, relational validation and atomic v2 writer with v1 backups. The engine remains Qt-free.
 - `native/ui/audio_device.*`: dynamically loaded PortAudio bridge, explicit start/stop,
   format probing, callback fault counters and cleanup ownership. Audio never auto-starts.
 - `native/ui/qml/`: canvas, module library/cards, generic controls, cables, keyboard and dialogs.
@@ -81,7 +81,8 @@ Thin adapters and actual ARM/CLAP/Daisy builds remain later experiments.
 
 Current documents use `wirescape.native.patch` v1. Unknown/incomplete module state/cables remain
 editable and round-trip; failed preparation or unsupported input must not replace accepted data.
-Patch v2 schema/example are draft historical artifacts, not an app migration.
+The document library supports v2 with finalized schema/example and a bit-identical demo render
+through save/reload. App integration uses this library in M2-6.
 `native/examples/Six_Essentials_Demo.json` demonstrates the six imported modules plus VCA/Output.
 Synthetic legacy fixtures are public test inputs, not personal patches.
 

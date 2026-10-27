@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://wirescape.invalid/schema/patch-v2-draft.json",
-  "title": "Wirescape patch v2 draft (not implemented)",
-  "description": "Design-only patch format proposal. Unknown fields are permitted for forward-compatible preservation; this schema is not consumed by the application.",
+  "$id": "https://wirescape.invalid/schema/patch-v2.json",
+  "title": "Wirescape native patch v2",
+  "description": "Native document v2. Unknown fields are preserved; relational ID/endpoint/feedback checks are enforced by native/document. App integration follows separately.",
   "type": "object",
   "required": ["format", "version", "settings", "modules", "connections", "outputs"],
   "properties": {
@@ -12,9 +12,9 @@
       "type": "object",
       "properties": {
         "sample_rate": { "type": "number", "exclusiveMinimum": 0 },
-        "max_block_frames": { "type": "integer", "minimum": 1 },
+        "max_block_frames": { "type": "integer", "minimum": 1, "maximum": 4096 },
         "max_channels": { "type": "integer", "minimum": 1, "maximum": 16 },
-        "feedback_block": { "type": "integer", "minimum": 1 },
+        "feedback_block": { "type": "integer", "minimum": 1, "maximum": 4096 },
         "seed": { "type": "integer", "minimum": 0 },
         "timing_mode": { "enum": ["immediate", "timestamped"] }
       },
@@ -26,9 +26,11 @@
         "type": "object",
         "required": ["id", "module", "version", "parameters"],
         "properties": {
-          "id": { "type": "integer", "minimum": 1 },
+          "id": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
           "module": { "type": "string", "minLength": 1 },
-          "version": { "type": "integer", "minimum": 1 },
+          "version": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+          "inactive": { "type": "boolean", "default": false },
+          "preserved": { "type": "object", "description": "Complete original v1 module, including unmapped values; opaque on v2 save.", "additionalProperties": true },
           "config": { "type": "object", "additionalProperties": true },
           "parameters": {
             "type": "object",
@@ -38,7 +40,7 @@
           "state": {
             "type": "object",
             "properties": {
-              "version": { "type": "integer", "minimum": 0 },
+              "version": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
               "encoding": { "const": "base64" },
               "data": { "type": "string", "contentEncoding": "base64" }
             },
@@ -61,7 +63,7 @@
             "type": "object",
             "required": ["module", "port"],
             "properties": {
-              "module": { "type": "integer", "minimum": 0 },
+              "module": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
               "port": { "type": "string", "minLength": 1 }
             },
             "additionalProperties": true
@@ -70,7 +72,7 @@
             "type": "object",
             "required": ["module", "port"],
             "properties": {
-              "module": { "type": "integer", "minimum": 0 },
+              "module": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
               "port": { "type": "string", "minLength": 1 }
             },
             "additionalProperties": true
@@ -94,13 +96,14 @@
         "type": "object",
         "required": ["module", "port", "bus_channel"],
         "properties": {
-          "module": { "type": "integer", "minimum": 0 },
+          "module": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
           "port": { "type": "string", "minLength": 1 },
-          "bus_channel": { "type": "integer", "minimum": 0 }
+          "bus_channel": { "type": "integer", "minimum": 0, "maximum": 15 }
         },
         "additionalProperties": true
       }
     },
+    "preserved": { "type": "object", "description": "Complete original v1 document, including fields colliding with v2 structural names.", "additionalProperties": true },
     "host_mappings": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
     "devices": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string" } }, "additionalProperties": true } }
   },
