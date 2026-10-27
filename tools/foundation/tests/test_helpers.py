@@ -17,6 +17,25 @@ from foundation import helpers
 from foundation.helpers import create_snapshot, run_logged, wait_for_readiness
 
 
+class ToolchainTests(unittest.TestCase):
+    def test_visual_studio_version_comes_from_vswhere_metadata(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as folder:
+            root = Path(folder)
+            vswhere = root / "Microsoft Visual Studio/Installer/vswhere.exe"
+            vswhere.parent.mkdir(parents=True)
+            vswhere.touch()
+            compiler = root / "18/Enterprise/VC/Tools/MSVC/14.50/bin/Hostx64/x64/cl.exe"
+            compiler.parent.mkdir(parents=True)
+            compiler.touch()
+            instance = {"installationPath": str(root / "18/Enterprise"), "installationVersion": "18.0.1"}
+            with patch.object(helpers, "os", SimpleNamespace(name="nt", environ={"ProgramFiles(x86)": str(root)})), \
+                 patch.object(helpers.subprocess, "run", return_value=SimpleNamespace(returncode=0, stdout=json.dumps([instance]))):
+                found = helpers._vs_installation()
+            self.assertEqual((found["major"], found["year"]), ("18", "2026"))
+
+
 class SnapshotTests(unittest.TestCase):
     def test_snapshot_contains_only_private_data_and_hashes_every_file(self) -> None:
         with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as temporary:

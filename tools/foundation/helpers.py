@@ -114,24 +114,29 @@ def _vs_installation() -> dict[str, str] | None:
     try:
         result = subprocess.run(
             [str(vswhere), "-latest", "-products", "*", "-requires",
-             "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath"],
+             "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-format", "json", "-utf8"],
             text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             timeout=10, check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
-    path = result.stdout.strip()
-    if result.returncode != 0 or not path:
+    if result.returncode != 0:
+        return None
+    try:
+        instance = json.loads(result.stdout)[0]
+        path = instance["installationPath"]
+        major = instance["installationVersion"].split(".")[0]
+    except (ValueError, IndexError, KeyError, TypeError):
         return None
     install = Path(path)
     compilers = list((install / "VC" / "Tools" / "MSVC").glob("*"))
     if not any((version / "bin" / "Hostx64" / "x64" / "cl.exe").is_file()
                for version in compilers):
         return None
-    match = re.search(r"\\(20\d{2})\\", str(install))
-    year = match.group(1) if match else ""
-    # Visual Studio's major generator version follows the year for recent releases.
-    major = {"2019": "16", "2022": "17", "2026": "18"}.get(year)
+    # Installation folder names need not contain the marketing year.
+    year = {"16": "2019", "17": "2022", "18": "2026"}.get(major, "")
+    if not year:
+        major = ""
     if not major:
         return {"path": str(install), "year": year, "major": ""}
     return {"path": str(install), "year": year, "major": major}
