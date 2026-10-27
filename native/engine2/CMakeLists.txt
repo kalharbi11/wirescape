@@ -85,3 +85,6 @@ set_tests_properties(abi2_panic_stress PROPERTIES TIMEOUT 30)
 add_executable(abi2_feedback_tests tests/feedback_tests.cpp)
 target_link_libraries(abi2_feedback_tests PRIVATE wirescape_engine2)
 add_test(NAME abi2_feedback_tests COMMAND abi2_feedback_tests)
+find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+add_test(NAME abi2_banned_includes COMMAND ${Python3_EXECUTABLE} -m unittest discover
+  -s ${PROJECT_SOURCE_DIR}/../tools/foundation/tests -p test_banned_includes.py -v)
