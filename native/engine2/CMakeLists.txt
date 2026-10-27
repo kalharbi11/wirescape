@@ -78,3 +78,7 @@ endforeach()
 
 add_executable(abi2_cost_probe tests/cost_probe.cpp)
 target_link_libraries(abi2_cost_probe PRIVATE wirescape_engine2 wirescape_engine ${CMAKE_DL_LIBS})
+add_executable(abi2_panic_stress tests/panic_stress.cpp)
+target_link_libraries(abi2_panic_stress PRIVATE wirescape_engine2 wirescape_voice2 Threads::Threads)
+add_test(NAME abi2_panic_stress COMMAND abi2_panic_stress)
+set_tests_properties(abi2_panic_stress PROPERTIES TIMEOUT 30)
