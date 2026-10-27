@@ -40,6 +40,12 @@ inline double to_normal(const ws2_param&p,double value) noexcept {
     if(p.taper==WS2_EXP&&std::abs(p.curve)>1.e-8)x=std::log1p(x*std::expm1(static_cast<double>(p.curve)))/p.curve;
     return x;
 }
+inline bool finite_samples(const float*data,uint32_t count) noexcept {
+    uint32_t exponent=0;
+    for(uint32_t i=0;i<count;++i){uint32_t bits;std::memcpy(&bits,data+i,sizeof(bits));exponent=std::max(exponent,bits&UINT32_C(0x7f800000));}
+    if(exponent==UINT32_C(0x7f800000))for(uint32_t i=0;i<count;++i)if(!std::isfinite(data[i]))return false;
+    return true;
+}
 struct Setup {
     const ws2_config& config; const ws2_host& host;
     double sample_rate()const{return config.sample_rate;}
@@ -195,7 +201,7 @@ template<class T>class Module {
         auto silence=[&](){for(uint32_t j=0;j<c->output_count;++j){auto&o=c->outputs[j];o.flags=WS2_CONSTANT;o.channels=c->channels;for(uint32_t k=0;k<o.channels;++k)o.data[k][0]=0;}};
         auto valid=[&](const ws2_signal&s){
             if(s.struct_size<sizeof(ws2_signal)||s.channels>x.config.max_channels||(s.channels&&!s.data))return false;
-            for(uint32_t k=0;k<s.channels;++k){if(!s.data[k])return false;for(uint32_t i=0;i<((s.flags&WS2_CONSTANT)?1u:c->frames);++i)if(!std::isfinite(s.data[k][i]))return false;}
+            for(uint32_t k=0;k<s.channels;++k)if(!s.data[k])return false;
             return true;
         };
         for(uint32_t i=0;i<c->input_count;++i)if(!valid(c->inputs[i])){silence();return WS2_INVALID;}
@@ -207,8 +213,7 @@ template<class T>class Module {
         if(result!=WS2_OK){silence();return result;}
         for(uint32_t j=0;j<c->output_count;++j){const auto&o=c->outputs[j];
             if(o.channels>o.max_channels){silence();return WS2_INVALID;}
-            for(uint32_t k=0;k<o.channels;++k)for(uint32_t i=0;i<((o.flags&WS2_CONSTANT)?1u:c->frames);++i)
-                if(!std::isfinite(o.data[k][i])){silence();return WS2_INVALID;}
+            for(uint32_t k=0;k<o.channels;++k)if(!finite_samples(o.data[k],(o.flags&WS2_CONSTANT)?1u:c->frames)){silence();return WS2_INVALID;}
         }
         return WS2_OK;
     }

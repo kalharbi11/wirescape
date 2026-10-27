@@ -449,7 +449,9 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
             else continue;
             n.legacy->event(n.instance,&old);
         }span(frames);
-        for(auto&o:n.out_view){o.channels=1;o.flags=0;}
+        bool finite=true;
+        for(auto&o:n.out_view){o.channels=1;o.flags=0;finite&=ws::finite_samples(o.data[0],frames);}
+        if(!finite){++faults;for(auto&o:n.out_view){o.flags=WS2_CONSTANT;o.data[0][0]=0;}}
     }else{
         ws2_transport transport{sizeof(ws2_transport),cfg.playing?WS2_PLAYING:0u,cfg.bpm,
             beat+(cfg.playing?start*cfg.bpm/(60.*cfg.sample_rate):0),0,4,4,0,0};

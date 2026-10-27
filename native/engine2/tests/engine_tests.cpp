@@ -31,6 +31,15 @@ template<int Policy>struct Pass {
  void prepare(const ws::Setup&){}void reset(){}
  void process(ws::Block&b){b.out(0).set_channels(b.channels());bool constant=b.in(0).constant()&&b.param(0).constant();b.out(0).mark_constant(constant);for(uint32_t c=0;c<b.channels();++c)for(uint32_t i=0;i<(constant?1u:b.frames());++i)b.out(0).ch(c)[i]=b.in(0).value(c,i)*b.param(0).value(c,i);}
 };
+struct NonfiniteSource:Source {
+ void process(ws::Block&b){Source::process(b);b.out(0).ch(0)[0]=std::nanf("");}
+};
+static void producer_validation(){
+ Engine e;CHECK(e.add_node(1,ws::Module<NonfiniteSource>::descriptor()));CHECK(e.add_node(2,ws::Module<Pass<WS2_POLY>>::descriptor()));CHECK(e.connect(1,0,2,0));CHECK(e.prepare());
+ float out[256]{};float*outputs[]={out};CHECK(e.render(outputs,1,256)==WS2_OK);CHECK(e.meter().faults==1);CHECK(e.output_constant(1,0));CHECK(e.output_sample(1,0,0,0)==0);CHECK(e.output_sample(2,0,0,0)==0);
+ float finite[]={0.f,-0.f,1.f,-2.f,3.e38f};CHECK(ws::finite_samples(finite,5));
+ finite[4]=std::nanf("");CHECK(!ws::finite_samples(finite,5));finite[4]=INFINITY;CHECK(!ws::finite_samples(finite,5));
+}
 struct AddressSource:Source {
  static inline const float*written=nullptr;
  void process(ws::Block&b){written=b.out(0).ch(0);Source::process(b);}
@@ -175,7 +184,7 @@ int main(){
  {std::thread warm([](){});warm.join();}
  _CrtMemState before{},after{},difference{};_CrtMemCheckpoint(&before);
 #endif
- zero_copy();cached_taper<WS2_LINEAR>();cached_taper<WS2_LOG>();cached_taper<WS2_EXP>();signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
+ producer_validation();zero_copy();cached_taper<WS2_LINEAR>();cached_taper<WS2_LOG>();cached_taper<WS2_EXP>();signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
 #if defined(_MSC_VER)&&defined(_DEBUG)
  CHECK(_CrtCheckMemory());_CrtMemCheckpoint(&after);if(_CrtMemDifference(&difference,&before,&after)){
   std::fprintf(stderr,"Debug CRT normal blocks %zu -> %zu, bytes %zu -> %zu; client blocks %zu -> %zu\n",before.lCounts[_NORMAL_BLOCK],after.lCounts[_NORMAL_BLOCK],before.lSizes[_NORMAL_BLOCK],after.lSizes[_NORMAL_BLOCK],before.lCounts[_CLIENT_BLOCK],after.lCounts[_CLIENT_BLOCK]);return 1;
