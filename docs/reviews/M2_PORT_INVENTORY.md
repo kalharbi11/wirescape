@@ -288,9 +288,11 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 **4. State.** Instance double level (held value), sample rate, rise/fall time, max frame count (`native/modules/slew/module.cpp:21-29`). `reset` sets held value to zero but retains parameter times (`native/modules/slew/module.cpp:29-36`). No per-module save callbacks (`native/modules/slew/module.cpp:59-61`); inspector preserves original JSON (`native/document/document_reader.cpp:34-36,50-51`) without capturing current held level.
 
-**5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 differences **UNKNOWN** until port exists.
+**5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 interface comparison **not applicable**: no `native/modules2/slew/dsp.h` in the inspected ABI 2 module set.
 
 **6. Port notes.** Linear per-unit slew with step `1/(T*sample_rate)` and no overshoot; `T=0` snaps to input, NaN/Inf holds previous output (`native/modules/slew/module.cpp:37-55`; `native/modules/slew/DESIGN.md:3-5`). `prepare` validates sample rate 1..384000 Hz (`native/modules/slew/module.cpp:11-15,24-28`). No process-time allocation, locks, I/O or mutable globals (`native/modules/slew/module.cpp:37-55`); only create uses new (`native/modules/slew/module.cpp:22-23`). `DESIGN.md` reports original implementation, no third-party DSP / revision, inherited GPLv3 ramp contract (`native/modules/slew/DESIGN.md:7-13`).
+
+**Second-pass migration details.** Missing `in` array or `in[0]` buffer implies target **zero**, but output is the **previous held level slewed toward zero**, not instant silence (`native/modules/slew/module.cpp:37-53`). Rise/Fall are continuous `s/unit` values (no integer coercion, logarithmic parameter taper or separate smoothing ramp): time `T=0` snaps; otherwise step is `1/(T*sample_rate)` in the appropriate direction; nonfinite sample holds the state (`native/modules/slew/module.cpp:30-36,41-53`). **No process allocation, locks, I/O or process-wide mutable globals** (`native/modules/slew/module.cpp:21-23,37-55`). `DESIGN.md` explicitly says original implementation, no third-party DSP/pin and inherited GPLv3 `LinearRamp` contract (`native/modules/slew/DESIGN.md:5,9-13`).
 
 ## vca
 
