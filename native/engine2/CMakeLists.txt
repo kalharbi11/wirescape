@@ -81,3 +81,7 @@ add_test(NAME abi2_soak_smoke COMMAND wirescape_soak --graph poly8 --rate 48000 
 set_tests_properties(abi2_soak_smoke PROPERTIES TIMEOUT 30)
 add_executable(abi2_soak_stats_tests tests/soak_stats_tests.cpp)
 add_test(NAME abi2_soak_stats_tests COMMAND abi2_soak_stats_tests)
+find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+add_test(NAME abi2_soak_cli COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/../tools/foundation/tests/test_soak.py
+  $<TARGET_FILE:wirescape_soak> $<TARGET_FILE_DIR:ws_vco>)
+set_tests_properties(abi2_soak_cli PROPERTIES TIMEOUT 60)
