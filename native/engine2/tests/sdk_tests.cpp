@@ -35,6 +35,14 @@ int main(){
  ws::Signal missing(nullptr);CHECK(missing.row(0,scratch,17)==scratch);for(float v:scratch)CHECK(v==0);
  input[0]=std::nanf("");CHECK(d->process(instance,&ctx)==WS2_INVALID);CHECK(storage[0][0]==0);input[0]=.25f;
  ctx.frames=33;CHECK(d->process(instance,&ctx)==WS2_INVALID);ctx.frames=17;ctx.struct_size=0;CHECK(d->process(instance,&ctx)==WS2_INVALID);ctx.struct_size=sizeof(ctx);
+ storage[0][0]=99;CHECK(d->process(nullptr,&ctx)==WS2_INVALID);CHECK(storage[0][0]==0);
+ for(int failure=0;failure<4;++failure){auto invalid=ctx;storage[0][0]=99;
+  if(failure==0)invalid.frames=33;
+  if(failure==1)invalid.sample_rate=44100;
+  if(failure==2)invalid.param_count=0;
+  if(failure==3){invalid.events.struct_size=sizeof(ws2_event_list);invalid.events.count=1;invalid.events.items=nullptr;}
+  CHECK(d->process(instance,&invalid)==WS2_INVALID);CHECK(storage[0][0]==0);CHECK(out.flags&WS2_CONSTANT);
+ }
  d->reset(instance);d->destroy(instance);CHECK(pool.used==allocated);
  std::puts("PASS SDK ramp/gate/trigger/PRNG/SIMD/taper/fastmath");
 }

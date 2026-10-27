@@ -46,6 +46,14 @@ inline bool finite_samples(const float*data,uint32_t count) noexcept {
     if(exponent==UINT32_C(0x7f800000))for(uint32_t i=0;i<count;++i)if(!std::isfinite(data[i]))return false;
     return true;
 }
+inline void silence_outputs(ws2_process*c,uint32_t max_channels=WS2_MAX_CHANNELS) noexcept {
+            if(!c||c->struct_size<sizeof(ws2_process)||!c->outputs||c->output_count>WS2_MAX_PORTS)return;
+            for(uint32_t j=0;j<c->output_count;++j){auto&o=c->outputs[j];
+                if(o.struct_size<sizeof(ws2_signal_out)||!o.data||!o.max_channels||o.max_channels>max_channels)continue;
+                bool valid=true;for(uint32_t k=0;k<o.max_channels;++k)valid&=o.data[k]!=nullptr;if(!valid)continue;
+                o.flags=WS2_CONSTANT;o.channels=std::clamp(c->channels,1u,o.max_channels);for(uint32_t k=0;k<o.channels;++k)o.data[k][0]=0;
+            }
+}
 struct Setup {
     const ws2_config& config; const ws2_host& host;
     double sample_rate()const{return config.sample_rate;}
@@ -193,34 +201,35 @@ template<class T>class Module {
     }
     static void WS2_CALL reset(void*p){if(p)guarded([&](){static_cast<Instance*>(p)->dsp.reset();return WS2_OK;});}
     static int WS2_CALL process(void*p,ws2_process*c) {
-        if(!p||!c||c->struct_size<sizeof(ws2_process))return WS2_INVALID;
+        if(!p||!c||c->struct_size<sizeof(ws2_process)){silence_outputs(c);return WS2_INVALID;}
         auto&x=*static_cast<Instance*>(p);
         if(!c->frames)return WS2_OK;
+        auto silence=[&](){silence_outputs(c,x.config.max_channels);};
+        auto invalid=[&](){silence();return int(WS2_INVALID);};
         if(c->frames>x.config.max_block_frames||!c->channels||c->channels>x.config.max_channels||
            c->input_count!=x.inputs||c->output_count!=x.outputs||c->param_count!=T::params.size()||
            c->sample_rate!=x.config.sample_rate||
-           (c->input_count&&!c->inputs)||(c->output_count&&!c->outputs)||(c->param_count&&!c->params))return WS2_INVALID;
+           (c->input_count&&!c->inputs)||(c->output_count&&!c->outputs)||(c->param_count&&!c->params))return invalid();
         for(uint32_t j=0;j<c->output_count;++j) {
             const auto&o=c->outputs[j];
-            if(o.struct_size<sizeof(ws2_signal_out)||o.max_channels!=x.config.max_channels||!o.data)return WS2_INVALID;
-            for(uint32_t k=0;k<o.max_channels;++k)if(!o.data[k])return WS2_INVALID;
+            if(o.struct_size<sizeof(ws2_signal_out)||o.max_channels!=x.config.max_channels||!o.data)return invalid();
+            for(uint32_t k=0;k<o.max_channels;++k)if(!o.data[k])return invalid();
         }
-        auto silence=[&](){for(uint32_t j=0;j<c->output_count;++j){auto&o=c->outputs[j];o.flags=WS2_CONSTANT;o.channels=c->channels;for(uint32_t k=0;k<o.channels;++k)o.data[k][0]=0;}};
         auto valid=[&](const ws2_signal&s){
             if(s.struct_size<sizeof(ws2_signal)||s.channels>x.config.max_channels||(s.channels&&!s.data))return false;
             for(uint32_t k=0;k<s.channels;++k)if(!s.data[k])return false;
             return true;
         };
-        for(uint32_t i=0;i<c->input_count;++i)if(!valid(c->inputs[i])){silence();return WS2_INVALID;}
-        for(uint32_t i=0;i<c->param_count;++i)if(!valid(c->params[i])){silence();return WS2_INVALID;}
-        if(c->events.count&&(!c->events.items||c->events.struct_size<sizeof(ws2_event_list)))return WS2_INVALID;
+        for(uint32_t i=0;i<c->input_count;++i)if(!valid(c->inputs[i])){return invalid();}
+        for(uint32_t i=0;i<c->param_count;++i)if(!valid(c->params[i])){return invalid();}
+        if(c->events.count&&(!c->events.items||c->events.struct_size<sizeof(ws2_event_list)))return invalid();
         uint32_t previous=0;
-        for(uint32_t i=0;i<c->events.count;++i){const auto&e=c->events.items[i];if(e.struct_size<sizeof(ws2_event)||e.offset>=c->frames||(i&&e.offset<previous)||!std::isfinite(e.value)||!std::isfinite(e.value2)||e.bytes>WS2_MAX_PAYLOAD||(e.bytes&&!e.data)||e.ump_words>4)return WS2_INVALID;previous=e.offset;}
+        for(uint32_t i=0;i<c->events.count;++i){const auto&e=c->events.items[i];if(e.struct_size<sizeof(ws2_event)||e.offset>=c->frames||(i&&e.offset<previous)||!std::isfinite(e.value)||!std::isfinite(e.value2)||e.bytes>WS2_MAX_PAYLOAD||(e.bytes&&!e.data)||e.ump_words>4)return invalid();previous=e.offset;}
         int result=guarded([&](){Block block(*c);x.dsp.process(block);return WS2_OK;});
         if(result!=WS2_OK){silence();return result;}
         for(uint32_t j=0;j<c->output_count;++j){const auto&o=c->outputs[j];
-            if(o.channels>o.max_channels){silence();return WS2_INVALID;}
-            for(uint32_t k=0;k<o.channels;++k)if(!finite_samples(o.data[k],(o.flags&WS2_CONSTANT)?1u:c->frames)){silence();return WS2_INVALID;}
+            if(o.channels>o.max_channels){return invalid();}
+            for(uint32_t k=0;k<o.channels;++k)if(!finite_samples(o.data[k],(o.flags&WS2_CONSTANT)?1u:c->frames)){return invalid();}
         }
         return WS2_OK;
     }
