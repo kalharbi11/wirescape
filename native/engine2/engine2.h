@@ -53,6 +53,7 @@ public:
     void panic()noexcept;
     void reset();
     void transport(double bpm,bool playing,double beat=0);
+    // Render-thread-only: publishes anchors owned by render; never call concurrently.
     bool publish_clock(uint64_t frame,uint64_t time_ns);
     Meter meter()const noexcept;
     const std::string&error()const;

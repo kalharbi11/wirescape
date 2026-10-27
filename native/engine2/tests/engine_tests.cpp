@@ -146,6 +146,7 @@ static void events(){
 static void timing(){
  Config c=cfg();c.max_block=16;c.feedback_block=16;c.epoch_ns=1000000000;
  Engine e(c);CHECK(e.add_node(1,ws::Module<Receiver>::descriptor()));CHECK(e.register_producer()==0);CHECK(e.prepare());
+ CHECK(e.publish_clock(0,c.epoch_ns));CHECK(!e.publish_clock(0,c.epoch_ns-1));
  CHECK(e.enqueue(0,1,0,event(WS2_NOTE_ON,.4f),1001000000,Timing::Timestamped)==WS2_OK);
  for(int i=0;i<4;++i){render(e,16);CHECK(e.output_sample(1,0,0,0)==0);}render(e,16);CHECK(e.output_sample(1,0,0,0)==.4f);
  CHECK(e.enqueue(0,1,0,event(WS2_NOTE_OFF),0,Timing::Immediate)==WS2_OK);render(e,16);CHECK(e.output_sample(1,0,0,0)==0);
