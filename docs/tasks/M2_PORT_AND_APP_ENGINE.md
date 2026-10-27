@@ -27,11 +27,9 @@ The M2 milestone, split into seven Codex tasks and a Claude review. Each task ha
 - **Provenance:** do not invent provenance. Where `DESIGN.md` is missing, write what the source shows and mark the rest "Provenance: to be confirmed by the user". Claude collects these for the user.
 
 ## Machines: who runs what
-There are two Codex sessions:
-- **Cloud Codex** reaches the **Pi 5** (`ssh pi`) but **not the laptop**. It runs all Pi work itself.
-- **Laptop Codex** is a Codex session the user starts *on the Windows laptop*. It runs only the laptop items: M1-3b's measurements and fix, and M2-6's Windows evidence. Don't try to reach the laptop over SSH from the cloud.
+Codex reaches both the **Pi 5** (`ssh pi`) and the user's **Windows laptop** (connection set up by the user on 2026-10-27; use whatever access the user configured, and don't guess hostnames or ask for credentials in comments). It runs all Pi and laptop work itself. If a machine can't be reached, say so in the handoff and keep going with work that doesn't need it.
 
-Neither session hands builds, tests or benchmarks to the user. The only device actions reserved for the user are real audio or MIDI runs (anything with a `--confirm-*` flag) and the M2-L live session.
+Codex never hands builds, tests or benchmarks to the user. The only device actions reserved for the user are real audio or MIDI runs (anything with a `--confirm-*` flag) and the M2-L live session.
 
 **Before setting any M2 PR to `status/review`,** post one "Machine evidence" comment on the PR with:
 - **Pi 5 (Linux ARM64, Release, headless):** `python tools/dev.py build --headless` and `python tools/dev.py test` (or `ctest`) on the PR head, with pass counts and the toolchain line. For M2-6, also the soak table.
@@ -39,7 +37,7 @@ Neither session hands builds, tests or benchmarks to the user. The only device a
 - The exact commit SHA. If the Pi is unreachable, say so, retry once later in the session, and only then hand off without it.
 
 ## Laptop rules (every task that uses it)
-Laptop Codex works only inside the repository checkout and the build folders, plus `.tools/` for pinned toolchains. Never open audio or MIDI devices and never run a `--confirm-*` command. Never use admin rights, install system-wide software, change drivers, power plans or OS settings, or touch the user's files outside the checkout. Before benchmarking, record the power source (AC or battery), the power mode and the CPU model, and close nothing the user has open. If something heavy is already running, note it and measure anyway. Results go into PR or issue comments, never into tracked files. Don't commit machine-specific paths.
+On the laptop, Codex works only inside the repository checkout and the build folders, plus `.tools/` for pinned toolchains. Never open audio or MIDI devices and never run a `--confirm-*` command. Never use admin rights, install system-wide software, change drivers, power plans or OS settings, or touch the user's files outside the checkout. Before benchmarking, record the power source (AC or battery), the power mode and the CPU model, and close nothing the user has open. If something heavy is already running, note it and measure anyway. Results go into PR or issue comments, never into tracked files. Don't commit machine-specific paths.
 
 ## Pi 5 rules (every task that uses it)
 Reach it with `ssh pi` (user `codex`). On the Pi you may only build, run tests, run benchmarks and run valgrind/callgrind. Never open audio or MIDI devices, never use `sudo`, never install system packages, never change kernel or CPU-governor settings. Toolchains you need go under your home directory or `/tmp`. Record the compiler, CMake, kernel (`uname -r`) and the governor you observed (read-only) with every Pi number. Results go into PR or issue comments only, never into tracked files. If the Pi is unreachable, skip the Pi parts, say so in the handoff and continue.
@@ -163,7 +161,7 @@ Why Codex: app integration, Windows UI tests and the Pi.
 ---
 
 ## M1-3b: close the Windows (MSVC) mono gap and gate Ir in CI (issue #32, size/m, after #22)
-Why Codex: needs MSVC on the user's Windows laptop, profiling and CI runs. **Runs in Laptop Codex** (see Machines). Background: `docs/reviews/M1-3_REVIEW.md`.
+Why Codex: needs MSVC on the user's Windows laptop, profiling and CI runs. Runs on the laptop (see Machines). Background: `docs/reviews/M1-3_REVIEW.md`.
 
 The `windows-x64` runner measured ABI 2/ABI 1 mono at 1.097×. Every other measure passes (arm64 0.865×, Pi 0.711×, Ir 0.860×), so the likely cause is MSVC codegen, not framework design. Don't assume that; measure it.
 
@@ -179,20 +177,21 @@ The `windows-x64` runner measured ABI 2/ABI 1 mono at 1.097×. Every other measu
 ## Codex continuous queue (run in this order; don't wait for review between tasks)
 Codex runs this list top to bottom in one long session. Open one draft PR per issue, post a handoff on each issue when it's done, set `status/review` and move straight on to the next item. **Never merge.** When an item's prerequisite isn't merged yet, skip it (post a one-line "waiting on #N" handoff) and take the next one; come back when it's merged.
 
-| # | Item | Prerequisite | Session |
+| # | Item | Prerequisite | Machine |
 |---|---|---|---|
-| 1 | #42 M2-0b Pi soak re-run on post-M1-3 `main` (no PR) | none | cloud + Pi |
-| 2 | #24 M2-1 per-bus latency and staged reconfigure (PR #38) | — | cloud + Pi |
-| 3 | #25 M2-2 utility ports (PR #39) | — | cloud + Pi |
-| 4 | #26 M2-3 stateful ports (PR #40) | — | cloud + Pi |
-| 5 | #27 M2-4 regressions and per-module CV (PR #41); after #39 and #40 merge, extend CV coverage to the eight new ports in a follow-up commit or PR | — | cloud + Pi |
-| 6 | #28 M2-5 patch v2 and lossless v1 migration | — | cloud + Pi |
-| 7 | #32 M1-3b Windows mono gap (PR #37 has the Ir gate) | the user starts Laptop Codex | **laptop** |
-| 8 | #29 M2-6 engine2 becomes the app engine | #32, #24, #25, #26, #28 merged | cloud + Pi, then laptop for the Windows evidence |
+| 1 | #32 M1-3b Windows mono gap (PR #37 has the Ir gate). Top priority: it's the M2-6 blocker. Its laptop measurements can run while the Pi works on items 2–7 | none | **laptop** + CI |
+| 2 | #42 M2-0b Pi soak re-run on post-M1-3 `main` (no PR) | none | Pi |
+| 3 | #24 M2-1 per-bus latency and staged reconfigure (PR #38) | — | Pi |
+| 4 | #25 M2-2 utility ports (PR #39) | — | Pi |
+| 5 | #26 M2-3 stateful ports (PR #40) | — | Pi |
+| 6 | #27 M2-4 regressions and per-module CV (PR #41); after #39 and #40 merge, extend CV coverage to the eight new ports in a follow-up commit or PR | — | Pi |
+| 7 | #28 M2-5 patch v2 and lossless v1 migration | — | Pi |
+| 8 | #29 M2-6 engine2 becomes the app engine | #32, #24, #25, #26, #28 merged | Pi + laptop |
 
 Rules for the queue:
 - Every PR ends with the "Machine evidence" comment from the Machines section. Run the Pi work while CI runs, so it doesn't add wall time. Never run two Pi benchmarks or soaks at once.
-- Items 2–5 already have draft PRs. Finish each (all commits, CI green, machine evidence, handoff, `status/review`) before starting item 6.
+- Never benchmark on the laptop while a build or test runs there; the laptop and the Pi may work at the same time.
+- Items 3–6 already have draft PRs. Finish each (all commits, CI green, machine evidence, handoff, `status/review`) before starting item 7.
 - Each item branches from the latest `main`. If an earlier item touches the same CMake list or test registry and merges first, merge `main` into your branch (merge commit, no rebase).
 - Run `python tools/dev.py test` before every final push. The final push of each PR runs CI; WIP pushes may use `[skip ci]`.
 - If a PR gets review comments from Claude while you're on a later item, finish your current commit, fix the comments on the earlier branch, push and return.

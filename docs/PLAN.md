@@ -50,7 +50,7 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
   - [x] M1-3 Slice fixes and the performance gate (`docs/tasks/M1-3_SLICE_FIXES.md`, issue #6, PR #22, Codex, size/l). Gate for M2: mono ≤ 1.05× on both CI runners and by instruction count, poly ≤ 1.00×, sanitizer job green, adversarial concurrency and feedback tests. **Reviewed 2026-10-27 (`docs/reviews/M1-3_REVIEW.md`): conditional go.** Everything passes except Windows mono (1.097×), which moves to M1-3b and gates M2-6
   - [ ] M1-3b Windows (MSVC) mono gap and an Ir gate in CI (issue #32, Codex, size/m). Must merge before M2-6
 - **M2 Port and patch v2** (ABI2 plan B2 to B4): engine2 becomes the app engine; all Essentials on ABI 2; per-module CV; patch v2 with lossless v1 migration. Optional: self-hosted Pi 5 runner for benchmarks.
-  Task file: `docs/tasks/M2_PORT_AND_APP_ENGINE.md`. All Codex; M2-0 may start now, M2-1 to M2-5 after PR #22 merges, M2-6 after M1-3b and M2-1/2/3/5 merge. Codex works through the "Codex continuous queue" in that file. Cloud Codex reaches the Pi only; laptop work (M1-3b, M2-6 Windows evidence) runs in a Codex session on the laptop.
+  Task file: `docs/tasks/M2_PORT_AND_APP_ENGINE.md`. All Codex; M2-0 may start now, M2-1 to M2-5 after PR #22 merges, M2-6 after M1-3b and M2-1/2/3/5 merge. Codex works through the "Codex continuous queue" in that file. Codex reaches both the Pi 5 and the Windows laptop and runs all machine work itself.
   - [x] M2-0 Benchmark tooling and Pi 5 realtime evidence (issue #23, PR #31)
   - [ ] M2-0b Pi soak re-run on post-M1-3 `main` (issue #42)
   - [ ] M2-1 Per-bus latency and staged reconfigure (issue #24, size/m)
@@ -76,8 +76,8 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
 
 ## Current milestone: M2 (port and patch v2)
 Done: M0, M1 (except the M1-3b Windows gap), M1-2's harness and M2-0's tooling.
-1. **Cloud Codex** finishes the four open M2 drafts (#38 M2-1, #39 M2-2, #40 M2-3, #41 M2-4) with Pi evidence, then M2-0b (#42) and M2-5 (#28). Claude reviews each as it reaches `status/review`, and the user merges.
-2. **Laptop Codex** (a Codex session the user starts on the Windows laptop) takes M1-3b (#32): baselines, vectorizer report, fix. M2-6 can't start without it.
+1. **Codex, laptop:** M1-3b (#32) first (baselines, vectorizer report, fix), because M2-6 can't start without it.
+2. **Codex, Pi, in parallel with item 1:** M2-0b (#42), then finish the four open M2 drafts (#38 M2-1, #39 M2-2, #40 M2-3, #41 M2-4) with Pi evidence, then M2-5 (#28). Claude reviews each as it reaches `status/review`, and the user merges.
 3. **Copilot** runs the portability probe (#44) any time.
 4. **The user:** one real-device capture run (#43) now; later, the M2-L live session (#45) after M2-6.
 5. M2-6 (#29) once #32, #24, #25, #26 and #28 are merged. Then M2-L, then M2-R.
