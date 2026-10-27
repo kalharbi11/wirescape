@@ -77,6 +77,15 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(a[:4800], c[:4800])
         self.assertNotEqual(a[6000:], c[6000:])
 
+    def test_filter_patch_attenuates_known_tone(self):
+        patch = tone_patch()
+        clean, _ = render(ARGS.engine, ARGS.modules, patch, seconds=0.2)
+        patch['modules'].append(dict(id=3, type='essentials.vcf', values={'0': 100, '1': 0.2}))
+        patch['connections'] = [dict(fromNode=1, fromPort='audio', toNode=3, toPort='audio'),
+                                dict(fromNode=3, fromPort='low24', toNode=2, toPort='audio')]
+        filtered, _ = render(ARGS.engine, ARGS.modules, patch, seconds=0.2)
+        self.assertLess(sum(v * v for v in filtered[4800:]), sum(v * v for v in clean[4800:]) * 0.05)
+
     def test_combined_noise_demo_is_reproducible(self):
         path = Path(__file__).resolve().parents[2] / 'native/examples/Six_Essentials_Demo.json'
         patch = json.loads(path.read_text())
