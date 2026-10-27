@@ -29,7 +29,7 @@ static int utility_port_tests(const char*name,int argc,char**argv){
  }
  auto f=std::make_unique<DspFixture>(d,48000,16);f->run(17);auto state=port_save(*f);f->run(17);float expected[6][16][17]{};for(uint32_t p=0;p<d->output_count;++p)for(int c=0;c<16;++c)for(int i=0;i<17;++i)expected[p][c][i]=f->output[p][c][(f->outs[p].flags&WS2_CONSTANT)?0:i];VERIFY(port_load(*f,state)==WS2_OK);f->run(17);
  for(uint32_t p=0;p<d->output_count;++p)for(int c=0;c<16;++c)for(int i=0;i<17;++i)VERIFY(expected[p][c][i]==f->output[p][c][(f->outs[p].flags&WS2_CONSTANT)?0:i]);
- auto current=port_save(*f),future=current;future[0]=99;VERIFY(port_load(*f,future)==WS2_UNSUPPORTED);VERIFY(port_save(*f)==current);VERIFY(port_load(*f,{1})==WS2_INVALID);VERIFY(port_save(*f)==current);
+ auto current=port_save(*f),future=current;future[0]=99;VERIFY(port_load(*f,future)==WS2_UNSUPPORTED);VERIFY(port_save(*f)==current);VERIFY(port_load(*f,{1})==WS2_INVALID);VERIFY(port_save(*f)==current);if(d->param_count){auto corrupt=current;corrupt.back()=255;VERIFY(port_load(*f,corrupt)==WS2_INVALID);VERIFY(port_save(*f)==current);}
  for(uint32_t p=0;p<d->input_count;++p)for(int c=0;c<16;++c)std::fill_n(f->input[p][c],256,1.e30f);f->run(17);
  std::printf("PASS %s: exact ABI1 impulse/sine/sweep/unpatched, rate/block/channel matrix, reset/state/noalloc/extremes\n",name);return 0;
 }
