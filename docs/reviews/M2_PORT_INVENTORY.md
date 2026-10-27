@@ -54,23 +54,23 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Direction/index | ID | Signal kind | Unpatched default | Source |
 |---|---|---|---|---|
-| input 0 | `reset` | CV | UNKNOWN (engine buffer or process fallback not fully traced) | `native/modules/clock/module.cpp:67-73`; `native/modules/clock/module.json:1` |
+| input 0 | `reset` | CV | null/unpatched reset = low; no reset edge (`native/modules/clock/module.cpp:54-58`) | `native/modules/clock/module.cpp:67-73`; `native/modules/clock/module.json:1` |
 | output 0 | `clock` | CV | n/a | `native/modules/clock/module.cpp:67-73`; `native/modules/clock/module.json:1` |
 
 **3. Parameters** (ID mapping: `module.json`; bounds/defaults/units: C++ descriptor).
 
 | Index | ID | Name | Min | Max | Default | Units/taper | Stepped | Source |
 |---|---|---|---:|---:|---:|---|---|---|
-| 0 | `bpm` | bpm | 20 | 300 | 120 | BPM / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/clock/module.cpp:67-73`; `native/modules/clock/module.json:1` |
-| 1 | `ticks_per_beat` | ticks per beat | 1 | 24 | 1 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/clock/module.cpp:67-73`; `native/modules/clock/module.json:1` |
-| 2 | `duty` | duty | .01 | .99 | .5 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/clock/module.cpp:67-73`; `native/modules/clock/module.json:1` |
-| 3 | `run` | run | 0 | 1 | 1 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/clock/module.cpp:67-73`; `native/modules/clock/module.json:1` |
+| 0 | `bpm` | bpm | 20 | 300 | 120 | BPM / plain units; no DSP-side taper | No integer cast (`native/modules/clock/module.cpp:43-47`) | `native/modules/clock/module.cpp:67-73`; `native/modules/clock/module.json:1` |
+| 1 | `ticks_per_beat` | ticks per beat | 1 | 24 | 1 | none / plain units; no DSP-side taper | Yes, nearest integer (`native/modules/clock/module.cpp:45`) | `native/modules/clock/module.cpp:67-73`; `native/modules/clock/module.json:1` |
+| 2 | `duty` | duty | .01 | .99 | .5 | none / plain units; no DSP-side taper | No integer cast (`native/modules/clock/module.cpp:43-47`) | `native/modules/clock/module.cpp:67-73`; `native/modules/clock/module.json:1` |
+| 3 | `run` | run | 0 | 1 | 1 | none / plain units; no DSP-side taper | Thresholded at 0.5 (`native/modules/clock/module.cpp:60`) | `native/modules/clock/module.cpp:67-73`; `native/modules/clock/module.json:1` |
 
-**4. State.** Runtime state and reset/prepare/event/process implementation: `native/modules/clock/module.cpp:1-66`. Extra serialized state/version beyond parameter values: **UNKNOWN (looked in native/modules/clock/module.cpp, native/modules/clock/module.json; patch document saving and loading not fully audited)**.
+**4. State.** Per-instance phase, reset-edge flag, tempo ramp and ticks/duty/run (`native/modules/clock/module.cpp:21-39`); no module save callback (`native/modules/clock/module.cpp:70-72`). Patch inspect retains JSON bytes/object (`native/document/document_reader.cpp:34-36,50-51`).
 
 **5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 differences **UNKNOWN** until port exists.
 
-**6. Port notes.** DSP, lifecycle and runtime assumptions: `native/modules/clock/module.cpp:1-73`. Third-party dependencies, pinned revisions and licence: **UNKNOWN (looked in native/modules/clock/module.cpp and native/modules/clock/module.json; DESIGN.md not comprehensively audited)**. Process-time allocation, locks and mutable globals: **UNKNOWN (requires full audit)**.
+**6. Port notes.** BPM ramps, ticks rounded, duty direct, run thresholded; output high window and sample-rate phase from (`native/modules/clock/module.cpp:40-65`). Process has bounded loop, no allocation, locking, I/O or mutable globals (`native/modules/clock/module.cpp:51-66`); only create allocates (`native/modules/clock/module.cpp:27-28`). `DESIGN.md:9,13` describes fixed instance state, original DSP, no external third-party DSP code or pinned revision; sample rate 1..384000 Hz (`native/modules/clock/module.cpp:11-15`).
 
 ## function_envelope
 
