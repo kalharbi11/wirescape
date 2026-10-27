@@ -72,6 +72,10 @@ public:
         return {c<s_->channels?s_->data[c]:nullptr,constant()};
     }
     float value(uint32_t c=0,uint32_t i=0)const noexcept{return ch(c)[i];}
+    const float*row(uint32_t c,float*scratch,uint32_t frames)const noexcept {
+        auto channel=ch(c);if(channel.p&&!channel.is_constant)return channel.p;
+        std::fill_n(scratch,frames,channel[0]);return scratch;
+    }
 };
 class Output {
     ws2_signal_out*s_;
@@ -182,7 +186,10 @@ template<class T>class Module {
         auto&x=*static_cast<Instance*>(p);x.config=*c;
         return guarded([&](){ws2_ports ports{sizeof(ports),0,0,nullptr,nullptr};int r=query(p,c,&ports);if(r!=WS2_OK)return r;
             if(ports.input_count>WS2_MAX_PORTS||ports.output_count>WS2_MAX_PORTS)return int(WS2_INVALID);
-            x.inputs=ports.input_count;x.outputs=ports.output_count;x.dsp.prepare(Setup{*c,*h});x.dsp.reset();return int(WS2_OK);});
+            x.inputs=ports.input_count;x.outputs=ports.output_count;
+            if constexpr(std::is_same_v<decltype(x.dsp.prepare(Setup{*c,*h})),bool>){if(!x.dsp.prepare(Setup{*c,*h}))return int(WS2_INVALID);}
+            else x.dsp.prepare(Setup{*c,*h});
+            x.dsp.reset();return int(WS2_OK);});
     }
     static void WS2_CALL reset(void*p){if(p)guarded([&](){static_cast<Instance*>(p)->dsp.reset();return WS2_OK;});}
     static int WS2_CALL process(void*p,ws2_process*c) {
