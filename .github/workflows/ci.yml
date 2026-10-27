@@ -95,7 +95,8 @@ jobs:
       - name: Build and test (devices stay off)
         run: |
           set -euo pipefail
-          python -m unittest discover -s tools/foundation/tests -v
+          mkdir -p build_reports/foundation
+          python -m unittest discover -s tools/foundation/tests -v 2>&1 | tee build_reports/foundation/python-tests.log
           if [[ '${{ matrix.os }}' == linux-arm64 ]]; then
             python tools/dev.py build --headless
           else
@@ -104,6 +105,15 @@ jobs:
           fi
           python tools/dev.py test
           if [[ '${{ matrix.os }}' == windows-x64 ]]; then python tools/dev.py ui-test; fi
+      - name: Summarize failures
+        if: failure()
+        run: |
+          python - <<'PYTHON'
+          from pathlib import Path
+          for path in Path('build_reports').rglob('*.log'):
+              text = str(path) + '\n' + path.read_text(errors='replace')[-6000:]
+              print('::error::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PYTHON
       - uses: actions/upload-artifact@v4
         if: always()
         with:
