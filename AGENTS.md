@@ -110,3 +110,4 @@ You are the planner and reviewer. A check-in means reading `docs/PLAN.md`, the o
   1. Every manual step the user must take, at click-by-click level (which page, which button, which setting, what to type), in order.
   2. A paste-ready prompt for each agent that should act next (Codex, Copilot, ChatGPT), naming the issue, branch, spec file and stop condition.
   3. Which steps can run in parallel, and what to tell Claude when they're done.
+<!-- guard proof, throwaway -->
