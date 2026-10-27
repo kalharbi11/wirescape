@@ -38,7 +38,7 @@ class SoakCliTests(unittest.TestCase):
 
     def test_invalid_arguments(self):
         for args in (("--graph", "bad"), ("--graph", "voices:17"),
-                     ("--graph", "voices:1.5"), ("--seconds", "nan"),
+                     ("--graph", "voices:1.5"), ("--graph", "voices:\n1"), ("--seconds", "nan"),
                      ("--seconds", "0"), ("--block", "0"), ("--block", "1.5"),
                      ("--rate", "48000x"), ("--seconds", "3601"),
                      ("--graph", "six_essentials_shim"), ("--unknown", "1"), ("--rate",)):

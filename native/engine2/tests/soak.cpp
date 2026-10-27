@@ -35,7 +35,8 @@ static Options parse(int argc,char**argv){
 static uint32_t voices(const std::string&graph){
  if(graph=="mono")return 1;if(graph=="poly8")return 8;
  if(graph.rfind("voices:",0)!=0)throw std::invalid_argument("unknown graph");
- double n=number(graph.substr(7));if(n<1||n>16||std::floor(n)!=n)throw std::invalid_argument("voices must be 1..16");return static_cast<uint32_t>(n);
+ auto suffix=graph.substr(7);if(suffix.empty()||suffix.find_first_not_of("0123456789")!=std::string::npos)throw std::invalid_argument("voice count must be digits");
+ double n=number(suffix);if(n<1||n>16||std::floor(n)!=n)throw std::invalid_argument("voices must be 1..16");return static_cast<uint32_t>(n);
 }
 static std::unique_ptr<Engine> graph(const Options&o,ModuleLoader&loader){
  Config c;c.sample_rate=o.rate;c.max_block=o.block;c.max_channels=16;
