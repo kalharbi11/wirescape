@@ -31,6 +31,23 @@ template<int Policy>struct Pass {
  void prepare(const ws::Setup&){}void reset(){}
  void process(ws::Block&b){b.out(0).set_channels(b.channels());bool constant=b.in(0).constant()&&b.param(0).constant();b.out(0).mark_constant(constant);for(uint32_t c=0;c<b.channels();++c)for(uint32_t i=0;i<(constant?1u:b.frames());++i)b.out(0).ch(c)[i]=b.in(0).value(c,i)*b.param(0).value(c,i);}
 };
+struct AddressSource:Source {
+ static inline const float*written=nullptr;
+ void process(ws::Block&b){written=b.out(0).ch(0);Source::process(b);}
+};
+template<int Policy>struct AddressPass:Pass<Policy> {
+ static inline const float*read=nullptr;
+ void process(ws::Block&b){read=b.in(0).ch(0).p;Pass<Policy>::process(b);}
+};
+static void zero_copy(){
+ for(uint32_t channels:{1u,4u}){
+  Engine e;CHECK(e.add_node(1,ws::Module<AddressSource>::descriptor()));CHECK(e.add_node(2,ws::Module<AddressPass<WS2_POLY>>::descriptor()));CHECK(e.add_node(3,ws::Module<AddressPass<WS2_SUM>>::descriptor()));CHECK(e.set_channels(1,channels));CHECK(e.connect(1,0,2,0));CHECK(e.connect(1,0,3,0));CHECK(e.prepare());
+  float out[17]{};float*outputs[]={out};CHECK(e.render(outputs,1,17)==WS2_OK);
+  CHECK(AddressSource::written==AddressPass<WS2_POLY>::read);
+  CHECK((AddressSource::written==AddressPass<WS2_SUM>::read)==(channels==1));
+  CHECK(e.output_sample(2,0,channels-1,0)==1.f+.1f*(channels-1));
+ }
+}
 struct Feedback {
  static constexpr ws::Info info{"test.feedback","Feedback",1};
  static constexpr std::array inputs{ws::port("in","In")};
@@ -158,7 +175,7 @@ int main(){
  {std::thread warm([](){});warm.join();}
  _CrtMemState before{},after{},difference{};_CrtMemCheckpoint(&before);
 #endif
- cached_taper<WS2_LINEAR>();cached_taper<WS2_LOG>();cached_taper<WS2_EXP>();signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
+ zero_copy();cached_taper<WS2_LINEAR>();cached_taper<WS2_LOG>();cached_taper<WS2_EXP>();signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
 #if defined(_MSC_VER)&&defined(_DEBUG)
  CHECK(_CrtCheckMemory());_CrtMemCheckpoint(&after);if(_CrtMemDifference(&difference,&before,&after)){
   std::fprintf(stderr,"Debug CRT normal blocks %zu -> %zu, bytes %zu -> %zu; client blocks %zu -> %zu\n",before.lCounts[_NORMAL_BLOCK],after.lCounts[_NORMAL_BLOCK],before.lSizes[_NORMAL_BLOCK],after.lSizes[_NORMAL_BLOCK],before.lCounts[_CLIENT_BLOCK],after.lCounts[_CLIENT_BLOCK]);return 1;

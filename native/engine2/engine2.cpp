@@ -101,7 +101,7 @@ struct Node {
     std::vector<ws2_event>events;std::vector<Item>pending;
     std::vector<const float*>legacy_in;std::vector<float*>legacy_out;
     int forced_channels=-1;uint32_t channels=1,latency=0;
-    bool touched=false;size_t requested_fast=0,requested_large=0;
+    bool loop=false,touched=false;size_t requested_fast=0,requested_large=0;
     void*emit_context=nullptr;
     ~Node(){clear_instance();}
     void clear_instance() {
@@ -287,6 +287,7 @@ bool Engine::Impl::topology() {
         ordered_components.push_back(std::move(components[chosen]));
     }components=std::move(ordered_components);
     for(auto&e:edges)if(e.back&&e.kind!=1){e.delay.prepare(cfg.max_channels,cfg.feedback_block);e.delay_channels.assign(cfg.feedback_block,0);e.head=0;}
+    for(auto&component:components)for(auto*n:component.nodes)n->loop=component.loop;
     latency=0;
     for(auto&component:components)for(auto*n:component.nodes){uint32_t upstream=0;for(auto&e:edges)if(!e.removed&&!e.back&&e.destination==n)upstream=std::max(upstream,e.source->latency);n->latency+=upstream;latency=std::max(latency,n->latency);}
     return true;
@@ -365,6 +366,7 @@ bool Engine::Impl::route(uint32_t port,const ws2_event&source) {
 }
 
 void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
+    const bool direct=!n.loop&&!n.legacy;
     n.events.clear();for(auto&v:n.port_events)v.clear();
     std::sort(n.pending.begin(),n.pending.end(),ordered);
     for(const auto&item:n.pending)if(item.frame>=block_start+start&&item.frame<block_start+start+frames){
@@ -391,7 +393,9 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         bool constant=!connected||(!source->back&&(source->source->global_out[source->output].flags&WS2_CONSTANT));
         buffer.channels=port.kind==WS2_EVENT?0:port.poly==WS2_POLY?channels:1;
         buffer.flags=(constant?WS2_CONSTANT:0)|(connected?WS2_CONNECTED:0);
-        for(uint32_t c=0;c<buffer.channels;++c)for(uint32_t i=0;i<(constant?1u:frames);++i){
+        const bool alias=direct&&connected&&!source->back&&(source_channels==1||(port.poly==WS2_POLY&&source_channels==buffer.channels));
+        for(uint32_t c=0;c<buffer.channels;++c)buffer.read[c]=alias?source->source->global_out[source->output].data[source_channels==1?0:c]:buffer.data[c];
+        if(!alias)for(uint32_t c=0;c<buffer.channels;++c)for(uint32_t i=0;i<(constant?1u:frames);++i){
             float sample=port.unpatched_value;
             if(connected){
                 if(port.poly==WS2_SUM){sample=0;for(uint32_t k=0;k<source_channels;++k)sample+=value(*source,k,i);}
@@ -426,7 +430,7 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         if(actually_constant)buffer.flags|=WS2_CONSTANT;
         n.param_view[j]={sizeof(ws2_signal),buffer.read.data(),buffer.channels,buffer.flags};
     }
-    for(uint32_t j=0;j<n.outputs.size();++j)n.out_view[j]={sizeof(ws2_signal_out),n.local_out[j].data.data(),channels,0,cfg.max_channels};
+    for(uint32_t j=0;j<n.outputs.size();++j)n.out_view[j]={sizeof(ws2_signal_out),(direct?n.global_out[j]:n.local_out[j]).data.data(),channels,0,cfg.max_channels};
     processing=&n;processing_start=start;processing_frames=frames;
     if(n.forced_channels==0){for(auto&o:n.out_view){o.channels=0;o.flags=WS2_CONSTANT;}}
     else if(n.legacy){
@@ -459,6 +463,7 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
     processing=nullptr;
     for(uint32_t j=0;j<n.outputs.size();++j){
         auto&o=n.out_view[j];auto&global=n.global_out[j];
+        if(direct){global.channels=o.channels;global.flags=o.flags;continue;}
         if(!n.touched){global.channels=o.channels;global.flags=o.flags;}
         else{
             if(global.channels!=o.channels)global.flags=0;
