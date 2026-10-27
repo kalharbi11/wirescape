@@ -6,6 +6,7 @@
 #include "../modules2/adsr/dsp.h"
 #include "../modules2/vca/dsp.h"
 #include "../modules2/clock/dsp.h"
+#include "../modules2/ladder/dsp.h"
 #include "../modules2/function_envelope/dsp.h"
 #include <cstdio>
 #include <cstdlib>

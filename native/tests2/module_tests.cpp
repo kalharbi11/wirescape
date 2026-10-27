@@ -7,8 +7,8 @@
 #include "module_loader.h"
 #include "allocation_watch.h"
 #endif
-static const ws2_descriptor*descriptors[]={ws::Module<ws2ports::Vco>::descriptor(),ws::Module<ws2ports::Lfo>::descriptor(),ws::Module<ws2ports::Vcf>::descriptor(),ws::Module<ws2ports::Adsr>::descriptor(),ws::Module<ws2ports::Vca>::descriptor(),ws::Module<ws2ports::Clock>::descriptor(),ws::Module<ws2ports::FunctionEnvelope>::descriptor()};
-static const char*names[]={"vco","lfo","vcf","adsr","vca","clock","function_envelope"};
+static const ws2_descriptor*descriptors[]={ws::Module<ws2ports::Vco>::descriptor(),ws::Module<ws2ports::Lfo>::descriptor(),ws::Module<ws2ports::Vcf>::descriptor(),ws::Module<ws2ports::Adsr>::descriptor(),ws::Module<ws2ports::Vca>::descriptor(),ws::Module<ws2ports::Clock>::descriptor(),ws::Module<ws2ports::FunctionEnvelope>::descriptor(),ws::Module<ws2ports::Ladder>::descriptor()};
+static const char*names[]={"vco","lfo","vcf","adsr","vca","clock","function_envelope","ladder"};
 static void matrix(){
  for(auto*d:descriptors)for(double rate:{44100.,48000.,96000.})for(uint32_t count:{1u,4u,16u})for(uint32_t block:{1u,17u,256u}){
   auto a=std::make_unique<DspFixture>(d,rate,count),b=std::make_unique<DspFixture>(d,rate,count);
@@ -30,7 +30,7 @@ static void matrix(){
  t.beat=.5;l->run(17);VERIFY(std::abs(l->output[0][0][0])<1e-6);t.flags=WS2_PLAYING;l->run(17);VERIFY(l->output[0][0][1]<0);
  auto guard=std::make_unique<DspFixture>(descriptors[4]);guard->process.output_count=0;VERIFY(guard->d->process(guard->state,&guard->process)==WS2_INVALID);guard->process.output_count=1;
  guard->input[0][0][0]=std::numeric_limits<float>::quiet_NaN();VERIFY(guard->d->process(guard->state,&guard->process)==WS2_INVALID);VERIFY(guard->outs[0].flags&WS2_CONSTANT);VERIFY(guard->output[0][0][0]==0);
- std::puts("PASS 135 DSP matrix cases, reset/determinism, scalar VCA, VCF counter, nullable/stop/locate transport");
+ std::printf("PASS %zu DSP matrix cases, reset/determinism, scalar VCA, VCF counter, nullable/stop/locate transport\n",std::size(descriptors)*27);
 }
 static void vca_exact(){
  for(double rate:{44100.,48000.,96000.})for(uint32_t channels:{1u,4u,16u})for(uint32_t frames:{1u,17u,256u})for(uint32_t mask=0;mask<8;++mask){

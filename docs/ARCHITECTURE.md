@@ -140,3 +140,5 @@ It captures only the dedicated helper's render stream on Windows build 20348+,
 never microphones or an unisolated endpoint mix. Reports stay in `build_reports/`.
 Device execution is unverified and reserved for the user; CI only compiles the
 helper and runs offline tests. See `tools/capture/README.md` for bounds and scope.
+
+Clock, function envelope and ladder have isolated ABI2 ports with per-voice state and exact ABI1 default references. Clock remains free-running; the existing filter stress functions also execute against ABI2 ladder through a test-only callback bridge.
