@@ -234,21 +234,21 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Direction/index | ID | Signal kind | Unpatched default | Source |
 |---|---|---|---|---|
-| input 0 | `control` | CV | UNKNOWN (engine buffer or process fallback not fully traced) | `native/modules/scale_offset/module.cpp:38-46`; `native/modules/scale_offset/module.json:1` |
+| input 0 | `control` | CV | null input pointer gives zero, output becomes offset (`native/modules/scale_offset/module.cpp:30-35`) | `native/modules/scale_offset/module.cpp:38-46`; `native/modules/scale_offset/module.json:1` |
 | output 0 | `control` | CV | n/a | `native/modules/scale_offset/module.cpp:38-46`; `native/modules/scale_offset/module.json:1` |
 
 **3. Parameters** (ID mapping: `module.json`; bounds/defaults/units: C++ descriptor).
 
 | Index | ID | Name | Min | Max | Default | Units/taper | Stepped | Source |
 |---|---|---|---:|---:|---:|---|---|---|
-| 0 | `scale` | scale | -2 | 2 | 1 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/scale_offset/module.cpp:38-46`; `native/modules/scale_offset/module.json:1` |
-| 1 | `offset` | offset | -1 | 1 | 0 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/scale_offset/module.cpp:38-46`; `native/modules/scale_offset/module.json:1` |
+| 0 | `scale` | scale | -2 | 2 | 1 | none / plain LinearRamp interpolation in DSP, not a nonlinear parameter taper (`native/modules/scale_offset/module.cpp:24-35`) | No integer/enum coercion: direct float `set` (`native/modules/scale_offset/module.cpp:24-29`) | `native/modules/scale_offset/module.cpp:38-46`; `native/modules/scale_offset/module.json:1` |
+| 1 | `offset` | offset | -1 | 1 | 0 | none / plain LinearRamp interpolation in DSP, not a nonlinear parameter taper (`native/modules/scale_offset/module.cpp:24-35`) | No integer/enum coercion: direct float `set` (`native/modules/scale_offset/module.cpp:24-29`) | `native/modules/scale_offset/module.cpp:38-46`; `native/modules/scale_offset/module.json:1` |
 
-**4. State.** Runtime state and reset/prepare/event/process implementation: `native/modules/scale_offset/module.cpp:1-37`. Extra serialized state/version beyond parameter values: **UNKNOWN (looked in native/modules/scale_offset/module.cpp, native/modules/scale_offset/module.json; patch document saving and loading not fully audited)**.
+**4. State.** Per-instance Scale and Offset ramps, reset snaps both to targets and prepare supplies sample rate (`native/modules/scale_offset/module.cpp:6-22`). No serialized DSP state callbacks in descriptor (`native/modules/scale_offset/module.cpp:42-44`); reader retains JSON bytes but does not interpret parameters (`native/document/document_reader.cpp:34-36,82-85`).
 
 **5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 differences **UNKNOWN** until port exists.
 
-**6. Port notes.** DSP, lifecycle and runtime assumptions: `native/modules/scale_offset/module.cpp:1-46`. Third-party dependencies, pinned revisions and licence: **UNKNOWN (looked in native/modules/scale_offset/module.cpp and native/modules/scale_offset/module.json; DESIGN.md not comprehensively audited)**. Process-time allocation, locks and mutable globals: **UNKNOWN (requires full audit)**.
+**6. Port notes.** Control output = `(input or 0)*scale.next()+offset.next()` per sample (`native/modules/scale_offset/module.cpp:30-36`); direct continuous values set by numeric ID, no rounding or nonlinear taper (`native/modules/scale_offset/module.cpp:24-29`). Loop has **no allocation, locks, I/O or mutable global** (`native/modules/scale_offset/module.cpp:30-36`); only create allocates (`native/modules/scale_offset/module.cpp:11-12`). Sample rate used to prepare ramps (`native/modules/scale_offset/module.cpp:18-22`). `native/modules/scale_offset/DESIGN.md` absent at inspected ref: third-party pinned source/licence **UNKNOWN** (looked there and `native/modules/scale_offset/module.cpp:1-3`).
 
 ## slew
 
