@@ -140,3 +140,5 @@ It captures only the dedicated helper's render stream on Windows build 20348+,
 never microphones or an unisolated endpoint mix. Reports stay in `build_reports/`.
 Device execution is unverified and reserved for the user; CI only compiles the
 helper and runs offline tests. See `tools/capture/README.md` for bounds and scope.
+
+Engine2 reports forward signal latency per output bus and feedback delay separately per SCC. Quiescent reconfiguration stages only the changed processor; untouched instances and compatible loop delay lines retain their state, with port-ID remapping committed after validation.
