@@ -8,6 +8,9 @@
 #include "../../modules2/adsr/dsp.h"
 #include "../../modules2/vca/dsp.h"
 #include <chrono>
+#include <cmath>
+#include <stdexcept>
+#include <vector>
 #include <cstdio>
 #include <memory>
 #include <string>

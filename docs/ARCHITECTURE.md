@@ -118,10 +118,13 @@ Manual real-device probes require explicit confirmation/authorization and are ne
 
 `linux-arm64` runs the headless native/ABI2 suites and ABI2 benchmark on PR updates and pushes to `main`.
 `windows-x64` runs MSVC/Qt 6.10.3 build, native tests and offscreen UI checks on main,
-manual runs, ready PRs, or draft PRs labelled `ci/windows`; label-triggered reruns apply only to `ci/windows`.
-`guard` runs as a dedicated `pull_request_target` workflow and evaluates PR changes with the base branch's `tools/ci/guard.py`.
+manual runs, ready PRs, or draft PRs labelled `ci/windows` (the label takes effect on the next push; label changes never start CI).
+`guard` runs as a dedicated `pull_request_target` workflow and evaluates PR changes with the base branch's `tools/ci/guard.py`, reading the PR's labels live so re-runs see current labels.
 PortAudio v19.7.0 is built at `147dd722548358763a8b649b3e4b41dfffbcfbb6`
 under its MIT licence (`LICENSE.txt` upstream); `WIRESCAPE_PORTAUDIO` locates the DLL.
 Summary JSON and ARM64 benchmark numbers are artifacts; full logs upload on failure.
 `guard` enforces protected paths, test retention, private/binary exclusions and portable paths.
 Protected CI changes require `allow-protected`; test removal requires `allow-test-removal`.
+
+ABI2 non-loop components write directly to global output buffers and alias compatible signal inputs; reductions, delays and loop spans retain prepared scratch buffers.
+The `sanitizers` job runs headless ASan+UBSan and TSan ABI2 suites on Linux ARM64, including bounded panic/egress stress, and appends callgrind Ir/block measurements to its summary.

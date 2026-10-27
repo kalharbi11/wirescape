@@ -15,5 +15,7 @@ int main(){
  ws2_signal_out out{sizeof(out),dst,1,0,16};
  ws2_process ctx{};ctx.struct_size=sizeof(ctx);ctx.frames=17;ctx.channels=4;ctx.sample_rate=48000;ctx.input_count=1;ctx.output_count=1;ctx.param_count=1;ctx.inputs=&in;ctx.params=&param;ctx.outputs=&out;
  REQUIRE(d->process(state,&ctx)==WS2_OK);REQUIRE(out.channels==4);REQUIRE(out.flags&WS2_CONSTANT);for(int c=0;c<4;++c)REQUIRE(data[c][0]==.25f);
+ ws2_memory memory{sizeof(memory),0,0,0};REQUIRE(d->memory_requirements(&cfg,&memory)==WS2_OK);REQUIRE(memory.fast_bytes>=2*sizeof(float)*cfg.max_block_frames);
+ host.alloc=[](void*,size_t,size_t,uint32_t)->void*{return nullptr;};REQUIRE(d->prepare(state,&cfg,&host)==WS2_INVALID);
  d->reset(state);d->destroy(state);std::puts("template callbacks passed");
 }
