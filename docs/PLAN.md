@@ -1,6 +1,6 @@
 # Wirescape plan
 
-Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-27 (after the progress review: release definitions, live session, portability probe).
+Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-27 (evening check-in: M2-1 to M2-4 reviewed, Track X added).
 
 ## Vision
 Wirescape is a raw, expandable modular environment for music. Its aims:
@@ -73,17 +73,16 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
   - a CHAOS rebuild from modules, using sst-* library blocks (GPL) as a subpatch with a panel; the study-case table is in `ABI2_PLAN.md` section 3
   - one Plaits or Braids port from pinned sources
 - **M8 Portability proofs** (B6): CLAP adapter (VST3 via clap-wrapper), Daisy static build, export bundle spec. Future: Python and Faust script modules, Serial, DMX (Art-Net/sACN).
+- **Track X: porting existing open-source instruments** (exploratory, never blocks M2; `docs/tasks/X_THIRD_PARTY_PORTS.md`). Studies now, by ChatGPT: X-1 Mutable Instruments Plaits (#51), X-2 CHAOS decomposed into Surge/sst-based modules (#52). Spikes (X-3 Plaits, X-4 the first Surge/sst primitive) come after the studies are reviewed and only when they don't compete with M2 for Codex time. Nothing merges before M2-R. The M7 instrument items build on what Track X learns.
 
 ## Current milestone: M2 (port and patch v2)
-Done: M0, M1 (except the M1-3b Windows gap), M1-2's harness and M2-0's tooling.
-1. **Codex, laptop:** M1-3b (#32) first (baselines, vectorizer report, fix), because M2-6 can't start without it.
-2. **Codex, Pi, in parallel with item 1:** M2-0b (#42), then finish the four open M2 drafts (#38 M2-1, #39 M2-2, #40 M2-3, #41 M2-4) with Pi evidence, then M2-5 (#28). Claude reviews each as it reaches `status/review`, and the user merges.
-3. **Copilot** runs the portability probe (#44) any time.
-4. **The user:** one real-device capture run (#43) now; later, the M2-L live session (#45) after M2-6.
-5. M2-6 (#29) once #32, #24, #25, #26 and #28 are merged. Then M2-L, then M2-R.
+Done: M0, M1 (except the M1-3b Windows gap), M1-2's harness, M2-0 and M2-0b. Reviewed and ready to merge: M2-1 (#38), M2-2 (#39), M2-3 (#40) and M2-4 (#41).
+1. **The user** merges #38 → #39 → #40 → #41. Each later one needs `main` merged in first (a `CMakeLists.txt` conflict); Codex or Claude does that.
+2. **Codex:** the queue in `docs/tasks/M2_PORT_AND_APP_ENGINE.md`: merge upkeep, M1-3b on the laptop (#32, now unblocked), M2-5 (#48), M2-4b (#49), M2-0c (#50), then M2-6.
+3. **ChatGPT:** the Track X studies (#51, #52).
+4. **Copilot:** the portability probe (#44).
+5. **The user:** answer the provenance question on #29, the real-device capture run (#43) and later the M2-L live session (#45).
 6. Track C (M4) stays closed until M2-R, except the Beta 0.8 MIDI pieces, which are planned after M3.
-
-**If a guard check is red after a label change:** re-running it is safe since #34 (the guard reads labels live).
 
 ## How work flows
 - **The board is GitHub Issues** (labels and milestones in `AGENTS.md`). Each issue points to a `docs/tasks/` file.
