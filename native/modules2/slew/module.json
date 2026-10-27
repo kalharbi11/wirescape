@@ -1,0 +1,19 @@
+{
+  "schema_version": 2,
+  "id": "essentials.slew",
+  "name": "Slew",
+  "abi_version": 2,
+  "library": "ws2_slew",
+  "description": "Linear rise and fall slew limiter",
+  "parameters": {
+    "rise": 0,
+    "fall": 1
+  },
+  "inputs": {
+    "control": "signal"
+  },
+  "outputs": {
+    "control": "signal"
+  },
+  "license": "GPL-3.0-only"
+}

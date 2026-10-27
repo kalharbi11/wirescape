@@ -66,7 +66,7 @@ event outputs, deterministic SCC/back-edge delays, transport context, bounded pr
 fake-clock conversion, panic/applied-generation acknowledgement and multichannel output buses.
 The fixed-storage allocator implements Rotate/Reuse/Reset/Mono, sustain and oldest stealing;
 MPE is a stub. Five SDK ports (VCO/LFO/VCF/ADSR/VCA) and notes-to-CV/rows test modules prove
-an offline eight-voice synth. A Ring Mod exercise tests the author guide.
+an offline eight-voice synth. Mixer, noise, output, scale/offset and slew also have SDK ports with exact default references, portable state and per-voice tests. The output port is a device-free signal node; the engine binds and mixes its voices into buses. A Ring Mod exercise tests the author guide.
 
 Finite release capacity uses reserved slots then emergency global reset/choke; unbounded lossless
 note-off delivery is not promised. PARAM_MOD currently targets explicit voice channels.
