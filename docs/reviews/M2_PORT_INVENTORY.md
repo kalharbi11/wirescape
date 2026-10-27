@@ -282,7 +282,7 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Direction/index | ID | Signal kind | Unpatched default | Source |
 |---|---|---|---|---|
-| input 0 | `audio` | audio | UNKNOWN (engine buffer or process fallback not fully traced) | `native/modules/vca/module.cpp:31-51`; `native/modules/vca/module.json:1` |
+| input 0 | `audio` | audio | unpatched audio 0 (`native/modules/vca/module.cpp:24-29`) | `native/modules/vca/module.cpp:31-51`; `native/modules/vca/module.json:1` |
 | input 1 | `gain_cv` | CV | unity (`native/modules/vca/module.cpp:24-30`) | `native/modules/vca/module.cpp:31-51`; `native/modules/vca/module.json:1` |
 | output 0 | `audio` | audio | n/a | `native/modules/vca/module.cpp:31-51`; `native/modules/vca/module.json:1` |
 
@@ -290,13 +290,22 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Index | ID | Name | Min | Max | Default | Units/taper | Stepped | Source |
 |---|---|---|---:|---:|---:|---|---|---|
-| 0 | `gain` | gain | 0 | 2 | 1 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/vca/module.cpp:31-51`; `native/modules/vca/module.json:1` |
+| 0 | `gain` | gain | 0 | 2 | 1 | none / plain linear gain target through LinearRamp; no DSP parameter taper (`native/modules/vca/module.cpp:18-29`) | No: raw float gain, no cast/rounding (`native/modules/vca/module.cpp:18-22`) | `native/modules/vca/module.cpp:31-51`; `native/modules/vca/module.json:1` |
 
-**4. State.** Runtime state and reset/prepare/event/process implementation: `native/modules/vca/module.cpp:1-30`. Extra serialized state/version beyond parameter values: **UNKNOWN (looked in native/modules/vca/module.cpp, native/modules/vca/module.json; patch document saving and loading not fully audited)**.
+**4. State.** Instance contains gain LinearRamp only; prepare uses sample rate, reset snaps ramp (`native/modules/vca/module.cpp:6-17`). No module-local save/load callback (`native/modules/vca/module.cpp:35-50`). Document reader retains patch bytes and parsed JSON object (`native/document/document_reader.cpp:34-36,50-51`); it does not export ramp internals.
 
-**5. ABI 2 status.** Ported. `native/modules2/vca/dsp.h:6-9`: IDs, order, gain range/default retained; poly/constant/SIMD implementation differs (**cosmetic** at interface, sound equivalence UNKNOWN) (`native/modules2/vca/dsp.h:11-19`; `native/modules/vca/module.cpp:24-34`). Classification **range/default change:** none found for retained parameters. Full behavioural equivalence **UNKNOWN**.
+**5. ABI 2 status.** Ported: stable module/port/parameter IDs, order and ranges/defaults (`native/modules/vca/module.cpp:31-50`; `native/modules2/vca/dsp.h:6-9`). ABI2 clarifies gain_cv default=1 and CV-unipolar hint; uses 16-voice SIMD and constant fast path (`native/modules2/vca/dsp.h:7,11-19`). **No ID-breaking or range/default changes observed; signal-kind descriptor changed (cosmetic)**. Bitwise sound equivalence UNKNOWN without test.
 
-**6. Port notes.** DSP, lifecycle and runtime assumptions: `native/modules/vca/module.cpp:1-51`. Third-party dependencies, pinned revisions and licence: **UNKNOWN (looked in native/modules/vca/module.cpp and native/modules/vca/module.json; DESIGN.md not comprehensively audited)**. Process-time allocation, locks and mutable globals: **UNKNOWN (requires full audit)**.
+**6. Port notes.** ABI1 `audio` null -> 0, `gain_cv` null -> 1, connected gain CV multiplies sample regardless of param (`native/modules/vca/module.cpp:24-29`); plain continuous gain ramp (`native/modules/vca/module.cpp:18-22`). `process` has **no allocation, locks, I/O or mutable globals** (`native/modules/vca/module.cpp:24-30`); allocation only in `create` (`native/modules/vca/module.cpp:9-10`). Sample rate supplied to ramp at prepare (`native/modules/vca/module.cpp:15-17`). `native/modules/vca/DESIGN.md` absent at inspected ref; third-party pin/licence UNKNOWN (inspected `native/modules/vca/module.cpp:1-4` and DESIGN.md path).
+
+**ABI 1 vs ABI 2 full interface (indices within direction):**
+
+| Element | ABI 1 ID/index/range/default | ABI 2 ID/index/range/default | Classification |
+|---|---|---|---|
+| Input audio | `audio` 0, WS_AUDIO, null=0 (`native/modules/vca/module.cpp:24-33`) | `audio` 0, WS2_AUDIO, unpatched 0 (`native/modules2/vca/dsp.h:7,11-18`) | identical |
+| Input gain CV | `gain_cv` 1, WS_CONTROL, null=1 (`native/modules/vca/module.cpp:24-33`) | `gain_cv` 1, WS2_CV_UNI, default 1 (`native/modules2/vca/dsp.h:7`) | identical ID/order; cosmetic hint |
+| Output audio | `audio` 0, WS_AUDIO (`native/modules/vca/module.cpp:31-33`) | `audio` 0, WS2_AUDIO (`native/modules2/vca/dsp.h:8`) | identical |
+| Gain | `gain` 0, 0..2 / 1 (`native/modules/vca/module.json:1`; `native/modules/vca/module.cpp:34`) | `gain` 0, 0..2 / 1 (`native/modules2/vca/dsp.h:9`) | identical |
 
 ## vcf
 
