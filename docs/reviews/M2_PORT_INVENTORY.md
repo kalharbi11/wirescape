@@ -356,13 +356,23 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Index | ID | Name | Min | Max | Default | Units/taper | Stepped | Source |
 |---|---|---|---:|---:|---:|---|---|---|
-| 0 | `frequency` | frequency | .01 | 20000 | 220 | Hz / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/vco/module.cpp:43-61`; `native/modules/vco/module.json:1` |
+| 0 | `frequency` | frequency | .01 | 20000 | 220 | Hz / raw frequency Hz LinearRamp, then Nyquist cap (no logarithmic module taper) (`native/modules/vco/module.cpp:24-38`) | No: continuous float from parameter or MIDI exponential note mapping (`native/modules/vco/module.cpp:24-31`) | `native/modules/vco/module.cpp:43-61`; `native/modules/vco/module.json:1` |
 
-**4. State.** Runtime state and reset/prepare/event/process implementation: `native/modules/vco/module.cpp:1-42`. Extra serialized state/version beyond parameter values: **UNKNOWN (looked in native/modules/vco/module.cpp, native/modules/vco/module.json; patch document saving and loading not fully audited)**.
+**4. State.** Per-instance `double` phase and sample rate, frequency LinearRamp; reset zeroes phase and snaps ramp (`native/modules/vco/module.cpp:8-22`). No state save callback in module descriptor (`native/modules/vco/module.cpp:45-60`); document inspector retains JSON object and original bytes but does not capture oscillator phase (`native/document/document_reader.cpp:34-36,50-51,82-85`).
 
-**5. ABI 2 status.** Ported. `native/modules2/vco/dsp.h:6-11`: existing frequency and audio output retained; new pitch, FM and notes inputs (**ID-breaking** port layout). Frequency mode, note handling and polyphony differ (`native/modules2/vco/dsp.h:20-30`; `native/modules/vco/module.cpp:24-44`). Classification **range/default change:** none found for retained parameters. Full behavioural equivalence **UNKNOWN**.
+**5. ABI 2 status.** Ported, existing output `audio` and frequency ID 0/range/default retained (`native/modules/vco/module.cpp:43-60`; `native/modules2/vco/dsp.h:6-11`). Added pitch, FM and notes inputs; ABI 2 supports 16 channel phases and event/choke semantics (`native/modules2/vco/dsp.h:12-31`) while ABI 1 takes note event value and directly jumps smoothed frequency (`native/modules/vco/module.cpp:24-31`). Additions are **added** rather than numerically ID-breaking where source uses string port IDs. Full behaviour equivalence UNKNOWN.
 
-**6. Port notes.** DSP, lifecycle and runtime assumptions: `native/modules/vco/module.cpp:1-61`. Third-party dependencies, pinned revisions and licence: **UNKNOWN (looked in native/modules/vco/module.cpp and native/modules/vco/module.json; DESIGN.md not comprehensively audited)**. Process-time allocation, locks and mutable globals: **UNKNOWN (requires full audit)**.
+**6. Port notes.** ABI1 produces `sin(double_phase)` and increments phase by `tau*min(frequency, 0.49*sample_rate)/sample_rate`; note-on maps MIDI value to `440*2^((note-69)/12)` (`native/modules/vco/module.cpp:24-42`). No audio input port (`native/modules/vco/module.cpp:43-54`). No `new`, locks, file/device I/O or mutable globals in process (`native/modules/vco/module.cpp:33-42`); `new` only in create (`native/modules/vco/module.cpp:12-13`). Prepare sets rate and ramp (`native/modules/vco/module.cpp:18-22`). `native/modules/vco/DESIGN.md` absent at inspected ref; third-party pinned source and licence UNKNOWN (looked at DESIGN.md and `native/modules/vco/module.cpp:1-5`).
+
+**ABI1 vs ABI2 full interface (per-direction indices):**
+
+| Element | ABI 1 ID/index/range/default | ABI 2 ID/index/range/default | Classification |
+|---|---|---|---|
+| Input pitch | none (`native/modules/vco/module.cpp:45-54`) | `pitch` 0 WS2_PITCH (`native/modules2/vco/dsp.h:7-9`) | added |
+| Input FM | none (`native/modules/vco/module.cpp:45-54`) | `fm` 1 WS2_AUDIO (`native/modules2/vco/dsp.h:7-9`) | added |
+| Input notes | none (`native/modules/vco/module.cpp:45-54`) | `notes` 2 WS2_EV_NOTES event (`native/modules2/vco/dsp.h:7-9`) | added |
+| Output audio | `audio` 0 WS_AUDIO (`native/modules/vco/module.cpp:43`) | `audio` 0 WS2_AUDIO (`native/modules2/vco/dsp.h:10`) | identical |
+| Frequency | `frequency` 0, .01..20000 / 220 Hz (`native/modules/vco/module.json:1`; `native/modules/vco/module.cpp:44`) | `frequency` 0, .01..20000 / 220 Hz (`native/modules2/vco/dsp.h:11`) | identical |
 
 ## Summary
 
