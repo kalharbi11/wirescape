@@ -258,21 +258,21 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Direction/index | ID | Signal kind | Unpatched default | Source |
 |---|---|---|---|---|
-| input 0 | `control` | CV | UNKNOWN (engine buffer or process fallback not fully traced) | `native/modules/slew/module.cpp:56-62`; `native/modules/slew/module.json:1` |
+| input 0 | `control` | CV | null input pointer means 0 target; slew toward zero from current level (no instant reset) (`native/modules/slew/module.cpp:37-53`) | `native/modules/slew/module.cpp:56-62`; `native/modules/slew/module.json:1` |
 | output 0 | `control` | CV | n/a | `native/modules/slew/module.cpp:56-62`; `native/modules/slew/module.json:1` |
 
 **3. Parameters** (ID mapping: `module.json`; bounds/defaults/units: C++ descriptor).
 
 | Index | ID | Name | Min | Max | Default | Units/taper | Stepped | Source |
 |---|---|---|---:|---:|---:|---|---|---|
-| 0 | `rise` | rise | 0 | 10 | .1 | s/unit / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/slew/module.cpp:56-62`; `native/modules/slew/module.json:1` |
-| 1 | `fall` | fall | 0 | 10 | .1 | s/unit / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/slew/module.cpp:56-62`; `native/modules/slew/module.json:1` |
+| 0 | `rise` | rise | 0 | 10 | .1 | s/unit / plain seconds/unit, linear output slew; no logarithmic parameter mapping (`native/modules/slew/module.cpp:30-35,44-50`) | No, accepts finite continuous 0..10 directly (`native/modules/slew/module.cpp:30-36`) | `native/modules/slew/module.cpp:56-62`; `native/modules/slew/module.json:1` |
+| 1 | `fall` | fall | 0 | 10 | .1 | s/unit / plain seconds/unit, linear output slew; no logarithmic parameter mapping (`native/modules/slew/module.cpp:30-35,44-50`) | No, accepts finite continuous 0..10 directly (`native/modules/slew/module.cpp:30-36`) | `native/modules/slew/module.cpp:56-62`; `native/modules/slew/module.json:1` |
 
-**4. State.** Runtime state and reset/prepare/event/process implementation: `native/modules/slew/module.cpp:1-55`. Extra serialized state/version beyond parameter values: **UNKNOWN (looked in native/modules/slew/module.cpp, native/modules/slew/module.json; patch document saving and loading not fully audited)**.
+**4. State.** Instance double level (held value), sample rate, rise/fall time, max frame count (`native/modules/slew/module.cpp:21-29`). `reset` sets held value to zero but retains parameter times (`native/modules/slew/module.cpp:29-36`). No per-module save callbacks (`native/modules/slew/module.cpp:59-61`); inspector preserves original JSON (`native/document/document_reader.cpp:34-36,50-51`) without capturing current held level.
 
 **5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 differences **UNKNOWN** until port exists.
 
-**6. Port notes.** DSP, lifecycle and runtime assumptions: `native/modules/slew/module.cpp:1-62`. Third-party dependencies, pinned revisions and licence: **UNKNOWN (looked in native/modules/slew/module.cpp and native/modules/slew/module.json; DESIGN.md not comprehensively audited)**. Process-time allocation, locks and mutable globals: **UNKNOWN (requires full audit)**.
+**6. Port notes.** Linear per-unit slew with step `1/(T*sample_rate)` and no overshoot; `T=0` snaps to input, NaN/Inf holds previous output (`native/modules/slew/module.cpp:37-55`; `native/modules/slew/DESIGN.md:3-5`). `prepare` validates sample rate 1..384000 Hz (`native/modules/slew/module.cpp:11-15,24-28`). No process-time allocation, locks, I/O or mutable globals (`native/modules/slew/module.cpp:37-55`); only create uses new (`native/modules/slew/module.cpp:22-23`). `DESIGN.md` reports original implementation, no third-party DSP / revision, inherited GPLv3 ramp contract (`native/modules/slew/DESIGN.md:7-13`).
 
 ## vca
 
