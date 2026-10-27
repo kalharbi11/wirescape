@@ -4,13 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+    # No label events: a label-triggered run that skips the native jobs hides the required
+    # linux-arm64/windows-x64 results. ci/windows takes effect on the next push.
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   native:
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled') || github.event.label.name == 'ci/windows'
     name: ${{ matrix.os }}
     strategy:
       fail-fast: false
