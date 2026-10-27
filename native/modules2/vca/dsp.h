@@ -16,8 +16,16 @@ struct Vca {
         b.out(0).set_channels(b.channels());b.out(0).mark_constant(constant);
         const uint32_t count=constant?1:b.frames();
         for(uint32_t c=0;c<b.channels();++c){
-            const float*audio=b.in(0).row(c,scratch,count),*cv=b.in(1).row(c,scratch+stride,count),*gain=b.param(0).row(c,scratch+2*stride,count);
+            const float*audio=b.in(0).row(c,scratch,count);
             float*out=b.out(0).ch(c);uint32_t i=0;
+            if(b.in(1).constant()&&b.param(0).constant()){
+                const float cv=b.in(1).value(c),gain=b.param(0).value(c);
+                const ws::simd::f4 cv4(cv),gain4(gain);
+                for(;i+4<=count;i+=4)(ws::simd::f4::load(audio+i)*cv4*gain4).store(out+i);
+                for(;i<count;++i)out[i]=audio[i]*cv*gain;
+                continue;
+            }
+            const float*cv=b.in(1).row(c,scratch+stride,count),*gain=b.param(0).row(c,scratch+2*stride,count);
             for(;i+4<=count;i+=4)(ws::simd::f4::load(audio+i)*ws::simd::f4::load(cv+i)*ws::simd::f4::load(gain+i)).store(out+i);
             for(;i<count;++i)out[i]=audio[i]*cv[i]*gain[i];
         }

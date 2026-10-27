@@ -32,6 +32,24 @@ static void matrix(){
  guard->input[0][0][0]=std::numeric_limits<float>::quiet_NaN();VERIFY(guard->d->process(guard->state,&guard->process)==WS2_INVALID);VERIFY(guard->outs[0].flags&WS2_CONSTANT);VERIFY(guard->output[0][0][0]==0);
  std::puts("PASS 135 DSP matrix cases, reset/determinism, scalar VCA, VCF counter, nullable/stop/locate transport");
 }
+static void vca_broadcast(){
+ for(uint32_t frames:{1u,4u,17u,256u}){
+  auto f=std::make_unique<DspFixture>(descriptors[4],48000,4);
+  f->ins[1].flags=WS2_CONNECTED|WS2_CONSTANT;f->pars[0].flags=WS2_CONSTANT;f->pars[0].channels=4;
+  for(uint32_t c=0;c<4;++c){
+   std::fill_n(f->input[1][c],256,std::numeric_limits<float>::quiet_NaN());
+   std::fill_n(f->parameter[0][c],256,std::numeric_limits<float>::quiet_NaN());
+   f->input[1][c][0]=-.75f+.1f*c;f->parameter[0][c][0]=.25f+.125f*c;
+   for(uint32_t i=0;i<frames;++i)f->input[0][c][i]=(i&1)?-0.f:.125f*(i%5);
+  }
+  f->run(frames);
+  for(uint32_t c=0;c<4;++c)for(uint32_t i=0;i<frames;++i){
+   const float expected=(f->input[0][c][i]*f->input[1][c][0])*f->parameter[0][c][0];
+   VERIFY(!std::memcmp(&expected,&f->output[0][c][i],sizeof(float)));
+  }
+ }
+ std::puts("PASS VCA constant broadcast ignores undefined tails and preserves signed-zero bits");
+}
 static void vca_exact(){
  for(double rate:{44100.,48000.,96000.})for(uint32_t channels:{1u,4u,16u})for(uint32_t frames:{1u,17u,256u})for(uint32_t mask=0;mask<8;++mask){
   auto f=std::make_unique<DspFixture>(descriptors[4],rate,channels);f->ins[0].flags=WS2_CONNECTED|((mask&1)?WS2_CONSTANT:0);f->ins[1].flags=WS2_CONNECTED|((mask&2)?WS2_CONSTANT:0);f->pars[0].flags=(mask&4)?WS2_CONSTANT:0;
@@ -64,7 +82,7 @@ static void equivalence(const char*directory,const char*report){
 }
 static void noalloc(){for(auto*d:descriptors){auto f=std::make_unique<DspFixture>(d,48000,16);allocation_watch::Scope watch;for(int i=0;i<16;++i){f->run(17);f->reset();}VERIFY(watch.allocations()==0);}std::puts("PASS zero new/new[]/aligned-new in static SDK/DSP process/reset");}
 #endif
-int main(int argc,char**argv){matrix();vca_exact();
+int main(int argc,char**argv){matrix();vca_exact();vca_broadcast();
 #ifndef WS2_PORTABLE_TEST
  noalloc();if(argc==3)equivalence(argv[1],argv[2]);
 #endif
