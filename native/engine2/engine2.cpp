@@ -385,7 +385,7 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         return channel<buffer.channels?buffer.data[channel][(buffer.flags&WS2_CONSTANT)?0:start+i]:0.f;
     };
     uint32_t channels=n.forced_channels>0?static_cast<uint32_t>(n.forced_channels):1;
-    if(!n.legacy)for(const auto*edge:n.signal_edges){const auto&e=*edge;if(e.kind==2||n.inputs[e.input].poly==WS2_POLY)channels=std::max(channels,raw_channels(e));}
+    if(!n.legacy)for(const auto*edge:n.signal_edges){const auto&e=*edge;if(e.kind==2?(n.parameters[e.input].flags&WS2_PER_VOICE)!=0:n.inputs[e.input].poly==WS2_POLY)channels=std::max(channels,raw_channels(e));}
     channels=std::min(channels,cfg.max_channels);n.channels=channels;
     for(uint32_t j=0;j<n.inputs.size();++j){
         const auto&port=n.inputs[j];auto&buffer=n.in[j];const Edge*source=nullptr;
@@ -413,7 +413,7 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         for(uint32_t c=1;c<channels;++c)poly|=p.offset[c]!=p.offset[0];
         for(const auto*edge:n.modulation[j]){const auto&e=*edge;poly|=raw_channels(e)>1;constant&=!e.back&&(e.source->global_out[e.output].flags&WS2_CONSTANT);}
         for(const auto&e:n.events)if((e.type==WS2_PARAM||e.type==WS2_PARAM_MOD)&&e.index==j){constant=false;if(e.type==WS2_PARAM_MOD&&e.channel>=0)poly=true;}
-        buffer.channels=poly?channels:1;buffer.flags=constant?WS2_CONSTANT:0;
+        buffer.channels=(poly&&(p.info.flags&WS2_PER_VOICE))?channels:1;buffer.flags=constant?WS2_CONSTANT:0;
         uint32_t cursor=0;const uint32_t length=constant?1:frames;
         const bool modulated=!n.modulation[j].empty();
         if(modulated)for(uint32_t c=0;c<buffer.channels;++c){

@@ -95,7 +95,7 @@ struct ParamProbe {
  static constexpr ws::Info info{"test.param","Parameter",1};
  static constexpr std::array<ws2_port,0>inputs{};
  static constexpr std::array outputs{ws::port("out","Out")};
- static constexpr std::array params{ws::param("value","Value",1,100,10,"",WS2_MODULATABLE,WS2_LOG)};
+ static constexpr std::array params{ws::param("value","Value",1,100,10,"",WS2_MODULATABLE|WS2_PER_VOICE,WS2_LOG)};
  void prepare(const ws::Setup&){}void reset(){}
  void process(ws::Block&b){b.out(0).set_channels(b.channels());b.out(0).mark_constant(b.param(0).constant());for(uint32_t c=0;c<b.channels();++c)for(uint32_t i=0;i<(b.param(0).constant()?1u:b.frames());++i)b.out(0).ch(c)[i]=b.param(0).value(c,i);}
 };
@@ -168,6 +168,16 @@ static void producer_stress(){
  std::atomic<int>done{0};for(uint32_t p=0;p<3;++p)threads[p]=std::thread([&,p](){for(int i=0;i<100;++i)CHECK(e.enqueue(p,1,WS2_DIRECT_PORT,event(WS2_PARAM,.5f),0,Timing::Immediate)==WS2_OK);++done;});
  while(done.load()!=3){render(e,48);std::this_thread::yield();}for(auto&t:threads)t.join();render(e,48);CHECK(e.meter().faults==0);
 }
+struct GlobalParamProbe:ParamProbe {
+ static constexpr std::array params{ws::param("value","Value",1,100,10,"",WS2_MODULATABLE,WS2_LOG)};
+ void process(ws::Block&b){CHECK(b.param(0).channels()==1);ParamProbe::process(b);}
+};
+static void parameter_channels(){
+ Engine e;CHECK(e.add_node(1,ws::Module<ws2ports::Lfo>::descriptor()));CHECK(e.add_node(2,ws::Module<GlobalParamProbe>::descriptor()));CHECK(e.add_node(3,ws::Module<ParamProbe>::descriptor()));CHECK(e.set_channels(1,4));CHECK(e.modulate(1,0,2,0,.25f));CHECK(e.modulate(1,0,3,0,.25f));CHECK(e.register_producer()==0);CHECK(e.prepare());
+ auto offset=event(WS2_PARAM_MOD,.2f);offset.channel=1;CHECK(e.enqueue(0,1,WS2_DIRECT_PORT,offset,0)==WS2_OK);render(e);
+ CHECK(e.output_channels(2,0)==1);CHECK(e.output_channels(3,0)==4);CHECK(e.output_sample(3,0,0,17)!=e.output_sample(3,0,1,17));
+ for(uint32_t i=0;i<256;++i){float expected=static_cast<float>(ws::to_plain(GlobalParamProbe::params[0],.5+double(.25f*e.output_sample(1,0,0,i))));CHECK(e.output_sample(2,0,0,i)==expected);}
+}
 static void modulation_spans(){
  Engine e;CHECK(e.add_node(1,ws::Module<ws2ports::Lfo>::descriptor()));CHECK(e.add_node(2,ws::Module<Source>::descriptor()));CHECK(e.add_node(3,ws::Module<ParamProbe>::descriptor()));CHECK(e.modulate(1,0,3,0,.2f));CHECK(e.modulate(2,0,3,0,.125f));CHECK(e.prepare());
  for(uint32_t frames:{1u,17u,256u}){render(e,frames);for(uint32_t i=0;i<frames;++i){
@@ -192,7 +202,7 @@ int main(){
  {std::thread warm([](){});warm.join();}
  _CrtMemState before{},after{},difference{};_CrtMemCheckpoint(&before);
 #endif
- modulation_spans();producer_validation();zero_copy();cached_taper<WS2_LINEAR>();cached_taper<WS2_LOG>();cached_taper<WS2_EXP>();signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
+ parameter_channels();modulation_spans();producer_validation();zero_copy();cached_taper<WS2_LINEAR>();cached_taper<WS2_LOG>();cached_taper<WS2_EXP>();signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
 #if defined(_MSC_VER)&&defined(_DEBUG)
  CHECK(_CrtCheckMemory());_CrtMemCheckpoint(&after);if(_CrtMemDifference(&difference,&before,&after)){
   std::fprintf(stderr,"Debug CRT normal blocks %zu -> %zu, bytes %zu -> %zu; client blocks %zu -> %zu\n",before.lCounts[_NORMAL_BLOCK],after.lCounts[_NORMAL_BLOCK],before.lSizes[_NORMAL_BLOCK],after.lSizes[_NORMAL_BLOCK],before.lCounts[_CLIENT_BLOCK],after.lCounts[_CLIENT_BLOCK]);return 1;
