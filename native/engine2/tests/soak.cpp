@@ -94,7 +94,7 @@ static bool run(const Options&o){
  for(int i=0;i<256;++i)render();
  double period=1e9*o.block/o.rate;size_t late=0;auto start=Clock::now();
  for(size_t i=0;i<count;++i){
-  auto before=Clock::now();auto cpu_before=thread_cpu_ns();render();auto cpu_after=thread_cpu_ns();auto after=Clock::now();
+  auto cpu_before=thread_cpu_ns();auto before=Clock::now();render();auto after=Clock::now();auto cpu_after=thread_cpu_ns();
   times[i]=std::chrono::duration<double,std::nano>(after-before).count();
   cpu_times[i]=double(cpu_after-cpu_before);
   for(float sample:buffer){require(std::isfinite(sample));peak=std::max(peak,double(std::abs(sample)));}
