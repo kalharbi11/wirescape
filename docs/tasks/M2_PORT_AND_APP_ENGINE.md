@@ -186,7 +186,8 @@ Updated 2026-10-27 (evening check-in). Done and reviewed: M2-0b (#42), M2-1 (PR 
 | 3 | #28 M2-5 patch v2 and lossless v1 migration (draft PR #48; CI is red). Make CI green, finish, add Pi evidence | none | Pi |
 | 4 | #49 M2-4b CV coverage for the eight new ports | #39 and #40 merged | Pi |
 | 5 | #50 M2-0c soak: thread CPU time vs wall time (is the 4 ms tail preemption?) | none; never at the same time as another Pi run | Pi |
-| 6 | #29 M2-6 engine2 becomes the app engine | #32, #24, #25, #26, #28 merged | Pi + laptop |
+| 6 | #56 M2-Pa `uint32_t` literal fix so all modules compile for Cortex-M7, then make the portability probe blocking | #39, #40 and PR #55 merged | cloud |
+| 7 | #29 M2-6 engine2 becomes the app engine | #32, #24, #25, #26, #28 merged | Pi + laptop |
 
 Rules for the queue:
 - Every PR ends with the "Machine evidence" comment from the Machines section. Run the Pi work while CI runs, so it doesn't add wall time. Never run two Pi benchmarks or soaks at once.

@@ -59,7 +59,7 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
   - [ ] M2-4 Behaviour regressions for the five ports, per-module CV (issue #27, size/m)
   - [ ] M2-5 Patch v2 and lossless v1 migration (issue #28, size/l)
   - [ ] M2-6 engine2 becomes the app engine (issue #29, size/l)
-  - [ ] M2-P Portability compile probe for a Daisy-class target (issue #44, Copilot, report only)
+  - [ ] M2-P Portability compile probe for a Daisy-class target (issue #44, PR #55, report only), then the fix (#56)
   - [ ] M2-L The user's 30–60 minute live session on the engine2 app (issue #45). Gate for M2-R
   - [ ] M2-R Claude milestone review
 - **M3 UI for the contract** (B5): poly cables, modulation drag-to-knob with an amount on the cable, base and modulation rings, back-edge markers, stereo pairs. → **Preview 0.7** (a patching preview, not yet an instrument) when M3 is green and an M2-L-style live session passes on it.
@@ -80,7 +80,7 @@ Done: M0, M1 (except the M1-3b Windows gap), M1-2's harness, M2-0 and M2-0b. Rev
 1. **The user** merges #38 → #39 → #40 → #41. Each later one needs `main` merged in first (a `CMakeLists.txt` conflict); Codex or Claude does that.
 2. **Codex:** the queue in `docs/tasks/M2_PORT_AND_APP_ENGINE.md`: merge upkeep, M1-3b on the laptop (#32, now unblocked), M2-5 (#48), M2-4b (#49), M2-0c (#50), then M2-6.
 3. **ChatGPT:** the Track X studies (#51, #52).
-4. **Copilot:** the portability probe (#44).
+4. **Portability probe** (#44): done by Claude in PR #55. All five ports compile for Cortex-M7 (with and without exceptions/RTTI) once one `uint32_t` literal issue is fixed (#56, Codex).
 5. **The user:** answer the provenance question on #29, the real-device capture run (#43) and later the M2-L live session (#45).
 6. Track C (M4) stays closed until M2-R, except the Beta 0.8 MIDI pieces, which are planned after M3.
 
