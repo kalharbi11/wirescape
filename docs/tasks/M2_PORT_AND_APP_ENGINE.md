@@ -177,21 +177,22 @@ The `windows-x64` runner measured ABI 2/ABI 1 mono at 1.097×. Every other measu
 ## Codex continuous queue (run in this order; don't wait for review between tasks)
 Codex runs this list top to bottom in one long session. Open one draft PR per issue, post a handoff on each issue when it's done, set `status/review` and move straight on to the next item. **Never merge.** When an item's prerequisite isn't merged yet, skip it (post a one-line "waiting on #N" handoff) and take the next one; come back when it's merged.
 
+Updated 2026-10-27 (evening check-in). Done and reviewed: M2-0b (#42), M2-1 (PR #38), M2-2 (PR #39), M2-3 (PR #40) and M2-4 (PR #41), all accepted by Claude and waiting for the user to merge in that order.
+
 | # | Item | Prerequisite | Machine |
 |---|---|---|---|
-| 1 | #32 M1-3b Windows mono gap (PR #37 has the Ir gate). Top priority: it's the M2-6 blocker. Its laptop measurements can run while the Pi works on items 2–7 | none | **laptop** + CI |
-| 2 | #42 M2-0b Pi soak re-run on post-M1-3 `main` (no PR) | none | Pi |
-| 3 | #24 M2-1 per-bus latency and staged reconfigure (PR #38) | — | Pi |
-| 4 | #25 M2-2 utility ports (PR #39) | — | Pi |
-| 5 | #26 M2-3 stateful ports (PR #40) | — | Pi |
-| 6 | #27 M2-4 regressions and per-module CV (PR #41); after #39 and #40 merge, extend CV coverage to the eight new ports in a follow-up commit or PR | — | Pi |
-| 7 | #28 M2-5 patch v2 and lossless v1 migration | — | Pi |
-| 8 | #29 M2-6 engine2 becomes the app engine | #32, #24, #25, #26, #28 merged | Pi + laptop |
+| 1 | **Merge upkeep for #39, #40 and #41.** Every pair conflicts only in `native/engine2/CMakeLists.txt` (plus the shared harness files for #39/#40). As soon as the PR ahead of it is merged, merge `main` into the next one (merge commit), keep both sides' test registrations, run `python tools/dev.py test`, push and confirm CI is green. Skip any that the user or Claude already updated | the previous PR in the order #38 → #39 → #40 → #41 merged | cloud |
+| 2 | #32 M1-3b Windows mono gap (PR #37). The baseline is complete: the three CI ratios (1.083/1.168/1.094) are posted on #32 and the laptop measured 1.164. Diagnose with `/Qvec-report:2` and per-probe medians, then up to two measured fixes. The M2-6 blocker | none | **laptop** + CI |
+| 3 | #28 M2-5 patch v2 and lossless v1 migration (draft PR #48; CI is red). Make CI green, finish, add Pi evidence | none | Pi |
+| 4 | #49 M2-4b CV coverage for the eight new ports: **moved to Copilot** (CI is enough proof); Codex skips it | — | — |
+| 5 | #50 M2-0c soak: thread CPU time vs wall time (is the 4 ms tail preemption?) | none; never at the same time as another Pi run | Pi |
+| 6 | #56 M2-Pa `uint32_t` literal fix so all modules compile for Cortex-M7, then make the portability probe blocking: **moved to Copilot**; Codex skips it | — | — |
+| 7 | #29 M2-6 engine2 becomes the app engine | #32, #24, #25, #26, #28 merged | Pi + laptop |
 
 Rules for the queue:
 - Every PR ends with the "Machine evidence" comment from the Machines section. Run the Pi work while CI runs, so it doesn't add wall time. Never run two Pi benchmarks or soaks at once.
 - Never benchmark on the laptop while a build or test runs there; the laptop and the Pi may work at the same time.
-- Items 3–6 already have draft PRs. Finish each (all commits, CI green, machine evidence, handoff, `status/review`) before starting item 7.
+- Items 1–3 can run at the same time on different machines. Item 2 runs only on the laptop.
 - Each item branches from the latest `main`. If an earlier item touches the same CMake list or test registry and merges first, merge `main` into your branch (merge commit, no rebase).
 - Run `python tools/dev.py test` before every final push. The final push of each PR runs CI; WIP pushes may use `[skip ci]`.
 - If a PR gets review comments from Claude while you're on a later item, finish your current commit, fix the comments on the earlier branch, push and return.
