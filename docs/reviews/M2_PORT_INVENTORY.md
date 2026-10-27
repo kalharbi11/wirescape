@@ -374,29 +374,37 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 | Output audio | `audio` 0 WS_AUDIO (`native/modules/vco/module.cpp:43`) | `audio` 0 WS2_AUDIO (`native/modules2/vco/dsp.h:10`) | identical |
 | Frequency | `frequency` 0, .01..20000 / 220 Hz (`native/modules/vco/module.json:1`; `native/modules/vco/module.cpp:44`) | `frequency` 0, .01..20000 / 220 Hz (`native/modules2/vco/dsp.h:11`) | identical |
 
+## Native patch v1 document representation (reader evidence)
+
+- Recognized native patch shape is `format: "wirescape.native.patch"`, integer `version: 1` (`native/document/document_reader.cpp:52-59`); top-level `modules` and `connections` must be arrays; native `name` is a string and `outputNode` is a nonnegative integer (`native/document/document_reader.cpp:67-71`).
+- Every native module entry must be an object with positive **numeric node `id`** and non-empty **string `type`** (the module's type ID); numeric node IDs must be unique (`native/document/document_reader.cpp:73-81`). The inspector **does not interpret** parameter values, state or coordinates (`native/document/document_reader.cpp:82-85`). In particular, **parameter key representation is UNKNOWN from this reader alone**; inspect the producer, consumer and stored native patch fixture to establish whether the JSON `parameters` object uses numeric-string keys (e.g. `"0"`) or semantic names.
+- Each native cable uses integer `fromNode` and `toNode` **node IDs**, nonempty **string `fromPort` and `toPort` port IDs**, and nonempty string `kind` (`native/document/document_reader.cpp:86-92`). It does **not** use numeric port indices in this native v1 schema. Legacy cables are instead `module:port` strings in `from` and `to` (`native/document/document_reader.cpp:19-25,93-95`). Consequently new ABI 2 input ports are **additions**, not automatically numeric-index collisions; semantic patch mapping and defaults still require verification.
+- Unknown fields: `inspect()` stores **unmodified original bytes** and the entire parsed top-level `QJsonObject` (`native/document/document_reader.cpp:34-36,45-51`); it explicitly avoids interpreting fields not required for identity/structure (`native/document/document_reader.cpp:82-85`). For unknown formats/versions it retains the bytes and returns without parsing the schema (`native/document/document_reader.cpp:60-65`). **Re-emission with unknown fields preserved is UNKNOWN** (this reader never writes documents; inspect writer/export/import pipeline). The reader saves legacy `sequence` and `module_state` fields separately, but only on non-native formats (`native/document/document_reader.cpp:82-85`).
+- This is a **structure inspection**, not successful native graph import: diagnostic explicitly says full graph validation remains (`native/document/document_reader.cpp:97-99`). No inspector code serializes live module-private phase, filter poles or RNG (`native/document/document_reader.cpp:73-85`).
+
 ## Summary
 
-| Module | ABI 2 ported? | ID-breaking difference | Risk (planning) | Source |
-|---|---|---|---|---|
-| adsr | Yes | New gate/notes ports | high | `native/modules/adsr/module.json:1`; `native/modules2/adsr/dsp.h:5-15` |
-| clock | No (named set) | UNKNOWN | high | `native/modules/clock/module.json:1` |
-| function_envelope | No (named set) | UNKNOWN | med | `native/modules/function_envelope/module.json:1` |
-| ladder | No (named set) | UNKNOWN | high | `native/modules/ladder/module.json:1` |
-| lfo | Yes | New sync/beats parameters | high | `native/modules/lfo/module.json:1`; `native/modules2/lfo/dsp.h:5-15` |
-| mixer | No (named set) | UNKNOWN | med | `native/modules/mixer/module.json:1` |
-| noise | No (named set) | UNKNOWN | high | `native/modules/noise/module.json:1` |
-| output | No (named set) | UNKNOWN | med | `native/modules/output/module.json:1` |
-| scale_offset | No (named set) | UNKNOWN | med | `native/modules/scale_offset/module.json:1` |
-| slew | No (named set) | UNKNOWN | med | `native/modules/slew/module.json:1` |
-| vca | Yes | None found | med | `native/modules/vca/module.json:1`; `native/modules2/vca/dsp.h:5-15` |
-| vcf | Yes | None found | med | `native/modules/vcf/module.json:1`; `native/modules2/vcf/dsp.h:5-15` |
-| vco | Yes | New pitch/FM/notes ports | high | `native/modules/vco/module.json:1`; `native/modules2/vco/dsp.h:5-15` |
+| Module | ABI 2 ported? | Changes to existing IDs | Added ABI 2 interface | Risk (planning) | Evidence |
+|---|---|---|---|---|---|
+| adsr | yes | none identified | gate input, notes event input | high | `native/modules/adsr/module.cpp:94-108`; `native/modules2/adsr/dsp.h:6-10` |
+| clock | no in reviewed ABI2 set | n/a | not ported | high | `native/modules/clock/module.cpp:67-73` |
+| function_envelope | no in reviewed ABI2 set | n/a | not ported | med | `native/modules/function_envelope/module.cpp:74-80` |
+| ladder | no in reviewed ABI2 set | n/a | not ported | high | `native/modules/ladder/module.cpp:85-90` |
+| lfo | yes | none identified | sync and beats parameters | high | `native/modules/lfo/module.cpp:53-59`; `native/modules2/lfo/dsp.h:6-15` |
+| mixer | no in reviewed ABI2 set | n/a | not ported | med | `native/modules/mixer/module.cpp:62-90` |
+| noise | no in reviewed ABI2 set | n/a | not ported | high | `native/modules/noise/module.cpp:49-54` |
+| output | no in reviewed ABI2 set | n/a | not ported | med | `native/modules/output/module.cpp:15-32` |
+| scale_offset | no in reviewed ABI2 set | n/a | not ported | med | `native/modules/scale_offset/module.cpp:38-44` |
+| slew | no in reviewed ABI2 set | n/a | not ported | med | `native/modules/slew/module.cpp:56-61` |
+| vca | yes | none identified | none | med | `native/modules/vca/module.cpp:31-50`; `native/modules2/vca/dsp.h:6-9` |
+| vcf | yes | none identified | none; log taper descriptor | med | `native/modules/vcf/module.cpp:85-90`; `native/modules2/vcf/dsp.h:6-10` |
+| vco | yes | none identified | pitch/FM/notes inputs | high | `native/modules/vco/module.cpp:43-60`; `native/modules2/vco/dsp.h:6-11` |
 
 ## Open questions for Claude
 
-1. Confirm how new ADSR gate/notes and VCO pitch/FM/notes ports map from numeric ABI 1 connections into stable string IDs (`native/modules/adsr/module.cpp:94-108`; `native/modules2/adsr/dsp.h:7-10`; `native/modules/vco/module.cpp:43-52`; `native/modules2/vco/dsp.h:7-11`).
-2. How should LFO sync/beats be defaulted for migrated patches? (`native/modules/lfo/module.cpp:54-60`; `native/modules2/lfo/dsp.h:10-15`).
-3. Where exactly does `native/document/` persist unknown patch fields and module-private state? UNKNOWN (document path not comprehensively audited); see `docs/specs/ABI2_PLAN.md` section 5 B4.
-4. Confirm all unpatched input buffer defaults using graph and module execution rather than descriptor inference: UNKNOWN (graph source not audited).
-5. Verify all 12 DESIGN.md source licence and pinned revision records: UNKNOWN (DESIGN.md set not audited).
-6. Confirm whether the ABI 1 noise RNG, clock phase, and envelope state should be serialized during migration (`native/modules/noise/module.cpp:23-32`; `native/modules/clock/module.cpp:21-36`; `native/modules/adsr/module.cpp:7-30`).
+1. **Native document parameter key format:** inspect the parser actually loading JSON into the engine and the patch writer. `document_reader.cpp` validates only module `id`/`type`, not `parameters` (`native/document/document_reader.cpp:73-85`).
+2. **Unknown JSON preservation on output:** original byte/object retention is proven for `inspect`, but later saving without loss is not established (`native/document/document_reader.cpp:34-36,50-51,97-99`). Verify actual write path.
+3. **ABI 2 new inputs and parameters:** preserve v1 semantics/defaults for ADSR, VCO and LFO, then test routing by stable string port IDs (`native/document/document_reader.cpp:86-92`; `native/modules2/adsr/dsp.h:7-10`; `native/modules2/lfo/dsp.h:10-15`; `native/modules2/vco/dsp.h:7-11`).
+4. **Source and DSP state migration:** validate which patch fields persist musical control targets versus private DSP state; reader does not interpret state (`native/document/document_reader.cpp:82-85`); noise RNG and clock phase are runtime members (`native/modules/noise/module.cpp:21-33`; `native/modules/clock/module.cpp:21-39`).
+5. **Behavioural equivalence:** ABI 2 VCF poly cache/log taper, ADSR note/gate precedence, VCO poly note semantics and LFO transport synchronization require focused signal regression tests (`native/modules2/vcf/dsp.h:10-31`; `native/modules2/adsr/dsp.h:18-38`; `native/modules2/vco/dsp.h:20-31`; `native/modules2/lfo/dsp.h:23-30`).
+
