@@ -65,18 +65,26 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          "WIRESCAPE_QT_DIR=$env:QT_ROOT_DIR" >> $env:GITHUB_ENV
-          git clone https://github.com/PortAudio/portaudio.git .tools/portaudio-src
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          git -C .tools/portaudio-src checkout 147dd722548358763a8b649b3e4b41dfffbcfbb6
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cmake -S .tools/portaudio-src -B .tools/portaudio-build -A x64 -DPA_BUILD_SHARED=ON -DPA_BUILD_STATIC=OFF -DPA_BUILD_TESTS=OFF -DPA_BUILD_EXAMPLES=OFF -DPA_USE_ASIO=OFF
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cmake --build .tools/portaudio-build --config Release --parallel 2
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $dll = Get-ChildItem .tools/portaudio-build -Recurse -Filter '*portaudio*.dll' | Select-Object -First 1
-          if (!$dll) { throw 'PortAudio DLL missing' }
-          "WIRESCAPE_PORTAUDIO=$($dll.FullName)" >> $env:GITHUB_ENV
+          New-Item -ItemType Directory -Force build_reports/foundation | Out-Null
+          Start-Transcript -Path build_reports/foundation/portaudio.log
+          try {
+            "WIRESCAPE_QT_DIR=$env:QT_ROOT_DIR" >> $env:GITHUB_ENV
+            git clone https://github.com/PortAudio/portaudio.git .tools/portaudio-src
+            if ($LASTEXITCODE) { throw "Native command failed: $LASTEXITCODE" }
+            git -C .tools/portaudio-src checkout 147dd722548358763a8b649b3e4b41dfffbcfbb6
+            if ($LASTEXITCODE) { throw "Native command failed: $LASTEXITCODE" }
+            cmake -S .tools/portaudio-src -B .tools/portaudio-build -A x64 -DPA_BUILD_SHARED=ON -DPA_BUILD_STATIC=OFF -DPA_BUILD_TESTS=OFF -DPA_BUILD_EXAMPLES=OFF -DPA_USE_ASIO=OFF
+            if ($LASTEXITCODE) { throw "Native command failed: $LASTEXITCODE" }
+            cmake --build .tools/portaudio-build --config Release --parallel 2
+            if ($LASTEXITCODE) { throw "Native command failed: $LASTEXITCODE" }
+            $dll = Get-ChildItem .tools/portaudio-build -Recurse -Filter '*portaudio*.dll' | Select-Object -First 1
+            if (!$dll) { throw 'PortAudio DLL missing' }
+            "WIRESCAPE_PORTAUDIO=$($dll.FullName)" >> $env:GITHUB_ENV
+          } catch {
+            $detail = (Get-Content build_reports/foundation/portaudio.log -Tail 35) -join '%0A'
+            Write-Output "::error::$detail"
+            throw
+          } finally { Stop-Transcript }
       - name: Build and test (devices stay off)
         run: |
           set -euo pipefail
