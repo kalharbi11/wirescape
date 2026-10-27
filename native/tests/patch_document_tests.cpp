@@ -1,17 +1,27 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "patch_document.h"
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QTemporaryDir>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 using namespace wirescape::document;
 static int checks = 0;
 static void check(bool ok, const char* message) { ++checks; if (!ok) throw std::runtime_error(message); }
+static void check_save(bool ok, const QString& error, const char* message) {
+    ++checks;
+    if (!ok) throw std::runtime_error(std::string(message) + ": " + error.toStdString());
+}
 static QByteArray encode(const QJsonObject& o) { return QJsonDocument(o).toJson(QJsonDocument::Compact); }
-static QByteArray read(const QString& path) { QFile f(path); check(f.open(QIODevice::ReadOnly), "open fixture"); return f.readAll(); }
+static QByteArray read(const QString& path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) throw std::runtime_error("open fixture: " + path.toStdString());
+    return f.readAll();
+}
 static void write(const QString& path, const QByteArray& bytes) { QFile f(path); check(f.open(QIODevice::WriteOnly), "open output"); check(f.write(bytes) == bytes.size(), "write output"); }
 static QJsonObject v1() {
     return {{"format", "wirescape.native.patch"}, {"version", 1}, {"name", "test"}, {"outputNode", 1},
@@ -84,16 +94,17 @@ int main(int argc, char** argv) {
         bad = patch.object; bad["outputs"] = QJsonArray{QJsonObject{{"module", 1}, {"port", "audio"}, {"bus_channel", -1}}}; rejected(bad);
         bad = patch.object; modules = bad["modules"].toArray(); item = modules[0].toObject(); item["parameters"] = QJsonObject{{"frequency", "invalid"}}; modules[0] = item; bad["modules"] = modules; rejected(bad);
         QTemporaryDir dir; check(dir.isValid(), "temporary directory"); const auto path = dir.filePath("patch.json"); const auto backup = dir.filePath("patch.v1.json");
-        write(path, raw); check(save_patch(path, patch, &error), "atomic v2 save");
+        write(path, raw); check_save(save_patch(path, patch, &error), error, "atomic v2 save");
         check(read(backup) == raw && read_patch(read(path), catalog).object == patch.object, "exact first backup and serialized v2");
-        write(backup, "existing backup"); check(save_patch(path, patch, &error) && read(backup) == "existing backup", "backup never overwritten");
+        check(QDir(dir.path()).entryList({".wirescape-backup-*"}, QDir::Files).isEmpty(), "published backup leaves no staging file");
+        write(backup, "existing backup"); check_save(save_patch(path, patch, &error) && read(backup) == "existing backup", error, "backup never overwritten");
         auto invalid = patch; invalid.object["version"] = 99; const auto saved = read(path);
         check(!save_patch(path, invalid, &error) && read(path) == saved, "invalid save cannot alter target");
         for (const auto& bytes : {encode(future), QByteArray("{broken"), duplicates[0]}) {
             write(path, bytes); check(!save_patch(path, patch, &error) && read(path) == bytes, "refuse overwrite future/malformed/duplicate file");
         }
         const auto failed = read_patch("{broken", catalog); check(!save_patch(path, failed, &error), "failed load cannot save");
-        const auto newPath = dir.filePath("new.json"); check(save_patch(newPath, patch, &error) && read(dir.filePath("new.v1.json")) == raw, "save-as backs up original v1");
+        const auto newPath = dir.filePath("new.json"); check_save(save_patch(newPath, patch, &error) && read(dir.filePath("new.v1.json")) == raw, error, "save-as backs up original v1");
         const auto reloaded = read_patch(read(newPath), catalog); check(reloaded.valid() && save_patch(dir.filePath("v2.json"), reloaded, &error) && !QFile::exists(dir.filePath("v2.v1.json")), "v2 save creates no v1 backup");
         check(!read_patch(QByteArray(MaximumDocumentBytes + 1, ' '), catalog).valid(), "bounded reader");
         std::cout << "PASS patch v2: " << checks << " checks\n";

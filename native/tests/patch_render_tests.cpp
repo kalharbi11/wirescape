@@ -15,8 +15,13 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
+#include <string>
 using namespace wirescape::document;
 static void check(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
+static void check_save(bool ok, const QString& error, const char* message) {
+    if (!ok) throw std::runtime_error(std::string(message) + ": " + error.toStdString());
+}
 static QByteArray read(const QString& path) { QFile f(path); check(f.open(QIODevice::ReadOnly), "read fixture/manifest"); return f.readAll(); }
 static uint32_t port(const ws_port_descriptor* ports, uint32_t count, const QString& id) {
     for (uint32_t i = 0; i < count; ++i) if (id == QString::fromUtf8(ports[i].id)) return i;
@@ -91,7 +96,7 @@ int main(int argc, char** argv) {
         }
         const auto migrated = read_patch(originalBytes, catalog); check(migrated.valid(), "demo migration");
         QTemporaryDir dir; check(dir.isValid(), "temporary directory"); const auto path = dir.filePath("demo.json"); QString error;
-        check(save_patch(path, migrated, &error), "save migrated demo");
+        check_save(save_patch(path, migrated, &error), error, "save migrated demo");
         const auto reloaded = read_patch(read(path), catalog); check(reloaded.valid() && reloaded.source_version == 2, "reload v2 demo");
         const auto before = render(original, false, catalog, descriptors), after = render(reloaded.object, true, catalog, descriptors);
         check(before == after, "v1 vs saved/reloaded v2 WAV bytes bit-identical");

@@ -238,10 +238,13 @@ bool save_patch(const QString& path, const PatchDocument& document, QString* err
             QTemporaryFile temporary(target.dir().filePath(".wirescape-backup-XXXXXX"));
             if (!temporary.open() || temporary.write(backup_bytes) != backup_bytes.size() || !temporary.flush())
                 return fail(error, "Could not stage v1 backup; target unchanged.");
-            temporary.close();
+            // QTemporaryFile::rename closes its native handle before publishing.
             // QFile::rename refuses an existing destination, including a race.
-            if (!QFile::rename(temporary.fileName(), backup_path) && !QFileInfo(backup_path).isFile())
-                return fail(error, "Could not publish v1 backup; target unchanged.");
+            if (!temporary.rename(backup_path)) {
+                if (!QFileInfo(backup_path).isFile()) return fail(error, "Could not publish v1 backup; target unchanged.");
+            } else {
+                temporary.setAutoRemove(false);
+            }
         }
     }
     QSaveFile target(path); // same-directory temporary + atomic commit
