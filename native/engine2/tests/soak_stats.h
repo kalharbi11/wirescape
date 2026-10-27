@@ -16,3 +16,7 @@ struct SoakStats {
   size_t n=times.size();median=n%2?times[n/2]:(times[n/2-1]+times[n/2])*.5;
  }
 };
+inline size_t preempted_blocks(const std::vector<double>&wall,const std::vector<double>&cpu,double period){
+ if(wall.size()!=cpu.size())throw std::invalid_argument("wall/cpu sample count mismatch");
+ size_t count=0;for(size_t i=0;i<wall.size();++i)if(wall[i]-cpu[i]>period*.5)++count;return count;
+}

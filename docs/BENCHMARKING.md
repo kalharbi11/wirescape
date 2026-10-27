@@ -57,8 +57,11 @@ zero means none. It is a bound for this graph and machine, not a product promise
 
 After 256 warmup blocks, callbacks follow absolute steady-clock deadlines with
 `sleep_until`; no device or CPU/governor settings are changed. JSON includes
-configuration, block count, render-time min/median/p99/p99.9/max, counts strictly
-above 50%/100% of the block period, deadline misses, allocations and faults.
+configuration, block count, render-time and thread-CPU min/median/p99/p99.9/max,
+counts strictly above 50%/100% of the block period, `preempted` blocks where
+wall time minus thread CPU time exceeds half a period, deadline misses,
+allocations and faults. Linux uses `CLOCK_THREAD_CPUTIME_ID`; Windows uses
+`GetThreadTimes`.
 Percentiles use nearest rank; even-sized medians average the middle pair. Render
 timing includes the allocation hook and error check, but excludes output checks
 and pacing. A late deadline includes scheduler delays and is distinct from render
