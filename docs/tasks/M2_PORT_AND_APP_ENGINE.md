@@ -26,6 +26,17 @@ The M2 milestone, split into seven Codex tasks and a Claude review. Each task ha
 - No ABI header edits (`native/include/wirescape/*.h`). If one seems needed, stop with `status/blocked`.
 - **Provenance:** do not invent provenance. Where `DESIGN.md` is missing, write what the source shows and mark the rest "Provenance: to be confirmed by the user". Claude collects these for the user.
 
+## Machines: run the laptop and Pi work yourself
+Codex is connected to the user's **Windows laptop** and the **Pi 5**. Run every build, test, benchmark and profile they need yourself. Don't hand them to the user or leave them as "to do" in a handoff. The only device action reserved for the user is a real audio or MIDI run (anything with a `--confirm-*` flag, such as M1-2's `--confirm-audio`).
+
+**Before setting any M2 PR to `status/review`,** post one "Machine evidence" comment on the PR with:
+- **Laptop (Windows, MSVC Release):** `python tools/dev.py build` and `python tools/dev.py test` on the PR head, with pass counts. For M1-3b and M2-6, also the benchmark numbers the task asks for.
+- **Pi 5 (Linux ARM64, Release, headless):** `python tools/dev.py build --headless` and `python tools/dev.py test` (or `ctest`) on the PR head, with pass counts and the toolchain line. For M2-0 and M2-6, also the soak tables.
+- The exact commit SHA both machines ran. If either machine is unreachable, say which, retry once later in the session, and only then hand off without it.
+
+## Laptop rules (every task that uses it)
+Work only inside the repository checkout and the build folders, plus `.tools/` for pinned toolchains. Never open audio or MIDI devices and never run a `--confirm-*` command. Never use admin rights, install system-wide software, change drivers, power plans or OS settings, or touch the user's files outside the checkout. Before benchmarking, record the power source (AC or battery), the power mode and the CPU model, and close nothing the user has open. If something heavy is already running, note it and measure anyway. Results go into PR or issue comments, never into tracked files. Don't commit machine-specific paths.
+
 ## Pi 5 rules (every task that uses it)
 Reach it with `ssh pi` (user `codex`). On the Pi you may only build, run tests, run benchmarks and run valgrind/callgrind. Never open audio or MIDI devices, never use `sudo`, never install system packages, never change kernel or CPU-governor settings. Toolchains you need go under your home directory or `/tmp`. Record the compiler, CMake, kernel (`uname -r`) and the governor you observed (read-only) with every Pi number. Results go into PR or issue comments only, never into tracked files. If the Pi is unreachable, skip the Pi parts, say so in the handoff and continue.
 
@@ -166,16 +177,17 @@ Codex runs this list top to bottom in one long session. Open one draft PR per is
 
 | # | Item | Prerequisite | Machine |
 |---|---|---|---|
-| 1 | #23 M2-0 deliverables 5 and 6 (CI summary step, Pi re-run on merged `main`) | #22 merged | cloud + Pi |
+| 1 | #23 M2-0 deliverables 5 and 6 (CI summary step, Pi re-run on merged `main`) | #22 merged | cloud + Pi + laptop test |
 | 2 | #32 M1-3b Windows mono gap and Ir gate | #22 merged | laptop + CI |
-| 3 | #24 M2-1 per-bus latency and staged reconfigure | #22 merged | cloud |
-| 4 | #25 M2-2 port mixer, noise, output, scale_offset, slew | #22 merged; PR #17 (inventory) merged | cloud |
-| 5 | #26 M2-3 port clock, function_envelope, ladder | #22 merged | cloud |
-| 6 | #27 M2-4 behaviour regressions and per-module CV | #22 merged; for item 2 of the task, #25 and #26 merged (otherwise do the five existing ports and list the rest) | cloud |
-| 7 | #28 M2-5 patch v2 and lossless v1 migration | #22 merged | cloud |
-| 8 | #29 M2-6 engine2 becomes the app engine | #32, #24, #25, #26, #28 merged | laptop + Pi |
+| 3 | #24 M2-1 per-bus latency and staged reconfigure | #22 merged | cloud + laptop/Pi test |
+| 4 | #25 M2-2 port mixer, noise, output, scale_offset, slew | #22 merged; PR #17 (inventory) merged | cloud + laptop/Pi test |
+| 5 | #26 M2-3 port clock, function_envelope, ladder | #22 merged | cloud + laptop/Pi test |
+| 6 | #27 M2-4 behaviour regressions and per-module CV | #22 merged; for item 2 of the task, #25 and #26 merged (otherwise do the five existing ports and list the rest) | cloud + laptop/Pi test |
+| 7 | #28 M2-5 patch v2 and lossless v1 migration | #22 merged | cloud + laptop/Pi test |
+| 8 | #29 M2-6 engine2 becomes the app engine | #32, #24, #25, #26, #28 merged | laptop (UI offscreen, package, benchmarks) + Pi (soak) |
 
 Rules for the queue:
+- Every item ends with the "Machine evidence" comment from the Machines section. Run the laptop and Pi work while CI runs, so it doesn't add wall time.
 - Each item branches from the latest `main`. If an earlier item touches the same CMake list or test registry and merges first, merge `main` into your branch (merge commit, no rebase).
 - Run `python tools/dev.py test` before every final push. The final push of each PR runs CI; WIP pushes may use `[skip ci]`.
 - If a PR gets review comments from Claude while you're on a later item, finish your current commit, fix the comments on the earlier branch, push and return.
