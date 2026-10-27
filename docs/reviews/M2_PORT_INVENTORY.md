@@ -164,22 +164,22 @@ Migration target: retain Essentials identities and lossless v1→v2 patch conten
 
 | Direction/index | ID | Signal kind | Unpatched default | Source |
 |---|---|---|---|---|
-| input 0 | `a` | audio | UNKNOWN (engine buffer or process fallback not fully traced) | `native/modules/mixer/module.cpp:62-92`; `native/modules/mixer/module.json:1` |
-| input 1 | `b` | audio | UNKNOWN (engine buffer or process fallback not fully traced) | `native/modules/mixer/module.cpp:62-92`; `native/modules/mixer/module.json:1` |
+| input 0 | `a` | audio | null input pointer becomes 0.0 per frame (`native/modules/mixer/module.cpp:48-59`) | `native/modules/mixer/module.cpp:62-92`; `native/modules/mixer/module.json:1` |
+| input 1 | `b` | audio | null input pointer becomes 0.0 per frame (`native/modules/mixer/module.cpp:48-59`) | `native/modules/mixer/module.cpp:62-92`; `native/modules/mixer/module.json:1` |
 | output 0 | `audio` | audio | n/a | `native/modules/mixer/module.cpp:62-92`; `native/modules/mixer/module.json:1` |
 
 **3. Parameters** (ID mapping: `module.json`; bounds/defaults/units: C++ descriptor).
 
 | Index | ID | Name | Min | Max | Default | Units/taper | Stepped | Source |
 |---|---|---|---:|---:|---:|---|---|---|
-| 0 | `level_a` | level a | 0 | 2 | .5 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/mixer/module.cpp:62-92`; `native/modules/mixer/module.json:1` |
-| 1 | `level_b` | level b | 0 | 2 | .5 | none / UNKNOWN taper | UNKNOWN (not encoded in ABI 1 descriptor; inspect event handler) | `native/modules/mixer/module.cpp:62-92`; `native/modules/mixer/module.json:1` |
+| 0 | `level_a` | level a | 0 | 2 | .5 | none / plain LinearRamp gain (no module taper) | No: float targets accepted directly (`native/modules/mixer/module.cpp:37-45`) | `native/modules/mixer/module.cpp:62-92`; `native/modules/mixer/module.json:1` |
+| 1 | `level_b` | level b | 0 | 2 | .5 | none / plain LinearRamp gain (no module taper) | No: float targets accepted directly (`native/modules/mixer/module.cpp:37-45`) | `native/modules/mixer/module.cpp:62-92`; `native/modules/mixer/module.json:1` |
 
-**4. State.** Runtime state and reset/prepare/event/process implementation: `native/modules/mixer/module.cpp:1-61`. Extra serialized state/version beyond parameter values: **UNKNOWN (looked in native/modules/mixer/module.cpp, native/modules/mixer/module.json; patch document saving and loading not fully audited)**.
+**4. State.** Per-instance A/B ramps, sample rate and maximum frame count (`native/modules/mixer/module.cpp:7-12`); reset snaps ramps without changing targets (`native/modules/mixer/module.cpp:22-35`). Descriptor has no save/load callback (`native/modules/mixer/module.cpp:73-90`); module-local serialized DSP state not found in source. Native document reader preserves raw JSON (`native/document/document_reader.cpp:34-36,50-51`).
 
 **5. ABI 2 status.** Not in named ABI 2 set (ADSR/LFO/VCA/VCF/VCO: `native/modules2/adsr/dsp.h:5-8`; `native/modules2/lfo/dsp.h:5-8`; `native/modules2/vca/dsp.h:5-8`; `native/modules2/vcf/dsp.h:5-8`; `native/modules2/vco/dsp.h:5-10`). ABI 2 differences **UNKNOWN** until port exists.
 
-**6. Port notes.** DSP, lifecycle and runtime assumptions: `native/modules/mixer/module.cpp:1-92`. Third-party dependencies, pinned revisions and licence: **UNKNOWN (looked in native/modules/mixer/module.cpp and native/modules/mixer/module.json; DESIGN.md not comprehensively audited)**. Process-time allocation, locks and mutable globals: **UNKNOWN (requires full audit)**.
+**6. Port notes.** Two nullable audio inputs are independently zeroed when absent, then sample-by-sample multiplied by smoothed Level A and B and added (`native/modules/mixer/module.cpp:48-60`); `LinearRamp` from project (`native/modules/mixer/module.cpp:1-2,7-9`). No process allocation, locks, I/O or mutable globals (`native/modules/mixer/module.cpp:48-60`); only `create` invokes `new` (`native/modules/mixer/module.cpp:14-20`). `prepare` requires positive sample rate and nonzero max block (`native/modules/mixer/module.cpp:22-31`). `native/modules/mixer/DESIGN.md` not found at inspected ref; third-party pinned revision/licence **UNKNOWN (looked in DESIGN.md and module.cpp:1-3)**.
 
 ## noise
 
