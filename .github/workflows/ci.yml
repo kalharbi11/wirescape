@@ -162,3 +162,37 @@ jobs:
   #     - uses: actions/checkout@v4
   #     - run: python tools/dev.py build --headless
   #     - run: python tools/dev.py test
+  sanitizers:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: '2'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install build and instruction-count tools
+        run: |
+          python -m pip install cmake==4.2.3 ninja==1.13.0
+          sudo apt-get update
+          sudo apt-get install -y valgrind
+      - name: ASan and UBSan
+        run: |
+          set -euo pipefail
+          cmake -S native -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer'
+          cmake --build build/asan --parallel 2
+          ctest --test-dir build/asan -R abi2 --output-on-failure
+      - name: TSan
+        run: |
+          set -euo pipefail
+          cmake -S native -B build/tsan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=thread -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=thread -fno-omit-frame-pointer'
+          cmake --build build/tsan --parallel 2
+          ctest --test-dir build/tsan -R abi2 -E '^abi2_benchmark$' --output-on-failure
+      - name: Callgrind instructions per block
+        run: |
+          set -euo pipefail
+          python tools/bench/abi2_cost.py --build-dir build/cost --output build_reports/abi2/cost.json | tee -a "$GITHUB_STEP_SUMMARY"
