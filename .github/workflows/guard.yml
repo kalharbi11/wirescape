@@ -22,6 +22,6 @@ jobs:
       - name: Guard changed paths and added lines
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: refs/remotes/pr/head
+          HEAD: ${{ github.event.pull_request.head.sha }}
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
         run: python tools/ci/guard.py --base "$BASE" --head "$HEAD" --labels-json "$LABELS"

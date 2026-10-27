@@ -52,8 +52,6 @@ class GuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             repo = Path(td)
             self._git(repo, 'init', '-b', 'main')
-            self._git(repo, 'config', 'user.name', 'Test User')
-            self._git(repo, 'config', 'user.email', 'test@example.com')
             self._write(repo / 'docs/PLAN.md', 'base\n')
             self._write(repo / 'src/module.txt', 'base\n')
             self._git(repo, 'add', '.')
@@ -73,11 +71,27 @@ class GuardTests(unittest.TestCase):
             try:
                 os.chdir(repo)
                 self.assertEqual([], guard_check('main', 'feature', set()))
+                self._git(repo, 'checkout', '-b', 'feature2', 'main')
+                self._write(repo / 'AGENTS.md', 'protected change\n')
+                self._git(repo, 'add', 'AGENTS.md')
+                self._git(repo, 'commit', '-m', 'protected change')
+                self.assertTrue(guard_check('main', 'feature2', set()))
             finally:
                 os.chdir(current)
 
     def _git(self, repo, *args):
-        subprocess.run(['git', *args], cwd=repo, check=True, text=True, capture_output=True)
+        command = ['git', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=', *args]
+        if args[:2] == ('commit', '-m'):
+            env = os.environ.copy()
+            env.update({
+                'GIT_AUTHOR_NAME': 'Test User',
+                'GIT_AUTHOR_EMAIL': 'test@example.com',
+                'GIT_COMMITTER_NAME': 'Test User',
+                'GIT_COMMITTER_EMAIL': 'test@example.com',
+            })
+            subprocess.run(command, cwd=repo, check=True, text=True, capture_output=True, env=env)
+            return
+        subprocess.run(command, cwd=repo, check=True, text=True, capture_output=True)
 
     def _write(self, path, content):
         path.parent.mkdir(parents=True, exist_ok=True)
