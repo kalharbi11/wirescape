@@ -70,7 +70,7 @@ def report_error(exc, paths):
     message = str(exc) or "interrupted"
     for path in sorted((p for p in paths if isinstance(p, Path)), key=lambda p: len(str(p)), reverse=True):
         message = message.replace(str(path.resolve()), report_path(path)).replace(str(path), report_path(path))
-    return message.replace(str(ROOT.resolve()), "<repository>")
+    return message.replace(str(ROOT.resolve()), "<repository>").replace(str(ROOT), "<repository>")
 
 
 def save(directory, report):

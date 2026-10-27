@@ -166,8 +166,16 @@ class RunnerTests(unittest.TestCase):
             directory = next((root / 'build_reports/capture').iterdir())
             report = json.loads((directory / 'report.json').read_text())
             self.assertTrue((directory / 'report.md').is_file())
-            for name in ('report.json', 'report.md'):
-                self.assertNotIn(str(root), (directory / name).read_text())
+            def no_machine_path(value):
+                if isinstance(value, dict):
+                    for key, item in value.items():
+                        no_machine_path(key); no_machine_path(item)
+                elif isinstance(value, list):
+                    for item in value: no_machine_path(item)
+                elif isinstance(value, str):
+                    self.assertNotIn(str(root), value)
+                    self.assertNotIn(str(root.resolve()), value)
+            no_machine_path(report)
             self.assertEqual((directory / 'reference.wav').read_bytes()[:4], b'RIFF')
             self.assertIn('reference.f32', report['files_sha256'])
             return result, report
@@ -221,7 +229,7 @@ class RunnerTests(unittest.TestCase):
             return meta, data
         result, report = self.simulate(fault, code=2)
         self.assertEqual((result, report['status']), (1, 'application_fault'))
-        self.assertEqual(report['application_faults'], ['<repository>/build_reports/reference.f32'])
+        self.assertEqual(report['application_faults'], ['<repository>' + str(Path('/build_reports/reference.f32'))])
 
     def test_native_reference_error_is_application_fault(self):
         def fault(meta, data):
