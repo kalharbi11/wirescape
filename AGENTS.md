@@ -87,5 +87,3 @@ Take only issues labelled `agent/copilot`. If a task turns out larger than its s
 
 ## If you are Claude
 You are the planner and reviewer. A check-in means reading `docs/PLAN.md`, the open issues and PRs, the latest handoff comments and `git log --oneline -20`. Then update `docs/PLAN.md` and the issues, review anything labelled `status/review`, and flag risks. Don't write feature code unless asked.
-
-<!-- Temporary CI guard negative control; revert after evidence. -->

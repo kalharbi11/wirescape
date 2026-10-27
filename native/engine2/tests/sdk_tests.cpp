@@ -14,7 +14,6 @@ struct Mini {
  void process(ws::Block&b){b.out(0).set_channels(b.channels());b.out(0).mark_constant(b.in(0).constant()&&b.param(0).constant());for(uint32_t c=0;c<b.channels();++c)for(uint32_t i=0;i<(b.in(0).constant()&&b.param(0).constant()?1u:b.frames());++i)b.out(0).ch(c)[i]=b.in(0).ch(c)[i]*b.param(0).ch(c)[i];}
 };
 int main(){
- return 1; // Temporary CI negative control; revert after evidence.
  for(double sr:{44100.,48000.,96000.}){ws::LinearRamp r(0);r.prepare(sr);CHECK(r.next()==0);r.set(1);uint32_t n=static_cast<uint32_t>(sr*.005);for(uint32_t i=1;i<=n;++i)CHECK(std::abs(r.next()-double(i)/n)<1e-12);CHECK(r.constant());r.set(.2);r.reset();CHECK(r.next()==.2);}
  ws::Schmitt gate;CHECK(!gate.process(.5f));CHECK(gate.process(.51f));CHECK(gate.process(.25f));CHECK(!gate.process(.24f));
  ws::Trigger trig;trig.prepare(44100);trig.fire();int high=0;for(int i=0;i<100;++i)high+=trig.next()>0;CHECK(high==45);
