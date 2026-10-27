@@ -26,6 +26,9 @@ class SoakCliTests(unittest.TestCase):
             self.assertGreater(data["peak"], 0)
             stats = data["render_ns"]
             self.assertEqual(list(stats.values()), sorted(stats.values()))
+            cpu = data["cpu_ns"]
+            self.assertEqual(list(cpu.values()), sorted(cpu.values()))
+            self.assertLessEqual(data["preempted"], data["blocks"])
             self.assertLessEqual(data["over_100_percent"], data["over_50_percent"])
 
     def test_budget_all_voices(self):
