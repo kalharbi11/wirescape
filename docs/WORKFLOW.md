@@ -11,14 +11,13 @@ The rules every agent follows are in `AGENTS.md`. This file holds the detail. So
 - **The laptop** is used only by the user. Laptop-only work (#64, real audio/MIDI runs) waits until the user does it.
 - **Devices:** no agent ever opens an audio or MIDI device or a LAN socket. Localhost tests are fine. Real-device paths sit behind `--confirm-*` flags that only the user runs.
 
-## 2. Pi runner jobs (in `wirescape-pi`)
+## 2. Pi runner jobs (in `wirescape-pi`; its README has setup and troubleshooting)
 | Job | Trigger | Does | Posts |
 |---|---|---|---|
-| `pr` | cron every 15 min: open PRs from this repo's own branches whose head SHA has no `pi5/tests` status yet | headless Release build + CTest on the exact head; `accept` if the task has `pi:` lines | commit status `pi5/tests` (+ `pi5/accept`), one comment with the summary table on failure or on the first green |
-| `nightly` | 02:00 local | full tests on `main`, soak (10 min, Six Essentials + poly8), benchmark vs baseline, golden render hashes, full clang-tidy, fuzzing (after J5), review packs for open PRs | one rolling issue "Pi nightly YYYY-MM-DD" (closes the previous one) |
-| `on-demand` | `workflow_dispatch` with a PR number and a command list | what a task's acceptance block names under `pi:` | commit status + comment |
+| `poll.yml` | every 20 min + manual | open PRs whose head is in this repo (never forks), **non-draft or labelled `ci/pi`**, head SHA without a `pi5` status: headless Release build + `tools/dev.py test` on the exact SHA | commit status `pi5` |
+| `nightly.yml` | 03:17 New York + manual | `main`: build, full tests, 600 s soaks (poly8, blocks 64/128/256), benchmark vs `baselines/pi5-benchmark.json`, frozen render hashes; later fuzzing (#94), clang-tidy (#87), review packs (#86) | overwrites the open issue **Pi nightly summary** (#101); opens "Pi nightly regression: <sha>" when a passing check starts failing |
 
-Safety: the private repo has no outside collaborators; fork PRs never run (the poller skips heads not in `kalharbi11/wirescape`); jobs never use `sudo` or devices; one job at a time (`concurrency`); the token is fine-grained to this repo only (Contents: read, Commit statuses: write, Issues: write, Pull requests: write).
+Builders: add `ci/pi` to a draft PR when its acceptance block has `pi:` lines; the `pi5` status appears within about 20 minutes plus build time. Safety: public code runs with a scrubbed environment (no token, no Actions credentials); fork heads are skipped; no `sudo`, devices or LAN listeners; one job at a time.
 
 ## 3. Review tiers
 | Tier | Applies to | Needs before the user merges |
