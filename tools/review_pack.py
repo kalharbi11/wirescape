@@ -191,6 +191,10 @@ def write_pack(text, output, stem, count, cap):
     raw, paths = text.encode("utf-8"), []
     for index in range(count):
         target = min(cap // count, math.ceil(len(raw) / (count - index)))
+        if index == 0:
+            target = max(target, len(raw.split(b"\n", 1)[0]) + 1)
+            if target > cap // count:
+                raise ValueError("header prompt exceeds per-part cap")
         part = raw[:target].decode("utf-8", errors="ignore")
         raw = raw[len(part.encode("utf-8")):]
         path = output / (f"{stem}.md" if count == 1 else f"{stem}-{index + 1}-of-{count}.md")

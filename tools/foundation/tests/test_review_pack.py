@@ -46,6 +46,15 @@ class ReviewPackTests(unittest.TestCase):
             self.assertEqual(b"".join(p.read_bytes() for p in paths), text.encode("utf-8"))
             self.assertIn("Diff truncated by size cap", text)
 
+    def test_many_parts_keep_complete_prompt_in_first_file(self):
+        args = SimpleNamespace(prompt="external", max_bytes=61440, split=120)
+        text = pack.make_pack(args, ("Title", "Intent", None, FIXTURE.read_text(), "Block", "CI", "Accept"))
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = pack.write_pack(text, Path(tmp), "many", 120, 61440)
+            self.assertEqual(len(paths), 120)
+            self.assertTrue(paths[0].read_text(encoding="utf-8").startswith(pack.PROMPTS["external"]))
+            self.assertTrue(all(p.stat().st_size <= 512 for p in paths))
+
     def test_offline_cli_needs_no_token_and_does_not_invent_ci_or_head(self):
         with tempfile.TemporaryDirectory() as tmp:
             task = Path(tmp) / "task.md"
