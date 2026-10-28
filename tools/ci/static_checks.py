@@ -50,6 +50,8 @@ def run_checks(root, diff, tidy_diff):
         count = len(re.findall(r"^.*?:\d+:\d+:\s", output, re.M))
         failed = code != 0 or count > 0
         rows.append((name, count, "failed" if failed else "passed"))
+        notice = f"{name}: {rows[-1][2]}; diagnostics={count}"
+        print("::notice title=Static analysis::" + notice.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
         print(f"\n{name}: {rows[-1][2]} ({count} diagnostics)\n{output}", flush=True)
     if not files:
         rows.insert(0, ("C++ diff checks", 0, "not applicable: no changed C++ lines"))
