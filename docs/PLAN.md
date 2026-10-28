@@ -75,7 +75,7 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
   - [ ] J0 Merge #40, then #41 (user + Codex)
   - [ ] J1 = M2-6 engine2 is the app engine (#29, Codex)
   - [ ] J2 Polyphony in the app: `host.keyboard`, voice count, poly badge (Codex)
-  - [ ] J3 Pi audio: headless `wirescape play`, Linux audio, `docs/PI_SETUP.md`; Pi UI stretch (Codex; first real audio run by the user)
+  - [ ] J3 Pi audio: headless `wirescape play`, Linux audio, a Pi setup guide (PI_SETUP.md, new); Pi UI stretch (Codex; first real audio run by the user)
   - [ ] J4 MIDI In, MIDI→CV, CC→CV, one backend, hot-plug safe (Codex)
   - [ ] J5 OSC In over UDP (localhost default, LAN toggle) and Monitor log (Codex)
   - [ ] J6 Macro Oscillator spike = X-3, poly 8, 48 kHz (Codex)
