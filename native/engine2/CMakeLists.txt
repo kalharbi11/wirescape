@@ -123,3 +123,5 @@ add_executable(abi2_returned_filter_stress ../tests2/abi2_returned_filter_stress
 target_link_libraries(abi2_returned_filter_stress PRIVATE wirescape_sdk2 wirescape_engine ${CMAKE_DL_LIBS})
 add_dependencies(abi2_returned_filter_stress ws2_ladder ws_ladder)
 add_test(NAME abi2_returned_filter_stress COMMAND abi2_returned_filter_stress $<TARGET_FILE_DIR:ws_ladder>)
+
+add_subdirectory(../modules2/chaos_lite chaos_lite)
