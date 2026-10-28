@@ -91,6 +91,22 @@ static void direct_reference() {
         REQUIRE(actual == expected);
     }
 }
+static void signed_shift_reference() {
+    // Unpatched pinned Release, GCC 14.2.0 x86_64, 48k samples of both float streams.
+    const uint64_t expected[]{0x210b80dca5fe2915ull, 0xba4c1cadbda672a5ull, 0x8ee3f2f04c6dd061ull};
+    for (int model : {2, 3, 4}) {
+        Rig r; r.values[0] = float(model); r.inputs[6].flags = WS2_CONNECTED;
+        std::fill_n(r.buffer->input[6][0], 256, 1.f);
+        const auto samples = render(r, 128, 48000);
+        uint64_t hash = 14695981039346656037ull; bool nonzero = false;
+        for (float sample : samples) {
+            nonzero |= sample != 0; uint32_t bits; std::memcpy(&bits, &sample, sizeof(bits));
+            for (unsigned shift = 0; shift < 32; shift += 8) { hash ^= (bits >> shift) & 255; hash *= 1099511628211ull; }
+        }
+        std::printf("signed-shift reference model=%d hash=%016llx\n", model, static_cast<unsigned long long>(hash));
+        REQUIRE(nonzero); REQUIRE(hash == expected[model - 2]);
+    }
+}
 static void matrix_and_state() {
     for (int model = 0; model < 24; ++model) {
         Rig whole; whole.values[0] = float(model); const auto expected = render(whole, 256);
@@ -181,4 +197,4 @@ static int benchmark() {
     std::printf("],\"worst_us\":%.3f}\n", worst);
     return worst < 666.666667 ? 0 : 1;
 }
-int main(int argc, char** argv) { if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark(); direct_reference(); matrix_and_state(); controls_and_capacity(); unmodified_rng_oracle(); isolated_rng(); std::puts("Macro Oscillator upstream reference, FIFO, matrices and isolation passed"); }
+int main(int argc, char** argv) { if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark(); direct_reference(); signed_shift_reference(); matrix_and_state(); controls_and_capacity(); unmodified_rng_oracle(); isolated_rng(); std::puts("Macro Oscillator upstream reference, FIFO, matrices and isolation passed"); }

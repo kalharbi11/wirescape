@@ -13,7 +13,7 @@ programming tools, serial code, VCV code and graphics are excluded.
 ## Source closure and hardware boundary
 
 Compile `plaits/dsp/**/*.cc`, `plaits/resources.cc` and `stmlib/dsp/units.cc`.
-Upstream DSP source text is unchanged. `TEST` selects upstream UserData::ptr's
+Upstream DSP source text has only the planner-authorized signed-shift patch described below. `TEST` selects upstream UserData::ptr's
 null-returning implementation, so the factory preset path never reads a hardware
 flash address. Firmware/device initialisation and UserData::Save are never called.
 All 24 engine entries remain selectable; no engine is excluded.
@@ -50,3 +50,27 @@ bit-for-bit after the 12-frame delay. All 24 models cover the host-block matrix,
 reset, finite output and constant-flag checks. Tests reject unsupported rates and
 insufficient prepare storage. ARM/Daisy support is reported from actual CI/probes;
 there is no unmeasured bare-metal compatibility claim.
+
+## Authorized portability patch (planner 2026-10-28)
+
+`patches/unsigned-pow2-shift.patch` applies at FetchContent time to eurorack
+`f4cfa7697095a28d292bff758beb51deb49b5a86`, `plaits/dsp/fm/dx_units.h:79`.
+Pow2Fast's exponent adjustment shifts the unsigned representation of x_integral,
+then converts that 32-bit result back before the original addition. This avoids
+left-shifting negative signed values while preserving the Release bits. No model
+is excluded; no sanitizer is suppressed. The patch runner accepts an already
+applied patch and fails on any other source mismatch. `_USE_MATH_DEFINES` is set
+for MSVC consumers so existing upstream math constants are declared.
+
+Before patching, GCC 14.2.0 x86_64 `-O3 -DNDEBUG` at 48k/128 produced these FNV-1a
+64-bit reference hashes over the main-then-aux float32 bit streams (low byte first),
+48,000 samples per stream, seed 42, trigger connected/high, default controls:
+
+| Model | Unpatched Release hash |
+|---|---|
+| 2 | `210b80dca5fe2915` |
+| 3 | `ba4c1cadbda672a5` |
+| 4 | `8ee3f2f04c6dd061` |
+
+`signed_shift_reference` asserts non-silence and these same hashes after patching.
+The existing direct-reference, all-24-model, allocation and isolation tests remain.
