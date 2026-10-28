@@ -106,6 +106,9 @@ add_test(NAME abi2_soak_cli COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/
   $<TARGET_FILE:wirescape_soak> $<TARGET_FILE_DIR:ws_vco>)
 set_tests_properties(abi2_soak_cli PROPERTIES TIMEOUT 60)
 
+add_executable(abi2_port_behavior_tests tests/port_behavior_tests.cpp ../tests2/allocation_watch.cpp)
+target_link_libraries(abi2_port_behavior_tests PRIVATE wirescape_engine2)
+add_test(NAME abi2_port_behavior_tests COMMAND abi2_port_behavior_tests)
 add_executable(abi2_staged_tests tests/staged_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(abi2_staged_tests PRIVATE wirescape_engine2)
 add_test(NAME abi2_staged_tests COMMAND abi2_staged_tests)
