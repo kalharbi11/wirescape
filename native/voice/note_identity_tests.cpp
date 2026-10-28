@@ -19,5 +19,12 @@ int main(){
   core.reset();count=0;e.type=WS2_NOTE_ON;core.event(e,emit);CHECK(log[0].note_id==oldest);
   core.release_all(12,e,emit);CHECK(core.allocator().active_count()==0);
  }
+ {
+  NoteToCv core;Config c;c.max_voices=4;CHECK(core.configure(c)==Status::Ok);auto emit=[](const ws2_event&){};
+  ws2_event e{};e.struct_size=sizeof(e);e.type=WS2_NOTE_ON;e.note_id=-1;e.source_id=20;e.key=60;e.value=1;
+  e.channel=0;core.event(e,emit);e.channel=1;core.event(e,emit);core.sustain(20,0,true,e,emit);
+  core.release_channel(20,0,e,emit);CHECK(core.allocator().active_count()==1);CHECK(core.allocator().voice(1).gate);
+  e.type=WS2_NOTE_OFF;core.event(e,emit);CHECK(core.allocator().active_count()==0);
+ }
  std::puts("PASS anonymous activation identity, FIFO, steal tombstones, reset");
 }
