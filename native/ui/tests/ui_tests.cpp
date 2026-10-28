@@ -90,14 +90,15 @@ private slots:
         StudioController studio(directory_); QVERIFY(studio.ready());
         QVERIFY(studio.setParameter(1, 0, 440)); studio.moveModule(1, 120, 170);
         QVERIFY(studio.savePatch(path("good.json"))); const auto good = read("good.json");
+        QCOMPARE(good["version"].toInt(), 2);
         QList<QJsonObject> malformed;
         auto bad = good; bad["version"] = 1.5; malformed.append(bad);
-        bad = good; bad["outputNode"] = "4"; malformed.append(bad);
+        bad = good; auto outputs = good["outputs"].toArray(); auto output = outputs[0].toObject(); output["module"] = "4"; outputs[0] = output; bad["outputs"] = outputs; malformed.append(bad);
         bad = good; auto nodes = good["modules"].toArray(); auto n = nodes[0].toObject(); n["x"] = "120"; nodes[0] = n; bad["modules"] = nodes; malformed.append(bad);
         bad = good; nodes = good["modules"].toArray(); n = nodes[0].toObject(); n["id"] = 2; nodes[0] = n; bad["modules"] = nodes; malformed.append(bad);
-        bad = good; nodes = good["modules"].toArray(); n = nodes[0].toObject(); n["values"] = QJsonObject{{"0", 1e9}}; nodes[0] = n; bad["modules"] = nodes; malformed.append(bad);
-        bad = good; auto cables = good["connections"].toArray(); auto c = cables[0].toObject(); c["fromNode"] = 999; cables[0] = c; bad["connections"] = cables; malformed.append(bad);
-        bad = good; cables = good["connections"].toArray(); c = cables[0].toObject(); c["kind"] = "control"; cables[0] = c; bad["connections"] = cables; malformed.append(bad);
+        bad = good; nodes = good["modules"].toArray(); n = nodes[0].toObject(); n["parameters"] = QJsonObject{{"frequency", 1e9}}; nodes[0] = n; bad["modules"] = nodes; malformed.append(bad);
+        bad = good; auto cables = good["connections"].toArray(); auto c = cables[0].toObject(); auto from = c["from"].toObject(); from["module"] = 999; c["from"] = from; cables[0] = c; bad["connections"] = cables; malformed.append(bad);
+        bad = good; cables = good["connections"].toArray(); c = cables[0].toObject(); auto to = c["to"].toObject(); to["port"] = "gain_cv"; c["to"] = to; cables[0] = c; bad["connections"] = cables; malformed.append(bad);
         QVERIFY(studio.setParameter(1, 0, 550));
         const auto accepted = studio.modules();
         for (const auto& document : malformed) { write("bad.json", document); QVERIFY(!studio.loadPatch(path("bad.json"))); QCOMPARE(studio.modules(), accepted); QVERIFY(studio.dirty()); QVERIFY(studio.ready()); }
@@ -110,7 +111,7 @@ private slots:
         studio.addModule("essentials.output"); QCOMPARE(studio.outputNode(), 6); studio.connectPorts(3, "audio", 6, "audio"); QVERIFY(studio.ready());
         const int count = studio.connections().size(); studio.connectPorts(1, "audio", 3, "gain_cv"); QCOMPARE(studio.connections().size(), count);
         QVERIFY(studio.savePatch(path("before_missing.json"))); auto doc = read("before_missing.json");
-        doc["futureRoot"] = QJsonObject{{"untouched", QJsonArray{1, "two"}}}; auto nodes = doc["modules"].toArray(); auto n = nodes[0].toObject(); n["type"] = "future.missing"; n["values"] = QJsonObject{{"futureMode", "poly"}, {"curve", QJsonArray{1, 2, 3}}, {"opaque", QJsonObject{{"enabled", true}}}}; n["futurePayload"] = QJsonObject{{"blob", "keep"}}; nodes[0] = n; doc["modules"] = nodes;
+        doc["futureRoot"] = QJsonObject{{"untouched", QJsonArray{1, "two"}}}; auto nodes = doc["modules"].toArray(); auto n = nodes[0].toObject(); n["module"] = "future.missing"; n["inactive"] = true; n["parameters"] = QJsonObject{}; n["preserved"] = QJsonObject{{"type", "future.missing"}, {"values", QJsonObject{{"futureMode", "poly"}, {"curve", QJsonArray{1, 2, 3}}, {"opaque", QJsonObject{{"enabled", true}}}}}}; n["futurePayload"] = QJsonObject{{"blob", "keep"}}; nodes[0] = n; doc["modules"] = nodes;
         write("missing.json", doc); QVERIFY(studio.loadPatch(path("missing.json"))); QVERIFY(!studio.ready()); QVERIFY(studio.savePatch(path("missing_roundtrip.json"))); QCOMPARE(read("missing_roundtrip.json"), doc);
         studio.moveModule(1, 500, 600); studio.removeModule(1); QVERIFY(studio.ready()); QVERIFY(!studio.running());
     }
@@ -151,10 +152,10 @@ private slots:
         auto document = read("heavy_base.json"); QJsonArray nodes;
         for (int i=1; i<=64; ++i) {
             const QString type = i<=44 ? "essentials.adsr" : i<=63 ? "essentials.vco" : "essentials.output";
-            const QJsonObject values = i<=44 ? QJsonObject{{"0",.025},{"1",.18},{"2",.65},{"3",.5}} : i<=63 ? QJsonObject{{"0",220.}} : QJsonObject{};
-            nodes.append(QJsonObject{{"id",i},{"type",type},{"x",0.},{"y",0.},{"values",values}});
+            const QJsonObject parameters = i<=44 ? QJsonObject{{"attack",.025},{"decay",.18},{"sustain",.65},{"release",.5}} : i<=63 ? QJsonObject{{"frequency",220.}} : QJsonObject{};
+            nodes.append(QJsonObject{{"id",i},{"module",type},{"version",2},{"x",0.},{"y",0.},{"parameters",parameters}});
         }
-        document["modules"] = nodes; document["connections"] = QJsonArray{}; document["outputNode"] = 64;
+        document["modules"] = nodes; document["connections"] = QJsonArray{}; document.remove("outputNode"); document["outputs"] = QJsonArray{QJsonObject{{"module",64},{"port","audio"},{"bus_channel",0}}};
         write("heavy.json",document); QVERIFY(studio.loadPatch(path("heavy.json"))); QVERIFY(studio.ready()); QVERIFY(!studio.running());
         studio.renderDemo(path("heavy.wav")); QVERIFY2(studio.errorText().isEmpty(),qPrintable(studio.errorText())); QFile wav(temp_.filePath("heavy.wav")); QVERIFY(wav.size()>44); QVERIFY(!studio.running());
     }
@@ -228,7 +229,7 @@ private slots:
             QFile saved(acceptedPath); QVERIFY(saved.open(QIODevice::ReadOnly));
             const auto savedNodes = QJsonDocument::fromJson(saved.readAll()).object().value("modules").toArray();
             QCOMPARE(savedNodes.size(), 4);
-            QCOMPARE(savedNodes.at(0).toObject().value("values").toObject().value("0").toDouble(),440. + action.size());
+            QCOMPARE(savedNodes.at(0).toObject().value("parameters").toObject().value("frequency").toDouble(),440. + action.size());
         }
         // A successful save in the original transaction still performs New.
         QVERIFY(studio.setParameter(1,0,880));
@@ -241,7 +242,7 @@ private slots:
         QVERIFY(!studio.dirty()); QCOMPARE(studio.modules()[0].toMap()["parameters"].toList()[0].toMap()["value"].toDouble(),220.);
         QFile saved(acceptedPath); QVERIFY(saved.open(QIODevice::ReadOnly));
         const auto savedNodes = QJsonDocument::fromJson(saved.readAll()).object().value("modules").toArray();
-        QCOMPARE(savedNodes.size(), 4); QCOMPARE(savedNodes.at(0).toObject().value("values").toObject().value("0").toDouble(),880.);
+        QCOMPARE(savedNodes.size(), 4); QCOMPARE(savedNodes.at(0).toObject().value("parameters").toObject().value("frequency").toDouble(),880.);
     }
     void actualDocumentActionsAndCable() {
         bool failWrite = true; int writeAttempts = 0; QString acceptedPath;

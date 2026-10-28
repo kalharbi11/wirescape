@@ -339,6 +339,7 @@ bool StudioController::savePatch(const QUrl& url) {
     const auto bytes=QJsonDocument(patch.object).toJson(QJsonDocument::Indented);
     if(!wirescape::document::save_patch(path,patch,&error,patchWriter_)){setError(error);return false;}
     documentSource_=patch;documentSource_.source_version=2;documentSource_.original_bytes=bytes;
+    document_=wirescape::document::editor_view(patch,catalog_.get());
     name_=QFileInfo(path).completeBaseName();dirty_=false;setError({});return true;
 }
 

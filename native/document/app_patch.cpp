@@ -8,7 +8,7 @@ namespace wirescape::document {
 ModuleCatalog app_catalog(AppEngine*e){
  ModuleCatalog r;
  for(uint32_t i=0;i<app_engine_module_count(e);++i){auto*d=app_engine_module(e,i);ModuleInfo info;
-  for(uint32_t p=0;p<d->parameter_count;++p)info.legacy_parameters[QString::number(d->parameters[p].id)]=QString::fromUtf8(app_engine_parameter_id(d->id,p));
+  for(uint32_t p=0;p<d->parameter_count;++p)info.legacy_parameters[QString::number(d->parameters[p].id)]=QString::fromUtf8(app_engine_parameter_id(e,d->id,p));
   if(d->output_count)info.default_output=QString::fromUtf8(d->outputs[0].id);r.insert(QString::fromUtf8(d->id),info);
  }return r;
 }
@@ -25,6 +25,10 @@ QJsonObject editor_view(const PatchDocument&p,AppEngine*e){
   auto c=value.toObject();auto a=c["from"].toObject(),b=c["to"].toObject();c["fromNode"]=a["module"];c["fromPort"]=a["port"];c["toNode"]=b["module"];c["toPort"]=b["port"];
   auto type=QString();for(auto v:nodes)if(v.toObject()["id"]==a["module"])type=v.toObject()["type"].toString();
   int kind=WS_CONTROL;for(uint32_t i=0;i<app_engine_module_count(e);++i){auto*d=app_engine_module(e,i);if(type==QString::fromUtf8(d->id))for(uint32_t p=0;p<d->output_count;++p)if(a["port"]==QString::fromUtf8(d->outputs[p].id))kind=d->outputs[p].kind;}
+  if(!catalog.contains(type)){
+   QString destination;for(auto v:nodes)if(v.toObject()["id"]==b["module"])destination=v.toObject()["type"].toString();
+   for(uint32_t i=0;i<app_engine_module_count(e);++i){auto*d=app_engine_module(e,i);if(destination==QString::fromUtf8(d->id))for(uint32_t p=0;p<d->input_count;++p)if(b["port"]==QString::fromUtf8(d->inputs[p].id))kind=d->inputs[p].kind;}
+  }
   if(c["kind"]=="signal")c["kind"]=kind==WS_AUDIO?"audio":"control";cables.append(c);
  }
  o["version"]=1;o["modules"]=nodes;o["connections"]=cables;auto outputs=o["outputs"].toArray();o["outputNode"]=outputs.isEmpty()?0:outputs[0].toObject()["module"].toInt();return o;
@@ -45,7 +49,7 @@ PatchDocument editor_patch(const QJsonObject&view,AppEngine*e,const PatchDocumen
 AppEngine* build_app_patch(AppEngine*catalog,const PatchDocument&p,const ws_engine_config&config,QString&error){
  auto fail=[&](const QString&s)->AppEngine*{error=s;return nullptr;};if(!p.valid())return fail(p.error);
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>e(app_engine_create(&config),app_engine_destroy);if(!e)return fail("Cannot create engine2");
- for(uint32_t i=0;i<app_engine_module_count(catalog);++i)app_engine_register_module(e.get(),app_engine_module(catalog,i));
+ if(app_engine_copy_modules(e.get(),catalog)!=WS_OK)return fail("Cannot copy module catalogue");
  auto&engine=app_engine_native(e.get());QHash<int,const ws_module_descriptor*>nodes;
  auto port=[&](int id,const QString&key,bool output){auto*d=nodes.value(id);if(!d)return -1;auto*ports=output?d->outputs:d->inputs;auto count=output?d->output_count:d->input_count;for(uint32_t i=0;i<count;++i)if(key==QString::fromUtf8(ports[i].id))return int(i);return -1;};
  for(auto value:p.object["modules"].toArray()){

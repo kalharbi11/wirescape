@@ -13,17 +13,19 @@ struct AppEngine {
   const ws2_descriptor* native=nullptr;ws_module_descriptor metadata{};
   std::vector<ws_port_descriptor> inputs,outputs;std::vector<ws_parameter_descriptor> params;
  };
- wirescape::engine2::Engine engine;
- std::unique_ptr<ws_engine,decltype(&ws_engine_destroy)> legacy{nullptr,ws_engine_destroy};
+ std::shared_ptr<ws_engine> legacy{nullptr,ws_engine_destroy};
+ std::vector<std::shared_ptr<ws_engine>> library_owners;
  std::deque<Entry> entries;std::map<uint32_t,const Entry*> nodes;
+ // Destroy the scheduler before the metadata and libraries its nodes borrow.
+ wirescape::engine2::Engine engine;
  std::atomic<float> peak{0};std::atomic<uint64_t> blocks{0};
  std::string error;
- explicit AppEngine(const ws_engine_config& c):engine(config(c)),legacy(ws_engine_create(&c),ws_engine_destroy){
+ explicit AppEngine(const ws_engine_config& c):legacy(ws_engine_create(&c),ws_engine_destroy),engine(config(c)){
   engine.register_producer();
   for(auto* d:wirescape::app::builtin_modules()){
    entries.emplace_back();auto& e=entries.back();e.native=d;
-   for(uint32_t i=0;i<d->input_count;++i)e.inputs.push_back({d->inputs[i].id,d->inputs[i].name,d->inputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL});
-   for(uint32_t i=0;i<d->output_count;++i)e.outputs.push_back({d->outputs[i].id,d->outputs[i].name,d->outputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL});
+   for(uint32_t i=0;i<d->input_count;++i)e.inputs.push_back({d->inputs[i].id,d->inputs[i].name,static_cast<uint32_t>(d->inputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL)});
+   for(uint32_t i=0;i<d->output_count;++i)e.outputs.push_back({d->outputs[i].id,d->outputs[i].name,static_cast<uint32_t>(d->outputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL)});
    for(uint32_t i=0;i<d->param_count;++i){auto& p=d->params[i];e.params.push_back({p.legacy_index,p.name,p.minimum,p.maximum,p.initial,p.unit});}
    e.metadata={sizeof(ws_module_descriptor),WS_ABI_VERSION,d->id,d->name,d->input_count,d->output_count,d->param_count,e.inputs.data(),e.outputs.data(),e.params.data(),nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
   }
@@ -31,12 +33,23 @@ struct AppEngine {
  static wirescape::engine2::Config config(const ws_engine_config& c){wirescape::engine2::Config r;r.sample_rate=c.sample_rate;r.max_block=c.max_block_frames;r.max_nodes=c.max_nodes;r.event_budget=c.max_events;return r;}
  const Entry* find(const char* id)const{for(auto& e:entries)if(std::strcmp(e.metadata.id,id)==0)return &e;return nullptr;}
 };
-AppEngine* app_engine_create(const ws_engine_config*c){try{return c?new AppEngine(*c):nullptr;}catch(...){return nullptr;}}
+AppEngine* app_engine_create(const ws_engine_config*c){
+ if(!c)return nullptr;
+ try{return new AppEngine(*c);}catch(...){return nullptr;}
+}
 void app_engine_destroy(AppEngine*e){delete e;}
 uint32_t app_engine_abi_version(){return 2;}
 const char* app_engine_error(const AppEngine*e){return e->error.empty()?e->engine.error().c_str():e->error.c_str();}
 wirescape::engine2::Engine& app_engine_native(AppEngine*e){return e->engine;}
 int app_engine_register_module(AppEngine*e,const ws_module_descriptor*d){if(!d)return WS_INVALID;if(e->find(d->id))return WS_OK;e->entries.emplace_back();e->entries.back().metadata=*d;return WS_OK;}
+int app_engine_copy_modules(AppEngine*e,const AppEngine*source){
+ if(e==source)return WS_OK;
+ for(auto&entry:source->entries)if(app_engine_register_module(e,&entry.metadata)!=WS_OK)return WS_INVALID;
+ // ABI1 descriptor/callback pointers live in loaded libraries, not in metadata.
+ // A replacement graph must retain those libraries after its catalogue dies.
+ e->library_owners.push_back(source->legacy);
+ e->library_owners.insert(e->library_owners.end(),source->library_owners.begin(),source->library_owners.end());return WS_OK;
+}
 int app_engine_load_module(AppEngine*e,const char*path){int r=ws_engine_load_module(e->legacy.get(),path);if(r!=WS_OK)return r;for(uint32_t i=0;i<ws_engine_module_count(e->legacy.get());++i)app_engine_register_module(e,ws_engine_module(e->legacy.get(),i));return WS_OK;}
 uint32_t app_engine_module_count(const AppEngine*e){return static_cast<uint32_t>(e->entries.size());}
 const ws_module_descriptor* app_engine_module(const AppEngine*e,uint32_t i){return i<e->entries.size()?&e->entries[i].metadata:nullptr;}
@@ -47,7 +60,11 @@ int app_engine_initialize_parameter(AppEngine*e,uint32_t n,uint32_t p,float v){a
 int app_engine_enqueue(AppEngine*e,const ws_event*v){
  if(!e||!v)return WS_INVALID;
  ws2_event x{};x.struct_size=sizeof(x);x.source_id=v->source_id;x.note_id=static_cast<int32_t>(v->note_id);x.channel=0;x.key=static_cast<int32_t>(v->value);x.value=1;
- if(v->type==WS_PARAMETER){x.type=WS2_PARAM;x.index=v->parameter_id;x.value=v->value;}
+ if(v->type==WS_PARAMETER){
+  auto it=e->nodes.find(v->node_id);if(it==e->nodes.end())return WS_NOT_FOUND;
+  auto*d=it->second;uint32_t index=0;while(index<d->metadata.parameter_count&&d->metadata.parameters[index].id!=v->parameter_id)++index;
+  if(index==d->metadata.parameter_count)return WS_INVALID;x.type=WS2_PARAM;x.index=index;x.value=v->value;
+ }
  else if(v->type==WS_GATE){
   // ABI1 gate controls envelopes, never oscillator pitch. Preserve that routing.
   auto it=e->nodes.find(v->node_id);if(it==e->nodes.end())return WS_NOT_FOUND;
@@ -66,4 +83,4 @@ uint64_t app_engine_generation(const AppEngine*e){return e->engine.meter().gener
 int app_engine_get_meter(const AppEngine*e,ws_meter*m){auto x=e->engine.meter();*m={sizeof(*m),x.frame,e->blocks.load(),x.late,e->peak.load(),0,x.generation,x.dropped,0,0};return WS_OK;}
 int app_engine_build_essentials(AppEngine*e,const char*){return app_engine_add_node(e,1,"essentials.vco")||app_engine_add_node(e,2,"essentials.adsr")||app_engine_add_node(e,3,"essentials.vca")||app_engine_add_node(e,4,"essentials.output")||app_engine_connect(e,1,0,3,0)||app_engine_connect(e,2,0,3,1)||app_engine_connect(e,3,0,4,0)||app_engine_prepare(e,4,0)?WS_GRAPH:WS_OK;}
 
-const char* app_engine_parameter_id(const char*type,uint32_t index){for(auto*d:wirescape::app::builtin_modules())if(!std::strcmp(d->id,type))return index<d->param_count?d->params[index].id:"";thread_local std::string numeric;numeric=std::to_string(index);return numeric.c_str();}
+const char* app_engine_parameter_id(const AppEngine*e,const char*type,uint32_t index){for(auto*d:wirescape::app::builtin_modules())if(!std::strcmp(d->id,type))return index<d->param_count?d->params[index].id:"";auto*d=e->find(type);if(!d||index>=d->metadata.parameter_count)return "";thread_local std::string numeric;numeric=std::to_string(d->metadata.parameters[index].id);return numeric.c_str();}

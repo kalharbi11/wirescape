@@ -28,4 +28,5 @@ set_tests_properties(patch_render_tests PROPERTIES TIMEOUT 30
   ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
 add_executable(app_patch_tests app_patch_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(app_patch_tests PRIVATE wirescape_document)
-add_test(NAME app_patch_tests COMMAND app_patch_tests $<TARGET_FILE_DIR:ws_noise> "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
+add_test(NAME app_patch_tests COMMAND app_patch_tests $<TARGET_FILE_DIR:ws_noise> "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json"
+  "${PROJECT_SOURCE_DIR}/tests/fixtures/legacy_documents")
