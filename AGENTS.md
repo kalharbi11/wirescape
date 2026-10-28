@@ -77,6 +77,12 @@ python tools/dev.py doctor | build | test | check --package | launch
 ```
 Qt is found through `WIRESCAPE_QT_DIR`, then `CMAKE_PREFIX_PATH`, then the local fallback `.tools/qt/6.10.3/msvc2022_64`.
 
+## Pi evidence from Codex cloud
+- Codex cloud cannot reach the Pi or the Windows laptop. Do not use SSH or open audio/MIDI devices.
+- Pi evidence runs through the private `kalharbi11/wirescape-pi` bridge on the `pi5` runner. Public-repository workflows never target that runner. See `docs/PI_RUNNER.md` for setup and dispatch instructions.
+- Use the `pi5` commit status for the exact PR head SHA and link the private workflow run in the issue handoff. A queued run is not passing evidence. Never run fork PRs on the Pi.
+- Run tests for the code touched locally and let CI run the remaining suites. Merge-only changes need no new Pi evidence unless compiled code conflicted.
+
 ## Docs upkeep
 - `docs/PLAN.md` belongs to the planner (Claude). Other agents may only tick milestone checkboxes.
 - Update `docs/ARCHITECTURE.md` in the same PR that changes the architecture.
