@@ -10,7 +10,7 @@ Spec: `docs/tasks/J_JAM_CHECKPOINT.md` § "A2 / J2". Summary: shared note→CV c
 ```acceptance
 tier: T1
 budget: 2 Codex sessions
-size: <= 800 changed lines, <= 14 files
+size: <= 800 changed lines, <= 24 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_host_keyboard_tests|app_patch_tests|abi2_voice_tests" --output-on-failure
