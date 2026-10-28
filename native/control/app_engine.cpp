@@ -19,8 +19,9 @@ struct AppEngine {
  std::deque<Entry> entries;
  wirescape::engine2::Engine engine;std::map<uint32_t,const Entry*> nodes;
  std::atomic<float> peak{0};std::atomic<uint64_t> blocks{0};
- std::string error;
- explicit AppEngine(const ws_engine_config& c,const wirescape::engine2::Config* override=nullptr):engine(override?*override:config(c)),legacy(ws_engine_create(&c),ws_engine_destroy){
+ std::string error;uint32_t egress_budget=2048;
+ explicit AppEngine(const ws_engine_config& c,const wirescape::engine2::Config* override=nullptr):legacy(ws_engine_create(&c),ws_engine_destroy),engine(override?*override:config(c)){
+  egress_budget=override?override->event_budget:c.max_events;
   engine.register_producer();engine.register_producer();engine.register_producer(); // host keys, MIDI, OSC
   for(auto* d:wirescape::app::builtin_modules()){
    entries.emplace_back();auto& e=entries.back();e.native=d;
@@ -64,7 +65,11 @@ int app_engine_enqueue(AppEngine*e,const ws_event*v){
  int r=e->engine.enqueue(0,v->node_id,WS2_DIRECT_PORT,x,v->frame,wirescape::engine2::Timing::Frames,v->generation);
  return r==WS2_OK?WS_OK:r==WS2_CAPACITY?WS_CAPACITY:WS_INVALID;
 }
-int app_engine_render_channels(AppEngine*e,float*const*out,uint32_t channels,uint32_t n){int r=e->engine.render(out,channels,n);if(r!=WS2_OK)return WS_CAPACITY;float p=0;for(uint32_t c=0;c<channels;++c)for(uint32_t i=0;i<n;++i)p=std::max(p,std::abs(out[c][i]));e->peak.store(p);e->blocks.fetch_add(1);return WS_OK;}
+int app_engine_render_channels(AppEngine*e,float*const*out,uint32_t channels,uint32_t n){int r=e->engine.render(out,channels,n);
+ // J has no external MIDI/OSC output dispatcher. Drain its bounded tap queue so
+ // unconsumed note releases cannot fill egress and force an emergency reset.
+ wirescape::engine2::Outgoing ignored;for(uint32_t i=0;i<e->egress_budget&&e->engine.pop_egress(ignored);++i){}
+ if(r!=WS2_OK)return WS_CAPACITY;float p=0;for(uint32_t c=0;c<channels;++c)for(uint32_t i=0;i<n;++i)p=std::max(p,std::abs(out[c][i]));e->peak.store(p);e->blocks.fetch_add(1);return WS_OK;}
 int app_engine_render(AppEngine*e,float*out,uint32_t n){float* rows[]={out};return app_engine_render_channels(e,rows,1,n);}
 int app_engine_reset(AppEngine*e){e->engine.reset();e->peak.store(0);e->blocks.store(0);return WS_OK;}
 int app_engine_activate(AppEngine*){return WS_OK;}

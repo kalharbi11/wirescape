@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include "app_engine.h"
-#include "osc_service.h"
+#include "../io/net/osc_service.h"
 namespace wirescape::osc {
 class Host {
  std::unique_ptr<Service> service_;AppEngine*engine_=nullptr;bool authorized_=false;std::string last_statistics_;

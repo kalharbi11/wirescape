@@ -171,3 +171,6 @@ target_link_libraries(app_engine_lifetime_tests PRIVATE wirescape_app_engine)
 add_test(NAME app_engine_lifetime_tests COMMAND app_engine_lifetime_tests)
 
 add_subdirectory(../io/net osc_net)
+add_executable(osc_host_tests ../control/osc_host_tests.cpp ../tests2/allocation_watch.cpp)
+target_link_libraries(osc_host_tests PRIVATE wirescape_osc_host wirescape_runtime_document)
+add_test(NAME osc_host_tests COMMAND osc_host_tests)
