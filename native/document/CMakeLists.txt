@@ -12,10 +12,10 @@ target_link_libraries(wirescape_runtime_document PUBLIC wirescape_app_engine PRI
 
 add_executable(runtime_patch_tests runtime_patch_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(runtime_patch_tests PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
-add_test(NAME runtime_patch_tests COMMAND runtime_patch_tests "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
+add_test(NAME abi2_runtime_patch_tests COMMAND runtime_patch_tests "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
-add_test(NAME offline_play COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/cli/play_tests.py $<TARGET_FILE:wirescape_cli> "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
-set_tests_properties(offline_play PROPERTIES TIMEOUT 45)
+add_test(NAME abi2_offline_play COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/cli/play_tests.py $<TARGET_FILE:wirescape_cli> "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
+set_tests_properties(abi2_offline_play PROPERTIES TIMEOUT 45)
 
 # Optional QtCore document tooling; the engine remains independent of Qt.
 find_package(Qt6 6.5 QUIET COMPONENTS Core)
