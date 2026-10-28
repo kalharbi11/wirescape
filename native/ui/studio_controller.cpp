@@ -326,7 +326,16 @@ void StudioController::note(int pitch, bool on) {
     if(!running())return;
     for(const auto& item:document_["modules"].toArray())if(!send(item.toObject()["id"].toInt(),on?WS_NOTE_ON:WS_NOTE_OFF,float(pitch),0,pitch+2))break;
 }
-void StudioController::panic() { if (engine_) { app_engine_panic(engine_.get()); lastFrame_ = 0; } emit statusChanged(); }
+void StudioController::panic() {
+    if (engine_) {
+        // With no callback owner, reset immediately so the new generation is applied
+        // before the next offline key event. A live/unclean stream owns its reset.
+        if (audio_.engineInUse()) app_engine_panic(engine_.get());
+        else app_engine_reset(engine_.get());
+        lastFrame_ = 0;
+    }
+    emit statusChanged();
+}
 void StudioController::resetPatch() { if (audio_.hasStream()) stopAudio(); if (audio_.engineInUse()) return; documentSource_ = {}; document_ = baseDocument(); name_ = "Essential voice"; dirty_ = false; compileDocument(); emit documentChanged(); }
 
 void StudioController::selectOutput(int node) { auto next = document_; next["outputNode"] = node; commitTopology(next); }

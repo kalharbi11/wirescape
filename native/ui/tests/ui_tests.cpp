@@ -77,6 +77,8 @@ private slots:
     void keyboardChordOffscreen() {
         StudioController studio(directory_);QJsonObject result;
         QVERIFY(studio.keyboardChordCheck(result));QCOMPARE(result["active_channels"].toInt(),4);
+        studio.panic();
+        QVERIFY(studio.keyboardChordCheck(result));QCOMPARE(result["active_channels"].toInt(),4);
         for(const auto& value:studio.connections())QVERIFY(value.toMap()["channels"].toInt()>1);
     }
     void genericPaletteDiscovery() {
@@ -108,7 +110,7 @@ private slots:
     void incompleteAndMissing() {
         StudioController studio(directory_); studio.removeModule(4); QVERIFY(!studio.ready()); QCOMPARE(studio.modules().size(), 4);
         QVERIFY(studio.savePatch(path("incomplete.json"))); QVERIFY(studio.loadPatch(path("incomplete.json"))); QVERIFY(!studio.ready());
-        studio.addModule("essentials.output"); QCOMPARE(studio.outputNode(), 6); studio.connectPorts(3, "audio", 6, "audio"); QVERIFY(studio.ready());
+        studio.addModule("essentials.output"); QCOMPARE(studio.outputNode(), 4); studio.connectPorts(3, "audio", 4, "audio"); QVERIFY(studio.ready());
         const int count = studio.connections().size(); studio.connectPorts(1, "audio", 3, "gain_cv"); QCOMPARE(studio.connections().size(), count);
         QVERIFY(studio.savePatch(path("before_missing.json"))); auto doc = read("before_missing.json");
         doc["futureRoot"] = QJsonObject{{"untouched", QJsonArray{1, "two"}}}; auto nodes = doc["modules"].toArray(); auto n = nodes[0].toObject(); n["module"] = "future.missing"; n["inactive"] = true; n["parameters"] = QJsonObject{}; n["preserved"] = QJsonObject{{"type", "future.missing"}, {"values", QJsonObject{{"futureMode", "poly"}, {"curve", QJsonArray{1, 2, 3}}, {"opaque", QJsonObject{{"enabled", true}}}}}}; n["futurePayload"] = QJsonObject{{"blob", "keep"}}; nodes[0] = n; doc["modules"] = nodes;
@@ -228,7 +230,8 @@ private slots:
             QCOMPARE(studio.modules(),current); QVERIFY(!studio.dirty()); QVERIFY(window->isVisible()); QVERIFY(!window->property("closeApproved").toBool());
             QFile saved(acceptedPath); QVERIFY(saved.open(QIODevice::ReadOnly));
             const auto savedNodes = QJsonDocument::fromJson(saved.readAll()).object().value("modules").toArray();
-            QCOMPARE(savedNodes.size(), 4);
+            QCOMPARE(savedNodes.size(), 5);
+            QCOMPARE(savedNodes.last().toObject().value("module").toString(), QString("host.keyboard"));
             QCOMPARE(savedNodes.at(0).toObject().value("parameters").toObject().value("frequency").toDouble(),440. + action.size());
         }
         // A successful save in the original transaction still performs New.
@@ -242,7 +245,8 @@ private slots:
         QVERIFY(!studio.dirty()); QCOMPARE(studio.modules()[0].toMap()["parameters"].toList()[0].toMap()["value"].toDouble(),220.);
         QFile saved(acceptedPath); QVERIFY(saved.open(QIODevice::ReadOnly));
         const auto savedNodes = QJsonDocument::fromJson(saved.readAll()).object().value("modules").toArray();
-        QCOMPARE(savedNodes.size(), 4); QCOMPARE(savedNodes.at(0).toObject().value("parameters").toObject().value("frequency").toDouble(),880.);
+        QCOMPARE(savedNodes.size(), 5);
+            QCOMPARE(savedNodes.last().toObject().value("module").toString(), QString("host.keyboard")); QCOMPARE(savedNodes.at(0).toObject().value("parameters").toObject().value("frequency").toDouble(),880.);
     }
     void actualDocumentActionsAndCable() {
         bool failWrite = true; int writeAttempts = 0; QString acceptedPath;
