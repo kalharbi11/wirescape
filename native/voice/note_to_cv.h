@@ -60,6 +60,11 @@ public:
         int t=token(source,channel,down);if(t<0)return;auto before=snapshot();
         allocator_.sustain(static_cast<uint32_t>(t),down);changes(before,e,emit,false);
     }
+    template<class Emit> void release_channel(uint32_t source,int channel,const ws2_event&e,Emit emit){
+        int t=token(source,channel,false);if(t<0)return;auto before=snapshot();
+        allocator_.release_all_from_source(static_cast<uint32_t>(t));changes(before,e,emit,true);
+        for(auto&a:anonymous_)if(a.used&&a.source==static_cast<uint32_t>(t))a={};
+    }
     template<class Emit> void release_all(uint32_t source,const ws2_event&e,Emit emit){
         auto before=snapshot();
         if(source==UINT32_MAX)allocator_.reset();
