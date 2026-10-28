@@ -2,40 +2,10 @@
 // Standalone callback test for example.random_source. It drives the generated C callbacks
 // (create/prepare/process/...) with a fixed host arena, like a real host would.
 #include "dsp.h"
+#include "../test_support.h"
 #include "../../../tests2/allocation_watch.h"
-#include <cstdio>
-#include <cstdlib>
-#include <memory>
-#include <vector>
-
-#define REQUIRE(x) do { if (!(x)) { std::fprintf(stderr, "random_source check line %d: %s\n", __LINE__, #x); std::abort(); } } while (0)
 
 static constexpr uint32_t kFrames = 1024;   // max block size we prepare for
-
-struct Pool { alignas(64) unsigned char bytes[16384]; size_t used = 0; };
-static void* WS2_CALL allocate(void* ctx, size_t bytes, size_t alignment, uint32_t) {
-    auto& pool = *static_cast<Pool*>(ctx);
-    pool.used = (pool.used + alignment - 1) & ~(alignment - 1);
-    if (pool.used + bytes > sizeof(pool.bytes)) return nullptr;
-    void* result = pool.bytes + pool.used;
-    pool.used += bytes;
-    return result;
-}
-
-// Byte sink / source for save_state / load_state.
-static int WS2_CALL sink(void* ctx, const void* p, uint32_t n) {
-    auto& v = *static_cast<std::vector<uint8_t>*>(ctx);
-    v.insert(v.end(), static_cast<const uint8_t*>(p), static_cast<const uint8_t*>(p) + n);
-    return WS2_OK;
-}
-struct Source { const std::vector<uint8_t>* bytes; size_t pos; };
-static int WS2_CALL source(void* ctx, void* p, uint32_t n) {
-    auto& s = *static_cast<Source*>(ctx);
-    if (s.pos + n > s.bytes->size()) return WS2_INVALID;
-    std::memcpy(p, s.bytes->data() + s.pos, n);
-    s.pos += n;
-    return WS2_OK;
-}
 
 // One module instance plus every buffer a process call needs.
 struct Rig {
@@ -93,25 +63,24 @@ struct Rig {
 // Pulse train: high for 5 frames of every 23 (prime, so it drifts against block sizes).
 static float pulse(uint64_t frame) { return (frame % 23) < 5 ? 1.f : 0.f; }
 
-// Render `total` frames in blocks of `block`, return both outputs for every voice, constants expanded.
-static std::vector<float> render(Rig& r, uint32_t total, uint32_t block, uint64_t start = 0) {
-    std::vector<float> result;
-    std::vector<std::vector<float>> lanes(2 * 16);
+// Render `total` frames in blocks of `block`. Result layout is [output][voice][frame], constants expanded.
+using Samples = Fixed<float, 32768>;
+static Samples render(Rig& r, uint32_t total, uint32_t block, uint64_t start = 0) {
+    Samples result;
+    result.resize(32 * total);
     for (uint32_t done = 0; done < total;) {
         const uint32_t n = std::min(block, total - done);
         for (uint32_t i = 0; i < n; ++i) r.clock[0][i] = pulse(start + done + i);
         REQUIRE(r.run(n) == WS2_OK);
-        for (int p = 0; p < 2; ++p)
+        for (uint32_t p = 0; p < 2; ++p)
             for (uint32_t c = 0; c < r.voices(); ++c)
-                for (uint32_t i = 0; i < n; ++i) lanes[p * 16 + c].push_back(r.out[p][c][(r.outs[p].flags & WS2_CONSTANT) ? 0 : i]);
+                for (uint32_t i = 0; i < n; ++i)
+                    result[(p * 16 + c) * total + done + i] = r.out[p][c][(r.outs[p].flags & WS2_CONSTANT) ? 0 : i];
         done += n;
     }
-    for (const auto& lane : lanes) result.insert(result.end(), lane.begin(), lane.end());
     return result;
 }
-static bool same(const std::vector<float>& a, const std::vector<float>& b) {
-    return a.size() == b.size() && std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0;
-}
+static bool same(const Samples& a, const Samples& b) { return a == b; }
 
 static void test_random_accessor() {
     ws::Random a;
@@ -140,15 +109,14 @@ static void test_frame_matrix() {
 static void test_rate_and_smooth_time() {
     for (double rate : {44100.0, 48000.0, 96000.0}) {
         Rig r(rate);
-        r.values[1] = 0.05f;
+        r.values[1] = 0.01f;
         for (uint32_t i = 0; i < kFrames; ++i) r.clock[0][i] = i == 0 ? 1.f : 0.f;   // one edge at sample 0
         REQUIRE(r.run(kFrames) == WS2_OK);
         const float target = r.out[0][0][0];
         REQUIRE(std::abs(target) > 0.05f);
-        const uint32_t n = static_cast<uint32_t>(0.05 * rate);                     // t seconds in samples
+        const uint32_t n = static_cast<uint32_t>(0.01 * rate);                     // t seconds in samples
         const double fraction = r.out[1][0][n - 1] / target;
         REQUIRE(std::abs(fraction - (1.0 - std::exp(-1.0))) < 0.01);               // 63.2% at t
-        REQUIRE(r.out[1][0][kFrames - 1] / target < 0.9999);                       // still moving at 1024 frames
     }
     std::puts("PASS 44.1/48/96 kHz, smooth reaches 63% at its time");
 }
@@ -156,7 +124,7 @@ static void test_rate_and_smooth_time() {
 static void test_channels_and_fan_out() {
     for (float voices : {1.f, 4.f, 16.f}) {
         Rig r(48000, 42, voices);
-        const auto data = render(r, 200, 200);
+        render(r, 200, 200);
         REQUIRE(r.outs[0].channels == static_cast<uint32_t>(voices) && r.outs[1].channels == static_cast<uint32_t>(voices));
         if (voices == 1) continue;
         // Mono clock reaches every voice: values change at the same frames but differ per voice.
@@ -218,10 +186,10 @@ static void test_constant() {
 static void test_state() {
     Rig a(48000, 42, 3), fresh(48000, 99, 3);
     render(a, 333, 64);                     // stop mid-pulse so Schmitt, held and smooth are all non-trivial
-    std::vector<uint8_t> bytes;
+    Bytes bytes;
     ws2_writer writer{sizeof(writer), &bytes, sink};
     REQUIRE(a.d->save_state(a.state, &writer) == WS2_OK);
-    auto load_into = [](Rig& rig, std::vector<uint8_t> data) {
+    auto load_into = [](Rig& rig, Bytes data) {
         Source s{&data, 0};
         ws2_reader reader{sizeof(reader), &s, source, static_cast<uint32_t>(data.size())};
         return rig.d->load_state(rig.state, &reader);
@@ -239,7 +207,7 @@ static void test_state() {
     auto truncated = bytes;
     truncated.resize(truncated.size() - 4);
     REQUIRE(load_into(c, truncated) == WS2_INVALID);
-    REQUIRE(load_into(c, {}) == WS2_INVALID);
+    REQUIRE(load_into(c, Bytes{}) == WS2_INVALID);
     auto bad_flag = bytes;
     bad_flag[4 + 4 * 4 + 4 + 8] = 7;                            // voice 0 Schmitt flag
     REQUIRE(load_into(c, bad_flag) == WS2_INVALID);

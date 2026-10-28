@@ -61,6 +61,7 @@ native/modules2/<name>/          (or native/sdk/examples/<name>/ for MIT example
 - Poly policy per input: `WS2_POLY` (per voice; a mono cable broadcasts to all voices), `WS2_SUM` (voices are summed, e.g. an output module), `WS2_FIRST` (only channel 0, e.g. a sequencer clock).
 - `b.in(i).ch(c)` already maps any channel to 0 for a 1-channel cable, so mono inputs "just work" in a poly module.
 - Keep per-voice state in fixed `std::array<Voice, 16>`, never in vectors grown at runtime.
+- A source must keep `n <= s.max_channels()`: remember `max_channels()` from `prepare` (the `Block` doesn't expose it). `b.channels()` is what the host computed from the inputs, not a limit you choose.
 
 ## 6. CONSTANT: the cheap path
 A signal flagged CONSTANT has the same value for the whole block; only sample 0 is valid.
@@ -113,7 +114,7 @@ void process(ws::Block& b) {
 
 ## 10. Events (notes, MIDI, messages)
 - Read: `for (const auto& e : b.events_in(port))` or, for sample accuracy, `b.split(range_fn, event_fn)`: it calls `range_fn(first, end)` for the samples between events and `event_fn(e)` at each event, in order. Offsets are relative to this block.
-- Write: fill a `ws2_event` completely (`struct_size = sizeof(ws2_event)`, `type`, `offset`, `port`, `note_id`, `channel`, `key`, `value`; zero the rest) and call `b.emit(output_port_index, e)`. It returns `false` when the bounded queue is full.
+- Write: start from `ws2_event e{}`, set `struct_size = sizeof(ws2_event)`, `type`, `offset`, `port`, `note_id`, `channel`, `key`, `value`, and call `b.emit(output_port_index, e)`. The index is the **output port's index** in `outputs` (event outputs count like signal outputs); set `e.port` to the same index. Set an event output's channel count to 0. `emit` returns `false` when the bounded queue is full.
 - **Never strand a note-off.** If `emit` fails for a note-off, keep it pending and retry at the next sample or block. Never spin.
 - Note IDs: give each new note a fresh `note_id`; send the matching NOTE_OFF with the same `note_id` and `key`. Stealing a voice: NOTE_CHOKE for the old note before NOTE_ON for the new one, at the same offset.
 - Same-frame clock and reset: **reset wins** (the clock then plays step 1). Stop or reset releases any sounding note at that sample.
@@ -124,11 +125,12 @@ void process(ws::Block& b) {
 - Only state the parameters don't already hold (the host saves parameters): playback position, held values, RNG state.
 - Write a version number first, then portable fields with `w.u32(...)` / `w.f32(...)` (little-endian, fixed). Don't use `value<T>` for structs in shared files.
 - `load_state`: read everything into a staged copy, validate, then commit. Unknown version → `WS2_UNSUPPORTED` (the host keeps the bytes). Short or garbage data → `WS2_INVALID` with the current state unchanged.
-- RNG: `ws::Random::save()` / `restore()` give portable state (see the random source example).
+- RNG: `ws::Random::save()` / `restore()` give its state as two `uint64_t`; write each as two `u32` words (see the random source example). Doubles likewise: `memcpy` to `uint64_t`, then two words.
+- `ws::Schmitt` has no getter: mirror its output in a `bool high` and, on load, restore with `reset()` then `process(1.f)` if it was high.
 - Patch compatibility matters more than exact DSP continuity: never break loading of an older version.
 
 ## 12. Tests (copy from the examples) and definition of done
-Tests call the real C callbacks through the wrapper (`ws::Module<Class>::descriptor()`), not just the class. Every module covers:
+Tests call the real C callbacks through the wrapper (`ws::Module<Class>::descriptor()`), not just the class. Copy the harness from the example closest to yours (`native/sdk/examples/test_support.h` holds the shared pieces: arena, `REQUIRE`, state byte sink/source, fixed buffers). The wrapper requires every output, event outputs included, to have `max_channels` non-null rows, and it rejects non-finite outputs with `WS2_INVALID`. Code under `native/sdk/` (examples and their tests) may not include `<vector>`, `<functional>` and similar (`abi2_banned_includes`); use fixed arrays. `native/modules2/*/tests.cpp` is exempt. Every module covers:
 1. **Frame matrix:** one block vs blocks of 1, 17, 64 and 256 frames give bit-identical output (and identical events at absolute frames).
 2. **Rate matrix:** 44.1, 48 and 96 kHz prepare and behave (times scale with rate).
 3. **Channel matrix:** 1, 4 and 16 voices; voices are independent; mono input broadcasts.
@@ -168,6 +170,7 @@ Tests call the real C callbacks through the wrapper (`ws::Module<Class>::descrip
 - Signal view: `channels()`, `constant()`, `connected()`, `ch(c)[i]`, `value(c, i)`, `row(c, scratch, frames)`. Output: `set_channels(n)`, `ch(c)` (writable), `mark_constant(bool)`, `channels()`.
 - Helpers (`native/sdk/signals.h`): `ws::Schmitt`, `ws::Trigger` (≥1 ms), `ws::Random` (`seed(instance, channel)`, `next()`, `bipolar()`, `save()`, `restore()`), `ws::LinearRamp`. `native/sdk/simd.h`: `ws::simd::f4` (load/store, `+ - *`). `native/sdk/fastmath.h`: `tan_small` only for |x| ≤ 0.25 rad. No global fast-math flags; keep `double` only where precision needs it.
 - Limits: 16 channels, 32 ports, 32 parameters, event payload ≤ 1,472 bytes.
+- Known SDK gaps (additive fixes planned after J9): no `Schmitt::high()`, no stepped-parameter helper (spell out `WS2_STEPPED|WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1`), no 64-bit `Writer`/`Reader` helpers, `Reader` can't report remaining bytes, `reset()` can't emit events (the host chokes notes on reset).
 - **Compatibility promise (from J-R2):** additive SDK changes only; a breaking change needs a migration note here and in the PR.
 
 ## 14. Where to look next

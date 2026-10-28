@@ -2,54 +2,35 @@
 // Standalone callback test for example.step_sequencer. It drives the generated C callbacks
 // with a fixed host arena and an event-output callback that records (and can refuse) events.
 #include "dsp.h"
+#include "../test_support.h"
 #include "../../../tests2/allocation_watch.h"
-#include <cstdio>
-#include <cstdlib>
-#include <vector>
-
-#define REQUIRE(x) do { if (!(x)) { std::fprintf(stderr, "step_sequencer check line %d: %s\n", __LINE__, #x); std::abort(); } } while (0)
 
 using S = StepSequencer;
 static constexpr uint32_t kFrames = 1024;   // max block size we prepare for
-
-struct Pool { alignas(64) unsigned char bytes[16384]; size_t used = 0; };
-static void* WS2_CALL allocate(void* ctx, size_t bytes, size_t alignment, uint32_t) {
-    auto& pool = *static_cast<Pool*>(ctx);
-    pool.used = (pool.used + alignment - 1) & ~(alignment - 1);
-    if (pool.used + bytes > sizeof(pool.bytes)) return nullptr;
-    void* result = pool.bytes + pool.used;
-    pool.used += bytes;
-    return result;
-}
-static int WS2_CALL sink(void* ctx, const void* p, uint32_t n) {
-    auto& v = *static_cast<std::vector<uint8_t>*>(ctx);
-    v.insert(v.end(), static_cast<const uint8_t*>(p), static_cast<const uint8_t*>(p) + n);
-    return WS2_OK;
-}
-struct Source { const std::vector<uint8_t>* bytes; size_t pos; };
-static int WS2_CALL source(void* ctx, void* p, uint32_t n) {
-    auto& s = *static_cast<Source*>(ctx);
-    if (s.pos + n > s.bytes->size()) return WS2_INVALID;
-    std::memcpy(p, s.bytes->data() + s.pos, n);
-    s.pos += n;
-    return WS2_OK;
-}
 
 struct Ev {
     uint32_t type; uint64_t frame; int32_t id, key; float value;
     bool operator==(const Ev& o) const { return type == o.type && frame == o.frame && id == o.id && key == o.key && value == o.value; }
 };
+using Events = Fixed<Ev, 2048>;
+using Curve = Fixed<float, kFrames>;
 struct Trace {
-    std::vector<float> pitch, gate, velocity;
-    std::vector<Ev> events;
+    Curve pitch, gate, velocity;
+    Events events;
     bool operator==(const Trace& o) const {
         return pitch == o.pitch && gate == o.gate && velocity == o.velocity && events == o.events;
     }
+    void append(const Trace& o) { pitch.append(o.pitch); gate.append(o.gate); velocity.append(o.velocity); events.append(o.events); }
 };
+template<size_t N> static bool is(const Events& events, const Ev (&expected)[N]) {
+    if (events.size() != N) return false;
+    for (size_t i = 0; i < N; ++i) if (!(events[i] == expected[i])) return false;
+    return true;
+}
 
 // Event sink: stores events with absolute frames, refuses after `capacity` events per block.
 struct Recorder {
-    std::vector<Ev> events;
+    Fixed<Ev, 4096> events;
     uint64_t base = 0; uint32_t frames = 0, taken = 0, capacity = 1u << 30;
 };
 static int WS2_CALL push(void* ctx, uint32_t port, const ws2_event* e) {
@@ -64,7 +45,7 @@ static int WS2_CALL push(void* ctx, uint32_t port, const ws2_event* e) {
 
 // Input shapes: clock high for `high` frames every `period`; reset high for 2 frames at each start.
 struct Clock { uint32_t period = 20, high = 8; float operator()(uint64_t f) const { return (f % period) < high ? 1.f : 0.f; } };
-struct Resets { std::vector<uint64_t> at; float operator()(uint64_t f) const { for (auto s : at) if (f >= s && f < s + 2) return 1.f; return 0.f; } };
+struct Resets { uint64_t at[4]{}; float operator()(uint64_t f) const { for (auto s : at) if (s && f >= s && f < s + 2) return 1.f; return 0.f; } };   // 0 = unused slot
 
 struct Rig {
     Pool pool{};
@@ -88,7 +69,6 @@ struct Rig {
         ws2_config cfg{sizeof(cfg), rate, kFrames, 16, 42, nullptr, 0};
         state = d->create(&host);
         REQUIRE(state && d->prepare(state, &cfg, &host) == WS2_OK);
-        recorder.events.reserve(1 << 16);       // reserve now: pushing must not allocate later
         for (uint32_t p = 0; p < 26; ++p) {
             values[p] = S::params[p].initial;
             value_rows[p] = &values[p];
@@ -138,12 +118,10 @@ struct Rig {
             const uint32_t n = std::min(block, total - done);
             for (uint32_t i = 0; i < n; ++i) { in[0][i] = clock(ctx.frame_position + i); in[1][i] = reset(ctx.frame_position + i); }
             REQUIRE(run(n) == WS2_OK);
-            t.pitch.insert(t.pitch.end(), out[0][0], out[0][0] + n);
-            t.gate.insert(t.gate.end(), out[1][0], out[1][0] + n);
-            t.velocity.insert(t.velocity.end(), out[2][0], out[2][0] + n);
+            for (uint32_t i = 0; i < n; ++i) { t.pitch.push_back(out[0][0][i]); t.gate.push_back(out[1][0][i]); t.velocity.push_back(out[2][0][i]); }
             done += n;
         }
-        t.events.assign(recorder.events.begin() + first_event, recorder.events.end());
+        for (size_t i = first_event; i < recorder.events.size(); ++i) t.events.push_back(recorder.events[i]);
         return t;
     }
 };
@@ -172,8 +150,8 @@ static void check_agreement(const Trace& t, uint64_t first_frame = 0) {
         if (sounding) REQUIRE(t.pitch[i] == static_cast<float>(note.key - 60) / 12.f && t.velocity[i] == note.value);
     }
 }
-static std::vector<Ev> only(const Trace& t, uint32_t type) {
-    std::vector<Ev> r;
+static Events only(const Trace& t, uint32_t type) {
+    Events r;
     for (const Ev& e : t.events) if (e.type == type) r.push_back(e);
     return r;
 }
@@ -209,10 +187,10 @@ static void test_rest_and_tie() {
     const int semis[8] = {0, 7, 4, 5, 7, 9, 11, 12};
     tie.pattern(semis, ties, 4);
     t = tie.render(140, 64, Clock{}, Resets{});
-    const std::vector<Ev> expected = {
+    const Ev expected[] = {
         {WS2_NOTE_ON, 0, 0, 60, 0.8f}, {WS2_NOTE_OFF, 28, 0, 60, 0.f}, {WS2_NOTE_ON, 40, 1, 64, 0.8f}, {WS2_NOTE_OFF, 48, 1, 64, 0.f},
         {WS2_NOTE_ON, 80, 2, 60, 0.8f}, {WS2_NOTE_OFF, 108, 2, 60, 0.f}, {WS2_NOTE_ON, 120, 3, 64, 0.8f}, {WS2_NOTE_OFF, 128, 3, 64, 0.f}};
-    REQUIRE(t.events == expected);           // the tie holds the note from frame 8 to 28 without a new note
+    REQUIRE(is(t.events, expected));           // the tie holds the note from frame 8 to 28 without a new note
     REQUIRE(t.gate[15] == 1.f && t.pitch[25] == 0.f);   // gate stays high through the tie; pitch keeps the old note
     check_balanced(t); check_agreement(t);
 
@@ -228,17 +206,17 @@ static void test_reset_wins_and_release() {
     const int gates[8] = {1, 2, 2, 1, 1, 1, 1, 1};
     r.pattern(kSemis, gates, 4);
     Trace t = r.render(100, 33, Clock{}, Resets{{40}});   // reset and clock rise on the same frame
-    const std::vector<Ev> expected = {
+    const Ev expected[] = {
         {WS2_NOTE_ON, 0, 0, 60, 0.8f}, {WS2_NOTE_OFF, 40, 0, 60, 0.f},   // reset releases ...
         {WS2_NOTE_ON, 40, 1, 60, 0.8f}, {WS2_NOTE_OFF, 88, 1, 60, 0.f}};  // ... and that clock plays step 1 (tie, tie, then note)
-    REQUIRE(t.events == expected);
+    REQUIRE(is(t.events, expected));
     check_balanced(t); check_agreement(t);
 
     Rig q;                                   // reset while a note sounds, clock elsewhere
     q.pattern(kSemis, kNotes, 4);
     t = q.render(100, 100, Clock{}, Resets{{25, 70}});
-    REQUIRE(t.events[2].frame == 25 && t.events[2].type == WS2_NOTE_OFF);   // note from frame 20 released by reset
-    REQUIRE(t.events[3].frame == 40 && t.events[3].key == 60);              // next clock restarts at step 1
+    REQUIRE(t.events[3].frame == 25 && t.events[3].type == WS2_NOTE_OFF);   // note from frame 20 released by reset
+    REQUIRE(t.events[4].frame == 40 && t.events[4].key == 60);              // next clock restarts at step 1
     check_balanced(t); check_agreement(t);
     std::puts("PASS reset wins on the same frame, reset releases");
 }
@@ -255,14 +233,8 @@ static void test_run_switch() {
     REQUIRE(b.events[0].type == WS2_NOTE_OFF && b.events[0].frame == 4);
     REQUIRE(c.events[0].frame == 60 && c.events[0].key == 62);
     Trace all = a;
-    for (const Trace* t : {&b, &c}) {
-        all.pitch.insert(all.pitch.end(), t->pitch.begin(), t->pitch.end());
-        all.gate.insert(all.gate.end(), t->gate.begin(), t->gate.end());
-        all.velocity.insert(all.velocity.end(), t->velocity.begin(), t->velocity.end());
-        all.events.insert(all.events.end(), t->events.begin(), t->events.end());
-    }
-    for (int i = 0; i < 4; ++i) all.events.push_back(all.events.back());   // sentinel padding removed below
-    all.events.resize(all.events.size() - 4);
+    all.append(b);
+    all.append(c);
     check_agreement(all);
     std::puts("PASS run=0 releases the note and freezes the position");
 }
@@ -277,7 +249,8 @@ static void test_capacity_full() {
     REQUIRE(delayed);                        // a refused note-off was kept and delivered at the start of a later block
     r.recorder.capacity = 1u << 30;
     t.events = r.render(20, 20, [](uint64_t) { return 0.f; }, Resets{}).events;   // clock low, room again
-    Trace all; all.events = r.recorder.events;
+    Trace all;
+    for (const Ev& e : r.recorder.events) all.events.push_back(e);
     check_balanced(all);                     // every note-on got its note-off, nothing stranded, no overlap
     REQUIRE(all.events.size() >= 6);
     std::puts("PASS refused note-off is kept and delivered later, notes balance");
@@ -306,13 +279,13 @@ static void test_matrices() {
 static void test_state() {
     const int gates[8] = {1, 2, 1, 0, 1, 1, 2, 1};
     auto make = [&](Rig& r) { r.pattern(kSemis, gates, 7); };
-    auto save = [](Rig& r) { std::vector<uint8_t> bytes; ws2_writer w{sizeof(w), &bytes, sink}; REQUIRE(r.d->save_state(r.state, &w) == WS2_OK); return bytes; };
-    auto load = [](Rig& r, std::vector<uint8_t> bytes) { Source s{&bytes, 0}; ws2_reader rd{sizeof(rd), &s, source, static_cast<uint32_t>(bytes.size())}; return r.d->load_state(r.state, &rd); };
+    auto save = [](Rig& r) { Bytes bytes; ws2_writer w{sizeof(w), &bytes, sink}; REQUIRE(r.d->save_state(r.state, &w) == WS2_OK); return bytes; };
+    auto load = [](Rig& r, Bytes bytes) { Source s{&bytes, 0}; ws2_reader rd{sizeof(rd), &s, source, static_cast<uint32_t>(bytes.size())}; return r.d->load_state(r.state, &rd); };
 
     // Between notes (clock low, nothing sounding): restoring continues bit-identically.
     Rig a, b; make(a); make(b);
     a.render(134, 40, Clock{}, Resets{});
-    REQUIRE(a.out[1][0][5] == 0.f);
+    REQUIRE(a.out[1][0][13] == 0.f);        // last sample of the run: gate is low
     const auto bytes = save(a);
     REQUIRE(load(b, bytes) == WS2_OK);
     b.ctx.frame_position = a.ctx.frame_position;
@@ -342,7 +315,7 @@ static void test_state() {
     REQUIRE(load(f, unknown) == WS2_UNSUPPORTED);
     auto truncated = bytes; truncated.pop_back();
     REQUIRE(load(f, truncated) == WS2_INVALID);
-    REQUIRE(load(f, {}) == WS2_INVALID);
+    REQUIRE(load(f, Bytes{}) == WS2_INVALID);
     auto bad_step = bytes; bad_step[4] = 9;
     REQUIRE(load(f, bad_step) == WS2_INVALID);
     auto bad_velocity = bytes; bad_velocity[bad_velocity.size() - 1] = 0x7f;      // velocity becomes NaN/huge
