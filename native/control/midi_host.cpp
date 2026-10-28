@@ -36,7 +36,7 @@ bool Host::start(AppEngine*engine,const std::string&document,std::string&error){
  for(auto&m:j.at("modules")){auto type=m.value("module",m.value("type",std::string{}));if(type!="midi.in")continue;auto c=m.value("config",nlohmann::json::object());auto name=c.value("endpoint",std::string("all_enabled"));Route r;r.node=m.at("id").get<uint32_t>();r.all_enabled=name=="all_enabled";r.endpoint={name,c.value("system_name",std::string{})};if(!service_->subscribe(r))throw std::runtime_error("Too many MIDI routes");}
  if(!service_->start())throw std::runtime_error("MIDI service did not start");error.clear();return true;
  }catch(const std::exception&e){error=e.what();stop();return false;}}
-void Host::stop(){if(service_){service_->stop();service_.reset();}engine_=nullptr;}
-std::string Host::diagnostics()const{auto c=counters();return nlohmann::json{{"received",c.received},{"dropped",c.dropped},{"malformed",c.malformed},{"oversize",c.oversize},{"ring_full",c.ring_full},{"disconnects",c.disconnects},{"send_fail",c.send_fail}}.dump();}
+void Host::stop(){if(service_){service_->stop();last_statistics_=diagnostics();service_.reset();}engine_=nullptr;}
+std::string Host::diagnostics()const{if(!service_&&!last_statistics_.empty())return last_statistics_;auto c=counters();return nlohmann::json{{"received",c.received},{"dropped",c.dropped},{"malformed",c.malformed},{"oversize",c.oversize},{"ring_full",c.ring_full},{"disconnects",c.disconnects},{"send_fail",c.send_fail}}.dump();}
 Counters Host::counters()const noexcept{return service_?service_->counters():Counters{};}
 }

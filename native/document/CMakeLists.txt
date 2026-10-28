@@ -18,6 +18,10 @@ add_test(NAME offline_play COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/c
 set_tests_properties(offline_play PROPERTIES TIMEOUT 45)
 
 # Optional QtCore document tooling; the engine remains independent of Qt.
+add_executable(runtime_module_config_tests runtime_module_config_tests.cpp)
+target_link_libraries(runtime_module_config_tests PRIVATE nlohmann_json::nlohmann_json)
+add_test(NAME runtime_module_config_tests COMMAND runtime_module_config_tests)
+
 find_package(Qt6 6.5 QUIET COMPONENTS Core)
 if(NOT TARGET Qt6::Core)
   message(STATUS "Qt Core unavailable: document inspection tests disabled")

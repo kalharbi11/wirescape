@@ -13,6 +13,7 @@ class Host {
  std::unique_ptr<Service> service_;
  AppEngine* engine_=nullptr;
  bool authorized_=false;
+ std::string last_statistics_;
  std::vector<Endpoint> enabled_;
  static int deliver(void*,uint32_t,const ws2_event&,uint64_t) noexcept;
 public:

@@ -15,6 +15,7 @@ int app_engine_register_module(AppEngine*,const ws_module_descriptor*);
 uint32_t app_engine_module_count(const AppEngine*);
 const ws_module_descriptor* app_engine_module(const AppEngine*,uint32_t);
 int app_engine_add_node(AppEngine*,uint32_t,const char*);
+int app_engine_add_node_config(AppEngine*,uint32_t,const char*,const std::vector<uint8_t>&);
 int app_engine_connect(AppEngine*,uint32_t,uint32_t,uint32_t,uint32_t);
 int app_engine_prepare(AppEngine*,uint32_t,uint32_t);
 int app_engine_initialize_parameter(AppEngine*,uint32_t,uint32_t,float);

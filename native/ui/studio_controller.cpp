@@ -340,8 +340,14 @@ bool StudioController::savePatch(const QUrl& url) {
     auto patch=wirescape::document::editor_patch(document_,catalog_.get(),documentSource_);
     if(!patch.valid()){setError(patch.error);return false;}
     QJsonArray devices=patch.object["devices"].toArray(),saved;
-    for(auto d:devices)if(d.toObject()["kind"]!="midi")saved.append(d);
-    for(const auto&selection:midi_.enabled())saved.append(QJsonObject{{"kind","midi"},{"name",QString::fromStdString(selection.name)},{"system_name",QString::fromStdString(selection.system_name)},{"enabled",true}});
+    QSet<QString> existing;
+    for(auto value:devices){auto d=value.toObject();
+        if(d["kind"]=="midi"){
+            bool enabled=false;for(const auto&selection:midi_.enabled())enabled|=d["name"]==QString::fromStdString(selection.name)&&d["system_name"].toString()==QString::fromStdString(selection.system_name);
+            d["enabled"]=enabled;existing.insert(d["name"].toString()+QChar(0)+d["system_name"].toString());
+        }saved.append(d);
+    }
+    for(const auto&selection:midi_.enabled())if(!existing.contains(QString::fromStdString(selection.name)+QChar(0)+QString::fromStdString(selection.system_name)))saved.append(QJsonObject{{"kind","midi"},{"name",QString::fromStdString(selection.name)},{"system_name",QString::fromStdString(selection.system_name)},{"enabled",true}});
     patch.object["devices"]=saved;
     QString error;
     const auto bytes=QJsonDocument(patch.object).toJson(QJsonDocument::Indented);

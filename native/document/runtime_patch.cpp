@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "runtime_patch.h"
+#include "runtime_module_config.h"
 #include <nlohmann/json.hpp>
 #include <cmath>
 #include <cstring>
@@ -48,8 +49,9 @@ AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws
   std::map<uint32_t,const ws_module_descriptor*> nodes;
   for(const auto&m:modules){need(m.is_object(),"Invalid module");const uint32_t node=id(m.at("id"));need(!nodes.count(node),"Duplicate module ID");
    std::string type=m.at(version==1?"type":"module").get<std::string>();need(!m.value("inactive",false),"Inactive module; saved data preserved");
-   if(version==2){need(m.at("version").is_number_integer()&&m.at("version").get<int64_t>()>0,"Invalid module version");if(m.contains("config"))need(m["config"].is_object()&&m["config"].empty(),"Module config needs a module-specific adapter");}
-   need(app_engine_add_node(engine.get(),node,type.c_str())==WS_OK,"Module unavailable or prepare failed");
+   if(version==2){need(m.at("version").is_number_integer()&&m.at("version").get<int64_t>()>0,"Invalid module version");if(m.contains("config"))need(m["config"].is_object(),"Module config must be an object");}
+   auto module_config=runtime_module_config(type,version==2?m.value("config",Json::object()):Json::object());
+   need(app_engine_add_node_config(engine.get(),node,type.c_str(),module_config)==WS_OK,"Module unavailable or prepare failed");
    for(uint32_t i=0;i<app_engine_module_count(engine.get());++i){auto*d=app_engine_module(engine.get(),i);if(type==d->id)nodes[node]=d;}
   }
   auto port=[&](uint32_t node,const std::string&name,bool output){need(nodes.count(node),"Missing cable/output module");auto*d=nodes.at(node);auto*p=output?d->outputs:d->inputs;uint32_t n=output?d->output_count:d->input_count;for(uint32_t i=0;i<n;++i)if(name==p[i].id)return i;throw std::runtime_error("Unknown port");};
