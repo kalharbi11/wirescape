@@ -19,7 +19,7 @@ struct AppEngine {
  std::atomic<float> peak{0};std::atomic<uint64_t> blocks{0};
  std::string error;
  explicit AppEngine(const ws_engine_config& c,const wirescape::engine2::Config* override=nullptr):engine(override?*override:config(c)),legacy(ws_engine_create(&c),ws_engine_destroy){
-  engine.register_producer();
+  engine.register_producer();engine.register_producer(); // producer 0 host keys, 1 MIDI service
   for(auto* d:wirescape::app::builtin_modules()){
    entries.emplace_back();auto& e=entries.back();e.native=d;
    for(uint32_t i=0;i<d->input_count;++i)e.inputs.push_back({d->inputs[i].id,d->inputs[i].name,d->inputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL});
