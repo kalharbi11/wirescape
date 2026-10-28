@@ -12,7 +12,7 @@ struct Lfo {
         ws::param("depth","Depth",0,1,1,"",flags,WS2_LINEAR,1),
         ws::param("offset","Offset",-1,1,0,"",flags,WS2_LINEAR,2),
         ws::param("sync","Tempo sync",0,1,0,"",WS2_STEPPED,WS2_LINEAR,3,4,1),
-        ws::param("beats","Beats/cycle",.125f,16,1,"beats",WS2_AUTOMATABLE,WS2_LOG,4)};
+        ws::param("beats","Beats/cycle",.125f,16,1,"beats",WS2_AUTOMATABLE|WS2_MODULATABLE,WS2_LOG,4)};
     std::array<double,16>phase{}; // Double phase avoids long-term low-rate drift.
     void prepare(const ws::Setup&){}void reset(){phase.fill(0);}
     void process(ws::Block&b){

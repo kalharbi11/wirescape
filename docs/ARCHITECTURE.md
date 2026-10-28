@@ -151,8 +151,19 @@ Engine2 reports forward signal latency per output bus and feedback delay separat
 `native/control/app_engine.*` adapts app control and metadata to engine2; built-in
 Essentials use native ABI2 descriptors, while dynamically loaded ABI1 modules use
 the shim. `native/document/app_patch.*` builds engine2 graphs from the v1/v2 reader.
-The UI callback and CLI renderer call this facade. Integration is blocked pending
-planner review of a nonzero Six Essentials reference-render delta.
+The UI callback and CLI renderer call this facade. The planner accepted the app-only
+Six Essentials reference-render delta (<=1e-7); explicit Noise default initialization
+differs between ABI1 double-ramp and ABI2 cached-float parameter handling. Per-module
+equivalence remains exact. Qt-backed app-document and real-loader soak evidence is
+still required before this integration is ready.
+
+With Qt Core available at build time, `wirescape_soak --patch <native-v1-or-v2.json>`
+uses the app document reader, catalogue and callback facade, rather than a hardcoded
+graph. The Pi evidence command is `wirescape_soak --patch
+native/examples/Six_Essentials_Demo.json --rate 48000 --block 128 --seconds 600`.
+Without Qt development files, the command fails explicitly instead of substituting
+a graph. The six browser-era legacy fixtures remain non-executable, byte-preserved
+documents; they are never silently converted to native patches.
 
 The ABI2 built-in catalogue has one registration list,
 `native/control/module_catalog.inc`: add `WS_APP_MODULE(Class)` and include the
