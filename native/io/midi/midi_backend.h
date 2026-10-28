@@ -10,6 +10,7 @@ struct Endpoint { std::string name, system_name; };
 struct Callback {
     void* context = nullptr;
     void (*message)(void*, const uint8_t*, size_t, uint64_t) = nullptr;
+    void (*ump)(void*, const uint32_t*, size_t, uint64_t) = nullptr;
 };
 // Enumeration/open/close are control-side operations. One callback writer per endpoint.
 class Backend {
