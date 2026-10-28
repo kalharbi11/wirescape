@@ -1,4 +1,5 @@
-#include "wirescape/engine.h"
+#include "app_engine.h"
+#include "play.h"
 #include "wirescape/output_policy.h"
 #include <algorithm>
 #include <chrono>
@@ -13,18 +14,18 @@
 #include <thread>
 #include <vector>
 namespace {
-using Engine = std::unique_ptr<ws_engine, decltype(&ws_engine_destroy)>;
+using Engine = std::unique_ptr<AppEngine, decltype(&app_engine_destroy)>;
 Engine make(const std::string &dir, double rate, uint32_t block) {
     ws_engine_config c{sizeof(c), rate, block, 32, 8192};
-    Engine e(ws_engine_create(&c), ws_engine_destroy);
-    if (!e || ws_engine_build_essentials(e.get(), dir.c_str()))
-        throw std::runtime_error(e ? ws_engine_error(e.get()) : "Cannot create engine");
+    Engine e(app_engine_create(&c), app_engine_destroy);
+    if (!e || app_engine_build_essentials(e.get(), dir.c_str()))
+        throw std::runtime_error(e ? app_engine_error(e.get()) : "Cannot create engine");
     return e;
 }
-void send(ws_engine *e, uint64_t frame, uint32_t node, uint32_t type, float value,
+void send(AppEngine *e, uint64_t frame, uint32_t node, uint32_t type, float value,
           uint32_t parameter = 0, uint32_t note = 1) {
-    ws_event ev{sizeof(ev), frame, node, type, parameter, value, 1, note, ws_engine_generation(e)};
-    if (ws_engine_enqueue(e, &ev))
+    ws_event ev{sizeof(ev), frame, node, type, parameter, value, 1, note, app_engine_generation(e)};
+    if (app_engine_enqueue(e, &ev))
         throw std::runtime_error("Event rejected");
 }
 void u16(std::ofstream &o, uint16_t v) {
@@ -64,7 +65,7 @@ void render(const std::string &dir, const std::string &path) {
     std::vector<float> buffer(512);
     for (uint32_t pos = 0; pos < frames;) {
         auto n = std::min<uint32_t>(512, frames - pos);
-        if (ws_engine_render(e.get(), buffer.data(), n))
+        if (app_engine_render(e.get(), buffer.data(), n))
             throw std::runtime_error("Render failed");
         for (uint32_t i = 0; i < n; ++i)
             u16(out, static_cast<uint16_t>(static_cast<int16_t>(
@@ -80,7 +81,7 @@ double percentile(const std::vector<double> &v, double p) {
 }
 void benchmark(const std::string &dir, const std::string &path, uint32_t blocks) {
     std::ostringstream json;
-    json << "{\n  \"schema_version\": 1,\n  \"engine\": \"Wirescape native experimental ABI 1\",\n "
+    json << "{\n  \"schema_version\": 1,\n  \"engine\": \"Wirescape native engine2\",\n "
             " \"environment\": {\"os\": \""
 #ifdef _WIN32
          << "Windows"
@@ -120,7 +121,7 @@ void benchmark(const std::string &dir, const std::string &path, uint32_t blocks)
             std::vector<float> buffer(block);
             send(e.get(), 0, 2, WS_NOTE_ON, 60);
             for (int i = 0; i < 200; ++i)
-                ws_engine_render(e.get(), buffer.data(), block);
+                app_engine_render(e.get(), buffer.data(), block);
             std::vector<double> times;
             times.reserve(blocks);
             uint32_t missed = 0;
@@ -134,7 +135,7 @@ void benchmark(const std::string &dir, const std::string &path, uint32_t blocks)
                     else send(e.get(), frame, 1, WS_PARAMETER, 220.f + (k % 7) * 55.f);
                 }
                 auto start = std::chrono::steady_clock::now();
-                if (ws_engine_render(e.get(), buffer.data(), block))
+                if (app_engine_render(e.get(), buffer.data(), block))
                     throw std::runtime_error("Benchmark render failed");
                 double us = std::chrono::duration<double, std::micro>(
                                 std::chrono::steady_clock::now() - start)
@@ -173,6 +174,7 @@ void benchmark(const std::string &dir, const std::string &path, uint32_t blocks)
 } // namespace
 int main(int argc, char **argv) {
     try {
+        if(argc>1&&std::string(argv[1])=="play")return wirescape_play(argc,argv);
         if (argc < 2) {
             std::cout << "wirescape_cli render --modules DIR --output demo.wav\nwirescape_cli "
                          "benchmark --modules DIR [--json report.json] [--blocks 3000]\n";

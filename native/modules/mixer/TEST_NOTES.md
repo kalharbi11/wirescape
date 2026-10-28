@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Mixer: implementation and test notes
 
 ## ABI and behavior

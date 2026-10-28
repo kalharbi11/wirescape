@@ -2,6 +2,7 @@
 #pragma once
 #include "document_reader.h"
 #include <QHash>
+#include <functional>
 
 namespace wirescape::document {
 struct ModuleInfo {
@@ -23,5 +24,6 @@ struct PatchDocument {
 PatchDocument read_patch(const QByteArray& bytes, const ModuleCatalog& catalog);
 bool validate_patch(const QJsonObject& object, QString* error = nullptr);
 // Atomic v2 save; a v1 source receives a non-overwritten sibling backup.
-bool save_patch(const QString& path, const PatchDocument& document, QString* error = nullptr);
+using PatchWriter = std::function<bool(const QString&,const QByteArray&,QString&)>;
+bool save_patch(const QString& path, const PatchDocument& document, QString* error = nullptr, PatchWriter writer = {});
 } // namespace wirescape::document

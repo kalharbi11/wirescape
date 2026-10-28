@@ -78,6 +78,11 @@ foreach(example random_source step_sequencer)
   add_test(NAME abi2_example_${example}_tests COMMAND abi2_example_${example}_tests)
 endforeach()
 
+add_library(wirescape_catalog_dependencies INTERFACE)
+target_link_libraries(wirescape_catalog_dependencies INTERFACE wirescape_voice2)
+add_library(ws2_host_keyboard SHARED ../modules2/host_keyboard/module.cpp)
+target_link_libraries(ws2_host_keyboard PRIVATE wirescape_sdk2 wirescape_voice2)
+
 foreach(module vco lfo vcf adsr vca clock function_envelope ladder mixer noise output scale_offset slew)
   add_library(ws2_${module} SHARED ../modules2/${module}/module.cpp)
   target_link_libraries(ws2_${module} PRIVATE wirescape_sdk2)
@@ -125,3 +130,17 @@ add_dependencies(abi2_returned_filter_stress ws2_ladder ws_ladder)
 add_test(NAME abi2_returned_filter_stress COMMAND abi2_returned_filter_stress $<TARGET_FILE_DIR:ws_ladder>)
 
 add_subdirectory(../io/midi midi_io)
+add_library(wirescape_app_engine STATIC ../control/app_engine.cpp)
+target_include_directories(wirescape_app_engine PUBLIC ../control)
+target_link_libraries(wirescape_app_engine PUBLIC wirescape_engine2 wirescape_engine wirescape_catalog_dependencies)
+target_link_libraries(wirescape_cli PRIVATE wirescape_app_engine)
+
+add_executable(abi2_host_keyboard_tests ../modules2/host_keyboard/tests.cpp ../tests2/allocation_watch.cpp)
+target_link_libraries(abi2_host_keyboard_tests PRIVATE wirescape_engine2 wirescape_voice2)
+add_test(NAME abi2_host_keyboard_tests COMMAND abi2_host_keyboard_tests)
+
+add_library(wirescape_audio_service STATIC ../io/audio/portaudio_service.cpp)
+target_link_libraries(wirescape_audio_service PUBLIC wirescape_app_engine PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
+target_link_libraries(wirescape_cli PRIVATE wirescape_runtime_document wirescape_audio_service)
+
+target_sources(wirescape_cli PRIVATE ../cli/play.cpp)

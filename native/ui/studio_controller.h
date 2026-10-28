@@ -1,4 +1,5 @@
 #pragma once
+#include "app_patch.h"
 #include "audio_device.h"
 #include <QObject>
 #include <QJsonObject>
@@ -75,13 +76,14 @@ public:
     Q_INVOKABLE void renderDemo(const QUrl&);
     Q_INVOKABLE void resetPatch();
     bool smokeCheck(QJsonObject& result);
+    bool keyboardChordCheck(QJsonObject& result);
 signals:
     void documentChanged();
     void parameterChanged(int node, int parameter, double value, QString display);
     void statusChanged();
     void metersChanged();
 private:
-    using Engine = std::unique_ptr<ws_engine, decltype(&ws_engine_destroy)>;
+    using Engine = std::unique_ptr<AppEngine, decltype(&app_engine_destroy)>;
     Engine makeEngine(const QJsonObject&, QString& error) const;
     bool compileDocument();
     bool validateDocument(const QJsonObject&, QString& error) const;
@@ -90,13 +92,14 @@ private:
     const ws_module_descriptor* descriptor(const QString& id) const;
     const ws_module_descriptor* nodeDescriptor(int node) const;
     bool send(int node, uint32_t type, float value, uint32_t parameter = 0, uint32_t note = 1);
-    bool applyParameters(ws_engine*, const QJsonObject&) const;
+    bool applyParameters(AppEngine*, const QJsonObject&) const;
     void setError(QString);
     static int portIndex(const ws_port_descriptor*, uint32_t count, const QString& id);
     QString directory_, error_, notice_, name_ = "Essential voice";
     PatchWriter patchWriter_;
     QJsonObject document_;
-    Engine catalog_{nullptr, ws_engine_destroy}, engine_{nullptr, ws_engine_destroy};
+    wirescape::document::PatchDocument documentSource_;
+    Engine catalog_{nullptr, app_engine_destroy}, engine_{nullptr, app_engine_destroy};
     AudioDevice audio_;
     QTimer timer_;
     bool ready_ = false, dirty_ = false;

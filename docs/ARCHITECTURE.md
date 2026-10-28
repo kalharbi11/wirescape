@@ -145,3 +145,48 @@ helper and runs offline tests. See `tools/capture/README.md` for bounds and scop
 Clock, function envelope and ladder have isolated ABI2 ports with per-voice state and exact ABI1 default references. Clock remains free-running; the existing filter stress functions also execute against ABI2 ladder through a test-only callback bridge.
 
 Engine2 reports forward signal latency per output bus and feedback delay separately per SCC. Quiescent reconfiguration stages only the changed processor; untouched instances and compatible loop delay lines retain their state, with port-ID remapping committed after validation.
+
+## J1 app integration candidate
+
+`native/control/app_engine.*` adapts app control and metadata to engine2; built-in
+Essentials use native ABI2 descriptors, while dynamically loaded ABI1 modules use
+the shim. `native/document/app_patch.*` builds engine2 graphs from the v1/v2 reader.
+The UI callback and CLI renderer call this facade. Integration is blocked pending
+planner review of a nonzero Six Essentials reference-render delta.
+
+The ABI2 built-in catalogue has one registration list,
+`native/control/module_catalog.inc`: add `WS_APP_MODULE(Class)` and include the
+module DSP header in `module_catalog.h`. Modules with external link dependencies
+attach those dependencies to the `wirescape_catalog_dependencies` interface target
+in their own CMake registration. The app engine links that target.
+
+## J2 keyboard polyphony candidate
+
+`native/voice/note_to_cv.h` (MIT) is the reusable event-to-voice adapter used by
+`host.keyboard` and available to MIDI→CV. It preserves source identity, isolates
+sustain by source/channel, forwards assigned-voice events, and emits choke before
+replacement attack. Anonymous repeated-key releases are FIFO in the allocator.
+Only the first Keyboard module receives app keys. New patches connect Keyboard
+pitch to VCO and gate to ADSR. Output uses SUM input policy; voices collapse at
+that module before the stereo device duplication. Cable badges display configured
+signal widths propagated through the document graph without reading render-owned
+metadata concurrently. Computer key-repeat suppression and focus-loss release
+remain in the existing QML key handler. Panic resets every voice at render boundary.
+
+## J3 runtime candidate
+
+`native/document/runtime_patch.*` is the Qt-free v1/v2 parser and graph builder
+used by `app_patch` and `wirescape_cli play`. The pinned MIT nlohmann/json library
+is used only quiescently. Qt document migration/preservation and the atomic writer
+remain separate. Runtime input rejects duplicates, oversized/deep documents,
+unknown modules/parameters and unsupported nonempty module config. Service-specific
+config adapters are left to J4/J5 rather than silently dropping configuration.
+
+Without `--confirm-audio`, play writes a ten-second stereo WAV under build and
+reports peak/RMS and block timings. `--seconds 600 --pace` runs the loader soak.
+Only explicit user confirmation reaches `native/io/audio/portaudio_service.*`,
+which dynamically loads PortAudio and keeps backend code resident. Its callback
+renders engine2 into preallocated stereo buffers; control code prints CPU/xruns.
+Ctrl+C stops the loop and closes/terminates the backend before destroying the
+engine. The Qt-free runner exposes reserved MIDI/OSC options that currently refuse
+execution pending their services. See `docs/PI_SETUP.md` for the user commands.
