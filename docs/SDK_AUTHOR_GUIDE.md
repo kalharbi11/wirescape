@@ -148,7 +148,7 @@ Tests call the real C callbacks through the wrapper (`ws::Module<Class>::descrip
 - [ ] IDs final and documented in `README.md` (ports, parameters, units, ranges).
 - [ ] Realtime checklist (§8) passes by reading your own `process`.
 - [ ] `python tools/dev.py build --headless` and `python tools/dev.py test` pass locally.
-- [ ] The module appears in the app catalogue (one line at the catalogue registration point; see `docs/ARCHITECTURE.md` once J1 lands) and plays in a patch.
+- [ ] The module appears in the app catalogue (`WS_APP_MODULE(Class)` in `native/control/module_catalog.inc`, with its DSP header included by `module_catalog.h`; see `docs/ARCHITECTURE.md`) and plays in a patch.
 - [ ] Tried on the Pi if it is heavy (`docs/PI_SETUP.md`, after J3): `wirescape play` with your patch.
 - [ ] Third-party code pinned and recorded in `DESIGN.md` with its licence.
 

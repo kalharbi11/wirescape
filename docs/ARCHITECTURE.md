@@ -145,3 +145,17 @@ helper and runs offline tests. See `tools/capture/README.md` for bounds and scop
 Clock, function envelope and ladder have isolated ABI2 ports with per-voice state and exact ABI1 default references. Clock remains free-running; the existing filter stress functions also execute against ABI2 ladder through a test-only callback bridge.
 
 Engine2 reports forward signal latency per output bus and feedback delay separately per SCC. Quiescent reconfiguration stages only the changed processor; untouched instances and compatible loop delay lines retain their state, with port-ID remapping committed after validation.
+
+## J1 app integration candidate
+
+`native/control/app_engine.*` adapts app control and metadata to engine2; built-in
+Essentials use native ABI2 descriptors, while dynamically loaded ABI1 modules use
+the shim. `native/document/app_patch.*` builds engine2 graphs from the v1/v2 reader.
+The UI callback and CLI renderer call this facade. Integration is blocked pending
+planner review of a nonzero Six Essentials reference-render delta.
+
+The ABI2 built-in catalogue has one registration list,
+`native/control/module_catalog.inc`: add `WS_APP_MODULE(Class)` and include the
+module DSP header in `module_catalog.h`. Modules with external link dependencies
+attach those dependencies to the `wirescape_catalog_dependencies` interface target
+in their own CMake registration. The app engine links that target.
