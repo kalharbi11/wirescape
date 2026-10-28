@@ -26,15 +26,27 @@ class SoakCliTests(unittest.TestCase):
             self.assertGreater(data["peak"], 0)
             stats = data["render_ns"]
             self.assertEqual(list(stats.values()), sorted(stats.values()))
+            self.assert_cpu_clock(data)
+            self.assertLessEqual(data["over_100_percent"], data["over_50_percent"])
+
+    def assert_cpu_clock(self, data):
+        if sys.platform == "win32":
+            # Tick-quantised thread accounting must never classify a block.
+            self.assertEqual(data["cpu_clock"], "unsupported")
+            self.assertIsNone(data["cpu_ns"])
+            self.assertIsNone(data["preempted"])
+        else:
+            self.assertEqual(data["cpu_clock"], "CLOCK_THREAD_CPUTIME_ID")
             cpu = data["cpu_ns"]
             self.assertEqual(list(cpu.values()), sorted(cpu.values()))
             self.assertLessEqual(data["preempted"], data["blocks"])
-            self.assertLessEqual(data["over_100_percent"], data["over_50_percent"])
 
     def test_budget_all_voices(self):
         data = self.run_soak("--budget")
         self.assertEqual([r["graph"] for r in data["budget_runs"]],
                          [f"voices:{n}" for n in range(1, 17)])
+        for row in data["budget_runs"]:
+            self.assert_cpu_clock(row)
         eligible = [n for n, row in enumerate(data["budget_runs"], 1)
                     if row["render_ns"]["p99"] < row["period_ns"] * .5]
         self.assertEqual(data["largest_voices_p99_under_50_percent"], max(eligible, default=0))

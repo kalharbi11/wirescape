@@ -62,7 +62,10 @@ counts strictly above 50%/100% of the block period, `preempted` blocks where
 wall time minus thread CPU time exceeds half a period, deadline misses,
 allocations and faults. The CPU interval surrounds the wall interval, so its
 time includes two wall-clock reads and may marginally exceed wall time. Linux
-uses `CLOCK_THREAD_CPUTIME_ID`; Windows uses `GetThreadTimes`.
+uses `CLOCK_THREAD_CPUTIME_ID` (identified by `cpu_clock`). Windows reports
+`cpu_clock: "unsupported"`, `cpu_ns: null` and `preempted: null`: its
+`GetThreadTimes` accounting is too coarse for per-block classification. Wall-time
+statistics and overruns remain available on Windows.
 Percentiles use nearest rank; even-sized medians average the middle pair. Render
 timing includes the allocation hook and error check, but excludes output checks
 and pacing. A late deadline includes scheduler delays and is distinct from render

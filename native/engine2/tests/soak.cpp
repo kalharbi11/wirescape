@@ -16,12 +16,7 @@
 #include <string>
 #include <thread>
 #include <cstdint>
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#else
+#ifndef _WIN32
 #include <time.h>
 #endif
 using namespace wirescape::engine2;
@@ -29,8 +24,8 @@ using Clock=std::chrono::steady_clock;
 static void require(bool ok){if(!ok)throw std::runtime_error("graph setup/render failed");}
 static uint64_t thread_cpu_ns(){
 #ifdef _WIN32
- FILETIME created,exited,kernel,user;require(GetThreadTimes(GetCurrentThread(),&created,&exited,&kernel,&user)!=0);
- ULARGE_INTEGER k{},u{};k.LowPart=kernel.dwLowDateTime;k.HighPart=kernel.dwHighDateTime;u.LowPart=user.dwLowDateTime;u.HighPart=user.dwHighDateTime;return (k.QuadPart+u.QuadPart)*100;
+ // GetThreadTimes is too coarse for per-block classification.
+ return 0;
 #else
  timespec t{};require(clock_gettime(CLOCK_THREAD_CPUTIME_ID,&t)==0);return uint64_t(t.tv_sec)*1000000000ULL+uint64_t(t.tv_nsec);
 #endif
@@ -102,8 +97,18 @@ static bool run(const Options&o){
   if(after>deadline)++late;std::this_thread::sleep_until(deadline);
  }
  require(allocations==0&&e->meter().faults==0&&peak>0);
- auto preempted=preempted_blocks(times,cpu_times,period);SoakStats s(times,period),cpu(cpu_times,period);
- std::printf("{\"graph\":\"%s\",\"sample_rate\":%.9g,\"block\":%u,\"seconds\":%.9g,\"blocks\":%zu,\"period_ns\":%.9g,\"render_ns\":{\"min\":%.9g,\"median\":%.9g,\"p99\":%.9g,\"p99_9\":%.9g,\"max\":%.9g},\"cpu_ns\":{\"min\":%.9g,\"median\":%.9g,\"p99\":%.9g,\"p99_9\":%.9g,\"max\":%.9g},\"preempted\":%zu,\"over_50_percent\":%zu,\"over_100_percent\":%zu,\"late_deadlines\":%zu,\"allocations\":%llu,\"faults\":%llu,\"peak\":%.9g}",o.graph.c_str(),o.rate,o.block,o.seconds,count,period,s.min,s.median,s.p99,s.p999,s.max,cpu.min,cpu.median,cpu.p99,cpu.p999,cpu.max,preempted,s.over_half,s.over_period,late,static_cast<unsigned long long>(allocations),static_cast<unsigned long long>(e->meter().faults),peak);
+#ifndef _WIN32
+ auto preempted=preempted_blocks(times,cpu_times,period);
+#endif
+ SoakStats s(times,period);
+ std::printf("{\"graph\":\"%s\",\"sample_rate\":%.9g,\"block\":%u,\"seconds\":%.9g,\"blocks\":%zu,\"period_ns\":%.9g,\"render_ns\":{\"min\":%.9g,\"median\":%.9g,\"p99\":%.9g,\"p99_9\":%.9g,\"max\":%.9g},",o.graph.c_str(),o.rate,o.block,o.seconds,count,period,s.min,s.median,s.p99,s.p999,s.max);
+#ifdef _WIN32
+ std::printf("\"cpu_clock\":\"unsupported\",\"cpu_ns\":null,\"preempted\":null,");
+#else
+ SoakStats cpu(cpu_times,period);
+ std::printf("\"cpu_clock\":\"CLOCK_THREAD_CPUTIME_ID\",\"cpu_ns\":{\"min\":%.9g,\"median\":%.9g,\"p99\":%.9g,\"p99_9\":%.9g,\"max\":%.9g},\"preempted\":%zu,",cpu.min,cpu.median,cpu.p99,cpu.p999,cpu.max,preempted);
+#endif
+ std::printf("\"over_50_percent\":%zu,\"over_100_percent\":%zu,\"late_deadlines\":%zu,\"allocations\":%llu,\"faults\":%llu,\"peak\":%.9g}",s.over_half,s.over_period,late,static_cast<unsigned long long>(allocations),static_cast<unsigned long long>(e->meter().faults),peak);
  return s.p99<period*.5;
 }
 int main(int argc,char**argv){
