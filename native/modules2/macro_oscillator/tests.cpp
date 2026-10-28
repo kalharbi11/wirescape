@@ -153,12 +153,13 @@ static void isolated_rng() {
 }
 static int benchmark() {
     using namespace wirescape::engine2; Config config; config.max_block = 128; config.max_channels = 8;
-    Engine engine(config); REQUIRE(engine.add_node(1, ws::Module<macro_oscillator::MacroOscillator>::descriptor())); REQUIRE(engine.set_channels(1, 8)); REQUIRE(engine.output(1, 0, 0)); REQUIRE(engine.output(1, 1, 1)); REQUIRE(engine.prepare());
+    Engine engine(config); REQUIRE(engine.add_node(1, ws::Module<macro_oscillator::MacroOscillator>::descriptor())); REQUIRE(engine.set_channels(1, 8)); REQUIRE(engine.output(1, 0, 0)); REQUIRE(engine.output(1, 1, 1)); const int producer = engine.register_producer(); REQUIRE(producer >= 0); REQUIRE(engine.prepare());
     float main[128]{}, aux[128]{}; float* rows[]{main, aux};
     double worst = 0;
     std::printf("{\"graph\":\"macro_oscillator_8\",\"rate\":48000,\"block\":128,\"blocks_per_model\":1000,\"setup_bytes\":%zu,\"upstream_voice_bytes\":%zu,\"models\":[", engine.meter().setup_bytes, sizeof(plaits::Voice));
     for (uint32_t model = 0; model < 24; ++model) {
-        REQUIRE(engine.set_parameter(1, 0, float(model)));
+        ws2_event parameter{}; parameter.struct_size = sizeof(parameter); parameter.type = WS2_PARAM; parameter.index = 0; parameter.value = float(model); parameter.channel = -1;
+        REQUIRE(engine.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, parameter, engine.meter().frame) == WS2_OK);
         for (int i = 0; i < 256; ++i) REQUIRE(engine.render(rows, 2, 128) == WS2_OK);
         std::vector<double> times(1000);
         for (auto& time : times) { const auto before = std::chrono::steady_clock::now(); { allocation_watch::Scope scope; REQUIRE(engine.render(rows, 2, 128) == WS2_OK); REQUIRE(scope.allocations() == 0); } time = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - before).count(); }
