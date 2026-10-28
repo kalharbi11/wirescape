@@ -9,7 +9,7 @@ from unittest.mock import patch
 from pathlib import Path
 
 from guard import check as guard_check
-from guard import violations
+from guard import linked_issue, named_paths, violations
 from guard import check_staged, check_staged_format
 
 
@@ -24,6 +24,22 @@ class GuardTests(unittest.TestCase):
                 self.assertTrue(self.check(path))
                 self.assertFalse(self.check(path, labels=['allow-protected'],
                                             added=['# SPDX-License-Identifier: GPL-3.0-only']))
+
+    def test_issue_named_paths_unlock_protected(self):
+        named = named_paths('Why\nProtected path named: `.github/workflows/ci.yml` and `docs/specs/**`\n'
+                            'Protected paths named: `AGENTS.md`, `tools/ci/guard.py`\nother `x.md`')
+        self.assertEqual(named, {'.github/workflows/ci.yml', 'docs/specs/**', 'AGENTS.md', 'tools/ci/guard.py'})
+        spdx = ['# SPDX-License-Identifier: GPL-3.0-only']
+        self.assertFalse(violations('M', ['.github/workflows/ci.yml'], spdx, set(), named))
+        self.assertFalse(violations('M', ['docs/specs/ABI2_PLAN.md'], spdx, set(), named))
+        self.assertTrue(violations('M', ['.github/workflows/static.yml'], spdx, set(), named))
+        for path in ('AGENTS.md', 'tools/ci/guard.py', '.github/workflows/guard.yml',
+                     'native/include/wirescape/module2.h', 'LICENSE'):
+            with self.subTest(path=path):  # label-only paths stay locked even when named
+                self.assertTrue(violations('M', [path], spdx, set(), named | {path}))
+        self.assertEqual(linked_issue('Fixes stuff\n\nCloses #83'), 83)
+        self.assertEqual(linked_issue('Refs #85.'), 85)
+        self.assertIsNone(linked_issue('no link'))
 
     def test_test_removal_and_rename(self):
         self.assertTrue(self.check('native/tests/example.cpp', status='D'))

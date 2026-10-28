@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: GPL-3.0-only
+diff --git a/native/example.cpp b/native/example.cpp
+index 1234567..abcdef0 100644
+--- a/native/example.cpp
++++ b/native/example.cpp
+@@ -1 +1 @@
+-int sample = 0;
++int sample = 1;
+diff --git a/native/tests/fixtures/noisy.json b/native/tests/fixtures/noisy.json
+index 1234567..abcdef0 100644
+--- a/native/tests/fixtures/noisy.json
++++ b/native/tests/fixtures/noisy.json
+@@ -1 +1 @@
+-{"fixture":"old"}
++{"fixture":"noise-hidden"}
+diff --git a/generated/table.h b/generated/table.h
+index 1234567..abcdef0 100644
+--- a/generated/table.h
++++ b/generated/table.h
+@@ -1 +1 @@
+-int generated = 0;
++int generated_noise_hidden = 1;
+diff --git a/art/wave.wav b/art/wave.wav
+index 1234567..abcdef0 100644
+Binary files a/art/wave.wav and b/art/wave.wav differ

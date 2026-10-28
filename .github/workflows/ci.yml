@@ -11,6 +11,47 @@ on:
 permissions:
   contents: read
 jobs:
+  acceptance:
+    name: Task acceptance (optional)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Run task acceptance when specified
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python - <<'PY'
+          import os, re, subprocess, sys
+          sys.path.insert(0, 'tools')
+          from pathlib import Path
+          from foundation.acceptance import find_task
+          match = re.search(r'(?i)\bCloses\s+#(\d+)\b', os.environ.get('PR_BODY', ''))
+          if not match:
+              print('No Closes #N reference; acceptance not selected.')
+              raise SystemExit(0)
+          try:
+              task = find_task(Path.cwd(), int(match[1]))
+          except ValueError as error:
+              print(error)
+              raise SystemExit(0)
+          if '```acceptance' not in task.read_text():
+              print('Task has no acceptance block; acceptance not selected.')
+              raise SystemExit(0)
+          subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'cmake==4.2.3', 'ninja==1.13.0'])
+          subprocess.check_call([sys.executable, 'tools/dev.py', 'build', '--headless'])
+          code = subprocess.call([sys.executable, 'tools/dev.py', 'accept', match[1]])
+          summary = Path('build_reports') / f'accept-{match[1]}.md'
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write(summary.read_text() if summary.exists() else 'Acceptance report missing.\n')
+          raise SystemExit(code)
+          PY
   native:
     name: ${{ matrix.os }}
     strategy:
@@ -134,10 +175,16 @@ jobs:
         if: failure()
         run: |
           python - <<'PYTHON'
+          import os
           from pathlib import Path
+          summaries = []
           for path in Path('build_reports').rglob('*.log'):
               text = str(path) + '\n' + path.read_text(errors='replace')[-3000:]
               print('::error::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+              tail = '\n'.join(path.read_text(errors='replace').splitlines()[-80:])
+              summaries.append(f'#### {path}\n\n````text\n{tail}\n````\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('\n'.join(summaries))
           PYTHON
       - uses: actions/upload-artifact@v7
         if: always()

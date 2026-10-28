@@ -38,8 +38,16 @@ def run_checks(root, diff, tidy_diff):
             if ranges:
                 jobs.append(("clang-format " + name, ["clang-format-18", "--dry-run", "--Werror",
                              *[f"--lines={start}:{end}" for start, end in ranges], "./" + name], None))
-    jobs.extend([("actionlint workflows", ["actionlint"], None),
-                 ("ruff tools", ["ruff", "check", "tools/", "--output-format", "concise"], None)])
+    jobs.append(("actionlint workflows", ["actionlint"], None))
+    python_files = []
+    for line in diff.splitlines():
+        if line.startswith("+++ ") and line != "+++ /dev/null":
+            name = shlex.split(line[4:])[0].removeprefix("b/")
+            if name.startswith("tools/") and Path(name).suffix == ".py":
+                python_files.append("./" + name)
+    if python_files:
+        jobs.append(("ruff changed files", ["ruff", "check", "--output-format", "concise",
+                                           "--", *dict.fromkeys(python_files)], None))
     rows = []
     for name, command, stdin in jobs:
         try:
@@ -50,9 +58,13 @@ def run_checks(root, diff, tidy_diff):
         count = len(re.findall(r"^.*?:\d+:\d+:\s", output, re.M))
         failed = code != 0 or count > 0
         rows.append((name, count, "failed" if failed else "passed"))
+        notice = f"{name}: {rows[-1][2]}; diagnostics={count}"
+        print("::notice title=Static analysis::" + notice.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
         print(f"\n{name}: {rows[-1][2]} ({count} diagnostics)\n{output}", flush=True)
     if not files:
         rows.insert(0, ("C++ diff checks", 0, "not applicable: no changed C++ lines"))
+    if not python_files:
+        rows.append(("ruff changed files", 0, "not applicable: no changed Python files"))
     report = "| Check | Diagnostics | Result |\n|---|---:|---|\n"
     report += "\n".join(f"| {name.replace('|', '/')} | {count} | {status} |" for name, count, status in rows)
     print(report)
