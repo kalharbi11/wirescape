@@ -46,7 +46,7 @@ ABI header edit · equivalence delta without a planner decision · test removal 
 For ≤3-file work that benefits from an independent strong model: build a split review pack, ask in the issue "External-queue task: run it outside, or should I do it myself?". Blocking work: ask once, then do it yourself. Non-blocking: label `external-queue` and move on. The user replies with a comment headed "External result". Detail: `docs/WORKFLOW.md` §7.
 
 ## Safety rails
-- **Protected paths** need an issue that names them and the `allow-protected` label (added by the user, or by the planner when the issue names the path): `AGENTS.md`, `CLAUDE.md`, `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`, `LICENSE*`, `LICENSES/**`, `.github/**`, `native/include/wirescape/*.h`, `docs/history/**` (frozen), `legacy/**` (read-only).
+- **Protected paths** need either a linked issue (`Closes #N`) with a line starting `Protected path named:` followed by the path or glob in backticks (the guard reads it; no label needed), or the `allow-protected` label (user or planner). Only the planner writes those issue lines; builders never edit them. Always label-only: `AGENTS.md`, `CLAUDE.md`, `tools/ci/**`, `.github/workflows/guard.yml`, `.github/CODEOWNERS`, ABI headers, licences, `docs/history/**`, `legacy/**`. Protected: `AGENTS.md`, `CLAUDE.md`, `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`, `LICENSE*`, `LICENSES/**`, `.github/**`, `native/include/wirescape/*.h`, `docs/history/**` (frozen), `legacy/**` (read-only).
 - Never make CI pass by weakening it. Never force-push, rewrite published history, commit to `main` or merge.
 - Never commit generated or binary files, fonts, `user_data/`, `local_backups/`, `.tools/`, credentials or machine-specific absolute paths.
 
