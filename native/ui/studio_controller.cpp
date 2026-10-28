@@ -42,7 +42,7 @@ QString display(double value, const QString& unit) {
 }
 }
 
-StudioController::StudioController(QString directory, QObject* parent, PatchWriter writer) : QObject(parent), directory_(std::move(directory)), patchWriter_(std::move(writer)) {
+StudioController::StudioController(QString directory, QObject* parent, PatchWriter writer, bool confirmMidi) : QObject(parent), directory_(std::move(directory)), patchWriter_(std::move(writer)), midi_(confirmMidi) {
     if (!patchWriter_) patchWriter_ = [](const QString& path, const QByteArray& bytes, QString& error) {
         QSaveFile file(path);
         if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit()) {
@@ -69,6 +69,7 @@ StudioController::StudioController(QString directory, QObject* parent, PatchWrit
     timer_.setInterval(50);
     connect(&timer_, &QTimer::timeout, this, [this] {
         if (audio_.poll()) {
+            if(!audio_.running())midi_.stop();
             if (!audio_.running() && !audio_.engineInUse() && engine_) { lastSessionMeter_.struct_size = sizeof(lastSessionMeter_); app_engine_get_meter(engine_.get(), &lastSessionMeter_); app_engine_reset(engine_.get()); lastFrame_ = 0; peak_ = 0; }
             setError(audio_.error());
         }
@@ -79,7 +80,7 @@ StudioController::StudioController(QString directory, QObject* parent, PatchWrit
     timer_.start();
 }
 
-StudioController::~StudioController() { if (!audio_.stop()) {
+StudioController::~StudioController() { midi_.stop(); if (!audio_.stop()) {
     // A backend that cannot establish quiescence still owns the engine. Its
     // detached callback context is retained by AudioDevice; retain descriptors too.
     engine_.release(); catalog_.release();
@@ -225,6 +226,7 @@ bool StudioController::applyParameters(AppEngine* e, const QJsonObject& doc) con
 }
 
 bool StudioController::compileDocument() {
+    midi_.stop();
     if (audio_.engineInUse()) { setError("Audio cleanup is pending. Stop audio again before preparing a patch."); return false; }
     QString error;
     auto candidate = makeEngine(document_, error);
@@ -311,10 +313,12 @@ void StudioController::startAudio() {
     if (audio_.hasStream()) { setError("Device cleanup is pending. Stop audio again before restarting."); return; }
     if (!compileDocument()) return;
     if (!audio_.initialize(directory_) || !audio_.startRender(engine_.get(), [](void* e,float* out,uint32_t n){return app_engine_render(static_cast<AppEngine*>(e),out,n);}, device_, 48000, blockSize())) { setError(audio_.error()); return; }
+    std::string midiError;
+    if(!midi_.start(engine_.get(),QJsonDocument(document_).toJson().toStdString(),midiError)){stopAudio();setError(QString::fromStdString(midiError));return;}
     lastSessionMeter_ = {}; setError({}); emit statusChanged();
 }
 
-void StudioController::stopAudio() { if (!audio_.stop()) { setError(audio_.error()); return; } if (engine_) { lastSessionMeter_.struct_size = sizeof(lastSessionMeter_); app_engine_get_meter(engine_.get(), &lastSessionMeter_); app_engine_reset(engine_.get()); } lastFrame_ = 0; peak_ = 0; setError(audio_.error()); emit metersChanged(); }
+void StudioController::stopAudio() { midi_.stop(); if (!audio_.stop()) { setError(audio_.error()); return; } if (engine_) { lastSessionMeter_.struct_size = sizeof(lastSessionMeter_); app_engine_get_meter(engine_.get(), &lastSessionMeter_); app_engine_reset(engine_.get()); } lastFrame_ = 0; peak_ = 0; setError(audio_.error()); emit metersChanged(); }
 void StudioController::setGate(bool on) { if (!running()) return; for (const auto& item : document_.value("modules").toArray()) if (!send(item.toObject().value("id").toInt(), WS_GATE, on ? 1.f : 0.f)) break; }
 void StudioController::note(int pitch, bool on) {
     if (!engine_ || pitch < 0 || pitch > 127) return;
@@ -327,7 +331,7 @@ void StudioController::note(int pitch, bool on) {
     for(const auto& item:document_["modules"].toArray())if(!send(item.toObject()["id"].toInt(),on?WS_NOTE_ON:WS_NOTE_OFF,float(pitch),0,pitch+2))break;
 }
 void StudioController::panic() { if (engine_) { app_engine_panic(engine_.get()); lastFrame_ = 0; } emit statusChanged(); }
-void StudioController::resetPatch() { if (audio_.hasStream()) stopAudio(); if (audio_.engineInUse()) return; documentSource_ = {}; document_ = baseDocument(); name_ = "Essential voice"; dirty_ = false; compileDocument(); emit documentChanged(); }
+void StudioController::resetPatch() { midi_.stop(); midi_.restore(R"({"devices":[]})"); if (audio_.hasStream()) stopAudio(); if (audio_.engineInUse()) return; documentSource_ = {}; document_ = baseDocument(); name_ = "Essential voice"; dirty_ = false; compileDocument(); emit documentChanged(); }
 
 void StudioController::selectOutput(int node) { auto next = document_; next["outputNode"] = node; commitTopology(next); }
 
@@ -335,6 +339,16 @@ bool StudioController::savePatch(const QUrl& url) {
     const QString path = url.isLocalFile() ? url.toLocalFile() : url.toString(); if (path.isEmpty()) return false;
     auto patch=wirescape::document::editor_patch(document_,catalog_.get(),documentSource_);
     if(!patch.valid()){setError(patch.error);return false;}
+    QJsonArray devices=patch.object["devices"].toArray(),saved;
+    QSet<QString> existing;
+    for(auto value:devices){auto d=value.toObject();
+        if(d["kind"]=="midi"){
+            bool enabled=false;for(const auto&selection:midi_.enabled())enabled|=d["name"]==QString::fromStdString(selection.name)&&d["system_name"].toString()==QString::fromStdString(selection.system_name);
+            d["enabled"]=enabled;existing.insert(d["name"].toString()+QChar(0)+d["system_name"].toString());
+        }saved.append(d);
+    }
+    for(const auto&selection:midi_.enabled())if(!existing.contains(QString::fromStdString(selection.name)+QChar(0)+QString::fromStdString(selection.system_name)))saved.append(QJsonObject{{"kind","midi"},{"name",QString::fromStdString(selection.name)},{"system_name",QString::fromStdString(selection.system_name)},{"enabled",true}});
+    patch.object["devices"]=saved;
     QString error;
     const auto bytes=QJsonDocument(patch.object).toJson(QJsonDocument::Indented);
     if(!wirescape::document::save_patch(path,patch,&error,patchWriter_)){setError(error);return false;}
@@ -406,6 +420,7 @@ bool StudioController::loadPatch(const QUrl& url) {
     auto next = incomplete.isEmpty() ? makeEngine(candidate, error) : Engine(nullptr, app_engine_destroy);
     if (!next && incomplete.isEmpty()) { documentSource_=previousSource;setError(error); return false; }
     if (!incomplete.isEmpty()) error = incomplete;
+    try{midi_.restore(QJsonDocument(loaded.object).toJson().toStdString());}catch(const std::exception&e){documentSource_=previousSource;setError(QString::fromUtf8(e.what()));return false;}
     document_ = candidate; engine_ = std::move(next); ready_ = bool(engine_); lastFrame_ = 0; peak_ = 0;
     name_ = QFileInfo(path).completeBaseName(); dirty_ = false; setError(error); emit documentChanged(); emit metersChanged(); return true;
 }
@@ -456,3 +471,17 @@ bool StudioController::keyboardChordCheck(QJsonObject& result) {
     for(uint32_t c=0;c<native.output_channels(keyboard,1);++c)if(native.output_sample(keyboard,1,c,255)!=0)return false;
     return active==4;
 }
+
+QVariantList StudioController::midiEndpoints(){
+ QVariantList result;if(running()||audio_.engineInUse())return result;
+ try{for(const auto&e:midi_.endpoints()){bool enabled=false;for(const auto&s:midi_.enabled())enabled|=s.name==e.name&&s.system_name==e.system_name;result.append(QVariantMap{{"name",QString::fromStdString(e.name)},{"systemName",QString::fromStdString(e.system_name)},{"enabled",enabled}});}}
+ catch(const std::exception&e){setError(QString::fromUtf8(e.what()));}return result;
+}
+void StudioController::refreshMidi(){if(!running()&&!audio_.engineInUse())emit statusChanged();}
+void StudioController::setMidiEndpoint(const QString&name,const QString&system,bool enabled){
+ if(running()||audio_.engineInUse()){setError("Stop playback before changing MIDI endpoints.");return;}
+ if(!midi_.authorized()){setError("MIDI requires launch with --confirm-midi.");return;}
+ midi_.select({name.toStdString(),system.toStdString()},enabled);dirty_=true;emit statusChanged();
+}
+
+QVariantMap StudioController::midiCounters()const{return QJsonDocument::fromJson(QByteArray::fromStdString(midi_.diagnostics())).object().toVariantMap();}

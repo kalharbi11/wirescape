@@ -19,7 +19,7 @@ struct AppEngine {
  std::atomic<float> peak{0};std::atomic<uint64_t> blocks{0};
  std::string error;
  explicit AppEngine(const ws_engine_config& c,const wirescape::engine2::Config* override=nullptr):engine(override?*override:config(c)),legacy(ws_engine_create(&c),ws_engine_destroy){
-  engine.register_producer();
+  engine.register_producer();engine.register_producer(); // producer 0 host keys, 1 MIDI service
   for(auto* d:wirescape::app::builtin_modules()){
    entries.emplace_back();auto& e=entries.back();e.native=d;
    for(uint32_t i=0;i<d->input_count;++i)e.inputs.push_back({d->inputs[i].id,d->inputs[i].name,d->inputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL});
@@ -42,7 +42,8 @@ int app_engine_register_module(AppEngine*e,const ws_module_descriptor*d){if(!d)r
 int app_engine_load_module(AppEngine*e,const char*path){int r=ws_engine_load_module(e->legacy.get(),path);if(r!=WS_OK)return r;for(uint32_t i=0;i<ws_engine_module_count(e->legacy.get());++i)app_engine_register_module(e,ws_engine_module(e->legacy.get(),i));return WS_OK;}
 uint32_t app_engine_module_count(const AppEngine*e){return static_cast<uint32_t>(e->entries.size());}
 const ws_module_descriptor* app_engine_module(const AppEngine*e,uint32_t i){return i<e->entries.size()?&e->entries[i].metadata:nullptr;}
-int app_engine_add_node(AppEngine*e,uint32_t id,const char*type){auto*d=e->find(type);if(!d)return WS_NOT_FOUND;bool ok=d->native?e->engine.add_node(id,d->native):e->engine.add_abi1(id,&d->metadata);if(ok)e->nodes[id]=d;return ok?WS_OK:WS_GRAPH;}
+int app_engine_add_node(AppEngine*e,uint32_t id,const char*type){return app_engine_add_node_config(e,id,type,{});}
+int app_engine_add_node_config(AppEngine*e,uint32_t id,const char*type,const std::vector<uint8_t>&config){auto*d=e->find(type);if(!d)return WS_NOT_FOUND;bool ok=d->native?e->engine.add_node(id,d->native,config):(config.empty()&&e->engine.add_abi1(id,&d->metadata));if(ok)e->nodes[id]=d;return ok?WS_OK:WS_GRAPH;}
 int app_engine_connect(AppEngine*e,uint32_t a,uint32_t ap,uint32_t b,uint32_t bp){return e->engine.connect(a,ap,b,bp)?WS_OK:WS_GRAPH;}
 int app_engine_prepare(AppEngine*e,uint32_t n,uint32_t p){return e->engine.output(n,p,0)&&e->engine.prepare()?WS_OK:WS_GRAPH;}
 int app_engine_initialize_parameter(AppEngine*e,uint32_t n,uint32_t p,float v){auto it=e->nodes.find(n);if(it==e->nodes.end())return WS_NOT_FOUND;auto*d=it->second;for(uint32_t i=0;i<d->metadata.parameter_count;++i)if(d->metadata.parameters[i].id==p)return e->engine.set_parameter(n,i,v)?WS_OK:WS_INVALID;return WS_INVALID;}

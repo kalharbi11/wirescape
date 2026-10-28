@@ -52,6 +52,8 @@ struct Backend {
  void check(PaError result){if(result<0)throw std::runtime_error(text(result));}
 };
 struct Context {
+ std::function<void()> stop_producers;
+ ~Context(){if(stop_producers)stop_producers();}
  EngineOwner engine;std::vector<float> scratch;std::atomic<uint64_t> xruns{0},faults{0};
  Context(EngineOwner e,uint32_t block):engine(std::move(e)),scratch(block*2){}
 };
@@ -65,8 +67,9 @@ int callback(const void*,void*output,unsigned long frames,const PaStreamCallback
 }
 }
 void list_devices(const std::string&directory){Backend b(directory);int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&d->maxOutputChannels>=2)std::cout<<i<<": "<<d->name<<" ("<<d->defaultSampleRate<<" Hz default)\n";}}
-void play(EngineOwner engine,const std::string&directory,const std::string&name,double rate,uint32_t block,const std::atomic<bool>&quit){
- Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block);int device=b.default_device();
+void play(EngineOwner engine,const std::string&directory,const std::string&name,double rate,uint32_t block,const std::atomic<bool>&quit,std::function<void()> stop_producers){
+ struct StopOnError {std::function<void()>&stop;~StopOnError(){if(stop)stop();}} cleanup{stop_producers};
+ Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block);context->stop_producers=stop_producers;int device=b.default_device();
  if(!name.empty()){size_t consumed=0;try{device=std::stoi(name,&consumed);}catch(const std::exception&){}if(consumed!=name.size()){
    device=paNoDevice;int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&name==d->name){device=i;break;}}
  }}
@@ -79,7 +82,7 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
    std::cerr<<"cpu="<<b.load(stream)*100<<"% xruns="<<context->xruns.load()<<" faults="<<context->faults.load()<<'\n';
    for(int tick=0;tick<10&&!quit.load(std::memory_order_relaxed);++tick)std::this_thread::sleep_for(std::chrono::milliseconds(100));
  }}
- // Future MIDI/OSC owners stop and drain before entering this render teardown.
+ if(stop_producers)stop_producers(); // producers join/drain while render still owns its engine.
  PaError stopped=b.stop(stream);if(stopped<0)stopped=b.abort(stream);PaError closed=b.close(stream);
  PaError terminated=b.terminate();b.initialized=false;
  if(terminated<0&&(stopped<0||closed<0)){

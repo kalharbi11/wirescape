@@ -10,7 +10,7 @@ class NoteToCv {
     struct Source { bool used=false; uint32_t id=0; int16_t channel=0; };
     std::array<Source,kMaxHeldNotes> sources_{};
     Allocator allocator_;
-    struct Anonymous {bool used=false;uint32_t source=0;int channel=0,key=0;int32_t id=0;uint64_t order=0;};
+    struct Anonymous {bool used=false;uint32_t source=0;int channel=0,key=0;int32_t id=0;uint64_t order=0;bool retired=false;};
     std::array<Anonymous,kMaxHeldNotes> anonymous_{};
     uint32_t serial_=0;uint64_t activation_=0;
     int32_t next_id() noexcept {
@@ -86,6 +86,7 @@ public:
             }
             auto result=allocator_.note_on(n);
             if(result.status==Status::Ok&&slot>=0)anonymous_[slot]={true,n.source_id,channel,n.key,n.note_id,++activation_};
+            if(result.status==Status::Ok&&slot<0)for(auto&a:anonymous_)if(a.used&&a.source==n.source_id&&a.id==n.note_id)a.retired=true;
         }
         else if(e.type==WS2_NOTE_OFF){
             int slot=-1;
@@ -93,7 +94,7 @@ public:
                 for(int i=0;i<kMaxHeldNotes;++i){const auto&a=anonymous_[i];
                     if(a.used&&a.source==n.source_id&&a.channel==channel&&a.key==n.key&&(slot<0||a.order<anonymous_[slot].order))slot=i;
                 }
-                if(slot<0)return;n.note_id=anonymous_[slot].id;anonymous_[slot]={};
+                if(slot<0)return;n.note_id=anonymous_[slot].id;bool retired=anonymous_[slot].retired;anonymous_[slot]={};if(retired)return;
             }
             // A stolen activation remains in our FIFO until its own Note Off.
             // Its allocator record may be gone; that off must not close its replacement.
@@ -102,8 +103,8 @@ public:
         else if(e.type==WS2_NOTE_EXPRESSION){
             for(int c=0;c<allocator_.voice_count();++c){const auto&v=allocator_.voice(c);
                 if(v.source_id==n.source_id&&((n.note_id>=0&&n.note_id==v.note_id)||(n.note_id<0&&n.key==v.key))){
-                    allocator_.expression(n,e.expression==WS2_EX_PRESSURE?e.value:v.pressure,e.expression==WS2_EX_TIMBRE?e.value:v.timbre);
-                    auto out=e;out.channel=c;emit(out);break;
+                    Note addressed=n;addressed.note_id=v.note_id;allocator_.expression(addressed,e.expression==WS2_EX_PRESSURE?e.value:v.pressure,e.expression==WS2_EX_TIMBRE?e.value:v.timbre);
+                    auto out=e;out.channel=c;out.note_id=v.note_id;emit(out);if(n.note_id>=0)break;
                 }
             }
         }
