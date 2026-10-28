@@ -13,6 +13,9 @@ This guide is for people and AI agents. Follow it top to bottom for a new module
 
 Real ported modules live in `native/modules2/` (for example `noise`, `slew`, `vca`). Read one only if the examples don't cover your case.
 
+For a time loop, fetch `signal.row(channel, scratch, frames)` once per channel. It aliases a varying signal and expands a constant or missing channel into the supplied scratch row. Reserve separate rows for simultaneously live inputs in `prepare`, sized to `max_block()`, and include their bytes in `memory_requirements`. A bool-returning `prepare` returns false on allocation failure; void-returning prepare remains supported. The template demonstrates two rows; the VCA uses three and multiplies `audio*cv*gain` with `f4` chunks plus a scalar tail, preserving operation order. Keep CONSTANT output length at one sample. Hosts supply finite inputs and parameters; the SDK validates output samples.
+
+ADSR gate precedence: a connected gate signal owns each voice's gate (Schmitt >0.5 on, <0.25 off), and note events are ignored while that cable is connected, even when low. With no gate cable, NOTE_ON establishes source/note ownership; only matching NOTE_OFF/CHOKE releases that voice. The adapter resolves note identity to a voice channel before delivery.
 ---
 
 ## 1. Folder layout and files
