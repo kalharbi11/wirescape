@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "essentials.chaos_lite",
+  "name": "CHAOS-lite",
+  "library": "ws2_chaos_lite",
+  "description": "Original stereo instability instrument; up to eight voices.",
+  "license": "GPL-3.0-only",
+  "parameters": {
+    "shape_a": 0,
+    "shape_b": 1,
+    "detune": 2,
+    "octave_a": 3,
+    "octave_b": 4,
+    "level_a": 5,
+    "level_b": 6,
+    "pan_a": 7,
+    "pan_b": 8,
+    "route": 9,
+    "depth": 10,
+    "body_tune": 11,
+    "feedback": 12,
+    "damping": 13,
+    "body_mix": 14,
+    "roughness": 15,
+    "rough_rate": 16,
+    "drift": 17,
+    "jitter": 18,
+    "fall": 19,
+    "lfo_rate": 20,
+    "lfo_depth": 21,
+    "lfo_target": 22,
+    "lfo_self": 23,
+    "cutoff": 24,
+    "level": 25
+  },
+  "inputs": {
+    "pitch": "signal",
+    "gate": "signal",
+    "velocity": "signal",
+    "fm": "signal"
+  },
+  "outputs": {
+    "left": "signal",
+    "right": "signal"
+  }
+}
