@@ -14,7 +14,9 @@ All commands keep physical audio and MIDI devices off.
    write access to trusted maintainers, and do not share its runner with the
    public repository. A same-repository PR is trusted code: review who can push.
 2. Install Python 3.12 or newer, a C++17 compiler, CMake 4.2.3 and Ninja 1.13.0
-   on the runner. Jobs never use sudo or install system packages. Ensure the
+   on the runner user's PATH (pip installs can use `~/.local/bin`, which the
+   bridge adds). The runner also needs Qt Core >=6.5 development files for
+   document-loader tests and soaks. Jobs never use sudo or install system packages. Ensure the
    runner has Git and can reach GitHub and the package registry. GitHub CLI is
    only needed by operators using the optional dispatch commands below.
 3. In **wirescape-pi → Settings → Secrets and variables → Actions**, add the
@@ -28,7 +30,7 @@ All commands keep physical audio and MIDI devices off.
    workflows must be on its default branch for schedules and dispatch to work.
    They share a concurrency group so a poll cannot overlap a nightly soak or
    benchmark. Do not add another workflow that bypasses that group.
-   Reuse pinned [Pi nightly summary #100](https://github.com/kalharbi11/wirescape/issues/100).
+   Reuse pinned [Pi nightly summary #101](https://github.com/kalharbi11/wirescape/issues/101).
    If it is missing, create one issue with that title and pin it. If it is
    missing, nightly still runs independent checks and uploads its report, then
    reports the missing summary issue as a setup blocker.
@@ -66,6 +68,22 @@ on that SHA; an older status or a running job is not evidence for the new head.
 The poll never retests an existing `pi5` status automatically. Investigate failed
 runs before explicitly requesting a retry or pushing a correction.
 
+## Real-document loader soak
+
+Add **`ci/pi-soak`** as well as `ci/pi` to request J1's real-loader evidence.
+The authorized contract is a separate **`pi5/soak`** status, at most once per
+head SHA, from:
+
+```bash
+build/native/wirescape_soak --patch native/examples/Six_Essentials_Demo.json --rate 48000 --block 128 --seconds 600
+```
+
+Implementation gap verified against private main `d4c6f87`: its poll currently
+runs build/tests and posts `pi5` only; it does not implement `ci/pi-soak` or
+`pi5/soak` yet. These requested labels alone cannot produce soak evidence until
+the private bridge adds that path. Issue #84 tracks the blocker. A passing
+`pi5` smoke/test status does not satisfy the 600-second loader soak.
+
 ## Nightly evidence
 
 `nightly.yml` runs at 03:17 America/New_York (with dispatch available) and tests
@@ -86,7 +104,7 @@ When a job fails, inspect its private run log first. Check runner availability,
 the token's permissions and expiry, prerequisite versions and the exact tested
 SHA. Keep required checks unchanged; never mark an unrun or blocked stage green.
 
-Once #103 lands, either job can call `tools/review_pack.py` with `--diff`,
+#103 is merged; either job can call `tools/review_pack.py` with `--diff`,
 `--task`, `--split 3`, `--cap` and `--output`. The controller supplies a fresh diff
 and task for the exact PR head. This offline path needs no API credential in the
 public build environment; unavailable CI evidence stays explicitly unavailable.

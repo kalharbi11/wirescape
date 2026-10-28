@@ -78,7 +78,7 @@ Status `status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · 
 ## Pi evidence from Codex cloud
 - Codex cloud cannot reach the Pi or the Windows laptop. Do not use SSH or open audio/MIDI devices.
 - Pi evidence runs through the private `kalharbi11/wirescape-pi` bridge on the `pi5` runner. Public-repository workflows never target that runner. See `docs/PI_RUNNER.md` for setup and dispatch instructions.
-- Use the `pi5` commit status for the exact PR head SHA and link the private workflow run in the issue handoff. A queued run is not passing evidence. Never run fork PRs on the Pi.
+- Use `pi5` for exact-head build/tests. Label real-loader soak requests `ci/pi-soak` (drafts also need `ci/pi`) and require `pi5/soak`; implementation availability is documented in `docs/PI_RUNNER.md`. Link the private workflow run; queued runs are not evidence. Never run fork PRs on the Pi.
 - Run tests for the code touched locally and let CI run the remaining suites. Merge-only changes need no new Pi evidence unless compiled code conflicted.
 
 ## Docs upkeep
