@@ -134,10 +134,16 @@ jobs:
         if: failure()
         run: |
           python - <<'PYTHON'
+          import os
           from pathlib import Path
+          summaries = []
           for path in Path('build_reports').rglob('*.log'):
               text = str(path) + '\n' + path.read_text(errors='replace')[-3000:]
               print('::error::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+              tail = '\n'.join(path.read_text(errors='replace').splitlines()[-80:])
+              summaries.append(f'#### {path}\n\n````text\n{tail}\n````\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('\n'.join(summaries))
           PYTHON
       - uses: actions/upload-artifact@v7
         if: always()
