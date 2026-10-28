@@ -31,7 +31,7 @@ The unattended capture/alignment/analysis harness is a separate task in
 ## Known limits / remaining gates
 
 - ABI2 is tested offline only. Studio, the CLI and the renderer still use the ABI1 mono engine until M2-6.
-  Five of 13 Essentials are on ABI2 in `main`; the other eight are in review (M2-2, M2-3).
+  All 13 Essentials are on ABI2 in `main` (M2-2 #39 and M2-3 #40 merged 2026-10-28); the M2-4 regressions are #41. The app still runs the ABI 1 engine until J1 (#29).
 - Windows MSVC mono throughput misses the 1.05× target (1.097× in the M1-3 review, 1.147× in a later CI run); #32.
 - No live MIDI/OSC/UDP services, sequencers, Monitor, MPE, arbitrary message editor or patch-v2 migration.
 - No physical output recording, long-session dropout/reconnect matrix or listening-quality certification.
