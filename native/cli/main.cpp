@@ -80,7 +80,7 @@ double percentile(const std::vector<double> &v, double p) {
 }
 void benchmark(const std::string &dir, const std::string &path, uint32_t blocks) {
     std::ostringstream json;
-    json << "{\n  \"schema_version\": 1,\n  \"engine\": \"Wirescape native experimental ABI 1\",\n "
+    json << "{\n  \"schema_version\": 1,\n  \"engine\": \"Wirescape app engine ABI 2\",\n "
             " \"environment\": {\"os\": \""
 #ifdef _WIN32
          << "Windows"

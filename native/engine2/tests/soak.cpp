@@ -35,7 +35,7 @@ static uint64_t thread_cpu_ns(){
 #endif
 }
 static double number(const std::string&s){size_t used=0;double v=std::stod(s,&used);if(used!=s.size()||!std::isfinite(v))throw std::invalid_argument("invalid number");return v;}
-struct Options{double rate=48000,seconds=10;uint32_t block=128;std::string graph="poly8",modules,patch;bool budget=false;};
+struct Options{double rate=48000,seconds=10;uint32_t block=128;std::string graph="poly8",modules,patch;bool budget=false,graph_set=false;};
 static Options parse(int argc,char**argv){
  Options o;
  for(int i=1;i<argc;++i){std::string key=argv[i];if(key=="--budget"){o.budget=true;continue;}
@@ -43,14 +43,14 @@ static Options parse(int argc,char**argv){
   if(key=="--rate")o.rate=number(value);
   else if(key=="--seconds")o.seconds=number(value);
   else if(key=="--block"){double n=number(value);if(n<1||n>4096||std::floor(n)!=n)throw std::invalid_argument("block must be 1..4096");o.block=static_cast<uint32_t>(n);}
-  else if(key=="--graph")o.graph=value;
+  else if(key=="--graph"){o.graph=value;o.graph_set=true;}
   else if(key=="--modules")o.modules=value;
   else if(key=="--patch")o.patch=value;
   else throw std::invalid_argument("unknown option");
  }
  if(o.rate<8000||o.rate>384000||o.seconds<.001||o.seconds>3600)throw std::invalid_argument("rate 8000..384000; seconds .001..3600");
  if(std::ceil(o.rate*o.seconds/o.block)>5000000)throw std::invalid_argument("at most five million blocks per run");
- if(!o.patch.empty()){if(o.budget||o.graph!="poly8")throw std::invalid_argument("--patch cannot combine with --graph or --budget");o.graph="document";}
+ if(!o.patch.empty()){if(o.budget||o.graph_set)throw std::invalid_argument("--patch cannot combine with --graph or --budget");o.graph="document";}
  return o;
 }
 static uint32_t voices(const std::string&graph){
