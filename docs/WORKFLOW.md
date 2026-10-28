@@ -17,6 +17,8 @@ The rules every agent follows are in `AGENTS.md`. This file holds the detail. So
 | `poll.yml` | every 20 min + manual | open PRs whose head is in this repo (never forks), **non-draft or labelled `ci/pi`**, head SHA without a `pi5` status: headless Release build + `tools/dev.py test` on the exact SHA | commit status `pi5` |
 | `nightly.yml` | 03:17 New York + manual | `main`: build, full tests, 600 s soaks (poly8, blocks 64/128/256), benchmark vs `baselines/pi5-benchmark.json`, frozen render hashes; later fuzzing (#94), clang-tidy (#87), review packs (#86) | overwrites the open issue **Pi nightly summary** (#101); opens "Pi nightly regression: <sha>" when a passing check starts failing |
 
+CodeQL (C/C++, Python and Actions) runs through `.github/workflows/codeql.yml` on GitHub Actions, **not** on the Pi runner; advanced setup is already configured, so do not also enable default setup.
+
 Builders: add `ci/pi` to a draft PR when its acceptance block has `pi:` lines; the `pi5` status appears within about 20 minutes plus build time. Safety: public code runs with a scrubbed environment (no token, no Actions credentials); fork heads are skipped; no `sudo`, devices or LAN listeners; one job at a time.
 
 ## 3. Review tiers
