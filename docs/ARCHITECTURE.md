@@ -200,3 +200,14 @@ system-name fallbacks are saved in the patch's device records. Shutdown joins
 MIDI producers and drains source chokes before stopping render or destroying its
 engine. Raw MIDI releases use the same reserved queue classification as note
 releases; MIDI 2 zero-velocity Note On remains a Note On.
+
+OSC acquisition uses `native/io/net/` and the bounded codec under `native/io/osc/`.
+It defaults to localhost; per-module LAN configuration also needs explicit
+session authorization. App/runner producer 2 feeds timestamped messages into
+engine2. Monitor nodes receive host-owned SPSC taps; only the control/UI side
+formats records. The app offers pause/clear and ring-drop/rate-limit counters;
+`play --monitor` drains the same records to stderr. The J app facade discards
+unused external egress after each callback (bounded by its event budget), since
+MIDI/OSC output dispatch is outside J. Native engine egress remains available to
+its direct consumers. Descriptor/library owners and Monitor taps outlive the
+native graph's teardown.
