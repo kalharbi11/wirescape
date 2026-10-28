@@ -3,10 +3,14 @@ import os
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
+from unittest.mock import patch
 from pathlib import Path
 
 from guard import check as guard_check
 from guard import violations
+from guard import check_staged, check_staged_format
 
 
 class GuardTests(unittest.TestCase):
@@ -77,6 +81,39 @@ class GuardTests(unittest.TestCase):
 
     def test_modified_file_without_spdx_header_is_allowed(self):
         self.assertFalse(self.check('tools/a.py', status='M', added=['line 1']))
+
+    def test_local_protected_warning_does_not_weaken_ci(self):
+        header = b'+<!-- SPDX-License-Identifier: GPL-3.0-only -->\n'
+        output = StringIO()
+        with patch('guard.git', side_effect=[b'A\0AGENTS.md\0', header]), redirect_stdout(output):
+            self.assertEqual(check_staged(), [])
+        self.assertIn('warning: protected path', output.getvalue())
+        self.assertTrue(violations('A', ['AGENTS.md'], [header.decode()], set()))
+
+    def test_local_guard_reuses_new_spdx_and_binary_rules(self):
+        for path, expected in (('tools/new.py', 'missing SPDX'), ('x.so', 'binary/private'),
+                               ('user_data/config.json', 'binary/private')):
+            with self.subTest(path=path), patch('guard.git', side_effect=[f'A\0{path}\0'.encode(), b'+text\n']):
+                self.assertTrue(any(expected in error for error in check_staged()))
+        with patch('guard.git', side_effect=[b'M\0tools/old.py\0', b'+text\n']):
+            self.assertEqual(check_staged(), [])
+
+    def test_local_clean_index_needs_no_formatter(self):
+        with patch('guard.git', return_value=b''), patch('guard.shutil.which', side_effect=AssertionError('unexpected')):
+            self.assertEqual(check_staged(), [])
+            self.assertEqual(check_staged_format(), [])
+
+    def test_local_formatter_requires_tool_and_checks_staged_bytes_only(self):
+        diff = b'+++ b/native/x.cpp\n@@ -1 +1,2 @@\n+x\n+y\n'
+        with patch('guard.git', return_value=diff), patch('guard.shutil.which', return_value=None):
+            self.assertIn('clang-format is required', check_staged_format()[0])
+        with patch('guard.git', side_effect=[diff, b'// index content\n']), \
+                patch('guard.shutil.which', return_value='clang-format-18'), \
+                patch('guard.subprocess.run', return_value=subprocess.CompletedProcess([], 0, b'', b'')) as run:
+            self.assertEqual(check_staged_format(), [])
+            self.assertEqual(run.call_args.kwargs['input'], b'// index content\n')
+            self.assertIn('--lines=1:2', run.call_args.args[0])
+            self.assertIn('--dry-run', run.call_args.args[0])
 
     def test_merge_base_diff_ignores_moved_main_changes(self):
         with tempfile.TemporaryDirectory() as td:
