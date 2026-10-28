@@ -129,6 +129,7 @@ target_link_libraries(abi2_returned_filter_stress PRIVATE wirescape_sdk2 wiresca
 add_dependencies(abi2_returned_filter_stress ws2_ladder ws_ladder)
 add_test(NAME abi2_returned_filter_stress COMMAND abi2_returned_filter_stress $<TARGET_FILE_DIR:ws_ladder>)
 
+add_subdirectory(../io/midi midi_io)
 add_library(wirescape_app_engine STATIC ../control/app_engine.cpp)
 target_include_directories(wirescape_app_engine PUBLIC ../control)
 target_link_libraries(wirescape_app_engine PUBLIC wirescape_engine2 wirescape_engine wirescape_catalog_dependencies)
@@ -149,4 +150,3 @@ add_test(NAME abi2_midi_release_tests COMMAND abi2_midi_release_tests)
 add_executable(abi2_note_identity_tests ../voice/note_identity_tests.cpp)
 target_link_libraries(abi2_note_identity_tests PRIVATE wirescape_voice2 wirescape_sdk2)
 add_test(NAME abi2_note_identity_tests COMMAND abi2_note_identity_tests)
-add_subdirectory(../io/midi midi_io)
