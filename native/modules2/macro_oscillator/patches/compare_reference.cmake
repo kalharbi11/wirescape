@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-only
+execute_process(COMMAND "${BASELINE}" --shift-hashes RESULT_VARIABLE base_result OUTPUT_VARIABLE baseline)
+execute_process(COMMAND "${PATCHED}" --shift-hashes RESULT_VARIABLE patched_result OUTPUT_VARIABLE patched)
+message(STATUS "Unpatched Release: ${baseline}")
+message(STATUS "Patched Release: ${patched}")
+if(NOT base_result EQUAL 0 OR NOT patched_result EQUAL 0 OR NOT baseline STREQUAL patched)
+  message(FATAL_ERROR "Macro Oscillator patched/unpatched Release hashes differ")
+endif()
+get_filename_component(report_dir "${REPORT}" DIRECTORY)
+file(MAKE_DIRECTORY "${report_dir}")
+string(STRIP "${patched}" patched)
+file(WRITE "${REPORT}" "${patched}\n")

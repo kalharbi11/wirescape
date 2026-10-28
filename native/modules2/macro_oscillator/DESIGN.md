@@ -13,7 +13,7 @@ programming tools, serial code, VCV code and graphics are excluded.
 ## Source closure and hardware boundary
 
 Compile `plaits/dsp/**/*.cc`, `plaits/resources.cc` and `stmlib/dsp/units.cc`.
-Upstream DSP source text has only the planner-authorized signed-shift patch described below. `TEST` selects upstream UserData::ptr's
+Upstream sources have only the planner-authorized portability patches described below. `TEST` selects upstream UserData::ptr's
 null-returning implementation, so the factory preset path never reads a hardware
 flash address. Firmware/device initialisation and UserData::Save are never called.
 All 24 engine entries remain selectable; no engine is excluded.
@@ -72,5 +72,34 @@ Before patching, GCC 14.2.0 x86_64 `-O3 -DNDEBUG` at 48k/128 produced these FNV-
 | 3 | `ba4c1cadbda672a5` |
 | 4 | `8ee3f2f04c6dd061` |
 
-`signed_shift_reference` asserts non-silence and these same hashes after patching.
+`signed_shift_reference` asserts non-silence and exact hashes within each platform
+family. ARM64 hashes are collected from CI before filling its baseline; the
+x86-64 numbers above are not substituted for an ARM64 reference.
 The existing direct-reference, all-24-model, allocation and isolation tests remain.
+
+### Additional planner authorization, issue #29 (2026-10-28)
+
+- `msvc-specializations.patch` guards four header-only specialization declarations
+  with `_MSC_VER`; MSVC otherwise treats these uninitialized const declarations
+  as definitions (C2737). The class declarations and initialized definitions in
+  `algorithms.cc`, including every opcode/renderer, remain unchanged.
+- `empty-resource-table.patch` adds a null sentinel to the otherwise empty
+  `lookup_table_i32_table` (C2466). The pinned DSP closure never references that
+  table; no used lookup table or model is changed.
+- `apply.cmake` normalizes patch CRLF to LF and uses `git apply --ignore-whitespace`
+  for application and reverse checks, so Windows checkouts can apply/reapply the
+  same pinned patches. Source/context mismatches still fail configuration.
+
+The Release-only `abi2_macro_reference` test builds an independent upstream oracle
+with just the exponent-shift header restored through a private include overlay.
+The other portability fixes and source pins are identical. It compares complete
+model 2/3/4 main+aux stream hashes, using the same toolchain for baseline and patch,
+and publishes the equal JSON results as `build_reports/abi2/macro-reference-*.json`
+(uploaded by existing native CI). The unpatched oracle is not built or executed
+in sanitizer configurations; all production DSP and its normal tests remain
+instrumented without suppressions. No unpatched library enters the module or app.
+The normal test keeps exact family baselines and never accepts a mismatching hash.
+
+The render helper checks both size multiplications before allocating and uses
+`size_t` indices. Boundary tests include zero and overflow in either operand; no
+CodeQL suppression is used.

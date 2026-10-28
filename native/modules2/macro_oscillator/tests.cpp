@@ -8,6 +8,8 @@
 #include <atomic>
 #include <chrono>
 #include <string>
+#include <limits>
+#include <stdexcept>
 namespace stmlib { uint32_t WirescapeUnusedGlobalRandom::rng_state_ = 0x21; }
 struct Arena {
     std::vector<uint8_t> bytes = std::vector<uint8_t>(1024 * 1024);
@@ -62,12 +64,27 @@ struct Rig {
         }
     }
 };
+static bool checked_multiply(size_t a, size_t b, size_t& result) {
+    if (a && b > std::numeric_limits<size_t>::max() / a) return false;
+    result = a * b; return true;
+}
+static void checked_sizes() {
+    size_t n = 0;
+    REQUIRE(checked_multiply(16, 48000, n) && n == 768000);
+    REQUIRE(checked_multiply(0, std::numeric_limits<size_t>::max(), n) && n == 0);
+    REQUIRE(!checked_multiply(std::numeric_limits<size_t>::max(), 2, n));
+    REQUIRE(!checked_multiply(2, std::numeric_limits<size_t>::max(), n));
+}
 static std::vector<float> render(Rig& r, uint32_t block, uint32_t total = 1024) {
-    std::vector<float> result(2 * r.ctx.channels * total);
+    size_t streams, count;
+    if (!block || block > 256 || !checked_multiply(2, r.ctx.channels, streams)
+        || !checked_multiply(streams, total, count) || count > std::vector<float>().max_size())
+        throw std::length_error("render sample count overflow or invalid block");
+    std::vector<float> result(count);
     for (uint32_t first = 0; first < total; first += block) {
         const uint32_t n = std::min(block, total - first); r.run(n);
         for (uint32_t p = 0; p < 2; ++p) for (uint32_t c = 0; c < r.ctx.channels; ++c) for (uint32_t i = 0; i < n; ++i)
-            result[(p * r.ctx.channels + c) * total + first + i] = r.buffer->output[p][c][i];
+            result[(size_t(p) * r.ctx.channels + c) * total + first + i] = r.buffer->output[p][c][i];
     }
     return result;
 }
@@ -91,9 +108,17 @@ static void direct_reference() {
         REQUIRE(actual == expected);
     }
 }
-static void signed_shift_reference() {
-    // Unpatched pinned Release, GCC 14.2.0 x86_64, 48k samples of both float streams.
+static void signed_shift_reference(bool record = false) {
+#if defined(__aarch64__) || defined(_M_ARM64)
+    const char* family = "ARM64";
+    const uint64_t expected[]{0, 0, 0}; // CI same-toolchain oracle records the family baseline.
+#elif defined(__x86_64__) || defined(_M_X64)
+    const char* family = "x86-64";
     const uint64_t expected[]{0x210b80dca5fe2915ull, 0xba4c1cadbda672a5ull, 0x8ee3f2f04c6dd061ull};
+#else
+#error Record an exact reference for this platform family before enabling it.
+#endif
+    uint64_t observed[3]{};
     for (int model : {2, 3, 4}) {
         Rig r; r.values[0] = float(model); r.inputs[6].flags = WS2_CONNECTED;
         std::fill_n(r.buffer->input[6][0], 256, 1.f);
@@ -103,8 +128,13 @@ static void signed_shift_reference() {
             nonzero |= sample != 0; uint32_t bits; std::memcpy(&bits, &sample, sizeof(bits));
             for (unsigned shift = 0; shift < 32; shift += 8) { hash ^= (bits >> shift) & 255; hash *= 1099511628211ull; }
         }
-        std::printf("signed-shift reference model=%d hash=%016llx\n", model, static_cast<unsigned long long>(hash));
-        REQUIRE(nonzero); REQUIRE(hash == expected[model - 2]);
+        observed[model - 2] = hash; REQUIRE(nonzero);
+    }
+    std::printf("{\"family\":\"%s\",\"hashes\":[\"%016llx\",\"%016llx\",\"%016llx\"]}\n", family,
+        static_cast<unsigned long long>(observed[0]), static_cast<unsigned long long>(observed[1]), static_cast<unsigned long long>(observed[2]));
+    std::fflush(stdout);
+    if (!record) for (size_t i = 0; i < 3; ++i) {
+        REQUIRE(observed[i] == expected[i]);
     }
 }
 static void matrix_and_state() {
@@ -197,4 +227,4 @@ static int benchmark() {
     std::printf("],\"worst_us\":%.3f}\n", worst);
     return worst < 666.666667 ? 0 : 1;
 }
-int main(int argc, char** argv) { if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark(); direct_reference(); signed_shift_reference(); matrix_and_state(); controls_and_capacity(); unmodified_rng_oracle(); isolated_rng(); std::puts("Macro Oscillator upstream reference, FIFO, matrices and isolation passed"); }
+int main(int argc, char** argv) { if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark(); if (argc == 2 && std::string(argv[1]) == "--shift-hashes") { signed_shift_reference(true); return 0; } checked_sizes(); direct_reference(); signed_shift_reference(); matrix_and_state(); controls_and_capacity(); unmodified_rng_oracle(); isolated_rng(); std::puts("Macro Oscillator upstream reference, FIFO, matrices and isolation passed"); }
