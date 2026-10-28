@@ -174,30 +174,8 @@ The `windows-x64` runner measured ABI 2/ABI 1 mono at 1.097×. Every other measu
 
 ---
 
-## Codex continuous queue (run in this order; don't wait for review between tasks)
-Codex runs this list top to bottom in one long session. Open one draft PR per issue, post a handoff on each issue when it's done, set `status/review` and move straight on to the next item. **Never merge.** When an item's prerequisite isn't merged yet, skip it (post a one-line "waiting on #N" handoff) and take the next one; come back when it's merged.
-
-Updated 2026-10-27 (late check-in). Merged: M2-1 (#38) and the portability probe (#55). Accepted and waiting for the user to merge, in this order: #39 (M2-2), #37 (M1-3b, accepted with the gap moved to #64), then #40 and #41.
-
-| # | Item | Prerequisite | Machine |
-|---|---|---|---|
-| 1 | **Merge upkeep:** after #39 merges, merge `main` into #40, then (after #40) into #41. Keep both sides' test registrations, run `python tools/dev.py test`, push, and confirm CI is green | the PR ahead of it merged | cloud |
-| 2 | #28 M2-5 (draft PR #48, CI green): finish it, add Pi evidence, handoff, `status/review` | none | Pi |
-| 3 | #50 M2-0c (draft PR #63, CI green): post the 600 s Pi run with the preempted-block count, handoff, `status/review` | no other Pi run at the same time | Pi |
-| 4 | #64 M1-3c clang-cl comparison (measurement only, no source changes) | #37 merged; laptop on | **laptop** |
-| 5 | #29 M2-6 engine2 becomes the app engine. **#32 no longer blocks it** (see the decision on #32) | #39, #40, #48 merged (#38 is in) | Pi + laptop |
-
-Copilot owns #49 and #56 (after the reset on Oct 31); Codex skips them. ChatGPT owns the docs studies.
-
-Rules for the queue:
-- Every PR ends with the "Machine evidence" comment from the Machines section. Run the Pi work while CI runs, so it doesn't add wall time. Never run two Pi benchmarks or soaks at once.
-- Never benchmark on the laptop while a build or test runs there; the laptop and the Pi may work at the same time.
-- Items 1–3 can run at the same time on different machines. Item 2 runs only on the laptop.
-- Each item branches from the latest `main`. If an earlier item touches the same CMake list or test registry and merges first, merge `main` into your branch (merge commit, no rebase).
-- Run `python tools/dev.py test` before every final push. The final push of each PR runs CI; WIP pushes may use `[skip ci]`.
-- If a PR gets review comments from Claude while you're on a later item, finish your current commit, fix the comments on the earlier branch, push and return.
-- Hard stops: any ABI header edit, any non-zero equivalence delta, any test removal or tolerance change, a diff past its size budget, or two failed attempts at the same failure. Post a `status/blocked` handoff for that item and take the next one.
-- Collect every "Provenance: to be confirmed by the user" in one comment on #29 so the user can answer them in one go.
+## Codex continuous queue (superseded 2026-10-28)
+The M2 queue is replaced by the Jam checkpoint queue in `docs/tasks/J_JAM_CHECKPOINT.md`. M2-6 continues there as J1; its spec above still applies. Merged since the last queue update: #37, #39, #48, #63, #67. #64 is deferred.
 
 ---
 
