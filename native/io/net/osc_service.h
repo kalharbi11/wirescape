@@ -8,7 +8,7 @@ namespace wirescape::osc {
 struct Route { uint32_t node = 0; uint16_t port = 9000; bool lan = false; };
 struct Sink { void* context = nullptr; int (*deliver)(void*, uint32_t node, const ws2_event&, uint64_t timestamp_ns) noexcept = nullptr; };
 struct Counters { uint64_t received = 0, malformed = 0, dropped = 0, truncated = 0; uint32_t sockets = 0; };
-// One worker and socket per distinct port; routes sharing a port share acquisition.
+// One network worker polls all ports; one socket per distinct port is shared by its routes.
 // add() is quiescent; LAN needs both Route.lan and Service(confirm_lan=true).
 class Service {
     struct Impl; std::unique_ptr<Impl> impl_;

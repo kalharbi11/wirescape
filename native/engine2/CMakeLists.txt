@@ -158,3 +158,5 @@ target_link_libraries(wirescape_cli PRIVATE wirescape_midi_host)
 add_executable(midi_host_tests ../control/midi_host_tests.cpp)
 target_link_libraries(midi_host_tests PRIVATE wirescape_midi_host)
 add_test(NAME midi_host_tests COMMAND midi_host_tests)
+
+add_subdirectory(../io/net osc_net)
