@@ -26,7 +26,18 @@ Builders: add `ci/pi` to a draft PR when its acceptance block has `pi:` lines; t
 | **T1** + one cheap review | `size/m`/`size/l` modules, ports, tools, UI | T0 + a "ChatGPT pre-review" comment on the review pack, every High fixed or answered |
 | **T2** Claude | ABI/SDK headers, engine2 scheduler, threading/rings, realtime callback, services thread model, patch format, CI guard, milestone gates, or a T1 with an unsettled High | T1 + Claude reads only the pack and the pre-review, then spot-checks named lines. Concurrency/DSP: a second ChatGPT pass in a fresh chat first |
 
-When `accept` is green on the exact head, the builder sets `status/ready-to-merge` and posts the report. It never approves or merges.
+When `accept` is green on the exact head, the builder sets `status/ready-to-merge` and posts the report.
+
+## 3b. Who merges what
+| PR | Who | When |
+|---|---|---|
+| T0, base `main`, no label-only paths | builder enables auto-merge | after `status/ready-to-merge`; GitHub merges when required checks are green |
+| T1, base `main` | builder enables auto-merge | additionally a "ChatGPT pre-review" with every High fixed or answered |
+| T2 (engine, threads, patch format, guard/CI rules, ABI) | user, after Claude's review comment | — |
+| Stacked PR (base is another task branch) | nobody | only after its base merges and GitHub retargets it to `main` |
+| Planner docs PRs | user (or planner-enabled auto-merge for docs-only T0) | green |
+
+**The user's rule of thumb:** a PR with base `main`, all checks green and no `tier/T2` label can be merged without asking Claude. Non-required checks (the static job, the optional acceptance job) may be red only if the PR didn't touch what they report on. Auto-merge needs the repository setting *Allow auto-merge* (Settings → General → Pull Requests).
 
 ## 4. Task files and the acceptance block
 Every issue points to a `docs/tasks/` file that ends with a fenced `acceptance` block. If the planner can't write one, the task isn't ready.
