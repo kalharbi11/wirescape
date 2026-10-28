@@ -12,7 +12,7 @@ class LinearRamp {
     bool started_=false;
 public:
     explicit LinearRamp(double value=0):present_(value),destination_(value){}
-    void prepare(double rate) noexcept { length_=std::max(1u,static_cast<uint32_t>(rate*.005)); reset(); }
+    void prepare(double rate) noexcept { length_=std::max<uint32_t>(1u,static_cast<uint32_t>(rate*.005)); reset(); }
     void reset() noexcept { present_=destination_; left_=0; started_=false; }
     void jump(double value) noexcept { present_=destination_=value; left_=0; }
     void set(double value) noexcept {
@@ -38,7 +38,7 @@ public:
 class Trigger {
     uint32_t length_=48,left_=0;
 public:
-    void prepare(double rate) noexcept {length_=std::max(1u,static_cast<uint32_t>(std::ceil(rate*.001)));left_=0;}
+    void prepare(double rate) noexcept {length_=std::max<uint32_t>(1u,static_cast<uint32_t>(std::ceil(rate*.001)));left_=0;}
     void fire() noexcept {left_=length_;}
     float next() noexcept {if(!left_)return 0;--left_;return 1;}
     void reset() noexcept {left_=0;}
