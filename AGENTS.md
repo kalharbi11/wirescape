@@ -1,114 +1,87 @@
-# AGENTS.md: rules for every agent (Codex, Copilot, Claude)
+# AGENTS.md: rules for every agent (workflow v2, 2026-10-28)
+
+Detail behind these rules: `docs/WORKFLOW.md`. Plan and current state: `docs/PLAN.md` ("Now" at the top).
 
 ## Read map: only this, in this order
 1. This file.
-2. Your assigned GitHub issue (it's the spec) and its latest handoff comment. Most issues point to a file in `docs/tasks/`. Read that file in full.
-3. `docs/PLAN.md`, "Current milestone" section only, unless the issue says otherwise.
-4. Files the issue or task file lists under "Read first".
-5. Building or changing a module? Follow `docs/SDK_AUTHOR_GUIDE.md` and start from `native/sdk/examples/` (Claude Code: the `new-module` skill does this).
+2. Your issue and its latest handoff comment, then the `docs/tasks/` file it names (in full; it ends with an `acceptance` block).
+3. `docs/PLAN.md`, the "Now" section only.
+4. Files the task lists under "Read first". Building a module: `docs/SDK_AUTHOR_GUIDE.md` and `native/sdk/examples/` (Claude Code: the `new-module` skill).
 
-Never read these unless the issue asks: `legacy/`, `docs/history/`, `build/`, `build_reports/`, third-party sources and generated files. Search narrowly; don't ingest whole folders.
+Never read `legacy/`, `docs/history/`, `build/`, `build_reports/`, third-party sources or generated files unless the task asks. Search narrowly.
 
 ## Project in brief
-Wirescape is an open-source modular patching environment for music.
-- A native C++17 realtime engine, plus a standalone Qt Quick UI.
-- Windows is the primary platform. Linux ARM64 (Raspberry Pi 5) is the performance target.
-- Module DSP is portable to plugins (CLAP/VST3) and to Daisy-class hardware through thin adapters.
+Wirescape is an open-source modular patching environment for music: a native C++17 realtime engine and a Qt Quick UI. Windows is the primary platform; Linux ARM64 (Raspberry Pi 5) is the performance target; module DSP stays portable to plugins and Daisy-class hardware. Contract: `docs/specs/ABI2_PLAN.md`. Built today: `docs/ARCHITECTURE.md`. Evidence: `docs/STATUS.md`.
 
-The plan and milestones are in `docs/PLAN.md`. The module contract is `docs/specs/ABI2_PLAN.md`. What's built today is in `docs/ARCHITECTURE.md`. Evidence and known limits are in `docs/STATUS.md`.
+## Agents and routing
+| Agent | Runs | Use for | Label |
+|---|---|---|---|
+| Codex cloud tasks | cloud | building, CI fixes, the automation backlog, anything that needs a build | `agent/codex` |
+| ChatGPT (GitHub-connected) | cloud | docs, triage, self-contained modules (CI is its build), first-round "ChatGPT pre-review" | `agent/chatgpt` |
+| Claude Code (web) | cloud | plan, task files with acceptance blocks, T2 reviews, gate decisions | `agent/claude` |
+| Pi 5 runner | Pi, no AI | PR checks, nightly tests, soaks, benchmarks, fuzzing, static analysis, review packs | — |
+| Copilot | — | nothing for now (credits nearly gone) | — |
+
+No agent reaches the Pi or the laptop. Pi work goes through the `pi5` runner on the private repo `kalharbi11/wirescape-pi`; this repo's workflows never target the Pi. Laptop-only work waits for the user. Pick the cheapest agent that can meet the acceptance block, and say why in one line.
 
 ## Work rules
-- One issue = one branch `task/<issue#>-<slug>` = one draft PR whose description contains `Closes #<issue#>`.
-- Work only on your assigned issue. Don't start, take over or edit another issue's branch unless the user or the issue says so. To take over, read the latest handoff comment first and continue on the existing branch.
-- Push small commits often, so hitting a usage limit never loses work. WIP-only commits may use `[skip ci]`. The final push before review must run CI.
-- Before you stop (done, near a limit, or blocked): post a handoff comment on the issue using the template below, and set the status label.
-- Machine (Pi) evidence only for PRs that change the engine, DSP, audio path or build. No evidence re-runs after a merge from `main` that touches no compiled code in your area.
-- Never merge. The user merges after review.
-- **Never approve.** No agent submits an `APPROVE` review, enables auto-merge, dismisses a review, or changes branch protection or rulesets. Reviews from agents are `COMMENT` only. Approving is the user's act alone.
-- On a hard failure: two reasonable attempts, then stop, leave the evidence and label the issue `status/blocked`.
-- Don't widen scope. Ideas go under "Follow-ups" in the handoff, not into code.
+- One issue = one branch `task/<issue#>-<slug>` = one draft PR with `Closes #<issue#>`. Work only on your issue.
+- Push small commits; WIP commits may use `[skip ci]`, the final push never does.
+- **Done is decided by the acceptance block:** run its `must_pass` lines (`python tools/dev.py accept <issue#>` once it exists), post the report, set `status/ready-to-merge` when green on the exact head. `pi:` lines run on the Pi runner.
+- **Review tiers** (`docs/WORKFLOW.md` §3): T0 scripts only; T1 adds a ChatGPT pre-review of the review pack; T2 adds Claude. The tier is in the acceptance block.
+- Never merge, approve, enable auto-merge, dismiss reviews or change branch protection. Agent reviews are `COMMENT` only. The user's merge click is the approval.
+- Before you stop (done, near a limit, blocked): post the handoff below and set the status label.
+- Don't widen scope; ideas go under "Follow-ups".
 
-## Safety rails (apply to every agent, especially cheaper/auto-selected models)
-- **Stay inside the issue's scope.** Don't rename, move, delete or reformat files the task didn't name. No repo-wide search-and-replace unless the task says so.
-- **Protected paths** need an issue that explicitly names them:
-  - `AGENTS.md`, `CLAUDE.md`, `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`
-  - `LICENSE*`, `LICENSES/**`, `.github/**`
-  - `native/include/wirescape/*.h`
-  - `docs/history/**` (frozen)
-  - `legacy/**` (read-only)
-- **Never make CI pass by weakening it:** don't delete, skip or comment out tests, loosen tolerances or thresholds, or add `[skip ci]` to the final push. If a test seems wrong, say so in the handoff.
-- **Git:** never force-push, rewrite published history, `git reset --hard` a shared branch, commit to `main` directly, or merge.
-- **Size check:** if your diff grows beyond about 400 changed lines or 15 files and the task didn't predict that, stop and post a handoff asking for confirmation.
-- **When unsure, ask** in an issue comment (with label `status/blocked`) instead of guessing.
-- **Generated or binary files** (build outputs, WAVs, zips, fonts, DLLs) are never committed.
+## Stops: post a handoff, label `status/blocked`, take the next item
+ABI header edit · equivalence delta without a planner decision · test removal or tolerance/threshold change · diff past the task's size budget · two failed attempts at one failure · design choice not in the spec · new dependency not named in the task · attempt budget reached. When unsure, ask in the issue.
+
+## Usage hygiene
+- One issue per agent thread; start fresh per issue. Don't paste whole logs; tail on failure.
+- Don't run the full suite locally when CI will; run tests for touched files, push, read the CI summary.
+- Pi evidence only through the Pi runner and only for engine, DSP, audio-path or build changes. No re-runs after a merge from `main` that touches no compiled code.
+- Claude: fresh session per check-in; Sonnet for routine work, Opus only for T2/architecture, Haiku for search.
+
+## External agent queue (optional)
+For ≤3-file work that benefits from an independent strong model: build a split review pack, ask in the issue "External-queue task: run it outside, or should I do it myself?". Blocking work: ask once, then do it yourself. Non-blocking: label `external-queue` and move on. The user replies with a comment headed "External result". Detail: `docs/WORKFLOW.md` §7.
+
+## Safety rails
+- **Protected paths** need an issue that names them and the `allow-protected` label (added by the user, or by the planner when the issue names the path): `AGENTS.md`, `CLAUDE.md`, `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`, `LICENSE*`, `LICENSES/**`, `.github/**`, `native/include/wirescape/*.h`, `docs/history/**` (frozen), `legacy/**` (read-only).
+- Never make CI pass by weakening it. Never force-push, rewrite published history, commit to `main` or merge.
+- Never commit generated or binary files, fonts, `user_data/`, `local_backups/`, `.tools/`, credentials or machine-specific absolute paths.
+
+## Engineering rules (non-negotiable)
+- **Realtime:** no allocation, locks, I/O, exceptions or logging in process, event or reset. Bounded work. Create/prepare/destroy run while the engine is quiescent.
+- **Devices off:** tests, CI, agents and the Pi runner never open audio/MIDI devices or LAN sockets (localhost is fine). Real-device paths only behind `--confirm-*`, run by the user.
+- **Contract:** follow `docs/specs/ABI2_PLAN.md`. ABI headers change only in an ABI issue. ABI soft freeze from the Jam checkpoint: additive SDK changes only, otherwise a migration note.
+- **Compatibility:** module, port and parameter IDs never change; patch migration is lossless; unknown data is preserved.
+- **Tests:** every change ships tests.
+- **Licences:** SPDX header on every new file. MIT for `native/sdk/`, `native/include/wirescape/module2.h`, `native/voice/`; GPL-3.0 elsewhere. Third-party sources, pinned revisions and licences go in the module's `DESIGN.md`.
 
 ## Labels
-- Status: `status/todo`, `status/in-progress`, `status/review`, `status/handoff-ready`, `status/blocked`
-- Agent: `agent/codex`, `agent/copilot`, `agent/chatgpt`, `agent/claude`
-- Review: `milestone-review` (Claude may build, profile and run sanitizers)
-- Size: `size/s`, `size/m`, `size/l`
-- Milestones: `M0` … `M8` (see `docs/PLAN.md`)
+Status `status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · Agent `agent/codex|chatgpt|claude` · Tier `tier/T0|T1|T2` · Size `size/s|m|l` · `external-queue` · `milestone-review` · overrides `allow-protected`, `allow-test-removal` (user or planner only).
 
 ## Handoff comment template
 ```
 **Status:** done | handoff-ready | blocked   **Branch/PR:** …   **Last commit:** …
 **Done:** bullets
 **Next:** ordered bullets
-**Tests:** commands + results
+**Tests:** commands + results (acceptance report link)
 **Gotchas/decisions:** bullets
 **Follow-ups (not done):** bullets
 ```
 
-## Engineering rules (non-negotiable)
-- **Realtime:** no allocation, locks, I/O, exceptions or logging in process, event or reset. Bounded work only. Create, prepare and destroy run while the engine is quiescent.
-- **Audio stays off:** tests and CI never open audio or MIDI devices or LAN sockets (localhost-only tests are fine). Real-device probes run only with their explicit `--confirm-*` flag and the user's authorization.
-- **Contract:** follow `docs/specs/ABI2_PLAN.md`. Don't edit ABI headers outside an issue that is about the ABI.
-- **Compatibility:** preserve module, port and parameter IDs. Patch migration must be lossless, and unknown data is preserved.
-- **Tests:** every change ships tests. Run `python tools/dev.py test` before pushing. CI must be green before review.
-- **Privacy:** never commit fonts, `user_data/`, `local_backups/`, `.tools/`, compiled binaries, Surge binaries or credentials. Never put machine-specific absolute paths in tracked files. Use repo-relative paths or environment variables.
-- **Licences:**
-  - Add an SPDX header to every new file.
-  - MIT for `native/sdk/`, `native/include/wirescape/module2.h` and `native/voice/`. GPL-3.0 everywhere else.
-  - Record third-party sources, pinned revisions and licences in each module's `DESIGN.md`.
-
 ## Commands (all keep audio off)
-```
-python tools/dev.py doctor | build | test | check --package | launch
-```
-Qt is found through `WIRESCAPE_QT_DIR`, then `CMAKE_PREFIX_PATH`, then the local fallback `.tools/qt/6.10.3/msvc2022_64`.
+`python tools/dev.py doctor | build [--headless] | test | check --package | launch`. Qt: `WIRESCAPE_QT_DIR`, then `CMAKE_PREFIX_PATH`.
 
 ## Docs upkeep
-- `docs/PLAN.md` belongs to the planner (Claude). Other agents may only tick milestone checkboxes.
-- Update `docs/ARCHITECTURE.md` in the same PR that changes the architecture.
-- Update `docs/STATUS.md` only when a milestone completes, with real evidence.
-- Task specs live in `docs/tasks/`. Reviews go in `docs/reviews/`. `docs/history/` is frozen.
+`docs/PLAN.md` belongs to the planner (others may tick checkboxes). Update `docs/ARCHITECTURE.md` in the PR that changes the architecture; `docs/STATUS.md` when a milestone completes. Tasks in `docs/tasks/`, reviews in `docs/reviews/`.
 
 ## If you are Codex
-Default to Sol Medium. Use Luna Medium for mechanical work. Use Sol High only for concurrency, timing or architecture problems after two failed attempts. At most one worker; add a second only for genuinely independent work, and state its file ownership first.
+Sol medium by default, Luna for mechanical edits, Sol high only after two failed attempts. At most one extra worker, only for independent work with stated file ownership.
 
-## If you are Copilot
-Take only issues labelled `agent/copilot`. If a task turns out larger than its size label, post a handoff comment and stop. Your `copilot/…` branch name is accepted in place of `task/<issue#>-<slug>`; the PR still says `Closes #<issue#>`.
-
-## If you are ChatGPT (GitHub-connected chat)
-Take only issues labelled `agent/chatgpt`, or a review-prep request the user pastes from Claude. You can read code, create branches, commit, open PRs and review, but you can't run the app, builds or tests. So:
-- Good fits: docs, task-file drafts, issue triage, small mechanical edits with existing tests, and **first-round review prep** (diff summaries, checklists, finding candidates with file:line).
-- Not a fit: anything whose acceptance needs a build, a benchmark, sanitizers, a device or the Windows/Pi machines.
-- Report back as a comment on the issue or PR, marked "ChatGPT pre-review", so Claude reads it instead of re-deriving it.
+## If you are ChatGPT
+Take `agent/chatgpt` issues and review-pack requests. You can't run builds: CI on your branch is your build; read its summary and fix. Post reviews as "ChatGPT pre-review" with severity and file:line.
 
 ## If you are Claude
-You are the planner and reviewer. A check-in means reading `docs/PLAN.md`, the open issues and PRs, the latest handoff comments and `git log --oneline -20`. Then update `docs/PLAN.md` and the issues, review anything labelled `status/review`, and flag risks. Don't write feature code unless asked.
-- **Routine check-ins:** use a fresh session. Read `docs/PLAN.md`, the open issues and PRs, their diffs and the CI summaries only. Don't build, profile or run sanitizers. If evidence is missing, request it from the implementing agent through the issue.
-- **Milestone reviews** (issues labelled `milestone-review`) may build, profile and run sanitizers.
-- **Agent roster and routing.** Keep Codex usage low: it is the main builder and tester, and the only agent with the user's Windows laptop and Pi 5.
-  | Agent | Use for | Label |
-  |---|---|---|
-  | Codex | Native code, performance, concurrency, anything needing a build, tests, Windows or Pi | `agent/codex` |
-  | Copilot coding agent | `size/s` well-specified tasks whose proof is CI on its own PR (small fixes, tests, CI tweaks) | `agent/copilot` |
-  | ChatGPT chat (GitHub-connected) | Docs, triage, mechanical edits, first-round review prep; never anything that must be built or run | `agent/chatgpt` |
-  | Claude | Plan, task files, issues, reviews, gate decisions | `agent/claude` |
-  When writing an issue, pick the cheapest agent that can meet its acceptance criteria, and say why in one line.
-- **Before a big review** (a `milestone-review` issue, or any review `size/m` or larger): first ask the user, in one consolidated message, what to have ChatGPT prepare, as a paste-ready ChatGPT prompt (for example a diff summary per file, a checklist pass with file:line candidates, or a list of claims in the handoff that need evidence). Use its output to narrow your own reading.
-- **After every review, end your reply with "Next steps for you":**
-  1. Every manual step the user must take, at click-by-click level (which page, which button, which setting, what to type), in order.
-  2. A paste-ready prompt for each agent that should act next (Codex, Copilot, ChatGPT), naming the issue, branch, spec file and stop condition.
-  3. Which steps can run in parallel, and what to tell Claude when they're done.
+Planner and T2 reviewer. A check-in reads "Now", open issues/PRs, latest handoffs and CI summaries, then updates "Now", the issues and task files (each with an acceptance block). Don't write feature code unless asked. Don't build in routine check-ins; gate reviews (`milestone-review`) may. After every review, end with "Next steps for you": the user's click-level steps in order, a paste-ready prompt per agent that acts next (issue, branch, task file, stop condition), and what can run in parallel.
