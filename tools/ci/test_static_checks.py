@@ -25,24 +25,30 @@ class StaticChecksTests(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0, "", "")
             with patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}), \
                     patch.object(static_checks.subprocess, "run", side_effect=execute) as run:
-                self.assertEqual(static_checks.run_checks(Path(tmp), DIFF, "tidy.py"), 1)
+                self.assertEqual(static_checks.run_checks(Path(tmp), DIFF + "+++ b/tools/script.py\n", "tidy.py"), 1)
                 self.assertEqual(run.call_count, 5)
                 commands = [call.args[0] for call in run.call_args_list]
                 self.assertIn("--lines=2:4", commands[2])
-                self.assertEqual(run.call_args_list[0].kwargs["input"], DIFF)
+                self.assertEqual(run.call_args_list[0].kwargs["input"], DIFF + "+++ b/tools/script.py\n")
                 self.assertIn("| cppcheck changed files | 1 | failed |", summary.read_text())
-                self.assertIn("ruff tools", summary.read_text())
+                self.assertIn("ruff changed files", summary.read_text())
+
+    def test_ruff_checks_only_changed_surviving_tools_files(self):
+        diff = '+++ b/tools/changed.py\n+++ /dev/null\n+++ b/docs/example.py\n+++ "b/tools/space name.py"\n+++ b/tools/changed.py\n'
+        with patch.object(static_checks.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
+            self.assertEqual(static_checks.run_checks(Path("."), diff, "tidy.py"), 0)
+            self.assertEqual(run.call_args_list[-1].args[0], ["ruff", "check", "--output-format", "concise", "--", "./tools/changed.py", "./tools/space name.py"])
 
     def test_missing_tool_does_not_skip_other_checks(self):
         with patch.object(static_checks.subprocess, "run", side_effect=FileNotFoundError("tool missing")) as run:
             self.assertEqual(static_checks.run_checks(Path("."), "", "tidy.py"), 1)
-            self.assertEqual(run.call_count, 2)
+            self.assertEqual(run.call_count, 1)
 
     def test_deletion_only_still_cppchecks_without_formatting_whole_file(self):
         diff = "+++ b/native/test.cpp\n@@ -3,2 +3,0 @@\n-x\n-y\n"
         with patch.object(static_checks.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
             self.assertEqual(static_checks.run_checks(Path("."), diff, "tidy.py"), 0)
-            self.assertEqual([c.args[0][0] for c in run.call_args_list], ["cppcheck", "actionlint", "ruff"])
+            self.assertEqual([c.args[0][0] for c in run.call_args_list], ["cppcheck", "actionlint"])
 
 
 if __name__ == "__main__":
