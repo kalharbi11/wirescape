@@ -16,15 +16,15 @@ struct MacroOscillator {
     static constexpr uint32_t flags = WS2_MODULATABLE | WS2_AUTOMATABLE | WS2_PER_VOICE;
     static constexpr std::array params{
         ws::param("model", "Model", 0, 23, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
-        ws::param("coarse", "Coarse", -48, 48, 0, "st", flags),
-        ws::param("harmonics", "Harmonics", 0, 1, .5f, "", flags),
-        ws::param("timbre", "Timbre", 0, 1, .5f, "", flags),
-        ws::param("morph", "Morph", 0, 1, .5f, "", flags),
-        ws::param("fm_amount", "FM amount", -1, 1, 0, "", flags),
-        ws::param("timbre_amount", "Timbre amount", -1, 1, 0, "", flags),
-        ws::param("morph_amount", "Morph amount", -1, 1, 0, "", flags),
-        ws::param("decay", "Decay", 0, 1, .5f, "", flags),
-        ws::param("lpg_colour", "LPG colour", 0, 1, .5f, "", flags)};
+        ws::param("coarse", "Coarse", -48, 48, 0, "st", flags, WS2_LINEAR, 1, 4, 0),
+        ws::param("harmonics", "Harmonics", 0, 1, .5f, "", flags, WS2_LINEAR, 2, 4, 0),
+        ws::param("timbre", "Timbre", 0, 1, .5f, "", flags, WS2_LINEAR, 3, 4, 0),
+        ws::param("morph", "Morph", 0, 1, .5f, "", flags, WS2_LINEAR, 4, 4, 0),
+        ws::param("fm_amount", "FM amount", -1, 1, 0, "", flags, WS2_LINEAR, 5, 4, 0),
+        ws::param("timbre_amount", "Timbre amount", -1, 1, 0, "", flags, WS2_LINEAR, 6, 4, 0),
+        ws::param("morph_amount", "Morph amount", -1, 1, 0, "", flags, WS2_LINEAR, 7, 4, 0),
+        ws::param("decay", "Decay", 0, 1, .5f, "", flags, WS2_LINEAR, 8, 4, 0),
+        ws::param("lpg_colour", "LPG colour", 0, 1, .5f, "", flags, WS2_LINEAR, 9, 4, 0)};
     struct Channel {
         plaits::Voice* voice = nullptr;
         uint8_t* memory = nullptr;

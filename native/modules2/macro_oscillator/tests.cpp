@@ -8,6 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include <string>
+namespace stmlib { uint32_t WirescapeUnusedGlobalRandom::rng_state_ = 0x21; }
 struct Arena {
     std::vector<uint8_t> bytes = std::vector<uint8_t>(1024 * 1024);
     size_t used = 0, limit = bytes.size();
@@ -133,6 +134,17 @@ static void controls_and_capacity() {
     Rig first, second(1, 43); first.values[0] = second.values[0] = 17;
     REQUIRE(render(first, 128) != render(second, 128));
 }
+static void unmodified_rng_oracle() {
+    // The renamed class is the unchanged pinned header, not the adapter implementation.
+    for (uint32_t seed : {0u, 1u, 0x12345678u, 0xffffffffu}) {
+        stmlib::WirescapeUnusedGlobalRandom::Seed(seed); stmlib::Random::Seed(seed);
+        for (int i = 0; i < 10000; ++i) {
+            REQUIRE(stmlib::Random::GetWord() == stmlib::WirescapeUnusedGlobalRandom::GetWord());
+            REQUIRE(stmlib::Random::GetFloat() == stmlib::WirescapeUnusedGlobalRandom::GetFloat());
+            REQUIRE(stmlib::Random::GetSample() == stmlib::WirescapeUnusedGlobalRandom::GetSample());
+        }
+    }
+}
 static void isolated_rng() {
     Rig left, right, expected; left.values[0] = right.values[0] = expected.values[0] = 17;
     const auto reference = render(expected, 128);
@@ -169,4 +181,4 @@ static int benchmark() {
     std::printf("],\"worst_us\":%.3f}\n", worst);
     return worst < 666.666667 ? 0 : 1;
 }
-int main(int argc, char** argv) { if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark(); direct_reference(); matrix_and_state(); controls_and_capacity(); isolated_rng(); std::puts("Macro Oscillator upstream reference, FIFO, matrices and isolation passed"); }
+int main(int argc, char** argv) { if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark(); direct_reference(); matrix_and_state(); controls_and_capacity(); unmodified_rng_oracle(); isolated_rng(); std::puts("Macro Oscillator upstream reference, FIFO, matrices and isolation passed"); }

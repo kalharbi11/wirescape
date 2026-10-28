@@ -28,7 +28,9 @@ own RNG register around Init/Render; the temporary register is thread-local.
 GNU builds reserve static TLS at load time, preventing lazy TLS allocation on the
 render thread. No lock serialises engines. Concurrent and interleaved noise-engine
 tests compare separate instances against a standalone stream; different seeds must
-differ. Global constant lookup tables are shared read-only.
+differ. A separate oracle compares words, floats and samples against the unchanged
+pinned RNG class for four seeds across 10,000 iterations. Global constant lookup
+tables are shared read-only.
 
 ## Timing, state and memory
 
