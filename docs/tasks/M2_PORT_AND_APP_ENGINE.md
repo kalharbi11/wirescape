@@ -26,21 +26,8 @@ The M2 milestone, split into seven Codex tasks and a Claude review. Each task ha
 - No ABI header edits (`native/include/wirescape/*.h`). If one seems needed, stop with `status/blocked`.
 - **Provenance:** do not invent provenance. Where `DESIGN.md` is missing, write what the source shows and mark the rest "Provenance: to be confirmed by the user". Claude collects these for the user.
 
-## Machines: who runs what
-Codex reaches both the **Pi 5** (`ssh pi`) and the user's **Windows laptop** (connection set up by the user on 2026-10-27; use whatever access the user configured, and don't guess hostnames or ask for credentials in comments). It runs all Pi and laptop work itself. If a machine can't be reached, say so in the handoff and keep going with work that doesn't need it.
-
-Codex never hands builds, tests or benchmarks to the user. The only device actions reserved for the user are real audio or MIDI runs (anything with a `--confirm-*` flag) and the M2-L live session.
-
-**Before setting any M2 PR to `status/review`,** post one "Machine evidence" comment on the PR with:
-- **Pi 5 (Linux ARM64, Release, headless):** `python tools/dev.py build --headless` and `python tools/dev.py test` (or `ctest`) on the PR head, with pass counts and the toolchain line. For M2-6, also the soak table.
-- **Windows:** the `windows-x64` CI job on the same head is enough for builds and tests. Laptop runs are needed only where a task asks for them (M1-3b, M2-6).
-- The exact commit SHA. If the Pi is unreachable, say so, retry once later in the session, and only then hand off without it.
-
-## Laptop rules (every task that uses it)
-On the laptop, Codex works only inside the repository checkout and the build folders, plus `.tools/` for pinned toolchains. Never open audio or MIDI devices and never run a `--confirm-*` command. Never use admin rights, install system-wide software, change drivers, power plans or OS settings, or touch the user's files outside the checkout. Before benchmarking, record the power source (AC or battery), the power mode and the CPU model, and close nothing the user has open. If something heavy is already running, note it and measure anyway. Results go into PR or issue comments, never into tracked files. Don't commit machine-specific paths.
-
-## Pi 5 rules (every task that uses it)
-Reach it with `ssh pi` (user `codex`). On the Pi you may only build, run tests, run benchmarks and run valgrind/callgrind. Never open audio or MIDI devices, never use `sudo`, never install system packages, never change kernel or CPU-governor settings. Toolchains you need go under your home directory or `/tmp`. Record the compiler, CMake, kernel (`uname -r`) and the governor you observed (read-only) with every Pi number. Results go into PR or issue comments only, never into tracked files. If the Pi is unreachable, skip the Pi parts, say so in the handoff and continue.
+## Machines (superseded 2026-10-28 by workflow v2)
+Agents run in the cloud and never SSH into the Pi or the laptop. Pi evidence comes from the Pi runner on the private repo `kalharbi11/wirescape-pi` (`docs/WORKFLOW.md` §2). Laptop-only work waits for the user. Older "Machine evidence" comments on merged PRs stay as history.
 
 ---
 
