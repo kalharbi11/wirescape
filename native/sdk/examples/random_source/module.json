@@ -1,0 +1,21 @@
+{
+  "schema_version": 2,
+  "id": "example.random_source",
+  "name": "Random Source",
+  "abi_version": 2,
+  "library": "ws2_example_random_source",
+  "description": "Clocked sample and hold of random values with a smoothed twin output",
+  "parameters": {
+    "voices": 0,
+    "smooth": 1,
+    "range": 2
+  },
+  "inputs": {
+    "clock": "signal"
+  },
+  "outputs": {
+    "step": "signal",
+    "smooth": "signal"
+  },
+  "license": "MIT"
+}

@@ -26,16 +26,18 @@ The M2 milestone, split into seven Codex tasks and a Claude review. Each task ha
 - No ABI header edits (`native/include/wirescape/*.h`). If one seems needed, stop with `status/blocked`.
 - **Provenance:** do not invent provenance. Where `DESIGN.md` is missing, write what the source shows and mark the rest "Provenance: to be confirmed by the user". Claude collects these for the user.
 
-## Machines: run the laptop and Pi work yourself
-Codex is connected to the user's **Windows laptop** and the **Pi 5**. Run every build, test, benchmark and profile they need yourself. Don't hand them to the user or leave them as "to do" in a handoff. The only device action reserved for the user is a real audio or MIDI run (anything with a `--confirm-*` flag, such as M1-2's `--confirm-audio`).
+## Machines: who runs what
+Codex reaches both the **Pi 5** (`ssh pi`) and the user's **Windows laptop** (connection set up by the user on 2026-10-27; use whatever access the user configured, and don't guess hostnames or ask for credentials in comments). It runs all Pi and laptop work itself. If a machine can't be reached, say so in the handoff and keep going with work that doesn't need it.
+
+Codex never hands builds, tests or benchmarks to the user. The only device actions reserved for the user are real audio or MIDI runs (anything with a `--confirm-*` flag) and the M2-L live session.
 
 **Before setting any M2 PR to `status/review`,** post one "Machine evidence" comment on the PR with:
-- **Laptop (Windows, MSVC Release):** `python tools/dev.py build` and `python tools/dev.py test` on the PR head, with pass counts. For M1-3b and M2-6, also the benchmark numbers the task asks for.
-- **Pi 5 (Linux ARM64, Release, headless):** `python tools/dev.py build --headless` and `python tools/dev.py test` (or `ctest`) on the PR head, with pass counts and the toolchain line. For M2-0 and M2-6, also the soak tables.
-- The exact commit SHA both machines ran. If either machine is unreachable, say which, retry once later in the session, and only then hand off without it.
+- **Pi 5 (Linux ARM64, Release, headless):** `python tools/dev.py build --headless` and `python tools/dev.py test` (or `ctest`) on the PR head, with pass counts and the toolchain line. For M2-6, also the soak table.
+- **Windows:** the `windows-x64` CI job on the same head is enough for builds and tests. Laptop runs are needed only where a task asks for them (M1-3b, M2-6).
+- The exact commit SHA. If the Pi is unreachable, say so, retry once later in the session, and only then hand off without it.
 
 ## Laptop rules (every task that uses it)
-Work only inside the repository checkout and the build folders, plus `.tools/` for pinned toolchains. Never open audio or MIDI devices and never run a `--confirm-*` command. Never use admin rights, install system-wide software, change drivers, power plans or OS settings, or touch the user's files outside the checkout. Before benchmarking, record the power source (AC or battery), the power mode and the CPU model, and close nothing the user has open. If something heavy is already running, note it and measure anyway. Results go into PR or issue comments, never into tracked files. Don't commit machine-specific paths.
+On the laptop, Codex works only inside the repository checkout and the build folders, plus `.tools/` for pinned toolchains. Never open audio or MIDI devices and never run a `--confirm-*` command. Never use admin rights, install system-wide software, change drivers, power plans or OS settings, or touch the user's files outside the checkout. Before benchmarking, record the power source (AC or battery), the power mode and the CPU model, and close nothing the user has open. If something heavy is already running, note it and measure anyway. Results go into PR or issue comments, never into tracked files. Don't commit machine-specific paths.
 
 ## Pi 5 rules (every task that uses it)
 Reach it with `ssh pi` (user `codex`). On the Pi you may only build, run tests, run benchmarks and run valgrind/callgrind. Never open audio or MIDI devices, never use `sudo`, never install system packages, never change kernel or CPU-governor settings. Toolchains you need go under your home directory or `/tmp`. Record the compiler, CMake, kernel (`uname -r`) and the governor you observed (read-only) with every Pi number. Results go into PR or issue comments only, never into tracked files. If the Pi is unreachable, skip the Pi parts, say so in the handoff and continue.
@@ -159,7 +161,7 @@ Why Codex: app integration, Windows UI tests and the Pi.
 ---
 
 ## M1-3b: close the Windows (MSVC) mono gap and gate Ir in CI (issue #32, size/m, after #22)
-Why Codex: needs MSVC on the user's Windows laptop, profiling and CI runs. Background: `docs/reviews/M1-3_REVIEW.md`.
+Why Codex: needs MSVC on the user's Windows laptop, profiling and CI runs. Runs on the laptop (see Machines). Background: `docs/reviews/M1-3_REVIEW.md`.
 
 The `windows-x64` runner measured ABI 2/ABI 1 mono at 1.097×. Every other measure passes (arm64 0.865×, Pi 0.711×, Ir 0.860×), so the likely cause is MSVC codegen, not framework design. Don't assume that; measure it.
 
@@ -172,29 +174,31 @@ The `windows-x64` runner measured ABI 2/ABI 1 mono at 1.097×. Every other measu
 
 ---
 
-## Codex continuous queue (run in this order; don't wait for review between tasks)
-Codex runs this list top to bottom in one long session. Open one draft PR per issue, post a handoff on each issue when it's done, set `status/review` and move straight on to the next item. **Never merge.** When an item's prerequisite isn't merged yet, skip it (post a one-line "waiting on #N" handoff) and take the next one; come back when it's merged.
+## Codex continuous queue (superseded 2026-10-28)
+The M2 queue is replaced by the Jam checkpoint queue in `docs/tasks/J_JAM_CHECKPOINT.md`. M2-6 continues there as J1; its spec above still applies. Merged since the last queue update: #37, #39, #48, #63, #67. #64 is deferred.
 
-| # | Item | Prerequisite | Machine |
-|---|---|---|---|
-| 1 | #23 M2-0 deliverables 5 and 6 (CI summary step, Pi re-run on merged `main`) | #22 merged | cloud + Pi + laptop test |
-| 2 | #32 M1-3b Windows mono gap and Ir gate | #22 merged | laptop + CI |
-| 3 | #24 M2-1 per-bus latency and staged reconfigure | #22 merged | cloud + laptop/Pi test |
-| 4 | #25 M2-2 port mixer, noise, output, scale_offset, slew | #22 merged; PR #17 (inventory) merged | cloud + laptop/Pi test |
-| 5 | #26 M2-3 port clock, function_envelope, ladder | #22 merged | cloud + laptop/Pi test |
-| 6 | #27 M2-4 behaviour regressions and per-module CV | #22 merged; for item 2 of the task, #25 and #26 merged (otherwise do the five existing ports and list the rest) | cloud + laptop/Pi test |
-| 7 | #28 M2-5 patch v2 and lossless v1 migration | #22 merged | cloud + laptop/Pi test |
-| 8 | #29 M2-6 engine2 becomes the app engine | #32, #24, #25, #26, #28 merged | laptop (UI offscreen, package, benchmarks) + Pi (soak) |
+---
 
-Rules for the queue:
-- Every item ends with the "Machine evidence" comment from the Machines section. Run the laptop and Pi work while CI runs, so it doesn't add wall time.
-- Each item branches from the latest `main`. If an earlier item touches the same CMake list or test registry and merges first, merge `main` into your branch (merge commit, no rebase).
-- Run `python tools/dev.py test` before every final push. The final push of each PR runs CI; WIP pushes may use `[skip ci]`.
-- If a PR gets review comments from Claude while you're on a later item, finish your current commit, fix the comments on the earlier branch, push and return.
-- Hard stops: any ABI header edit, any non-zero equivalence delta, any test removal or tolerance change, a diff past its size budget, or two failed attempts at the same failure. Post a `status/blocked` handoff for that item and take the next one.
-- Collect every "Provenance: to be confirmed by the user" in one comment on #29 so the user can answer them in one go.
+## M2-P: portability compile probe (issue #44, Copilot, size/s, report only)
+Why now: the plan keeps CLAP/Daisy adapters for M8, but every module written before then inherits the SDK's constructs. A cheap compile probe now shows which ones would block a bare-metal build.
+
+Add `.github/workflows/portability.yml` (triggers: `workflow_dispatch` and `pull_request`; **not** a required check; `continue-on-error: true` on the compile step). On `ubuntu-latest`, install `gcc-arm-none-eabi`, then for each folder in `native/modules2/*/` compile `module.cpp` with `arm-none-eabi-g++ -std=c++17 -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -O2 -fno-exceptions -fno-rtti -ffunction-sections -c -I native/sdk -I native/include -DWS_SIMD_SCALAR`, once with `-fno-exceptions -fno-rtti` and once without. Write a Markdown table to the step summary: module × {with exceptions, without} → pass/fail plus the first error line. Don't change anything under `native/`. Claude turns the findings into SDK tasks.
+
+---
+
+## M2-L: user live session (issue #45, the user, after M2-6 merges; gate for M2-R)
+On the laptop, in the real app with a real audio device, 30–60 minutes:
+1. Build a patch from scratch: VCO → VCF → VCA → Output with an ADSR, plus an LFO modulating the cutoff through a modulation cable.
+2. Play it from the on-screen keyboard: single notes, held chords, fast repeats. Listen for stuck notes, clicks on note-on/off and voices cutting out.
+3. Turn every knob on the patch while it plays. Listen for zipper noise, jumps and crackles.
+4. Save, close the app, reopen, load. Does it sound the same?
+5. Load `Six_Essentials_Demo.json` and an older patch from before M2. Do they sound as you remember?
+6. Leave a patch running for 20+ minutes while doing something else on the laptop. Any dropouts?
+7. Note anything confusing in the UI.
+
+Post the list with ✅/❌ and one line per problem on #45. Each ❌ becomes an issue before M2-R closes the milestone.
 
 ---
 
 ## M2-R: Claude milestone review (agent/claude, milestone-review)
-Claude reviews M2-0 to M2-6 against this file and `ABI2_PLAN.md` B2–B4 acceptance, builds and runs sanitizers, and decides whether M3 (UI for the contract) can start. Before reviewing, Claude asks the user what ChatGPT should prepare.
+Starts when M2-6 is in `status/review` **and** the user has posted the M2-L checklist (#45). Claude reviews M2-0 to M2-6 against this file and `ABI2_PLAN.md` B2–B4 acceptance, builds and runs sanitizers, turns each M2-L ❌ into an issue, and decides whether M3 (UI for the contract) can start. Before reviewing, Claude asks the user what ChatGPT should prepare.

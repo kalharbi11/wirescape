@@ -21,8 +21,8 @@ and has no bundled Surge binaries. It preserves earlier musical/design ideas, no
   Topology changes happen quiescently. Cycles and multiple signal sources per input are rejected.
 - `native/ui/studio_controller.*`: authoritative patch document, validation, staged replacement,
   generic module catalogue, parameters, save/load and offline rendering.
-- `native/document/`: optional QtCore format inspector, byte preservation and unsupported-format
-  diagnostics. The engine remains Qt-free. Historical format recognition is not musical migration.
+- `native/document/`: optional QtCore legacy inspector and native v1/v2 reader, lossless v1
+  migration, relational validation and atomic v2 writer with v1 backups. The engine remains Qt-free.
 - `native/ui/audio_device.*`: dynamically loaded PortAudio bridge, explicit start/stop,
   format probing, callback fault counters and cleanup ownership. Audio never auto-starts.
 - `native/ui/qml/`: canvas, module library/cards, generic controls, cables, keyboard and dialogs.
@@ -66,7 +66,7 @@ event outputs, deterministic SCC/back-edge delays, transport context, bounded pr
 fake-clock conversion, panic/applied-generation acknowledgement and multichannel output buses.
 The fixed-storage allocator implements Rotate/Reuse/Reset/Mono, sustain and oldest stealing;
 MPE is a stub. Five SDK ports (VCO/LFO/VCF/ADSR/VCA) and notes-to-CV/rows test modules prove
-an offline eight-voice synth. A Ring Mod exercise tests the author guide.
+an offline eight-voice synth. Mixer, noise, output, scale/offset and slew also have SDK ports with exact default references, portable state and per-voice tests. The output port is a device-free signal node; the engine binds and mixes its voices into buses. A Ring Mod exercise tests the author guide.
 
 Finite release capacity uses reserved slots then emergency global reset/choke; unbounded lossless
 note-off delivery is not promised. PARAM_MOD currently targets explicit voice channels.
@@ -81,7 +81,8 @@ Thin adapters and actual ARM/CLAP/Daisy builds remain later experiments.
 
 Current documents use `wirescape.native.patch` v1. Unknown/incomplete module state/cables remain
 editable and round-trip; failed preparation or unsupported input must not replace accepted data.
-Patch v2 schema/example are draft historical artifacts, not an app migration.
+The document library supports v2 with finalized schema/example and a bit-identical demo render
+through save/reload. App integration uses this library in M2-6.
 `native/examples/Six_Essentials_Demo.json` demonstrates the six imported modules plus VCA/Output.
 Synthetic legacy fixtures are public test inputs, not personal patches.
 
@@ -140,3 +141,7 @@ It captures only the dedicated helper's render stream on Windows build 20348+,
 never microphones or an unisolated endpoint mix. Reports stay in `build_reports/`.
 Device execution is unverified and reserved for the user; CI only compiles the
 helper and runs offline tests. See `tools/capture/README.md` for bounds and scope.
+
+Clock, function envelope and ladder have isolated ABI2 ports with per-voice state and exact ABI1 default references. Clock remains free-running; the existing filter stress functions also execute against ABI2 ladder through a test-only callback bridge.
+
+Engine2 reports forward signal latency per output bus and feedback delay separately per SCC. Quiescent reconfiguration stages only the changed processor; untouched instances and compatible loop delay lines retain their state, with port-ID remapping committed after validation.

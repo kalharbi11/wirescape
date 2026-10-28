@@ -1,0 +1,19 @@
+{
+  "schema_version": 2,
+  "id": "essentials.scale_offset",
+  "name": "Scale/Offset",
+  "abi_version": 2,
+  "library": "ws2_scale_offset",
+  "description": "Control output equals control input times Scale plus Offset; an unpatched input is zero.",
+  "parameters": {
+    "scale": 0,
+    "offset": 1
+  },
+  "inputs": {
+    "control": "signal"
+  },
+  "outputs": {
+    "control": "signal"
+  },
+  "license": "GPL-3.0-only"
+}

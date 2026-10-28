@@ -5,6 +5,7 @@
 2. Your assigned GitHub issue (it's the spec) and its latest handoff comment. Most issues point to a file in `docs/tasks/`. Read that file in full.
 3. `docs/PLAN.md`, "Current milestone" section only, unless the issue says otherwise.
 4. Files the issue or task file lists under "Read first".
+5. Building or changing a module? Follow `docs/SDK_AUTHOR_GUIDE.md` and start from `native/sdk/examples/` (Claude Code: the `new-module` skill does this).
 
 Never read these unless the issue asks: `legacy/`, `docs/history/`, `build/`, `build_reports/`, third-party sources and generated files. Search narrowly; don't ingest whole folders.
 
@@ -21,6 +22,7 @@ The plan and milestones are in `docs/PLAN.md`. The module contract is `docs/spec
 - Work only on your assigned issue. Don't start, take over or edit another issue's branch unless the user or the issue says so. To take over, read the latest handoff comment first and continue on the existing branch.
 - Push small commits often, so hitting a usage limit never loses work. WIP-only commits may use `[skip ci]`. The final push before review must run CI.
 - Before you stop (done, near a limit, or blocked): post a handoff comment on the issue using the template below, and set the status label.
+- Machine (Pi) evidence only for PRs that change the engine, DSP, audio path or build. No evidence re-runs after a merge from `main` that touches no compiled code in your area.
 - Never merge. The user merges after review.
 - **Never approve.** No agent submits an `APPROVE` review, enables auto-merge, dismisses a review, or changes branch protection or rulesets. Reviews from agents are `COMMENT` only. Approving is the user's act alone.
 - On a hard failure: two reasonable attempts, then stop, leave the evidence and label the issue `status/blocked`.

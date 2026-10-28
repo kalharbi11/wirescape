@@ -1,6 +1,15 @@
 # Wirescape plan
 
-Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-27 (M1-3 merged; guard fix).
+Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-28 (Jam checkpoint adopted from the fresh-eyes review).
+
+## Now (single source of truth; updated at every check-in)
+- **Focus: the Jam checkpoint (J)**, a playable pause point. Spec and Codex queue: `docs/tasks/J_JAM_CHECKPOINT.md`. It overrides the M2 queue and the order below until J9 passes.
+- `main` = `b47b107`, CI green. Merged: M2-1 (#38), M2-2 (#39), M1-3b (#37, gap moved to #64), M2-5 patch v2 (#48), M2-0c (#63, #67), 10 of 13 Essentials on ABI 2.
+- **Waiting on the user:** merge #40 (M2-3, green, reviewed). Then #41 after Codex merges `main` into it.
+- **Codex:** Run A (J1 → J2 → J3) and Run B (J7 → J6 → J4 → J5), see the J queue. No waiting for reviews.
+- **Copilot:** #49, #56, #66 (small, off the critical path).
+- **Claude:** two reviews only: J-R1 (after J1–J3) and J-R2 (everything). Guide v2 and templates (J8) are done.
+- **Deferred until after J9:** #64 clang-cl comparison and the Windows 1.05× gate (now tracked only), M3 full UI, Learn/Mappings/Activity panel, MIDI Out/Clock, OSC Out, UDP Send, MPE, Quantizer and Basic Sequencer, X-4 Surge/sst primitives, long soaks, the formal ABI freeze.
 
 ## Vision
 Wirescape is a raw, expandable modular environment for music. Its aims:
@@ -45,20 +54,37 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
 - **M1 ABI 2 foundation**: contract, SDK, engine2, voice allocator, 5 modules ported. **Stops for review.**
   - [x] M1-1 Foundation slice: built before the migration. Review package: `docs/reviews/M1_FOUNDATION_SLICE_REVIEW.md`. Functional tests A–M pass offline. **Known gate:** mono throughput is about 1.89× ABI 1 (target ≤ 1.05×). ARM64 is unverified until CI.
   - [x] M1-R Claude review of the slice (issue #2; review: `docs/reviews/M1-R_PLANNER_REVIEW.md`). **No-go for M2 until M1-3.** The design stays. The gap is framework overhead (per-sample SDK accessors, two copies per cable, redundant finite scans), measured at 1.57× by instruction count. ARM64: all 24 suites pass in CI; ASan+UBSan and TSan clean locally.
-  - [ ] M1-2 Audio capture and analysis harness (`docs/tasks/M1-2_AUDIO_CAPTURE_HARNESS.md`, independent, may run in parallel)
+  - [x] M1-2 Audio capture and analysis harness (`docs/tasks/M1-2_AUDIO_CAPTURE_HARNESS.md`, PR #13 merged)
+  - [ ] M1-2b The user's one real-device capture run on Windows (issue #43). Not a gate; do it early
   - [x] M1-3 Slice fixes and the performance gate (`docs/tasks/M1-3_SLICE_FIXES.md`, issue #6, PR #22, Codex, size/l). Gate for M2: mono ≤ 1.05× on both CI runners and by instruction count, poly ≤ 1.00×, sanitizer job green, adversarial concurrency and feedback tests. **Reviewed 2026-10-27 (`docs/reviews/M1-3_REVIEW.md`): conditional go.** Everything passes except Windows mono (1.097×), which moves to M1-3b and gates M2-6
-  - [ ] M1-3b Windows (MSVC) mono gap and an Ir gate in CI (issue #32, Codex, size/m). Must merge before M2-6
+  - [x] M1-3b Windows (MSVC) mono gap and an Ir gate in CI (issue #32, PR #37). Accepted with the remaining gap moved to #64, which is now tracked, not a gate (2026-10-28)
 - **M2 Port and patch v2** (ABI2 plan B2 to B4): engine2 becomes the app engine; all Essentials on ABI 2; per-module CV; patch v2 with lossless v1 migration. Optional: self-hosted Pi 5 runner for benchmarks.
-  Task file: `docs/tasks/M2_PORT_AND_APP_ENGINE.md`. All Codex; M2-0 may start now, M2-1 to M2-5 after PR #22 merges, M2-6 after M1-3b and M2-1/2/3/5 merge. Codex works through the "Codex continuous queue" in that file.
-  - [ ] M2-0 Benchmark tooling and Pi 5 realtime evidence (issue #23, size/m)
-  - [ ] M2-1 Per-bus latency and staged reconfigure (issue #24, size/m)
-  - [ ] M2-2 Port mixer, noise, output, scale_offset, slew (issue #25, size/m)
+  Task file: `docs/tasks/M2_PORT_AND_APP_ENGINE.md`. All Codex; M2-0 may start now, M2-1 to M2-5 after PR #22 merges, M2-6 after M1-3b and M2-1/2/3/5 merge. Codex works through the "Codex continuous queue" in that file. Codex reaches both the Pi 5 and the Windows laptop and runs all machine work itself.
+  - [x] M2-0 Benchmark tooling and Pi 5 realtime evidence (issue #23, PR #31)
+  - [ ] M2-0b Pi soak re-run on post-M1-3 `main` (issue #42)
+  - [x] M2-1 Per-bus latency and staged reconfigure (issue #24, PR #38)
+  - [x] M2-2 Port mixer, noise, output, scale_offset, slew (issue #25, PR #39)
   - [ ] M2-3 Port clock, function_envelope, ladder (issue #26, size/m)
   - [ ] M2-4 Behaviour regressions for the five ports, per-module CV (issue #27, size/m)
-  - [ ] M2-5 Patch v2 and lossless v1 migration (issue #28, size/l)
-  - [ ] M2-6 engine2 becomes the app engine (issue #29, size/l)
-  - [ ] M2-R Claude milestone review
-- **M3 UI for the contract** (B5): poly cables, modulation drag-to-knob with an amount on the cable, base and modulation rings, back-edge markers, stereo pairs. → **Public beta 0.7** when M3 is green. Then file the US trademark, Class 9 (see `TRADEMARKS.md`).
+  - [x] M2-5 Patch v2 and lossless v1 migration (issue #28, PR #48)
+  - [ ] M2-6 engine2 becomes the app engine (issue #29, size/l). Now **J1**
+  - [ ] M2-P Portability compile probe for a Daisy-class target (issue #44, PR #55, report only), then the fix (#56)
+  - [ ] M2-L The user's live session (issue #45). Replaced for now by **J9**, which covers it
+  - [ ] M2-R Claude milestone review. Folded into J-R1/J-R2
+- **J Jam checkpoint** (adopted 2026-10-28; `docs/tasks/J_JAM_CHECKPOINT.md`). A pause point where everything that exists works, on the laptop and the Pi, so the user can play and write their own modules. Decisions: CHAOS-lite as one native module now (decomposition stays M7); ABI soft freeze from J-R2 (additive changes only, migration note otherwise); headless Pi runner required, Pi UI a stretch; Windows 1.05× mono is tracked, not a gate.
+  - [ ] J0 Merge #40, then #41 (user + Codex)
+  - [ ] J1 = M2-6 engine2 is the app engine (#29, Codex)
+  - [ ] J2 Polyphony in the app: `host.keyboard`, voice count, poly badge (Codex)
+  - [ ] J3 Pi audio: headless `wirescape play`, Linux audio, a Pi setup guide (PI_SETUP.md, new); Pi UI stretch (Codex; first real audio run by the user)
+  - [ ] J4 MIDI In, MIDI→CV, CC→CV, one backend, hot-plug safe (Codex)
+  - [ ] J5 OSC In over UDP (localhost default, LAN toggle) and Monitor log (Codex)
+  - [ ] J6 Macro Oscillator spike = X-3, poly 8, 48 kHz (Codex)
+  - [ ] J7 CHAOS-lite, two instances on the Pi (Codex)
+  - [x] J8 Module author guide v2, two templates, `new-module` skill (Claude)
+  - [ ] J-R1 / J-R2 Claude reviews
+  - [ ] J9 The user's checkpoint session, laptop + Pi (#45)
+- **M3 UI for the contract** (B5): poly cables, modulation drag-to-knob with an amount on the cable, base and modulation rings, back-edge markers, stereo pairs. → **Preview 0.7** (a patching preview, not yet an instrument) when M3 is green and an M2-L-style live session passes on it.
+- **Beta 0.8: first playable instrument** (proposed 2026-10-27; the user may redefine it). Preview 0.7 plus **MIDI In and MIDI→CV** (pulled forward from M4) and **Quantizer and Basic Sequencer** (pulled forward from M6). It ships when a 60-minute live session with an external MIDI keyboard passes with no stuck notes, dropouts or crashes. Then file the US trademark, Class 9 (see `TRADEMARKS.md`). The rest of M4 and M6 follows the beta.
 - **M4 Communication I** (`docs/specs/COMMUNICATION_MODULES_PLAN.md`, C1 to C3): endpoint registry, Activity and Learn, Mappings, Monitor, MIDI In / MIDI→CV / CC Map / MIDI Out / MIDI Clock.
 - **M5 Communication II** (C4 to C6): UDP Receive/Send, OSC In/Out, hardening.
 - **M6 Musical core**: transport, Quantizer, Basic Sequencer, Chord Sequencer + Strum, VCA LPG mode, exponential Lag, Scope and Spectrum through bounded analysis taps. Module list: `docs/ROADMAP.md`.
@@ -68,16 +94,10 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
   - a CHAOS rebuild from modules, using sst-* library blocks (GPL) as a subpatch with a panel; the study-case table is in `ABI2_PLAN.md` section 3
   - one Plaits or Braids port from pinned sources
 - **M8 Portability proofs** (B6): CLAP adapter (VST3 via clap-wrapper), Daisy static build, export bundle spec. Future: Python and Faust script modules, Serial, DMX (Art-Net/sACN).
+- **Track X: porting existing open-source instruments** (exploratory, never blocks M2; `docs/tasks/X_THIRD_PARTY_PORTS.md`). Studies now, by ChatGPT: X-1 Mutable Instruments Plaits (#51), X-2 CHAOS decomposed into Surge/sst-based modules (#52). Spikes (X-3 Plaits, X-4 the first Surge/sst primitive) come after the studies are reviewed and only when they don't compete with M2 for Codex time. Nothing merges before M2-R. **The ABI 2 header and SDK are not frozen until X-3 and X-4 (one Mutable instrument, one Surge/sst component) have shown that outside DSP fits the contract without engine changes, on desktop and the Pi.** The M7 instrument items build on what Track X learns. A whole-Surge-engine module (X-6) is an optional desktop feature for after Beta 0.8.
 
-## Current milestone: M1 → M2
-Merged on 2026-10-27: the planner PR (#30), the M2 inventory (#17), M1-3 (#22) and the doc-link test (#19).
-1. **The user merges** the guard fix (#34; it stops stale guard re-runs), the SPDX guard (#20) and the Dependabot action bumps (#9, #10, #11; they also clear the Node 20 warning). If not done yet, add `sanitizers` to the required checks.
-2. **Codex** runs the continuous queue in `docs/tasks/M2_PORT_AND_APP_ENGINE.md`: finish M2-0, M1-3b, then M2-1 to M2-5, then M2-6. It runs the laptop and Pi work itself and posts machine evidence on each PR.
-3. **M1-2 (PR #13)** waits on the user's one `--confirm-audio` run on Windows; then Claude closes it out.
-4. **Claude** reviews each M2 PR as it reaches `status/review` (routine check-ins), then runs M2-R once M2-6 is in review.
-5. Track C (M4) stays closed until M2-R.
-
-**If a guard check is red after a label change:** don't press "Re-run". Until #34 merges, a re-run replays the old label list and fails again. Add or remove any label instead; that starts a fresh run.
+## Current milestone: J (Jam checkpoint)
+See "Now" at the top and `docs/tasks/J_JAM_CHECKPOINT.md`. After J9, the plan resumes at M2-R leftovers and M3; Beta 0.8 then needs only the Quantizer and Basic Sequencer on top of J (MIDI In/MIDI→CV ship in J4), and M4/M5 shrink to what J left out.
 
 ## How work flows
 - **The board is GitHub Issues** (labels and milestones in `AGENTS.md`). Each issue points to a `docs/tasks/` file.
@@ -93,13 +113,15 @@ Merged on 2026-10-27: the planner PR (#30), the M2 inventory (#17), M1-3 (#22) a
   - **Approvals:** branch protection does *not* require approvals (all agents act through the owner's account, and GitHub won't let an account approve its own PR, so a required approval would block every merge). Instead, no agent may approve, enable auto-merge or touch protection settings (AGENTS.md); the user's merge click is the approval.
   - **Every merge is reversible** with the PR's "Revert" button. Force-pushes and deleting `main` are blocked by branch protection.
   - **Override labels** (`allow-protected`, `allow-test-removal`): only the user adds them, or the planner when the issue explicitly names the protected path. Builder agents never add them to their own PRs.
+- **Evidence, kept proportionate** (from 2026-10-28): Pi evidence only for PRs that change the engine, DSP, audio path or build; toolchain/kernel/governor once per Codex session; no evidence re-runs after a merge from `main` that touches no compiled code in the PR's area. Planner queue changes go in issue comments, not PRs.
+- **Fewer check-ins:** builders get long queues and never wait for review; Claude reviews at named review points (J-R1, J-R2), not after every PR.
 - **Planner check-in prompt** (a fresh session each time):
   > Read AGENTS.md, docs/PLAN.md, the open issues and PRs, the latest handoff comments, and `git log --oneline -20`. Update the plan and issues, review anything labelled status/review, and flag risks. Don't write code.
 
 ## Document map
 - **Planner handoff** (the reasoning behind the decisions, and the M1 review checklist): `docs/PLANNER_HANDOFF.md`.
 - **Specs:** `docs/specs/` (ABI2_PLAN, ABI2_SPEC with the patch v2 drafts, COMMUNICATION_MODULES_PLAN, AUDIO_CAPTURE_HARNESS, EMBEDDED_PORTABILITY, PROVIDER_BRIDGE_CONTRACT).
-- **Module author guide:** `docs/SDK_AUTHOR_GUIDE.md`, with the template in `native/sdk/template/`.
+- **Module author guide:** `docs/SDK_AUTHOR_GUIDE.md`, with the minimal template in `native/sdk/template/` and worked examples in `native/sdk/examples/`. Claude Code skill: `.claude/skills/new-module/`.
 - **Tasks:** `docs/tasks/`.
 - **Reviews:** `docs/reviews/`.
 - **What exists:** `docs/ARCHITECTURE.md`. **Evidence:** `docs/STATUS.md`. **Modules:** `docs/ROADMAP.md`.

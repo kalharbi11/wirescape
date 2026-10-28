@@ -7,4 +7,4 @@ The callback multiplies audio * CV * the supplied plain gain row, including a va
 
 ## Provenance
 
-Source: `native/modules/vca/module.cpp` and the ABI2 port at main `f23ea96`. License: GPL-3.0-only. Provenance: to be confirmed by the user. There is no ABI1 DESIGN.md; no external source or pinned upstream revision is invented here.
+Source: `native/modules/vca/module.cpp` and the ABI2 port at main `f23ea96`. License: GPL-3.0-only. Original Wirescape code, GPL-3.0-only, no upstream source. There is no ABI1 DESIGN.md; no external source or pinned upstream revision is invented here.

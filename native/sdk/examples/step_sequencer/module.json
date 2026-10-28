@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "id": "example.step_sequencer",
+  "name": "Step Sequencer",
+  "abi_version": 2,
+  "library": "ws2_example_step_sequencer",
+  "description": "Eight-step pitch, gate and velocity sequencer with note events",
+  "parameters": {
+    "run": 0,
+    "length": 1,
+    "pitch1": 2,
+    "gate1": 3,
+    "vel1": 4,
+    "pitch2": 5,
+    "gate2": 6,
+    "vel2": 7,
+    "pitch3": 8,
+    "gate3": 9,
+    "vel3": 10,
+    "pitch4": 11,
+    "gate4": 12,
+    "vel4": 13,
+    "pitch5": 14,
+    "gate5": 15,
+    "vel5": 16,
+    "pitch6": 17,
+    "gate6": 18,
+    "vel6": 19,
+    "pitch7": 20,
+    "gate7": 21,
+    "vel7": 22,
+    "pitch8": 23,
+    "gate8": 24,
+    "vel8": 25
+  },
+  "inputs": {
+    "clock": "signal",
+    "reset": "signal"
+  },
+  "outputs": {
+    "pitch": "signal",
+    "gate": "signal",
+    "velocity": "signal",
+    "notes": "event"
+  },
+  "license": "MIT"
+}

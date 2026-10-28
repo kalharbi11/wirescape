@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "id": "essentials.output",
+  "name": "Output",
+  "abi_version": 2,
+  "library": "ws2_output",
+  "description": "Mono graph output sink; opens no audio device.",
+  "inputs": {
+    "audio": "signal"
+  },
+  "outputs": {
+    "audio": "signal"
+  },
+  "license": "GPL-3.0-only"
+}
