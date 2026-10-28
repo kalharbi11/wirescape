@@ -43,5 +43,6 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          export CLANG_TIDY_DIFF="$(dpkg -L clang-tidy-18 | rg '/clang-tidy-diff(-18)?(\.py)?$' | head -n 1)"
+          CLANG_TIDY_DIFF="$(dpkg -L clang-tidy-18 | rg '/clang-tidy-diff(-18)?(\.py)?$' | head -n 1 || true)"
+          export CLANG_TIDY_DIFF
           python tools/ci/static_checks.py --base "$BASE_SHA" --head "$HEAD_SHA"
