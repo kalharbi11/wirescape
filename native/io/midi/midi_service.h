@@ -13,7 +13,7 @@ struct Sink {
     // Timestamp is SystemMonotonic nanoseconds. The host maps it through engine D13.
     int (*emit)(void*, uint32_t node, const ws2_event&, uint64_t timestamp_ns) noexcept = nullptr;
 };
-struct Counters { uint64_t received = 0, dropped = 0, malformed = 0, oversize = 0, ring_full = 0, disconnects = 0, send_fail = 0; };
+struct Counters { uint64_t received = 0, dropped = 0, malformed = 0, oversize = 0, ring_full = 0, disconnects = 0, send_fail = 0, ignored_rpn = 0; };
 struct EndpointState { Selection saved; uint32_t source_id = 0; bool online = false; };
 // All configuration is quiescent. Worker owns enumeration/pump; callbacks only push
 // their own SPSC ring. Stop joins producers and drains releases before host teardown.
@@ -43,6 +43,8 @@ private:
         Service* owner = nullptr; uint32_t source = 0;
         Selection saved; Endpoint actual;
         Ring ring;
+        std::array<uint8_t, 16> rpn_msb{}, rpn_lsb{};
+        Slot() { rpn_msb.fill(127); rpn_lsb.fill(127); }
         std::atomic<bool> accepting{false}, online{false}, emergency{false};
     };
     Backend& backend_;
@@ -51,7 +53,7 @@ private:
     std::array<Route, 64> routes_{};
     size_t count_ = 0, route_count_ = 0;
     std::atomic<bool> running_{false}; std::thread worker_;
-    std::atomic<uint64_t> received_{0}, dropped_{0}, malformed_{0}, oversize_{0}, ring_full_{0}, disconnects_{0}, send_fail_{0};
+    std::atomic<uint64_t> received_{0}, dropped_{0}, malformed_{0}, oversize_{0}, ring_full_{0}, disconnects_{0}, send_fail_{0}, ignored_rpn_{0};
     static void midi1(void*, const uint8_t*, size_t, uint64_t);
     static void ump(void*, const uint32_t*, size_t, uint64_t);
     void refresh();

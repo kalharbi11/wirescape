@@ -44,6 +44,8 @@ static void protocol_bounds_and_reserve() {
     Fake backend; Output out; Service service(backend, out.sink()); REQUIRE(service.enable({"A", "sys:A"})); REQUIRE(service.subscribe({1, {}, true})); service.poll();
     backend.bytes("sys:A", {0x70, 60, 1}, 0); backend.bytes("sys:A", {0x90, 200, 1}, 0); backend.bytes("sys:A", {0xf0, 1, 2, 3, 0xf7}, 0);
     REQUIRE(service.counters().malformed == 2 && service.counters().oversize == 1);
+    backend.bytes("sys:A", {0xb0, 101, 0}, 0); backend.bytes("sys:A", {0xb0, 100, 0}, 0); backend.bytes("sys:A", {0xb0, 6, 12}, 0); service.poll();
+    REQUIRE(service.counters().ignored_rpn == 1); out.items.clear();
     backend.bytes("sys:A", {0x90, 60, 0}, 1); backend.ump("sys:A", {0x40903c00u, 0u}, 2); service.poll();
     REQUIRE(out.items.size() == 2 && out.items[0].event.ump_words == 1 && out.items[1].event.ump_words == 2);
     REQUIRE((out.items[0].event.ump[0] >> 28) == 2 && (out.items[1].event.ump[0] >> 28) == 4);

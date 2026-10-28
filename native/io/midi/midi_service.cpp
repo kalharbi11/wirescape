@@ -1,24 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "midi_service.h"
+#include "../../engine2/midi_release.h"
 #include <algorithm>
 #include <chrono>
 namespace wirescape::midi {
 namespace {
 uint64_t now_ns() { return uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()); }
-// Same semantics as engine D8 release classification; replaced by shared helper on integration.
-bool release(const ws2_event& e) {
-    if (e.type == WS2_NOTE_CHOKE || e.type == WS2_NOTE_OFF) return true;
-    if (e.type != WS2_MIDI || !e.ump_words) return false;
-    const uint32_t type = e.ump[0] >> 28, status = (e.ump[0] >> 20) & 15, key = (e.ump[0] >> 8) & 127;
-    if (type != 2 && type != 4) return false;
-    if (status == 8) return true;
-    if (type == 2 && status == 9 && !(e.ump[0] & 127)) return true;
-    if (status == 11) {
-        if (key == 120 || key == 123) return true;
-        return key == 64 && (type == 2 ? (e.ump[0] & 127) < 64 : e.ump_words == 2 && e.ump[1] < 0x80000000u);
-    }
-    return false;
-}
+
 }
 bool Service::Ring::push(const Packet& packet, bool critical) noexcept {
     const auto w = write.load(std::memory_order_relaxed), r = read.load(std::memory_order_acquire);
@@ -63,7 +51,14 @@ void Service::ump(void* context, const uint32_t* words, size_t count, uint64_t t
     Packet packet; packet.timestamp = timestamp; auto& event = packet.event;
     event.struct_size = sizeof(event); event.type = WS2_MIDI; event.source_id = slot.source; event.channel = -1; event.note_id = -1; event.ump_words = uint32_t(count);
     std::copy_n(words, count, event.ump); ++service.received_;
-    const bool critical = release(event);
+    if (type == 2 && ((words[0] >> 20) & 15) == 11) {
+        const uint32_t channel = (words[0] >> 16) & 15, controller = (words[0] >> 8) & 127, value = words[0] & 127;
+        if (controller == 101) slot.rpn_msb[channel] = uint8_t(value);
+        if (controller == 100) slot.rpn_lsb[channel] = uint8_t(value);
+        if ((controller == 6 || controller == 38) && slot.rpn_msb[channel] == 0 && slot.rpn_lsb[channel] == 0) ++service.ignored_rpn_;
+    }
+    if (type == 4 && ((words[0] >> 20) & 15) == 2 && !(words[0] & 0xffff)) ++service.ignored_rpn_;
+    const bool critical = engine2::midi_release(event);
     if (!slot.ring.push(packet, critical)) { ++service.ring_full_; ++service.dropped_; if (critical) slot.emergency.store(true, std::memory_order_release); }
 }
 void Service::refresh() {
@@ -72,7 +67,11 @@ void Service::refresh() {
         auto& slot = *slots_[i]; const Endpoint* found = nullptr; size_t matches = 0;
         for (const auto& endpoint : available) if (endpoint.name == slot.saved.name) { found = &endpoint; ++matches; }
         if (matches != 1) found = nullptr;
-        if (!found && !slot.saved.system_name.empty()) for (const auto& endpoint : available) if (endpoint.system_name == slot.saved.system_name) { found = &endpoint; break; }
+        if (!found && !slot.saved.system_name.empty()) {
+            matches = 0;
+            for (const auto& endpoint : available) if (endpoint.system_name == slot.saved.system_name) { found = &endpoint; ++matches; }
+            if (matches != 1) found = nullptr;
+        }
         if (slot.online && (!found || found->system_name != slot.actual.system_name)) {
             slot.accepting = false; backend_.close(slot.actual); slot.online = false; slot.emergency = true; ++disconnects_;
         }
@@ -86,7 +85,7 @@ void Service::refresh() {
 void Service::send(const Slot& slot, const Packet& packet) noexcept {
     for (size_t i = 0; i < route_count_; ++i) {
         const auto& route = routes_[i];
-        const bool matching = route.all_enabled || route.endpoint.name == slot.saved.name || (!route.endpoint.system_name.empty() && route.endpoint.system_name == slot.saved.system_name);
+        const bool matching = route.all_enabled || (!route.endpoint.system_name.empty() ? route.endpoint.system_name == slot.actual.system_name : route.endpoint.name == slot.saved.name);
         if (!matching) continue;
         if (!sink_.emit || sink_.emit(sink_.context, route.node, packet.event, packet.timestamp) != WS2_OK) ++send_fail_;
     }
@@ -113,7 +112,11 @@ bool Service::start() {
                     if (now >= next_refresh) { refresh(); next_refresh = now + std::chrono::milliseconds(500); }
                     pump(); std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }
-            } catch (...) { ++send_fail_; running_ = false; }
+            } catch (...) {
+                ++send_fail_;
+                for (size_t i = 0; i < count_; ++i) { auto& slot = *slots_[i]; slot.accepting = false; if (slot.online.exchange(false)) { try { backend_.close(slot.actual); } catch (...) { ++send_fail_; } slot.emergency = true; } }
+                pump(); running_ = false;
+            }
         });
     } catch (...) { running_ = false; return false; }
     return true;
@@ -123,7 +126,7 @@ void Service::stop() {
     for (size_t i = 0; i < count_; ++i) { auto& slot = *slots_[i]; slot.accepting = false; if (slot.online.exchange(false)) { backend_.close(slot.actual); slot.emergency = true; } }
     pump();
 }
-Counters Service::counters() const noexcept { return {received_, dropped_, malformed_, oversize_, ring_full_, disconnects_, send_fail_}; }
+Counters Service::counters() const noexcept { return {received_, dropped_, malformed_, oversize_, ring_full_, disconnects_, send_fail_, ignored_rpn_}; }
 std::vector<EndpointState> Service::endpoint_states() const {
     std::vector<EndpointState> states;
     for (size_t i = 0; i < count_; ++i) states.push_back({slots_[i]->saved, slots_[i]->source, slots_[i]->online.load()});
