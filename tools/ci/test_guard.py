@@ -3,10 +3,12 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from guard import check as guard_check
 from guard import violations
+from guard import warn_tier
 
 
 class GuardTests(unittest.TestCase):
@@ -77,6 +79,22 @@ class GuardTests(unittest.TestCase):
 
     def test_modified_file_without_spdx_header_is_allowed(self):
         self.assertFalse(self.check('tools/a.py', status='M', added=['line 1']))
+
+    def test_tier_warning_is_advisory_and_accepts_markdown(self):
+        with patch('builtins.print') as output:
+            self.assertIsNone(warn_tier('Intent without a tier'))
+            self.assertIn('warning:', output.call_args.args[0])
+        for body in ('Tier: T0', '**Tier:** T1', '**Tier: T2**'):
+            with patch('builtins.print') as output:
+                self.assertIsNone(warn_tier(body))
+                output.assert_not_called()
+
+    def test_tier_api_failure_only_warns(self):
+        with patch.dict(os.environ, {'PR': '1', 'GITHUB_REPOSITORY': 'owner/repo'}), \
+                patch('guard.subprocess.check_output', side_effect=OSError('unavailable')), \
+                patch('builtins.print') as output:
+            self.assertIsNone(warn_tier())
+            self.assertIn('warning:', output.call_args.args[0])
 
     def test_merge_base_diff_ignores_moved_main_changes(self):
         with tempfile.TemporaryDirectory() as td:

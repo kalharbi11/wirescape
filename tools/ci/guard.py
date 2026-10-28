@@ -3,6 +3,7 @@
 import argparse
 import fnmatch
 import json
+import os
 import re
 import subprocess
 from pathlib import PurePosixPath
@@ -80,12 +81,29 @@ def check(base, head, labels):
     return errors
 
 
+def warn_tier(body=None):
+    if body is None:
+        number, repo = os.environ.get('PR'), os.environ.get('GITHUB_REPOSITORY')
+        if not number or not repo:
+            return
+        try:
+            body = subprocess.check_output(['gh', 'api', f'repos/{repo}/pulls/{number}', '--jq', '.body // ""'],
+                                           text=True, stderr=subprocess.DEVNULL, timeout=15)
+        except (OSError, subprocess.SubprocessError):
+            print('warning: PR body unavailable; Tier line was not checked')
+            return
+    if not re.search(r'(?im)^\s*(?:\*\*)?Tier:', body):
+        print('warning: PR body has no Tier: line (choose T0, T1 or T2)')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--base', required=True)
     parser.add_argument('--head', required=True)
     parser.add_argument('--labels-json', default='[]')
+    parser.add_argument('--pr-body')
     args = parser.parse_args()
+    warn_tier(args.pr_body)
     errors = check(args.base, args.head, set(json.loads(args.labels_json)))
     print('\n'.join(errors) if errors else 'guard: passed')
     raise SystemExit(bool(errors))
