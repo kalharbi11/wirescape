@@ -7,7 +7,7 @@
 #include <cstring>
 #include <cmath>
 namespace wirescape::osc {
-struct Statistics { std::atomic<uint64_t> dropped{0}, malformed{0}, received{0}; };
+struct Statistics { std::atomic<uint32_t> dropped{0}, malformed{0}, received{0}; };
 struct RowConfig {
     char pattern[256]{};
     uint32_t argument = 0, kind = 0; // cv/gate/trigger

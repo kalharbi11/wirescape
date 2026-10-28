@@ -169,3 +169,5 @@ add_test(NAME monitor_log_tests COMMAND monitor_log_tests)
 add_executable(app_engine_lifetime_tests ../control/app_engine_lifetime_tests.cpp)
 target_link_libraries(app_engine_lifetime_tests PRIVATE wirescape_app_engine)
 add_test(NAME app_engine_lifetime_tests COMMAND app_engine_lifetime_tests)
+
+add_subdirectory(../io/net osc_net)

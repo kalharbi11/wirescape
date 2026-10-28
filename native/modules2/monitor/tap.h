@@ -14,7 +14,7 @@ constexpr uint32_t signal_type = 0x10000000u;
 struct Tap {
     std::array<Entry, 1024> entries{};
     std::atomic<uint32_t> write{0}, read{0};
-    std::atomic<uint64_t> received{0}, dropped{0}, rate_limited{0};
+    std::atomic<uint32_t> received{0}, dropped{0}, rate_limited{0};
     bool push(const Entry& e) noexcept {
         const uint32_t w = write.load(std::memory_order_relaxed), r = read.load(std::memory_order_acquire);
         if (w - r == entries.size()) { ++dropped; return false; }
