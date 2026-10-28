@@ -29,7 +29,7 @@ No agent reaches the Pi or the laptop. Pi work goes through the `pi5` runner on 
 - Push small commits; WIP commits may use `[skip ci]`, the final push never does.
 - **Done is decided by the acceptance block:** run its `must_pass` lines (`python tools/dev.py accept <issue#>` once it exists), post the report, set `status/ready-to-merge` when green on the exact head. `pi:` lines run on the Pi runner.
 - **Review tiers** (`docs/WORKFLOW.md` §3): T0 scripts only; T1 adds a ChatGPT pre-review of the review pack; T2 adds Claude. The tier is in the acceptance block.
-- Never merge, approve, enable auto-merge, dismiss reviews or change branch protection. Agent reviews are `COMMENT` only. The user's merge click is the approval.
+- **Merging** (`docs/WORKFLOW.md` §3b): a builder may **enable GitHub auto-merge** (merge commit) on its own PR only when all hold: base is `main`; not a draft; tier T0, or T1 with a "ChatGPT pre-review" whose Highs are all fixed or answered; no label-only path in the diff; `status/ready-to-merge` set after a green acceptance run. GitHub then merges only when the required checks pass. T2 PRs, stacked PRs and anything else wait for the user. Never click merge directly, approve, dismiss reviews or change branch protection. Agent reviews are `COMMENT` only.
 - Before you stop (done, near a limit, blocked): post the handoff below and set the status label.
 - Don't widen scope; ideas go under "Follow-ups".
 
@@ -46,7 +46,7 @@ ABI header edit · equivalence delta without a planner decision · test removal 
 For ≤3-file work that benefits from an independent strong model: build a split review pack, ask in the issue "External-queue task: run it outside, or should I do it myself?". Blocking work: ask once, then do it yourself. Non-blocking: label `external-queue` and move on. The user replies with a comment headed "External result". Detail: `docs/WORKFLOW.md` §7.
 
 ## Safety rails
-- **Protected paths** need an issue that names them and the `allow-protected` label (added by the user, or by the planner when the issue names the path): `AGENTS.md`, `CLAUDE.md`, `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`, `LICENSE*`, `LICENSES/**`, `.github/**`, `native/include/wirescape/*.h`, `docs/history/**` (frozen), `legacy/**` (read-only).
+- **Protected paths** need either a linked issue (`Closes #N`) with a line starting `Protected path named:` followed by the path or glob in backticks (the guard reads it; no label needed), or the `allow-protected` label (user or planner). Only the planner writes those issue lines; builders never edit them. Always label-only: `AGENTS.md`, `CLAUDE.md`, `tools/ci/**`, `.github/workflows/guard.yml`, `.github/CODEOWNERS`, ABI headers, licences, `docs/history/**`, `legacy/**`. Protected: `AGENTS.md`, `CLAUDE.md`, `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`, `LICENSE*`, `LICENSES/**`, `.github/**`, `native/include/wirescape/*.h`, `docs/history/**` (frozen), `legacy/**` (read-only).
 - Never make CI pass by weakening it. Never force-push, rewrite published history, commit to `main` or merge.
 - Never commit generated or binary files, fonts, `user_data/`, `local_backups/`, `.tools/`, credentials or machine-specific absolute paths.
 
@@ -73,6 +73,7 @@ Status `status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · 
 
 ## Commands (all keep audio off)
 `python tools/dev.py doctor | build [--headless] | test | check --package | launch`. Qt: `WIRESCAPE_QT_DIR`, then `CMAKE_PREFIX_PATH`.
+**Cloud containers (Codex, Claude):** if `cmake` or `ninja` is missing, run the repo's setup script first (`tools/cloud/setup.sh`, or `tools/ci/codex_cloud_setup.sh` until #83 moves it) and use the PATH it prints. Fix setup problems in that script, never by asking the user to change environment settings.
 
 ## Docs upkeep
 `docs/PLAN.md` belongs to the planner (others may tick checkboxes). Update `docs/ARCHITECTURE.md` in the PR that changes the architecture; `docs/STATUS.md` when a milestone completes. Tasks in `docs/tasks/`, reviews in `docs/reviews/`.
