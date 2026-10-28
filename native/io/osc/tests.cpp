@@ -13,7 +13,7 @@ int main() {
     REQUIRE(parse(valid.data(), valid.size(), [&](const Message& m) { REQUIRE(m.address == "/pico1/knob/3" && m.count == 1 && m.arguments[0].real == .75f); ++calls; })); REQUIRE(calls == 1);
     for (size_t n = 0; n < valid.size(); ++n) REQUIRE(!parse(valid.data(), n, [](const Message&) {}));
     for (uint32_t n = 1; n < 2048; ++n) { std::vector<uint8_t> garbage(n, 0xab); REQUIRE(!parse(garbage.data(), garbage.size(), [](const Message&) {})); }
-    auto bad = valid; bad[16] = '['; REQUIRE(!parse(bad.data(), bad.size(), [](const Message&) {}));
+    auto bad = valid; bad[17] = '['; REQUIRE(!parse(bad.data(), bad.size(), [](const Message&) {}));
     Pattern p;
     for (const char* pattern : {"/pico1/knob/*", "/pico?/knob/[1-9]", "/{pico1,esp32}/knob/3"}) { REQUIRE(p.compile(pattern)); REQUIRE(p.match("/pico1/knob/3")); REQUIRE(!p.match("/pico1/knob/3/extra")); }
     REQUIRE(p.compile("/a/[!0-3]/{x,{y,z}}")); REQUIRE(p.match("/a/5/z") && !p.match("/a/1/z")); REQUIRE(!p.compile("/{oops")); REQUIRE(!p.compile("/[z-a]"));

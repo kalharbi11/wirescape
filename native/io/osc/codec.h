@@ -46,14 +46,14 @@ template<class Emit> bool parse(const uint8_t* bytes, size_t size, Emit emit, ui
 inline size_t encode(const Message& m, uint8_t* out, size_t capacity, bool& truncated) {
     if (capacity < 1024 || m.address.size() > 255 || m.count > 32) return 0;
     size_t at = 0;
-    auto text = [&](const uint8_t* data, size_t n) { const size_t padded = (n + 4) & ~size_t(3); if (padded > capacity - at) return false; std::memcpy(out + at, data, n); std::memset(out + at + n, 0, padded - n); at += padded; return true; };
+    auto text = [&](const uint8_t* data, size_t n) { const size_t padded = (n + 4) & ~size_t(3); if (padded > capacity - at) return false; if (n) std::memcpy(out + at, data, n); std::memset(out + at + n, 0, padded - n); at += padded; return true; };
     if (!text(reinterpret_cast<const uint8_t*>(m.address.data()), m.address.size())) return 0;
     uint8_t tags[34]{}; tags[0] = ','; for (uint32_t i = 0; i < m.count; ++i) tags[i + 1] = uint8_t(m.arguments[i].type); if (!text(tags, m.count + 1)) return 0;
     for (uint32_t i = 0; i < m.count; ++i) {
         const auto& arg = m.arguments[i]; const size_t reserve = (m.count - i - 1) * 8;
         if (arg.type == 'i' || arg.type == 'f') { uint32_t bits; if (arg.type == 'i') std::memcpy(&bits, &arg.integer, 4); else std::memcpy(&bits, &arg.real, 4); put32(out + at, bits); at += 4; }
         else if (arg.type == 's') { const size_t n = std::min<size_t>(arg.size, (capacity - at - reserve) / 4 * 4 - 1); truncated = truncated || n != arg.size; if (!text(arg.data, n)) return 0; }
-        else if (arg.type == 'b') { const size_t n = std::min<size_t>(arg.size, (capacity - at - reserve - 4) / 4 * 4); truncated = truncated || n != arg.size; put32(out + at, uint32_t(n)); at += 4; std::memcpy(out + at, arg.data, n); const size_t padded = (n + 3) & ~size_t(3); std::memset(out + at + n, 0, padded - n); at += padded; }
+        else if (arg.type == 'b') { const size_t n = std::min<size_t>(arg.size, (capacity - at - reserve - 4) / 4 * 4); truncated = truncated || n != arg.size; put32(out + at, uint32_t(n)); at += 4; if (n) std::memcpy(out + at, arg.data, n); const size_t padded = (n + 3) & ~size_t(3); std::memset(out + at + n, 0, padded - n); at += padded; }
     }
     return at;
 }
