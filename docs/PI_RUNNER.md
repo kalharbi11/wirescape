@@ -15,19 +15,21 @@ All commands keep physical audio and MIDI devices off.
    public repository. A same-repository PR is trusted code: review who can push.
 2. Install Python 3.12 or newer, a C++17 compiler, CMake 4.2.3 and Ninja 1.13.0
    on the runner. Jobs never use sudo or install system packages. Ensure the
-   runner has Git and GitHub CLI, and can reach GitHub and the package registry.
+   runner has Git and can reach GitHub and the package registry. GitHub CLI is
+   only needed by operators using the optional dispatch commands below.
 3. In **wirescape-pi → Settings → Secrets and variables → Actions**, add the
    repository secret **WIRESCAPE_TOKEN**. Use a token limited to the public
    `kalharbi11/wirescape` repository with Contents read, Pull requests read,
-   Commit statuses write, and Issues write permissions. The summary issue also
-   requires permission to pin issues. Never paste the token into an issue,
+   Commit statuses write, and Issues write permissions. A maintainer pins the
+   summary issue; the workflow token only updates its body. Never paste it into an issue,
    log, checked-in file, or chat. Private checkout uses the private repository's
    own Actions token; all public-repository API calls use WIRESCAPE_TOKEN.
 4. Enable Actions and scheduled workflows in the private repository. Both
    workflows must be on its default branch for schedules and dispatch to work.
    They share a concurrency group so a poll cannot overlap a nightly soak or
    benchmark. Do not add another workflow that bypasses that group.
-   Create one public issue titled **Pi nightly summary** and pin it. If it is
+   Reuse pinned [Pi nightly summary #100](https://github.com/kalharbi11/wirescape/issues/100).
+   If it is missing, create one issue with that title and pin it. If it is
    missing, nightly still runs independent checks and uploads its report, then
    reports the missing summary issue as a setup blocker.
 5. Commit a measured Pi benchmark baseline in the private repository as
@@ -83,3 +85,8 @@ that audio or MIDI hardware was exercised.
 When a job fails, inspect its private run log first. Check runner availability,
 the token's permissions and expiry, prerequisite versions and the exact tested
 SHA. Keep required checks unchanged; never mark an unrun or blocked stage green.
+
+Once #103 lands, either job can call `tools/review_pack.py` with `--diff`,
+`--task`, `--split 3`, `--cap` and `--output`. The controller supplies a fresh diff
+and task for the exact PR head. This offline path needs no API credential in the
+public build environment; unavailable CI evidence stays explicitly unavailable.
