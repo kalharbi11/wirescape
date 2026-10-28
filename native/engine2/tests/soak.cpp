@@ -16,6 +16,10 @@
 #include <string>
 #include <thread>
 #include <cstdint>
+#ifdef WS_SOAK_DOCUMENT
+#include "app_patch.h"
+#include <QFile>
+#endif
 #ifndef _WIN32
 #include <time.h>
 #endif
@@ -31,7 +35,7 @@ static uint64_t thread_cpu_ns(){
 #endif
 }
 static double number(const std::string&s){size_t used=0;double v=std::stod(s,&used);if(used!=s.size()||!std::isfinite(v))throw std::invalid_argument("invalid number");return v;}
-struct Options{double rate=48000,seconds=10;uint32_t block=128;std::string graph="poly8",modules;bool budget=false;};
+struct Options{double rate=48000,seconds=10;uint32_t block=128;std::string graph="poly8",modules,patch;bool budget=false;};
 static Options parse(int argc,char**argv){
  Options o;
  for(int i=1;i<argc;++i){std::string key=argv[i];if(key=="--budget"){o.budget=true;continue;}
@@ -41,10 +45,12 @@ static Options parse(int argc,char**argv){
   else if(key=="--block"){double n=number(value);if(n<1||n>4096||std::floor(n)!=n)throw std::invalid_argument("block must be 1..4096");o.block=static_cast<uint32_t>(n);}
   else if(key=="--graph")o.graph=value;
   else if(key=="--modules")o.modules=value;
+  else if(key=="--patch")o.patch=value;
   else throw std::invalid_argument("unknown option");
  }
  if(o.rate<8000||o.rate>384000||o.seconds<.001||o.seconds>3600)throw std::invalid_argument("rate 8000..384000; seconds .001..3600");
  if(std::ceil(o.rate*o.seconds/o.block)>5000000)throw std::invalid_argument("at most five million blocks per run");
+ if(!o.patch.empty()){if(o.budget||o.graph!="poly8")throw std::invalid_argument("--patch cannot combine with --graph or --budget");o.graph="document";}
  return o;
 }
 static uint32_t voices(const std::string&graph){
@@ -81,11 +87,30 @@ static std::unique_ptr<Engine> graph(const Options&o,ModuleLoader&loader){
  return e;
 }
 static bool run(const Options&o){
- ModuleLoader loader(o.modules.c_str());auto e=graph(o,loader);
+ ModuleLoader loader(o.modules.c_str());auto builtin=o.patch.empty()?graph(o,loader):nullptr;Engine*e=builtin.get();
+#ifdef WS_SOAK_DOCUMENT
+ std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>app(nullptr,app_engine_destroy);
+ if(!o.patch.empty()){
+  using namespace wirescape::document;
+  ws_engine_config config{sizeof(config),o.rate,o.block,64,8192};
+  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>catalog(app_engine_create(&config),app_engine_destroy);require(bool(catalog));
+  QFile file(QString::fromStdString(o.patch));if(!file.open(QIODevice::ReadOnly))throw std::runtime_error("cannot read document patch");
+  auto patch=read_patch(file.readAll(),app_catalog(catalog.get()));QString error;
+  app.reset(build_app_patch(catalog.get(),patch,config,error));if(!app)throw std::runtime_error(error.toStdString());e=&app_engine_native(app.get());
+ }
+#else
+ if(!o.patch.empty())throw std::runtime_error("document soak requires Qt Core development files at build time");
+#endif
  size_t count=static_cast<size_t>(std::ceil(o.rate*o.seconds/o.block));
  std::vector<double>times(count),cpu_times(count);std::vector<float>buffer(o.block);float*out[]={buffer.data()};
  uint64_t allocations=0;double peak=0;
- auto render=[&](){int result;{allocation_watch::Scope watch;result=e->render(out,1,o.block);allocations+=watch.allocations();}require(result==WS2_OK);};
+ auto render=[&](){int result;{allocation_watch::Scope watch;
+#ifdef WS_SOAK_DOCUMENT
+  result=app?app_engine_render(app.get(),buffer.data(),o.block):e->render(out,1,o.block);
+#else
+  result=e->render(out,1,o.block);
+#endif
+  allocations+=watch.allocations();}require(result==WS2_OK);};
  for(int i=0;i<256;++i)render();
  double period=1e9*o.block/o.rate;size_t late=0;auto start=Clock::now();
  for(size_t i=0;i<count;++i){
