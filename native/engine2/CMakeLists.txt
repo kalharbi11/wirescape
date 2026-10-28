@@ -143,3 +143,9 @@ target_link_libraries(wirescape_audio_service PUBLIC wirescape_app_engine PRIVAT
 target_link_libraries(wirescape_cli PRIVATE wirescape_runtime_document wirescape_audio_service)
 
 target_sources(wirescape_cli PRIVATE ../cli/play.cpp)
+add_executable(abi2_midi_release_tests tests/midi_release_tests.cpp)
+target_link_libraries(abi2_midi_release_tests PRIVATE wirescape_engine2)
+add_test(NAME abi2_midi_release_tests COMMAND abi2_midi_release_tests)
+add_executable(abi2_note_identity_tests ../voice/note_identity_tests.cpp)
+target_link_libraries(abi2_note_identity_tests PRIVATE wirescape_voice2 wirescape_sdk2)
+add_test(NAME abi2_note_identity_tests COMMAND abi2_note_identity_tests)
