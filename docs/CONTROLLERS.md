@@ -14,7 +14,7 @@ p.add_argument("--port", type=int, default=9000)
 p.add_argument("--value", type=float, default=0.5)
 p.add_argument("--confirm-lan", action="store_true")
 a = p.parse_args()
-if a.host not in ("127.0.0.1", "::1", "localhost") and not a.confirm_lan:
+if a.host not in ("127.0.0.1", "localhost") and not a.confirm_lan:
     p.error("LAN sending requires --confirm-lan")
 def osc_string(s):
     b = s.encode() + b"\0"
