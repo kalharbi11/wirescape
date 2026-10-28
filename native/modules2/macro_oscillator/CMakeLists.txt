@@ -35,7 +35,9 @@ add_library(ws2_macro_oscillator SHARED module.cpp)
 target_link_libraries(ws2_macro_oscillator PRIVATE wirescape_sdk2 macro_upstream)
 add_executable(abi2_macro_oscillator_tests tests.cpp ../../tests2/allocation_watch.cpp)
 target_link_libraries(abi2_macro_oscillator_tests PRIVATE wirescape_engine2 macro_upstream Threads::Threads)
-add_test(NAME abi2_macro_oscillator_tests COMMAND abi2_macro_oscillator_tests)
+add_test(NAME abi2_macro_oscillator_tests COMMAND ${CMAKE_COMMAND}
+  -DTEST_PROGRAM=$<TARGET_FILE:abi2_macro_oscillator_tests>
+  -P ${CMAKE_CURRENT_SOURCE_DIR}/patches/compare_reference.cmake)
 
 # Release-only oracle: same sources/toolchain, with just the signed-shift header
 # restored in a private include overlay. Never build unpatched code with sanitizers.
