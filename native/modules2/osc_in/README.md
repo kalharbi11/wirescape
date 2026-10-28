@@ -20,7 +20,9 @@ up to the prepared channel limit(16). Nonnumeric suffixes on a wildcard index ro
 ignored; other address globs may still select a mono row. Newly observed indices are
 discovered/sorted per callback, so discovery can renumber channels at block boundaries.
 Send initial values for all controls before playing when stable channel identities
-matter. Once the set is stable, sample processing is independent of frame divisions.
+matter. With a stable index set, smoothing and timeout processing are sample-based.
+Coalescing is deliberately per callback: changing block boundaries can retain different
+intermediate CV/gate messages, so that case does not promise identical renders.
 Numeric rows coalesce latest-wins per channel/block at that last message's offset;
 triggers retain individual arrival offsets. Other glob forms `?`, `[]`, `{}` work.
 
