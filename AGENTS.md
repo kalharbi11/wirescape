@@ -73,6 +73,7 @@ Status `status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · 
 
 ## Commands (all keep audio off)
 `python tools/dev.py doctor | build [--headless] | test | check --package | launch`. Qt: `WIRESCAPE_QT_DIR`, then `CMAKE_PREFIX_PATH`.
+**Cloud containers (Codex, Claude):** if `cmake` or `ninja` is missing, run the repo's setup script first (`tools/cloud/setup.sh`, or `tools/ci/codex_cloud_setup.sh` until #83 moves it) and use the PATH it prints. Fix setup problems in that script, never by asking the user to change environment settings.
 
 ## Docs upkeep
 `docs/PLAN.md` belongs to the planner (others may tick checkboxes). Update `docs/ARCHITECTURE.md` in the PR that changes the architecture; `docs/STATUS.md` when a milestone completes. Tasks in `docs/tasks/`, reviews in `docs/reviews/`.
