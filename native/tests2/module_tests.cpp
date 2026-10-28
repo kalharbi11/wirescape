@@ -7,8 +7,8 @@
 #include "module_loader.h"
 #include "allocation_watch.h"
 #endif
-static const ws2_descriptor*descriptors[]={ws::Module<ws2ports::Vco>::descriptor(),ws::Module<ws2ports::Lfo>::descriptor(),ws::Module<ws2ports::Vcf>::descriptor(),ws::Module<ws2ports::Adsr>::descriptor(),ws::Module<ws2ports::Vca>::descriptor(),ws::Module<ws2ports::Mixer>::descriptor(),ws::Module<ws2ports::Noise>::descriptor(),ws::Module<ws2ports::Output>::descriptor(),ws::Module<ws2ports::ScaleOffset>::descriptor(),ws::Module<ws2ports::Slew>::descriptor()};
-static const char*names[]={"vco","lfo","vcf","adsr","vca","mixer","noise","output","scale_offset","slew"};
+static const ws2_descriptor*descriptors[]={ws::Module<ws2ports::Vco>::descriptor(),ws::Module<ws2ports::Lfo>::descriptor(),ws::Module<ws2ports::Vcf>::descriptor(),ws::Module<ws2ports::Adsr>::descriptor(),ws::Module<ws2ports::Vca>::descriptor(),ws::Module<ws2ports::Clock>::descriptor(),ws::Module<ws2ports::FunctionEnvelope>::descriptor(),ws::Module<ws2ports::Ladder>::descriptor(),ws::Module<ws2ports::Mixer>::descriptor(),ws::Module<ws2ports::Noise>::descriptor(),ws::Module<ws2ports::Output>::descriptor(),ws::Module<ws2ports::ScaleOffset>::descriptor(),ws::Module<ws2ports::Slew>::descriptor()};
+static const char*names[]={"vco","lfo","vcf","adsr","vca","clock","function_envelope","ladder","mixer","noise","output","scale_offset","slew"};
 static void matrix(){
  for(auto*d:descriptors)for(double rate:{44100.,48000.,96000.})for(uint32_t count:{1u,4u,16u})for(uint32_t block:{1u,17u,256u}){
   auto a=std::make_unique<DspFixture>(d,rate,count),b=std::make_unique<DspFixture>(d,rate,count);

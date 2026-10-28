@@ -142,4 +142,6 @@ never microphones or an unisolated endpoint mix. Reports stay in `build_reports/
 Device execution is unverified and reserved for the user; CI only compiles the
 helper and runs offline tests. See `tools/capture/README.md` for bounds and scope.
 
+Clock, function envelope and ladder have isolated ABI2 ports with per-voice state and exact ABI1 default references. Clock remains free-running; the existing filter stress functions also execute against ABI2 ladder through a test-only callback bridge.
+
 Engine2 reports forward signal latency per output bus and feedback delay separately per SCC. Quiescent reconfiguration stages only the changed processor; untouched instances and compatible loop delay lines retain their state, with port-ID remapping committed after validation.

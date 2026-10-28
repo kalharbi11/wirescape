@@ -78,7 +78,7 @@ foreach(example random_source step_sequencer)
   add_test(NAME abi2_example_${example}_tests COMMAND abi2_example_${example}_tests)
 endforeach()
 
-foreach(module vco lfo vcf adsr vca mixer noise output scale_offset slew)
+foreach(module vco lfo vcf adsr vca clock function_envelope ladder mixer noise output scale_offset slew)
   add_library(ws2_${module} SHARED ../modules2/${module}/module.cpp)
   target_link_libraries(ws2_${module} PRIVATE wirescape_sdk2)
 endforeach()
@@ -110,7 +110,7 @@ add_executable(abi2_staged_tests tests/staged_tests.cpp ../tests2/allocation_wat
 target_link_libraries(abi2_staged_tests PRIVATE wirescape_engine2)
 add_test(NAME abi2_staged_tests COMMAND abi2_staged_tests)
 
-foreach(module mixer noise output scale_offset slew)
+foreach(module clock function_envelope ladder mixer noise output scale_offset slew)
   add_executable(abi2_${module}_tests ../modules2/${module}/tests.cpp ../tests2/allocation_watch.cpp)
   target_link_libraries(abi2_${module}_tests PRIVATE wirescape_sdk2 ${CMAKE_DL_LIBS})
   add_dependencies(abi2_${module}_tests ws2_${module} ws_${module})
@@ -118,3 +118,8 @@ foreach(module mixer noise output scale_offset slew)
 endforeach()
 
 target_link_libraries(abi2_output_tests PRIVATE wirescape_engine2)
+
+add_executable(abi2_returned_filter_stress ../tests2/abi2_returned_filter_stress.cpp)
+target_link_libraries(abi2_returned_filter_stress PRIVATE wirescape_sdk2 wirescape_engine ${CMAKE_DL_LIBS})
+add_dependencies(abi2_returned_filter_stress ws2_ladder ws_ladder)
+add_test(NAME abi2_returned_filter_stress COMMAND abi2_returned_filter_stress $<TARGET_FILE_DIR:ws_ladder>)
