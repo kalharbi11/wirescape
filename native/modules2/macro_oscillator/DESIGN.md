@@ -73,8 +73,10 @@ Before patching, GCC 14.2.0 x86_64 `-O3 -DNDEBUG` at 48k/128 produced these FNV-
 | 4 | `8ee3f2f04c6dd061` |
 
 `signed_shift_reference` asserts non-silence and exact hashes within each platform
-family. ARM64 hashes are collected from CI before filling its baseline; the
-x86-64 numbers above are not substituted for an ARM64 reference.
+family. ARM64's unpatched and patched Release hashes were identical in CI run
+40759170616 (`abi2_macro_reference`, Linux ARM64): model2 `e5cf182ea7892761`,
+model3 `0aa6ab841f075ed1`, model4 `4ebac16c1be444b5`. These are recorded separately
+from x86-64; no cross-family equality is assumed.
 The existing direct-reference, all-24-model, allocation and isolation tests remain.
 
 ### Additional planner authorization, issue #29 (2026-10-28)
@@ -103,3 +105,10 @@ The normal test keeps exact family baselines and never accepts a mismatching has
 The render helper checks both size multiplications before allocating and uses
 `size_t` indices. Boundary tests include zero and overflow in either operand; no
 CodeQL suppression is used.
+
+Windows CI after C2737/C2466 was fixed exposed GNU-only trailing
+`__attribute__((always_inline))` declarations in pinned stmlib `utils/dsp.h`.
+`stmlib-msvc-inline.patch` preserves those hints for GNU compilers and omits only
+the unsupported annotation on MSVC; the functions remain `inline` and every
+arithmetic expression is unchanged. It applies to stmlib
+`e3bd7c9cc00e4364166f9905c0509b6ffd0535ec` through its own FetchContent patch step.

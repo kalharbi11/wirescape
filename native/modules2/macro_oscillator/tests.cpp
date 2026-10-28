@@ -111,7 +111,7 @@ static void direct_reference() {
 static void signed_shift_reference(bool record = false) {
 #if defined(__aarch64__) || defined(_M_ARM64)
     const char* family = "ARM64";
-    const uint64_t expected[]{0, 0, 0}; // CI same-toolchain oracle records the family baseline.
+    const uint64_t expected[]{0xe5cf182ea7892761ull, 0x0aa6ab841f075ed1ull, 0x4ebac16c1be444b5ull};
 #elif defined(__x86_64__) || defined(_M_X64)
     const char* family = "x86-64";
     const uint64_t expected[]{0x210b80dca5fe2915ull, 0xba4c1cadbda672a5ull, 0x8ee3f2f04c6dd061ull};

@@ -13,6 +13,10 @@ FetchContent_Declare(macro_stmlib
   URL https://codeload.github.com/pichenettes/stmlib/tar.gz/e3bd7c9cc00e4364166f9905c0509b6ffd0535ec
   URL_HASH SHA256=eff5d6642a93498996661e0dd4b5a1de4b98093f25a009166910726d1262b5d2
   SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/upstream/stmlib
+  PATCH_COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=<SOURCE_DIR>
+    -DGIT_EXECUTABLE=${GIT_EXECUTABLE}
+    -DPATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/patches/stmlib-msvc-inline.patch
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/patches/apply.cmake
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 FetchContent_MakeAvailable(macro_eurorack macro_stmlib)
 file(GLOB_RECURSE macro_sources CONFIGURE_DEPENDS ${macro_eurorack_SOURCE_DIR}/plaits/dsp/*.cc)

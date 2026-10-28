@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Accept repeat configuration and either checkout line-ending convention.
-file(GLOB patches "${PATCH_DIR}/*.patch")
+if(DEFINED PATCH_FILE)
+  set(patches "${PATCH_FILE}")
+else()
+  file(GLOB patches "${PATCH_DIR}/*.patch")
+  list(FILTER patches EXCLUDE REGEX "/stmlib-")
+endif()
 list(SORT patches)
 foreach(patch IN LISTS patches)
   file(READ "${patch}" text)

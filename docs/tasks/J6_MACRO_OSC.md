@@ -11,7 +11,7 @@ Also: fix the Windows build failure on #77 (logs are readable through the GitHub
 ```acceptance
 tier: T1
 budget: 2 Codex sessions
-size: <= 1000 Wirescape-owned changed lines (fetched upstream excluded), <= 16 files
+size: <= 1000 changed lines, <= 16 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_macro_oscillator_tests" --output-on-failure
