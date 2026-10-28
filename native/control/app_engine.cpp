@@ -24,8 +24,8 @@ struct AppEngine {
   engine.register_producer();
   for(auto* d:wirescape::app::builtin_modules()){
    entries.emplace_back();auto& e=entries.back();e.native=d;
-   for(uint32_t i=0;i<d->input_count;++i)e.inputs.push_back({d->inputs[i].id,d->inputs[i].name,d->inputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL});
-   for(uint32_t i=0;i<d->output_count;++i)e.outputs.push_back({d->outputs[i].id,d->outputs[i].name,d->outputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL});
+   for(uint32_t i=0;i<d->input_count;++i)e.inputs.push_back({d->inputs[i].id,d->inputs[i].name,static_cast<uint32_t>(d->inputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL)});
+   for(uint32_t i=0;i<d->output_count;++i)e.outputs.push_back({d->outputs[i].id,d->outputs[i].name,static_cast<uint32_t>(d->outputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL)});
    for(uint32_t i=0;i<d->param_count;++i){auto& p=d->params[i];e.params.push_back({p.legacy_index,p.name,p.minimum,p.maximum,p.initial,p.unit});}
    e.metadata={sizeof(ws_module_descriptor),WS_ABI_VERSION,d->id,d->name,d->input_count,d->output_count,d->param_count,e.inputs.data(),e.outputs.data(),e.params.data(),nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
   }
