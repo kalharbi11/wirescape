@@ -172,3 +172,21 @@ that module before the stereo device duplication. Cable badges display configure
 signal widths propagated through the document graph without reading render-owned
 metadata concurrently. Computer key-repeat suppression and focus-loss release
 remain in the existing QML key handler. Panic resets every voice at render boundary.
+
+## J3 runtime candidate
+
+`native/document/runtime_patch.*` is the Qt-free v1/v2 parser and graph builder
+used by `app_patch` and `wirescape_cli play`. The pinned MIT nlohmann/json library
+is used only quiescently. Qt document migration/preservation and the atomic writer
+remain separate. Runtime input rejects duplicates, oversized/deep documents,
+unknown modules/parameters and unsupported nonempty module config. Service-specific
+config adapters are left to J4/J5 rather than silently dropping configuration.
+
+Without `--confirm-audio`, play writes a ten-second stereo WAV under build and
+reports peak/RMS and block timings. `--seconds 600 --pace` runs the loader soak.
+Only explicit user confirmation reaches `native/io/audio/portaudio_service.*`,
+which dynamically loads PortAudio and keeps backend code resident. Its callback
+renders engine2 into preallocated stereo buffers; control code prints CPU/xruns.
+Ctrl+C stops the loop and closes/terminates the backend before destroying the
+engine. The Qt-free runner exposes reserved MIDI/OSC options that currently refuse
+execution pending their services. See `docs/PI_SETUP.md` for the user commands.

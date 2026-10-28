@@ -18,7 +18,7 @@ struct AppEngine {
  std::deque<Entry> entries;std::map<uint32_t,const Entry*> nodes;
  std::atomic<float> peak{0};std::atomic<uint64_t> blocks{0};
  std::string error;
- explicit AppEngine(const ws_engine_config& c):engine(config(c)),legacy(ws_engine_create(&c),ws_engine_destroy){
+ explicit AppEngine(const ws_engine_config& c,const wirescape::engine2::Config* override=nullptr):engine(override?*override:config(c)),legacy(ws_engine_create(&c),ws_engine_destroy){
   engine.register_producer();
   for(auto* d:wirescape::app::builtin_modules()){
    entries.emplace_back();auto& e=entries.back();e.native=d;
@@ -32,6 +32,8 @@ struct AppEngine {
  const Entry* find(const char* id)const{for(auto& e:entries)if(std::strcmp(e.metadata.id,id)==0)return &e;return nullptr;}
 };
 AppEngine* app_engine_create(const ws_engine_config*c){try{return c?new AppEngine(*c):nullptr;}catch(...){return nullptr;}}
+wirescape::engine2::Config AppEngineConfig(const ws_engine_config&c){return AppEngine::config(c);}
+AppEngine* app_engine_create_config(const ws_engine_config*c,const wirescape::engine2::Config*n){try{return c?new AppEngine(*c,n):nullptr;}catch(...){return nullptr;}}
 void app_engine_destroy(AppEngine*e){delete e;}
 uint32_t app_engine_abi_version(){return 2;}
 const char* app_engine_error(const AppEngine*e){return e->error.empty()?e->engine.error().c_str():e->error.c_str();}
@@ -57,7 +59,8 @@ int app_engine_enqueue(AppEngine*e,const ws_event*v){
  int r=e->engine.enqueue(0,v->node_id,WS2_DIRECT_PORT,x,v->frame,wirescape::engine2::Timing::Frames,v->generation);
  return r==WS2_OK?WS_OK:r==WS2_CAPACITY?WS_CAPACITY:WS_INVALID;
 }
-int app_engine_render(AppEngine*e,float*out,uint32_t n){float* rows[]={out};int r=e->engine.render(rows,1,n);float p=0;for(uint32_t i=0;i<n;++i)p=std::max(p,std::abs(out[i]));e->peak.store(p);e->blocks.fetch_add(1);return r==WS2_OK?WS_OK:WS_CAPACITY;}
+int app_engine_render_channels(AppEngine*e,float*const*out,uint32_t channels,uint32_t n){int r=e->engine.render(out,channels,n);if(r!=WS2_OK)return WS_CAPACITY;float p=0;for(uint32_t c=0;c<channels;++c)for(uint32_t i=0;i<n;++i)p=std::max(p,std::abs(out[c][i]));e->peak.store(p);e->blocks.fetch_add(1);return WS_OK;}
+int app_engine_render(AppEngine*e,float*out,uint32_t n){float* rows[]={out};return app_engine_render_channels(e,rows,1,n);}
 int app_engine_reset(AppEngine*e){e->engine.reset();e->peak.store(0);e->blocks.store(0);return WS_OK;}
 int app_engine_activate(AppEngine*){return WS_OK;}
 int app_engine_deactivate(AppEngine*){return WS_OK;}
