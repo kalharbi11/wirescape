@@ -25,6 +25,10 @@ QJsonObject editor_view(const PatchDocument&p,AppEngine*e){
   auto c=value.toObject();auto a=c["from"].toObject(),b=c["to"].toObject();c["fromNode"]=a["module"];c["fromPort"]=a["port"];c["toNode"]=b["module"];c["toPort"]=b["port"];
   auto type=QString();for(auto v:nodes)if(v.toObject()["id"]==a["module"])type=v.toObject()["type"].toString();
   int kind=WS_CONTROL;for(uint32_t i=0;i<app_engine_module_count(e);++i){auto*d=app_engine_module(e,i);if(type==QString::fromUtf8(d->id))for(uint32_t p=0;p<d->output_count;++p)if(a["port"]==QString::fromUtf8(d->outputs[p].id))kind=d->outputs[p].kind;}
+  if(!catalog.contains(type)){
+   QString destination;for(auto v:nodes)if(v.toObject()["id"]==b["module"])destination=v.toObject()["type"].toString();
+   for(uint32_t i=0;i<app_engine_module_count(e);++i){auto*d=app_engine_module(e,i);if(destination==QString::fromUtf8(d->id))for(uint32_t p=0;p<d->input_count;++p)if(b["port"]==QString::fromUtf8(d->inputs[p].id))kind=d->inputs[p].kind;}
+  }
   if(c["kind"]=="signal")c["kind"]=kind==WS_AUDIO?"audio":"control";cables.append(c);
  }
  o["version"]=1;o["modules"]=nodes;o["connections"]=cables;auto outputs=o["outputs"].toArray();o["outputNode"]=outputs.isEmpty()?0:outputs[0].toObject()["module"].toInt();return o;
