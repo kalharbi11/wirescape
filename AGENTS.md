@@ -29,7 +29,7 @@ No agent reaches the Pi or the laptop. Pi work goes through the `pi5` runner on 
 - Push small commits; WIP commits may use `[skip ci]`, the final push never does.
 - **Done is decided by the acceptance block:** run its `must_pass` lines (`python tools/dev.py accept <issue#>` once it exists), post the report, set `status/ready-to-merge` when green on the exact head. `pi:` lines run on the Pi runner.
 - **Review tiers** (`docs/WORKFLOW.md` §3): T0 scripts only; T1 adds a ChatGPT pre-review of the review pack; T2 adds Claude. The tier is in the acceptance block.
-- Never merge, approve, enable auto-merge, dismiss reviews or change branch protection. Agent reviews are `COMMENT` only. The user's merge click is the approval.
+- **Merging** (`docs/WORKFLOW.md` §3b): a builder may **enable GitHub auto-merge** (merge commit) on its own PR only when all hold: base is `main`; not a draft; tier T0, or T1 with a "ChatGPT pre-review" whose Highs are all fixed or answered; no label-only path in the diff; `status/ready-to-merge` set after a green acceptance run. GitHub then merges only when the required checks pass. T2 PRs, stacked PRs and anything else wait for the user. Never click merge directly, approve, dismiss reviews or change branch protection. Agent reviews are `COMMENT` only.
 - Before you stop (done, near a limit, blocked): post the handoff below and set the status label.
 - Don't widen scope; ideas go under "Follow-ups".
 

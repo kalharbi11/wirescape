@@ -2,19 +2,20 @@
 
 Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-28 (Jam checkpoint adopted from the fresh-eyes review).
 
-## Now (≤30 lines; single source of truth; checked against the GitHub API 2026-10-28 ~04:00 UTC)
+## Now (≤30 lines; single source of truth; checked against the GitHub API 2026-10-28 ~17:00 UTC)
 - **Focus:** Jam checkpoint (J) + workflow v2 (`docs/WORKFLOW.md`). Agents run in the cloud; the Pi is a runner only.
-- **main = `07767dd`**: #75 (J plan, guide v2, templates) and #40 (M2-3) merged today. All 13 Essentials on ABI 2; the app still runs ABI 1.
+- **Merged today:** #75 J plan/guide, #40 M2-3, #41 M2-4, #95 workflow v2, #96 CodeQL, #102 guard reads issue-named paths, #97 cloud setup, #103 review packs, **#76 J7 CHAOS-lite**.
 - **Open PRs:**
-  - #41 M2-4 regressions: green, reviewed earlier → **user merges** (J0).
-  - #76 J7 CHAOS-lite: green → ChatGPT pre-review (T1), then Pi number via the runner.
-  - #78 J1 engine2 app (draft): blocked on the render delta → **decided** (J file, decisions 2026-10-28b); Codex finishes.
-  - #79 J2 poly → #80 J3 play → #81 J4 MIDI → #82 J5 OSC: drafts stacked on #78; #81/#82 Windows red.
-  - #77 J6 Macro Oscillator (draft): UBSan in upstream → **decided** (patch authorized); Windows red.
-- **Next 3:** (1) this PR (workflow v2) merged; (2) Codex: #83 setup script, then J1→J2→J3 finish, then the W backlog in order; (3) user: register the Pi runner (#84).
-- **Routing:** Copilot gets nothing (credits). #49, #56, #66 moved to ChatGPT.
-- **Deferred until after J9:** #64 and the Windows 1.05× gate (tracked only), M3 full UI, Learn/Activity/Mappings, MIDI Out/Clock, UDP Send, OSC Out, MPE, Quantizer + Basic Sequencer, X-4 Surge/sst primitives, long soaks, the formal ABI freeze.
-- **Reviews:** T0/T1 merge on scripts + ChatGPT; Claude only for T2 (#78 J1, #81 J4, #82 J5) and the J gate.
+  - #99 accept tool (T0): green, ready → merge.
+  - #104 static analysis, #106 PR template (T0): Ruff must become diff-only (61 old findings), then merge. #105 pre-commit is stacked on #104.
+  - #98 Pi bridge docs: refresh after wirescape-pi#1, then merge.
+  - #78 J1 (T2): code done; needs Windows CI + `pi5/soak` (label `ci/pi-soak`), then Claude review.
+  - #79 J2 → #80 J3 → #81 J4 → #82 J5: stacked on #78; never merge before #78.
+  - #77 J6 (T1): upstream patch + Windows fix pending.
+- **Pi bridge:** runner live; blocked on token permissions (HTTP 403) and wirescape-pi#1 (PATH, soak label). Summary issue #101.
+- **Next 3:** (1) user: token + Codex network setting + merge #99 and wirescape-pi#1; (2) Codex: J1 to green, then J6, J2, J3; (3) ChatGPT: #88, #93, #56, #49, #66 and T1 pre-reviews.
+- **Routing:** Copilot gets nothing. Deferred W items: #91, #92 until J1 merges; #94 after J5.
+- **Deferred until after J9:** #64 and the Windows 1.05× gate, M3 full UI, Learn/Activity/Mappings, MIDI Out/Clock, UDP Send, OSC Out, MPE, Quantizer + Basic Sequencer, X-4, long soaks, the formal ABI freeze.
 
 ## Vision
 Wirescape is a raw, expandable modular environment for music. Its aims:
