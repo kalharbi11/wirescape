@@ -159,3 +159,16 @@ The ABI2 built-in catalogue has one registration list,
 module DSP header in `module_catalog.h`. Modules with external link dependencies
 attach those dependencies to the `wirescape_catalog_dependencies` interface target
 in their own CMake registration. The app engine links that target.
+
+## J2 keyboard polyphony candidate
+
+`native/voice/note_to_cv.h` (MIT) is the reusable event-to-voice adapter used by
+`host.keyboard` and available to MIDI→CV. It preserves source identity, isolates
+sustain by source/channel, forwards assigned-voice events, and emits choke before
+replacement attack. Anonymous repeated-key releases are FIFO in the allocator.
+Only the first Keyboard module receives app keys. New patches connect Keyboard
+pitch to VCO and gate to ADSR. Output uses SUM input policy; voices collapse at
+that module before the stereo device duplication. Cable badges display configured
+signal widths propagated through the document graph without reading render-owned
+metadata concurrently. Computer key-repeat suppression and focus-loss release
+remain in the existing QML key handler. Panic resets every voice at render boundary.

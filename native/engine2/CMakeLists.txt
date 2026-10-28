@@ -79,6 +79,9 @@ foreach(example random_source step_sequencer)
 endforeach()
 
 add_library(wirescape_catalog_dependencies INTERFACE)
+target_link_libraries(wirescape_catalog_dependencies INTERFACE wirescape_voice2)
+add_library(ws2_host_keyboard SHARED ../modules2/host_keyboard/module.cpp)
+target_link_libraries(ws2_host_keyboard PRIVATE wirescape_sdk2 wirescape_voice2)
 
 foreach(module vco lfo vcf adsr vca clock function_envelope ladder mixer noise output scale_offset slew)
   add_library(ws2_${module} SHARED ../modules2/${module}/module.cpp)
@@ -130,3 +133,7 @@ add_library(wirescape_app_engine STATIC ../control/app_engine.cpp)
 target_include_directories(wirescape_app_engine PUBLIC ../control)
 target_link_libraries(wirescape_app_engine PUBLIC wirescape_engine2 wirescape_engine wirescape_catalog_dependencies)
 target_link_libraries(wirescape_cli PRIVATE wirescape_app_engine)
+
+add_executable(abi2_host_keyboard_tests ../modules2/host_keyboard/tests.cpp ../tests2/allocation_watch.cpp)
+target_link_libraries(abi2_host_keyboard_tests PRIVATE wirescape_engine2 wirescape_voice2)
+add_test(NAME abi2_host_keyboard_tests COMMAND abi2_host_keyboard_tests)

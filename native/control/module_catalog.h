@@ -14,6 +14,7 @@
 #include "../modules2/output/dsp.h"
 #include "../modules2/scale_offset/dsp.h"
 #include "../modules2/slew/dsp.h"
+#include "../modules2/host_keyboard/dsp.h"
 namespace wirescape::app {
 inline const std::vector<const ws2_descriptor*>& builtin_modules(){
  static const std::vector<const ws2_descriptor*> modules{

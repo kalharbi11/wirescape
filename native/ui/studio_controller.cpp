@@ -25,10 +25,13 @@ QJsonObject baseDocument() {
     nodes.append(QJsonObject{{"id", 2}, {"type", "essentials.adsr"}, {"x", 400}, {"y", 210}, {"values", QJsonObject{{"0", .025}, {"1", .18}, {"2", .65}, {"3", .5}}}});
     nodes.append(QJsonObject{{"id", 3}, {"type", "essentials.vca"}, {"x", 740}, {"y", 100}, {"values", QJsonObject{{"0", .7}}}});
     nodes.append(QJsonObject{{"id", 4}, {"type", "essentials.output"}, {"x", 1060}, {"y", 230}, {"values", QJsonObject{}}});
+    nodes.append(QJsonObject{{"id",5},{"type","host.keyboard"},{"x",20},{"y",430},{"values",QJsonObject{{"0",8},{"1",0},{"2",0}}}});
     QJsonArray cables;
     cables.append(QJsonObject{{"fromNode", 1}, {"fromPort", "audio"}, {"toNode", 3}, {"toPort", "audio"}, {"kind", "audio"}});
     cables.append(QJsonObject{{"fromNode", 2}, {"fromPort", "envelope"}, {"toNode", 3}, {"toPort", "gain_cv"}, {"kind", "control"}});
     cables.append(QJsonObject{{"fromNode", 3}, {"fromPort", "audio"}, {"toNode", 4}, {"toPort", "audio"}, {"kind", "audio"}});
+    cables.append(QJsonObject{{"fromNode",5},{"fromPort","pitch"},{"toNode",1},{"toPort","pitch"},{"kind","control"}});
+    cables.append(QJsonObject{{"fromNode",5},{"fromPort","gate"},{"toNode",2},{"toPort","gate"},{"kind","control"}});
     return {{"format", "wirescape.native.patch"}, {"version", 1}, {"name", "Essential voice"}, {"outputNode", 4}, {"modules", nodes}, {"connections", cables}};
 }
 QString text(const char* value) { return value ? QString::fromUtf8(value) : QString(); }
@@ -129,7 +132,21 @@ QVariantList StudioController::modules() const {
     return result;
 }
 
-QVariantList StudioController::connections() const { return document_.value("connections").toArray().toVariantList(); }
+QVariantList StudioController::connections() const {
+    QVariantList result;QMap<int,int> channels;
+    const auto nodes=document_["modules"].toArray();const auto cables=document_["connections"].toArray();
+    for(auto node:nodes){auto n=node.toObject();int count=1;
+        if(n["type"]=="host.keyboard"){auto v=n["values"].toObject();count=v["1"].toInt()==3?1:v["0"].toInt(8);}
+        channels[n["id"].toInt()]=count;
+    }
+    // Configured widths are safe to read during rendering. Propagate along the
+    // document DAG; the Output SUM policy collapses its outgoing signal to mono.
+    for(int pass=0;pass<nodes.size();++pass)for(auto value:cables){auto c=value.toObject();int to=c["toNode"].toInt();
+        if(to!=outputNode())channels[to]=std::max(channels[to],channels[c["fromNode"].toInt()]);
+    }
+    for(auto value:cables){auto c=value.toObject();c["channels"]=channels[c["fromNode"].toInt()];result.append(c.toVariantMap());}
+    return result;
+}
 QString StudioController::statusText() const { return running() ? "AUDIO RUNNING" : ready_ ? "READY / AUDIO OFF" : "PATCH NEEDS ATTENTION"; }
 void StudioController::setError(QString value) { error_ = std::move(value); emit statusChanged(); }
 
@@ -299,7 +316,16 @@ void StudioController::startAudio() {
 
 void StudioController::stopAudio() { if (!audio_.stop()) { setError(audio_.error()); return; } if (engine_) { lastSessionMeter_.struct_size = sizeof(lastSessionMeter_); app_engine_get_meter(engine_.get(), &lastSessionMeter_); app_engine_reset(engine_.get()); } lastFrame_ = 0; peak_ = 0; setError(audio_.error()); emit metersChanged(); }
 void StudioController::setGate(bool on) { if (!running()) return; for (const auto& item : document_.value("modules").toArray()) if (!send(item.toObject().value("id").toInt(), WS_GATE, on ? 1.f : 0.f)) break; }
-void StudioController::note(int pitch, bool on) { if (!running() || pitch < 0 || pitch > 127) return; for (const auto& item : document_.value("modules").toArray()) if (!send(item.toObject().value("id").toInt(), on ? WS_NOTE_ON : WS_NOTE_OFF, static_cast<float>(pitch), 0, static_cast<uint32_t>(pitch + 2))) break; }
+void StudioController::note(int pitch, bool on) {
+    if (!engine_ || pitch < 0 || pitch > 127) return;
+    for (const auto& item : document_.value("modules").toArray()) {
+        auto n=item.toObject();if(n["type"]=="host.keyboard"){
+            send(n["id"].toInt(),on?WS_NOTE_ON:WS_NOTE_OFF,float(pitch),0,pitch+2);return;
+        }
+    }
+    if(!running())return;
+    for(const auto& item:document_["modules"].toArray())if(!send(item.toObject()["id"].toInt(),on?WS_NOTE_ON:WS_NOTE_OFF,float(pitch),0,pitch+2))break;
+}
 void StudioController::panic() { if (engine_) { app_engine_panic(engine_.get()); lastFrame_ = 0; } emit statusChanged(); }
 void StudioController::resetPatch() { if (audio_.hasStream()) stopAudio(); if (audio_.engineInUse()) return; documentSource_ = {}; document_ = baseDocument(); name_ = "Essential voice"; dirty_ = false; compileDocument(); emit documentChanged(); }
 
@@ -415,3 +441,18 @@ bool StudioController::smokeCheck(QJsonObject& result) {
     return parameterAccepted && peak > .01f && peak <= 1;
 }
 
+
+// Device-free offscreen integration probe, using the same note() ingress as QML.
+bool StudioController::keyboardChordCheck(QJsonObject& result) {
+    if(running()||!engine_)return false;
+    int keyboard=0;for(auto value:document_["modules"].toArray())if(value.toObject()["type"]=="host.keyboard"){keyboard=value.toObject()["id"].toInt();break;}
+    if(!keyboard)return false;
+    for(int pitch:{60,64,67,72})note(pitch,true);
+    float samples[256]{};if(app_engine_render(engine_.get(),samples,256)!=WS_OK)return false;
+    const auto&native=app_engine_native(engine_.get());int active=0;
+    for(uint32_t c=0;c<native.output_channels(keyboard,1);++c)active+=native.output_sample(keyboard,1,c,255)>.5f;
+    result["active_channels"]=active;
+    panic();if(app_engine_render(engine_.get(),samples,256)!=WS_OK)return false;
+    for(uint32_t c=0;c<native.output_channels(keyboard,1);++c)if(native.output_sample(keyboard,1,c,255)!=0)return false;
+    return active==4;
+}
