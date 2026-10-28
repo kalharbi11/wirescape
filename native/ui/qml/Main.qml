@@ -160,6 +160,33 @@ ApplicationWindow {
             Button { text: "Refresh inputs"; enabled: !studio.running; onClicked: studio.refreshMidi() }
         }
     }
+    Dialog {
+        id: lanDialog; title: "Allow OSC from the LAN?"; modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        Label { text: "This patch enables LAN OSC. Allow it for this session?" }
+        onAccepted: { studio.confirmOscLan(); studio.startAudio(); }
+    }
+    Connections { target: studio; function onLanConfirmationNeeded() { lanDialog.open(); } }
+    Dialog {
+        id: monitorDialog; title: "Monitor"; modal: false; width: 740; height: 440
+        standardButtons: Dialog.Close
+        Column {
+            anchors.fill: parent; spacing: 6
+            Row {
+                spacing: 12
+                CheckBox { text: "Pause"; checked: studio.monitorPaused; onToggled: studio.monitorPaused = checked }
+                Button { text: "Clear"; onClicked: studio.clearMonitor() }
+                Label { text: "Dropped " + studio.monitorDropped + " / rate limited " + studio.monitorSuppressed + " / OSC received " + studio.oscCounters.received }
+            }
+            ListView {
+                id: monitorLog; width: parent.width; height: 310; clip: true
+                model: studio.monitorLines
+                delegate: Label { required property string modelData; text: modelData; font.family: "monospace"; font.pixelSize: 11 }
+                ScrollBar.vertical: ScrollBar { }
+            }
+        }
+    }
+    Connections { target: studio; function onMonitorChanged() { if (!studio.monitorPaused) monitorLog.positionViewAtEnd(); } }
     FileDialog {
         id: saveDialog; objectName: "saveDialog"; title: "Save patch"; fileMode: FileDialog.SaveFile
         nameFilters: ["Wirescape patch (*.json)"]; defaultSuffix: "json"
@@ -253,6 +280,7 @@ ApplicationWindow {
                 Text { width: parent.width; elide: Text.ElideRight; text: studio.running ? "Live signal · stop audio to edit the patch" : "A small system. An open signal path."; color: "#858681"; font.pixelSize: 10 }
             }
             Row { id: toolbarActions; objectName: "toolbarActions"; anchors.right: parent.right; anchors.rightMargin: 22; anchors.verticalCenter: parent.verticalCenter; spacing: 5
+                StudioButton { text: "Monitor"; onClicked: monitorDialog.open() }
                 StudioButton { text: "MIDI"; enabled: !studio.running; onClicked: midiDialog.open() }
                 StudioButton { objectName: "newButton"; text: "New"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("new") }
                 StudioButton { objectName: "openButton"; text: "Open"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("open") }

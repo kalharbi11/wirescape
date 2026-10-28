@@ -67,7 +67,7 @@ int callback(const void*,void*output,unsigned long frames,const PaStreamCallback
 }
 }
 void list_devices(const std::string&directory){Backend b(directory);int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&d->maxOutputChannels>=2)std::cout<<i<<": "<<d->name<<" ("<<d->defaultSampleRate<<" Hz default)\n";}}
-void play(EngineOwner engine,const std::string&directory,const std::string&name,double rate,uint32_t block,const std::atomic<bool>&quit,std::function<void()> stop_producers){
+void play(EngineOwner engine,const std::string&directory,const std::string&name,double rate,uint32_t block,const std::atomic<bool>&quit,std::function<void()> stop_producers,std::function<void()> control_tick){
  struct StopOnError {std::function<void()>&stop;~StopOnError(){if(stop)stop();}} cleanup{stop_producers};
  Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block);context->stop_producers=stop_producers;int device=b.default_device();
  if(!name.empty()){size_t consumed=0;try{device=std::stoi(name,&consumed);}catch(const std::exception&){}if(consumed!=name.size()){
@@ -80,7 +80,7 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  if(start>=0){while(!quit.load(std::memory_order_relaxed)){
    int active=b.active(stream);if(active<=0){run_status=active;break;}
    std::cerr<<"cpu="<<b.load(stream)*100<<"% xruns="<<context->xruns.load()<<" faults="<<context->faults.load()<<'\n';
-   for(int tick=0;tick<10&&!quit.load(std::memory_order_relaxed);++tick)std::this_thread::sleep_for(std::chrono::milliseconds(100));
+   for(int tick=0;tick<10&&!quit.load(std::memory_order_relaxed);++tick){if(control_tick)control_tick();std::this_thread::sleep_for(std::chrono::milliseconds(100));}
  }}
  if(stop_producers)stop_producers(); // producers join/drain while render still owns its engine.
  PaError stopped=b.stop(stream);if(stopped<0)stopped=b.abort(stream);PaError closed=b.close(stream);

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "app_engine.h"
+#include "../modules2/monitor/tap.h"
 #include <vector>
 #include "module_catalog.h"
 #include <algorithm>
@@ -13,13 +14,14 @@ struct AppEngine {
   const ws2_descriptor* native=nullptr;ws_module_descriptor metadata{};
   std::vector<ws_port_descriptor> inputs,outputs;std::vector<ws_parameter_descriptor> params;
  };
- wirescape::engine2::Engine engine;
+ std::vector<AppMonitorTap> monitor_taps;
  std::unique_ptr<ws_engine,decltype(&ws_engine_destroy)> legacy{nullptr,ws_engine_destroy};
- std::deque<Entry> entries;std::map<uint32_t,const Entry*> nodes;
+ std::deque<Entry> entries;
+ wirescape::engine2::Engine engine;std::map<uint32_t,const Entry*> nodes;
  std::atomic<float> peak{0};std::atomic<uint64_t> blocks{0};
  std::string error;
  explicit AppEngine(const ws_engine_config& c,const wirescape::engine2::Config* override=nullptr):engine(override?*override:config(c)),legacy(ws_engine_create(&c),ws_engine_destroy){
-  engine.register_producer();engine.register_producer(); // producer 0 host keys, 1 MIDI service
+  engine.register_producer();engine.register_producer();engine.register_producer(); // host keys, MIDI, OSC
   for(auto* d:wirescape::app::builtin_modules()){
    entries.emplace_back();auto& e=entries.back();e.native=d;
    for(uint32_t i=0;i<d->input_count;++i)e.inputs.push_back({d->inputs[i].id,d->inputs[i].name,d->inputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL});
@@ -43,7 +45,9 @@ int app_engine_load_module(AppEngine*e,const char*path){int r=ws_engine_load_mod
 uint32_t app_engine_module_count(const AppEngine*e){return static_cast<uint32_t>(e->entries.size());}
 const ws_module_descriptor* app_engine_module(const AppEngine*e,uint32_t i){return i<e->entries.size()?&e->entries[i].metadata:nullptr;}
 int app_engine_add_node(AppEngine*e,uint32_t id,const char*type){return app_engine_add_node_config(e,id,type,{});}
-int app_engine_add_node_config(AppEngine*e,uint32_t id,const char*type,const std::vector<uint8_t>&config){auto*d=e->find(type);if(!d)return WS_NOT_FOUND;bool ok=d->native?e->engine.add_node(id,d->native,config):(config.empty()&&e->engine.add_abi1(id,&d->metadata));if(ok)e->nodes[id]=d;return ok?WS_OK:WS_GRAPH;}
+int app_engine_add_node_config(AppEngine*e,uint32_t id,const char*type,const std::vector<uint8_t>&config){auto*d=e->find(type);if(!d)return WS_NOT_FOUND;auto encoded=config;std::shared_ptr<wirescape::monitor::Tap>tap;
+ if(std::strcmp(type,"monitor")==0){tap=std::make_shared<wirescape::monitor::Tap>();wirescape::monitor::Configuration binding;binding.tap=tap.get();encoded.resize(sizeof(binding));std::memcpy(encoded.data(),&binding,sizeof(binding));}
+ bool ok=d->native?e->engine.add_node(id,d->native,encoded):(encoded.empty()&&e->engine.add_abi1(id,&d->metadata));if(ok){e->nodes[id]=d;if(tap)e->monitor_taps.push_back({id,"",std::move(tap)});}return ok?WS_OK:WS_GRAPH;}
 int app_engine_connect(AppEngine*e,uint32_t a,uint32_t ap,uint32_t b,uint32_t bp){return e->engine.connect(a,ap,b,bp)?WS_OK:WS_GRAPH;}
 int app_engine_prepare(AppEngine*e,uint32_t n,uint32_t p){return e->engine.output(n,p,0)&&e->engine.prepare()?WS_OK:WS_GRAPH;}
 int app_engine_initialize_parameter(AppEngine*e,uint32_t n,uint32_t p,float v){auto it=e->nodes.find(n);if(it==e->nodes.end())return WS_NOT_FOUND;auto*d=it->second;for(uint32_t i=0;i<d->metadata.parameter_count;++i)if(d->metadata.parameters[i].id==p)return e->engine.set_parameter(n,i,v)?WS_OK:WS_INVALID;return WS_INVALID;}
@@ -71,3 +75,6 @@ int app_engine_get_meter(const AppEngine*e,ws_meter*m){auto x=e->engine.meter();
 int app_engine_build_essentials(AppEngine*e,const char*){return app_engine_add_node(e,1,"essentials.vco")||app_engine_add_node(e,2,"essentials.adsr")||app_engine_add_node(e,3,"essentials.vca")||app_engine_add_node(e,4,"essentials.output")||app_engine_connect(e,1,0,3,0)||app_engine_connect(e,2,0,3,1)||app_engine_connect(e,3,0,4,0)||app_engine_prepare(e,4,0)?WS_GRAPH:WS_OK;}
 
 const char* app_engine_parameter_id(const char*type,uint32_t index){for(auto*d:wirescape::app::builtin_modules())if(!std::strcmp(d->id,type))return index<d->param_count?d->params[index].id:"";thread_local std::string numeric;numeric=std::to_string(index);return numeric.c_str();}
+
+std::vector<AppMonitorTap> app_engine_monitor_taps(AppEngine*e){return e?e->monitor_taps:std::vector<AppMonitorTap>{};}
+void app_engine_monitor_prefix(AppEngine*e,uint32_t node,const std::string&prefix){for(auto&t:e->monitor_taps)if(t.node==node)t.prefix=prefix;}

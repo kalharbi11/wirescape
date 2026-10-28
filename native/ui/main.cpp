@@ -28,6 +28,7 @@ int main(int argc, char** argv) {
 #endif
     app.setApplicationName("Wirescape"); app.setOrganizationName("Wirescape"); app.setApplicationVersion("0.6.0-foundation.1");
     QCommandLineParser parser; parser.addHelpOption(); parser.addVersionOption();
+    parser.addOption({"confirm-lan", "Authorize OSC In modules with LAN enabled to bind beyond localhost."});
     parser.addOption({"confirm-midi", "Allow the user to explicitly enable real MIDI endpoints in settings."});
     parser.addOption({"smoke-test", "Exercise the native UI and engine offline, then exit. No audio device is opened."});
     parser.addOption({"screenshot", "Save an image during the smoke test.", "path"});
@@ -47,7 +48,7 @@ int main(int argc, char** argv) {
     if (parser.isSet("startup-check") && !parser.isSet("ready-report")) return 3;
     if (smoke) QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
     const auto directory = parser.isSet("modules") ? parser.value("modules") : app.applicationDirPath();
-    StudioController studio(directory,nullptr,{},parser.isSet("confirm-midi"));
+    StudioController studio(directory,nullptr,{},parser.isSet("confirm-midi"),parser.isSet("confirm-lan"));
     QQmlApplicationEngine view;
     view.rootContext()->setContextProperty("studio", &studio);
     view.rootContext()->setContextProperty("studioFontFamily", app.font().family());
