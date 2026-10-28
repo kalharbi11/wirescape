@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "id": "essentials.noise",
+  "name": "Noise",
+  "abi_version": 2,
+  "library": "ws2_noise",
+  "description": "Fixed-seed white noise",
+  "parameters": {
+    "level": 0
+  },
+  "inputs": {},
+  "outputs": {
+    "audio": "signal"
+  },
+  "license": "GPL-3.0-only"
+}

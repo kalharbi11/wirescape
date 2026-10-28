@@ -45,13 +45,14 @@ def main(argv=None):
     parser.add_argument('--configuration', default='Release')
     parser.add_argument('--blocks', type=int, nargs=2, default=(50, 150))
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--gate', action='store_true', help='require mono Ir ratio <= 1.05')
     args = parser.parse_args(argv)
     if not 0 < args.blocks[0] < args.blocks[1] <= 1000000:
         parser.error('block counts must be positive, increasing, and at most 1000000')
     valgrind = shutil.which('valgrind')
     if not valgrind:
-        print('skipped: valgrind is not installed')
-        return 0
+        print('error: --gate requires valgrind' if args.gate else 'skipped: valgrind is not installed')
+        return int(args.gate)
     binary = args.build_dir.resolve()
     suffix = '.exe' if sys.platform == 'win32' else ''
     probe = binary / f'abi2_cost_probe{suffix}'
@@ -75,7 +76,7 @@ def main(argv=None):
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2) + '\n')
-    return 0
+    return int(args.gate and result['mono_ratio'] > 1.05)
 
 
 if __name__ == '__main__':

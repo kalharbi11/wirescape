@@ -15,8 +15,7 @@
       "module": "essentials.vco",
       "version": 1,
       "config": {},
-      "parameters": { "frequency": 261.6256, "level": 0.5 },
-      "state": { "version": 1, "encoding": "base64", "data": "" },
+      "parameters": { "frequency": 261.6256 },
       "channel_seed": 1001
     },
     {
@@ -38,12 +37,11 @@
   "connections": [
     { "kind": "signal", "from": { "module": 1, "port": "audio" }, "to": { "module": 2, "port": "audio" } },
     { "kind": "modulation", "from": { "module": 1, "port": "audio" }, "to": { "module": 2, "port": "gain" }, "amount": 0.1 },
-    { "kind": "signal", "from": { "module": 2, "port": "audio" }, "to": { "module": 3, "port": "left" } },
-    { "kind": "signal", "from": { "module": 2, "port": "audio" }, "to": { "module": 3, "port": "right" }, "stereo_pair": "main" }
+    { "kind": "signal", "from": { "module": 2, "port": "audio" }, "to": { "module": 3, "port": "audio" } }
   ],
   "outputs": [
-    { "module": 3, "port": "left", "bus_channel": 0 },
-    { "module": 3, "port": "right", "bus_channel": 1 }
+    { "module": 3, "port": "audio", "bus_channel": 0 },
+    { "module": 3, "port": "audio", "bus_channel": 1 }
   ],
   "host_mappings": [],
   "devices": [],

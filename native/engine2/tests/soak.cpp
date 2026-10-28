@@ -15,9 +15,26 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <cstdint>
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
+#include <time.h>
+#endif
 using namespace wirescape::engine2;
 using Clock=std::chrono::steady_clock;
 static void require(bool ok){if(!ok)throw std::runtime_error("graph setup/render failed");}
+static uint64_t thread_cpu_ns(){
+#ifdef _WIN32
+ FILETIME created,exited,kernel,user;require(GetThreadTimes(GetCurrentThread(),&created,&exited,&kernel,&user)!=0);
+ ULARGE_INTEGER k{},u{};k.LowPart=kernel.dwLowDateTime;k.HighPart=kernel.dwHighDateTime;u.LowPart=user.dwLowDateTime;u.HighPart=user.dwHighDateTime;return (k.QuadPart+u.QuadPart)*100;
+#else
+ timespec t{};require(clock_gettime(CLOCK_THREAD_CPUTIME_ID,&t)==0);return uint64_t(t.tv_sec)*1000000000ULL+uint64_t(t.tv_nsec);
+#endif
+}
 static double number(const std::string&s){size_t used=0;double v=std::stod(s,&used);if(used!=s.size()||!std::isfinite(v))throw std::invalid_argument("invalid number");return v;}
 struct Options{double rate=48000,seconds=10;uint32_t block=128;std::string graph="poly8",modules;bool budget=false;};
 static Options parse(int argc,char**argv){
@@ -71,21 +88,22 @@ static std::unique_ptr<Engine> graph(const Options&o,ModuleLoader&loader){
 static bool run(const Options&o){
  ModuleLoader loader(o.modules.c_str());auto e=graph(o,loader);
  size_t count=static_cast<size_t>(std::ceil(o.rate*o.seconds/o.block));
- std::vector<double>times(count);std::vector<float>buffer(o.block);float*out[]={buffer.data()};
+ std::vector<double>times(count),cpu_times(count);std::vector<float>buffer(o.block);float*out[]={buffer.data()};
  uint64_t allocations=0;double peak=0;
  auto render=[&](){int result;{allocation_watch::Scope watch;result=e->render(out,1,o.block);allocations+=watch.allocations();}require(result==WS2_OK);};
  for(int i=0;i<256;++i)render();
  double period=1e9*o.block/o.rate;size_t late=0;auto start=Clock::now();
  for(size_t i=0;i<count;++i){
-  auto before=Clock::now();render();auto after=Clock::now();
+  auto cpu_before=thread_cpu_ns();auto before=Clock::now();render();auto after=Clock::now();auto cpu_after=thread_cpu_ns();
   times[i]=std::chrono::duration<double,std::nano>(after-before).count();
+  cpu_times[i]=double(cpu_after-cpu_before);
   for(float sample:buffer){require(std::isfinite(sample));peak=std::max(peak,double(std::abs(sample)));}
   auto deadline=start+std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(double(i+1)*o.block/o.rate));
   if(after>deadline)++late;std::this_thread::sleep_until(deadline);
  }
  require(allocations==0&&e->meter().faults==0&&peak>0);
- SoakStats s(times,period);
- std::printf("{\"graph\":\"%s\",\"sample_rate\":%.9g,\"block\":%u,\"seconds\":%.9g,\"blocks\":%zu,\"period_ns\":%.9g,\"render_ns\":{\"min\":%.9g,\"median\":%.9g,\"p99\":%.9g,\"p99_9\":%.9g,\"max\":%.9g},\"over_50_percent\":%zu,\"over_100_percent\":%zu,\"late_deadlines\":%zu,\"allocations\":%llu,\"faults\":%llu,\"peak\":%.9g}",o.graph.c_str(),o.rate,o.block,o.seconds,count,period,s.min,s.median,s.p99,s.p999,s.max,s.over_half,s.over_period,late,static_cast<unsigned long long>(allocations),static_cast<unsigned long long>(e->meter().faults),peak);
+ auto preempted=preempted_blocks(times,cpu_times,period);SoakStats s(times,period),cpu(cpu_times,period);
+ std::printf("{\"graph\":\"%s\",\"sample_rate\":%.9g,\"block\":%u,\"seconds\":%.9g,\"blocks\":%zu,\"period_ns\":%.9g,\"render_ns\":{\"min\":%.9g,\"median\":%.9g,\"p99\":%.9g,\"p99_9\":%.9g,\"max\":%.9g},\"cpu_ns\":{\"min\":%.9g,\"median\":%.9g,\"p99\":%.9g,\"p99_9\":%.9g,\"max\":%.9g},\"preempted\":%zu,\"over_50_percent\":%zu,\"over_100_percent\":%zu,\"late_deadlines\":%zu,\"allocations\":%llu,\"faults\":%llu,\"peak\":%.9g}",o.graph.c_str(),o.rate,o.block,o.seconds,count,period,s.min,s.median,s.p99,s.p999,s.max,cpu.min,cpu.median,cpu.p99,cpu.p999,cpu.max,preempted,s.over_half,s.over_period,late,static_cast<unsigned long long>(allocations),static_cast<unsigned long long>(e->meter().faults),peak);
  return s.p99<period*.5;
 }
 int main(int argc,char**argv){

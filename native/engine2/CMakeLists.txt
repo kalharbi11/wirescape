@@ -71,7 +71,7 @@ add_test(NAME abi2_guide_tests COMMAND abi2_guide_tests)
 add_library(ws2_guide_ringmod SHARED ../tests2/guide_ringmod/module.cpp)
 target_link_libraries(ws2_guide_ringmod PRIVATE wirescape_sdk2)
 
-foreach(module vco lfo vcf adsr vca clock function_envelope ladder)
+foreach(module vco lfo vcf adsr vca clock function_envelope ladder mixer noise output scale_offset slew)
   add_library(ws2_${module} SHARED ../modules2/${module}/module.cpp)
   target_link_libraries(ws2_${module} PRIVATE wirescape_sdk2)
 endforeach()
@@ -99,12 +99,18 @@ add_test(NAME abi2_soak_cli COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/
   $<TARGET_FILE:wirescape_soak> $<TARGET_FILE_DIR:ws_vco>)
 set_tests_properties(abi2_soak_cli PROPERTIES TIMEOUT 60)
 
-foreach(module clock function_envelope ladder)
+add_executable(abi2_staged_tests tests/staged_tests.cpp ../tests2/allocation_watch.cpp)
+target_link_libraries(abi2_staged_tests PRIVATE wirescape_engine2)
+add_test(NAME abi2_staged_tests COMMAND abi2_staged_tests)
+
+foreach(module clock function_envelope ladder mixer noise output scale_offset slew)
   add_executable(abi2_${module}_tests ../modules2/${module}/tests.cpp ../tests2/allocation_watch.cpp)
   target_link_libraries(abi2_${module}_tests PRIVATE wirescape_sdk2 ${CMAKE_DL_LIBS})
   add_dependencies(abi2_${module}_tests ws2_${module} ws_${module})
   add_test(NAME abi2_${module}_tests COMMAND abi2_${module}_tests $<TARGET_FILE_DIR:ws_${module}>)
 endforeach()
+
+target_link_libraries(abi2_output_tests PRIVATE wirescape_engine2)
 
 add_executable(abi2_returned_filter_stress ../tests2/abi2_returned_filter_stress.cpp)
 target_link_libraries(abi2_returned_filter_stress PRIVATE wirescape_sdk2 wirescape_engine ${CMAKE_DL_LIBS})

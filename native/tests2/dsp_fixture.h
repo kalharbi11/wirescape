@@ -8,6 +8,11 @@
 #include "../modules2/clock/dsp.h"
 #include "../modules2/ladder/dsp.h"
 #include "../modules2/function_envelope/dsp.h"
+#include "../modules2/mixer/dsp.h"
+#include "../modules2/slew/dsp.h"
+#include "../modules2/scale_offset/dsp.h"
+#include "../modules2/output/dsp.h"
+#include "../modules2/noise/dsp.h"
 #include <cstdio>
 #include <cstdlib>
 #define VERIFY(x) do{if(!(x)){std::fprintf(stderr,"ABI2 fixture line %d: %s\n",__LINE__,#x);std::abort();}}while(0)

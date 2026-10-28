@@ -7,8 +7,8 @@
 #include "module_loader.h"
 #include "allocation_watch.h"
 #endif
-static const ws2_descriptor*descriptors[]={ws::Module<ws2ports::Vco>::descriptor(),ws::Module<ws2ports::Lfo>::descriptor(),ws::Module<ws2ports::Vcf>::descriptor(),ws::Module<ws2ports::Adsr>::descriptor(),ws::Module<ws2ports::Vca>::descriptor(),ws::Module<ws2ports::Clock>::descriptor(),ws::Module<ws2ports::FunctionEnvelope>::descriptor(),ws::Module<ws2ports::Ladder>::descriptor()};
-static const char*names[]={"vco","lfo","vcf","adsr","vca","clock","function_envelope","ladder"};
+static const ws2_descriptor*descriptors[]={ws::Module<ws2ports::Vco>::descriptor(),ws::Module<ws2ports::Lfo>::descriptor(),ws::Module<ws2ports::Vcf>::descriptor(),ws::Module<ws2ports::Adsr>::descriptor(),ws::Module<ws2ports::Vca>::descriptor(),ws::Module<ws2ports::Clock>::descriptor(),ws::Module<ws2ports::FunctionEnvelope>::descriptor(),ws::Module<ws2ports::Ladder>::descriptor(),ws::Module<ws2ports::Mixer>::descriptor(),ws::Module<ws2ports::Noise>::descriptor(),ws::Module<ws2ports::Output>::descriptor(),ws::Module<ws2ports::ScaleOffset>::descriptor(),ws::Module<ws2ports::Slew>::descriptor()};
+static const char*names[]={"vco","lfo","vcf","adsr","vca","clock","function_envelope","ladder","mixer","noise","output","scale_offset","slew"};
 static void matrix(){
  for(auto*d:descriptors)for(double rate:{44100.,48000.,96000.})for(uint32_t count:{1u,4u,16u})for(uint32_t block:{1u,17u,256u}){
   auto a=std::make_unique<DspFixture>(d,rate,count),b=std::make_unique<DspFixture>(d,rate,count);
@@ -31,6 +31,24 @@ static void matrix(){
  auto guard=std::make_unique<DspFixture>(descriptors[4]);guard->process.output_count=0;VERIFY(guard->d->process(guard->state,&guard->process)==WS2_INVALID);guard->process.output_count=1;
  guard->input[0][0][0]=std::numeric_limits<float>::quiet_NaN();VERIFY(guard->d->process(guard->state,&guard->process)==WS2_INVALID);VERIFY(guard->outs[0].flags&WS2_CONSTANT);VERIFY(guard->output[0][0][0]==0);
  std::printf("PASS %zu DSP matrix cases, reset/determinism, scalar VCA, VCF counter, nullable/stop/locate transport\n",std::size(descriptors)*27);
+}
+static void vca_broadcast(){
+ for(uint32_t frames:{1u,4u,17u,256u}){
+  auto f=std::make_unique<DspFixture>(descriptors[4],48000,4);
+  f->ins[1].flags=WS2_CONNECTED|WS2_CONSTANT;f->pars[0].flags=WS2_CONSTANT;f->pars[0].channels=4;
+  for(uint32_t c=0;c<4;++c){
+   std::fill_n(f->input[1][c],256,std::numeric_limits<float>::quiet_NaN());
+   std::fill_n(f->parameter[0][c],256,std::numeric_limits<float>::quiet_NaN());
+   f->input[1][c][0]=-.75f+.1f*c;f->parameter[0][c][0]=.25f+.125f*c;
+   for(uint32_t i=0;i<frames;++i)f->input[0][c][i]=(i&1)?-0.f:.125f*(i%5);
+  }
+  f->run(frames);
+  for(uint32_t c=0;c<4;++c)for(uint32_t i=0;i<frames;++i){
+   const float expected=(f->input[0][c][i]*f->input[1][c][0])*f->parameter[0][c][0];
+   VERIFY(!std::memcmp(&expected,&f->output[0][c][i],sizeof(float)));
+  }
+ }
+ std::puts("PASS VCA constant broadcast ignores undefined tails and preserves signed-zero bits");
 }
 static void vca_exact(){
  for(double rate:{44100.,48000.,96000.})for(uint32_t channels:{1u,4u,16u})for(uint32_t frames:{1u,17u,256u})for(uint32_t mask=0;mask<8;++mask){
@@ -64,7 +82,7 @@ static void equivalence(const char*directory,const char*report){
 }
 static void noalloc(){for(auto*d:descriptors){auto f=std::make_unique<DspFixture>(d,48000,16);allocation_watch::Scope watch;for(int i=0;i<16;++i){f->run(17);f->reset();}VERIFY(watch.allocations()==0);}std::puts("PASS zero new/new[]/aligned-new in static SDK/DSP process/reset");}
 #endif
-int main(int argc,char**argv){matrix();vca_exact();
+int main(int argc,char**argv){matrix();vca_exact();vca_broadcast();
 #ifndef WS2_PORTABLE_TEST
  noalloc();if(argc==3)equivalence(argv[1],argv[2]);
 #endif
