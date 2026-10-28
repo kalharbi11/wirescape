@@ -27,6 +27,9 @@ All commands keep physical audio and MIDI devices off.
    workflows must be on its default branch for schedules and dispatch to work.
    They share a concurrency group so a poll cannot overlap a nightly soak or
    benchmark. Do not add another workflow that bypasses that group.
+   Create one public issue titled **Pi nightly summary** and pin it. If it is
+   missing, nightly still runs independent checks and uploads its report, then
+   reports the missing summary issue as a setup blocker.
 5. Commit a measured Pi benchmark baseline in the private repository as
    `baselines/pi5-benchmark.json`, using the public benchmark JSON schema
    (`rows` with at least five positive finite `repetition_means_ns` per row).
@@ -63,7 +66,8 @@ runs before explicitly requesting a retry or pushing a correction.
 
 ## Nightly evidence
 
-`nightly.yml` tests the latest public `main`: the full headless tests, offline
+`nightly.yml` runs at 03:17 America/New_York (with dispatch available) and tests
+the latest public `main`: the full headless tests, offline
 ten-minute soaks at 48 kHz with blocks 64, 128 and 256, the ABI2 benchmark
 against the committed Pi baseline, and generated render hashes against the
 public fixture manifest. Fuzzing is explicitly deferred until codecs and a
