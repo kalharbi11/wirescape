@@ -46,5 +46,5 @@ static void host_notes(){
  check(crossings>=42&&crossings<=45,"host A4 note reaches VCO");
  check(allocations==0,"host callback no allocation");
 }
-int main(int argc,char**argv){try{check(argc==2,"ABI1 fixture library argument");shim(argv[1]);host_notes();std::cout<<"PASS app native catalogue, host notes, ABI1 IDs/library lifetime and allocation-free callbacks\n";return 0;}
+int main(int argc,char**argv){try{check(argc==2,"ABI1 fixture library argument");check(app_engine_create(nullptr)==nullptr,"null configuration refused");shim(argv[1]);host_notes();std::cout<<"PASS app native catalogue, host notes, ABI1 IDs/library lifetime and allocation-free callbacks\n";return 0;}
 catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -33,7 +33,10 @@ struct AppEngine {
  static wirescape::engine2::Config config(const ws_engine_config& c){wirescape::engine2::Config r;r.sample_rate=c.sample_rate;r.max_block=c.max_block_frames;r.max_nodes=c.max_nodes;r.event_budget=c.max_events;return r;}
  const Entry* find(const char* id)const{for(auto& e:entries)if(std::strcmp(e.metadata.id,id)==0)return &e;return nullptr;}
 };
-AppEngine* app_engine_create(const ws_engine_config*c){try{return c?new AppEngine(*c):nullptr;}catch(...){return nullptr;}}
+AppEngine* app_engine_create(const ws_engine_config*c){
+ if(!c)return nullptr;
+ try{return new AppEngine(*c);}catch(...){return nullptr;}
+}
 void app_engine_destroy(AppEngine*e){delete e;}
 uint32_t app_engine_abi_version(){return 2;}
 const char* app_engine_error(const AppEngine*e){return e->error.empty()?e->engine.error().c_str():e->error.c_str();}
