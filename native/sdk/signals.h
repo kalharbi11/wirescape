@@ -55,5 +55,10 @@ public:
         return (x>>r)|(x<<((-r)&31));
     }
     float bipolar() noexcept {return static_cast<float>(next()>>8)*(1.f/8388608.f)-1.f;}
+    // Additive state accessor so modules can persist the generator. `sequence` is always odd
+    // for a seeded generator; restore() trusts its input, so validate before calling it.
+    struct State {uint64_t state, sequence;};
+    State save() const noexcept {return {state_,sequence_};}
+    void restore(const State& s) noexcept {state_=s.state;sequence_=s.sequence;}
 };
 }
