@@ -43,6 +43,7 @@ class ReviewPackTests(unittest.TestCase):
             self.assertTrue(all(p.stat().st_size <= 8192 // 3 for p in paths))
             self.assertLessEqual(sum(p.stat().st_size for p in paths), 8192)
             self.assertEqual("".join(p.read_text() for p in paths), text)
+            self.assertEqual(b"".join(p.read_bytes() for p in paths), text.encode("utf-8"))
             self.assertIn("Diff truncated by size cap", text)
 
     def test_offline_cli_needs_no_token_and_does_not_invent_ci_or_head(self):

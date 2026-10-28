@@ -194,7 +194,7 @@ def write_pack(text, output, stem, count, cap):
         part = raw[:target].decode("utf-8", errors="ignore")
         raw = raw[len(part.encode("utf-8")):]
         path = output / (f"{stem}.md" if count == 1 else f"{stem}-{index + 1}-of-{count}.md")
-        path.write_text(part, encoding="utf-8")
+        path.write_bytes(part.encode("utf-8"))
         paths.append(path)
     if raw:
         raise ValueError("split could not fit text within byte caps")
