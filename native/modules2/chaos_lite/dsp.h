@@ -15,23 +15,23 @@ struct ChaosLite {
         ws::port("right", "Right", WS2_AUDIO, WS2_POLY, 0, "stereo")};
     static constexpr uint32_t stepped = WS2_STEPPED | WS2_AUTOMATABLE;
     static constexpr std::array params{
-        ws::param("shape_a", "A shape", 0, 2, .4f), ws::param("shape_b", "B shape", 0, 2, 1.6f),
-        ws::param("detune", "B detune", -60, 60, 7, "cent"),
-        ws::param("octave_a", "A octave", -3, 3, 0, "oct", stepped, WS2_LINEAR, 0, 4, 1),
-        ws::param("octave_b", "B octave", -3, 3, -1, "oct", stepped, WS2_LINEAR, 0, 4, 1),
-        ws::param("level_a", "A level", 0, 1, .55f), ws::param("level_b", "B level", 0, 1, .35f),
-        ws::param("pan_a", "A pan", -1, 1, -.3f), ws::param("pan_b", "B pan", -1, 1, .3f),
-        ws::param("route", "Route", 0, 2, 0, "", stepped, WS2_LINEAR, 0, 4, 1),
-        ws::param("depth", "Coupling", 0, 1, .5f), ws::param("body_tune", "Body tune", -2, 2, 0, "oct"),
-        ws::param("feedback", "Body feedback", 0, .92f, .3f), ws::param("damping", "Body damping", 0, .99f, .4f),
-        ws::param("body_mix", "Body mix", 0, 1, .25f), ws::param("roughness", "Roughness", 0, 1, .1f),
-        ws::param("rough_rate", "Roughness rate", 1, 150, 70, "Hz"),
-        ws::param("drift", "Drift", 0, 1, .1f), ws::param("jitter", "Jitter", 0, 1, .02f),
-        ws::param("fall", "Fall", 0, 1, 0, "oct/s"), ws::param("lfo_rate", "LFO rate", .02f, 12, .3f, "Hz"),
-        ws::param("lfo_depth", "LFO depth", 0, 1, .1f),
-        ws::param("lfo_target", "LFO target", 0, 2, 0, "", stepped, WS2_LINEAR, 0, 4, 1),
-        ws::param("lfo_self", "LFO self", 0, 1, .2f), ws::param("cutoff", "Cutoff", 20, 20000, 9000, "Hz"),
-        ws::param("level", "Output level", 0, 1, .5f)};
+        ws::param("shape_a", "A shape", 0, 2, .4f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 0), ws::param("shape_b", "B shape", 0, 2, 1.6f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 0),
+        ws::param("detune", "B detune", -60, 60, 7, "cent", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 2, 4, 0),
+        ws::param("octave_a", "A octave", -3, 3, 0, "oct", stepped, WS2_LINEAR, 3, 4, 1),
+        ws::param("octave_b", "B octave", -3, 3, -1, "oct", stepped, WS2_LINEAR, 4, 4, 1),
+        ws::param("level_a", "A level", 0, 1, .55f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 5, 4, 0), ws::param("level_b", "B level", 0, 1, .35f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 6, 4, 0),
+        ws::param("pan_a", "A pan", -1, 1, -.3f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 7, 4, 0), ws::param("pan_b", "B pan", -1, 1, .3f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 8, 4, 0),
+        ws::param("route", "Route", 0, 2, 0, "", stepped, WS2_LINEAR, 9, 4, 1),
+        ws::param("depth", "Coupling", 0, 1, .5f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 10, 4, 0), ws::param("body_tune", "Body tune", -2, 2, 0, "oct", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 11, 4, 0),
+        ws::param("feedback", "Body feedback", 0, .92f, .3f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 12, 4, 0), ws::param("damping", "Body damping", 0, .99f, .4f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 13, 4, 0),
+        ws::param("body_mix", "Body mix", 0, 1, .25f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 14, 4, 0), ws::param("roughness", "Roughness", 0, 1, .1f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 15, 4, 0),
+        ws::param("rough_rate", "Roughness rate", 1, 150, 70, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 16, 4, 0),
+        ws::param("drift", "Drift", 0, 1, .1f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 17, 4, 0), ws::param("jitter", "Jitter", 0, 1, .02f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 18, 4, 0),
+        ws::param("fall", "Fall", 0, 1, 0, "oct/s", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 19, 4, 0), ws::param("lfo_rate", "LFO rate", .02f, 12, .3f, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 20, 4, 0),
+        ws::param("lfo_depth", "LFO depth", 0, 1, .1f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 21, 4, 0),
+        ws::param("lfo_target", "LFO target", 0, 2, 0, "", stepped, WS2_LINEAR, 22, 4, 1),
+        ws::param("lfo_self", "LFO self", 0, 1, .2f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 23, 4, 0), ws::param("cutoff", "Cutoff", 20, 20000, 9000, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 24, 4, 0),
+        ws::param("level", "Output level", 0, 1, .5f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 25, 4, 0)};
     struct Voice {
         CombBody body[2]; Coupler coupler[2]; Drift drift;
         float phase_a = 0, phase_b = 0, lfo = 0, lfo_previous = 0;
