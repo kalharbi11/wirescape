@@ -5,7 +5,9 @@ import json
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
+import sys
 
 from foundation.helpers import git_revision, run_logged, utc_iso, write_json
 
@@ -69,6 +71,44 @@ def size_check(root, spec):
             "line_limit": line_limit, "file_limit": file_limit}
 
 
+def shell_syntax(command):
+    quote, escaped = None, False
+    for index, char in enumerate(command):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and quote != "'":
+            escaped = True
+            continue
+        if quote:
+            if char == quote:
+                quote = None
+            elif quote == '"' and (char == '`' or (char == '$' and re.match(r'[A-Za-z_0-9({?*@#!$-]', command[index + 1:]))):
+                return True
+        elif char in "'\"":
+            quote = char
+        elif char == '#':
+            break
+        elif char in ';&|<>()`' or (char == '$' and re.match(r'[A-Za-z_0-9({?*@#!$-]', command[index + 1:])):
+            return True
+    return False
+
+
+def command_argv(command):
+    words = shlex.split(command, comments=True)
+    if not words or words[0] not in ("python", "python3", "ctest", "bash", "actionlint", "pre-commit"):
+        raise ValueError("unsupported local command; expected python, ctest, bash, actionlint or pre-commit")
+    needs_shell = shell_syntax(command)
+    if needs_shell or words[0] == "bash":
+        bash = shutil.which("bash")
+        if not bash:
+            raise ValueError("Bash is required for shell syntax or scripts; install a working Bash or use plain Python/ctest")
+        return [bash, "-c", command] if needs_shell else [bash, *words[1:]]
+    if words[0] in ("python", "python3"):
+        words[0] = sys.executable
+    return words
+
+
 def run(root, args):
     root = Path(root)
     key = str(args.issue) if args.issue is not None else "file"
@@ -90,11 +130,12 @@ def run(root, args):
             if command.startswith(EXTERNAL):
                 item["status"] = "external"
             else:
-                words = shlex.split(command)
-                if not words or words[0] not in ("python", "python3", "ctest", "bash"):
-                    item.update(status="failed", error="unsupported local command; expected python, ctest or bash")
+                try:
+                    argv = command_argv(command)
+                except ValueError as error:
+                    item.update(status="failed", error=str(error))
                 else:
-                    result = run_logged(["bash", "-c", command], root,
+                    result = run_logged(argv, root,
                                         out.with_name(f"{out.name}-{index}.log"), timeout=args.timeout)
                     item.update(result, command=command, status="passed" if result["exit_code"] == 0 else "failed")
             record["commands"].append(item)

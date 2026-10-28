@@ -92,6 +92,37 @@ class AcceptanceTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("unsupported", report["commands"][0]["error"])
 
+    def test_plain_python_executes_without_bash_and_uses_active_interpreter(self):
+        with patch.object(acceptance.shutil, "which", side_effect=AssertionError("Bash must not be queried")):
+            code, report = self.run_task(['python3 -c "print(456)" # inline task comment'])
+        self.assertEqual(code, 0)
+        self.assertEqual(Path(report["commands"][0]["log"]).read_text().strip(), "456")
+        self.assertEqual(acceptance.command_argv('python -c "pass"'), [sys.executable, "-c", "pass"])
+
+    def test_quoted_regex_code_and_inline_comments_remain_native_arguments(self):
+        self.assertEqual(acceptance.command_argv('ctest -R "^(first|second)$" --output-on-failure # && ignored'),
+                         ["ctest", "-R", "^(first|second)$", "--output-on-failure"])
+        self.assertEqual(acceptance.command_argv('python -c "print(1); print(2)" # note'),
+                         [sys.executable, "-c", "print(1); print(2)"])
+
+    def test_named_static_and_hook_tools_run_natively(self):
+        for command in ('actionlint .github/workflows/static.yml', 'pre-commit run --all-files'):
+            self.assertEqual(acceptance.command_argv(command), command.split())
+
+    def test_real_shell_operators_and_explicit_scripts_use_bash(self):
+        with patch.object(acceptance.shutil, "which", return_value="working-bash"):
+            for command in ('python -c "pass" && ctest', 'ctest | python filter.py', 'ctest > report.txt'):
+                self.assertEqual(acceptance.command_argv(command), ["working-bash", "-c", command])
+            self.assertEqual(acceptance.command_argv('bash "tools/test script.sh" # note'),
+                             ["working-bash", "tools/test script.sh"])
+
+    def test_missing_bash_is_actionable_and_does_not_skip_native_command(self):
+        with patch.object(acceptance.shutil, "which", return_value=None):
+            code, report = self.run_task(['bash tools/test.sh', 'python -c "pass"'])
+        self.assertEqual(code, 1)
+        self.assertIn("Bash is required", report["commands"][0]["error"])
+        self.assertEqual(report["commands"][1]["status"], "passed")
+
 
 if __name__ == "__main__":
     unittest.main()
