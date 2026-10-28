@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "monitor",
+  "name": "Monitor",
+  "library": "ws2_monitor",
+  "license": "GPL-3.0-only",
+  "parameters": {},
+  "inputs": {
+    "events": "event",
+    "signal1": "signal",
+    "signal2": "signal"
+  },
+  "outputs": {}
+}
