@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 
 #define REQUIRE(x) do { if (!(x)) { std::fprintf(stderr, "example check line %d: %s\n", __LINE__, #x); std::abort(); } } while (0)
 

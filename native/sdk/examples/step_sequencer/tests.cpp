@@ -52,16 +52,19 @@ struct Rig {
     ws2_host host{sizeof(host), &pool, allocate};
     const ws2_descriptor* d = ws::Module<S>::descriptor();
     void* state = nullptr;
-    float in[2][kFrames]{};
+    // Big sample buffers live on the heap: Windows gives a test only a 1 MB stack.
+    struct Buffers { float in[2][kFrames]{}; float out[4][16][kFrames]{}; Recorder recorder; };
+    std::unique_ptr<Buffers> buffers = std::make_unique<Buffers>();
+    float (&in)[2][kFrames] = buffers->in;
     const float* in_rows[2]{};
     ws2_signal ins[2]{};
     float values[26]{};
     const float* value_rows[26]{};
     ws2_signal params[26]{};
-    float out[4][16][kFrames]{};
+    float (&out)[4][16][kFrames] = buffers->out;
     float* out_rows[4][16]{};
     ws2_signal_out outs[4]{};
-    Recorder recorder;
+    Recorder& recorder = buffers->recorder;
     ws2_event_out event_outs[4]{};
     ws2_process ctx{};
 

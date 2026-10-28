@@ -13,13 +13,16 @@ struct Rig {
     ws2_host host{sizeof(host), &pool, allocate};
     const ws2_descriptor* d = ws::Module<RandomSource>::descriptor();
     void* state = nullptr;
-    float clock[16][kFrames]{};
+    // Big sample buffers live on the heap: Windows gives a test only a 1 MB stack.
+    struct Buffers { float clock[16][kFrames]{}; float out[2][16][kFrames]{}; };
+    std::unique_ptr<Buffers> buffers = std::make_unique<Buffers>();
+    float (&clock)[16][kFrames] = buffers->clock;
     const float* clock_rows[16]{};
     ws2_signal clock_signal{};
     float values[3]{1, 0.05f, 1};               // voices, smooth, range (plain units)
     const float* value_rows[3]{};
     ws2_signal params[3]{};
-    float out[2][16][kFrames]{};
+    float (&out)[2][16][kFrames] = buffers->out;
     float* out_rows[2][16]{};
     ws2_signal_out outs[2]{};
     ws2_process ctx{};

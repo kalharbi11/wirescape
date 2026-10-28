@@ -19,19 +19,19 @@ Real ported modules live in `native/modules2/` (for example `noise`, `slew`, `vc
 ```
 native/modules2/<name>/          (or native/sdk/examples/<name>/ for MIT examples)
   dsp.h        the module class (all the code)
-  module.cpp   two lines: #include "dsp.h" and WS_REGISTER_MODULE(Class)
+  module.cpp   SPDX line, #include "dsp.h", WS_REGISTER_MODULE(Class)
   module.json  metadata the host and patch migration read
   tests.cpp    callback-level tests (CTest)
   README.md    what it does, ports and parameters table, units
-  DESIGN.md    design notes, provenance, third-party sources with pinned revisions and licences
+  DESIGN.md    design notes and provenance (always; say "original code" if there is no upstream), third-party sources with pinned revisions and licences
   LICENSE      only if it differs from the folder's default
 ```
-- Every new file starts with an SPDX header: `// SPDX-License-Identifier: GPL-3.0-only` for Essentials and app code, `MIT` for SDK examples. Your own modules may use any licence (the SDK is MIT); code derived from GPL sources stays GPL.
+- Every new file except `module.json` (JSON has no comments) starts with an SPDX header: `// SPDX-License-Identifier: GPL-3.0-only` for Essentials and app code, `MIT` for SDK examples. Your own modules may use any licence (the SDK is MIT); code derived from GPL sources stays GPL.
 - `module.json`: `schema_version` 2, `abi_version` 2, `id`, `name`, `library` (the CMake target, prefix `ws2_`), `parameters` mapping each parameter ID to its **slot index** (0, 1, 2… in the order of `params`; not a default value), `inputs`/`outputs` mapping port IDs to `"signal"` or `"event"`, optional `description` and `license`.
 - Build wiring: add a `ws2_<name>` SHARED library and an `abi2_<name>_tests` executable + `add_test` in `native/engine2/CMakeLists.txt` (see how `guide_ringmod` and the examples are wired).
 
 ## 2. IDs never change
-- Module ID: `<library>.<name>`, for example `essentials.vcf`, `midi.to_cv`, `ports.macro_oscillator`, or your own prefix (`kal.random`).
+- Module ID: `<prefix>.<name>`, independent of the CMake library name (`ws2_<name>`), for example `essentials.vcf`, `midi.to_cv`, `ports.macro_oscillator`, or your own prefix (`kal.random`).
 - Port and parameter IDs are short lowercase strings (`pitch`, `gate`, `cutoff`, `step3`).
 - Saved patches refer to these IDs. **Once a module is merged, never rename, renumber or reuse an ID.** Add new ports/parameters at the end; mark retired ones `WS2_HIDDEN` instead of deleting them.
 - `ws::Info{id, name, version}`: bump `version` when behaviour changes; the ID stays.
@@ -44,7 +44,7 @@ native/modules2/<name>/          (or native/sdk/examples/<name>/ for MIT example
 | **Event port** | Discrete things with a sample offset: notes, MIDI, OSC messages | `ws::port(id, name, WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)` |
 
 - Any knob can be modulated by a cable (the host does it, in normalized space, per voice). Don't add a separate "cutoff CV" input unless the module needs special CV behaviour.
-- Parameter flags: the default is `WS2_MODULATABLE|WS2_AUTOMATABLE`. Switches and counts use `WS2_STEPPED|WS2_AUTOMATABLE` with `step = 1` (no smoothing, integer values). Add `WS2_PER_VOICE` when each voice may get its own modulation.
+- Parameter flags: the default is `WS2_MODULATABLE|WS2_AUTOMATABLE`. Switches and counts use `WS2_STEPPED|WS2_AUTOMATABLE` with `step = 1` (no smoothing, integer values; without `WS2_MODULATABLE` no cable can modulate it). Still round stepped values (`std::lround`) and clamp them when you read them. Add `WS2_PER_VOICE` when each voice may get its own modulation.
 - Tapers: `WS2_LINEAR` (default), `WS2_LOG` (needs `min > 0`, good for frequency/time), `WS2_EXP` with `curve`.
 - Hints (`WS2_AUDIO`, `WS2_PITCH`, `WS2_CV_BI`, `WS2_CV_UNI`, `WS2_GATE`, `WS2_TRIGGER`, `WS2_EV_*`) colour the UI and pick defaults. They **never block** a connection: any signal may go anywhere.
 
@@ -58,7 +58,7 @@ native/modules2/<name>/          (or native/sdk/examples/<name>/ for MIT example
 ## 5. Polyphony (channels are voices)
 - A cable carries 1–16 channels. **Channels are voices, never left/right.** Stereo is two ports linked with `stereo_pair`.
 - **The source sets the count.** A processor sets each output to `b.channels()` (the host computes it from the inputs and the port's poly policy). A source (random, sequencer, MIDI→CV) chooses its own count, usually from a `voices` parameter, and calls `b.out(i).set_channels(n)` every block.
-- Poly policy per input: `WS2_POLY` (per voice; a mono cable broadcasts to all voices), `WS2_SUM` (voices are summed, e.g. an output module), `WS2_FIRST` (only channel 0, e.g. a sequencer clock).
+- Poly policy per input: `WS2_POLY` (per voice; a mono cable broadcasts to all voices), `WS2_SUM` (voices are summed, e.g. an output module), `WS2_FIRST` (only channel 0, e.g. a sequencer clock). The host resolves the policy before `process`; reading `ch(0)` on a FIRST input is correct either way.
 - `b.in(i).ch(c)` already maps any channel to 0 for a 1-channel cable, so mono inputs "just work" in a poly module.
 - Keep per-voice state in fixed `std::array<Voice, 16>`, never in vectors grown at runtime.
 - A source must keep `n <= s.max_channels()`: remember `max_channels()` from `prepare` (the `Block` doesn't expose it). `b.channels()` is what the host computed from the inputs, not a limit you choose.
@@ -67,6 +67,7 @@ native/modules2/<name>/          (or native/sdk/examples/<name>/ for MIT example
 A signal flagged CONSTANT has the same value for the whole block; only sample 0 is valid.
 - Inputs: `b.in(i).constant()`; read `ch(c)[0]`.
 - Outputs: if every input you depend on is constant **and** your state doesn't move, call `mark_constant(true)` and write only sample 0. Otherwise `mark_constant(false)` and write every sample.
+- Edge-driven state (S&H, counters): a constant input can only make an edge at sample 0, so process sample 0, then the output is constant for the rest of the block (see the random source example).
 - Running oscillators and noise are never constant. Smoothers become constant only once settled (snap to the target).
 - Correctness first: a wrong CONSTANT flag is a bug; a missing one is only slower.
 
@@ -74,7 +75,7 @@ A signal flagged CONSTANT has the same value for the whole block; only sample 0 
 | Call | Thread | May allocate? | Do |
 |---|---|---|---|
 | `memory_requirements(config)` (static, optional) | control | no | Report extra bytes you will request in `prepare` (`fast_bytes`, `large_bytes`) |
-| `prepare(const ws::Setup&)` | control, engine quiescent | **yes**, only via `s.alloc(bytes, align, WS2_FAST/WS2_LARGE)` | Size buffers for `s.max_block()`, `s.max_channels()`, `s.sample_rate()`. Return `false` if `alloc` returns null |
+| `prepare(const ws::Setup&)` | control, engine quiescent | **yes**, only via `s.alloc(bytes, align, WS2_FAST/WS2_LARGE)` | Size buffers for `s.max_block()`, `s.max_channels()`, `s.sample_rate()`. Return type `void` or `bool`; return `false` if `alloc` returns null |
 | `reset()` | audio or control | no | Return to the deterministic start state. Cannot emit events |
 | `process(ws::Block&)` | audio | **no** | The work |
 | `save_state` / `load_state` (optional) | control | no | Versioned, portable state |
@@ -117,7 +118,8 @@ void process(ws::Block& b) {
 - Write: start from `ws2_event e{}`, set `struct_size = sizeof(ws2_event)`, `type`, `offset`, `port`, `note_id`, `channel`, `key`, `value`, and call `b.emit(output_port_index, e)`. The index is the **output port's index** in `outputs` (event outputs count like signal outputs); set `e.port` to the same index. Set an event output's channel count to 0. `emit` returns `false` when the bounded queue is full.
 - **Never strand a note-off.** If `emit` fails for a note-off, keep it pending and retry at the next sample or block. Never spin.
 - Note IDs: give each new note a fresh `note_id`; send the matching NOTE_OFF with the same `note_id` and `key`. Stealing a voice: NOTE_CHOKE for the old note before NOTE_ON for the new one, at the same offset.
-- Same-frame clock and reset: **reset wins** (the clock then plays step 1). Stop or reset releases any sounding note at that sample.
+- Same-frame clock and reset: **reset wins** (the clock then plays step 1). Stop or reset releases any sounding note at that sample, and gate outputs drop with it.
+- Hosts supply finite inputs and parameters; your outputs must stay finite anyway (feedback, division).
 - Don't keep pointers to event payloads after `process` returns. `b.transport()` may be null.
 - For note → pitch/gate/velocity across voices, use the shared allocator in `native/voice/` rather than writing your own.
 
@@ -130,7 +132,7 @@ void process(ws::Block& b) {
 - Patch compatibility matters more than exact DSP continuity: never break loading of an older version.
 
 ## 12. Tests (copy from the examples) and definition of done
-Tests call the real C callbacks through the wrapper (`ws::Module<Class>::descriptor()`), not just the class. Copy the harness from the example closest to yours (`native/sdk/examples/test_support.h` holds the shared pieces: arena, `REQUIRE`, state byte sink/source, fixed buffers). The wrapper requires every output, event outputs included, to have `max_channels` non-null rows, and it rejects non-finite outputs with `WS2_INVALID`. Code under `native/sdk/` (examples and their tests) may not include `<vector>`, `<functional>` and similar (`abi2_banned_includes`); use fixed arrays. `native/modules2/*/tests.cpp` is exempt. Every module covers:
+Tests call the real C callbacks through the wrapper (`ws::Module<Class>::descriptor()`), not just the class. Copy the harness from the example closest to yours (`native/sdk/examples/test_support.h` holds the shared pieces: arena, `REQUIRE`, state byte sink/source, fixed buffers). The wrapper requires every output, event outputs included, to have `max_channels` non-null rows, and it rejects non-finite outputs with `WS2_INVALID`. Code under `native/sdk/` (examples and their tests) may not include `<vector>`, `<functional>` and similar (`abi2_banned_includes`); use fixed arrays. `native/modules2/*/tests.cpp` is exempt. Wrapper rules your harness must satisfy, or `process` returns `WS2_INVALID`: each output's `max_channels` equals `config.max_channels`, `ctx.sample_rate` equals the prepared rate, `ctx.channels >= 1`, and the input/output/parameter counts equal the descriptor's. Includes from `native/modules2/<name>/tests.cpp`: `../../sdk/examples/test_support.h` and `../../tests2/allocation_watch.h`; link `native/tests2/allocation_watch.cpp`. Banned under `native/sdk/`: `<vector> <string> <thread> <mutex> <iostream> <filesystem> <map> <unordered_map> <list> <deque> <functional> <sstream> <fstream> <chrono>`. **Windows gives a test a 1 MB stack:** keep big sample buffers on the heap (`std::make_unique`), as the examples' `Rig::Buffers` do. A single-channel module (FIRST inputs, one output voice) replaces the channel matrix with a "reads channel 0 only" test. Every module covers:
 1. **Frame matrix:** one block vs blocks of 1, 17, 64 and 256 frames give bit-identical output (and identical events at absolute frames).
 2. **Rate matrix:** 44.1, 48 and 96 kHz prepare and behave (times scale with rate).
 3. **Channel matrix:** 1, 4 and 16 voices; voices are independent; mono input broadcasts.
@@ -164,6 +166,7 @@ Tests call the real C callbacks through the wrapper (`ws::Module<Class>::descrip
 ## 13. Reference (SDK API in one place)
 - `ws::port(id, name, hint=WS2_ANY, poly=WS2_POLY, unpatched=0, stereo_pair=nullptr, kind=WS2_SIGNAL)`. `unpatched` is the value an unconnected input reads.
 - `ws::param(id, name, min, max, default, unit="", flags=MODULATABLE|AUTOMATABLE, taper=LINEAR, legacy_index=0, curve=4, step=0)`. `legacy_index` keeps ABI 1 meaning for ported modules.
+- Signatures: `int save_state(ws::Writer)`, `int load_state(ws::Reader)` (return `WS2_OK`/`WS2_CAPACITY`/`WS2_INVALID`/`WS2_UNSUPPORTED`), `uint32_t latency_frames()`, `static ws2_memory memory_requirements(const ws2_config&)`.
 - Class shape: `static constexpr ws::Info info`, `static constexpr std::array inputs, outputs, params` (empty: `std::array<ws2_port,0>` / `std::array<ws2_param,0>`), `prepare`, `reset`, `process`; optional `memory_requirements`, `save_state`, `load_state`, `latency_frames`, `query_ports(config, ports)` (config-dependent ports with stable IDs). End with `WS_REGISTER_MODULE(Class)`; the wrapper generates the C ABI, validation and the exception barrier.
 - `ws::Setup`: `sample_rate()`, `max_channels()`, `max_block()`, `config.seed`, `alloc(bytes, alignment=32, hint=WS2_FAST)`.
 - `ws::Block`: `frames()`, `channels()`, `sample_rate()`, `frame_position()`, `in(i)`, `param(i)`, `out(i)`, `events()`, `events_in(port)`, `split(range, event)`, `emit(port, e)`, `transport()`.
