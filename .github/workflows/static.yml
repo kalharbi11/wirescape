@@ -24,7 +24,7 @@ jobs:
       - name: Install named analysis tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang-tidy-18 clang-format-18 cppcheck qt6-base-dev qt6-declarative-dev
+          sudo apt-get install -y cmake ninja-build clang-tidy-18 clang-format-18 cppcheck
           python -m pip install ruff==0.14.1
           actionlint_tmp="$(mktemp -d)"
           trap 'rm -rf "$actionlint_tmp"' EXIT
@@ -35,10 +35,17 @@ jobs:
           tar -xzf actionlint_1.7.7_linux_amd64.tar.gz actionlint
           install -m 755 actionlint "$RUNNER_TEMP/actionlint"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0, existing CI action
+        with:
+          version: '6.10.3'
+          arch: linux_gcc_64
+          cache: true
       - name: Configure Qt compile database
         run: cmake -S native -B build/static -G Ninja -DCMAKE_BUILD_TYPE=Release -DWIRESCAPE_BUILD_UI=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - name: Build translation units and record compiler dependencies
-        run: cmake --build build/static --parallel 2
+        run: |
+          cmake --build build/static --target studio_ui_tests --parallel 2
+          cmake --build build/static --parallel 2
       - name: Analyze and summarize every tool
         if: always()
         env:
