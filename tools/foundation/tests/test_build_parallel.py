@@ -31,4 +31,3 @@ class BuildParallelTests(unittest.TestCase):
                 command = run.call_args_list[1].args[0]
                 expected = ["--parallel", limit] if limit else ["--parallel"]
                 self.assertEqual(command[command.index("--parallel"):], expected)
-
