@@ -17,6 +17,7 @@ tier: T0
 budget: 1 Codex session
 size: <= 120 changed lines, <= 3 files
 must_pass:
+  - python -m pip install ruff==0.14.1
   - python -m unittest discover -s tools/foundation/tests -p test_build_parallel.py
   - python -m ruff check tools/foundation/tests/test_build_parallel.py
   - ci: linux-arm64, windows-x64, guard green on the exact head
