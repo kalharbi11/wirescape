@@ -37,6 +37,12 @@ When `accept` is green on the exact head, the builder sets `status/ready-to-merg
 | Stacked PR (base is another task branch) | nobody | only after its base merges and GitHub retargets it to `main` |
 | Planner docs PRs | user (or planner-enabled auto-merge for docs-only T0) | green |
 
+**Details settled 2026-10-29:**
+- Auto-merge may use any merge method; squash is fine.
+- A stacked PR's acceptance measures its **own** diff against its base branch (`accept --base <PR base ref>`), not against `main`; after the parent merges it is re-run against `main`.
+- Mechanical, behaviour-free type fixes in `native/sdk/**` (no new API, no ABI header) are T0; anything else in the SDK is T2.
+- Exact output hashes are asserted only **within one build** (same compiler and flags), for example patched vs. original in the same binary. Hashes from other compilers or architectures are recorded in reports, never asserted.
+
 **The user's rule of thumb:** a PR with base `main`, all checks green and no `tier/T2` label can be merged without asking Claude. Non-required checks (the static job, the optional acceptance job) may be red only if the PR didn't touch what they report on. Auto-merge needs the repository setting *Allow auto-merge* (Settings → General → Pull Requests).
 
 ## 4. Task files and the acceptance block
