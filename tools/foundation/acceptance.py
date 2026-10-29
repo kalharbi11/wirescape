@@ -11,7 +11,7 @@ import sys
 
 from foundation.helpers import git_revision, run_logged, utc_iso, write_json
 
-EXTERNAL = ("pi:", "ci:", "user:", "chatgpt-pre-review:")
+EXTERNAL = ("pi:", "pi-run:", "ci:", "user:", "chatgpt-pre-review:")
 
 # Planner-approved exceptions for historical, user-run tasks (issue #114).
 # These are skipped and visibly NOT verified, never reported as a task pass.
