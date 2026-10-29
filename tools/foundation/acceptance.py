@@ -55,20 +55,22 @@ def find_task(root, issue):
     return matches[0]
 
 
-def size_check(root, spec):
+def size_check(root, spec, base="origin/main"):
     if spec == "n/a":
         return {"status": "not_applicable"}
+    revision = subprocess.check_output(["git", "rev-parse", "--verify", "--end-of-options",
+                                        base + "^{commit}"], cwd=root).decode().strip()
     line_limit, file_limit = map(int, re.findall(r"\d+", spec))
     # Numstat -z has extra path records for renames. Disable rename detection so
     # deleted and added paths both count rather than misparsing those records.
     raw = subprocess.check_output(["git", "diff", "--no-renames", "--numstat", "-z",
-                                   "origin/main...HEAD"], cwd=root)
+                                   revision + "...HEAD"], cwd=root)
     entries = [entry.split(b"\t", 2) for entry in raw.split(b"\0") if entry]
     binary = any(a == b"-" or d == b"-" for a, d, _ in entries)
     lines = sum(int(a) + int(d) for a, d, _ in entries if a != b"-" and d != b"-")
     return {"status": "passed" if not binary and lines <= line_limit and len(entries) <= file_limit else "failed",
             "changed_lines": lines, "files": len(entries), "binary_changes": binary,
-            "line_limit": line_limit, "file_limit": file_limit}
+            "line_limit": line_limit, "file_limit": file_limit, "base": base, "base_commit": revision}
 
 
 def shell_syntax(command):
@@ -124,7 +126,7 @@ def run(root, args):
         text = task.read_text(encoding="utf-8")
         block = parse(text)
         record.update(task=str(task), task_sha256=hashlib.sha256(text.encode()).hexdigest(), tier=block.get("tier"))
-        record["size"] = size_check(root, block["size"])
+        record["size"] = size_check(root, block["size"], getattr(args, "base", "origin/main"))
         for index, command in enumerate(block["must_pass"]):
             item = {"command": command}
             if command.startswith(EXTERNAL):
