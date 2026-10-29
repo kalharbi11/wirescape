@@ -69,6 +69,15 @@ public:
     int active_count() const noexcept;
     int release_count() const noexcept;
     int held_count() const noexcept;
+    bool source_in_use(uint32_t source) const noexcept {
+        for (const auto &held : held_)
+            if (held.used && held.note.source_id == source) return true;
+        for (int i = 0; i < kMaxSustainSources; ++i)
+            if (sustain_used_[i] && sustain_sources_[i] == source) return true;
+        for (int i = 0; i < voice_count(); ++i)
+            if (voices_[i].gate && voices_[i].source_id == source) return true;
+        return false;
+    }
     Config config() const noexcept { return config_; }
 
     // Reserved for a future MPE adapter. Per-note expression can already be

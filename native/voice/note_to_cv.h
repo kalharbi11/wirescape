@@ -45,7 +45,18 @@ class NoteToCv {
             if (s.used && s.id == source && s.channel == channel) return i;
             if (!s.used && empty < 0) empty = i;
         }
-        if (!create || empty < 0) return -1;
+        if (!create) return -1;
+        if (empty < 0) {
+            // Reclaim only between events, after synchronous release emission.
+            // Host output queues hold original source IDs, not these tokens.
+            for (int i = 0; i < kMaxHeldNotes; ++i) {
+                bool reserved = allocator_.source_in_use(static_cast<uint32_t>(i));
+                for (const auto &a : anonymous_)
+                    if (a.used && a.source == static_cast<uint32_t>(i)) reserved = true;
+                if (!reserved) { empty = i; break; }
+            }
+        }
+        if (empty < 0) return -1;
         sources_[empty] = {true, source, static_cast<int16_t>(channel)};
         return empty;
     }
