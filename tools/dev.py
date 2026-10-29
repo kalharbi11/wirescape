@@ -779,6 +779,7 @@ def make_parser() -> argparse.ArgumentParser:
     child = sub.add_parser("accept", help="run a task's local acceptance commands")
     child.add_argument("issue", type=int, nargs="?")
     child.add_argument("--file", help="explicit task file instead of issue discovery")
+    child.add_argument("--base", default="origin/main", help="diff base ref for size checks (default: origin/main)")
     child.add_argument("--timeout", type=float, default=600, help="seconds per command")
     child.add_argument("--json", action="store_true", help="print only the JSON summary")
     child.set_defaults(func=lambda args: run_acceptance(ROOT, args))

@@ -2,20 +2,15 @@
 
 Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-28 (Jam checkpoint adopted from the fresh-eyes review).
 
-## Now (≤30 lines; single source of truth; checked against the GitHub API 2026-10-28 ~17:00 UTC)
-- **Focus:** Jam checkpoint (J) + workflow v2 (`docs/WORKFLOW.md`). Agents run in the cloud; the Pi is a runner only.
-- **Merged today:** #75 J plan/guide, #40 M2-3, #41 M2-4, #95 workflow v2, #96 CodeQL, #102 guard reads issue-named paths, #97 cloud setup, #103 review packs, **#76 J7 CHAOS-lite**.
-- **Open PRs:**
-  - #99 accept tool (T0): green, ready → merge.
-  - #104 static analysis, #106 PR template (T0): Ruff must become diff-only (61 old findings), then merge. #105 pre-commit is stacked on #104.
-  - #98 Pi bridge docs: refresh after wirescape-pi#1, then merge.
-  - #78 J1 (T2): code done; needs Windows CI + `pi5/soak` (label `ci/pi-soak`), then Claude review.
-  - #79 J2 → #80 J3 → #81 J4 → #82 J5: stacked on #78; never merge before #78.
-  - #77 J6 (T1): upstream patch + Windows fix pending.
-- **Pi bridge:** runner live; blocked on token permissions (HTTP 403) and wirescape-pi#1 (PATH, soak label). Summary issue #101.
-- **Next 3:** (1) user: token + Codex network setting + merge #99 and wirescape-pi#1; (2) Codex: J1 to green, then J6, J2, J3; (3) ChatGPT: #88, #93, #56, #49, #66 and T1 pre-reviews.
-- **Routing:** Copilot gets nothing. Deferred W items: #91, #92 until J1 merges; #94 after J5.
-- **Deferred until after J9:** #64 and the Windows 1.05× gate, M3 full UI, Learn/Activity/Mappings, MIDI Out/Clock, UDP Send, OSC Out, MPE, Quantizer + Basic Sequencer, X-4, long soaks, the formal ABI freeze.
+## Now (≤30 lines; checked 2026-10-29 ~05:00 UTC)
+- **Focus:** Jam checkpoint (J). Autonomous mode is the default (`docs/WORKFLOW.md` §3c): agents never idle, auto-merge green work, and Claude reviews T2 once a day (~10:30 New York).
+- **Merged since 10-28 17:00:** #99, #107, #112, #110, #111, #109, #108, #104, #117, #115, #105, #106, #118 (W backlog nearly done); wirescape-pi #3, #5.
+- **Pi:** the runner works (token OK, cmake/ctest fixed). wirescape-pi#7 turns the throttled cron into a 5-minute daemon plus `ci/pi-accept` task commands; wirescape-pi#6 adds the Windows laptop as a runner.
+- **J stack:** #78 J1 (T2) needs fresh `pi5` + `pi5/soak` (the `ci/pi-retry` label is set), then Claude's review → #79 J2 → #80 J3 → #81 J4, #82 J5 (stale, Windows red; refresh after #80).
+- **#77 J6 (T1):** all desktop CI green; needs `pi5/accept` (benchmark) and ChatGPT's pre-review → auto-merge.
+- **Open W:** #98 (Pi docs; label-only, needs Claude's ok), #114 (acceptance "not verified" case), #91, #92 after J1, #94 after J5.
+- **User-only:** merge wirescape-pi #6 and #7, start the daemon once, register the laptop runner; later J9 (#45).
+- **Deferred until after J9:** #64 / Windows 1.05×, M3 full UI, Learn/Mappings, MIDI Out/Clock, OSC Out, UDP Send, MPE, Quantizer + Basic Sequencer, X-4, long soaks, the formal ABI freeze.
 
 ## Vision
 Wirescape is a raw, expandable modular environment for music. Its aims:

@@ -17,6 +17,8 @@ The rules every agent follows are in `AGENTS.md`. This file holds the detail. So
 | `poll.yml` | every 20 min + manual | open PRs whose head is in this repo (never forks), **non-draft or labelled `ci/pi`**, head SHA without a `pi5` status: headless Release build + `tools/dev.py test` on the exact SHA | commit status `pi5` |
 | `nightly.yml` | 03:17 New York + manual | `main`: build, full tests, 600 s soaks (poly8, blocks 64/128/256), benchmark vs `baselines/pi5-benchmark.json`, frozen render hashes; later fuzzing (#94), clang-tidy (#87), review packs (#86) | overwrites the open issue **Pi nightly summary** (#101); opens "Pi nightly regression: <sha>" when a passing check starts failing |
 
+CodeQL (C/C++, Python and Actions) runs through `.github/workflows/codeql.yml` on GitHub Actions, **not** on the Pi runner; advanced setup is already configured, so do not also enable default setup.
+
 Builders: add `ci/pi` to a draft PR when its acceptance block has `pi:` lines; the `pi5` status appears within about 20 minutes plus build time. Safety: public code runs with a scrubbed environment (no token, no Actions credentials); fork heads are skipped; no `sudo`, devices or LAN listeners; one job at a time.
 
 ## 3. Review tiers
@@ -37,7 +39,64 @@ When `accept` is green on the exact head, the builder sets `status/ready-to-merg
 | Stacked PR (base is another task branch) | nobody | only after its base merges and GitHub retargets it to `main` |
 | Planner docs PRs | user (or planner-enabled auto-merge for docs-only T0) | green |
 
+**Details settled 2026-10-29:**
+- Auto-merge may use any merge method; squash is fine.
+- A stacked PR's acceptance measures its **own** diff against its base branch (`accept --base <PR base ref>`), not against `main`; after the parent merges it is re-run against `main`.
+- Mechanical, behaviour-free type fixes in `native/sdk/**` (no new API, no ABI header) are T0; anything else in the SDK is T2.
+- Exact output hashes are asserted only **within one build** (same compiler and flags), for example patched vs. original in the same binary. Hashes from other compilers or architectures are recorded in reports, never asserted.
+
 **The user's rule of thumb:** a PR with base `main`, all checks green and no `tier/T2` label can be merged without asking Claude. Non-required checks (the static job, the optional acceptance job) may be red only if the PR didn't touch what they report on. Auto-merge needs the repository setting *Allow auto-merge* (Settings → General → Pull Requests).
+
+## 3c. Autonomous mode (the default; the user is often away 04:00–11:00 New York)
+Goal: agents keep moving without the user or Claude in the loop, and every shortcut stays reviewable later.
+
+**Never idle.** While a PR waits for CI, the Pi or a review, take the next queue item and re-check pending ones between items. Stacked branches are fine for dependent work. Questions go into the issue with `status/blocked` on *that* item only; the queue continues.
+
+**Self-decisions** a builder may make alone. Record each one under a `Self-decisions (review later)` heading in the PR body and the handoff:
+- Size overruns up to +50% of the task's line or file cap, tests included.
+- Test expectation updates that follow directly from the intended new behaviour (for example a catalogue count 13 → 14), with a one-line reason. Never loosen tolerances, thresholds or hashes.
+- Merging `main` (or the parent branch) in and resolving conflicts by keeping both sides.
+- Adding `ci/pi`, `ci/pi-soak` or `ci/pi-retry`, and retrying an infrastructure failure once.
+- Picking among options the task file already lists; small refactors inside touched files needed to get CI green; fixing bugs in its own earlier PRs.
+
+**Still a stop** (ask on the issue, block only that item): ABI header edit, new dependency, equivalence or hash delta beyond a planner-set bound, deleting or skipping tests, label-only paths, a security finding, or a design choice that changes IDs, file formats or user-visible behaviour not in the spec.
+
+**Self-review before `status/ready-to-merge`:** run `python tools/review_pack.py <PR#> --prompt chatgpt`, read it against its checklist (realtime, IDs, state/versioning, thresholds, licences, devices) and post a `Self-review` comment with each item ticked or explained. T1 additionally needs the ChatGPT pre-review (posted by ChatGPT's scheduled watch).
+
+**T2 and label-only auto-merge:** when Claude's review comment on a T2 PR, or on a PR touching label-only paths, says **`Claude: approved for auto-merge`**, the builder may enable auto-merge on it like a T0, as long as the head hasn't changed since that comment (any new push needs a fresh one). Stacked children are retargeted to `main` automatically by GitHub once their parent merges; then the builder re-runs their acceptance against `main` and treats them as normal PRs.
+
+**J stack merge order** (stacked PRs never auto-merge while stacked): #78 J1 → GitHub retargets #79 to `main` → builder merges `main` in, re-runs acceptance against `main`, gets green + pre-review → auto-merge → same for #80 → then #81 and #82 are refreshed onto `main` (they're stale) and follow. A child's own diff is reviewed while stacked, so retargeting needs only a green re-run, not a second review, unless the merge changed its code.
+
+**Overnight timeline (New York time):**
+| When | Who | What |
+|---|---|---|
+| every 5 min | Pi runner daemon | `pi5`, `pi5/soak`, `pi5/accept` (task `pi-run:` lines) on eligible PR heads |
+| hourly | ChatGPT scheduled watch (22:00–11:00) | for each open PR: green T1 without a pre-review → post the pre-review; T0/T1 meeting §3b → set `status/ready-to-merge` and enable auto-merge; post one summary on #101 at 07:00 |
+| hourly | Laptop runner | once per new `main` SHA: full Windows (Qt) build, tests, benchmark → "Laptop nightly summary" issue |
+| 03:17 | Pi runner | nightly: full tests, 600 s soaks, benchmark, render hashes → #101 |
+| see §3d | Claude scheduled check-ins | T2 reviews, merges what's safe, fills the queues, starts Codex with an `@codex` comment |
+| any time | Codex long task | works the queue in order, never idle (above) |
+
+## 3d. Check-in schedule and agent hand-offs
+**Current schedule (New York time). Claude updates this table at every check-in; the next ones are always listed here.**
+
+| Date | Claude check-in | Codex follow-up |
+|---|---|---|
+| 2026-10-29 | 05:00 | 05:30 |
+| 2026-10-29 | 10:30 | 11:00 |
+| 2026-10-29 | 13:45 | 14:15 |
+| 2026-10-29 | 17:30 | 18:00 |
+
+**At every Claude check-in:**
+1. Status sweep (cheap subagent), then fix what's broken (bridge, rules, task files, decisions).
+2. **Merge what's safe:** enable auto-merge on every PR that meets §3b/§3c (Claude may do this directly at check-ins; the user authorized it). For T2 and label-only PRs, review first, then comment `Claude: approved for auto-merge` and enable it.
+3. **Keep queues full:** create the next issues (with acceptance blocks) so Codex and ChatGPT always have at least a full session of work queued.
+4. Update the table above with the next check-in times.
+5. End with a planner comment on #29 listing Codex's queue (no `@codex` mention; Codex runs its own timers).
+
+**Codex:** sets its own timers for the Codex follow-up times in the table (30 minutes after each Claude check-in). At each one it reads the latest planner comment on #29, works its queue under §3c and posts a round-up on #29. Claude never tries to start Codex; it only keeps this table current.
+
+**ChatGPT:** keeps its hourly overnight watch (§3c) and posts its 07:00 summary on #101.
 
 ## 4. Task files and the acceptance block
 Every issue points to a `docs/tasks/` file that ends with a fenced `acceptance` block. If the planner can't write one, the task isn't ready.
