@@ -13,6 +13,10 @@ from foundation.helpers import git_revision, run_logged, utc_iso, write_json
 
 EXTERNAL = ("pi:", "ci:", "user:", "chatgpt-pre-review:")
 
+# Planner-approved exceptions for historical, user-run tasks (issue #114).
+# These are skipped and visibly NOT verified, never reported as a task pass.
+LEGACY_EXCEPTIONS = {45: "user J9 session", 64: "deferred laptop measurement"}
+
 
 def parse(text):
     blocks = re.findall(r"(?ms)^```acceptance[^\S\n]*\n(.*?)^```[^\S\n]*$", text)
@@ -53,6 +57,27 @@ def find_task(root, issue):
     if len(matches) != 1:
         raise ValueError(f"expected one task title naming #{issue}; found {len(matches)}; use --file")
     return matches[0]
+
+
+
+def select_pr_task(root, pr_body):
+    """Return (issue, task, note); fail closed for referenced unverified tasks."""
+    match = re.search(r"(?i)\bCloses\s+#(\d+)\b", pr_body or "")
+    if not match:
+        return None, None, "No Closes #N reference; acceptance not selected."
+    issue = int(match.group(1))
+    if issue in LEGACY_EXCEPTIONS:
+        return issue, None, (f"legacy exception — not verified: #{issue} "
+                             f"({LEGACY_EXCEPTIONS[issue]}); this is not an acceptance pass")
+    try:
+        task = find_task(Path(root), issue)
+        spec = parse(task.read_text(encoding="utf-8"))
+        if spec.get("tier") not in ("T0", "T1", "T2"):
+            raise ValueError("acceptance block must declare a valid tier")
+    except (OSError, ValueError) as error:
+        raise ValueError(f"not verified: issue #{issue}: {error}") from error
+    return issue, task, ""
+
 
 
 def size_check(root, spec, base="origin/main"):
