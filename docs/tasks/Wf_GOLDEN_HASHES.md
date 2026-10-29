@@ -14,7 +14,7 @@ seed with its existing default retained; no public ABI changes.
 ```acceptance
 tier: T1
 budget: 1 Codex session
-size: <= 350 changed lines, <= 40 files (hash files are tiny)
+size: <= 350 changed lines, <= 40 files
 must_pass:
   - ctest --test-dir build/native -R golden_render_hashes --output-on-failure
   - python tools/golden.py check
