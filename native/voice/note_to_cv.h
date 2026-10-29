@@ -53,7 +53,10 @@ class NoteToCv {
                 bool reserved = allocator_.source_in_use(static_cast<uint32_t>(i));
                 for (const auto &a : anonymous_)
                     if (a.used && a.source == static_cast<uint32_t>(i)) reserved = true;
-                if (!reserved) { empty = i; break; }
+                if (!reserved) {
+                    empty = i;
+                    break;
+                }
             }
         }
         if (empty < 0) return -1;
