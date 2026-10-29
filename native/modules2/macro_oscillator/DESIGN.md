@@ -122,10 +122,10 @@ arithmetic expression is unchanged. It applies to stmlib
 Host RNG initialization folds the high seed word into the low word before the
 per-voice offset. Seeds below 2^32 retain their output; a model17 regression
 checks distinct high-word seeds and exact reset repeatability.
-The unpatched oracle is now limited to single-config Release. Configuration and
+The unpatched oracle retains clean Release/multi-config coverage. Configuration and
 toolchain flags, directory/target compile and link options, and unevaluated
-option expressions conservatively disable it when instrumented. Multi-config
-builds run patched tests without an unpatched target. The header overlay requires
+option expressions conservatively disable it when instrumented. Instrumented
+multi-config builds have no unpatched target; clean configurations retain it. The header overlay requires
 exactly one expected patch expression; missing/duplicate tokens fail configure.
 The ABI2 guard CTest covers malformed headers and instrumentation settings.
 Real Ninja and Ninja Multi-Config Release configurations with UBSan in
