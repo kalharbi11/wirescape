@@ -3,6 +3,7 @@
 import argparse
 import fnmatch
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -140,6 +141,21 @@ def check_staged_format():
     return errors
 
 
+def warn_tier(body=None):
+    if body is None:
+        number, repo = os.environ.get('PR'), os.environ.get('GITHUB_REPOSITORY')
+        if not number or not repo:
+            return
+        try:
+            body = subprocess.check_output(['gh', 'api', f'repos/{repo}/pulls/{number}', '--jq', '.body // ""'],
+                                           text=True, stderr=subprocess.DEVNULL, timeout=15)
+        except (OSError, subprocess.SubprocessError):
+            print('warning: PR body unavailable; Tier line was not checked')
+            return
+    if not re.search(r'(?im)^\s*(?:\*\*)?Tier:', body):
+        print('warning: PR body has no Tier: line (choose T0, T1 or T2)')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--base')
@@ -148,6 +164,7 @@ if __name__ == '__main__':
     local.add_argument('--staged', action='store_true')
     local.add_argument('--staged-format', action='store_true')
     parser.add_argument('--labels-json', default='[]')
+    parser.add_argument('--pr-body')
     parser.add_argument('--issue-body-file', help='body of the issue the PR closes')
     args = parser.parse_args()
     if args.staged:
@@ -157,6 +174,7 @@ if __name__ == '__main__':
     else:
         if not args.base or not args.head:
             parser.error('--base and --head are required for CI mode')
+        warn_tier(args.pr_body)
         named = set()
         if args.issue_body_file:
             with open(args.issue_body_file, encoding='utf-8') as body:
