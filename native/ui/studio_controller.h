@@ -76,8 +76,8 @@ public:
     Q_INVOKABLE void renderDemo(const QUrl&);
     Q_INVOKABLE void resetPatch();
     bool smokeCheck(QJsonObject& result);
-    bool keyboardChordCheck(QJsonObject& result);
-signals:
+    bool keyboardChordCheck(QJsonObject &result);
+  signals:
     void documentChanged();
     void parameterChanged(int node, int parameter, double value, QString display);
     void statusChanged();

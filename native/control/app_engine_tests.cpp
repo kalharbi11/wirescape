@@ -12,13 +12,26 @@ static void check(bool ok,const char*message){if(!ok)throw std::runtime_error(me
 using App=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
 static App make(){ws_engine_config c{sizeof(c),48000,128,32,2048};App e(app_engine_create(&c),app_engine_destroy);check(bool(e),"create app engine");return e;}
 static void shim(const char*library){
- auto source=make();check(app_engine_module_count(source.get())==14,"thirteen Essentials plus host.keyboard");
- for(auto* native:wirescape::app::builtin_modules()){
-  const ws_module_descriptor* metadata=nullptr;for(uint32_t i=0;i<app_engine_module_count(source.get());++i){auto* d=app_engine_module(source.get(),i);if(!std::strcmp(d->id,native->id))metadata=d;}
-  check(metadata&&metadata->input_count==native->input_count&&metadata->output_count==native->output_count,"catalogue port counts");
-  for(uint32_t i=0;i<native->input_count;++i)check(metadata->inputs[i].kind==static_cast<uint32_t>(native->inputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL),"catalogue input kind");
-  for(uint32_t i=0;i<native->output_count;++i)check(metadata->outputs[i].kind==static_cast<uint32_t>(native->outputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL),"catalogue output kind");
- }
+    auto source = make();
+    check(app_engine_module_count(source.get()) == 14, "thirteen Essentials plus host.keyboard");
+    for (auto *native : wirescape::app::builtin_modules()) {
+        const ws_module_descriptor *metadata = nullptr;
+        for (uint32_t i = 0; i < app_engine_module_count(source.get()); ++i) {
+            auto *d = app_engine_module(source.get(), i);
+            if (!std::strcmp(d->id, native->id)) metadata = d;
+        }
+        check(metadata && metadata->input_count == native->input_count &&
+                  metadata->output_count == native->output_count,
+              "catalogue port counts");
+        for (uint32_t i = 0; i < native->input_count; ++i)
+            check(metadata->inputs[i].kind ==
+                      static_cast<uint32_t>(native->inputs[i].hint == WS2_AUDIO ? WS_AUDIO : WS_CONTROL),
+                  "catalogue input kind");
+        for (uint32_t i = 0; i < native->output_count; ++i)
+            check(metadata->outputs[i].kind ==
+                      static_cast<uint32_t>(native->outputs[i].hint == WS2_AUDIO ? WS_AUDIO : WS_CONTROL),
+                  "catalogue output kind");
+    }
  check(app_engine_load_module(source.get(),library)==WS_OK,"load third-party ABI1 shared library");
  auto e=make();check(app_engine_copy_modules(e.get(),source.get())==WS_OK,"replacement catalogue");source.reset();
  check(std::strcmp(app_engine_parameter_id(e.get(),"test.app_legacy",0),"7")==0,"preserve non-contiguous ABI1 ID and library lifetime");
