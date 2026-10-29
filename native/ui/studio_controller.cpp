@@ -355,6 +355,8 @@ bool StudioController::loadPatch(const QUrl& url) {
     if (bytes.size() > wirescape::document::MaximumDocumentBytes) { setError("Document exceeds the 2 MiB inspection limit; original file unchanged."); return false; }
     if (file.error() != QFileDevice::NoError) { setError(QStringLiteral("Patch could not be read: %1").arg(file.errorString())); return false; }
     auto inspected = wirescape::document::inspect(bytes);
+    // inspect classifies the v1 envelope; NativeV1 selects native dispatch here.
+    // read_patch below performs full native v1/v2 validation before committing.
     if(QJsonDocument::fromJson(bytes).object()["version"]==2 && QJsonDocument::fromJson(bytes).object()["format"]=="wirescape.native.patch")inspected.format=wirescape::document::Format::NativeV1;
     using wirescape::document::Format;
     switch (inspected.format) {
