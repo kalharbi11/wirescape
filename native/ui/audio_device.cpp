@@ -115,6 +115,9 @@ bool AudioDevice::detachEngine() {
     return true;
 }
 bool AudioDevice::start(ws_engine* engine, int device, double rate, uint32_t block) {
+    return startRender(engine, [](void* e,float* out,uint32_t n){return ws_engine_render(static_cast<ws_engine*>(e),out,n);},device,rate,block);
+}
+bool AudioDevice::startRender(void* engine,int (*render)(void*,float*,uint32_t),int device,double rate,uint32_t block) {
     if (stream_ || engineInUse()) { error_ = "Finish audio cleanup before starting again."; return false; }
     if (!initialized_ || !engine || block == 0 || block > 512 || !std::isfinite(rate) || rate <= 0) {
         error_ = "Audio is not initialized or its engine/settings are invalid."; return false;
@@ -130,7 +133,7 @@ bool AudioDevice::start(ws_engine* engine, int device, double rate, uint32_t blo
     const auto* host = backend_.hostInfo(info->hostApi);
     hostName_ = host ? QString::fromUtf8(host->name) : QString();
     context_->scratch.assign(512, 0);
-    context_->engine = engine; context_->sampleRate = rate;
+    context_->engine = engine; context_->render = render; context_->sampleRate = rate;
     context_->underruns.store(0); context_->faults.store(0); context_->load.store(0); context_->failed.store(false);
     auto code = backend_.open(&stream_, nullptr, &output, rate, block, paNoFlag, &AudioDevice::callback, context_.get());
     if (code == paNoError && !stream_) code = paInternalError;
@@ -180,7 +183,7 @@ int AudioDevice::callback(const void*, void* output, unsigned long frames,
     for (unsigned long offset = 0; offset < frames;) {
         const auto n = static_cast<uint32_t>(std::min<unsigned long>(frames - offset, static_cast<unsigned long>(self.scratch.size())));
         int code = WS_STATE;
-        try { code = ws_engine_render(self.engine, self.scratch.data(), n); } catch (...) { code = WS_STATE; }
+        try { code = self.render(self.engine, self.scratch.data(), n); } catch (...) { code = WS_STATE; }
         if (code != WS_OK) {
             std::fill_n(out + offset * 2, (frames - offset) * 2, 0.f);
             self.faults.fetch_add(1, std::memory_order_relaxed); self.failed.store(true); return paAbort;

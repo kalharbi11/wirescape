@@ -30,7 +30,7 @@ No agent reaches the Pi or the laptop. Pi work goes through the `pi5` runner on 
 - **Done is decided by the acceptance block:** run its `must_pass` lines (`python tools/dev.py accept <issue#>` once it exists), post the report, set `status/ready-to-merge` when green on the exact head. `pi:` lines run on the Pi runner.
 - **Review tiers** (`docs/WORKFLOW.md` §3): T0 scripts only; T1 adds a ChatGPT pre-review of the review pack; T2 adds Claude. The tier is in the acceptance block.
 - **Merging** (`docs/WORKFLOW.md` §3b): a builder may **enable GitHub auto-merge** (any method; squash is fine) on its own PR only when all hold: base is `main`; not a draft; tier T0, or T1 with a "ChatGPT pre-review" whose Highs are all fixed or answered; no label-only path in the diff; `status/ready-to-merge` set after a green acceptance run. GitHub then merges only when the required checks pass. T2 PRs and PRs touching label-only paths may auto-merge only after Claude's comment says `Claude: approved for auto-merge` on the current head; stacked PRs wait until GitHub retargets them to `main`. Never click merge directly, approve, dismiss reviews or change branch protection. Agent reviews are `COMMENT` only.
-- **Check-ins** (`docs/WORKFLOW.md` §3d): Claude's scheduled check-ins are listed there. Each ends with an `@codex` comment on #29 that starts Codex on the next queue; if a listed check-in passed without one, Codex re-checks 30 minutes later and continues anyway.
+- **Check-ins** (`docs/WORKFLOW.md` §3d): Claude's scheduled check-ins and Codex's follow-up times (30 minutes later) are listed there. Codex sets its own timers from that table and, at each one, works the queue in the latest planner comment on #29.
 - **Autonomous mode** (`docs/WORKFLOW.md` §3c) is the default: never idle while waiting, make the listed self-decisions and record them, self-review with the review pack before `status/ready-to-merge`.
 - Before you stop (done, near a limit, blocked): post the handoff below and set the status label.
 - Don't widen scope; ideas go under "Follow-ups".
@@ -76,6 +76,12 @@ Status `status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · 
 ## Commands (all keep audio off)
 `python tools/dev.py doctor | build [--headless] | test | check --package | launch`. Qt: `WIRESCAPE_QT_DIR`, then `CMAKE_PREFIX_PATH`.
 **Cloud containers (Codex, Claude):** if `cmake` or `ninja` is missing, run the repo's setup script first (`tools/cloud/setup.sh`, or `tools/ci/codex_cloud_setup.sh` until #83 moves it) and use the PATH it prints. Fix setup problems in that script, never by asking the user to change environment settings.
+
+## Pi evidence from Codex cloud
+- Codex cloud cannot reach the Pi or the Windows laptop. Do not use SSH or open audio/MIDI devices.
+- Pi evidence runs through the private `kalharbi11/wirescape-pi` bridge on the `pi5` runner. Public-repository workflows never target that runner. See `docs/PI_RUNNER.md` for setup, the 24/7 five-minute daemon and task commands.
+- Use `pi5` for exact-head build/tests. Label real-loader soak requests `ci/pi-soak` (drafts also need `ci/pi`) and require `pi5/soak`. After fixing an infrastructure failure, `ci/pi-retry` requests one rerun on the same head; the bridge consumes the label after publishing results. Link the private workflow run; queued runs are not evidence. Never run fork PRs on the Pi.
+- Run tests for the code touched locally and let CI run the remaining suites. Merge-only changes need no new Pi evidence unless compiled code conflicted.
 
 ## Docs upkeep
 `docs/PLAN.md` belongs to the planner (others may tick checkboxes). Update `docs/ARCHITECTURE.md` in the PR that changes the architecture; `docs/STATUS.md` when a milestone completes. Tasks in `docs/tasks/`, reviews in `docs/reviews/`.

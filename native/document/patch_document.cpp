@@ -205,7 +205,7 @@ PatchDocument read_patch(const QByteArray& bytes, const ModuleCatalog& catalog) 
     validate_patch(result.object, &result.error);
     return result;
 }
-bool save_patch(const QString& path, const PatchDocument& document, QString* error) {
+bool save_patch(const QString& path, const PatchDocument& document, QString* error, PatchWriter writer) {
     if (error) error->clear();
     if (!document.valid()) return fail(error, "Cannot save a failed/unloaded patch.");
     if (!validate_patch(document.object, error)) return false;
@@ -247,6 +247,7 @@ bool save_patch(const QString& path, const PatchDocument& document, QString* err
             }
         }
     }
+    if(writer){QString detail;const bool ok=writer(path,bytes,detail);if(!ok&&error)*error=detail;return ok;}
     QSaveFile target(path); // same-directory temporary + atomic commit
     target.setDirectWriteFallback(false);
     if (!target.open(QIODevice::WriteOnly) || target.write(bytes) != bytes.size()) return fail(error, target.errorString());

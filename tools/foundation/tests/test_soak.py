@@ -56,7 +56,9 @@ class SoakCliTests(unittest.TestCase):
                      ("--graph", "voices:1.5"), ("--graph", "voices:\n1"), ("--seconds", "nan"),
                      ("--seconds", "0"), ("--block", "0"), ("--block", "1.5"),
                      ("--rate", "48000x"), ("--seconds", "3601"),
-                     ("--graph", "six_essentials_shim"), ("--unknown", "1"), ("--rate",)):
+                     ("--graph", "six_essentials_shim"), ("--unknown", "1"), ("--rate",),
+                     ("--patch", "missing.json"), ("--patch", "missing.json", "--budget"),
+                     ("--patch", "missing.json", "--graph", "poly8")):
             self.assertIn("wirescape_soak:", self.run_soak(*args, success=False))
 
 
