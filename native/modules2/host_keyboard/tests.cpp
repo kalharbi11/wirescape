@@ -21,7 +21,7 @@ struct NoteSpec {
     int channel = 0;
     uint32_t source = 1;
 };
-static ws2_event note(NoteSpec spec) {
+static ws2_event note(const NoteSpec &spec) {
     ws2_event e{};
     e.struct_size = sizeof(e);
     e.type = spec.type;
