@@ -62,7 +62,7 @@ def find_task(root, issue):
 
 def select_pr_task(root, pr_body):
     """Return (issue, task, note); fail closed for referenced unverified tasks."""
-    match = re.search(r"(?i)\\bCloses\\s+#(\\d+)\\b", pr_body or "")
+    match = re.search(r"(?i)\bCloses\s+#(\d+)\b", pr_body or "")
     if not match:
         return None, None, "No Closes #N reference; acceptance not selected."
     issue = int(match.group(1))
