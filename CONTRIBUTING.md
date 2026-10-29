@@ -11,3 +11,11 @@ Thanks for helping. Wirescape is built by people and AI agents together, under t
 7. **Never commit** fonts, personal data, binaries, credentials or machine-specific absolute paths.
 
 Pull requests from forks need maintainer approval before CI runs.
+
+Optional local hooks: install `pre-commit` in your development virtual environment,
+then run `pre-commit install` and `pre-commit run --all-files`. These local hooks
+inspect the Git index: SPDX is required only for new files, binary/private rules
+match CI, and protected paths produce a local warning while CI still enforces
+authorization. Staged C++ lines require `clang-format` (version 18 in CI) and are
+checked without rewriting files or including unstaged edits. A clean index passes
+without checking old SPDX headers or reformatting existing code.

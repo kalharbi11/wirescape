@@ -30,26 +30,32 @@ jobs:
       - name: Run task acceptance when specified
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           python - <<'PY'
           import hashlib, io, os, re, subprocess, sys, tarfile, urllib.request
           sys.path.insert(0, 'tools')
           from pathlib import Path
-          from foundation.acceptance import find_task
-          match = re.search(r'(?i)\bCloses\s+#(\d+)\b', os.environ.get('PR_BODY', ''))
-          if not match:
-              print('No Closes #N reference; acceptance not selected.')
-              raise SystemExit(0)
+          from foundation.acceptance import select_pr_task
           try:
-              task = find_task(Path.cwd(), int(match[1]))
+              issue, task, note = select_pr_task(Path.cwd(), os.environ.get('PR_BODY', ''))
           except ValueError as error:
-              print(error)
+              print(f'::error::{error}')
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+                  out.write(f'### {error}\n\nTask acceptance not verified.\n')
+              raise SystemExit(1)
+          if issue is None:
+              print(note)
               raise SystemExit(0)
-          if '```acceptance' not in task.read_text():
-              print('Task has no acceptance block; acceptance not selected.')
+          if task is None:
+              # The two planner-approved user-only legacy issues are exceptions,
+              # not successful acceptance. Never report them as verified.
+              print(f'::warning::{note}')
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+                  out.write(f'### {note}\n\nNot a task acceptance pass.\n')
               raise SystemExit(0)
           # Issue #29 planner decision: CI provisioning is the authorized sixth file.
-          if match[1] in {'87', '89'}:
+          if str(issue) in {'87', '89'}:
               text = re.sub(r'(size: <= \d+ changed lines, <= )\d+( files)', r'\g<1>6\2', task.read_text())
               task = Path(os.environ['RUNNER_TEMP']) / task.name
               task.write_text(text)
@@ -73,12 +79,14 @@ jobs:
               os.environ['PATH'] = str(directory) + os.pathsep + os.environ['PATH']
           subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'cmake==4.2.3', 'ninja==1.13.0'])
           subprocess.check_call([sys.executable, 'tools/dev.py', 'build', '--headless'])
-          code = subprocess.call([sys.executable, 'tools/dev.py', 'accept', match[1], '--file', str(task)])
-          summary = Path('build_reports') / f'accept-{match[1]}.md'
+          base = 'origin/' + os.environ['PR_BASE_REF']
+          print('Acceptance diff base:', base)
+          code = subprocess.call([sys.executable, 'tools/dev.py', 'accept', str(issue), '--file', str(task), '--base', base])
+          summary = Path('build_reports') / f'accept-{str(issue)}.md'
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
               out.write(summary.read_text() if summary.exists() else 'Acceptance report missing.\n')
           if code:
-              for path in Path('build_reports').glob(f'accept-{match[1]}-*.log'):
+              for path in Path('build_reports').glob(f'accept-{str(issue)}-*.log'):
                   tail = '\n'.join(path.read_text(errors='replace').splitlines()[-40:])[-6000:]
                   print('::error::' + (str(path) + '\n' + tail).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           raise SystemExit(code)
