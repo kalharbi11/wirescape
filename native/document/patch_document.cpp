@@ -201,6 +201,18 @@ PatchDocument read_patch(const QByteArray& bytes, const ModuleCatalog& catalog) 
         result.object["host_mappings"] = QJsonArray{}; result.object["devices"] = QJsonArray{};
         result.object["version"] = 2; result.object["settings"] = settings;
         result.object["modules"] = modules; result.object["connections"] = cables; result.object["outputs"] = outputs;
+    } else {
+        if (!validate_patch(result.object, &result.error)) return result;
+        QJsonArray modules;
+        for (const auto& item : original["modules"].toArray()) {
+            auto module = item.toObject();
+            if (!catalog.contains(module["module"].toString())) {
+                if (!module.contains("preserved")) module["preserved"] = module;
+                module["inactive"] = true;
+            }
+            modules.append(module);
+        }
+        result.object["modules"] = modules;
     }
     validate_patch(result.object, &result.error);
     return result;

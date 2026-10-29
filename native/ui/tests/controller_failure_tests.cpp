@@ -69,7 +69,8 @@ int main(int argc, char** argv) {
         auto unresolved = QJsonDocument::fromJson(before).object();
         auto unresolvedNodes = unresolved["modules"].toArray();
         auto unknown = unresolvedNodes[0].toObject(); unknown["module"] = "future.unknown";
-        unknown["inactive"] = true; unknown["parameters"] = QJsonObject{};
+        unknown["parameters"] = QJsonObject{};
+        check(!unknown.contains("inactive"), "hand-written unknown v2 has no inactive annotation");
         unknown["preserved"] = QJsonObject{{"type", "future.unknown"}, {"values", QJsonObject{{"opaque", QJsonArray{1, "keep"}}}}};
         unresolvedNodes[0] = unknown; unresolved["modules"] = unresolvedNodes;
         const auto unknownPath = temp.filePath("unknown.json");
@@ -79,6 +80,7 @@ int main(int argc, char** argv) {
         check(studio.modules()[0].toMap().value("missing").toBool(), "missing module shown");
         check(studio.connections() == resolvedConnections, "unresolved v2 cables preserved");
         check(studio.savePatch(QUrl::fromLocalFile(temp.filePath("unknown_roundtrip.json"))), "save unresolved patch");
+        unknown["inactive"] = true; unresolvedNodes[0] = unknown; unresolved["modules"] = unresolvedNodes;
         check(QJsonDocument::fromJson(read(temp.filePath("unknown_roundtrip.json"))).object() == unresolved,
               "unknown module payload and cables survive roundtrip");
         check(studio.saveDiagnostics(QUrl::fromLocalFile(temp.filePath("session.json"))), "offline diagnostics save");
