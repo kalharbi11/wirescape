@@ -43,6 +43,11 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          CLANG_TIDY_DIFF="$(dpkg -L clang-tidy-18 | rg '/clang-tidy-diff(-18)?(\.py)?$' | head -n 1 || true)"
+          CLANG_TIDY_DIFF="$(dpkg -L clang-tidy-18 | grep -E '/clang-tidy-diff(-18)?(\.py)?$' | head -n 1 || true)"
+          if [[ -z "$CLANG_TIDY_DIFF" || ! -f "$CLANG_TIDY_DIFF" ]]; then
+            echo "::error::clang-tidy diff script was not found in the installed package"
+            exit 1
+          fi
+          python "$CLANG_TIDY_DIFF" --help > /dev/null
           export CLANG_TIDY_DIFF
           python tools/ci/static_checks.py --base "$BASE_SHA" --head "$HEAD_SHA"
