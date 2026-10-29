@@ -30,6 +30,7 @@ jobs:
       - name: Run task acceptance when specified
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           python - <<'PY'
           import hashlib, io, os, re, subprocess, sys, tarfile, urllib.request
@@ -73,7 +74,9 @@ jobs:
               os.environ['PATH'] = str(directory) + os.pathsep + os.environ['PATH']
           subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'cmake==4.2.3', 'ninja==1.13.0'])
           subprocess.check_call([sys.executable, 'tools/dev.py', 'build', '--headless'])
-          code = subprocess.call([sys.executable, 'tools/dev.py', 'accept', match[1], '--file', str(task)])
+          base = 'origin/' + os.environ['PR_BASE_REF']
+          print('Acceptance diff base:', base)
+          code = subprocess.call([sys.executable, 'tools/dev.py', 'accept', match[1], '--file', str(task), '--base', base])
           summary = Path('build_reports') / f'accept-{match[1]}.md'
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
               out.write(summary.read_text() if summary.exists() else 'Acceptance report missing.\n')
