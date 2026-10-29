@@ -14,6 +14,7 @@ tier: T2
 size: <= 250 changed lines, <= 6 files
 must_pass:
   - python -m unittest discover -s tools/ci -v
+  - python -m pip install ruff==0.14.1
   - python -m ruff check tools/ci/static_checks.py tools/ci/test_static_checks.py
   - actionlint
   - ci: static job green on this PR
