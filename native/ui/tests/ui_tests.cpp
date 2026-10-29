@@ -75,18 +75,23 @@ class UiTests : public QObject {
 private slots:
     void initTestCase() { QVERIFY(temp_.isValid()); }
     void keyboardChordOffscreen() {
-        StudioController studio(directory_);QJsonObject result;
-        QVERIFY(studio.keyboardChordCheck(result));QCOMPARE(result["active_channels"].toInt(),4);
+        StudioController studio(directory_);
+        QJsonObject result;
+        QVERIFY(studio.keyboardChordCheck(result));
+        QCOMPARE(result["active_channels"].toInt(), 4);
         studio.panic();
-        QVERIFY(studio.keyboardChordCheck(result));QCOMPARE(result["active_channels"].toInt(),4);
-        for(const auto& value:studio.connections())QVERIFY(value.toMap()["channels"].toInt()>1);
+        QVERIFY(studio.keyboardChordCheck(result));
+        QCOMPARE(result["active_channels"].toInt(), 4);
+        for (const auto &value : studio.connections()) QVERIFY(value.toMap()["channels"].toInt() > 1);
     }
     void genericPaletteDiscovery() {
         StudioController studio(directory_); QSet<QString> ids;
         for (const auto& item : studio.palette()) ids.insert(item.toMap().value("id").toString());
         QVERIFY(ids.contains("essentials.vco")); QVERIFY(ids.contains("essentials.adsr")); QVERIFY(ids.contains("essentials.vca")); QVERIFY(ids.contains("essentials.output")); QVERIFY(ids.contains("essentials.mixer"));
         // Installed types and the default patch's node count are independent.
-        QCOMPARE(studio.modules().size(),5); studio.addModule("essentials.mixer"); QCOMPARE(studio.modules().size(),6);
+        QCOMPARE(studio.modules().size(), 5);
+        studio.addModule("essentials.mixer");
+        QCOMPARE(studio.modules().size(), 6);
     }
     void transactionalValidation() {
         StudioController studio(directory_); QVERIFY(studio.ready());
@@ -108,7 +113,10 @@ private slots:
         QVERIFY(!studio.dirty()); QVERIFY(!studio.running());
     }
     void incompleteAndMissing() {
-        StudioController studio(directory_); studio.removeModule(4); QVERIFY(!studio.ready()); QCOMPARE(studio.modules().size(), 4);
+        StudioController studio(directory_);
+        studio.removeModule(4);
+        QVERIFY(!studio.ready());
+        QCOMPARE(studio.modules().size(), 4);
         QVERIFY(studio.savePatch(path("incomplete.json"))); QVERIFY(studio.loadPatch(path("incomplete.json"))); QVERIFY(!studio.ready());
         studio.addModule("essentials.output"); QCOMPARE(studio.outputNode(), 4); studio.connectPorts(3, "audio", 4, "audio"); QVERIFY(studio.ready());
         const int count = studio.connections().size(); studio.connectPorts(1, "audio", 3, "gain_cv"); QCOMPARE(studio.connections().size(), count);
@@ -246,7 +254,8 @@ private slots:
         QFile saved(acceptedPath); QVERIFY(saved.open(QIODevice::ReadOnly));
         const auto savedNodes = QJsonDocument::fromJson(saved.readAll()).object().value("modules").toArray();
         QCOMPARE(savedNodes.size(), 5);
-            QCOMPARE(savedNodes.last().toObject().value("module").toString(), QString("host.keyboard")); QCOMPARE(savedNodes.at(0).toObject().value("parameters").toObject().value("frequency").toDouble(),880.);
+        QCOMPARE(savedNodes.last().toObject().value("module").toString(), QString("host.keyboard"));
+        QCOMPARE(savedNodes.at(0).toObject().value("parameters").toObject().value("frequency").toDouble(), 880.);
     }
     void actualDocumentActionsAndCable() {
         bool failWrite = true; int writeAttempts = 0; QString acceptedPath;
@@ -312,9 +321,15 @@ private slots:
         // Fit first so the real port hit areas are in the viewport.
         QVERIFY(QMetaObject::invokeMethod(window,"fitPatch")); QTest::qWait(50);
         auto* output = qobject_cast<QQuickItem*>(findNamed(window,"output_1_audio")); auto* input = qobject_cast<QQuickItem*>(findNamed(window,"input_3_audio")); QVERIFY(output); QVERIFY(input);
-        QTest::mouseClick(window,Qt::LeftButton,Qt::NoModifier,center(output)); QTest::mouseClick(window,Qt::LeftButton,Qt::NoModifier,center(input)); QCOMPARE(studio.connections().size(),5); QVERIFY(!studio.running());
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(output));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(input));
+        QCOMPARE(studio.connections().size(), 5);
+        QVERIFY(!studio.running());
         // Discard executes the pending New action only after the dialog choice.
-        QVERIFY(QMetaObject::invokeMethod(window,"requestAction",Q_ARG(QVariant,QVariant("new")))); QVERIFY(QMetaObject::invokeMethod(dialog,"discarded")); QCOMPARE(studio.modules().size(),5); QVERIFY(!studio.dirty());
+        QVERIFY(QMetaObject::invokeMethod(window, "requestAction", Q_ARG(QVariant, QVariant("new"))));
+        QVERIFY(QMetaObject::invokeMethod(dialog, "discarded"));
+        QCOMPARE(studio.modules().size(), 5);
+        QVERIFY(!studio.dirty());
     }
 };
 int main(int argc,char** argv) { QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs); QQuickStyle::setStyle("Basic"); QGuiApplication app(argc,argv); app.setQuitOnLastWindowClosed(false); UiTests tests; return QTest::qExec(&tests,argc,argv); }
