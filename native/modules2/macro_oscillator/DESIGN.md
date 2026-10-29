@@ -20,7 +20,7 @@ All 24 engine entries remain selectable; no engine is excluded.
 
 ## Random state isolation
 
-Upstream `stmlib::Random` has process-global mutable state. `rng_scope.h` includes
+Upstream `stmlib::Random` has process-global mutable state. `rng_scope.hpp` includes
 that original declaration under an unused private compatibility name and supplies
 an API-compatible storage wrapper with the same 32-bit LCG arithmetic. This is an
 instance-state boundary, not a synthesis rewrite: each voice saves/restores its
@@ -131,3 +131,6 @@ The ABI2 guard CTest covers malformed headers and instrumentation settings.
 Real Ninja and Ninja Multi-Config Release configurations with UBSan in
 CMAKE_CXX_FLAGS_RELEASE create neither unpatched target; a clean Release control
 creates both. No instrumentation is removed or suppressed.
+
+The placement-owned reference fixture is explicitly non-copyable. New module C++
+files follow clang-format18; no unrelated existing files were reformatted.

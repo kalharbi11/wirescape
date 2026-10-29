@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Storage isolation for the pinned upstream RNG API. No DSP translation unit is edited.
 #pragma once
-#include <cstdio>
 #include <cstdint>
+#include <cstdio>
 #define Random WirescapeUnusedGlobalRandom
 #include "stmlib/utils/random.h"
 #undef Random
@@ -30,19 +30,25 @@ class Random {
 #else
     inline static thread_local uint32_t state_ = 0x21;
 #endif
-public:
+  public:
     static uint32_t state() { return state_; }
     static void Seed(uint32_t value) { state_ = value; }
-    static uint32_t GetWord() { state_ = state_ * 1664525u + 1013904223u; return state_; }
+    static uint32_t GetWord() {
+        state_ = state_ * 1664525u + 1013904223u;
+        return state_;
+    }
     static int16_t GetSample() { return static_cast<int16_t>(GetWord() >> 16); }
     static float GetFloat() { return static_cast<float>(GetWord()) / 4294967296.0f; }
 };
-}
+} // namespace stmlib
 namespace macro_oscillator {
 struct RngScope {
-    uint32_t& voice;
+    uint32_t &voice;
     uint32_t prior;
-    explicit RngScope(uint32_t& state) : voice(state), prior(stmlib::Random::state()) { stmlib::Random::Seed(voice); }
-    ~RngScope() { voice = stmlib::Random::state(); stmlib::Random::Seed(prior); }
+    explicit RngScope(uint32_t &state) : voice(state), prior(stmlib::Random::state()) { stmlib::Random::Seed(voice); }
+    ~RngScope() {
+        voice = stmlib::Random::state();
+        stmlib::Random::Seed(prior);
+    }
 };
-}
+} // namespace macro_oscillator
