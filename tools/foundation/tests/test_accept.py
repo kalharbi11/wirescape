@@ -109,6 +109,50 @@ class AcceptanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "found 2"):
             acceptance.find_task(self.root, 85)
 
+    def test_pr_selection_optional_without_closes(self):
+        issue, task_path, message = acceptance.select_pr_task(self.root, "Fix tests")
+        self.assertIsNone(issue)
+        self.assertIsNone(task_path)
+        self.assertIn("not selected", message)
+
+    def test_pr_selection_only_allows_two_explicit_legacy_exceptions(self):
+        for issue in (45, 64):
+            number, path, message = acceptance.select_pr_task(self.root, f"Closes #{issue}")
+            self.assertEqual(number, issue)
+            self.assertIsNone(path)
+            self.assertIn("legacy exception — not verified", message)
+            self.assertIn("not an acceptance pass", message)
+        for issue in (44, 46, 63, 65, 999):
+            with self.subTest(issue=issue), self.assertRaisesRegex(ValueError, "not verified.*found 0"):
+                acceptance.select_pr_task(self.root, f"Closes #{issue}")
+
+    def test_pr_selection_missing_or_ambiguous_task_is_not_verified(self):
+        directory = self.root / "docs/tasks"
+        directory.mkdir(parents=True)
+        with self.assertRaisesRegex(ValueError, "not verified.*found 0"):
+            acceptance.select_pr_task(self.root, "Closes #114")
+        first = directory / "one.md"
+        first.write_text(task(["python -c 'pass'"]).replace("#85", "#114"), encoding="utf-8")
+        number, path, message = acceptance.select_pr_task(self.root, "Closes #114")
+        self.assertEqual((number, path, message), (114, first, ""))
+        (directory / "two.md").write_text(task(["python -c 'pass'"]).replace("#85", "#114"), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "not verified.*found 2"):
+            acceptance.select_pr_task(self.root, "Closes #114")
+
+    def test_pr_selection_missing_and_malformed_acceptance_block_fail(self):
+        directory = self.root / "docs/tasks"
+        directory.mkdir(parents=True)
+        source = directory / "one.md"
+        for contents in (
+            "# Missing acceptance (#114)\n",
+            "# Invalid block (#114)\n```acceptance\ntier: T0\nsize: n/a\nmust_pass:\n```\n",
+            "# Invalid tier (#114)\n" + task(["python -c 'pass'"]).replace("#85", "#999").replace("tier: T0", "tier: something"),
+        ):
+            with self.subTest(contents=contents):
+                source.write_text(contents, encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "not verified"):
+                    acceptance.select_pr_task(self.root, "Closes #114")
+
     def test_timeout_preserves_failure(self):
         code, report = self.run_task(['python -c "import time; time.sleep(10)"'], timeout=.1)
         self.assertEqual(code, 1)
