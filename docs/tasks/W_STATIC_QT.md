@@ -1,6 +1,8 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Static Qt compile context (#136)
 
+Review routing: T2-Claude (label-only CI tooling).
+
 Authorized by #136: provide existing Qt development dependencies and a full
 compile database; resolve changed headers/X-macro includes through compiler
 recorded dependencies, preserving line filters and fail-closed ownership.
@@ -8,7 +10,7 @@ Cppcheck uses the owning compile commands and its Qt model. No suppression
 of findings, check removal, new library dependency or runtime behavior change.
 
 ```acceptance
-tier: T2-Claude
+tier: T2
 size: <= 250 changed lines, <= 6 files
 must_pass:
   - python -m unittest discover -s tools/ci -v
