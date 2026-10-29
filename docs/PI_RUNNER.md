@@ -46,7 +46,10 @@ All commands keep physical audio and MIDI devices off.
 
 ## PR evidence
 
-`poll.yml` runs every 20 minutes and supports manual dispatch. It lists open
+`poll.yml` has a best-effort 20-minute cron and supports manual dispatch. Each
+job polls every five minutes for 330 minutes, avoiding GitHub cron throttling.
+It can run anytime on the 24/7 Pi; all Pi work shares one concurrency group.
+It lists open
 public PRs, rejects forks, and selects PRs that are ready for review or have
 the `ci/pi` label. A draft therefore needs `ci/pi` to opt in. It checks out
 each eligible head at its full SHA and runs the headless Release build and
@@ -55,9 +58,10 @@ The final success/failure status links to the private workflow run. The job
 summary records the SHA, compiler, CMake and kernel. Private run links are
 visible only to collaborators with access to wirescape-pi.
 
-To request evidence, add `ci/pi` to an eligible draft (or mark it ready), then
-open **wirescape-pi → Actions → Pi PR poll → Run workflow** and choose `main`.
-Alternatively, with private-repository workflow permission:
+To request evidence, add `ci/pi` to a draft (or mark it ready) and let the
+active daemon pick it up. Only start a daemon manually if none is running:
+**wirescape-pi → Actions → Pi PR poll → Run workflow**, choosing `main`.
+With private-repository workflow permission:
 
 ```bash
 gh workflow run poll.yml --repo kalharbi11/wirescape-pi --ref main
@@ -74,6 +78,11 @@ after publishing results, whether success or failure. If publishing fails, the
 label remains. Never push an empty commit merely to retrigger. Drafts still
 need `ci/pi`, and forks remain ineligible. Prefer the scheduled poll; avoid
 duplicate manual runs. All private Pi jobs share the exclusive concurrency group.
+
+For task-specific commands, add `pi-run:` lines to the task acceptance block
+and label the PR **`ci/pi-accept`**. The bridge posts **`pi5/accept`** and a PR
+comment with output tails. A build/test status alone does not verify these
+commands; inspect their result on the exact head.
 
 ## Real-document loader soak
 
@@ -115,3 +124,11 @@ SHA. Keep required checks unchanged; never mark an unrun or blocked stage green.
 `--task`, `--split 3`, `--cap` and `--output`. The controller supplies a fresh diff
 and task for the exact PR head. This offline path needs no API credential in the
 public build environment; unavailable CI evidence stays explicitly unavailable.
+
+## Windows laptop runner
+
+`laptop.yml` uses `self-hosted`, `Windows`, `laptop` labels in the private repo.
+Its hourly job builds/tests/benchmarks new public main SHAs and updates one
+**Laptop nightly summary** issue. Set system `WIRESCAPE_QT_DIR` to the MSVC Qt
+SDK prefix and run the runner as a service; do not also launch `run.cmd`.
+The runner name and registration token are not workflow selectors.
