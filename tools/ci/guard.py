@@ -4,6 +4,7 @@ import argparse
 import fnmatch
 import json
 import re
+import shutil
 import subprocess
 from pathlib import PurePosixPath
 
@@ -100,18 +101,67 @@ def check(base, head, labels, named=()):
     return errors
 
 
+def check_staged():
+    entries = iter(git('diff', '--cached', '--name-status', '-z', '-M').split(b'\0')[:-1])
+    errors = []
+    for entry in entries:
+        status = entry.decode()
+        paths = [next(entries).decode('utf-8', 'surrogateescape')]
+        if status[0] in 'RC':
+            paths.append(next(entries).decode('utf-8', 'surrogateescape'))
+        patch = git('diff', '--cached', '--no-ext-diff', '--no-textconv', '--unified=0', '--', paths[-1])
+        added = [line[1:] for line in patch.decode('utf-8', 'replace').splitlines()
+                 if line.startswith('+') and not line.startswith('+++')]
+        if any(fnmatch.fnmatchcase(path, rule) for path in paths for rule in PROTECTED):
+            print(f'{paths[-1]}: warning: protected path needs issue authorization and CI review')
+        # Only the local protected-path severity changes; all CI rules stay intact.
+        errors.extend(f'{paths[-1]}: {error}' for error in violations(status, paths, added, {'allow-protected'}))
+    return errors
+
+
+def check_staged_format():
+    from static_checks import changed_ranges
+    patch = git('diff', '--cached', '--no-ext-diff', '--no-textconv', '--unified=0')
+    files = {name: ranges for name, ranges in changed_ranges(patch.decode('utf-8', 'replace')).items() if ranges}
+    if not files:
+        return []
+    formatter = shutil.which('clang-format-18') or shutil.which('clang-format')
+    if not formatter:
+        return ['clang-format is required for staged C++ lines (CI uses clang-format-18)']
+    errors = []
+    for name, ranges in files.items():
+        # Check the index, not unstaged edits; never rewrite either version.
+        source = git('show', ':' + name)
+        command = [formatter, '--dry-run', '--Werror', '--assume-filename=' + name,
+                   *[f'--lines={start}:{end}' for start, end in ranges]]
+        result = subprocess.run(command, input=source, capture_output=True)
+        if result.returncode:
+            errors.append(name + ': ' + (result.stdout + result.stderr).decode('utf-8', 'replace'))
+    return errors
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--base', required=True)
-    parser.add_argument('--head', required=True)
+    parser.add_argument('--base')
+    parser.add_argument('--head')
+    local = parser.add_mutually_exclusive_group()
+    local.add_argument('--staged', action='store_true')
+    local.add_argument('--staged-format', action='store_true')
     parser.add_argument('--labels-json', default='[]')
     parser.add_argument('--issue-body-file', help='body of the issue the PR closes')
     args = parser.parse_args()
-    named = set()
-    if args.issue_body_file:
-        with open(args.issue_body_file, encoding='utf-8') as body:
-            named = named_paths(body.read())
-        print('unlocked by issue:', sorted(named) or 'none')
-    errors = check(args.base, args.head, set(json.loads(args.labels_json)), named)
+    if args.staged:
+        errors = check_staged()
+    elif args.staged_format:
+        errors = check_staged_format()
+    else:
+        if not args.base or not args.head:
+            parser.error('--base and --head are required for CI mode')
+        named = set()
+        if args.issue_body_file:
+            with open(args.issue_body_file, encoding='utf-8') as body:
+                named = named_paths(body.read())
+            print('unlocked by issue:', sorted(named) or 'none')
+        errors = check(args.base, args.head, set(json.loads(args.labels_json)), named)
     print('\n'.join(errors) if errors else 'guard: passed')
     raise SystemExit(bool(errors))
