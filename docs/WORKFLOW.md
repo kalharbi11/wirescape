@@ -74,8 +74,29 @@ Goal: agents keep moving without the user or Claude in the loop, and every short
 | hourly | ChatGPT scheduled watch (22:00–11:00) | for each open PR: green T1 without a pre-review → post the pre-review; T0/T1 meeting §3b → set `status/ready-to-merge` and enable auto-merge; post one summary on #101 at 07:00 |
 | hourly | Laptop runner | once per new `main` SHA: full Windows (Qt) build, tests, benchmark → "Laptop nightly summary" issue |
 | 03:17 | Pi runner | nightly: full tests, 600 s soaks, benchmark, render hashes → #101 |
-| ~10:30 | Claude (one scheduled check-in) | T2 reviews from review packs; answers questions in one comment per issue |
+| see §3d | Claude scheduled check-ins | T2 reviews, merges what's safe, fills the queues, starts Codex with an `@codex` comment |
 | any time | Codex long task | works the queue in order, never idle (above) |
+
+## 3d. Check-in schedule and agent hand-offs
+**Current schedule (New York time). Claude updates this table at every check-in; the next ones are always listed here.**
+
+| Date | Claude check-in | Codex follow-up |
+|---|---|---|
+| 2026-10-29 | 05:00 | started by Claude's `@codex` comment at the end of the check-in |
+| 2026-10-29 | 10:30 | same |
+| 2026-10-29 | 13:45 | same |
+| 2026-10-29 | 17:30 | same |
+
+**At every Claude check-in:**
+1. Status sweep (cheap subagent), then fix what's broken (bridge, rules, task files, decisions).
+2. **Merge what's safe:** enable auto-merge on every PR that meets §3b/§3c (Claude may do this directly at check-ins; the user authorized it). For T2 and label-only PRs, review first, then comment `Claude: approved for auto-merge` and enable it.
+3. **Keep queues full:** create the next issues (with acceptance blocks) so Codex and ChatGPT always have at least a full session of work queued.
+4. Update the table above with the next check-in times.
+5. End with a comment on #29 that starts with `@codex` and lists the queue. With Codex's GitHub integration, that comment starts a Codex task, so the user sends no prompt.
+
+**Codex, when started by that comment (or at any time):** read the latest planner comment on #29, work its queue in order under §3c, and end with one round-up on #29. If a check-in time in the table has passed without a planner comment, check again 30 minutes later and then continue the queue anyway. Never wait idle for the planner.
+
+**ChatGPT:** keeps its hourly overnight watch (§3c) and posts its 07:00 summary on #101.
 
 ## 4. Task files and the acceptance block
 Every issue points to a `docs/tasks/` file that ends with a fenced `acceptance` block. If the planner can't write one, the task isn't ready.
