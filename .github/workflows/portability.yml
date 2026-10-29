@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# Report-only probe: which ABI2 modules compile for a Daisy-class Cortex-M7 target.
+# Enforced probe: every ABI2 module must compile for a Daisy-class Cortex-M7 target.
 name: Portability probe
 on:
   workflow_dispatch:
@@ -15,8 +15,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install arm-none-eabi toolchain
         run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi libstdc++-arm-none-eabi-newlib
-      - name: Compile each module.cpp (report only)
-        continue-on-error: true
+      - name: Compile each module.cpp (fail on any error)
         shell: bash
         run: |
           flags=(-std=c++17 -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -O2 -ffunction-sections
@@ -27,6 +26,7 @@ jobs:
             echo '| Module | Default | -fno-exceptions -fno-rtti |'
             echo '|---|---|---|'
           } >> "$GITHUB_STEP_SUMMARY"
+          failed=0
           for source in native/modules2/*/module.cpp; do
             module=$(basename "$(dirname "$source")")
             row="| $module |"
@@ -36,6 +36,7 @@ jobs:
               if arm-none-eabi-g++ "${flags[@]}" $extra -c "$source" -o /dev/null 2>"$log"; then
                 row="$row pass |"
               else
+                failed=1
                 first=$(grep -m1 -E 'error' "$log" | sed 's/|/\\|/g' | cut -c1-200)
                 row="$row **fail**: \`${first:-see log}\` |"
                 echo "::group::$module $extra"; cat "$log"; echo "::endgroup::"
@@ -43,3 +44,4 @@ jobs:
             done
             echo "$row" >> "$GITHUB_STEP_SUMMARY"
           done
+          exit "$failed"
