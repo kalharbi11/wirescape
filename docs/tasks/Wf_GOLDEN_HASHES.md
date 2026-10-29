@@ -8,14 +8,17 @@ same build. Cross-build/platform-family hashes are recorded in reports, never
 asserted (planner decision on #92, 2026-10-29). `tools/golden.py check|update`
 records evidence; update explains that any future committed baseline update
 requires its own PR and reason. CTest `golden_render_hashes` runs check.
+Self-decision (WORKFLOW3c): line cap350→420 (+20%) covers formatting
+changed existing app-loader lines required by static analysis; file cap40 unchanged.
 No DSP changes or tolerance comparisons. The internal app loader accepts a
 seed with its existing default retained; no public ABI changes.
 
 ```acceptance
 tier: T1
 budget: 1 Codex session
-size: <= 350 changed lines, <= 40 files
+size: <= 420 changed lines, <= 40 files
 must_pass:
+  - python tools/dev.py build --headless
   - ctest --test-dir build/native -R golden_render_hashes --output-on-failure
   - python tools/golden.py check
   - python -m unittest discover -s tools/foundation/tests -p "test_golden.py"

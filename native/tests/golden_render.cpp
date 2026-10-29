@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
             });
         }
         auto descriptors = wirescape::app::builtin_modules();
-        const auto *chaos = ws::Module<ws2ports::ChaosLite>::descriptor();
+        const auto *chaos = ws::Module<chaos_lite::ChaosLite>::descriptor();
         if (std::none_of(descriptors.begin(), descriptors.end(),
                          [&](const auto *d) { return std::strcmp(d->id, chaos->id) == 0; }))
             descriptors.push_back(chaos);
