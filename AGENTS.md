@@ -77,6 +77,12 @@ Status `status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · 
 `python tools/dev.py doctor | build [--headless] | test | check --package | launch`. Qt: `WIRESCAPE_QT_DIR`, then `CMAKE_PREFIX_PATH`.
 **Cloud containers (Codex, Claude):** if `cmake` or `ninja` is missing, run the repo's setup script first (`tools/cloud/setup.sh`, or `tools/ci/codex_cloud_setup.sh` until #83 moves it) and use the PATH it prints. Fix setup problems in that script, never by asking the user to change environment settings.
 
+## Pi evidence from Codex cloud
+- Codex cloud cannot reach the Pi or the Windows laptop. Do not use SSH or open audio/MIDI devices.
+- Pi evidence runs through the private `kalharbi11/wirescape-pi` bridge on the `pi5` runner. Public-repository workflows never target that runner. See `docs/PI_RUNNER.md` for setup, the 24/7 five-minute daemon and task commands.
+- Use `pi5` for exact-head build/tests. Label real-loader soak requests `ci/pi-soak` (drafts also need `ci/pi`) and require `pi5/soak`. After fixing an infrastructure failure, `ci/pi-retry` requests one rerun on the same head; the bridge consumes the label after publishing results. Link the private workflow run; queued runs are not evidence. Never run fork PRs on the Pi.
+- Run tests for the code touched locally and let CI run the remaining suites. Merge-only changes need no new Pi evidence unless compiled code conflicted.
+
 ## Docs upkeep
 `docs/PLAN.md` belongs to the planner (others may tick checkboxes). Update `docs/ARCHITECTURE.md` in the PR that changes the architecture; `docs/STATUS.md` when a milestone completes. Tasks in `docs/tasks/`, reviews in `docs/reviews/`.
 
