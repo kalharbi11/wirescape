@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#include "app_patch.h"
+#include "../engine2/engine2.h"
 #include "../tests2/allocation_watch.h"
+#include "app_patch.h"
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QDir>
-#include "../engine2/engine2.h"
-#include <QJsonDocument>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QTemporaryDir>
 #include <algorithm>
 #include <cmath>
@@ -30,18 +30,34 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
      require(found, "all thirteen Essentials plus keyboard in catalogue");
  }
  {
-  QFile fixture(QFileInfo(QString::fromLocal8Bit(argv[2])).dir().filePath("chaos_two.json"));
-  require(fixture.open(QIODevice::ReadOnly),"read two CHAOS fixture");
-  auto document=read_patch(fixture.readAll(),app_catalog(cat.get()));QString why;
-  require(document.valid(),"validate two CHAOS document");
-  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>graph(build_app_patch(cat.get(),document,cfg,why),app_engine_destroy);
-  if(!graph)std::cerr<<why.toStdString()<<'\n';require(bool(graph),"build two CHAOS document");
-  float output[128];float peak=0;
-  for(int block=0;block<32;++block){int result;{allocation_watch::Scope watch;result=app_engine_render(graph.get(),output,128);require(watch.allocations()==0,"CHAOS fixture callback allocations");}
-   require(result==WS_OK,"render two CHAOS fixture");for(float sample:output){require(std::isfinite(sample),"finite CHAOS output");peak=std::max(peak,std::abs(sample));}}
-  auto&native=app_engine_native(graph.get());
-  require(native.output_channels(2,0)==4&&native.output_channels(3,0)==4,"two CHAOS instances each render exactly four voices");
-  require(native.meter().faults==0&&peak>0,"non-silent fault-free CHAOS fixture");
+     QFile fixture(QFileInfo(QString::fromLocal8Bit(argv[2])).dir().filePath("chaos_two.json"));
+     require(fixture.open(QIODevice::ReadOnly), "read two CHAOS fixture");
+     auto document = read_patch(fixture.readAll(), app_catalog(cat.get()));
+     QString why;
+     require(document.valid(), "validate two CHAOS document");
+     std::unique_ptr<AppEngine, decltype(&app_engine_destroy)> graph(build_app_patch(cat.get(), document, cfg, why),
+                                                                     app_engine_destroy);
+     if (!graph) std::cerr << why.toStdString() << '\n';
+     require(bool(graph), "build two CHAOS document");
+     float output[128];
+     float peak = 0;
+     for (int block = 0; block < 32; ++block) {
+         int result;
+         {
+             allocation_watch::Scope watch;
+             result = app_engine_render(graph.get(), output, 128);
+             require(watch.allocations() == 0, "CHAOS fixture callback allocations");
+         }
+         require(result == WS_OK, "render two CHAOS fixture");
+         for (float sample : output) {
+             require(std::isfinite(sample), "finite CHAOS output");
+             peak = std::max(peak, std::abs(sample));
+         }
+     }
+     auto &native = app_engine_native(graph.get());
+     require(native.output_channels(2, 0) == 4 && native.output_channels(3, 0) == 4,
+             "two CHAOS instances each render exactly four voices");
+     require(native.meter().faults == 0 && peak > 0, "non-silent fault-free CHAOS fixture");
  }
  QFile file(argv[2]);require(file.open(QIODevice::ReadOnly),"read demo");auto bytes=file.readAll();auto source=QJsonDocument::fromJson(bytes).object();auto patch=read_patch(bytes,app_catalog(cat.get()));require(patch.valid(),"migrate demo");QString error;
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>e(build_app_patch(cat.get(),patch,cfg,error),app_engine_destroy);if(!e)std::cerr<<error.toStdString()<<'\n';require(bool(e),"build engine2 demo from loader");

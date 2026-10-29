@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include "../modules2/adsr/dsp.h"
+#include "../modules2/chaos_lite/dsp.h"
 #include "../modules2/clock/dsp.h"
 #include "../modules2/function_envelope/dsp.h"
 #include "../modules2/host_keyboard/dsp.h"
@@ -14,7 +15,6 @@
 #include "../modules2/vca/dsp.h"
 #include "../modules2/vcf/dsp.h"
 #include "../modules2/vco/dsp.h"
-#include "../modules2/chaos_lite/dsp.h"
 #include <vector>
 namespace wirescape::app {
 inline const std::vector<const ws2_descriptor*>& builtin_modules(){
