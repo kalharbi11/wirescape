@@ -46,6 +46,16 @@ jobs:
         run: |
           cmake --build build/static --target studio_ui_tests --parallel 2
           cmake --build build/static --parallel 2
+      - name: Validate compiled header and X-macro ownership
+        run: |
+          python - <<'PYCODE'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, 'tools/ci')
+          from static_checks import analysis_units
+          owners = analysis_units(Path.cwd(), {'native/control/module_catalog.inc': [], 'native/ui/studio_controller.h': []})
+          print(f'Validated compiled header ownership: {len(owners)} translation units')
+          PYCODE
       - name: Analyze and summarize every tool
         if: always()
         env:
