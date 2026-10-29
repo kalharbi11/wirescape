@@ -330,7 +330,16 @@ void StudioController::note(int pitch, bool on) {
     if(!running())return;
     for(const auto& item:document_["modules"].toArray())if(!send(item.toObject()["id"].toInt(),on?WS_NOTE_ON:WS_NOTE_OFF,float(pitch),0,pitch+2))break;
 }
-void StudioController::panic() { if (engine_) { app_engine_panic(engine_.get()); lastFrame_ = 0; } emit statusChanged(); }
+void StudioController::panic() {
+    if (engine_) {
+        // With no callback owner, reset immediately so the new generation is applied
+        // before the next offline key event. A live/unclean stream owns its reset.
+        if (audio_.engineInUse()) app_engine_panic(engine_.get());
+        else app_engine_reset(engine_.get());
+        lastFrame_ = 0;
+    }
+    emit statusChanged();
+}
 void StudioController::resetPatch() { midi_.stop(); midi_.restore(R"({"devices":[]})"); if (audio_.hasStream()) stopAudio(); if (audio_.engineInUse()) return; documentSource_ = {}; document_ = baseDocument(); name_ = "Essential voice"; dirty_ = false; compileDocument(); emit documentChanged(); }
 
 void StudioController::selectOutput(int node) { auto next = document_; next["outputNode"] = node; commitTopology(next); }
@@ -353,6 +362,7 @@ bool StudioController::savePatch(const QUrl& url) {
     const auto bytes=QJsonDocument(patch.object).toJson(QJsonDocument::Indented);
     if(!wirescape::document::save_patch(path,patch,&error,patchWriter_)){setError(error);return false;}
     documentSource_=patch;documentSource_.source_version=2;documentSource_.original_bytes=bytes;
+    document_=wirescape::document::editor_view(patch,catalog_.get());
     name_=QFileInfo(path).completeBaseName();dirty_=false;setError({});return true;
 }
 

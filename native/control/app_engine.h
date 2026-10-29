@@ -12,6 +12,7 @@ const char* app_engine_error(const AppEngine*);
 uint32_t app_engine_abi_version();
 int app_engine_load_module(AppEngine*,const char*);
 int app_engine_register_module(AppEngine*,const ws_module_descriptor*);
+int app_engine_copy_modules(AppEngine* destination,const AppEngine* source);
 uint32_t app_engine_module_count(const AppEngine*);
 const ws_module_descriptor* app_engine_module(const AppEngine*,uint32_t);
 int app_engine_add_node(AppEngine*,uint32_t,const char*);
@@ -31,4 +32,4 @@ int app_engine_get_meter(const AppEngine*,ws_meter*);
 int app_engine_build_essentials(AppEngine*,const char*);
 wirescape::engine2::Engine& app_engine_native(AppEngine*);
 
-const char* app_engine_parameter_id(const char*module,uint32_t index);
+const char* app_engine_parameter_id(const AppEngine*,const char*module,uint32_t index);

@@ -465,7 +465,7 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         };
         for(const auto&e:n.events){span(e.offset);
             ws_module_event old{};old.source_id=e.source_id;old.note_id=static_cast<uint32_t>(e.note_id);old.parameter_id=e.index;old.value=e.value;
-            if(e.type==WS2_PARAM){old.type=WS_PARAMETER;if(e.index<n.state.size()){auto&v=n.state[e.index];v.base.jump(ws::to_normal(v.info,e.value));v.requested=true;}}
+            if(e.type==WS2_PARAM){old.type=WS_PARAMETER;if(e.index<n.state.size()){auto&v=n.state[e.index];old.parameter_id=v.info.legacy_index;v.base.jump(ws::to_normal(v.info,e.value));v.requested=true;}}
             else if(e.type==WS2_NOTE_ON){old.type=WS_NOTE_ON;old.value=static_cast<float>(e.key);}
             else if(e.type==WS2_NOTE_OFF||e.type==WS2_NOTE_CHOKE)old.type=WS_NOTE_OFF;
             else continue;
