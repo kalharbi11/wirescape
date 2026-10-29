@@ -204,7 +204,7 @@ PatchDocument read_patch(const QByteArray& bytes, const ModuleCatalog& catalog) 
     } else {
         if (!validate_patch(result.object, &result.error)) return result;
         QJsonArray modules;
-        for (const auto& item : original["modules"].toArray()) {
+        for (const auto &item : original["modules"].toArray()) {
             auto module = item.toObject();
             if (!catalog.contains(module["module"].toString())) {
                 if (!module.contains("preserved")) module["preserved"] = module;

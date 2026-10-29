@@ -56,19 +56,26 @@ int main(int argc, char** argv) {
         check(u.object["connections"].toArray().size() == 1 && u.object["connections"].toArray()[0].toObject()["vendor"] == unknown["connections"].toArray()[0].toObject()["vendor"], "unknown cable retained");
         check(read_patch(encode(u.object), catalog).object == u.object, "unknown v1-v2-v2 roundtrip");
         for (bool hasPreserved : {false, true}) {
-            auto handwritten = u.object; auto nodes = handwritten["modules"].toArray();
-            auto rawNode = nodes[0].toObject(); rawNode.remove("inactive");
+            auto handwritten = u.object;
+            auto nodes = handwritten["modules"].toArray();
+            auto rawNode = nodes[0].toObject();
+            rawNode.remove("inactive");
             if (!hasPreserved) rawNode.remove("preserved");
-            nodes[0] = rawNode; handwritten["modules"] = nodes;
+            nodes[0] = rawNode;
+            handwritten["modules"] = nodes;
             const auto loaded = read_patch(encode(handwritten), catalog);
             check(loaded.valid(), "hand-written v2 unknown module loads");
-            auto expectedNode = rawNode; expectedNode["inactive"] = true;
+            auto expectedNode = rawNode;
+            expectedNode["inactive"] = true;
             if (!hasPreserved) expectedNode["preserved"] = rawNode;
             check(loaded.object["modules"].toArray()[0].toObject() == expectedNode,
                   "unknown v2 module made inactive without losing original or opaque preserved data");
             check(loaded.object["connections"] == handwritten["connections"], "unknown v2 cables retained");
-            check(read_patch(encode(loaded.object), catalog).object == loaded.object, "unknown v2 reload value-identical");
-            rawNode["inactive"] = "invalid"; nodes[0] = rawNode; handwritten["modules"] = nodes;
+            check(read_patch(encode(loaded.object), catalog).object == loaded.object,
+                  "unknown v2 reload value-identical");
+            rawNode["inactive"] = "invalid";
+            nodes[0] = rawNode;
+            handwritten["modules"] = nodes;
             check(!read_patch(encode(handwritten), catalog).valid(), "unknown v2 still rejects invalid inactive type");
         }
         auto collision = original;

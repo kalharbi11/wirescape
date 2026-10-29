@@ -95,7 +95,8 @@ private slots:
         bad = good; auto cables = good["connections"].toArray(); auto c = cables[0].toObject(); auto from = c["from"].toObject(); from["module"] = 999; c["from"] = from; cables[0] = c; bad["connections"] = cables; malformed.append(bad);
         // Existing VCO audio -> existing VCA control input: a signal-type mismatch.
         bad = good; cables = good["connections"].toArray(); c = cables[0].toObject(); auto to = c["to"].toObject(); to["port"] = "gain_cv"; c["to"] = to; cables[0] = c; bad["connections"] = cables; malformed.append(bad);
-        write("kind_mismatch.json", bad); QVERIFY(!studio.loadPatch(path("kind_mismatch.json")));
+        write("kind_mismatch.json", bad);
+        QVERIFY(!studio.loadPatch(path("kind_mismatch.json")));
         QVERIFY(studio.errorText().contains("incompatible signal type"));
         QVERIFY(studio.setParameter(1, 0, 550));
         const auto accepted = studio.modules();

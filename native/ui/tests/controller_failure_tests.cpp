@@ -80,7 +80,9 @@ int main(int argc, char** argv) {
         check(studio.modules()[0].toMap().value("missing").toBool(), "missing module shown");
         check(studio.connections() == resolvedConnections, "unresolved v2 cables preserved");
         check(studio.savePatch(QUrl::fromLocalFile(temp.filePath("unknown_roundtrip.json"))), "save unresolved patch");
-        unknown["inactive"] = true; unresolvedNodes[0] = unknown; unresolved["modules"] = unresolvedNodes;
+        unknown["inactive"] = true;
+        unresolvedNodes[0] = unknown;
+        unresolved["modules"] = unresolvedNodes;
         check(QJsonDocument::fromJson(read(temp.filePath("unknown_roundtrip.json"))).object() == unresolved,
               "unknown module payload and cables survive roundtrip");
         check(studio.saveDiagnostics(QUrl::fromLocalFile(temp.filePath("session.json"))), "offline diagnostics save");
