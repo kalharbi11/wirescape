@@ -82,19 +82,19 @@ Goal: agents keep moving without the user or Claude in the loop, and every short
 
 | Date | Claude check-in | Codex follow-up |
 |---|---|---|
-| 2026-10-29 | 05:00 | started by Claude's `@codex` comment at the end of the check-in |
-| 2026-10-29 | 10:30 | same |
-| 2026-10-29 | 13:45 | same |
-| 2026-10-29 | 17:30 | same |
+| 2026-10-29 | 05:00 | 05:30 |
+| 2026-10-29 | 10:30 | 11:00 |
+| 2026-10-29 | 13:45 | 14:15 |
+| 2026-10-29 | 17:30 | 18:00 |
 
 **At every Claude check-in:**
 1. Status sweep (cheap subagent), then fix what's broken (bridge, rules, task files, decisions).
 2. **Merge what's safe:** enable auto-merge on every PR that meets §3b/§3c (Claude may do this directly at check-ins; the user authorized it). For T2 and label-only PRs, review first, then comment `Claude: approved for auto-merge` and enable it.
 3. **Keep queues full:** create the next issues (with acceptance blocks) so Codex and ChatGPT always have at least a full session of work queued.
 4. Update the table above with the next check-in times.
-5. End with a comment on #29 that starts with `@codex` and lists the queue. With Codex's GitHub integration, that comment starts a Codex task, so the user sends no prompt.
+5. End with a planner comment on #29 listing Codex's queue (no `@codex` mention; Codex runs its own timers).
 
-**Codex, when started by that comment (or at any time):** read the latest planner comment on #29, work its queue in order under §3c, and end with one round-up on #29. If a check-in time in the table has passed without a planner comment, check again 30 minutes later and then continue the queue anyway. Never wait idle for the planner.
+**Codex:** sets its own timers for the Codex follow-up times in the table (30 minutes after each Claude check-in). At each one it reads the latest planner comment on #29, works its queue under §3c and posts a round-up on #29. Claude never tries to start Codex; it only keeps this table current.
 
 **ChatGPT:** keeps its hourly overnight watch (§3c) and posts its 07:00 summary on #101.
 
