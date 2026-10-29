@@ -12,7 +12,7 @@ static void check(bool ok,const char*message){if(!ok)throw std::runtime_error(me
 using App=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
 static App make(){ws_engine_config c{sizeof(c),48000,128,32,2048};App e(app_engine_create(&c),app_engine_destroy);check(bool(e),"create app engine");return e;}
 static void shim(const char*library){
- auto source=make();check(app_engine_module_count(source.get())==14,"thirteen Essentials plus host.keyboard");
+ auto source=make();check(app_engine_module_count(source.get())==15,"thirteen Essentials plus host.keyboard and CHAOS-lite");
  for(auto* native:wirescape::app::builtin_modules()){
   const ws_module_descriptor* metadata=nullptr;for(uint32_t i=0;i<app_engine_module_count(source.get());++i){auto* d=app_engine_module(source.get(),i);if(!std::strcmp(d->id,native->id))metadata=d;}
   check(metadata&&metadata->input_count==native->input_count&&metadata->output_count==native->output_count,"catalogue port counts");
