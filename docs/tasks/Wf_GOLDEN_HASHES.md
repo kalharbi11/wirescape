@@ -20,6 +20,6 @@ must_pass:
   - python tools/golden.py check
   - python -m unittest discover -s tools/foundation/tests -p "test_golden.py"
   - ci: linux-arm64, windows-x64, guard green
-  - pi: python tools/golden.py check --family arm64
+  - pi-run: python tools/golden.py check --family arm64
 stops: [hash update mixed with a DSP change, tolerance instead of exact hash]
 ```

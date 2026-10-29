@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+#include "../modules2/chaos_lite/dsp.h"
 #include "app_patch.h"
 #include "module_catalog.h"
 #include <QCoreApplication>
@@ -8,6 +9,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QtEndian>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -62,7 +64,12 @@ int main(int argc, char **argv) {
                 return hash([&](float *out, uint32_t count) { return app_engine_render(graph.get(), out, count); });
             });
         }
-        for (auto *descriptor : wirescape::app::builtin_modules()) {
+        auto descriptors = wirescape::app::builtin_modules();
+        const auto *chaos = ws::Module<ws2ports::ChaosLite>::descriptor();
+        if (std::none_of(descriptors.begin(), descriptors.end(),
+                         [&](const auto *d) { return std::strcmp(d->id, chaos->id) == 0; }))
+            descriptors.push_back(chaos);
+        for (auto *descriptor : descriptors) {
             record("module/" + QString::fromUtf8(descriptor->id), [&]() {
                 wirescape::engine2::Config config;
                 config.sample_rate = 48000;
