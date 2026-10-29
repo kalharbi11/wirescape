@@ -2,19 +2,14 @@
 
 Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-28 (Jam checkpoint adopted from the fresh-eyes review).
 
-## Now (≤30 lines; single source of truth; checked against the GitHub API 2026-10-28 ~04:00 UTC)
-- **Focus:** Jam checkpoint (J) + workflow v2 (`docs/WORKFLOW.md`). Agents run in the cloud; the Pi is a runner only.
-- **main = `07767dd`**: #75 (J plan, guide v2, templates) and #40 (M2-3) merged today. All 13 Essentials on ABI 2; the app still runs ABI 1.
-- **Open PRs:**
-  - #41 M2-4 regressions: green, reviewed earlier → **user merges** (J0).
-  - #76 J7 CHAOS-lite: green → ChatGPT pre-review (T1), then Pi number via the runner.
-  - #78 J1 engine2 app (draft): blocked on the render delta → **decided** (J file, decisions 2026-10-28b); Codex finishes.
-  - #79 J2 poly → #80 J3 play → #81 J4 MIDI → #82 J5 OSC: drafts stacked on #78; #81/#82 Windows red.
-  - #77 J6 Macro Oscillator (draft): UBSan in upstream → **decided** (patch authorized); Windows red.
-- **Next 3:** (1) this PR (workflow v2) merged; (2) Codex: #83 setup script, then J1→J2→J3 finish, then the W backlog in order; (3) user: register the Pi runner (#84).
-- **Routing:** Copilot gets nothing (credits). #49, #56, #66 moved to ChatGPT.
-- **Deferred until after J9:** #64 and the Windows 1.05× gate (tracked only), M3 full UI, Learn/Activity/Mappings, MIDI Out/Clock, UDP Send, OSC Out, MPE, Quantizer + Basic Sequencer, X-4 Surge/sst primitives, long soaks, the formal ABI freeze.
-- **Reviews:** T0/T1 merge on scripts + ChatGPT; Claude only for T2 (#78 J1, #81 J4, #82 J5) and the J gate.
+## Now (≤30 lines; checked against the GitHub API 2026-10-29 ~03:00 UTC)
+- **Focus:** Jam checkpoint (J) + workflow v2. The Pi runner is online again; the token works (it posted the first `pi5` status). Tests on the Pi wait for wirescape-pi#3 (ctest on PATH).
+- **Merged 10-28:** #75, #40, #41, #95, #96, #102, #97, #103, #76 (J7 CHAOS-lite), #99, #107; wirescape-pi #1, #2.
+- **Ready for the user to merge:** #104 static analysis, then #105 (rebased on it); #111, #108, #109, #110 (T0, green).
+- **J chain:** #78 J1 (T2) waits for `pi5` + `pi5/soak`, then Claude review → #79 J2 → #80 J3 → #81 J4 → #82 J5 (stacked).
+- **#77 J6:** remaining failure resolved by the hash decision (WORKFLOW §3b); Codex re-runs, then a ChatGPT pre-review and the Pi number.
+- **Next 3:** (1) user: merge wirescape-pi#3 and the ready PRs; (2) Codex: #77, then the J1 review pack once the Pi statuses are green; (3) ChatGPT: #66 after #110, pre-review #77.
+- **Deferred until after J9:** #64 / Windows 1.05×, M3 full UI, Learn/Mappings, MIDI Out/Clock, OSC Out, UDP Send, MPE, Quantizer + Basic Sequencer, X-4, long soaks, the formal ABI freeze. W #91, #92 wait for J1; #94 for J5.
 
 ## Vision
 Wirescape is a raw, expandable modular environment for music. Its aims:

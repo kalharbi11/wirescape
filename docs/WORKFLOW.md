@@ -11,14 +11,15 @@ The rules every agent follows are in `AGENTS.md`. This file holds the detail. So
 - **The laptop** is used only by the user. Laptop-only work (#64, real audio/MIDI runs) waits until the user does it.
 - **Devices:** no agent ever opens an audio or MIDI device or a LAN socket. Localhost tests are fine. Real-device paths sit behind `--confirm-*` flags that only the user runs.
 
-## 2. Pi runner jobs (in `wirescape-pi`)
+## 2. Pi runner jobs (in `wirescape-pi`; its README has setup and troubleshooting)
 | Job | Trigger | Does | Posts |
 |---|---|---|---|
-| `pr` | cron every 15 min: open PRs from this repo's own branches whose head SHA has no `pi5/tests` status yet | headless Release build + CTest on the exact head; `accept` if the task has `pi:` lines | commit status `pi5/tests` (+ `pi5/accept`), one comment with the summary table on failure or on the first green |
-| `nightly` | 02:00 local | full tests on `main`, soak (10 min, Six Essentials + poly8), benchmark vs baseline, golden render hashes, full clang-tidy, fuzzing (after J5), review packs for open PRs | one rolling issue "Pi nightly YYYY-MM-DD" (closes the previous one) |
-| `on-demand` | `workflow_dispatch` with a PR number and a command list | what a task's acceptance block names under `pi:` | commit status + comment |
+| `poll.yml` | every 20 min + manual | open PRs whose head is in this repo (never forks), **non-draft or labelled `ci/pi`**, head SHA without a `pi5` status: headless Release build + `tools/dev.py test` on the exact SHA | commit status `pi5` |
+| `nightly.yml` | 03:17 New York + manual | `main`: build, full tests, 600 s soaks (poly8, blocks 64/128/256), benchmark vs `baselines/pi5-benchmark.json`, frozen render hashes; later fuzzing (#94), clang-tidy (#87), review packs (#86) | overwrites the open issue **Pi nightly summary** (#101); opens "Pi nightly regression: <sha>" when a passing check starts failing |
 
-Safety: the private repo has no outside collaborators; fork PRs never run (the poller skips heads not in `kalharbi11/wirescape`); jobs never use `sudo` or devices; one job at a time (`concurrency`); the token is fine-grained to this repo only (Contents: read, Commit statuses: write, Issues: write, Pull requests: write).
+CodeQL (C/C++, Python and Actions) runs through `.github/workflows/codeql.yml` on GitHub Actions, **not** on the Pi runner; advanced setup is already configured, so do not also enable default setup.
+
+Builders: add `ci/pi` to a draft PR when its acceptance block has `pi:` lines; the `pi5` status appears within about 20 minutes plus build time. Safety: public code runs with a scrubbed environment (no token, no Actions credentials); fork heads are skipped; no `sudo`, devices or LAN listeners; one job at a time.
 
 ## 3. Review tiers
 | Tier | Applies to | Needs before the user merges |
@@ -27,7 +28,24 @@ Safety: the private repo has no outside collaborators; fork PRs never run (the p
 | **T1** + one cheap review | `size/m`/`size/l` modules, ports, tools, UI | T0 + a "ChatGPT pre-review" comment on the review pack, every High fixed or answered |
 | **T2** Claude | ABI/SDK headers, engine2 scheduler, threading/rings, realtime callback, services thread model, patch format, CI guard, milestone gates, or a T1 with an unsettled High | T1 + Claude reads only the pack and the pre-review, then spot-checks named lines. Concurrency/DSP: a second ChatGPT pass in a fresh chat first |
 
-When `accept` is green on the exact head, the builder sets `status/ready-to-merge` and posts the report. It never approves or merges.
+When `accept` is green on the exact head, the builder sets `status/ready-to-merge` and posts the report.
+
+## 3b. Who merges what
+| PR | Who | When |
+|---|---|---|
+| T0, base `main`, no label-only paths | builder enables auto-merge | after `status/ready-to-merge`; GitHub merges when required checks are green |
+| T1, base `main` | builder enables auto-merge | additionally a "ChatGPT pre-review" with every High fixed or answered |
+| T2 (engine, threads, patch format, guard/CI rules, ABI) | user, after Claude's review comment | — |
+| Stacked PR (base is another task branch) | nobody | only after its base merges and GitHub retargets it to `main` |
+| Planner docs PRs | user (or planner-enabled auto-merge for docs-only T0) | green |
+
+**Details settled 2026-10-29:**
+- Auto-merge may use any merge method; squash is fine.
+- A stacked PR's acceptance measures its **own** diff against its base branch (`accept --base <PR base ref>`), not against `main`; after the parent merges it is re-run against `main`.
+- Mechanical, behaviour-free type fixes in `native/sdk/**` (no new API, no ABI header) are T0; anything else in the SDK is T2.
+- Exact output hashes are asserted only **within one build** (same compiler and flags), for example patched vs. original in the same binary. Hashes from other compilers or architectures are recorded in reports, never asserted.
+
+**The user's rule of thumb:** a PR with base `main`, all checks green and no `tier/T2` label can be merged without asking Claude. Non-required checks (the static job, the optional acceptance job) may be red only if the PR didn't touch what they report on. Auto-merge needs the repository setting *Allow auto-merge* (Settings → General → Pull Requests).
 
 ## 4. Task files and the acceptance block
 Every issue points to a `docs/tasks/` file that ends with a fenced `acceptance` block. If the planner can't write one, the task isn't ready.
