@@ -221,6 +221,8 @@ def command_build(args: argparse.Namespace) -> int:
     steps = [{"name": "configure", **configure_result}]
     if configure_result["exit_code"] == 0:
         build = [cmake, "--build", str(BUILD_DIR), "--config", args.config, "--parallel"]
+        if env.get("CMAKE_BUILD_PARALLEL_LEVEL"):
+            build.append(env["CMAKE_BUILD_PARALLEL_LEVEL"])
         build_result = run_logged(build, ROOT, _unique_report_path("build-compile", ".log"), env)
         steps.append({"name": "build", **build_result})
     record["steps"] = steps

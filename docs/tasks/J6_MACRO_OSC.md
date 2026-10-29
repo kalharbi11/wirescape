@@ -16,6 +16,6 @@ must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_macro_oscillator_tests" --output-on-failure
   - ci: linux-arm64, windows-x64, sanitizers (no suppressions), cortex-m7 (report only), guard green on the exact head
-  - pi: 8 voices x 24 models at 48000/128, worst block < 25% of the period (666.7 us)
+  - pi-run: build/native/abi2_macro_oscillator_tests --benchmark   # label ci/pi-accept; 8 voices x 24 models at 48000/128, worst block < 25% of the period (666.7 us)
 stops: [ABI edit, upstream edit beyond the authorized patch, new dependency, sanitizer suppression]
 ```
