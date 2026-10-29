@@ -23,6 +23,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+      - name: Check PLAN Now freshness when changed (advisory)
+        continue-on-error: true
+        env: {GITHUB_TOKEN: "${{ github.token }}"}
+        run: if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qx docs/PLAN.md; then python tools/docs_fresh.py; fi
       - name: Run task acceptance when specified
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
