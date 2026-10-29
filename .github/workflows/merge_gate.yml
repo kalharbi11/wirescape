@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Enables auto-merge when tools/merge_gate.py says the §3b conditions hold, so agents that can
+# only label or comment can finish a PR. Runs base-branch code only; PR code is never checked out.
+name: Merge gate
+on:
+  pull_request_target:
+    types: [labeled, ready_for_review]
+  issue_comment:
+    types: [created]
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+concurrency:
+  group: merge-gate-${{ github.event.pull_request.number || github.event.issue.number }}
+jobs:
+  gate:
+    if: github.event_name == 'pull_request_target' || (github.event.issue.pull_request && github.event.comment.user.login == github.repository_owner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Decide and enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          if python tools/merge_gate.py --pr "$PR"; then
+            gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash
+          fi
