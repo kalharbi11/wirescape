@@ -12,14 +12,16 @@ Spec: `docs/tasks/J_JAM_CHECKPOINT.md` § "B3 / J4"; behaviour reference `docs/d
 
 CC rows: 7-bit by default, per-row 14-bit toggle (MSB CC 0–31 + LSB CC+32).
 
+File cap60 is the planner's 2026-10-29 10:30 decision on#29.
+
 ```acceptance
 tier: T2            # services thread model + ingress rings
 budget: 2 Codex sessions (remaining)
-size: <= 1800 changed lines, <= 30 files
+size: <= 1800 changed lines, <= 60 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "midi|note_identity|runtime_module_config|abi2_host_keyboard" --output-on-failure
-  - fixtures 1, 2, 4 from the brief §5 as offline graph tests at blocks 1/17/128 and 44.1/48/96 kHz
+  - ctest --test-dir build/native -R "^abi2_midi_to_cv_tests$" --output-on-failure   # brief fixtures 1/2/4 MIDI portion, blocks 1/17/128, 44.1/48/96 kHz; quantizer remains post-J9
   - ci: linux-arm64, windows-x64, sanitizers (TSan on the service/ingress tests), guard green on the exact head
   - pi: ctest -R "midi|note_identity"
 stops: [ABI edit, new dependency beyond libremidi, real MIDI port opened in a test, unspecified design choice]

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "dsp.h"
+#include <tuple>
 #include "../../io/midi/module_test_support.h"
 #include "../../engine2/engine2.h"
 #include "../midi_in/dsp.h"
@@ -83,4 +84,100 @@ static void graph_fixtures() {
         for (uint32_t c = 0; c < voices; ++c) REQUIRE(e.output_sample(2, 1, c, 127) == 0);
     }
 }
-int main() { basic_and_steal(); sustain_bend_expression(); modes_state_and_bounds(); graph_fixtures(); }
+
+static void partitioned_graph_fixtures() {
+    using namespace engine2;
+    using Observed = std::tuple<uint32_t, uint32_t, uint64_t, uint32_t, int32_t, int32_t, int32_t, uint32_t, uint32_t>;
+    std::array<std::vector<Observed>, 3> reference;
+    for (uint32_t fixture = 0; fixture < 3; ++fixture)
+    for (double rate : {44100., 48000., 96000.}) for (uint32_t block : {1u, 17u, 128u}) {
+        Config config; config.sample_rate = rate; config.max_block = 128; config.playing = false;
+        Engine e(config); const auto producer = uint32_t(e.register_producer());
+        REQUIRE(e.add_node(1, ws::Module<MidiIn>::descriptor()) && e.add_node(2, ws::Module<MidiToCv>::descriptor()));
+        REQUIRE(e.add_node(3, ws::Module<ws2ports::Vco>::descriptor()) && e.add_node(4, ws::Module<ws2ports::Adsr>::descriptor()));
+        REQUIRE(e.add_node(5, ws::Module<ws2ports::Vca>::descriptor()) && e.add_node(6, ws::Module<ws2ports::Output>::descriptor()));
+        REQUIRE(e.connect(1, 0, 2, 0) && e.connect(2, 0, 3, 0) && e.connect(2, 1, 4, 0));
+        REQUIRE(e.connect(3, 0, 5, 0) && e.connect(4, 0, 5, 1) && e.connect(5, 0, 6, 0) && e.output(6, 0, 0));
+        const uint32_t voices = fixture == 1 ? 2 : 1;
+        REQUIRE(e.set_parameter(2, 0, float(voices)) && e.prepare());
+        auto send = [&](ws2_event event, uint64_t frame) { REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, event, frame) == WS2_OK); };
+        // Synthetic endpoints A/B provide immutable source IDs; backend acquisition
+        // and physical hot-plug are independently exercised by fake Service tests.
+        if (fixture == 1) {
+            send(midi1(0xb0, 64, 127), 0);
+            for (uint8_t key : {60, 64, 67}) send(midi1(0x90, key, 127), 1);
+            send(midi1(0x90, 72, 127, 0, 2), 17); send(midi1(0x80, 67, 0), 20);
+            send(source_choke(1), 35); send(midi1(0x80, 72, 0, 0, 2), 77);
+        } else {
+            send(midi1(0x90, 60, 127), 7);
+            if (fixture == 2) {
+                uint32_t rejected = 0;
+                for (uint32_t n = 0; n < 400; ++n) {
+                    const int status = e.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0xb0, 1, uint8_t(n % 128)), 0);
+                    REQUIRE(status == WS2_OK || status == WS2_CAPACITY); rejected += status == WS2_CAPACITY;
+                }
+                REQUIRE(rejected > 0);
+                // A saturated ordinary ingress must still reserve these releases.
+                for (int n = 0; n < 4; ++n) send(midi1(0x80, 60, 0), 127);
+            } else send(midi1(0x80, 60, 0), 77);
+        }
+        std::vector<Observed> observed; uint32_t attacks = 0, releases = 0, chokes = 0;
+        float peak = 0; float data[128]{}; float* output[]{data};
+        for (uint32_t first = 0; first < 160; first += block) {
+            const auto frames = std::min(block, 160u - first);
+            { allocation_watch::Scope scope; REQUIRE(e.render(output, 1, frames) == WS2_OK); REQUIRE(scope.allocations() == 0); }
+            for (uint32_t i = 0; i < frames; ++i) {
+                REQUIRE(std::isfinite(data[i])); peak = std::max(peak, std::abs(data[i]));
+                const auto frame = first + i;
+                if (fixture != 1) {
+                    REQUIRE(e.output_sample(2, 0, 0, i) == 0);
+                    REQUIRE(e.output_sample(2, 1, 0, i) == float(frame >= 7 && frame < (fixture == 2 ? 127u : 77u)));
+                } else if (frame >= 35) {
+                    uint32_t active = 0; bool b_alive = false;
+                    for (uint32_t c = 0; c < voices; ++c) if (e.output_sample(2, 1, c, i) == 1) {
+                        ++active; b_alive |= e.output_sample(2, 0, c, i) == 1;
+                    }
+                    REQUIRE(active == (frame < 77 ? 1u : 0u)); if (frame < 77) REQUIRE(b_alive);
+                }
+            }
+            Outgoing item;
+            while (e.pop_egress(item)) {
+                const auto& event = item.event;
+                // Compare accepted source timestamps even under bounded output loss;
+                // normal fixture notes additionally require exact CHOKE/OFF ordering.
+                if (fixture != 2 || item.node == 1)
+                    observed.emplace_back(item.node, item.port, item.frame, event.type, event.channel,
+                                          event.key, event.note_id, event.source_id, event.ump[0]);
+                if (fixture != 2 && item.node == 2 && item.port == 7) {
+                    REQUIRE(event.channel >= 0 && uint32_t(event.channel) < voices);
+                    if (event.type == WS2_NOTE_ON) ++attacks;
+                    else { REQUIRE(event.type == WS2_NOTE_CHOKE || event.type == WS2_NOTE_OFF);
+                        ++releases; chokes += event.type == WS2_NOTE_CHOKE; }
+                }
+                if (fixture == 0 && item.node == 1) REQUIRE(item.frame == (((event.ump[0] >> 20) & 15) == 9 ? 7u : 77u));
+            }
+        }
+        REQUIRE(peak > 0 && e.meter().faults == 0);
+        for (uint32_t c = 0; c < voices; ++c) REQUIRE(e.output_sample(2, 1, c, (160u - 1) % block) == 0);
+        if (fixture != 2) {
+            REQUIRE(attacks == releases && attacks == (fixture == 1 ? 4u : 1u));
+            for (const auto& attack : observed) if (std::get<0>(attack) == 2 && std::get<3>(attack) == WS2_NOTE_ON) {
+                REQUIRE(std::count_if(observed.begin(), observed.end(), [&](const auto& release) {
+                    return std::get<0>(release) == 2 && (std::get<3>(release) == WS2_NOTE_OFF || std::get<3>(release) == WS2_NOTE_CHOKE)
+                        && std::get<4>(release) == std::get<4>(attack) && std::get<5>(release) == std::get<5>(attack)
+                        && std::get<6>(release) == std::get<6>(attack) && std::get<7>(release) == std::get<7>(attack);
+                }) == 1);
+            }
+            if (fixture == 1) REQUIRE(chokes >= 3);
+        }
+        // Egress interleaves per-node queues; compare logical absolute timestamps,
+        // not dispatcher drain order. basic_and_steal asserts local release-before-attack.
+        std::sort(observed.begin(), observed.end(), [](const auto& a, const auto& b) {
+            return std::tie(std::get<2>(a), a) < std::tie(std::get<2>(b), b);
+        });
+        if (reference[fixture].empty()) reference[fixture] = observed;
+        else REQUIRE(observed == reference[fixture]);
+    }
+}
+
+int main() { basic_and_steal(); sustain_bend_expression(); modes_state_and_bounds(); graph_fixtures(); partitioned_graph_fixtures(); }
