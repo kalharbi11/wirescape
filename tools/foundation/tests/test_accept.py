@@ -56,7 +56,14 @@ class AcceptanceTests(unittest.TestCase):
         commands = [prefix + " must not execute" for prefix in acceptance.EXTERNAL]
         code, report = self.run_task(commands)
         self.assertEqual(code, 0)
-        self.assertEqual([item["status"] for item in report["commands"]], ["external"] * 4)
+        self.assertEqual([item["status"] for item in report["commands"]], ["external"] * len(commands))
+
+    def test_pi_run_is_external_and_preserves_runner_command(self):
+        command = 'pi-run: build/native/probe --benchmark # runner only'
+        with patch.object(acceptance, "run_logged", side_effect=AssertionError("Pi command executed locally")):
+            code, report = self.run_task([command])
+        self.assertEqual(code, 0)
+        self.assertEqual(report["commands"], [{"command": command, "status": "external"}])
 
     def test_size_overflow_and_binary_fail(self):
         with patch.object(subprocess, "check_output", return_value=b"12\t3\tfile.cpp\0"):
