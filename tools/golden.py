@@ -34,7 +34,8 @@ def main():
     parser.add_argument("--renderer", type=Path)
     parser.add_argument("--report", type=Path, default=ROOT / "build_reports/goldens/report.json")
     args = parser.parse_args()
-    candidates = [ROOT / "build/native/golden_render", ROOT / "build/native/Release/golden_render.exe"]
+    candidates = [ROOT / "build/native/golden_render", ROOT / "build/native/Release/golden_render.exe",
+                  ROOT / "build/native/golden_render.exe"]
     renderer = args.renderer or next((p for p in candidates if p.is_file()), candidates[0])
     result = subprocess.run([str(renderer.resolve()), str(ROOT / "native/examples")], check=True,
                             capture_output=True, text=True)
