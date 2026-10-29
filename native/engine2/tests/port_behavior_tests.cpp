@@ -39,4 +39,77 @@ struct Cv {
 static void cv(){const ws2_descriptor*modules[]={ws::Module<ws2ports::Adsr>::descriptor(),ws::Module<ws2ports::Lfo>::descriptor(),ws::Module<ws2ports::Vca>::descriptor(),ws::Module<ws2ports::Vcf>::descriptor(),ws::Module<ws2ports::Vco>::descriptor()};
  for(auto*d:modules)for(uint32_t p=0;p<d->param_count;++p)if(!(d->params[p].flags&WS2_STEPPED)){VERIFY(d->params[p].flags&WS2_MODULATABLE);Engine e;VERIFY(e.add_node(1,ws::Module<Cv>::descriptor()));VERIFY(e.add_node(2,d));VERIFY(e.set_channels(1,4));if(d->input_count&&d->inputs[0].kind==WS2_SIGNAL)VERIFY(e.connect(1,0,2,0));VERIFY(e.modulate(1,0,2,p,.01f));VERIFY(e.output(2,0,0));VERIFY(e.prepare());float samples[256]{};float*out[]={samples};{allocation_watch::Scope watch;for(int i=0;i<3;++i)VERIFY(e.render(out,1,256)==WS2_OK);VERIFY(watch.allocations()==0);}VERIFY(e.meter().faults==0);for(float sample:samples)VERIFY(std::isfinite(sample));}
 }
-int main(){adsr();lfo();vca();vcf();vco();cv();std::puts("PASS existing-port behavior regressions and every continuous D7 parameter");}
+
+struct CvGate {
+ static constexpr ws::Info info{"test.cv_gate","CV gate",1};
+ static constexpr std::array<ws2_port,0> inputs{};
+ static constexpr std::array outputs{ws::port("gate","Gate",WS2_GATE)};
+ static constexpr std::array<ws2_param,0> params{};
+ void prepare(const ws::Setup&){} void reset(){}
+ void process(ws::Block&b){
+  b.out(0).set_channels(b.channels());b.out(0).mark_constant(false);
+  for(uint32_t c=0;c<b.channels();++c)for(uint32_t i=0;i<b.frames();++i)
+   b.out(0).ch(c)[i]=((b.frame_position()+i)/512)%2==0?.75f:0.f;
+ }
+};
+static void cv_new_ports(){
+ const ws2_descriptor*modules[]={
+  ws::Module<ws2ports::Mixer>::descriptor(),ws::Module<ws2ports::Noise>::descriptor(),
+  ws::Module<ws2ports::Output>::descriptor(),ws::Module<ws2ports::ScaleOffset>::descriptor(),
+  ws::Module<ws2ports::Slew>::descriptor(),ws::Module<ws2ports::Clock>::descriptor(),
+  ws::Module<ws2ports::FunctionEnvelope>::descriptor(),ws::Module<ws2ports::Ladder>::descriptor()};
+ uint32_t covered=0;
+ for(auto*d:modules){
+  for(uint32_t p=0;p<d->param_count;++p){
+   const auto&param=d->params[p];
+   if(param.flags&WS2_STEPPED){VERIFY(!(param.flags&WS2_MODULATABLE));continue;}
+   VERIFY(param.flags&WS2_MODULATABLE);
+   std::unique_ptr<Engine> engines[3];
+   for(int variant=0;variant<3;++variant){
+    engines[variant]=std::make_unique<Engine>();
+    auto&e=*engines[variant];
+    VERIFY(e.add_node(1,ws::Module<Cv>::descriptor()));
+    VERIFY(e.add_node(2,d));
+    VERIFY(e.add_node(3,ws::Module<CvGate>::descriptor()));
+    VERIFY(e.set_channels(1,4));VERIFY(e.set_channels(2,4));VERIFY(e.set_channels(3,4));
+    for(uint32_t port=0;port<d->input_count;++port){
+     if(d->inputs[port].kind!=WS2_SIGNAL)continue;
+     const bool gate=std::strcmp(d->id,"essentials.slew")==0||
+                     std::strcmp(d->id,"essentials.function_envelope")==0;
+     if(std::strcmp(d->id,"essentials.clock")!=0)
+      VERIFY(e.connect(gate?3u:1u,0,2,port));
+    }
+    if(std::strcmp(d->id,"essentials.clock")==0&&p==3)
+     VERIFY(e.set_parameter(2,p,.25f));
+    if(variant==1)VERIFY(e.modulate(1,0,2,p,.75f));
+    if(variant==2){
+     VERIFY(e.modulate(1,0,2,p,.6f));
+     VERIFY(e.modulate(1,0,2,p,-.6f));
+    }
+    for(uint32_t channel=0;channel<4;++channel)VERIFY(e.output(2,0,channel));
+    VERIFY(e.prepare());
+   }
+   bool changed=false;
+   for(int block=0;block<240;++block){
+    float data[3][4][256]{};
+    for(int variant=0;variant<3;++variant){
+     float*rows[]={data[variant][0],data[variant][1],data[variant][2],data[variant][3]};
+     {allocation_watch::Scope watch;
+      VERIFY(engines[variant]->render(rows,4,256)==WS2_OK);
+      VERIFY(watch.allocations()==0);}
+     VERIFY(engines[variant]->meter().faults==0);
+    }
+    for(int channel=0;channel<4;++channel)for(int i=0;i<256;++i){
+     const float base=data[0][channel][i], altered=data[1][channel][i];
+     VERIFY(std::isfinite(base)&&std::isfinite(altered));
+     VERIFY(std::abs(data[2][channel][i]-base)<1.e-5f);
+     changed|=std::abs(altered-base)>1.e-6f;
+    }
+   }
+   VERIFY(changed);++covered;
+  }
+ }
+ VERIFY(covered==17); // mixer 2, noise 1, output 0, scale 2, slew 2, clock 4, envelope 3, ladder 3
+}
+
+int main(){adsr();lfo();vca();vcf();vco();cv();cv_new_ports();std::puts("PASS existing-port behavior regressions and every continuous D7 parameter");}
