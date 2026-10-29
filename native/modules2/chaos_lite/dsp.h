@@ -46,11 +46,11 @@ struct ChaosLite {
     static ws2_memory memory_requirements(const ws2_config& c) {
         ws2_memory m{}; m.struct_size = sizeof(m);
         m.alignment = 32;
-        m.large_bytes = size_t(std::min(c.max_channels, 8u)) * 2 * ((3 * comb_length(c.sample_rate) + delay_length(c.sample_rate)) * sizeof(float) + 64);
+        m.large_bytes = size_t(std::min<uint32_t>(c.max_channels, 8u)) * 2 * ((3 * comb_length(c.sample_rate) + delay_length(c.sample_rate)) * sizeof(float) + 64);
         return m;
     }
     bool prepare(const ws::Setup& s) {
-        rate = static_cast<float>(s.sample_rate()); capacity = std::min(s.max_channels(), 8u); seed = s.config.seed;
+        rate = static_cast<float>(s.sample_rate()); capacity = std::min<uint32_t>(s.max_channels(), 8u); seed = s.config.seed;
         comb_size = comb_length(rate); delay_size = delay_length(rate);
         for (uint32_t c = 0; c < capacity; ++c) for (uint32_t side = 0; side < 2; ++side) {
             auto* comb = static_cast<float*>(s.alloc(3 * comb_size * sizeof(float), 32, WS2_LARGE));
