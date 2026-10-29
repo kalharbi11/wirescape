@@ -145,5 +145,11 @@ if(TARGET wirescape_document)
   add_test(NAME app_document_soak COMMAND wirescape_soak --patch
     "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json" --rate 48000 --block 128 --seconds 0.01)
   set_tests_properties(app_document_soak PROPERTIES TIMEOUT 15)
+  # wirescape_soak links QtCore through wirescape_document; Windows needs its DLL directory on PATH.
+  if(WIN32)
+    find_package(Qt6 6.5 QUIET COMPONENTS Core)
+    set_tests_properties(abi2_soak_smoke abi2_soak_cli app_document_soak PROPERTIES
+      ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
+  endif()
 endif()
 add_subdirectory(../modules2/chaos_lite chaos_lite)
