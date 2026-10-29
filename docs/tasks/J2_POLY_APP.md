@@ -20,5 +20,6 @@ must_pass:
   - ctest --test-dir build/native -R studio_ui_tests   # chord produces 4 active channels (offscreen, needs the Qt build)
   - ci: linux-arm64, windows-x64, sanitizers, guard all green on the exact head
   - pi: ctest -R "abi2_host_keyboard_tests|app_patch_tests"
+  - pi-run: ctest --test-dir build/native -R abi2_host_keyboard_tests -V
 stops: [ABI edit, new dependency, threshold change, unspecified design choice]
 ```

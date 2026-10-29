@@ -49,15 +49,17 @@ class NoteToCv {
         if (empty < 0) {
             // Reclaim only between events, after synchronous release emission.
             // Host output queues hold original source IDs, not these tokens.
-            for (int i = 0; i < kMaxHeldNotes; ++i) {
-                bool reserved = allocator_.source_in_use(static_cast<uint32_t>(i));
-                for (const auto &a : anonymous_)
-                    if (a.used && a.source == static_cast<uint32_t>(i)) reserved = true;
-                if (!reserved) {
+            std::array<bool, kMaxHeldNotes> reserved{};
+            allocator_.visit_sources_in_use([&](uint32_t source) {
+                if (source < reserved.size()) reserved[source] = true;
+            });
+            for (const auto &a : anonymous_)
+                if (a.used) reserved[a.source] = true;
+            for (int i = 0; i < kMaxHeldNotes; ++i)
+                if (!reserved[i]) {
                     empty = i;
                     break;
                 }
-            }
         }
         if (empty < 0) return -1;
         sources_[empty] = {true, source, static_cast<int16_t>(channel)};
