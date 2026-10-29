@@ -72,8 +72,10 @@ Before patching, GCC 14.2.0 x86_64 `-O3 -DNDEBUG` at 48k/128 produced these FNV-
 | 3 | `ba4c1cadbda672a5` |
 | 4 | `8ee3f2f04c6dd061` |
 
-`signed_shift_reference` asserts non-silence and exact hashes within each platform
-family. ARM64's unpatched and patched Release hashes were identical in CI run
+`signed_shift_reference` asserts non-silence and records hashes for each platform
+family. Per the planner decision on #29 (2026-10-29), hashes from another build
+are report data, not assertions; exact equality is gated by the same-build
+patched-versus-original Release oracle below. ARM64's unpatched and patched Release hashes were identical in CI run
 40759170616 (`abi2_macro_reference`, Linux ARM64): model2 `e5cf182ea7892761`,
 model3 `0aa6ab841f075ed1`, model4 `4ebac16c1be444b5`. These are recorded separately
 from x86-64; no cross-family equality is assumed.
@@ -100,7 +102,9 @@ and publishes the equal JSON results as `build_reports/abi2/macro-reference-*.js
 (uploaded by existing native CI). The unpatched oracle is not built or executed
 in sanitizer configurations; all production DSP and its normal tests remain
 instrumented without suppressions. No unpatched library enters the module or app.
-The normal test keeps exact family baselines and never accepts a mismatching hash.
+The normal test records hashes without comparing another toolchain's baseline.
+The Release oracle requires exact patched-versus-original equality with the same
+compiler and flags; sanitizer builds continue to exercise the patched DSP only.
 
 The render helper checks both size multiplications before allocating and uses
 `size_t` indices. Boundary tests include zero and overflow in either operand; no
