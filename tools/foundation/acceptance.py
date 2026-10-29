@@ -13,6 +13,10 @@ from foundation.helpers import git_revision, run_logged, utc_iso, write_json
 
 EXTERNAL = ("pi:", "ci:", "user:", "chatgpt-pre-review:")
 
+# Planner-approved exceptions for historical, user-run tasks (issue #114).
+# These are skipped and visibly NOT verified, never reported as a task pass.
+LEGACY_EXCEPTIONS = {45: "user J9 session", 64: "deferred laptop measurement"}
+
 
 def parse(text):
     blocks = re.findall(r"(?ms)^```acceptance[^\S\n]*\n(.*?)^```[^\S\n]*$", text)
@@ -55,20 +59,43 @@ def find_task(root, issue):
     return matches[0]
 
 
-def size_check(root, spec):
+
+def select_pr_task(root, pr_body):
+    """Return (issue, task, note); fail closed for referenced unverified tasks."""
+    match = re.search(r"(?i)\bCloses\s+#(\d+)\b", pr_body or "")
+    if not match:
+        return None, None, "No Closes #N reference; acceptance not selected."
+    issue = int(match.group(1))
+    if issue in LEGACY_EXCEPTIONS:
+        return issue, None, (f"legacy exception — not verified: #{issue} "
+                             f"({LEGACY_EXCEPTIONS[issue]}); this is not an acceptance pass")
+    try:
+        task = find_task(Path(root), issue)
+        spec = parse(task.read_text(encoding="utf-8"))
+        if spec.get("tier") not in ("T0", "T1", "T2"):
+            raise ValueError("acceptance block must declare a valid tier")
+    except (OSError, ValueError) as error:
+        raise ValueError(f"not verified: issue #{issue}: {error}") from error
+    return issue, task, ""
+
+
+
+def size_check(root, spec, base="origin/main"):
     if spec == "n/a":
         return {"status": "not_applicable"}
+    revision = subprocess.check_output(["git", "rev-parse", "--verify", "--end-of-options",
+                                        base + "^{commit}"], cwd=root).decode().strip()
     line_limit, file_limit = map(int, re.findall(r"\d+", spec))
     # Numstat -z has extra path records for renames. Disable rename detection so
     # deleted and added paths both count rather than misparsing those records.
     raw = subprocess.check_output(["git", "diff", "--no-renames", "--numstat", "-z",
-                                   "origin/main...HEAD"], cwd=root)
+                                   revision + "...HEAD"], cwd=root)
     entries = [entry.split(b"\t", 2) for entry in raw.split(b"\0") if entry]
     binary = any(a == b"-" or d == b"-" for a, d, _ in entries)
     lines = sum(int(a) + int(d) for a, d, _ in entries if a != b"-" and d != b"-")
     return {"status": "passed" if not binary and lines <= line_limit and len(entries) <= file_limit else "failed",
             "changed_lines": lines, "files": len(entries), "binary_changes": binary,
-            "line_limit": line_limit, "file_limit": file_limit}
+            "line_limit": line_limit, "file_limit": file_limit, "base": base, "base_commit": revision}
 
 
 def shell_syntax(command):
@@ -124,7 +151,7 @@ def run(root, args):
         text = task.read_text(encoding="utf-8")
         block = parse(text)
         record.update(task=str(task), task_sha256=hashlib.sha256(text.encode()).hexdigest(), tier=block.get("tier"))
-        record["size"] = size_check(root, block["size"])
+        record["size"] = size_check(root, block["size"], getattr(args, "base", "origin/main"))
         for index, command in enumerate(block["must_pass"]):
             item = {"command": command}
             if command.startswith(EXTERNAL):
