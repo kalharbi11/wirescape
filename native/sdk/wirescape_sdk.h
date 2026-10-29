@@ -56,7 +56,7 @@ inline void silence_outputs(ws2_process*c,uint32_t max_channels=WS2_MAX_CHANNELS
             for(uint32_t j=0;j<c->output_count;++j){auto&o=c->outputs[j];
                 if(o.struct_size<sizeof(ws2_signal_out)||!o.data||!o.max_channels||o.max_channels>max_channels)continue;
                 bool valid=true;for(uint32_t k=0;k<o.max_channels;++k)valid&=o.data[k]!=nullptr;if(!valid)continue;
-                o.flags=WS2_CONSTANT;o.channels=std::clamp(c->channels,1u,o.max_channels);for(uint32_t k=0;k<o.channels;++k)o.data[k][0]=0;
+                o.flags=WS2_CONSTANT;o.channels=std::clamp<uint32_t>(c->channels,1u,o.max_channels);for(uint32_t k=0;k<o.channels;++k)o.data[k][0]=0;
             }
 }
 struct Setup {
