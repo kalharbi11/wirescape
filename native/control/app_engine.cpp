@@ -20,7 +20,7 @@ struct AppEngine {
  wirescape::engine2::Engine engine;
  std::atomic<float> peak{0};std::atomic<uint64_t> blocks{0};
  std::string error;
- explicit AppEngine(const ws_engine_config& c):legacy(ws_engine_create(&c),ws_engine_destroy),engine(config(c)){
+ explicit AppEngine(const ws_engine_config& c,uint64_t seed):legacy(ws_engine_create(&c),ws_engine_destroy),engine(config(c,seed)){
   engine.register_producer();
   for(auto* d:wirescape::app::builtin_modules()){
    entries.emplace_back();auto& e=entries.back();e.native=d;
@@ -30,12 +30,12 @@ struct AppEngine {
    e.metadata={sizeof(ws_module_descriptor),WS_ABI_VERSION,d->id,d->name,d->input_count,d->output_count,d->param_count,e.inputs.data(),e.outputs.data(),e.params.data(),nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
   }
  }
- static wirescape::engine2::Config config(const ws_engine_config& c){wirescape::engine2::Config r;r.sample_rate=c.sample_rate;r.max_block=c.max_block_frames;r.max_nodes=c.max_nodes;r.event_budget=c.max_events;return r;}
+ static wirescape::engine2::Config config(const ws_engine_config& c,uint64_t seed){wirescape::engine2::Config r;r.seed=seed;r.sample_rate=c.sample_rate;r.max_block=c.max_block_frames;r.max_nodes=c.max_nodes;r.event_budget=c.max_events;return r;}
  const Entry* find(const char* id)const{for(auto& e:entries)if(std::strcmp(e.metadata.id,id)==0)return &e;return nullptr;}
 };
-AppEngine* app_engine_create(const ws_engine_config*c){
+AppEngine* app_engine_create(const ws_engine_config*c,uint64_t seed){
  if(!c)return nullptr;
- try{return new AppEngine(*c);}catch(...){return nullptr;}
+ try{return new AppEngine(*c,seed);}catch(...){return nullptr;}
 }
 void app_engine_destroy(AppEngine*e){delete e;}
 uint32_t app_engine_abi_version(){return 2;}

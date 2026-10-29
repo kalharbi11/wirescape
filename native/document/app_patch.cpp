@@ -46,9 +46,9 @@ PatchDocument editor_patch(const QJsonObject&view,AppEngine*e,const PatchDocumen
  o["version"]=2;o["modules"]=nodes;o["connections"]=cables;o["outputs"]=outputs;if(!source.object.contains("outputNode"))o.remove("outputNode");
  PatchDocument p=source;p.object=o;validate_patch(o,&p.error);return p;
 }
-AppEngine* build_app_patch(AppEngine*catalog,const PatchDocument&p,const ws_engine_config&config,QString&error){
+AppEngine* build_app_patch(AppEngine*catalog,const PatchDocument&p,const ws_engine_config&config,QString&error,uint64_t seed){
  auto fail=[&](const QString&s)->AppEngine*{error=s;return nullptr;};if(!p.valid())return fail(p.error);
- std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>e(app_engine_create(&config),app_engine_destroy);if(!e)return fail("Cannot create engine2");
+ std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>e(app_engine_create(&config,seed),app_engine_destroy);if(!e)return fail("Cannot create engine2");
  if(app_engine_copy_modules(e.get(),catalog)!=WS_OK)return fail("Cannot copy module catalogue");
  auto&engine=app_engine_native(e.get());QHash<int,const ws_module_descriptor*>nodes;
  auto port=[&](int id,const QString&key,bool output){auto*d=nodes.value(id);if(!d)return -1;auto*ports=output?d->outputs:d->inputs;auto count=output?d->output_count:d->input_count;for(uint32_t i=0;i<count;++i)if(key==QString::fromUtf8(ports[i].id))return int(i);return -1;};

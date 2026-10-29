@@ -4,7 +4,7 @@
 #include "engine2.h"
 // Internal app facade, not an ABI. Legacy structures are UI metadata only.
 struct AppEngine;
-AppEngine* app_engine_create(const ws_engine_config*);
+AppEngine* app_engine_create(const ws_engine_config*, uint64_t seed=1);
 void app_engine_destroy(AppEngine*);
 const char* app_engine_error(const AppEngine*);
 uint32_t app_engine_abi_version();

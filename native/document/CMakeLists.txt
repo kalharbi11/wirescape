@@ -32,3 +32,10 @@ add_test(NAME app_patch_tests COMMAND app_patch_tests $<TARGET_FILE_DIR:ws_noise
   "${PROJECT_SOURCE_DIR}/tests/fixtures/legacy_documents")
 set_tests_properties(app_patch_tests PROPERTIES
   ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_executable(golden_render ../tests/golden_render.cpp)
+target_link_libraries(golden_render PRIVATE wirescape_document)
+add_test(NAME golden_render_hashes COMMAND "${Python3_EXECUTABLE}"
+  "${PROJECT_SOURCE_DIR}/../tools/golden.py" check --renderer $<TARGET_FILE:golden_render>)
+set_tests_properties(golden_render_hashes PROPERTIES TIMEOUT 60
+  ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
