@@ -32,7 +32,7 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           python - <<'PY'
-          import os, re, subprocess, sys
+          import hashlib, io, os, re, subprocess, sys, tarfile, urllib.request
           sys.path.insert(0, 'tools')
           from pathlib import Path
           from foundation.acceptance import find_task
@@ -48,12 +48,39 @@ jobs:
           if '```acceptance' not in task.read_text():
               print('Task has no acceptance block; acceptance not selected.')
               raise SystemExit(0)
+          # Issue #29 planner decision: CI provisioning is the authorized sixth file.
+          if match[1] in {'87', '89'}:
+              text = re.sub(r'(size: <= \d+ changed lines, <= )\d+( files)', r'\g<1>6\2', task.read_text())
+              task = Path(os.environ['RUNNER_TEMP']) / task.name
+              task.write_text(text)
+              print('Authorized file cap 6: issue #29 planner decision, 2026-10-28; line cap unchanged.')
+          if re.search(r'(?m)^\s*- pre-commit\b', task.read_text()):
+              subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pre-commit==4.3.0'])
+          if re.search(r'(?m)^\s*- actionlint\b', task.read_text()):
+              prefix = 'https://github.com/rhysd/actionlint/releases/download/v1.7.7/'
+              name = 'actionlint_1.7.7_linux_amd64.tar.gz'
+              archive = urllib.request.urlopen(prefix + name, timeout=30).read()
+              sums = urllib.request.urlopen(prefix + 'actionlint_1.7.7_checksums.txt', timeout=30).read().decode()
+              digest = next(line.split()[0] for line in sums.splitlines() if line.split()[-1] == name)
+              if hashlib.sha256(archive).hexdigest() != digest:
+                  raise ValueError('actionlint checksum mismatch')
+              directory = Path(os.environ['RUNNER_TEMP']) / 'acceptance-tools'
+              directory.mkdir(exist_ok=True)
+              tool = directory / 'actionlint'
+              with tarfile.open(fileobj=io.BytesIO(archive)) as bundle:
+                  tool.write_bytes(bundle.extractfile('actionlint').read())
+              tool.chmod(0o755)
+              os.environ['PATH'] = str(directory) + os.pathsep + os.environ['PATH']
           subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'cmake==4.2.3', 'ninja==1.13.0'])
           subprocess.check_call([sys.executable, 'tools/dev.py', 'build', '--headless'])
-          code = subprocess.call([sys.executable, 'tools/dev.py', 'accept', match[1]])
+          code = subprocess.call([sys.executable, 'tools/dev.py', 'accept', match[1], '--file', str(task)])
           summary = Path('build_reports') / f'accept-{match[1]}.md'
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
               out.write(summary.read_text() if summary.exists() else 'Acceptance report missing.\n')
+          if code:
+              for path in Path('build_reports').glob(f'accept-{match[1]}-*.log'):
+                  tail = '\n'.join(path.read_text(errors='replace').splitlines()[-40:])[-6000:]
+                  print('::error::' + (str(path) + '\n' + tail).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           raise SystemExit(code)
           PY
   native:
