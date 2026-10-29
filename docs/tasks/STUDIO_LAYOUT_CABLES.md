@@ -11,7 +11,7 @@ tier: T1
 budget: 1 Codex session or bounded ChatGPT task
 size: <= 320 changed lines, <= 6 files
 must_pass:
-  - ctest --test-dir build/native -R "studio_ui_tests|controller_failure_tests|audio_device_tests" --output-on-failure --no-tests=error
-  - ci: Windows Qt build and actual named offscreen tests green on exact head
+  # Planner 2026-10-29: the Qt UI tests exist only in the Windows Qt build, so they are evaluated there, not by the headless accept run.
+  - "ci: windows-x64 green on exact head, with studio_ui_tests, controller_failure_tests and audio_device_tests all passing"
 stops: [ABI header edit, new dependency, format or ID change, tests removed, unapproved threshold change]
 ```
