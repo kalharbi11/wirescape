@@ -14,8 +14,10 @@ All commands keep physical audio and MIDI devices off.
    write access to trusted maintainers, and do not share its runner with the
    public repository. A same-repository PR is trusted code: review who can push.
 2. Install Python 3.12 or newer, a C++17 compiler, CMake 4.2.3 and Ninja 1.13.0
-   on the runner user's PATH (pip installs can use `~/.local/bin`, which the
-   bridge adds). The runner also needs Qt Core >=6.5 development files for
+   on the runner user's PATH. On Raspberry Pi OS, install pinned Python packages
+   in a venv; system `pip install --user` may be rejected under PEP 668.
+   The bridge adds `~/.local/bin` and can find CTest beside the resolved CMake.
+   Use the private README's venv setup; never override system Python protections. The runner also needs Qt Core >=6.5 development files for
    document-loader tests and soaks. Jobs never use sudo or install system packages. Ensure the
    runner has Git and can reach GitHub and the package registry. GitHub CLI is
    only needed by operators using the optional dispatch commands below.
@@ -31,8 +33,8 @@ All commands keep physical audio and MIDI devices off.
    They share a concurrency group so a poll cannot overlap a nightly soak or
    benchmark. Do not add another workflow that bypasses that group.
    Reuse pinned [Pi nightly summary #101](https://github.com/kalharbi11/wirescape/issues/101).
-   If it is missing, create one issue with that title and pin it. If it is
-   missing, nightly still runs independent checks and uploads its report, then
+   If it is missing, create one issue with that title and pin it. Until then,
+   nightly still runs independent checks and uploads its report, then
    reports the missing summary issue as a setup blocker.
 5. Commit a measured Pi benchmark baseline in the private repository as
    `baselines/pi5-benchmark.json`, using the public benchmark JSON schema
@@ -65,24 +67,29 @@ gh api repos/kalharbi11/wirescape/commits/HEAD_SHA/status
 
 Replace `HEAD_SHA` with the PR's actual full head SHA. Confirm the `pi5` status
 on that SHA; an older status or a running job is not evidence for the new head.
-The poll never retests an existing `pi5` status automatically. Investigate failed
-runs before explicitly requesting a retry or pushing a correction.
+The poll skips existing statuses by default. After diagnosing and fixing an
+infrastructure failure, add **`ci/pi-retry`** to request one rerun on the same
+head SHA. It reruns tests and any labeled soak, then removes the retry label
+after publishing results, whether success or failure. If publishing fails, the
+label remains. Never push an empty commit merely to retrigger. Drafts still
+need `ci/pi`, and forks remain ineligible. Prefer the scheduled poll; avoid
+duplicate manual runs. All private Pi jobs share the exclusive concurrency group.
 
 ## Real-document loader soak
 
 Add **`ci/pi-soak`** as well as `ci/pi` to request J1's real-loader evidence.
-The authorized contract is a separate **`pi5/soak`** status, at most once per
-head SHA, from:
+The bridge posts a separate **`pi5/soak`** status, once per head SHA unless
+explicitly retried, from:
 
 ```bash
 build/native/wirescape_soak --patch native/examples/Six_Essentials_Demo.json --rate 48000 --block 128 --seconds 600
 ```
 
-Implementation gap verified against private main `d4c6f87`: its poll currently
-runs build/tests and posts `pi5` only; it does not implement `ci/pi-soak` or
-`pi5/soak` yet. These requested labels alone cannot produce soak evidence until
-the private bridge adds that path. Issue #84 tracks the blocker. A passing
-`pi5` smoke/test status does not satisfy the 600-second loader soak.
+These paths are implemented in private main `ebd2229` (including private PRs
+#2, #3 and #5). Confirm success for both contexts on the exact PR head; an old
+status or a passing `pi5` build/test cannot substitute for the loader soak.
+If tests already have a result, a newly requested soak builds that same head
+without rerunning tests; `ci/pi-retry` forces both requested stages.
 
 ## Nightly evidence
 
