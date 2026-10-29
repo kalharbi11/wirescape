@@ -33,6 +33,22 @@ class StaticChecksTests(unittest.TestCase):
                 self.assertIn("| cppcheck changed files | 1 | failed |", summary.read_text())
                 self.assertIn("ruff changed files", summary.read_text())
 
+    def test_cpp_headers_and_c_sources_use_their_own_language_modes(self):
+        diff = "+++ b/native/rng.hpp\n@@ -0,0 +1 @@\n+namespace rng {}\n+++ b/native/driver.c\n@@ -0,0 +1 @@\n+int value;\n"
+        with patch.object(static_checks.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
+            self.assertEqual(static_checks.run_checks(Path("."), diff, "tidy.py"), 0)
+        commands = [c.args[0] for c in run.call_args_list if c.args[0][0] == "cppcheck"]
+        self.assertEqual(len(commands), 2)
+        cpp, c = commands
+        self.assertIn("--language=c++", cpp)
+        self.assertIn("--std=c++17", cpp)
+        self.assertIn("./native/rng.hpp", cpp)
+        self.assertNotIn("./native/driver.c", cpp)
+        self.assertIn("--language=c", c)
+        self.assertIn("--std=c11", c)
+        self.assertIn("./native/driver.c", c)
+        self.assertNotIn("./native/rng.hpp", c)
+
     def test_ruff_checks_only_changed_surviving_tools_files(self):
         diff = '+++ b/tools/changed.py\n+++ /dev/null\n+++ b/docs/example.py\n+++ "b/tools/space name.py"\n+++ b/tools/changed.py\n'
         with patch.object(static_checks.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run:

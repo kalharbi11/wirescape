@@ -31,9 +31,15 @@ def run_checks(root, diff, tidy_diff):
         jobs.append(("clang-tidy diff", [sys.executable, tidy_diff, "-p1", "-path", "build/static",
                                        "-clang-tidy-binary", "clang-tidy-18", "-j2"], diff))
     if files:
-        jobs.append(("cppcheck changed files", ["cppcheck", "--enable=warning,performance", "--error-exitcode=1",
-                     "--suppress=missingIncludeSystem", "--template=gcc", "--std=c++17",
-                     "-Inative/include", "-Inative/sdk", *["./" + name for name in files]], None))
+        groups = (("c++", "c++17", [name for name in files if Path(name).suffix != ".c"]),
+                  ("c", "c11", [name for name in files if Path(name).suffix == ".c"]))
+        for language, standard, selected in groups:
+            if selected:
+                name = "cppcheck changed files" if language == "c++" else "cppcheck C changed files"
+                jobs.append((name, ["cppcheck", "--enable=warning,performance", "--error-exitcode=1",
+                             "--suppress=missingIncludeSystem", "--template=gcc", "--language=" + language,
+                             "--std=" + standard, "-Inative/include", "-Inative/sdk",
+                             *["./" + name for name in selected]], None))
         for name, ranges in files.items():
             if ranges:
                 jobs.append(("clang-format " + name, ["clang-format-18", "--dry-run", "--Werror",
