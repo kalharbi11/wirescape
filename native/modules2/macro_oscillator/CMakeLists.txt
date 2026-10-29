@@ -41,13 +41,17 @@ add_test(NAME abi2_macro_oscillator_tests COMMAND ${CMAKE_COMMAND}
 
 # Release-only oracle: same sources/toolchain, with just the signed-shift header
 # restored in a private include overlay. Never build unpatched code with sanitizers.
-if(NOT CMAKE_CXX_FLAGS MATCHES "sanitize" AND (CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_CONFIGURATION_TYPES))
+set(WS_MACRO_REFERENCE_FUNCTIONS_ONLY TRUE)
+include(${CMAKE_CURRENT_SOURCE_DIR}/patches/compare_reference.cmake)
+unset(WS_MACRO_REFERENCE_FUNCTIONS_ONLY)
+add_test(NAME abi2_macro_reference_guards COMMAND ${CMAKE_COMMAND}
+  -DSELF_TEST_REFERENCE=${CMAKE_CURRENT_BINARY_DIR}/reference-guard-test
+  -P ${CMAKE_CURRENT_SOURCE_DIR}/patches/compare_reference.cmake)
+ws_macro_reference_allowed(reference_allowed)
+if(reference_allowed)
   set(reference_dir ${CMAKE_CURRENT_BINARY_DIR}/reference)
-  file(READ ${macro_eurorack_SOURCE_DIR}/plaits/dsp/fm/dx_units.h reference_header)
-  string(REPLACE "static_cast<int32_t>(static_cast<uint32_t>(x_integral) << 23)"
-    "x_integral << 23" reference_header "${reference_header}")
-  file(MAKE_DIRECTORY ${reference_dir}/plaits/dsp/fm)
-  file(WRITE ${reference_dir}/plaits/dsp/fm/dx_units.h "${reference_header}")
+  ws_macro_reference_header(${macro_eurorack_SOURCE_DIR}/plaits/dsp/fm/dx_units.h
+    ${reference_dir}/plaits/dsp/fm/dx_units.h)
   add_library(macro_reference_upstream STATIC ${macro_sources} ${macro_eurorack_SOURCE_DIR}/plaits/resources.cc ${macro_stmlib_SOURCE_DIR}/dsp/units.cc)
   target_link_libraries(macro_reference_upstream PUBLIC wirescape_sdk2)
   target_include_directories(macro_reference_upstream BEFORE PUBLIC ${reference_dir} ${macro_eurorack_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/upstream ${CMAKE_CURRENT_SOURCE_DIR})

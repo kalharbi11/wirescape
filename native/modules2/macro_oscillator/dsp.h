@@ -58,7 +58,7 @@ struct MacroOscillator {
     void reset() {
         for (uint32_t c = 0; c < capacity; ++c) {
             auto& ch = channels[c];
-            ch.rng = static_cast<uint32_t>(seed ^ (uint64_t(c + 1) * 0x9e3779b9u));
+            ch.rng = static_cast<uint32_t>(seed ^ (seed >> 32) ^ (uint64_t(c + 1) * 0x9e3779b9u));
             RngScope scope(ch.rng);
             ch.voice->~Voice();
             std::memset(ch.voice, 0, sizeof(plaits::Voice));

@@ -204,6 +204,17 @@ static void isolated_rng() {
     left.d->reset(left.instance); right.d->reset(right.instance);
     for (uint32_t i = 0; i < 8; ++i) { left.run(128); right.run(128); REQUIRE(std::equal(left.buffer->output[0][0], left.buffer->output[0][0] + 128, right.buffer->output[0][0])); }
 }
+static void host_seed_high_bits() {
+    Rig low(1, 42), high(1, 42 + (1ULL << 32));
+    low.values[0] = high.values[0] = 17;
+    const auto low_first = render(low, 128);
+    const auto high_first = render(high, 128);
+    REQUIRE(low_first != high_first);
+    low.d->reset(low.instance);
+    high.d->reset(high.instance);
+    REQUIRE(render(low, 128) == low_first);
+    REQUIRE(render(high, 128) == high_first);
+}
 static int benchmark() {
     using namespace wirescape::engine2; Config config; config.max_block = 128; config.max_channels = 8;
     Engine engine(config); REQUIRE(engine.add_node(1, ws::Module<macro_oscillator::MacroOscillator>::descriptor())); REQUIRE(engine.set_channels(1, 8)); REQUIRE(engine.output(1, 0, 0)); REQUIRE(engine.output(1, 1, 1)); const int producer = engine.register_producer(); REQUIRE(producer >= 0); REQUIRE(engine.prepare());
@@ -222,4 +233,4 @@ static int benchmark() {
     std::printf("],\"worst_us\":%.3f}\n", worst);
     return worst < 666.666667 ? 0 : 1;
 }
-int main(int argc, char** argv) { if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark(); if (argc == 2 && std::string(argv[1]) == "--shift-hashes") { signed_shift_reference(); return 0; } checked_sizes(); direct_reference(); signed_shift_reference(); matrix_and_state(); controls_and_capacity(); unmodified_rng_oracle(); isolated_rng(); std::puts("Macro Oscillator upstream reference, FIFO, matrices and isolation passed"); }
+int main(int argc, char** argv) { if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark(); if (argc == 2 && std::string(argv[1]) == "--shift-hashes") { signed_shift_reference(); return 0; } checked_sizes(); direct_reference(); signed_shift_reference(); matrix_and_state(); controls_and_capacity(); unmodified_rng_oracle(); isolated_rng(); host_seed_high_bits(); std::puts("Macro Oscillator upstream reference, FIFO, matrices and isolation passed"); }

@@ -116,3 +116,18 @@ Windows CI after C2737/C2466 was fixed exposed GNU-only trailing
 the unsupported annotation on MSVC; the functions remain `inline` and every
 arithmetic expression is unchanged. It applies to stmlib
 `e3bd7c9cc00e4364166f9905c0509b6ffd0535ec` through its own FetchContent patch step.
+
+### Pre-review follow-up (2026-10-29)
+
+Host RNG initialization folds the high seed word into the low word before the
+per-voice offset. Seeds below 2^32 retain their output; a model17 regression
+checks distinct high-word seeds and exact reset repeatability.
+The unpatched oracle is now limited to single-config Release. Configuration and
+toolchain flags, directory/target compile and link options, and unevaluated
+option expressions conservatively disable it when instrumented. Multi-config
+builds run patched tests without an unpatched target. The header overlay requires
+exactly one expected patch expression; missing/duplicate tokens fail configure.
+The ABI2 guard CTest covers malformed headers and instrumentation settings.
+Real Ninja and Ninja Multi-Config Release configurations with UBSan in
+CMAKE_CXX_FLAGS_RELEASE create neither unpatched target; a clean Release control
+creates both. No instrumentation is removed or suppressed.
