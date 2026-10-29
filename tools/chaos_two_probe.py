@@ -2,6 +2,7 @@
 """Offline Pi acceptance for two four-voice CHAOS-lite instances."""
 import json
 import math
+import platform
 from pathlib import Path
 import subprocess
 import sys
@@ -30,7 +31,15 @@ def main():
                '--rate', '48000', '--block', '128', '--seconds', '120']
     run = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=180)
     if run.returncode:
-        raise RuntimeError(run.stderr[-6000:] or run.stdout[-6000:] or 'CHAOS soak failed')
+        host = dict(machine=platform.machine(), libc=platform.libc_ver())
+        if sys.platform.startswith('linux'):
+            try:
+                release = platform.freedesktop_os_release()
+                host.update(distro=release.get('ID'), version=release.get('VERSION_ID'))
+            except OSError:
+                pass
+        raise RuntimeError('Runner platform: ' + json.dumps(host) + '\n'
+                           + (run.stderr[-6000:] or run.stdout[-6000:] or 'CHAOS soak failed'))
     result = json.loads(run.stdout)
     print(json.dumps(result, indent=2))
     validate_result(result)
