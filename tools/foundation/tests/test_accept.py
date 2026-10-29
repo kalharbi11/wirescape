@@ -59,12 +59,39 @@ class AcceptanceTests(unittest.TestCase):
         self.assertEqual([item["status"] for item in report["commands"]], ["external"] * 4)
 
     def test_size_overflow_and_binary_fail(self):
-        with patch.object(subprocess, "check_output", return_value=b"12\t3\tfile.cpp\0"):
+        with patch.object(subprocess, "check_output", side_effect=[b"abc123\n", b"12\t3\tfile.cpp\0"]):
             code, report = self.run_task(['python -c "pass"'], "<= 10 changed lines, <= 1 files")
         self.assertEqual(code, 1)
         self.assertEqual(report["size"]["changed_lines"], 15)
-        with patch.object(subprocess, "check_output", return_value=b"-\t-\tfile.bin\0"):
+        with patch.object(subprocess, "check_output", side_effect=[b"abc123\n", b"-\t-\tfile.bin\0"]):
             self.assertEqual(acceptance.size_check(self.root, "<= 10 changed lines, <= 1 files")["status"], "failed")
+
+    def test_stacked_base_counts_own_diff_and_reports_resolved_revision(self):
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=self.root, stderr=subprocess.PIPE).decode().strip()
+        git("init", "-b", "main")
+        git("config", "user.email", "test@example.invalid")
+        git("config", "user.name", "Test")
+        for name in ("main", "parent", "child"):
+            (self.root / (name + ".txt")).write_text(name + "\n")
+            git("add", name + ".txt")
+            git("commit", "-m", name)
+            if name == "main":
+                git("update-ref", "refs/remotes/origin/main", "HEAD")
+            elif name == "parent":
+                git("branch", "parent")
+        code, default = self.run_task(['python -c "pass"'], "<= 1 changed lines, <= 1 files")
+        self.assertEqual(code, 1)
+        self.assertEqual(default["size"]["files"], 2)
+        code, own = self.run_task(['python -c "pass"'], "<= 1 changed lines, <= 1 files", base="parent")
+        self.assertEqual(code, 0)
+        self.assertEqual(own["size"]["files"], 1)
+        self.assertEqual(own["size"]["base"], "parent")
+        self.assertEqual(own["size"]["base_commit"], git("rev-parse", "parent"))
+        for invalid in ("missing-ref", "--help"):
+            code, report = self.run_task(['python -c "pass"'], "<= 1 changed lines, <= 1 files", base=invalid)
+            self.assertEqual(code, 1)
+            self.assertEqual(report["commands"], [])
 
     def test_last_block_selected_and_missing_block_rejected(self):
         self.assertEqual(acceptance.parse(task(["python first"]) + task(["python last"]))["must_pass"], ["python last"])

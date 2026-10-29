@@ -10,17 +10,40 @@ permissions:
 jobs:
   cortex-m7:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - name: Install arm-none-eabi toolchain
-        run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi libstdc++-arm-none-eabi-newlib
+      - name: Cache pinned Arm GNU toolchain (14.2.rel1)
+        id: toolchain-cache
+        uses: actions/cache@v6
+        with:
+          path: .tools/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi
+          key: arm-none-eabi-14.2.rel1-linux-x86_64-v1
+      - name: Install pinned toolchain on cache miss
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/arm-gnu-toolchain-14.2.rel1.tar.xz"
+          url="https://armkeil.blob.core.windows.net/developer/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz"
+          curl --fail --location --retry 3 --connect-timeout 30 --max-time 600 "$url" -o "$archive"
+          echo "62a63b981fe391a9cbad7ef51b17e49aeaa3e7b0d029b36ca1e9c3b2a9b78823  $archive" | sha256sum -c -
+          mkdir -p .tools
+          tar -xJf "$archive" -C .tools
+      - name: Verify toolchain and report cache state
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="$GITHUB_WORKSPACE/.tools/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi/bin"
+          test -x "$bin/arm-none-eabi-g++"
+          echo "$bin" >> "$GITHUB_PATH"
+          "$bin/arm-none-eabi-g++" --version | head -1 | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Toolchain 14.2.rel1 cache hit: ${{ steps.toolchain-cache.outputs.cache-hit }}" >> "$GITHUB_STEP_SUMMARY"
       - name: Compile each module.cpp (fail on any error)
         shell: bash
         run: |
           flags=(-std=c++17 -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard -O2 -ffunction-sections
                  -I native/sdk -I native/include -DWS_SIMD_SCALAR)
-          arm-none-eabi-g++ --version | head -1 | tee -a "$GITHUB_STEP_SUMMARY"
           {
             echo
             echo '| Module | Default | -fno-exceptions -fno-rtti |'
@@ -32,13 +55,16 @@ jobs:
             row="| $module |"
             for extra in "" "-fno-exceptions -fno-rtti"; do
               log=$(mktemp)
+              started=$(date +%s%3N)
               # shellcheck disable=SC2086
               if arm-none-eabi-g++ "${flags[@]}" $extra -c "$source" -o /dev/null 2>"$log"; then
-                row="$row pass |"
+                elapsed=$(( $(date +%s%3N) - started ))
+                row="$row pass (${elapsed}ms) |"
               else
                 failed=1
                 first=$(grep -m1 -E 'error' "$log" | sed 's/|/\\|/g' | cut -c1-200)
-                row="$row **fail**: \`${first:-see log}\` |"
+                elapsed=$(( $(date +%s%3N) - started ))
+                row="$row **fail** (${elapsed}ms): \`${first:-see log}\` |"
                 echo "::group::$module $extra"; cat "$log"; echo "::endgroup::"
               fi
             done
