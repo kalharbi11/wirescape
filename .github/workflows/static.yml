@@ -24,7 +24,7 @@ jobs:
       - name: Install named analysis tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang-tidy-18 clang-format-18 cppcheck
+          sudo apt-get install -y cmake ninja-build clang-tidy-18 clang-format-18 cppcheck qt6-base-dev qt6-declarative-dev
           python -m pip install ruff==0.14.1
           actionlint_tmp="$(mktemp -d)"
           trap 'rm -rf "$actionlint_tmp"' EXIT
@@ -35,8 +35,10 @@ jobs:
           tar -xzf actionlint_1.7.7_linux_amd64.tar.gz actionlint
           install -m 755 actionlint "$RUNNER_TEMP/actionlint"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
-      - name: Configure headless compile database
-        run: cmake -S native -B build/static -G Ninja -DCMAKE_BUILD_TYPE=Release -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Configure Qt compile database
+        run: cmake -S native -B build/static -G Ninja -DCMAKE_BUILD_TYPE=Release -DWIRESCAPE_BUILD_UI=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Build translation units and record compiler dependencies
+        run: cmake --build build/static --parallel 2
       - name: Analyze and summarize every tool
         if: always()
         env:
