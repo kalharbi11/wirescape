@@ -1,0 +1,24 @@
+{
+  "plan": "## Now (≤30 lines)\n- **Open PRs:**\n  - #12 pending CI\n- **Next 3:** #13 to begin\n- main = abcdef0123456789\n\n## Vision\n",
+  "now": "2026-10-28T17:00:00Z",
+  "issues": {
+    "12": {
+      "state": "open",
+      "pull_request": {
+        "url": "https://example.invalid/pr/12"
+      }
+    },
+    "13": {
+      "state": "open"
+    }
+  },
+  "commits": {
+    "abcdef0123456789": {
+      "commit": {
+        "committer": {
+          "date": "2026-10-27T17:00:00Z"
+        }
+      }
+    }
+  }
+}
