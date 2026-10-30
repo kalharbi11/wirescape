@@ -66,7 +66,7 @@ Rectangle {
         x: 22; y: card.controlsTop; width: parent.width - 44
         Repeater {
             model: card.descriptor.parameters
-            delegate: ParameterControl { required property var modelData; width: parameters.width; descriptor: modelData; nodeId: card.descriptor.id }
+            delegate: ParameterControl { required property var modelData; width: parameters.width; descriptor: modelData; nodeId: card.descriptor.id; moduleId: card.descriptor.moduleId }
         }
     }
     StudioButton {

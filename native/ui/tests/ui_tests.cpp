@@ -17,6 +17,8 @@
 #include <QSet>
 #include <QDir>
 
+#include <QProcess>
+
 // The rejection bridge exercises QML's actual mouse/keyboard path without opening audio.
 class ParameterBridge : public QObject {
     Q_OBJECT
@@ -83,6 +85,129 @@ private slots:
         QVERIFY(studio.keyboardChordCheck(result));
         QCOMPARE(result["active_channels"].toInt(), 4);
         for (const auto &value : studio.connections()) QVERIFY(value.toMap()["channels"].toInt() > 1);
+    }
+    void fullscreenWindowControls() {
+        StudioController studio(directory_);
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("studio", &studio);
+        engine.load(QUrl("qrc:/qml/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects()[0]);
+        QVERIFY(window);
+        window->resize(1000, 650);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        auto *full = qobject_cast<QQuickItem *>(findNamed(window, "fullscreenButton"));
+        auto *minimize = qobject_cast<QQuickItem *>(findNamed(window, "minimizeButton"));
+        auto *save = qobject_cast<QQuickItem *>(findNamed(window, "saveButton"));
+        QVERIFY(full);
+        QVERIFY(minimize);
+        QVERIFY(save);
+        QTRY_VERIFY(window->width() == 1000);
+        auto *actions = qobject_cast<QQuickItem *>(findNamed(window, "toolbarActions"));
+        QVERIFY(actions);
+        QVERIFY(actions->mapToScene(QPointF()).x() >= 202);
+        QVERIFY(!(window->visibility() == QWindow::FullScreen));
+        QCOMPARE(full->property("text").toString(), QString("Full"));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(full));
+        QTRY_VERIFY((window->visibility() == QWindow::FullScreen));
+        QCOMPARE(full->property("text").toString(), QString("Exit"));
+        save->forceActiveFocus();
+        QTRY_VERIFY(save->hasActiveFocus());
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_VERIFY(!(window->visibility() == QWindow::FullScreen));
+        QCOMPARE(full->property("text").toString(), QString("Full"));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(full));
+        QTRY_VERIFY((window->visibility() == QWindow::FullScreen));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(full));
+        QTRY_VERIFY(!(window->visibility() == QWindow::FullScreen));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(minimize));
+        QTRY_VERIFY((window->visibility() == QWindow::Minimized));
+        window->showNormal();
+        QTRY_VERIFY(!(window->visibility() == QWindow::Minimized));
+        QVERIFY(!studio.running());
+    }
+    void fullscreenLaunchFlagOffline() {
+        const QString executable = QCoreApplication::applicationDirPath() +
+#ifdef Q_OS_WIN
+                                   "/wirescape_studio.exe";
+#else
+                                   "/wirescape_studio";
+#endif
+        QVERIFY2(QFile::exists(executable), qPrintable(executable));
+        const QString reportPath = temp_.filePath("fullscreen-launch.json");
+        QProcess child;
+        child.setProgram(executable);
+        child.setArguments({"--fullscreen", "--startup-check", "--ready-report", reportPath});
+        child.setProcessChannelMode(QProcess::MergedChannels);
+        child.start();
+        QVERIFY2(child.waitForStarted(5000), qPrintable(child.errorString()));
+        QVERIFY2(child.waitForFinished(15000), child.readAll().constData());
+        QCOMPARE(child.exitStatus(), QProcess::NormalExit);
+        QCOMPARE(child.exitCode(), 0);
+        QFile report(reportPath);
+        QVERIFY(report.open(QIODevice::ReadOnly));
+        const auto json = QJsonDocument::fromJson(report.readAll()).object();
+        QCOMPARE(json.value("status").toString(), QString("ready"));
+        QVERIFY(!json.value("audio_started").toBool());
+    }
+    void clockRunToggleUsesStableParameter() {
+        ParameterBridge bridge;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty("studio", &bridge);
+        QQmlComponent component(&engine, QUrl("qrc:/qml/ParameterControl.qml"));
+        auto *object = component.beginCreate(engine.rootContext());
+        QVERIFY2(object, qPrintable(component.errorString()));
+        object->setProperty("moduleId", "essentials.clock");
+        object->setProperty("nodeId", 42);
+        QVariantMap runDescriptor;
+        runDescriptor.insert("id", 3);
+        runDescriptor.insert("name", "Run");
+        runDescriptor.insert("minimum", 0.);
+        runDescriptor.insert("maximum", 1.);
+        runDescriptor.insert("value", 1.);
+        runDescriptor.insert("unit", "");
+        runDescriptor.insert("display", "1");
+        object->setProperty("descriptor", runDescriptor);
+        component.completeCreate();
+        QScopedPointer<QObject> owner(object);
+        auto *control = qobject_cast<QQuickItem *>(object);
+        QVERIFY(control);
+        QQuickWindow window;
+        window.resize(360, 160);
+        control->setParentItem(window.contentItem());
+        control->setWidth(280);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        auto *toggle = qobject_cast<QQuickItem *>(findNamed(control, "clockRunToggle"));
+        auto *slider = qobject_cast<QQuickItem *>(findNamed(control, "parameterSlider"));
+        QVERIFY(toggle);
+        QVERIFY(slider);
+        QVERIFY(toggle->isVisible());
+        QVERIFY(!slider->isVisible());
+        QCOMPARE(toggle->property("text").toString(), QString("Stop Clock"));
+        QTest::mouseClick(&window, Qt::LeftButton, Qt::NoModifier, center(toggle));
+        QCOMPARE(bridge.accepted, 0.);
+        QCOMPARE(bridge.calls, 1);
+        QTRY_COMPARE(toggle->property("text").toString(), QString("Start Clock"));
+        toggle->forceActiveFocus();
+        QTRY_VERIFY(toggle->hasActiveFocus());
+        QTest::keyClick(&window, Qt::Key_Space);
+        QTRY_COMPARE(bridge.accepted, 1.);
+        QCOMPARE(bridge.calls, 2);
+        QTRY_COMPARE(toggle->property("text").toString(), QString("Stop Clock"));
+        bridge.accepted = 0.;
+        emit bridge.parameterChanged(42, 3, 0., "0");
+        QTRY_COMPARE(toggle->property("text").toString(), QString("Start Clock"));
+        bridge.reject = true;
+        QTest::mouseClick(&window, Qt::LeftButton, Qt::NoModifier, center(toggle));
+        QCOMPARE(bridge.calls, 3);
+        QCOMPARE(bridge.accepted, 0.);
+        QCOMPARE(toggle->property("text").toString(), QString("Start Clock"));
+        // Parameter ID 3 alone must never turn another module's slider into Clock transport.
+        control->setProperty("moduleId", "essentials.vco");
+        QTRY_VERIFY(!toggle->isVisible());
+        QTRY_VERIFY(slider->isVisible());
     }
     void genericPaletteDiscovery() {
         StudioController studio(directory_); QSet<QString> ids;
