@@ -111,6 +111,14 @@ ApplicationWindow {
         studio.connectPorts(pendingNode, pendingPort, id, port);
         pendingNode = -1; localHint = "";
     }
+    function completeCableDrag(position) {
+        if (pendingNode < 0 || studio.running) return;
+        for (let i = cards.count - 1; i >= 0; --i) {
+            let card = cards.itemAt(i);
+            let input = card ? card.inputAt(position) : null;
+            if (input) { chooseInput(card.descriptor.id, input.id, input.kind); return; }
+        }
+    }
     function centerNode(card) {
         panX = viewport.width / 2 - (card.x + card.width / 2) * zoom;
         panY = viewport.height / 2 - (card.y + card.height / 2) * zoom;

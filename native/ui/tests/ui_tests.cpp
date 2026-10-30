@@ -586,6 +586,11 @@ private slots:
         QTRY_COMPARE(studio.connections().size(), 2);
         QVERIFY(cableDrag("output_2_control", "input_3_gain_cv"));
         QTRY_COMPARE(studio.connections().size(), 3);
+        // An incompatible release never inserts a cable; Escape cancels the pending gesture.
+        QVERIFY(cableDrag("output_1_audio", "input_3_gain_cv"));
+        QCOMPARE(studio.connections().size(), 3);
+        QTest::keyClick(window, Qt::Key_Escape);
+        QCOMPARE(window->property("pendingNode").toInt(), -1);
         const auto expected = studio.connections();
         QVERIFY(studio.savePatch(path("mouse-edit.json")));
         QVERIFY(studio.loadPatch(path("mouse-edit.json")));
