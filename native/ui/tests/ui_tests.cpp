@@ -151,6 +151,64 @@ private slots:
         QCOMPARE(json.value("status").toString(), QString("ready"));
         QVERIFY(!json.value("audio_started").toBool());
     }
+    void clockRunToggleUsesStableParameter() {
+        ParameterBridge bridge;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty("studio", &bridge);
+        QQmlComponent component(&engine, QUrl("qrc:/qml/ParameterControl.qml"));
+        auto *object = component.beginCreate(engine.rootContext());
+        QVERIFY2(object, qPrintable(component.errorString()));
+        object->setProperty("moduleId", "essentials.clock");
+        object->setProperty("nodeId", 42);
+        QVariantMap runDescriptor;
+        runDescriptor.insert("id", 3);
+        runDescriptor.insert("name", "Run");
+        runDescriptor.insert("minimum", 0.);
+        runDescriptor.insert("maximum", 1.);
+        runDescriptor.insert("value", 1.);
+        runDescriptor.insert("unit", "");
+        runDescriptor.insert("display", "1");
+        object->setProperty("descriptor", runDescriptor);
+        component.completeCreate();
+        QScopedPointer<QObject> owner(object);
+        auto *control = qobject_cast<QQuickItem *>(object);
+        QVERIFY(control);
+        QQuickWindow window;
+        window.resize(360, 160);
+        control->setParentItem(window.contentItem());
+        control->setWidth(280);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        auto *toggle = qobject_cast<QQuickItem *>(findNamed(control, "clockRunToggle"));
+        auto *slider = qobject_cast<QQuickItem *>(findNamed(control, "parameterSlider"));
+        QVERIFY(toggle);
+        QVERIFY(slider);
+        QVERIFY(toggle->isVisible());
+        QVERIFY(!slider->isVisible());
+        QCOMPARE(toggle->property("text").toString(), QString("Stop Clock"));
+        QTest::mouseClick(&window, Qt::LeftButton, Qt::NoModifier, center(toggle));
+        QCOMPARE(bridge.accepted, 0.);
+        QCOMPARE(bridge.calls, 1);
+        QTRY_COMPARE(toggle->property("text").toString(), QString("Start Clock"));
+        toggle->forceActiveFocus();
+        QTRY_VERIFY(toggle->hasActiveFocus());
+        QTest::keyClick(&window, Qt::Key_Space);
+        QTRY_COMPARE(bridge.accepted, 1.);
+        QCOMPARE(bridge.calls, 2);
+        QTRY_COMPARE(toggle->property("text").toString(), QString("Stop Clock"));
+        bridge.accepted = 0.;
+        emit bridge.parameterChanged(42, 3, 0., "0");
+        QTRY_COMPARE(toggle->property("text").toString(), QString("Start Clock"));
+        bridge.reject = true;
+        QTest::mouseClick(&window, Qt::LeftButton, Qt::NoModifier, center(toggle));
+        QCOMPARE(bridge.calls, 3);
+        QCOMPARE(bridge.accepted, 0.);
+        QCOMPARE(toggle->property("text").toString(), QString("Start Clock"));
+        // Parameter ID 3 alone must never turn another module's slider into Clock transport.
+        control->setProperty("moduleId", "essentials.vco");
+        QTRY_VERIFY(!toggle->isVisible());
+        QTRY_VERIFY(slider->isVisible());
+    }
     void genericPaletteDiscovery() {
         StudioController studio(directory_); QSet<QString> ids;
         for (const auto& item : studio.palette()) ids.insert(item.toMap().value("id").toString());
@@ -233,7 +291,7 @@ private slots:
         QQmlEngine engine;
         engine.rootContext()->setContextProperty("studio", &bridge);
         QQmlComponent component(&engine, QUrl("qrc:/qml/ParameterControl.qml"));
-        auto * object = component.beginCreate(engine.rootContext());
+        auto *object = component.beginCreate(engine.rootContext());
         QVERIFY2(object, qPrintable(component.errorString()));
         QVariantMap descriptor;
         descriptor.insert("id", 0);
@@ -249,7 +307,7 @@ private slots:
         object->setProperty("descriptor", descriptor);
         component.completeCreate();
         QScopedPointer<QObject> owner(object);
-        auto * control = qobject_cast<QQuickItem *>(object);
+        auto *control = qobject_cast<QQuickItem *>(object);
         QVERIFY(control);
         QQuickWindow window;
         window.resize(360, 230);
@@ -257,7 +315,7 @@ private slots:
         control->setWidth(236);
         window.show();
         QVERIFY(QTest::qWaitForWindowExposed(&window));
-        auto * knob = qobject_cast<QQuickItem *>(findNamed(control, "parameterKnob"));
+        auto *knob = qobject_cast<QQuickItem *>(findNamed(control, "parameterKnob"));
         QVERIFY(knob);
         const auto value = [&] { return knob->property("value").toDouble(); };
         QVERIFY(std::abs(value() - std::log(220. / 20.) / std::log(1000.)) < 0.00001);
@@ -291,7 +349,7 @@ private slots:
         QQmlEngine engine;
         engine.rootContext()->setContextProperty("studio", &bridge);
         QQmlComponent component(&engine, QUrl("qrc:/qml/ParameterControl.qml"));
-        auto * object = component.beginCreate(engine.rootContext());
+        auto *object = component.beginCreate(engine.rootContext());
         QVERIFY2(object, qPrintable(component.errorString()));
         QVariantMap descriptor;
         descriptor.insert("id", 1);
@@ -307,7 +365,7 @@ private slots:
         object->setProperty("descriptor", descriptor);
         component.completeCreate();
         QScopedPointer<QObject> owner(object);
-        auto * control = qobject_cast<QQuickItem *>(object);
+        auto *control = qobject_cast<QQuickItem *>(object);
         QVERIFY(control);
         QQuickWindow window;
         window.resize(320, 120);
@@ -315,7 +373,7 @@ private slots:
         control->setWidth(220);
         window.show();
         QVERIFY(QTest::qWaitForWindowExposed(&window));
-        auto * selector = qobject_cast<QQuickItem *>(findNamed(control, "parameterStepper"));
+        auto *selector = qobject_cast<QQuickItem *>(findNamed(control, "parameterStepper"));
         QVERIFY(selector);
         selector->forceActiveFocus();
         QTest::keyClick(&window, Qt::Key_Up);
@@ -330,25 +388,30 @@ private slots:
     }
     void moduleParameterHierarchyKeepsIds() {
         StudioController studio(directory_);
-        for (const auto & type : {"essentials.clock", "essentials.mixer", "essentials.ladder", "essentials.lfo"})
+        for (const auto &type : {"essentials.clock", "essentials.mixer", "essentials.ladder", "essentials.lfo"})
             studio.addModule(type);
         QQmlApplicationEngine engine;
         engine.rootContext()->setContextProperty("studio", &studio);
         engine.load(QUrl("qrc:/qml/Main.qml"));
         QVERIFY(!engine.rootObjects().isEmpty());
-        auto * root = engine.rootObjects().front();
-        const auto check = [&](const QString & module, const QList<int> & ids, const QStringList& presentations) {
-            for (const auto & item : studio.modules()) {
+        auto *root = engine.rootObjects().front();
+        const auto check = [&](const QString &module, const QList<int> &ids, const QStringList &presentations) {
+            for (const auto &item : studio.modules()) {
                 const auto data = item.toMap();
                 if (data.value("moduleId").toString() != module) continue;
                 const auto params = data.value("parameters").toList();
                 QCOMPARE(params.size(), ids.size());
                 for (int i = 0; i < ids.size(); ++i) {
                     QCOMPARE(params[i].toMap().value("id").toInt(), ids[i]);
-                    auto * parameter =
+                    auto *parameter =
                         findNamed(root, QString("parameter_%1_%2").arg(data.value("id").toInt()).arg(ids[i]));
                     QVERIFY(parameter);
                     QCOMPARE(parameter->property("presentation").toString(), presentations[i]);
+                    if (module == "essentials.clock" && ids[i] == 3) {
+                        auto *toggle = findNamed(parameter, "clockRunToggle");
+                        QVERIFY(toggle);
+                        QVERIFY(toggle->property("visible").toBool());
+                    }
                 }
                 return;
             }
@@ -356,7 +419,7 @@ private slots:
         };
         check("essentials.vco", {0}, {"knob"});
         check("essentials.adsr", {0, 1, 2, 3}, {"slider", "slider", "knob", "slider"});
-        check("essentials.clock", {0, 1, 2, 3}, {"knob", "stepper", "slider", "stepper"});
+        check("essentials.clock", {0, 1, 2, 3}, {"knob", "stepper", "slider", "slider"});
         check("essentials.mixer", {0, 1}, {"fader", "fader"});
         check("essentials.ladder", {0, 1, 2}, {"knob", "knob", "knob"});
         check("essentials.lfo", {0, 1, 2, 3, 4}, {"knob", "knob", "knob", "slider", "slider"});

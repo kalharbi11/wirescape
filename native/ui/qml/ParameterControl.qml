@@ -5,6 +5,8 @@ Item {
     id: control
     required property var descriptor
     required property int nodeId
+    property string moduleId: ""
+    readonly property bool isClockRun: moduleId === "essentials.clock" && Number(descriptor.id) === 3
     // Presentation metadata is UI-only; descriptor bounds, IDs and accepted values are authoritative.
     property string presentation: "slider" // slider | fader | knob | stepper
     property string hierarchy: "regular"  // primary | related | regular
@@ -16,7 +18,7 @@ Item {
     property real acceptedValue: Number(descriptor.value)
     property string acceptedDisplay: descriptor.display
     objectName: "parameter_" + nodeId + "_" + descriptor.id
-    implicitHeight: presentation === "knob" ? (hierarchy === "primary" ? 154 : 125)
+    implicitHeight: isClockRun ? 67 : presentation === "knob" ? (hierarchy === "primary" ? 154 : 125)
                     : presentation === "fader" ? 168 : 67
     function normalized(v) {
         if (!(hi > lo)) return 0;
@@ -52,12 +54,15 @@ Item {
         anchors.right: parent.right; y: 2; width: parent.width * 0.47
         horizontalAlignment: Text.AlignRight; elide: Text.ElideRight
         objectName: "parameterDisplay"
+        visible: !control.isClockRun
         text: control.acceptedDisplay
         color: "#393b39"; font.family: (typeof studioFontFamily !== "undefined" ? studioFontFamily : "Arial")
         font.pixelSize: 12
     }
     Loader {
         id: input
+        visible: !control.isClockRun
+        enabled: !control.isClockRun
         y: 21; width: parent.width
         height: control.implicitHeight - 29
         sourceComponent: control.presentation === "knob" ? knob :
@@ -69,6 +74,7 @@ Item {
             width: height; height: control.hierarchy === "primary" ? 114 : 85
             x: (input.width - width) / 2
             diameter: height
+            onFocusChanged: if (!focus) input.focus = false
             enabled: control.hi > control.lo
             value: control.normalized(control.acceptedValue)
             label: control.descriptor.name
@@ -87,6 +93,7 @@ Item {
             enabled: control.hi > control.lo
             value: Math.round(control.acceptedValue)
             editable: false
+            onFocusChanged: if (!focus) input.focus = false
             width: input.width
             onValueModified: {
                 if (!control.submit(control.normalized(value)))
@@ -108,6 +115,7 @@ Item {
             orientation: isFader ? Qt.Vertical : Qt.Horizontal
             enabled: control.hi > control.lo
             from: 0; to: 1
+            onFocusChanged: if (!focus) input.focus = false
             stepSize: control.discrete ? 1 / (control.hi - control.lo) : 0
             value: control.normalized(control.acceptedValue)
             onMoved: {
@@ -155,6 +163,19 @@ Item {
             ToolTip.visible: hovered
             ToolTip.text: control.descriptor.name + " · " + control.lo + "–" + control.hi + " " + control.descriptor.unit
         }
+    }
+    StudioButton {
+        id: clockRunButton
+        objectName: "clockRunToggle"
+        visible: control.isClockRun
+        enabled: control.isClockRun && control.hi > control.lo
+        x: 0; y: 20; width: parent.width; height: 34
+        quiet: true
+        text: control.acceptedValue >= 0.5 ? "Stop Clock" : "Start Clock"
+        Accessible.name: text
+        ToolTip.visible: hovered
+        ToolTip.text: "Toggle this Clock module only; global audio is unchanged"
+        onClicked: studio.setParameter(control.nodeId, control.descriptor.id, control.acceptedValue >= 0.5 ? 0 : 1)
     }
     Connections {
         target: studio

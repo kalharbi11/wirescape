@@ -16,7 +16,7 @@ write is rejected, the visual control returns to the last accepted value.
 | `essentials.adsr` | 0 attack / 1 decay / 3 release: stage sliders; 2 sustain: distinct level rotary |
 | `essentials.vca` | 0 gain: horizontal slider |
 | `essentials.mixer` | 0 level A / 1 level B: paired vertical faders |
-| `essentials.clock` | 0 BPM: primary rotary; 1 ticks/beat and 3 run: integer steppers; 2 duty: slider |
+| `essentials.clock` | 0 BPM: primary rotary; 1 ticks/beat: integer stepper; 2 duty: slider; 3 run: Start/Stop toggle (#151) |
 | `essentials.function_envelope` | 0 rise / 1 fall: paired rotaries; 2 curve: related rotary |
 | `essentials.slew` | 0 rise / 1 fall: paired rotaries |
 | `essentials.scale_offset` | 0 scale / 1 offset: paired compact rotaries |
@@ -25,8 +25,8 @@ write is rejected, the visual control returns to the last accepted value.
 
 **Descriptor exceptions.** VCO has no waveform parameter; LFO has no shape
 parameter; VCF has no drive parameter. These are deliberately not invented.
-Clock ticks/beat (1–24) and run (0–1) are selected as integers within their
-existing bounds; no new parameter step/range/default is introduced. Existing
+Clock ticks/beat (1–24) uses an integer stepper; run (0–1) uses the existing
+Clock-local Start/Stop toggle. Neither alters parameter bounds/defaults or phase. Existing
 continuous controls retain their current unit-based linear/log mapping.
 Unknown/future parameter IDs, including any CHAOS/Plaits modules, use the
 shared stock slider rather than an invented skin or catalog registration.

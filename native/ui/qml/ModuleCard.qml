@@ -66,7 +66,7 @@ Rectangle {
     function controlStyle(p) {
         var m = descriptor.moduleId, id = Number(p.id);
         if (m === "essentials.mixer") return "fader";
-        if (m === "essentials.clock" && (id === 1 || id === 3)) return "stepper";
+        if (m === "essentials.clock" && id === 1) return "stepper";
         if (m === "essentials.adsr") return id === 2 ? "knob" : "slider";
         if ((m === "essentials.vco" && id === 0) ||
             (m === "essentials.lfo" && id >= 0 && id <= 2) ||
@@ -102,6 +102,7 @@ Rectangle {
                 width: card.controlWidth(modelData)
                 descriptor: modelData
                 nodeId: card.descriptor.id
+                moduleId: card.descriptor.moduleId
                 presentation: card.controlStyle(modelData)
                 hierarchy: card.priority(modelData)
                 discrete: card.descriptor.moduleId === "essentials.clock" &&
