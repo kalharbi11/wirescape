@@ -48,6 +48,7 @@ static void protocol_bounds_and_reserve() {
     REQUIRE(service.counters().ignored_rpn == 1); out.items.clear();
     backend.bytes("sys:A", {0x90, 60, 0}, 1); backend.ump("sys:A", {0x40903c00u, 0u}, 2); service.poll();
     REQUIRE(out.items.size() == 2 && out.items[0].event.ump_words == 1 && out.items[1].event.ump_words == 2);
+    REQUIRE(out.items[0].ns == 1 && out.items[1].ns == 2);
     REQUIRE((out.items[0].event.ump[0] >> 28) == 2 && (out.items[1].event.ump[0] >> 28) == 4);
     out.items.clear();
     for (uint32_t i = 0; i < 5000; ++i) backend.bytes("sys:A", {0x90, 60, 100}, i);
