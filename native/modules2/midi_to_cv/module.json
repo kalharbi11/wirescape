@@ -1,0 +1,32 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "midi.to_cv",
+  "name": "MIDI to CV",
+  "library": "ws2_midi_to_cv",
+  "license": "GPL-3.0-only",
+  "parameters": {
+    "voice_count": 0,
+    "allocation_mode": 1,
+    "steal_policy": 2,
+    "mono_priority": 3,
+    "legato": 4,
+    "sustain": 6,
+    "pitch_bend_range_semitones": 7,
+    "apply_bend": 8,
+    "channel_filter": 9
+  },
+  "inputs": {
+    "midi": "event"
+  },
+  "outputs": {
+    "pitch": "signal",
+    "gate": "signal",
+    "velocity": "signal",
+    "aftertouch": "signal",
+    "pressure": "signal",
+    "bend": "signal",
+    "mod": "signal",
+    "notes": "event"
+  }
+}

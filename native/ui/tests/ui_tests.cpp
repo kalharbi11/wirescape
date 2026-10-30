@@ -128,12 +128,7 @@ private slots:
         QVERIFY(!studio.running());
     }
     void fullscreenLaunchFlagOffline() {
-        const QString executable = QCoreApplication::applicationDirPath() +
-#ifdef Q_OS_WIN
-                                   "/wirescape_studio.exe";
-#else
-                                   "/wirescape_studio";
-#endif
+        const QString executable = QString::fromUtf8(WS_STUDIO_TEST_EXECUTABLE);
         QVERIFY2(QFile::exists(executable), qPrintable(executable));
         const QString reportPath = temp_.filePath("fullscreen-launch.json");
         QProcess child;

@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "midi.cc_to_cv",
+  "name": "CC to CV",
+  "library": "ws2_midi_cc_to_cv",
+  "license": "GPL-3.0-only",
+  "parameters": {},
+  "inputs": {
+    "midi": "event"
+  },
+  "outputs": {
+    "cc1": "signal",
+    "cc2": "signal",
+    "cc3": "signal",
+    "cc4": "signal",
+    "cc5": "signal",
+    "cc6": "signal",
+    "cc7": "signal",
+    "cc8": "signal"
+  }
+}
