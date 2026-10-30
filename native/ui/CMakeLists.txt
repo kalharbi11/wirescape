@@ -19,6 +19,18 @@ set_target_properties(wirescape_studio PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/Debug")
 file(GLOB_RECURSE WIRESCAPE_QML CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "qml/*.qml")
 qt_add_resources(wirescape_studio studio_resources PREFIX "/" FILES ${WIRESCAPE_QML})
+set(WS_STARTER_PATCHES
+  ${PROJECT_SOURCE_DIR}/examples/starter_minimal.json
+  ${PROJECT_SOURCE_DIR}/examples/starter_lfo_filter.json
+  ${PROJECT_SOURCE_DIR}/examples/starter_midi.json
+  ${PROJECT_SOURCE_DIR}/examples/starter_poly.json
+  ${PROJECT_SOURCE_DIR}/examples/starter_chaos.json
+  ${PROJECT_SOURCE_DIR}/examples/starter_macro.json)
+foreach(patch IN LISTS WS_STARTER_PATCHES)
+  get_filename_component(filename "${patch}" NAME)
+  set_source_files_properties("${patch}" PROPERTIES QT_RESOURCE_ALIAS "${filename}")
+endforeach()
+qt_add_resources(wirescape_studio starter_assets PREFIX "/starter" FILES ${WS_STARTER_PATCHES})
 if(MSVC)
   target_compile_options(wirescape_studio PRIVATE /W4 /permissive- /utf-8)
 endif()
@@ -29,6 +41,7 @@ target_compile_definitions(studio_ui_tests PRIVATE WS_STUDIO_TEST_EXECUTABLE="$<
 target_link_libraries(studio_ui_tests PRIVATE wirescape_app_engine wirescape_document wirescape_midi_host Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Test)
 target_include_directories(studio_ui_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 qt_add_resources(studio_ui_tests test_resources PREFIX "/" FILES ${WIRESCAPE_QML})
+qt_add_resources(studio_ui_tests test_starter_assets PREFIX "/starter" FILES ${WS_STARTER_PATCHES})
 add_test(NAME studio_ui_tests COMMAND studio_ui_tests)
 set_tests_properties(studio_ui_tests PROPERTIES TIMEOUT 60
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_FORCE_STDERR_LOGGING=1;PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
