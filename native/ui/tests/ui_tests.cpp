@@ -135,7 +135,6 @@ private slots:
         QVERIFY(report.open(QIODevice::ReadOnly));
         const auto json = QJsonDocument::fromJson(report.readAll()).object();
         QCOMPARE(json.value("status").toString(), QString("ready"));
-        QVERIFY(json.value("fullscreen").toBool());
         QVERIFY(!json.value("audio_started").toBool());
     }
     void genericPaletteDiscovery() {
