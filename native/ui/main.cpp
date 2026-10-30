@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
             report["logical_width"] = window->width(); report["logical_height"] = window->height();
             report["visible_modules"] = window->property("visibleModuleCount").toInt();
             report["visible_cables"] = window->property("visibleCableCount").toInt();
-            success = success && report["visible_modules"].toInt() == 4 && report["visible_cables"].toInt() == 3;
+            success = success && report["visible_modules"].toInt() == 5 && report["visible_cables"].toInt() == 5;
             if (parser.isSet("screenshot")) { const auto path = QFileInfo(parser.value("screenshot")).absoluteFilePath(); QDir().mkpath(QFileInfo(path).absolutePath()); const bool saved = window->grabWindow().save(path); report["screenshot"] = path; report["screenshot_saved"] = saved; success = success && saved; }
         }
         report["status"] = success ? "passed" : "failed";
