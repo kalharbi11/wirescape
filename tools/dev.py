@@ -42,7 +42,7 @@ def _cache_values() -> dict[str, str]:
             if line and not line.startswith("#") and not line.startswith("//") and "=" in line:
                 left, value = line.split("=", 1)
                 key = left.split(":", 1)[0]
-                if key in {"Qt6_DIR", "CMAKE_PREFIX_PATH", "CMAKE_BUILD_TYPE", "CMAKE_CONFIGURATION_TYPES", "CMAKE_GENERATOR", "CMAKE_HOME_DIRECTORY", "CMAKE_CXX_COMPILER", "CMAKE_GENERATOR_PLATFORM", "CMAKE_SYSTEM_VERSION", "CMAKE_TOOLCHAIN_FILE"} or key.startswith("CMAKE_CXX_FLAGS"):
+                if key in {"Qt6_DIR", "CMAKE_PREFIX_PATH", "CMAKE_BUILD_TYPE", "CMAKE_CONFIGURATION_TYPES", "CMAKE_GENERATOR", "CMAKE_HOME_DIRECTORY", "CMAKE_CXX_COMPILER", "CMAKE_GENERATOR_PLATFORM", "CMAKE_SYSTEM_VERSION", "CMAKE_TOOLCHAIN_FILE", "WIRESCAPE_BUILD_UI"} or key.startswith("CMAKE_CXX_FLAGS"):
                     values[key] = value
     except OSError:
         pass
@@ -67,7 +67,8 @@ def _artifact_inventory(config: str) -> dict[str, str]:
     return result
 
 
-def _refresh_build_metadata(config: str, expected_source: dict[str, Any] | None = None) -> tuple[dict[str, Any], bool]:
+def _refresh_build_metadata(config: str, expected_source: dict[str, Any] | None = None,
+                            ui_built: bool = False) -> tuple[dict[str, Any], bool]:
     current = source_provenance(ROOT)
     stable = expected_source is None or current["sha256"] == expected_source["sha256"]
     cache = _cache_values()
@@ -76,7 +77,8 @@ def _refresh_build_metadata(config: str, expected_source: dict[str, Any] | None 
     qt_prefix = str(qt_path.parents[2]) if qt_path and qt_path.is_dir() and len(qt_path.parents) >= 3 else None
     meta = _build_metadata() or {}
     meta.update(configuration=config, source=current, source_stable=stable,
-                cmake_cache=cache, qt_prefix=qt_prefix or meta.get("qt_prefix"),
+                cmake_cache=cache, ui_verified=bool(ui_built and stable and cache.get("WIRESCAPE_BUILD_UI") == "ON"),
+                qt_prefix=qt_prefix or meta.get("qt_prefix"),
                 artifact_root=str(BUILD_DIR), binaries=_artifact_inventory(config))
     write_json(BUILD_DIR / "build-metadata.json", meta)
     return meta, stable
@@ -201,6 +203,11 @@ def command_build(args: argparse.Namespace) -> int:
         report = _save_record(record)
         _print_record(record, report, args.json)
         return 2
+    # A failed configure/build must not preserve prior GUI certification.
+    previous = _build_metadata()
+    if isinstance(previous, dict):
+        previous["ui_verified"] = False
+        write_json(BUILD_DIR / "build-metadata.json", previous)
     configure = [cmake, "-S", str(ROOT / "native"), "-B", str(BUILD_DIR), "-G", generator]
     if generator.startswith("Visual Studio"):
         configure.extend(["-A", "x64"])
@@ -229,7 +236,10 @@ def command_build(args: argparse.Namespace) -> int:
     failed = next((s for s in steps if s["exit_code"] != 0), None)
     metadata = None
     if not failed:
-        metadata, stable = _refresh_build_metadata(args.config, source_before)
+        metadata, stable = _refresh_build_metadata(
+            args.config, source_before,
+            ui_built=(not args.headless and (BUILD_DIR / "ui" / "wirescape-ui-enabled.txt").is_file()
+                      and _studio_executable(args.config) is not None))
         if not stable:
             failed = {"name": "source_stability", "exit_code": 1}
             steps.append({"name": "source_stability", "exit_code": 1,
@@ -461,11 +471,45 @@ def command_render(args: argparse.Namespace) -> int:
     return 0 if success else (result["exit_code"] or 1)
 
 
+def _launch_freshness_error(executable: Path, config: str) -> str | None:
+    """Fail closed unless the requested GUI executable has successful build evidence."""
+    meta = _build_metadata()
+    if not isinstance(meta, dict):
+        return "missing or corrupt build metadata"
+    if meta.get("configuration") != config:
+        return "requested configuration differs from the recorded build"
+    if meta.get("ui_verified") is not True or meta.get("source_stable") is not True:
+        return "no verified successful GUI build for this configuration"
+    if _cache_values().get("WIRESCAPE_BUILD_UI") != "ON":
+        return "current CMake configuration has the UI disabled or is unverifiable"
+    source = meta.get("source")
+    if not isinstance(source, dict) or not isinstance(source.get("sha256"), str):
+        return "missing source provenance"
+    try:
+        if source_provenance(ROOT)["sha256"] != source["sha256"]:
+            return "source changed since the GUI build"
+        relative = executable.relative_to(BUILD_DIR).as_posix()
+        binaries = meta.get("binaries")
+        if not isinstance(binaries, dict) or not isinstance(binaries.get(relative), str):
+            return "GUI executable digest is missing"
+        if sha256_file(executable) != binaries[relative]:
+            return "GUI executable changed since the build"
+    except (OSError, ValueError, KeyError, TypeError):
+        return "GUI provenance could not be verified"
+    return None
+
+
 def command_launch(args: argparse.Namespace) -> int:
     record = _base_record("launch", args.config)
     executable = _studio_executable(args.config)
     if not executable:
         record.update(status="skipped", summary="Launch skipped: build the Wirescape Studio desktop app first")
+        report = _save_record(record)
+        _print_record(record, report, args.json)
+        return 2
+    problem = _launch_freshness_error(executable, args.config)
+    if problem:
+        record.update(status="failed", summary=f"Launch refused: {problem}. Run: python tools/dev.py build --config {args.config}", executable=str(executable))
         report = _save_record(record)
         _print_record(record, report, args.json)
         return 2
