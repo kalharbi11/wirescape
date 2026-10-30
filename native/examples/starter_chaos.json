@@ -1,0 +1,19 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "format": "wirescape.native.patch", "version": 2,
+  "name": "Starter: CHAOS-lite",
+  "settings": {"sample_rate":48000,"max_block_frames":128,"max_channels":16,"feedback_block":32,"seed":42,"timing_mode":"immediate"},
+  "modules": [
+    {"id":1,"module":"host.keyboard","version":1,"x":60,"y":400,"parameters":{"voices":4}},
+    {"id":2,"module":"essentials.chaos_lite","version":1,"x":380,"y":80,"parameters":{"level":0.2}},
+    {"id":3,"module":"essentials.mixer","version":2,"x":750,"y":100,"parameters":{}},
+    {"id":4,"module":"essentials.output","version":2,"x":1090,"y":100,"parameters":{}}
+  ],
+  "connections": [
+    {"kind":"signal","from":{"module":1,"port":"pitch"},"to":{"module":2,"port":"pitch"}},
+    {"kind":"signal","from":{"module":2,"port":"left"},"to":{"module":3,"port":"a"}},
+    {"kind":"signal","from":{"module":2,"port":"right"},"to":{"module":3,"port":"b"}},
+    {"kind":"signal","from":{"module":3,"port":"audio"},"to":{"module":4,"port":"audio"}}
+  ],
+  "outputs": [{"module":4,"port":"audio","bus_channel":0}]
+}
