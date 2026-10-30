@@ -594,6 +594,70 @@ private slots:
         QCOMPARE(savedNodes.last().toObject().value("module").toString(), QString("host.keyboard"));
         QCOMPARE(savedNodes.at(0).toObject().value("parameters").toObject().value("frequency").toDouble(), 880.);
     }
+    void starterPatchLibraryAndOfflineRender() {
+        StudioController studio(directory_);
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("studio", &studio);
+        engine.load(QUrl("qrc:/qml/Main.qml"));
+        QVERIFY2(!engine.rootObjects().isEmpty(), "Studio QML must load");
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(window);
+        window->resize(1100, 750);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        auto *library = findNamed(window, "patchLibraryPanel");
+        auto *dropdown = findNamed(window, "patchLibraryDropdown");
+        QVERIFY(library);
+        QVERIFY(dropdown);
+        QVERIFY(library->setProperty("persistHistory", false));
+        QCOMPARE(library->property("entryCount").toInt(), 7);
+        QVERIFY(!findNamed(window, "favouritePatchButton")->property("enabled").toBool());
+        const QStringList starters{"minimal", "lfo_filter", "midi", "poly", "chaos", "macro"};
+        for (const auto &name : starters) {
+            const QString resource = QString(":/starter/starter_%1.json").arg(name);
+            QFile patch(resource);
+            QVERIFY2(patch.open(QIODevice::ReadOnly), qPrintable(resource));
+            QVERIFY2(studio.loadPatch(QUrl(resource)), qPrintable(studio.errorText()));
+            QVERIFY(!studio.running());
+            const auto wavPath = temp_.filePath("starter_" + name + ".wav");
+            studio.renderDemo(QUrl::fromLocalFile(wavPath));
+            QFile wav(wavPath);
+            QVERIFY2(wav.open(QIODevice::ReadOnly), qPrintable(studio.errorText()));
+            const QByteArray data = wav.readAll();
+            QVERIFY2(data.size() > 44, qPrintable(name));
+            bool nonSilent = false;
+            for (qsizetype at = 44; at + 1 < data.size(); at += 2)
+                if (data[at] != 0 || data[at + 1] != 0) { nonSilent = true; break; }
+            QVERIFY2(nonSilent, qPrintable("silent starter: " + name));
+        }
+        // Exercise the real dropdown's activation signal, not just a controller load.
+        QVERIFY(QMetaObject::invokeMethod(dropdown, "activated", Q_ARG(int, 1)));
+        QTRY_COMPARE(window->property("currentPatchFile").toString(),
+                     QString(":/starter/starter_minimal.json"));
+        // Recent and favourite entries are transient in tests; no user file is modified.
+        const auto savedPath = temp_.filePath("saved-example.json");
+        QVERIFY(studio.savePatch(QUrl::fromLocalFile(savedPath)));
+        const auto original = read("saved-example.json");
+        const QString localUrl = QUrl::fromLocalFile(savedPath).toString();
+        QVERIFY(QMetaObject::invokeMethod(window, "openPatchFile",
+                                          Q_ARG(QVariant, QVariant(localUrl))));
+        QTRY_COMPARE(library->property("entryCount").toInt(), 8);
+        QCOMPARE(window->property("currentPatchFile").toString(), localUrl);
+        QVERIFY(QMetaObject::invokeMethod(library, "toggleFavourite"));
+        QTRY_COMPARE(library->property("entryCount").toInt(), 8);
+        QCOMPARE(read("saved-example.json"), original);
+        // A pending library selection must respect the pre-existing dirty prompt.
+        QVERIFY(studio.setParameter(1, 0, 330));
+        QVERIFY(QMetaObject::invokeMethod(window, "requestLibraryPatch",
+                                          Q_ARG(QVariant, QVariant(":/starter/starter_poly.json"))));
+        auto *dialog = findNamed(window, "unsavedDialog");
+        QVERIFY(dialog);
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        QCOMPARE(window->property("currentPatchFile").toString(), localUrl);
+        QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
+        QCOMPARE(window->property("pendingAction").toString(), QString());
+        QCOMPARE(read("saved-example.json"), original);
+    }
     void actualDocumentActionsAndCable() {
         bool failWrite = true; int writeAttempts = 0; QString acceptedPath;
         StudioController studio(directory_, nullptr, failureControlledWriter(failWrite, writeAttempts, temp_.path(), &acceptedPath)); QQmlApplicationEngine engine; engine.rootContext()->setContextProperty("studio", &studio); engine.load(QUrl("qrc:/qml/Main.qml")); QVERIFY(!engine.rootObjects().isEmpty());
