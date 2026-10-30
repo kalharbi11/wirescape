@@ -10,7 +10,7 @@ struct CcToCv {
     static constexpr std::array<ws2_param, 0> params{};
     CcConfiguration config;
     // Match the service's full 16-endpoint x 16-channel identity space.
-    static constexpr size_t identity_capacity = 16 * 16;
+    static constexpr size_t identity_capacity = size_t{16} * 16;
     struct Row {
         double current = 0, target = 0, coefficient = 1;
         std::array<uint8_t, identity_capacity> msb{}, lsb{};
