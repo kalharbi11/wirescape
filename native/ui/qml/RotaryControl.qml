@@ -72,7 +72,8 @@ Item {
             initial = dial.value;
         }
         onPositionChanged: function(mouse) {
-            if (pressed) dial.moved(Math.max(0, Math.min(1, initial + (origin - mouse.y) /\n                                  ((mouse.modifiers & Qt.ShiftModifier) !== 0 ? 1400 : 140))),
+            if (pressed) dial.moved(Math.max(0, Math.min(1, initial + (origin - mouse.y) /
+                                  ((mouse.modifiers & Qt.ShiftModifier) !== 0 ? 1400 : 140))),
                                   (mouse.modifiers & Qt.ShiftModifier) !== 0);
         }
     }
