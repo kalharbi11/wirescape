@@ -188,9 +188,9 @@ static void reclamation_burst() {
         for (uint32_t pair = 0; pair < 32; ++pair) {
             event.source_id = 1000 + burst * 32 + pair;
             event.type = WS2_NOTE_ON;
-            check(engine.enqueue(0, 1, WS2_DIRECT_PORT, event, engine.meter().frame + pair * 2) == WS2_OK, "burst on");
+            check(engine.enqueue(0, 1, WS2_DIRECT_PORT, event, engine.meter().frame + uint64_t{pair} * 2) == WS2_OK, "burst on");
             event.type = WS2_NOTE_OFF;
-            check(engine.enqueue(0, 1, WS2_DIRECT_PORT, event, engine.meter().frame + pair * 2 + 1) == WS2_OK,
+            check(engine.enqueue(0, 1, WS2_DIRECT_PORT, event, engine.meter().frame + uint64_t{pair} * 2 + 1) == WS2_OK,
                   "burst off");
         }
         const auto begin = std::chrono::steady_clock::now();
