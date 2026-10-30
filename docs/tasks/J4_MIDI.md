@@ -19,7 +19,7 @@ retain required J3 CLI/runtime/audio dependencies while refreshing on J2 for
 the owner's demo. No tests removed; J3 standalone acceptance is not claimed.
 
 ```acceptance
-tier: T2            # services thread model + ingress rings
+tier: T2
 budget: 2 Codex sessions (remaining)
 size: <= 2400 changed lines, <= 70 files
 must_pass:

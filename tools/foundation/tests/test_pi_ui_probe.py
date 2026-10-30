@@ -26,7 +26,7 @@ class ProbeTests(unittest.TestCase):
             code, report, call = self.invoke([good, good, good])
         self.assertEqual(code, 0)
         self.assertEqual([c.args[0][0] for c in call.call_args_list], ["cmake", "cmake", "ctest"])
-        self.assertEqual(call.call_args_list[0].args[0][1:4], ["-S", "/probe/native", "-B"])
+        self.assertEqual(call.call_args_list[0].args[0][1:4], ["-S", str(Path("/probe").resolve() / "native"), "-B"])
         self.assertIn("-DWIRESCAPE_BUILD_UI=ON", report["commands"][0])
         self.assertTrue(all(t in report["commands"][1] for t in
                             ("--target", "wirescape_studio", "studio_ui_tests", "controller_failure_tests", "audio_device_tests")))
