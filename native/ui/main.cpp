@@ -35,6 +35,7 @@ int main(int argc, char** argv) {
     parser.addOption({"local-font", "Load an optional private local font file, without installing it.", "path"});
     parser.addOption({"ready-report", "Write startup readiness without opening audio.", "path"});
     parser.addOption({"window-size", "Initial logical window size, at least 1000x650.", "widthxheight"});
+    parser.addOption({"fullscreen", "Launch the studio in full-screen mode."});
     parser.addOption({"startup-check", "Exit after writing a ready report; never start audio."});
     parser.process(app);
     if (parser.isSet("local-font")) {
@@ -57,6 +58,10 @@ int main(int argc, char** argv) {
         const auto dimensions = parser.value("window-size").split('x');
         if (dimensions.size() != 2 || dimensions[0].toInt() < 1000 || dimensions[1].toInt() < 650) return 3;
         if (auto* window = qobject_cast<QQuickWindow*>(view.rootObjects().first())) window->resize(dimensions[0].toInt(), dimensions[1].toInt());
+    }
+    if (parser.isSet("fullscreen")) {
+        if (auto *window = qobject_cast<QQuickWindow *>(view.rootObjects().first()))
+            window->setVisibility(QWindow::FullScreen);
     }
     if (parser.isSet("ready-report")) QTimer::singleShot(300, &app, [&] {
         auto* window = qobject_cast<QQuickWindow*>(view.rootObjects().first());
