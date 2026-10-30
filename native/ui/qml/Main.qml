@@ -311,6 +311,13 @@ ApplicationWindow {
                             PathCubic { x: cable.b.x; y: cable.b.y; control1X: cable.a.x + cable.bend; control1Y: cable.a.y + 20; control2X: cable.b.x - cable.bend; control2Y: cable.b.y + 20 }
                         }
                         Rectangle {
+                            visible: cable.modelData.channels > 1
+                            x: (cable.a.x + cable.b.x) / 2 + 10
+                            y: (cable.a.y + cable.b.y) / 2 + 8
+                            width: 22; height: 17; radius: 4; color: "#eeede9"
+                            Text { anchors.centerIn: parent; text: cable.modelData.channels; font.pixelSize: 11; color: "#614d42" }
+                        }
+                        Rectangle {
                             x: (cable.a.x + cable.b.x) / 2 - 7
                             y: (cable.a.y + cable.b.y) / 2 + 15 - 7
                             width: 14; height: 14; radius: 7
