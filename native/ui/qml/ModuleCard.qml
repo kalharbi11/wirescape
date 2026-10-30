@@ -68,11 +68,15 @@ Rectangle {
         if (m === "essentials.mixer") return "fader";
         if (m === "essentials.clock" && (id === 1 || id === 3)) return "stepper";
         if (m === "essentials.adsr") return id === 2 ? "knob" : "slider";
-        if (m === "essentials.vco" || m === "essentials.lfo" ||
-            m === "essentials.vcf" || m === "essentials.ladder" ||
-            m === "essentials.function_envelope" || m === "essentials.slew" ||
-            m === "essentials.scale_offset" || m === "essentials.clock")
-            return (m === "essentials.clock" && id === 2) ? "slider" : "knob";
+        if ((m === "essentials.vco" && id === 0) ||
+            (m === "essentials.lfo" && id >= 0 && id <= 2) ||
+            (m === "essentials.vcf" && id >= 0 && id <= 1) ||
+            (m === "essentials.ladder" && id >= 0 && id <= 2) ||
+            (m === "essentials.function_envelope" && id >= 0 && id <= 2) ||
+            (m === "essentials.slew" && id >= 0 && id <= 1) ||
+            (m === "essentials.scale_offset" && id >= 0 && id <= 1) ||
+            (m === "essentials.clock" && id === 0))
+            return "knob";
         return "slider";
     }
     function priority(p) {
