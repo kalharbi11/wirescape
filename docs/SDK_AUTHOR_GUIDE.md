@@ -66,6 +66,10 @@ native/modules2/<name>/          (or native/sdk/examples/<name>/ for MIT example
 - Keep per-voice state in fixed `std::array<Voice, 16>`, never in vectors grown at runtime.
 - A source must keep `n <= s.max_channels()`: remember `max_channels()` from `prepare` (the `Block` doesn't expose it). `b.channels()` is what the host computed from the inputs, not a limit you choose.
 
+**J2 note allocation:** when a module translates notes into voices, reuse `native/voice/allocator.h` (`wirescape::voice::Allocator`) and its fixed-capacity storage instead of writing a second voice-stealing policy. It supports up to 16 voices, source/note identity, sustain, and rotate/reuse/reset/mono allocation; read `native/voice/README.md` for exact semantics. Configure it while the engine is quiescent, then give it ordered events from one owner. Read `voice(i)` to render pitch, gate, velocity, pressure, and timbre per channel; clear one-shot triggers after the downstream envelope consumes them. `native/voice/note_to_cv.h` adapts ABI2 note events, and `native/modules2/midi_to_cv/dsp.h` shows a production integration. See `native/voice/tests.cpp` for allocator behavior and bounds.
+
+Channels remain voices, never stereo. A source chooses its channel count and sets it on every output block; processors propagate the count resolved from their inputs. Keep note-off/choke handling correct after voice steals and when bounded event queues fill.
+
 ## 6. CONSTANT: the cheap path
 A signal flagged CONSTANT has the same value for the whole block; only sample 0 is valid.
 - Inputs: `b.in(i).constant()`; read `ch(c)[0]`.
@@ -126,6 +130,8 @@ void process(ws::Block& b) {
 - Don't keep pointers to event payloads after `process` returns. `b.transport()` may be null.
 - For note → pitch/gate/velocity across voices, use the shared allocator in `native/voice/` rather than writing your own.
 
+The committed MIDI modules are concrete examples: `native/modules2/midi_to_cv/` (`midi.to_cv`) turns MIDI note and expression events into poly pitch/gate/velocity/pressure/aftertouch/bend/mod signals and note events. `native/modules2/midi_cc_to_cv/` (`midi.cc_to_cv`) maps eight configured CC rows to signal outputs; its README and tests cover channel/controller selection, 14-bit CC pairing, bipolar values, and smoothing. CC runtime configuration is validated by `config.h`; patch data remains JSON, not a serialized C++ struct. Issue #163 is a planned coordinator follow-up, not an available API; do not depend on a coordinator, Learn, or mapping service.
+
 ## 11. State save/load
 - Only state the parameters don't already hold (the host saves parameters): playback position, held values, RNG state.
 - Write a version number first, then portable fields with `w.u32(...)` / `w.f32(...)` (little-endian, fixed). Don't use `value<T>` for structs in shared files.
@@ -146,14 +152,29 @@ Tests call the real C callbacks through the wrapper (`ws::Module<Class>::descrip
 8. **No allocation in process** (`native/tests2/allocation_watch.h`).
 9. Behaviour tests for what the module is for (independent reference math, not the same formula copied).
 
+**Run the module on its own:** `native/sdk/examples/random_source/tests.cpp` is a complete callback-level signal-source test; `native/modules2/midi_to_cv/tests.cpp` is an event/poly module example. Both use `allocation_watch::Scope` around the actual `process` call. Construct the instance, allocate buffers, and call `create`/`prepare` before opening the scope: the process watcher does not check control/lifecycle work. Put each input event in the process context before the watched call; synchronous event handling in `process` is then covered. If `process` emits events, reserve the test's event collector before the scope too, so the test harness itself does not allocate during the callback. The MIDI harness in `native/io/midi/module_test_support.h` demonstrates this pattern.
+
+The committed standalone MIDI test can be built and run with these existing target and test names:
+
+```sh
+python tools/dev.py build --headless
+ctest --test-dir build/native -R '^abi2_midi_to_cv_tests$' --output-on-failure
+```
+
+`native/io/midi/CMakeLists.txt` creates `abi2_midi_to_cv_tests` from `native/modules2/midi_to_cv/tests.cpp` and links the allocation watcher. Add equivalent module-specific executable and `add_test` entries in the appropriate CMake file for a new module; do not assume a target exists before adding that wiring.
+
 **Definition of done**
 - [ ] Folder complete (§1), SPDX headers, `module.json` slot indices match `params` order.
 - [ ] IDs final and documented in `README.md` (ports, parameters, units, ranges).
 - [ ] Realtime checklist (§8) passes by reading your own `process`.
 - [ ] `python tools/dev.py build --headless` and `python tools/dev.py test` pass locally.
 - [ ] The module appears in the app catalogue (`WS_APP_MODULE(Class)` in `native/control/module_catalog.inc`, with its DSP header included by `module_catalog.h`; see `docs/ARCHITECTURE.md`) and plays in a patch.
-- [ ] Tried on the Pi if it is heavy (`docs/PI_SETUP.md`, after J3): `wirescape play` with your patch.
+- [ ] For heavy modules, request offline Pi evidence through the task-specific runner flow (`docs/PI_RUNNER.md`); device testing is user-only.
 - [ ] Third-party code pinned and recorded in `DESIGN.md` with its licence.
+
+**Pi evidence:** for a task-specific run, put the exact command in a `pi-run:` line in the issue's acceptance block and label the PR `ci/pi-accept`. The private Pi bridge runs the task command and publishes `pi5/accept`; verify that status on the exact PR head. A generic build/test pass is not a substitute for the requested Pi command. Keep agent/CI checks offline and device-free; physical audio or MIDI verification is user-only.
+
+The CHAOS two-instance reference is a 120-second offline CPU render on the Pi at 48 kHz, block size 128, 45,000 blocks: worst block 489,275 ns, zero callback allocations, and zero engine faults. Its existing bound is <1,333 µs (half the 128-frame period). The command is `python tools/chaos_two_probe.py`; see `docs/tasks/J7_CHAOS_LITE.md` and `native/examples/chaos_two.json`. This is a measured offline workload reference, not a physical-device/round-trip latency result or a guarantee for another module.
 
 **Common mistakes**
 - Storing `b.in(i).ch(c)` as `const float*` (it's a view; use `auto`).
