@@ -542,9 +542,7 @@ private slots:
         window->setProperty("zoom", zoom);
         window->setProperty("panX", 25.);
         window->setProperty("panY", 20.);
-        auto item = [&](const QString &name) {
-            return qobject_cast<QQuickItem *>(findNamed(window, name));
-        };
+        auto item = [&](const QString &name) { return qobject_cast<QQuickItem *>(findNamed(window, name)); };
         auto *card = item("module_1");
         auto *header = item("moduleHeader_1");
         QVERIFY(card);
