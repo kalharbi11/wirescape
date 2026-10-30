@@ -17,6 +17,8 @@
 #include <QSet>
 #include <QDir>
 
+#include <QProcess>
+
 // The rejection bridge exercises QML's actual mouse/keyboard path without opening audio.
 class ParameterBridge : public QObject {
     Q_OBJECT
@@ -74,6 +76,68 @@ class UiTests : public QObject {
     static QPoint center(QQuickItem* item) { return item->mapToScene(QPointF(item->width()/2, item->height()/2)).toPoint(); }
 private slots:
     void initTestCase() { QVERIFY(temp_.isValid()); }
+    void fullscreenWindowControls() {
+        StudioController studio(directory_);
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("studio", &studio);
+        engine.load(QUrl("qrc:/qml/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects()[0]);
+        QVERIFY(window);
+        window->resize(1000, 650);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        auto *full = qobject_cast<QQuickItem *>(findNamed(window, "fullscreenButton"));
+        auto *minimize = qobject_cast<QQuickItem *>(findNamed(window, "minimizeButton"));
+        auto *save = qobject_cast<QQuickItem *>(findNamed(window, "saveButton"));
+        QVERIFY(full);
+        QVERIFY(minimize);
+        QVERIFY(save);
+        QVERIFY(!window->isFullScreen());
+        QCOMPARE(full->property("text").toString(), QString("Full screen"));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(full));
+        QTRY_VERIFY(window->isFullScreen());
+        QCOMPARE(full->property("text").toString(), QString("Exit full screen"));
+        save->forceActiveFocus();
+        QTRY_VERIFY(save->hasActiveFocus());
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_VERIFY(!window->isFullScreen());
+        QCOMPARE(full->property("text").toString(), QString("Full screen"));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(full));
+        QTRY_VERIFY(window->isFullScreen());
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(full));
+        QTRY_VERIFY(!window->isFullScreen());
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(minimize));
+        QTRY_VERIFY(window->isMinimized());
+        window->showNormal();
+        QTRY_VERIFY(!window->isMinimized());
+        QVERIFY(!studio.running());
+    }
+    void fullscreenLaunchFlagOffline() {
+        const QString executable = QCoreApplication::applicationDirPath() +
+#ifdef Q_OS_WIN
+                                   "/wirescape_studio.exe";
+#else
+                                   "/wirescape_studio";
+#endif
+        QVERIFY2(QFile::exists(executable), qPrintable(executable));
+        const QString reportPath = temp_.filePath("fullscreen-launch.json");
+        QProcess child;
+        child.setProgram(executable);
+        child.setArguments({"--fullscreen", "--startup-check", "--ready-report", reportPath});
+        child.setProcessChannelMode(QProcess::MergedChannels);
+        child.start();
+        QVERIFY2(child.waitForStarted(5000), qPrintable(child.errorString()));
+        QVERIFY2(child.waitForFinished(15000), child.readAll().constData());
+        QCOMPARE(child.exitStatus(), QProcess::NormalExit);
+        QCOMPARE(child.exitCode(), 0);
+        QFile report(reportPath);
+        QVERIFY(report.open(QIODevice::ReadOnly));
+        const auto json = QJsonDocument::fromJson(report.readAll()).object();
+        QCOMPARE(json.value("status").toString(), QString("ready"));
+        QVERIFY(json.value("fullscreen").toBool());
+        QVERIFY(!json.value("audio_started").toBool());
+    }
     void genericPaletteDiscovery() {
         StudioController studio(directory_); QSet<QString> ids;
         for (const auto& item : studio.palette()) ids.insert(item.toMap().value("id").toString());
