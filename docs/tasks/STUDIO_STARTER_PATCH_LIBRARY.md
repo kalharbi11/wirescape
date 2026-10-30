@@ -24,6 +24,7 @@ tier: T1
 budget: 1 bounded UI library pass
 size: <= 500 changed lines, <= 12 files
 must_pass:
+  - python native/ui/tests/starter_patch_probe.py
   - ci: windows-x64 studio_ui_tests starterPatchLibraryAndOfflineRender loads all six bundled patches, renders non-silent offline WAVs, exercises dropdown open/recent/favourite and does not write user data
   - ci: windows-x64 studio_ui_tests, linux-arm64, sanitizers, guard
 stops: [controller or DSP ownership change, invalid patch, silent offline render, test removal, protected path, threshold change, budget exceeded]
