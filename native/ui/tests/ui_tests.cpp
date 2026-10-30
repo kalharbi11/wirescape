@@ -626,21 +626,26 @@ private slots:
             const QByteArray data = wav.readAll();
             QVERIFY2(data.size() > 44, qPrintable(name));
             bool nonSilent = false;
-            for (qsizetype at = 44; at + 1 < data.size(); at += 2)
-                if (data[at] != 0 || data[at + 1] != 0) { nonSilent = true; break; }
+            for (qsizetype at = 44; at + 1 < data.size(); at += 2) {
+                if (data[at] != 0 || data[at + 1] != 0) {
+                    nonSilent = true;
+                    break;
+                }
+            }
             QVERIFY2(nonSilent, qPrintable("silent starter: " + name));
         }
         // Exercise the real dropdown's activation signal, not just a controller load.
         QVERIFY(QMetaObject::invokeMethod(dropdown, "activated", Q_ARG(int, 1)));
-        QTRY_COMPARE(window->property("currentPatchFile").toString(),
-                     QString(":/starter/starter_minimal.json"));
+        const auto currentPatchFile = [&] { return window->property("currentPatchFile").toString(); };
+        QTRY_COMPARE(currentPatchFile(), QString(":/starter/starter_minimal.json"));
         // Recent and favourite entries are transient in tests; no user file is modified.
         const auto savedPath = temp_.filePath("saved-example.json");
         QVERIFY(studio.savePatch(QUrl::fromLocalFile(savedPath)));
         const auto original = read("saved-example.json");
         const QString localUrl = QUrl::fromLocalFile(savedPath).toString();
-        QVERIFY(QMetaObject::invokeMethod(window, "openPatchFile",
-                                          Q_ARG(QVariant, QVariant(localUrl))));
+        const bool opened = QMetaObject::invokeMethod(window, "openPatchFile",
+                                                      Q_ARG(QVariant, QVariant(localUrl)));
+        QVERIFY(opened);
         QTRY_COMPARE(library->property("entryCount").toInt(), 8);
         QCOMPARE(window->property("currentPatchFile").toString(), localUrl);
         QVERIFY(QMetaObject::invokeMethod(library, "toggleFavourite"));
