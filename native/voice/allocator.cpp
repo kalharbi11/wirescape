@@ -32,11 +32,14 @@ int Allocator::find(Note note) const noexcept {
     uint64_t newest = 0;
     for (int i = 0; i < kMaxHeldNotes; ++i) {
         const Held& h = held_[i];
-        if (!h.used || h.note.source_id != note.source_id) continue;
+        if (!h.used || h.note.source_id != note.source_id || (note.note_id < 0 && !h.down)) continue;
         const bool same = note.note_id >= 0
             ? h.note.note_id == note.note_id
             : h.note.note_id < 0 && h.note.channel == note.channel && h.note.key == note.key;
-        if (same && (result < 0 || h.order > newest)) { result = i; newest = h.order; }
+        if (same && (result < 0 || (note.note_id >= 0 ? h.order > newest : h.order < newest))) {
+            result = i;
+            newest = h.order;
+        }
     }
     return result;
 }

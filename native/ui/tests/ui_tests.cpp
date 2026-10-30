@@ -17,6 +17,8 @@
 #include <QSet>
 #include <QDir>
 
+#include <QProcess>
+
 // The rejection bridge exercises QML's actual mouse/keyboard path without opening audio.
 class ParameterBridge : public QObject {
     Q_OBJECT
@@ -74,12 +76,89 @@ class UiTests : public QObject {
     static QPoint center(QQuickItem* item) { return item->mapToScene(QPointF(item->width()/2, item->height()/2)).toPoint(); }
 private slots:
     void initTestCase() { QVERIFY(temp_.isValid()); }
+    void keyboardChordOffscreen() {
+        StudioController studio(directory_);
+        QJsonObject result;
+        QVERIFY(studio.keyboardChordCheck(result));
+        QCOMPARE(result["active_channels"].toInt(), 4);
+        studio.panic();
+        QVERIFY(studio.keyboardChordCheck(result));
+        QCOMPARE(result["active_channels"].toInt(), 4);
+        for (const auto &value : studio.connections()) QVERIFY(value.toMap()["channels"].toInt() > 1);
+    }
+    void fullscreenWindowControls() {
+        StudioController studio(directory_);
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("studio", &studio);
+        engine.load(QUrl("qrc:/qml/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects()[0]);
+        QVERIFY(window);
+        window->resize(1000, 650);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        auto *full = qobject_cast<QQuickItem *>(findNamed(window, "fullscreenButton"));
+        auto *minimize = qobject_cast<QQuickItem *>(findNamed(window, "minimizeButton"));
+        auto *save = qobject_cast<QQuickItem *>(findNamed(window, "saveButton"));
+        QVERIFY(full);
+        QVERIFY(minimize);
+        QVERIFY(save);
+        QTRY_VERIFY(window->width() == 1000);
+        auto *actions = qobject_cast<QQuickItem *>(findNamed(window, "toolbarActions"));
+        QVERIFY(actions);
+        QVERIFY(actions->mapToScene(QPointF()).x() >= 202);
+        QVERIFY(!(window->visibility() == QWindow::FullScreen));
+        QCOMPARE(full->property("text").toString(), QString("Full"));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(full));
+        QTRY_VERIFY((window->visibility() == QWindow::FullScreen));
+        QCOMPARE(full->property("text").toString(), QString("Exit"));
+        save->forceActiveFocus();
+        QTRY_VERIFY(save->hasActiveFocus());
+        QTest::keyClick(window, Qt::Key_Escape);
+        QTRY_VERIFY(!(window->visibility() == QWindow::FullScreen));
+        QCOMPARE(full->property("text").toString(), QString("Full"));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(full));
+        QTRY_VERIFY((window->visibility() == QWindow::FullScreen));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(full));
+        QTRY_VERIFY(!(window->visibility() == QWindow::FullScreen));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(minimize));
+        QTRY_VERIFY((window->visibility() == QWindow::Minimized));
+        window->showNormal();
+        QTRY_VERIFY(!(window->visibility() == QWindow::Minimized));
+        QVERIFY(!studio.running());
+    }
+    void fullscreenLaunchFlagOffline() {
+        const QString executable = QCoreApplication::applicationDirPath() +
+#ifdef Q_OS_WIN
+                                   "/wirescape_studio.exe";
+#else
+                                   "/wirescape_studio";
+#endif
+        QVERIFY2(QFile::exists(executable), qPrintable(executable));
+        const QString reportPath = temp_.filePath("fullscreen-launch.json");
+        QProcess child;
+        child.setProgram(executable);
+        child.setArguments({"--fullscreen", "--startup-check", "--ready-report", reportPath});
+        child.setProcessChannelMode(QProcess::MergedChannels);
+        child.start();
+        QVERIFY2(child.waitForStarted(5000), qPrintable(child.errorString()));
+        QVERIFY2(child.waitForFinished(15000), child.readAll().constData());
+        QCOMPARE(child.exitStatus(), QProcess::NormalExit);
+        QCOMPARE(child.exitCode(), 0);
+        QFile report(reportPath);
+        QVERIFY(report.open(QIODevice::ReadOnly));
+        const auto json = QJsonDocument::fromJson(report.readAll()).object();
+        QCOMPARE(json.value("status").toString(), QString("ready"));
+        QVERIFY(!json.value("audio_started").toBool());
+    }
     void genericPaletteDiscovery() {
         StudioController studio(directory_); QSet<QString> ids;
         for (const auto& item : studio.palette()) ids.insert(item.toMap().value("id").toString());
         QVERIFY(ids.contains("essentials.vco")); QVERIFY(ids.contains("essentials.adsr")); QVERIFY(ids.contains("essentials.vca")); QVERIFY(ids.contains("essentials.output")); QVERIFY(ids.contains("essentials.mixer"));
         // Installed types and the default patch's node count are independent.
-        QCOMPARE(studio.modules().size(),4); studio.addModule("essentials.mixer"); QCOMPARE(studio.modules().size(),5);
+        QCOMPARE(studio.modules().size(), 5);
+        studio.addModule("essentials.mixer");
+        QCOMPARE(studio.modules().size(), 6);
     }
     void transactionalValidation() {
         StudioController studio(directory_); QVERIFY(studio.ready());
@@ -105,7 +184,10 @@ private slots:
         QVERIFY(!studio.dirty()); QVERIFY(!studio.running());
     }
     void incompleteAndMissing() {
-        StudioController studio(directory_); studio.removeModule(4); QVERIFY(!studio.ready()); QCOMPARE(studio.modules().size(), 3);
+        StudioController studio(directory_);
+        studio.removeModule(4);
+        QVERIFY(!studio.ready());
+        QCOMPARE(studio.modules().size(), 4);
         QVERIFY(studio.savePatch(path("incomplete.json"))); QVERIFY(studio.loadPatch(path("incomplete.json"))); QVERIFY(!studio.ready());
         studio.addModule("essentials.output"); QCOMPARE(studio.outputNode(), 4); studio.connectPorts(3, "audio", 4, "audio"); QVERIFY(studio.ready());
         const int count = studio.connections().size(); studio.connectPorts(1, "audio", 3, "gain_cv"); QCOMPARE(studio.connections().size(), count);
@@ -302,7 +384,8 @@ private slots:
             QCOMPARE(studio.modules(),current); QVERIFY(!studio.dirty()); QVERIFY(window->isVisible()); QVERIFY(!window->property("closeApproved").toBool());
             QFile saved(acceptedPath); QVERIFY(saved.open(QIODevice::ReadOnly));
             const auto savedNodes = QJsonDocument::fromJson(saved.readAll()).object().value("modules").toArray();
-            QCOMPARE(savedNodes.size(), 4);
+            QCOMPARE(savedNodes.size(), 5);
+            QCOMPARE(savedNodes.last().toObject().value("module").toString(), QString("host.keyboard"));
             QCOMPARE(savedNodes.at(0).toObject().value("parameters").toObject().value("frequency").toDouble(),440. + action.size());
         }
         // A successful save in the original transaction still performs New.
@@ -316,7 +399,9 @@ private slots:
         QVERIFY(!studio.dirty()); QCOMPARE(studio.modules()[0].toMap()["parameters"].toList()[0].toMap()["value"].toDouble(),220.);
         QFile saved(acceptedPath); QVERIFY(saved.open(QIODevice::ReadOnly));
         const auto savedNodes = QJsonDocument::fromJson(saved.readAll()).object().value("modules").toArray();
-        QCOMPARE(savedNodes.size(), 4); QCOMPARE(savedNodes.at(0).toObject().value("parameters").toObject().value("frequency").toDouble(),880.);
+        QCOMPARE(savedNodes.size(), 5);
+        QCOMPARE(savedNodes.last().toObject().value("module").toString(), QString("host.keyboard"));
+        QCOMPARE(savedNodes.at(0).toObject().value("parameters").toObject().value("frequency").toDouble(), 880.);
     }
     void actualDocumentActionsAndCable() {
         bool failWrite = true; int writeAttempts = 0; QString acceptedPath;
@@ -382,9 +467,15 @@ private slots:
         // Fit first so the real port hit areas are in the viewport.
         QVERIFY(QMetaObject::invokeMethod(window,"fitPatch")); QTest::qWait(50);
         auto* output = qobject_cast<QQuickItem*>(findNamed(window,"output_1_audio")); auto* input = qobject_cast<QQuickItem*>(findNamed(window,"input_3_audio")); QVERIFY(output); QVERIFY(input);
-        QTest::mouseClick(window,Qt::LeftButton,Qt::NoModifier,center(output)); QTest::mouseClick(window,Qt::LeftButton,Qt::NoModifier,center(input)); QCOMPARE(studio.connections().size(),3); QVERIFY(!studio.running());
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(output));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(input));
+        QCOMPARE(studio.connections().size(), 5);
+        QVERIFY(!studio.running());
         // Discard executes the pending New action only after the dialog choice.
-        QVERIFY(QMetaObject::invokeMethod(window,"requestAction",Q_ARG(QVariant,QVariant("new")))); QVERIFY(QMetaObject::invokeMethod(dialog,"discarded")); QCOMPARE(studio.modules().size(),4); QVERIFY(!studio.dirty());
+        QVERIFY(QMetaObject::invokeMethod(window, "requestAction", Q_ARG(QVariant, QVariant("new"))));
+        QVERIFY(QMetaObject::invokeMethod(dialog, "discarded"));
+        QCOMPARE(studio.modules().size(), 5);
+        QVERIFY(!studio.dirty());
     }
 };
 int main(int argc,char** argv) { QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs); QQuickStyle::setStyle("Basic"); QGuiApplication app(argc,argv); app.setQuitOnLastWindowClosed(false); UiTests tests; return QTest::qExec(&tests,argc,argv); }
