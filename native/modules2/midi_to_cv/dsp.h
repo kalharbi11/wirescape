@@ -14,7 +14,6 @@ struct MidiToCv {
         ws::param("steal_policy", "Steal (oldest)", 0, 0, 0, "", stepped, WS2_LINEAR, 2, 4, 1),
         ws::param("mono_priority", "Priority (last/low/high)", 0, 2, 0, "", stepped, WS2_LINEAR, 3, 4, 1),
         ws::param("legato", "Legato", 0, 1, 0, "", stepped, WS2_LINEAR, 4, 4, 1),
-        ws::param("retrigger", "Retrigger (on new note)", 1, 1, 1, "", stepped, WS2_LINEAR, 5, 4, 1),
         ws::param("sustain", "Sustain (ignore/hold)", 0, 1, 1, "", stepped, WS2_LINEAR, 6, 4, 1),
         ws::param("pitch_bend_range_semitones", "Bend range", 0, 48, 2, "st", stepped, WS2_LINEAR, 7, 4, 1),
         ws::param("apply_bend", "Apply bend to pitch", 0, 1, 1, "", stepped, WS2_LINEAR, 8, 4, 1),
@@ -49,11 +48,11 @@ struct MidiToCv {
         wanted.max_voices = uint8_t(std::clamp(std::lround(b.param(0).value(0, 0)), 1l, long(max_channels)));
         wanted.mode = static_cast<voice::Mode>(std::clamp(std::lround(b.param(1).value(0, 0)), 0l, 3l));
         wanted.mono_priority = static_cast<voice::Priority>(std::clamp(std::lround(b.param(3).value(0, 0)), 0l, 2l)); wanted.legato = b.param(4).value(0, 0) > .5f;
-        const uint32_t requested_filter = uint32_t(std::clamp(std::lround(b.param(9).value(0, 0)), 0l, 16l));
+        const uint32_t requested_filter = uint32_t(std::clamp(std::lround(b.param(8).value(0, 0)), 0l, 16l));
         if (!valid_config || wanted.max_voices != configured.max_voices || wanted.mode != configured.mode || wanted.mono_priority != configured.mono_priority || wanted.legato != configured.legato || filter != requested_filter) {
             core.release_all(UINT32_MAX, cause, emit); core.configure(wanted); configured = wanted; filter = requested_filter; valid_config = true;
         }
-        const bool hold = b.param(6).value(0, 0) > .5f;
+        const bool hold = b.param(5).value(0, 0) > .5f;
         if (sustain_hold && !hold) for (auto& e : expressions) if (e.used && e.pedal) { core.sustain(e.source, int(e.channel), false, cause, emit); e.pedal = false; }
         sustain_hold = hold;
         const uint32_t n = uint32_t(core.allocator().voice_count());
@@ -64,7 +63,7 @@ struct MidiToCv {
                 const auto* ex = v.assigned ? expression(core.original_source(v.source_id), uint32_t(v.channel), false) : nullptr;
                 const float bend = ex ? ex->bend : 0;
                 for (uint32_t i = first; i < end; ++i) {
-                    b.out(0).ch(c)[i] = v.pitch + (b.param(8).value(0, i) > .5f ? bend * b.param(7).value(0, i) / 12.f : 0);
+                    b.out(0).ch(c)[i] = v.pitch + (b.param(7).value(0, i) > .5f ? bend * b.param(6).value(0, i) / 12.f : 0);
                     b.out(1).ch(c)[i] = v.gate ? 1.f : 0.f; b.out(2).ch(c)[i] = v.velocity;
                     b.out(3).ch(c)[i] = ex ? ex->aftertouch : 0; b.out(4).ch(c)[i] = v.pressure;
                     b.out(5).ch(c)[i] = bend; b.out(6).ch(c)[i] = ex ? ex->mod : 0;

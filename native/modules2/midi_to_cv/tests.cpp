@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "dsp.h"
+#include <cstring>
 #include <tuple>
 #include "../../io/midi/module_test_support.h"
 #include "../../engine2/engine2.h"
@@ -36,7 +37,7 @@ static void sustain_bend_expression() {
     bend.run({midi1(0x90, 60, 127), midi1(0xe0, 0, 64, 1), midi1(0xe0, 0, 0, 2), midi1(0xe0, 127, 127, 3)});
     REQUIRE(bend.sample(0, 0, 1) == 0 && bend.sample(0, 0, 2) == -1.f / 6 && bend.sample(0, 0, 3) == 1.f / 6);
     REQUIRE(bend.sample(5, 0, 2) == -1 && bend.sample(5, 0, 3) == 1);
-    bend.values[8] = 0; bend.run({midi1(0xe0, 0, 0)}); REQUIRE(bend.sample(0) == 0 && bend.sample(5) == -1);
+    bend.values[7] = 0; bend.run({midi1(0xe0, 0, 0)}); REQUIRE(bend.sample(0) == 0 && bend.sample(5) == -1);
     MidiRig<MidiToCv> expression;
     expression.run({midi1(0x91, 60, 127), midi1(0xd1, 64, 0, 1), midi1(0xa1, 60, 100, 2), midi1(0xb1, 1, 127, 3)});
     REQUIRE(expression.sample(3) == 64.f / 127 && expression.sample(4) == 100.f / 127 && expression.sample(6) == 1);
@@ -180,4 +181,10 @@ static void partitioned_graph_fixtures() {
     }
 }
 
-int main() { basic_and_steal(); sustain_bend_expression(); modes_state_and_bounds(); graph_fixtures(); partitioned_graph_fixtures(); }
+static void metadata_contract() {
+    REQUIRE(MidiToCv::params.size() == 9);
+    for (const auto& parameter : MidiToCv::params) REQUIRE(std::strcmp(parameter.id, "retrigger") != 0);
+    REQUIRE(MidiToCv::params[5].legacy_index == 6);
+    REQUIRE(MidiToCv::params[8].legacy_index == 9);
+}
+int main() { metadata_contract(); basic_and_steal(); sustain_bend_expression(); modes_state_and_bounds(); graph_fixtures(); partitioned_graph_fixtures(); }
