@@ -14,10 +14,10 @@ exact-head gate remains required. No tools/ci or ABI changes. Workflow-only fix
 needs no device or Pi rerun.
 
 ```acceptance
-tier: T2-Claude
+tier: T2
 size: <= 160 changed lines, <= 3 files
 must_pass:
-  - actionlint .github/workflows/portability.yml
+  - ci: static (actionlint .github/workflows/portability.yml)
   - ci: cortex-m7 with both compile variants and every module reported
 stops: [new dependency, new upstream edit, skipped test, relaxed check, actual bare-metal incompatibility beyond context]
 ```
