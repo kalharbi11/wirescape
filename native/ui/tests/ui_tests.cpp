@@ -123,11 +123,11 @@ private slots:
         QVERIFY(keyboard);
 
         audio->forceActiveFocus();
-        QTRY_VERIFY(audio->hasActiveFocus());
-        QVERIFY(!keyboard->hasActiveFocus()); // Establish the real transport-focus precondition.
+        QTRY_COMPARE(window->activeFocusItem(), audio);
+        QVERIFY(window->activeFocusItem() != keyboard); // FocusScope also reports focus for active children.
         QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(audio));
         QTRY_VERIFY(fakeStudio->property("running").toBool());
-        QTRY_VERIFY(keyboard->hasActiveFocus());
+        QTRY_COMPARE(window->activeFocusItem(), keyboard);
         QTest::keyPress(window, Qt::Key_A);
         QTRY_COMPARE(fakeStudio->property("noteOnCount").toInt(), 1);
         QCOMPARE(fakeStudio->property("lastPitch").toInt(), 60);
