@@ -1,5 +1,6 @@
 #include "studio_controller.h"
 #include <QGuiApplication>
+#include <QObject>
 #include <cmath>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
@@ -147,32 +148,47 @@ private slots:
         QVERIFY(!slider->isEnabled()); QVERIFY(std::isfinite(slider->property("value").toDouble()));
     }
     void rotaryMappingAndRollback() {
-        ParameterBridge bridge; QQmlEngine engine;
+        ParameterBridge bridge;
+        QQmlEngine engine;
         engine.rootContext()->setContextProperty("studio", &bridge);
         QQmlComponent component(&engine, QUrl("qrc:/qml/ParameterControl.qml"));
         auto* object = component.beginCreate(engine.rootContext());
         QVERIFY2(object, qPrintable(component.errorString()));
+        QVariantMap descriptor;
+        descriptor.insert("id", 0);
+        descriptor.insert("name", "Frequency");
+        descriptor.insert("minimum", 20.);
+        descriptor.insert("maximum", 20000.);
+        descriptor.insert("value", 220.);
+        descriptor.insert("unit", "Hz");
+        descriptor.insert("display", "220.0 Hz");
         object->setProperty("nodeId", 1);
         object->setProperty("presentation", "knob");
         object->setProperty("hierarchy", "primary");
-        object->setProperty("descriptor", QVariantMap{{"id", 0}, {"name", "Frequency"},
-            {"minimum", 20.}, {"maximum", 20000.}, {"value", 220.}, {"unit", "Hz"}, {"display", "220.0 Hz"}});
-        component.completeCreate(); QScopedPointer<QObject> owner(object);
-        auto* control = qobject_cast<QQuickItem*>(object); QVERIFY(control);
-        QQuickWindow window; window.resize(360,230);
-        control->setParentItem(window.contentItem()); control->setWidth(236);
-        window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
-        auto* knob = qobject_cast<QQuickItem*>(findNamed(control, "parameterKnob")); QVERIFY(knob);
+        object->setProperty("descriptor", descriptor);
+        component.completeCreate();
+        QScopedPointer<QObject> owner(object);
+        auto* control = qobject_cast<QQuickItem*>(object);
+        QVERIFY(control);
+        QQuickWindow window;
+        window.resize(360, 230);
+        control->setParentItem(window.contentItem());
+        control->setWidth(236);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        auto* knob = qobject_cast<QQuickItem*>(findNamed(control, "parameterKnob"));
+        QVERIFY(knob);
         const auto value = [&] { return knob->property("value").toDouble(); };
         QVERIFY(std::abs(value() - std::log(220. / 20.) / std::log(1000.)) < 0.00001);
-        const auto draggedTo = knob->mapToScene(QPointF(knob->width()/2, knob->height()/2 - 32)).toPoint();
+        const auto draggedTo = knob->mapToScene(QPointF(knob->width() / 2, knob->height() / 2 - 32)).toPoint();
         QTest::mousePress(&window, Qt::LeftButton, Qt::NoModifier, center(knob));
         QTest::mouseMove(&window, draggedTo);
         QTest::mouseRelease(&window, Qt::LeftButton, Qt::NoModifier, draggedTo);
-        QVERIFY(bridge.calls > 0); QVERIFY(bridge.accepted > 220.);
+        QVERIFY(bridge.calls > 0);
+        QVERIFY(bridge.accepted > 220.);
         emit bridge.parameterChanged(1, 0, 440., "440.0 Hz");
         QTRY_VERIFY(std::abs(value() - std::log(440. / 20.) / std::log(1000.)) < 0.00001);
-        QCOMPARE(findNamed(control,"parameterDisplay")->property("text").toString(), QString("440.0 Hz"));
+        QCOMPARE(findNamed(control, "parameterDisplay")->property("text").toString(), QString("440.0 Hz"));
         knob->forceActiveFocus();
         const double beforeFine = bridge.accepted;
         QTest::keyClick(&window, Qt::Key_Right, Qt::ShiftModifier);
@@ -188,22 +204,37 @@ private slots:
         QTRY_COMPARE(value(), 1.);
     }
     void steppedSelectorRollback() {
-        ParameterBridge bridge; bridge.accepted = 1.;
-        QQmlEngine engine; engine.rootContext()->setContextProperty("studio", &bridge);
+        ParameterBridge bridge;
+        bridge.accepted = 1.;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty("studio", &bridge);
         QQmlComponent component(&engine, QUrl("qrc:/qml/ParameterControl.qml"));
         auto* object = component.beginCreate(engine.rootContext());
         QVERIFY2(object, qPrintable(component.errorString()));
+        QVariantMap descriptor;
+        descriptor.insert("id", 1);
+        descriptor.insert("name", "Ticks per beat");
+        descriptor.insert("minimum", 1.);
+        descriptor.insert("maximum", 24.);
+        descriptor.insert("value", 1.);
+        descriptor.insert("unit", "");
+        descriptor.insert("display", "1");
         object->setProperty("nodeId", 7);
         object->setProperty("presentation", "stepper");
         object->setProperty("discrete", true);
-        object->setProperty("descriptor", QVariantMap{{"id", 1}, {"name", "Ticks per beat"},
-            {"minimum", 1.}, {"maximum", 24.}, {"value", 1.}, {"unit", ""}, {"display", "1"}});
-        component.completeCreate(); QScopedPointer<QObject> owner(object);
-        auto* control = qobject_cast<QQuickItem*>(object); QVERIFY(control);
-        QQuickWindow window; window.resize(320,120);
-        control->setParentItem(window.contentItem()); control->setWidth(220);
-        window.show(); QVERIFY(QTest::qWaitForWindowExposed(&window));
-        auto* selector = qobject_cast<QQuickItem*>(findNamed(control, "parameterStepper")); QVERIFY(selector);
+        object->setProperty("descriptor", descriptor);
+        component.completeCreate();
+        QScopedPointer<QObject> owner(object);
+        auto* control = qobject_cast<QQuickItem*>(object);
+        QVERIFY(control);
+        QQuickWindow window;
+        window.resize(320, 120);
+        control->setParentItem(window.contentItem());
+        control->setWidth(220);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        auto* selector = qobject_cast<QQuickItem*>(findNamed(control, "parameterStepper"));
+        QVERIFY(selector);
         selector->forceActiveFocus();
         QTest::keyClick(&window, Qt::Key_Up);
         QCOMPARE(bridge.accepted, 2.);
@@ -219,7 +250,8 @@ private slots:
         StudioController studio(directory_);
         for (const auto& type : {"essentials.clock", "essentials.mixer", "essentials.ladder", "essentials.lfo"})
             studio.addModule(type);
-        QQmlApplicationEngine engine; engine.rootContext()->setContextProperty("studio", &studio);
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("studio", &studio);
         engine.load(QUrl("qrc:/qml/Main.qml"));
         QVERIFY(!engine.rootObjects().isEmpty());
         auto* root = engine.rootObjects().front();
@@ -231,7 +263,8 @@ private slots:
                 QCOMPARE(params.size(), ids.size());
                 for (int i = 0; i < ids.size(); ++i) {
                     QCOMPARE(params[i].toMap().value("id").toInt(), ids[i]);
-                    auto* parameter = findNamed(root, QString("parameter_%1_%2").arg(data.value("id").toInt()).arg(ids[i]));
+                    auto* parameter =
+                        findNamed(root, QString("parameter_%1_%2").arg(data.value("id").toInt()).arg(ids[i]));
                     QVERIFY(parameter);
                     QCOMPARE(parameter->property("presentation").toString(), presentations[i]);
                 }
@@ -240,11 +273,11 @@ private slots:
             QFAIL("Expected installed module absent from controller");
         };
         check("essentials.vco", {0}, {"knob"});
-        check("essentials.adsr", {0,1,2,3}, {"slider","slider","knob","slider"});
-        check("essentials.clock", {0,1,2,3}, {"knob","stepper","slider","stepper"});
-        check("essentials.mixer", {0,1}, {"fader","fader"});
-        check("essentials.ladder", {0,1,2}, {"knob","knob","knob"});
-        check("essentials.lfo", {0,1,2}, {"knob","knob","knob"});
+        check("essentials.adsr", {0, 1, 2, 3}, {"slider", "slider", "knob", "slider"});
+        check("essentials.clock", {0, 1, 2, 3}, {"knob", "stepper", "slider", "stepper"});
+        check("essentials.mixer", {0, 1}, {"fader", "fader"});
+        check("essentials.ladder", {0, 1, 2}, {"knob", "knob", "knob"});
+        check("essentials.lfo", {0, 1, 2}, {"knob", "knob", "knob"});
     }
     void parameterHeavyOfflineRender() {
         StudioController studio(directory_); QVERIFY(studio.savePatch(path("heavy_base.json")));
