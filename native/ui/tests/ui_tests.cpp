@@ -165,9 +165,10 @@ private slots:
         auto* knob = qobject_cast<QQuickItem*>(findNamed(control, "parameterKnob")); QVERIFY(knob);
         const auto value = [&] { return knob->property("value").toDouble(); };
         QVERIFY(std::abs(value() - std::log(220. / 20.) / std::log(1000.)) < 0.00001);
+        const auto draggedTo = knob->mapToScene(QPointF(knob->width()/2, knob->height()/2 - 32)).toPoint();
         QTest::mousePress(&window, Qt::LeftButton, Qt::NoModifier, center(knob));
-        QTest::mouseMove(&window, knob->mapToScene(QPointF(knob->width()/2, knob->height()/2 - 32)).toPoint());
-        QTest::mouseRelease(&window, Qt::LeftButton, Qt::NoModifier, center(knob));
+        QTest::mouseMove(&window, draggedTo);
+        QTest::mouseRelease(&window, Qt::LeftButton, Qt::NoModifier, draggedTo);
         QVERIFY(bridge.calls > 0); QVERIFY(bridge.accepted > 220.);
         emit bridge.parameterChanged(1, 0, 440., "440.0 Hz");
         QTRY_VERIFY(std::abs(value() - std::log(440. / 20.) / std::log(1000.)) < 0.00001);
