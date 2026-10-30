@@ -100,8 +100,8 @@ public:
     Q_INVOKABLE void renderDemo(const QUrl&);
     Q_INVOKABLE void resetPatch();
     bool smokeCheck(QJsonObject& result);
-    bool keyboardChordCheck(QJsonObject& result);
-signals:
+    bool keyboardChordCheck(QJsonObject &result);
+  signals:
     void monitorChanged();
     void lanConfirmationNeeded();
     void documentChanged();

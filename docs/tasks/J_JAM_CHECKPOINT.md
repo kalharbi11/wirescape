@@ -43,11 +43,17 @@ At the checkpoint:
 - **ABI headers:** `native/include/wirescape/*.h` stays untouched. If a J task genuinely needs an ABI change, stop that item with `status/blocked` and continue the queue.
 - **Size:** each section gives a budget. Past 1.5× the budget, post a handoff asking whether to split, then continue with the next item while waiting.
 
-## Evidence (lighter than M2)
-- CI green on the final head is required for every PR (Linux ARM64, Windows, sanitizers, guard).
-- **Pi evidence only for PRs that change the engine, DSP, the audio path or the build.** One "Machine evidence" comment per PR on its final head: commit SHA, `python tools/dev.py test` pass count, and toolchain/kernel/governor **once per Codex session** (link to the first comment afterwards).
-- **No evidence re-runs** after a merge from `main` that touches no compiled code in the PR's area. Say "merge-only, evidence from <sha> stands".
-- Performance numbers only where a section asks for them.
+## Evidence (workflow v2, 2026-10-28)
+- Agents run in the cloud and can't reach the Pi or the laptop. **No SSH.** Pi numbers come from the Pi runner (`docs/WORKFLOW.md` §2): `pi:` lines in each task's acceptance block run there. Until the runner exists (#84), `pi:` lines are marked "pending Pi runner" and don't block review.
+- CI green on the final head is required (Linux ARM64, Windows, sanitizers, guard).
+- No evidence re-runs after a merge from `main` that touches no compiled code.
+- Each J item now has its own task file with an acceptance block: `J2_POLY_APP.md` … `J8_AUTHOR_GUIDE.md`. J1 stays in `M2_PORT_AND_APP_ENGINE.md` § M2-6 plus the decisions below.
+
+## Planner decisions 2026-10-28b (unblocking the open PRs)
+1. **J1 (#29, PR #78) render delta.** The app-path render of Six_Essentials_Demo differs from the ABI 1 graph by at most 3.7e-9 (about −169 dBFS). Accepted for the **app integration** comparison only, with a bound of max abs error ≤ 1e-7 in `app_patch_tests`, on two conditions: (a) the PR states the cause in one paragraph (e.g. summation order or float/double at a host stage) with the line that introduces it; (b) per-module ABI 1 ↔ ABI 2 equivalence tests stay exact (0). This is a planner-authorized threshold, not a loosening by the builder.
+2. **J6 (#73, PR #77) upstream signed-shift UB:** a bit-preserving patch applied at fetch time is authorized (details in `J6_MACRO_OSC.md`). All 24 models stay.
+3. **J4 (#71, PR #81) `retrigger`:** J ships `on_new_note` only; `off` is post-J9 (details in `J4_MIDI.md`).
+4. **Windows red on #77, #81, #82:** build logs are readable through the GitHub REST API; #83 makes them readable from Codex cloud. Fix them in each PR; they're not planner decisions.
 
 ## Queue
 Two Codex runs. Run A is the critical path. Run B is independent module work and may run as a second worker in parallel (file ownership below), or after Run A in the same session. **Never wait for a review: open the PR, set `status/review`, post the handoff, move on.** If an item depends on an unmerged PR, branch from that PR's branch ("stacked"), say "stacked on #N" at the top of the PR, and merge `main` into the stack after each merge (merge commits only).

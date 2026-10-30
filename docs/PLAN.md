@@ -2,14 +2,15 @@
 
 Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-28 (Jam checkpoint adopted from the fresh-eyes review).
 
-## Now (single source of truth; updated at every check-in)
-- **Focus: the Jam checkpoint (J)**, a playable pause point. Spec and Codex queue: `docs/tasks/J_JAM_CHECKPOINT.md`. It overrides the M2 queue and the order below until J9 passes.
-- `main` = `b47b107`, CI green. Merged: M2-1 (#38), M2-2 (#39), M1-3b (#37, gap moved to #64), M2-5 patch v2 (#48), M2-0c (#63, #67), 10 of 13 Essentials on ABI 2.
-- **Waiting on the user:** merge #40 (M2-3, green, reviewed). Then #41 after Codex merges `main` into it.
-- **Codex:** Run A (J1 → J2 → J3) and Run B (J7 → J6 → J4 → J5), see the J queue. No waiting for reviews.
-- **Copilot:** #49, #56, #66 (small, off the critical path).
-- **Claude:** two reviews only: J-R1 (after J1–J3) and J-R2 (everything). Guide v2 and templates (J8) are done.
-- **Deferred until after J9:** #64 clang-cl comparison and the Windows 1.05× gate (now tracked only), M3 full UI, Learn/Mappings/Activity panel, MIDI Out/Clock, OSC Out, UDP Send, MPE, Quantizer and Basic Sequencer, X-4 Surge/sst primitives, long soaks, the formal ABI freeze.
+## Now (≤30 lines; checked 2026-10-29 ~05:00 UTC)
+- **Focus:** Jam checkpoint (J). Autonomous mode is the default (`docs/WORKFLOW.md` §3c): agents never idle, auto-merge green work, and Claude reviews T2 once a day (~10:30 New York).
+- **Merged since 10-28 17:00:** #99, #107, #112, #110, #111, #109, #108, #104, #117, #115, #105, #106, #118 (W backlog nearly done); wirescape-pi #3, #5.
+- **Pi:** the runner works (token OK, cmake/ctest fixed). wirescape-pi#7 turns the throttled cron into a 5-minute daemon plus `ci/pi-accept` task commands; wirescape-pi#6 adds the Windows laptop as a runner.
+- **J stack:** #78 J1 (T2) needs fresh `pi5` + `pi5/soak` (the `ci/pi-retry` label is set), then Claude's review → #79 J2 → #80 J3 → #81 J4, #82 J5 (stale, Windows red; refresh after #80).
+- **#77 J6 (T1):** all desktop CI green; needs `pi5/accept` (benchmark) and ChatGPT's pre-review → auto-merge.
+- **Open W:** #98 (Pi docs; label-only, needs Claude's ok), #114 (acceptance "not verified" case), #91, #92 after J1, #94 after J5.
+- **User-only:** merge wirescape-pi #6 and #7, start the daemon once, register the laptop runner; later J9 (#45).
+- **Deferred until after J9:** #64 / Windows 1.05×, M3 full UI, Learn/Mappings, MIDI Out/Clock, OSC Out, UDP Send, MPE, Quantizer + Basic Sequencer, X-4, long soaks, the formal ABI freeze.
 
 ## Vision
 Wirescape is a raw, expandable modular environment for music. Its aims:
@@ -43,7 +44,7 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
 | SDK | Plain C++ class + header-only wrapper over a C ABI. C++17 for DSP. Own SIMD wrapper with a scalar fallback |
 | Licence | SDK MIT; app and Essentials GPL-3.0; Surge-derived modules GPL |
 | Network | Localhost by default; explicit LAN toggle per module |
-| CI | Linux ARM64 on every PR update and every push to `main` (every task has a draft PR from the start). Windows on PRs that are ready for review, or with the `ci/windows` label. The `guard` judges PRs with the base branch's rules. Sanitizers (ASan+UBSan, TSan) on ABI 2 suites from M1-3. A self-hosted Pi 5 runner comes later (own branches only) |
+| CI | Linux ARM64 on every PR update and every push to `main`. Windows on PRs that are ready for review, or with the `ci/windows` label. The `guard` judges PRs with the base branch's rules. Sanitizers (ASan+UBSan, TSan) on ABI 2 suites. The Pi 5 is a self-hosted runner on the private repo `kalharbi11/wirescape-pi` only (PR checks on own branches, nightly tests/soaks/benchmarks/fuzzing/static analysis); this repo's workflows never target it |
 
 ## Milestones
 - **M0 Migration** to `github.com/kalharbi11/wirescape`
@@ -59,30 +60,32 @@ It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MI
   - [x] M1-3 Slice fixes and the performance gate (`docs/tasks/M1-3_SLICE_FIXES.md`, issue #6, PR #22, Codex, size/l). Gate for M2: mono ≤ 1.05× on both CI runners and by instruction count, poly ≤ 1.00×, sanitizer job green, adversarial concurrency and feedback tests. **Reviewed 2026-10-27 (`docs/reviews/M1-3_REVIEW.md`): conditional go.** Everything passes except Windows mono (1.097×), which moves to M1-3b and gates M2-6
   - [x] M1-3b Windows (MSVC) mono gap and an Ir gate in CI (issue #32, PR #37). Accepted with the remaining gap moved to #64, which is now tracked, not a gate (2026-10-28)
 - **M2 Port and patch v2** (ABI2 plan B2 to B4): engine2 becomes the app engine; all Essentials on ABI 2; per-module CV; patch v2 with lossless v1 migration. Optional: self-hosted Pi 5 runner for benchmarks.
-  Task file: `docs/tasks/M2_PORT_AND_APP_ENGINE.md`. All Codex; M2-0 may start now, M2-1 to M2-5 after PR #22 merges, M2-6 after M1-3b and M2-1/2/3/5 merge. Codex works through the "Codex continuous queue" in that file. Codex reaches both the Pi 5 and the Windows laptop and runs all machine work itself.
+  Task file: `docs/tasks/M2_PORT_AND_APP_ENGINE.md`. All Codex; M2-0 may start now, M2-1 to M2-5 after PR #22 merges, M2-6 after M1-3b and M2-1/2/3/5 merge. The M2 queue is superseded by the J queue; Pi work goes through the Pi runner (workflow v2).
   - [x] M2-0 Benchmark tooling and Pi 5 realtime evidence (issue #23, PR #31)
   - [ ] M2-0b Pi soak re-run on post-M1-3 `main` (issue #42)
   - [x] M2-1 Per-bus latency and staged reconfigure (issue #24, PR #38)
   - [x] M2-2 Port mixer, noise, output, scale_offset, slew (issue #25, PR #39)
-  - [ ] M2-3 Port clock, function_envelope, ladder (issue #26, size/m)
-  - [ ] M2-4 Behaviour regressions for the five ports, per-module CV (issue #27, size/m)
+  - [x] M2-3 Port clock, function_envelope, ladder (issue #26, PR #40)
+  - [ ] M2-4 Behaviour regressions for the five ports, per-module CV (issue #27, PR #41: green, waiting for merge)
   - [x] M2-5 Patch v2 and lossless v1 migration (issue #28, PR #48)
   - [ ] M2-6 engine2 becomes the app engine (issue #29, size/l). Now **J1**
   - [ ] M2-P Portability compile probe for a Daisy-class target (issue #44, PR #55, report only), then the fix (#56)
   - [ ] M2-L The user's live session (issue #45). Replaced for now by **J9**, which covers it
   - [ ] M2-R Claude milestone review. Folded into J-R1/J-R2
 - **J Jam checkpoint** (adopted 2026-10-28; `docs/tasks/J_JAM_CHECKPOINT.md`). A pause point where everything that exists works, on the laptop and the Pi, so the user can play and write their own modules. Decisions: CHAOS-lite as one native module now (decomposition stays M7); ABI soft freeze from J-R2 (additive changes only, migration note otherwise); headless Pi runner required, Pi UI a stretch; Windows 1.05× mono is tracked, not a gate.
-  - [ ] J0 Merge #40, then #41 (user + Codex)
-  - [ ] J1 = M2-6 engine2 is the app engine (#29, Codex)
-  - [ ] J2 Polyphony in the app: `host.keyboard`, voice count, poly badge (Codex)
-  - [ ] J3 Pi audio: headless `wirescape play`, Linux audio, a Pi setup guide (PI_SETUP.md, new); Pi UI stretch (Codex; first real audio run by the user)
-  - [ ] J4 MIDI In, MIDI→CV, CC→CV, one backend, hot-plug safe (Codex)
-  - [ ] J5 OSC In over UDP (localhost default, LAN toggle) and Monitor log (Codex)
-  - [ ] J6 Macro Oscillator spike = X-3, poly 8, 48 kHz (Codex)
-  - [ ] J7 CHAOS-lite, two instances on the Pi (Codex)
+  Per-item task files with acceptance blocks: `docs/tasks/J2_POLY_APP.md` … `J8_AUTHOR_GUIDE.md`. Deferred until after J9: #64 / Windows 1.05× (tracked only), M3 full UI, Learn/Activity/Mappings, MIDI Out/Clock, UDP Send, OSC Out, MPE, Quantizer + Basic Sequencer, X-4, long soaks, formal ABI freeze.
+  - [ ] J0 Merge #40 (done), then #41 (user)
+  - [ ] J1 = M2-6 engine2 is the app engine (#29, PR #78, Codex, T2)
+  - [ ] J2 Polyphony in the app: `host.keyboard`, voice count, poly badge (#69, PR #79, Codex)
+  - [ ] J3 Pi audio: headless `wirescape play`, Linux audio, a Pi setup guide; Pi UI stretch as a Pi-runner job (#70, PR #80, Codex; first real audio run by the user)
+  - [ ] J4 MIDI In, MIDI→CV, CC→CV, one backend, hot-plug safe (#71, PR #81, Codex, T2)
+  - [ ] J5 OSC In over UDP (localhost default, LAN toggle) and Monitor log (#72, PR #82, Codex, T2)
+  - [ ] J6 Macro Oscillator spike = X-3, poly 8, 48 kHz (#73, PR #77, Codex)
+  - [ ] J7 CHAOS-lite, two instances on the Pi (#74, PR #76, Codex)
   - [x] J8 Module author guide v2, two templates, `new-module` skill (Claude)
-  - [ ] J-R1 / J-R2 Claude reviews
+  - [ ] J-R Claude gate review (T2 PRs + the milestone)
   - [ ] J9 The user's checkpoint session, laptop + Pi (#45)
+- **W Workflow v2 automation** (adopted 2026-10-28; `docs/WORKFLOW.md`, task files `docs/tasks/W*.md`). Runs alongside J; order: W0 Codex cloud setup → W1 Pi runner → W-a accept → W-b review pack → W-c static analysis, W-d CodeQL, W-i pre-commit, W-j PR template → W-e benchmark gate, W-f golden hashes → W-k docs freshness. W-h fuzzing after J5.
 - **M3 UI for the contract** (B5): poly cables, modulation drag-to-knob with an amount on the cable, base and modulation rings, back-edge markers, stereo pairs. → **Preview 0.7** (a patching preview, not yet an instrument) when M3 is green and an M2-L-style live session passes on it.
 - **Beta 0.8: first playable instrument** (proposed 2026-10-27; the user may redefine it). Preview 0.7 plus **MIDI In and MIDI→CV** (pulled forward from M4) and **Quantizer and Basic Sequencer** (pulled forward from M6). It ships when a 60-minute live session with an external MIDI keyboard passes with no stuck notes, dropouts or crashes. Then file the US trademark, Class 9 (see `TRADEMARKS.md`). The rest of M4 and M6 follows the beta.
 - **M4 Communication I** (`docs/specs/COMMUNICATION_MODULES_PLAN.md`, C1 to C3): endpoint registry, Activity and Learn, Mappings, Monitor, MIDI In / MIDI→CV / CC Map / MIDI Out / MIDI Clock.
@@ -101,22 +104,13 @@ See "Now" at the top and `docs/tasks/J_JAM_CHECKPOINT.md`. After J9, the plan re
 
 ## How work flows
 - **The board is GitHub Issues** (labels and milestones in `AGENTS.md`). Each issue points to a `docs/tasks/` file.
-- **Roles:**
-  - **Codex:** main builder, for large tasks.
-  - **Copilot:** small, well-defined issues labelled `agent/copilot`.
-  - **ChatGPT chat** (GitHub-connected; can't build or run): docs, triage, mechanical edits and first-round review prep, labelled `agent/chatgpt`.
-  - **Claude:** writes and updates this plan and the task files, and reviews at milestones.
-- **Switching agents** at usage limits: the next agent reads the issue's latest handoff comment and continues on the same branch.
-- **Review policy** (how cheaper models stay safe):
-  - **`size/s`, no protected paths:** CI green, plus the user skims the diff and merges.
-  - **`size/m`/`size/l`, or any change to protected paths** (the CI guard job and `.github/CODEOWNERS` list them): CI green, plus a Claude review at the next check-in before merge.
-  - **Approvals:** branch protection does *not* require approvals (all agents act through the owner's account, and GitHub won't let an account approve its own PR, so a required approval would block every merge). Instead, no agent may approve, enable auto-merge or touch protection settings (AGENTS.md); the user's merge click is the approval.
-  - **Every merge is reversible** with the PR's "Revert" button. Force-pushes and deleting `main` are blocked by branch protection.
-  - **Override labels** (`allow-protected`, `allow-test-removal`): only the user adds them, or the planner when the issue explicitly names the protected path. Builder agents never add them to their own PRs.
-- **Evidence, kept proportionate** (from 2026-10-28): Pi evidence only for PRs that change the engine, DSP, audio path or build; toolchain/kernel/governor once per Codex session; no evidence re-runs after a merge from `main` that touches no compiled code in the PR's area. Planner queue changes go in issue comments, not PRs.
-- **Fewer check-ins:** builders get long queues and never wait for review; Claude reviews at named review points (J-R1, J-R2), not after every PR.
+- **Roles, tiers, stops and usage rules:** `AGENTS.md` (short) and `docs/WORKFLOW.md` (detail). Codex cloud builds; ChatGPT does docs, self-contained modules and first-round reviews; Claude plans and does T2/gate reviews; the Pi runner produces all Pi numbers; Copilot gets nothing for now.
+- **Switching agents** at usage limits: the next agent reads the issue's latest handoff and continues on the same branch.
+- **Approvals:** branch protection requires no approvals; no agent approves, merges or enables auto-merge; the user's merge click is the approval. Every merge is reversible with "Revert".
+- **Override labels** (`allow-protected`, `allow-test-removal`): only the user, or the planner when the issue names the protected path.
+- Planner queue changes go in issue comments, not PRs.
 - **Planner check-in prompt** (a fresh session each time):
-  > Read AGENTS.md, docs/PLAN.md, the open issues and PRs, the latest handoff comments, and `git log --oneline -20`. Update the plan and issues, review anything labelled status/review, and flag risks. Don't write code.
+  > Read AGENTS.md and the "Now" section of docs/PLAN.md, then the open issues and PRs, latest handoffs and CI summaries (REST API). Update "Now", the issues and task files (each with an acceptance block). Review only T2 PRs, from their review packs. Don't write code.
 
 ## Document map
 - **Planner handoff** (the reasoning behind the decisions, and the M1 review checklist): `docs/PLANNER_HANDOFF.md`.

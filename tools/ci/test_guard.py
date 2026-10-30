@@ -3,10 +3,14 @@ import os
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
+from unittest.mock import patch
 from pathlib import Path
 
 from guard import check as guard_check
-from guard import violations
+from guard import linked_issue, named_paths, violations, warn_tier
+from guard import check_staged, check_staged_format
 
 
 class GuardTests(unittest.TestCase):
@@ -20,6 +24,22 @@ class GuardTests(unittest.TestCase):
                 self.assertTrue(self.check(path))
                 self.assertFalse(self.check(path, labels=['allow-protected'],
                                             added=['# SPDX-License-Identifier: GPL-3.0-only']))
+
+    def test_issue_named_paths_unlock_protected(self):
+        named = named_paths('Why\nProtected path named: `.github/workflows/ci.yml` and `docs/specs/**`\n'
+                            'Protected paths named: `AGENTS.md`, `tools/ci/guard.py`\nother `x.md`')
+        self.assertEqual(named, {'.github/workflows/ci.yml', 'docs/specs/**', 'AGENTS.md', 'tools/ci/guard.py'})
+        spdx = ['# SPDX-License-Identifier: GPL-3.0-only']
+        self.assertFalse(violations('M', ['.github/workflows/ci.yml'], spdx, set(), named))
+        self.assertFalse(violations('M', ['docs/specs/ABI2_PLAN.md'], spdx, set(), named))
+        self.assertTrue(violations('M', ['.github/workflows/static.yml'], spdx, set(), named))
+        for path in ('AGENTS.md', 'tools/ci/guard.py', '.github/workflows/guard.yml',
+                     'native/include/wirescape/module2.h', 'LICENSE'):
+            with self.subTest(path=path):  # label-only paths stay locked even when named
+                self.assertTrue(violations('M', [path], spdx, set(), named | {path}))
+        self.assertEqual(linked_issue('Fixes stuff\n\nCloses #83'), 83)
+        self.assertEqual(linked_issue('Refs #85.'), 85)
+        self.assertIsNone(linked_issue('no link'))
 
     def test_test_removal_and_rename(self):
         self.assertTrue(self.check('native/tests/example.cpp', status='D'))
@@ -77,6 +97,55 @@ class GuardTests(unittest.TestCase):
 
     def test_modified_file_without_spdx_header_is_allowed(self):
         self.assertFalse(self.check('tools/a.py', status='M', added=['line 1']))
+
+    def test_local_protected_warning_does_not_weaken_ci(self):
+        header = b'+<!-- SPDX-License-Identifier: GPL-3.0-only -->\n'
+        output = StringIO()
+        with patch('guard.git', side_effect=[b'A\0AGENTS.md\0', header]), redirect_stdout(output):
+            self.assertEqual(check_staged(), [])
+        self.assertIn('warning: protected path', output.getvalue())
+        self.assertTrue(violations('A', ['AGENTS.md'], [header.decode()], set()))
+
+    def test_local_guard_reuses_new_spdx_and_binary_rules(self):
+        for path, expected in (('tools/new.py', 'missing SPDX'), ('x.so', 'binary/private'),
+                               ('user_data/config.json', 'binary/private')):
+            with self.subTest(path=path), patch('guard.git', side_effect=[f'A\0{path}\0'.encode(), b'+text\n']):
+                self.assertTrue(any(expected in error for error in check_staged()))
+        with patch('guard.git', side_effect=[b'M\0tools/old.py\0', b'+text\n']):
+            self.assertEqual(check_staged(), [])
+
+    def test_local_clean_index_needs_no_formatter(self):
+        with patch('guard.git', return_value=b''), patch('guard.shutil.which', side_effect=AssertionError('unexpected')):
+            self.assertEqual(check_staged(), [])
+            self.assertEqual(check_staged_format(), [])
+
+    def test_local_formatter_requires_tool_and_checks_staged_bytes_only(self):
+        diff = b'+++ b/native/x.cpp\n@@ -1 +1,2 @@\n+x\n+y\n'
+        with patch('guard.git', return_value=diff), patch('guard.shutil.which', return_value=None):
+            self.assertIn('clang-format is required', check_staged_format()[0])
+        with patch('guard.git', side_effect=[diff, b'// index content\n']), \
+                patch('guard.shutil.which', return_value='clang-format-18'), \
+                patch('guard.subprocess.run', return_value=subprocess.CompletedProcess([], 0, b'', b'')) as run:
+            self.assertEqual(check_staged_format(), [])
+            self.assertEqual(run.call_args.kwargs['input'], b'// index content\n')
+            self.assertIn('--lines=1:2', run.call_args.args[0])
+            self.assertIn('--dry-run', run.call_args.args[0])
+
+    def test_tier_warning_is_advisory_and_accepts_markdown(self):
+        with patch('builtins.print') as output:
+            self.assertIsNone(warn_tier('Intent without a tier'))
+            self.assertIn('warning:', output.call_args.args[0])
+        for body in ('Tier: T0', '**Tier:** T1', '**Tier: T2**'):
+            with patch('builtins.print') as output:
+                self.assertIsNone(warn_tier(body))
+                output.assert_not_called()
+
+    def test_tier_api_failure_only_warns(self):
+        with patch.dict(os.environ, {'PR': '1', 'GITHUB_REPOSITORY': 'owner/repo'}), \
+                patch('guard.subprocess.check_output', side_effect=OSError('unavailable')), \
+                patch('builtins.print') as output:
+            self.assertIsNone(warn_tier())
+            self.assertIn('warning:', output.call_args.args[0])
 
     def test_merge_base_diff_ignores_moved_main_changes(self):
         with tempfile.TemporaryDirectory() as td:

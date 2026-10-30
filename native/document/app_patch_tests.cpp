@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#include "app_patch.h"
+#include "../engine2/engine2.h"
 #include "../tests2/allocation_watch.h"
+#include "app_patch.h"
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
-#include <QJsonDocument>
+#include <QFileInfo>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QTemporaryDir>
 #include <algorithm>
 #include <cmath>
@@ -14,17 +17,102 @@
 using namespace wirescape::document;
 static void require(bool ok,const char*s){if(!ok)throw std::runtime_error(s);}
 int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
- require(argc==3,"modules, demo arguments");ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};
+ require(argc==4,"modules, demo and legacy fixtures arguments");ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>cat(app_engine_create(&cfg),app_engine_destroy);
- for(const char* expected:{"essentials.vco","essentials.lfo","essentials.vcf","essentials.adsr","essentials.vca","essentials.clock","essentials.function_envelope","essentials.ladder","essentials.mixer","essentials.noise","essentials.output","essentials.scale_offset","essentials.slew","host.keyboard"}){
-  bool found=false;for(uint32_t i=0;i<app_engine_module_count(cat.get());++i)if(std::string(app_engine_module(cat.get(),i)->id)==expected)found=true;
-  require(found,"all thirteen Essentials plus keyboard in catalogue");
+ require(app_engine_module_count(cat.get()) == 18,
+         "CHAOS plus thirteen ABI2 ports, host.keyboard and three MIDI modules in catalogue");
+ for (const char *expected :
+      {"essentials.vco", "essentials.lfo", "essentials.vcf", "essentials.adsr", "essentials.vca", "essentials.clock",
+       "essentials.function_envelope", "essentials.ladder", "essentials.mixer", "essentials.noise", "essentials.output",
+       "essentials.scale_offset", "essentials.slew", "host.keyboard"}) {
+     bool found = false;
+     for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i)
+         if (std::string(app_engine_module(cat.get(), i)->id) == expected) found = true;
+     require(found, "all thirteen Essentials plus keyboard in catalogue");
+ }
+ {
+     QFile fixture(QFileInfo(QString::fromLocal8Bit(argv[2])).dir().filePath("chaos_two.json"));
+     require(fixture.open(QIODevice::ReadOnly), "read two CHAOS fixture");
+     auto document = read_patch(fixture.readAll(), app_catalog(cat.get()));
+     QString why;
+     require(document.valid(), "validate two CHAOS document");
+     std::unique_ptr<AppEngine, decltype(&app_engine_destroy)> graph(build_app_patch(cat.get(), document, cfg, why),
+                                                                     app_engine_destroy);
+     if (!graph) std::cerr << why.toStdString() << '\n';
+     require(bool(graph), "build two CHAOS document");
+     float output[128];
+     float peak = 0;
+     for (int block = 0; block < 32; ++block) {
+         int result;
+         {
+             allocation_watch::Scope watch;
+             result = app_engine_render(graph.get(), output, 128);
+             require(watch.allocations() == 0, "CHAOS fixture callback allocations");
+         }
+         require(result == WS_OK, "render two CHAOS fixture");
+         for (float sample : output) {
+             require(std::isfinite(sample), "finite CHAOS output");
+             peak = std::max(peak, std::abs(sample));
+         }
+     }
+     auto &native = app_engine_native(graph.get());
+     require(native.output_channels(2, 0) == 4 && native.output_channels(3, 0) == 4,
+             "two CHAOS instances each render exactly four voices");
+     require(native.meter().faults == 0 && peak > 0, "non-silent fault-free CHAOS fixture");
+ }
+ {
+     QFile fixture(QFileInfo(QString::fromLocal8Bit(argv[2])).dir().filePath("chaos_usb_midi.json"));
+     require(fixture.open(QIODevice::ReadOnly), "read USB MIDI CHAOS fixture");
+     auto document = read_patch(fixture.readAll(), app_catalog(cat.get()));
+     QString why;
+     require(document.valid(), "validate USB MIDI CHAOS fixture");
+     std::unique_ptr<AppEngine, decltype(&app_engine_destroy)> graph(build_app_patch(cat.get(), document, cfg, why),
+                                                                     app_engine_destroy);
+     require(bool(graph), "build USB MIDI CHAOS fixture");
+     auto &engine = app_engine_native(graph.get());
+     for (uint32_t key : {60u, 64u, 67u, 72u}) {
+         ws2_event event{};
+         event.struct_size = sizeof(event);
+         event.type = WS2_MIDI;
+         event.source_id = 1;
+         event.channel = -1;
+         event.note_id = -1;
+         event.ump_words = 1;
+         event.ump[0] = 0x20900000u | (key << 8) | 127u;
+         require(engine.enqueue(0, 1, WS2_DIRECT_PORT, event, 0) == WS2_OK, "fake USB MIDI chord");
+     }
+     float output[128];
+     float peak = 0;
+     for (int block = 0; block < 16; ++block) {
+         int result;
+         {
+             allocation_watch::Scope watch;
+             result = app_engine_render(graph.get(), output, 128);
+             require(watch.allocations() == 0, "MIDI CHAOS callback allocations");
+         }
+         require(result == WS_OK, "MIDI CHAOS render");
+         for (float sample : output) {
+             require(std::isfinite(sample), "finite MIDI CHAOS output");
+             peak = std::max(peak, std::abs(sample));
+         }
+     }
+     require(engine.output_channels(2, 0) == 4 && engine.output_channels(3, 0) == 4, "MIDI CHAOS four voices");
+     require(peak > 0 && engine.meter().faults == 0, "MIDI CHAOS non-silent without devices");
  }
  QFile file(argv[2]);require(file.open(QIODevice::ReadOnly),"read demo");auto bytes=file.readAll();auto source=QJsonDocument::fromJson(bytes).object();auto patch=read_patch(bytes,app_catalog(cat.get()));require(patch.valid(),"migrate demo");QString error;
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>e(build_app_patch(cat.get(),patch,cfg,error),app_engine_destroy);if(!e)std::cerr<<error.toStdString()<<'\n';require(bool(e),"build engine2 demo from loader");
  require(app_engine_native(e.get()).descriptor(1)->abi_version==2,"app uses ABI2, not shim for Essentials");
  auto view=editor_view(patch,cat.get());auto saved=editor_patch(view,cat.get(),PatchDocument{patch.object,bytes,2,{}});require(saved.valid()&&saved.object==patch.object,"v2 editor roundtrip preserves complete object");
  QTemporaryDir temp;require(temp.isValid(),"tempdir");require(save_patch(temp.filePath("demo.json"),patch,&error),"v2 atomic save");
+ QFile v2file(temp.filePath("demo.json"));require(v2file.open(QIODevice::ReadOnly),"read saved v2");
+ auto v2=read_patch(v2file.readAll(),app_catalog(cat.get()));require(v2.valid()&&v2.source_version==2,"reload v2 document");
+ std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>reloaded(build_app_patch(cat.get(),v2,cfg,error),app_engine_destroy);require(bool(reloaded),"build saved v2 through real loader");
+ for(const char*name:{"patch_v1.json","patch_v2.json","patch_v3_unknown.json","visual_study_v4.json","future_patch_v99.json","malformed_patch.json"}){
+  QFile fixture(QString::fromLocal8Bit(argv[3])+"/"+name);require(fixture.open(QIODevice::ReadOnly),"read legacy fixture");auto original=fixture.readAll();
+  auto rejected=read_patch(original,app_catalog(cat.get()));require(!rejected.valid()&&rejected.original_bytes==original,"legacy/future/malformed fixture refuses executable loading and retains bytes");
+  require(build_app_patch(cat.get(),rejected,cfg,error)==nullptr,"invalid document never builds a graph");
+  require(!save_patch(temp.filePath(name),rejected,&error),"rejected legacy file cannot be saved as native");
+ }
  std::unique_ptr<ws_engine,decltype(&ws_engine_destroy)>old(ws_engine_create(&cfg),ws_engine_destroy);
  for(const char*name:{"noise","clock","function_envelope","slew","vcf","ladder","vca","output"}){
 #ifdef _WIN32
@@ -40,7 +128,10 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  for(auto v:source["connections"].toArray()){auto c=v.toObject();auto a=c["fromNode"].toInt(),b=c["toNode"].toInt();auto*ad=node(a);auto*bd=node(b);require(ws_engine_connect(old.get(),a,port(ad->outputs,ad->output_count,c["fromPort"].toString()),b,port(bd->inputs,bd->input_count,c["toPort"].toString()))==WS_OK,"old connect");}
  require(ws_engine_prepare(old.get(),source["outputNode"].toInt(),0)==WS_OK,"old prepare");
  for(auto v:source["modules"].toArray()){auto m=v.toObject();auto values=m["values"].toObject();for(auto p=values.begin();p!=values.end();++p)require(ws_engine_initialize_parameter(old.get(),m["id"].toInt(),p.key().toUInt(),float(p.value().toDouble()))==WS_OK,"old parameter");}
- float a[128],b[128];double delta=0;size_t allocations=0;
- for(int block=0;block<750;++block){require(ws_engine_render(old.get(),a,128)==WS_OK,"old render");int result;{allocation_watch::Scope watch;result=app_engine_render(e.get(),b,128);allocations+=watch.allocations();}require(result==WS_OK,"app render");for(int i=0;i<128;++i){require(std::isfinite(b[i]),"finite");delta=std::max(delta,std::abs(double(a[i])-b[i]));}}
- std::cout<<"Six Essentials ABI1 -> app engine2 max_abs_error="<<delta<<" allocations="<<allocations<<'\n';require(allocations==0,"no callback allocation");require(delta==0,"J1 render delta; planner acceptance required");
+ float a[128],b[128],c[128];double delta=0;size_t allocations=0;
+ for(int block=0;block<750;++block){require(ws_engine_render(old.get(),a,128)==WS_OK,"old render");int result,reload_result;{allocation_watch::Scope watch;result=app_engine_render(e.get(),b,128);reload_result=app_engine_render(reloaded.get(),c,128);allocations+=watch.allocations();}require(result==WS_OK&&reload_result==WS_OK,"app render");for(int i=0;i<128;++i){require(std::isfinite(b[i]),"finite");require(b[i]==c[i],"v1 load vs saved/reloaded v2 render exactly identical");delta=std::max(delta,std::abs(double(a[i])-b[i]));}}
+ // Planner decision 2026-10-28b: app comparison only; module equivalence stays exact.
+ // PortRamp::update skips explicit .2f for Noise's cached default, retaining double
+ // .2, whereas ABI1 LinearRamp adopts double(.2f). See modules2/port_state.h:17.
+ std::cout<<"Six Essentials ABI1 -> app engine2 max_abs_error="<<delta<<" allocations="<<allocations<<'\n';require(allocations==0,"no callback allocation");require(delta<=1e-7,"app integration render exceeds planner-authorized bound");
  }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}

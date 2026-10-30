@@ -3,7 +3,9 @@
 import argparse
 import fnmatch
 import json
+import os
 import re
+import shutil
 import subprocess
 from pathlib import PurePosixPath
 
@@ -14,6 +16,11 @@ BINARY = {'.dll', '.exe', '.zip', '.wav', '.flac', '.ttf', '.otf', '.so', '.dyli
           '.lib', '.pdb', '.obj', '.a', '.woff', '.woff2', '.mp3', '.aif', '.aiff'}
 PRIVATE = {'user_data', '.tools', 'build', 'local_backups'}
 FIXTURE_AUDIO = {'.wav', '.flac'}
+# Protected paths an issue may unlock by naming them; these still need the label.
+LABEL_ONLY = ('AGENTS.md', 'CLAUDE.md', 'tools/ci/**', '.github/workflows/guard.yml', '.github/CODEOWNERS',
+              'native/include/wirescape/*.h', 'LICENSE*', 'LICENSES/**', 'docs/history/**', 'legacy/**')
+NAMED = re.compile(r'(?im)^\W*protected paths? named:(.*)$')
+CLOSES = re.compile(r'(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs)\s+#(\d+)')
 MACHINE = re.compile(r'(?i)(?:[a-z]:[\\/]Users[\\/]|/ho' r'me/[^/\s]+(?:/|$))')
 
 
@@ -37,11 +44,26 @@ def is_allowed_fixture_audio(path, suffix):
     return suffix in FIXTURE_AUDIO and p.parts[:3] == ('native', 'tests', 'fixtures')
 
 
-def violations(status, paths, added, labels):
+def named_paths(issue_body):
+    """Backticked paths or globs on 'Protected path(s) named:' lines of the linked issue."""
+    return {p.strip() for line in NAMED.findall(issue_body or '') for p in re.findall(r'`([^`]+)`', line)}
+
+
+def linked_issue(pr_body):
+    match = CLOSES.search(pr_body or '')
+    return int(match.group(1)) if match else None
+
+
+def unlocked(path, named):
+    return (any(fnmatch.fnmatchcase(path, rule) for rule in named)
+            and not any(fnmatch.fnmatchcase(path, rule) for rule in LABEL_ONLY))
+
+
+def violations(status, paths, added, labels, named=()):
     errors = []
     if 'allow-protected' not in labels and any(
-            fnmatch.fnmatchcase(p, rule) for p in paths for rule in PROTECTED):
-        errors.append('protected path requires allow-protected')
+            fnmatch.fnmatchcase(p, rule) and not unlocked(p, named) for p in paths for rule in PROTECTED):
+        errors.append('protected path requires allow-protected (or naming it in the linked issue)')
     if status[0] in 'DR' and is_test(paths[0]) and 'allow-test-removal' not in labels:
         errors.append('test deletion/rename requires allow-test-removal')
     if status[0] != 'D':
@@ -64,7 +86,7 @@ def git(*args):
     return subprocess.check_output(['git', *args])
 
 
-def check(base, head, labels):
+def check(base, head, labels, named=()):
     entries = iter(git('diff', '--name-status', '-z', '-M', '--merge-base', base, head).split(b'\0')[:-1])
     errors = []
     for entry in entries:
@@ -76,16 +98,88 @@ def check(base, head, labels):
                     base, head, '--', paths[-1])
         added = [line[1:] for line in patch.decode('utf-8', 'replace').splitlines()
                  if line.startswith('+') and not line.startswith('+++')]
-        errors.extend(f'{paths[-1]}: {e}' for e in violations(status, paths, added, labels))
+        errors.extend(f'{paths[-1]}: {e}' for e in violations(status, paths, added, labels, named))
     return errors
+
+
+def check_staged():
+    entries = iter(git('diff', '--cached', '--name-status', '-z', '-M').split(b'\0')[:-1])
+    errors = []
+    for entry in entries:
+        status = entry.decode()
+        paths = [next(entries).decode('utf-8', 'surrogateescape')]
+        if status[0] in 'RC':
+            paths.append(next(entries).decode('utf-8', 'surrogateescape'))
+        patch = git('diff', '--cached', '--no-ext-diff', '--no-textconv', '--unified=0', '--', paths[-1])
+        added = [line[1:] for line in patch.decode('utf-8', 'replace').splitlines()
+                 if line.startswith('+') and not line.startswith('+++')]
+        if any(fnmatch.fnmatchcase(path, rule) for path in paths for rule in PROTECTED):
+            print(f'{paths[-1]}: warning: protected path needs issue authorization and CI review')
+        # Only the local protected-path severity changes; all CI rules stay intact.
+        errors.extend(f'{paths[-1]}: {error}' for error in violations(status, paths, added, {'allow-protected'}))
+    return errors
+
+
+def check_staged_format():
+    from static_checks import changed_ranges
+    patch = git('diff', '--cached', '--no-ext-diff', '--no-textconv', '--unified=0')
+    files = {name: ranges for name, ranges in changed_ranges(patch.decode('utf-8', 'replace')).items() if ranges}
+    if not files:
+        return []
+    formatter = shutil.which('clang-format-18') or shutil.which('clang-format')
+    if not formatter:
+        return ['clang-format is required for staged C++ lines (CI uses clang-format-18)']
+    errors = []
+    for name, ranges in files.items():
+        # Check the index, not unstaged edits; never rewrite either version.
+        source = git('show', ':' + name)
+        command = [formatter, '--dry-run', '--Werror', '--assume-filename=' + name,
+                   *[f'--lines={start}:{end}' for start, end in ranges]]
+        result = subprocess.run(command, input=source, capture_output=True)
+        if result.returncode:
+            errors.append(name + ': ' + (result.stdout + result.stderr).decode('utf-8', 'replace'))
+    return errors
+
+
+def warn_tier(body=None):
+    if body is None:
+        number, repo = os.environ.get('PR'), os.environ.get('GITHUB_REPOSITORY')
+        if not number or not repo:
+            return
+        try:
+            body = subprocess.check_output(['gh', 'api', f'repos/{repo}/pulls/{number}', '--jq', '.body // ""'],
+                                           text=True, stderr=subprocess.DEVNULL, timeout=15)
+        except (OSError, subprocess.SubprocessError):
+            print('warning: PR body unavailable; Tier line was not checked')
+            return
+    if not re.search(r'(?im)^\s*(?:\*\*)?Tier:', body):
+        print('warning: PR body has no Tier: line (choose T0, T1 or T2)')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--base', required=True)
-    parser.add_argument('--head', required=True)
+    parser.add_argument('--base')
+    parser.add_argument('--head')
+    local = parser.add_mutually_exclusive_group()
+    local.add_argument('--staged', action='store_true')
+    local.add_argument('--staged-format', action='store_true')
     parser.add_argument('--labels-json', default='[]')
+    parser.add_argument('--pr-body')
+    parser.add_argument('--issue-body-file', help='body of the issue the PR closes')
     args = parser.parse_args()
-    errors = check(args.base, args.head, set(json.loads(args.labels_json)))
+    if args.staged:
+        errors = check_staged()
+    elif args.staged_format:
+        errors = check_staged_format()
+    else:
+        if not args.base or not args.head:
+            parser.error('--base and --head are required for CI mode')
+        warn_tier(args.pr_body)
+        named = set()
+        if args.issue_body_file:
+            with open(args.issue_body_file, encoding='utf-8') as body:
+                named = named_paths(body.read())
+            print('unlocked by issue:', sorted(named) or 'none')
+        errors = check(args.base, args.head, set(json.loads(args.labels_json)), named)
     print('\n'.join(errors) if errors else 'guard: passed')
     raise SystemExit(bool(errors))

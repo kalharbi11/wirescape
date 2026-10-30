@@ -48,6 +48,7 @@ static void protocol_bounds_and_reserve() {
     REQUIRE(service.counters().ignored_rpn == 1); out.items.clear();
     backend.bytes("sys:A", {0x90, 60, 0}, 1); backend.ump("sys:A", {0x40903c00u, 0u}, 2); service.poll();
     REQUIRE(out.items.size() == 2 && out.items[0].event.ump_words == 1 && out.items[1].event.ump_words == 2);
+    REQUIRE(out.items[0].ns == 1 && out.items[1].ns == 2);
     REQUIRE((out.items[0].event.ump[0] >> 28) == 2 && (out.items[1].event.ump[0] >> 28) == 4);
     out.items.clear();
     for (uint32_t i = 0; i < 5000; ++i) backend.bytes("sys:A", {0x90, 60, 100}, i);
@@ -58,6 +59,28 @@ static void protocol_bounds_and_reserve() {
     for (uint32_t i = 0; i < 5000; ++i) backend.bytes("sys:A", {0x80, 60, 0}, i);
     service.poll(); REQUIRE(!out.items.empty() && out.items[0].event.type == WS2_NOTE_CHOKE);
 }
+static void saturated_source_isolation() {
+    Fake backend;
+    Output out;
+    Service service(backend, out.sink());
+    REQUIRE(service.enable({"A", "sys:A"}) && service.enable({"B", "sys:B"}));
+    REQUIRE(service.subscribe({1, {}, true}));
+    service.poll();
+    const auto survivor = service.endpoint_states()[1].source_id;
+    for (uint32_t i = 0; i < 5000; ++i) backend.bytes("sys:A", {0x80, 60, 0}, i);
+    backend.bytes("sys:B", {0xb0, 64, 127}, 5001);
+    backend.bytes("sys:B", {0xb0, 1, 100}, 5002);
+    service.poll();
+    REQUIRE(out.items.size() == 3 && out.items[0].event.type == WS2_NOTE_CHOKE);
+    REQUIRE(out.items[0].event.source_id != survivor);
+    REQUIRE(out.items[1].event.source_id == survivor && out.items[2].event.source_id == survivor);
+    REQUIRE(out.items[1].event.ump[0] == 0x20b0407fu && out.items[2].event.ump[0] == 0x20b00164u);
+    backend.list.erase(backend.list.begin());
+    out.items.clear();
+    service.poll();
+    REQUIRE(out.items.size() == 1 && out.items[0].event.type == WS2_NOTE_CHOKE);
+    REQUIRE(out.items[0].event.source_id != survivor && service.endpoint_states()[1].online);
+}
 static void missing_and_shutdown() {
     Fake backend; Output out; Service service(backend, out.sink()); REQUIRE(service.enable({"Missing", "gone"})); REQUIRE(service.subscribe({1, {}, true})); service.poll();
     REQUIRE(backend.opens == 0 && !service.endpoint_states()[0].online);
@@ -66,4 +89,10 @@ static void missing_and_shutdown() {
     REQUIRE(backend.callbacks.empty() && !out.items.empty() && out.items.back().event.type == WS2_NOTE_CHOKE);
     REQUIRE(!real_backend(false));
 }
-int main() { fanout_identity_disconnect(); protocol_bounds_and_reserve(); missing_and_shutdown(); std::puts("MIDI fake endpoint, identity, protocol, reserve and shutdown passed"); }
+int main() {
+    saturated_source_isolation();
+    fanout_identity_disconnect();
+    protocol_bounds_and_reserve();
+    missing_and_shutdown();
+    std::puts("MIDI fake endpoint, identity, protocol, reserve and shutdown passed");
+}

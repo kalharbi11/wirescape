@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
         });
         const auto url = QUrl::fromLocalFile(temp.filePath("patch.json"));
         check(studio.ready() && studio.savePatch(url), "baseline saved"); const auto before = read(url.toLocalFile());
+        check(QJsonDocument::fromJson(before).object()["version"] == 2, "app saves canonical native v2");
         check(studio.setParameter(1, 0, 550), "edit accepted"); const auto accepted = studio.modules();
         const auto acceptedConnections = studio.connections();
         const auto acceptedName = studio.patchName();
@@ -51,7 +52,7 @@ int main(int argc, char** argv) {
         failCommit = true; check(!studio.savePatch(url) && studio.dirty(), "commit failure preserves dirty state");
         check(read(url.toLocalFile()) == before && studio.modules() == accepted, "commit failure preserves old bytes and edits");
         auto candidate = QJsonDocument::fromJson(before).object(); auto nodes = candidate["modules"].toArray();
-        for (int i=0; i<nodes.size(); ++i) { auto n = nodes[i].toObject(); if (n["id"].toInt() == 3) { n["type"] = "test.prepare_failure"; nodes[i] = n; } }
+        for (int i=0; i<nodes.size(); ++i) { auto n = nodes[i].toObject(); if (n["id"].toInt() == 3) { n["module"] = "test.prepare_failure"; n["parameters"] = QJsonObject{{"0", .7}}; nodes[i] = n; } }
         candidate["modules"] = nodes;
         rejectionLeavesPatch("failure.json", QJsonDocument(candidate).toJson(), "prepare");
         const QByteArray legacy = R"({"format":"wirescape.patch","version":3,"modules":[{"id":"voice","type":"chaos","sequence":{"notes":[60]},"module_state":{"opaque":"keep"}}],"connections":[]})";
@@ -62,20 +63,26 @@ int main(int argc, char** argv) {
         rejectionLeavesPatch("malformed.json", QByteArray("{\"format\": "), "Invalid JSON");
         rejectionLeavesPatch("oversized.json", QByteArray(wirescape::document::MaximumDocumentBytes + 1, 'x'), "2 MiB");
         failCommit = false;
-        check(studio.loadPatch(url), "valid native v1 loads");
-        check(studio.ready() && !studio.dirty() && !studio.running(), "valid native v1 ready with audio off");
+        check(studio.loadPatch(url), "saved native v2 loads");
+        check(studio.ready() && !studio.dirty() && !studio.running(), "saved native v2 ready with audio off");
+        const auto resolvedConnections = studio.connections();
         auto unresolved = QJsonDocument::fromJson(before).object();
         auto unresolvedNodes = unresolved["modules"].toArray();
-        auto unknown = unresolvedNodes[0].toObject(); unknown["type"] = "future.unknown";
-        unknown["values"] = QJsonObject{{"opaque", QJsonArray{1, "keep"}}};
+        auto unknown = unresolvedNodes[0].toObject(); unknown["module"] = "future.unknown";
+        unknown["parameters"] = QJsonObject{};
+        check(!unknown.contains("inactive"), "hand-written unknown v2 has no inactive annotation");
+        unknown["preserved"] = QJsonObject{{"type", "future.unknown"}, {"values", QJsonObject{{"opaque", QJsonArray{1, "keep"}}}}};
         unresolvedNodes[0] = unknown; unresolved["modules"] = unresolvedNodes;
         const auto unknownPath = temp.filePath("unknown.json");
         write(unknownPath, QJsonDocument(unresolved).toJson());
         check(studio.loadPatch(QUrl::fromLocalFile(unknownPath)), "native patch with missing module loads");
         check(!studio.ready() && !studio.running() && !studio.dirty(), "missing module stays editable with audio off");
         check(studio.modules()[0].toMap().value("missing").toBool(), "missing module shown");
-        check(studio.connections() == acceptedConnections, "unresolved cables preserved");
+        check(studio.connections() == resolvedConnections, "unresolved v2 cables preserved");
         check(studio.savePatch(QUrl::fromLocalFile(temp.filePath("unknown_roundtrip.json"))), "save unresolved patch");
+        unknown["inactive"] = true;
+        unresolvedNodes[0] = unknown;
+        unresolved["modules"] = unresolvedNodes;
         check(QJsonDocument::fromJson(read(temp.filePath("unknown_roundtrip.json"))).object() == unresolved,
               "unknown module payload and cables survive roundtrip");
         check(studio.saveDiagnostics(QUrl::fromLocalFile(temp.filePath("session.json"))), "offline diagnostics save");

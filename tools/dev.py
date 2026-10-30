@@ -7,7 +7,6 @@ import argparse
 import json
 import os
 import sys
-import subprocess
 import shutil
 import io
 import unittest
@@ -42,7 +41,7 @@ def _cache_values() -> dict[str, str]:
             if line and not line.startswith("#") and not line.startswith("//") and "=" in line:
                 left, value = line.split("=", 1)
                 key = left.split(":", 1)[0]
-                if key in {"Qt6_DIR", "CMAKE_PREFIX_PATH", "CMAKE_BUILD_TYPE", "CMAKE_CONFIGURATION_TYPES", "CMAKE_GENERATOR", "CMAKE_HOME_DIRECTORY", "CMAKE_CXX_COMPILER", "CMAKE_GENERATOR_PLATFORM", "CMAKE_SYSTEM_VERSION", "CMAKE_TOOLCHAIN_FILE"} or key.startswith("CMAKE_CXX_FLAGS"):
+                if key in {"Qt6_DIR", "CMAKE_PREFIX_PATH", "CMAKE_BUILD_TYPE", "CMAKE_CONFIGURATION_TYPES", "CMAKE_GENERATOR", "CMAKE_HOME_DIRECTORY", "CMAKE_CXX_COMPILER", "CMAKE_GENERATOR_PLATFORM", "CMAKE_SYSTEM_VERSION", "CMAKE_TOOLCHAIN_FILE", "WIRESCAPE_BUILD_UI"} or key.startswith("CMAKE_CXX_FLAGS"):
                     values[key] = value
     except OSError:
         pass
@@ -67,7 +66,8 @@ def _artifact_inventory(config: str) -> dict[str, str]:
     return result
 
 
-def _refresh_build_metadata(config: str, expected_source: dict[str, Any] | None = None) -> tuple[dict[str, Any], bool]:
+def _refresh_build_metadata(config: str, expected_source: dict[str, Any] | None = None,
+                            ui_built: bool = False) -> tuple[dict[str, Any], bool]:
     current = source_provenance(ROOT)
     stable = expected_source is None or current["sha256"] == expected_source["sha256"]
     cache = _cache_values()
@@ -76,7 +76,8 @@ def _refresh_build_metadata(config: str, expected_source: dict[str, Any] | None 
     qt_prefix = str(qt_path.parents[2]) if qt_path and qt_path.is_dir() and len(qt_path.parents) >= 3 else None
     meta = _build_metadata() or {}
     meta.update(configuration=config, source=current, source_stable=stable,
-                cmake_cache=cache, qt_prefix=qt_prefix or meta.get("qt_prefix"),
+                cmake_cache=cache, ui_verified=bool(ui_built and stable and cache.get("WIRESCAPE_BUILD_UI") == "ON"),
+                qt_prefix=qt_prefix or meta.get("qt_prefix"),
                 artifact_root=str(BUILD_DIR), binaries=_artifact_inventory(config))
     write_json(BUILD_DIR / "build-metadata.json", meta)
     return meta, stable
@@ -201,6 +202,11 @@ def command_build(args: argparse.Namespace) -> int:
         report = _save_record(record)
         _print_record(record, report, args.json)
         return 2
+    # A failed configure/build must not preserve prior GUI certification.
+    previous = _build_metadata()
+    if isinstance(previous, dict):
+        previous["ui_verified"] = False
+        write_json(BUILD_DIR / "build-metadata.json", previous)
     configure = [cmake, "-S", str(ROOT / "native"), "-B", str(BUILD_DIR), "-G", generator]
     if generator.startswith("Visual Studio"):
         configure.extend(["-A", "x64"])
@@ -221,13 +227,18 @@ def command_build(args: argparse.Namespace) -> int:
     steps = [{"name": "configure", **configure_result}]
     if configure_result["exit_code"] == 0:
         build = [cmake, "--build", str(BUILD_DIR), "--config", args.config, "--parallel"]
+        if env.get("CMAKE_BUILD_PARALLEL_LEVEL"):
+            build.append(env["CMAKE_BUILD_PARALLEL_LEVEL"])
         build_result = run_logged(build, ROOT, _unique_report_path("build-compile", ".log"), env)
         steps.append({"name": "build", **build_result})
     record["steps"] = steps
     failed = next((s for s in steps if s["exit_code"] != 0), None)
     metadata = None
     if not failed:
-        metadata, stable = _refresh_build_metadata(args.config, source_before)
+        metadata, stable = _refresh_build_metadata(
+            args.config, source_before,
+            ui_built=(not args.headless and (BUILD_DIR / "ui" / "wirescape-ui-enabled.txt").is_file()
+                      and _studio_executable(args.config) is not None))
         if not stable:
             failed = {"name": "source_stability", "exit_code": 1}
             steps.append({"name": "source_stability", "exit_code": 1,
@@ -459,11 +470,45 @@ def command_render(args: argparse.Namespace) -> int:
     return 0 if success else (result["exit_code"] or 1)
 
 
+def _launch_freshness_error(executable: Path, config: str) -> str | None:
+    """Fail closed unless the requested GUI executable has successful build evidence."""
+    meta = _build_metadata()
+    if not isinstance(meta, dict):
+        return "missing or corrupt build metadata"
+    if meta.get("configuration") != config:
+        return "requested configuration differs from the recorded build"
+    if meta.get("ui_verified") is not True or meta.get("source_stable") is not True:
+        return "no verified successful GUI build for this configuration"
+    if _cache_values().get("WIRESCAPE_BUILD_UI") != "ON":
+        return "current CMake configuration has the UI disabled or is unverifiable"
+    source = meta.get("source")
+    if not isinstance(source, dict) or not isinstance(source.get("sha256"), str):
+        return "missing source provenance"
+    try:
+        if source_provenance(ROOT)["sha256"] != source["sha256"]:
+            return "source changed since the GUI build"
+        relative = executable.relative_to(BUILD_DIR).as_posix()
+        binaries = meta.get("binaries")
+        if not isinstance(binaries, dict) or not isinstance(binaries.get(relative), str):
+            return "GUI executable digest is missing"
+        if sha256_file(executable) != binaries[relative]:
+            return "GUI executable changed since the build"
+    except (OSError, ValueError, KeyError, TypeError):
+        return "GUI provenance could not be verified"
+    return None
+
+
 def command_launch(args: argparse.Namespace) -> int:
     record = _base_record("launch", args.config)
     executable = _studio_executable(args.config)
     if not executable:
         record.update(status="skipped", summary="Launch skipped: build the Wirescape Studio desktop app first")
+        report = _save_record(record)
+        _print_record(record, report, args.json)
+        return 2
+    problem = _launch_freshness_error(executable, args.config)
+    if problem:
+        record.update(status="failed", summary=f"Launch refused: {problem}. Run: python tools/dev.py build --config {args.config}", executable=str(executable))
         report = _save_record(record)
         _print_record(record, report, args.json)
         return 2
@@ -527,7 +572,8 @@ def command_ui_test(args: argparse.Namespace) -> int:
         record["command_result"] = layouts[-1]["command_result"]
         record["screenshot"] = layouts[-1]["screenshot"]
         record["ui_report"] = layouts[-1]["ui_report"]
-        if "ui_test" in layouts[-1]: record["ui_test"] = layouts[-1]["ui_test"]
+        if "ui_test" in layouts[-1]:
+            record["ui_test"] = layouts[-1]["ui_test"]
     success = len(layouts) == 2 and all(item["status"] == "passed" for item in layouts)
     record["status"] = "passed" if success else "failed"
     record["summary"] = "Qt offscreen UI passed at 1400x900 and 1000x650" if success else "Qt UI size check failed; see per-layout reports"
@@ -541,12 +587,16 @@ def command_startup_test(args: argparse.Namespace) -> int:
     record = _base_record("startup-test", args.config)
     if not args.portable and os.name != "nt":
         record.update(status="skipped", summary="Normal-window startup check is Windows-only")
-        path = _save_record(record); _print_record(record, path, args.json); return 2
+        path = _save_record(record)
+        _print_record(record, path, args.json)
+        return 2
     executable = (Path(args.portable).expanduser().resolve() / ("wirescape_studio.exe" if os.name == "nt" else "wirescape_studio")
                   if args.portable else _studio_executable(args.config))
     if not executable or not executable.is_file():
         record.update(status="skipped", summary="Startup check skipped: Wirescape Studio executable was not found")
-        path = _save_record(record); _print_record(record, path, args.json); return 2
+        path = _save_record(record)
+        _print_record(record, path, args.json)
+        return 2
     ready_path = _unique_report_path("studio-startup-ready", ".json")
     env = _qt_runtime_env(executable) if not args.portable else _portable_runtime_env(executable.parent)
     env["QT_FORCE_STDERR_LOGGING"] = "1"
@@ -563,7 +613,8 @@ def command_startup_test(args: argparse.Namespace) -> int:
                   summary="Normal-window startup reached ready state with audio off" if valid else "Startup readiness report failed validation",
                   executable=str(executable), command_result=result, readiness_report=str(ready_path),
                   readiness=ready, scope="Self-closing startup check; does not start audio")
-    path = _save_record(record); _print_record(record, path, args.json)
+    path = _save_record(record)
+    _print_record(record, path, args.json)
     return 0 if valid else 1
 
 
@@ -585,16 +636,21 @@ def command_package(args: argparse.Namespace) -> int:
     backend = next((path for path in candidates if path.is_file()), None)
     if os.name != "nt" or not executable or not deploy or not deploy.is_file() or not backend or not backend.is_file():
         record.update(status="failed", summary="Package requires a Windows Qt build and PortAudio DLL (set WIRESCAPE_PORTAUDIO or use --portaudio PATH).")
-        path = _save_record(record); _print_record(record, path, args.json); return 1
+        path = _save_record(record)
+        _print_record(record, path, args.json)
+        return 1
     if metadata.get("configuration") != args.config:
         record.update(status="failed", summary="Build configuration does not match requested package configuration.")
-        path = _save_record(record); _print_record(record, path, args.json); return 1
+        path = _save_record(record)
+        _print_record(record, path, args.json)
+        return 1
     destination = ROOT / "build" / "packages" / f"wirescape-{args.config.lower()}-{utc_stamp()}"
     destination.mkdir(parents=True, exist_ok=False)
     for name in ("wirescape_studio.exe", "wirescape_cli.exe", "wirescape_engine.dll"):
         shutil.copy2(executable.parent / name, destination / name)
     for pattern in ("ws_*.dll", "ws_*.module.json"):
-        for module in executable.parent.glob(pattern): shutil.copy2(module, destination / module.name)
+        for module in executable.parent.glob(pattern):
+            shutil.copy2(module, destination / module.name)
     shutil.copy2(backend, destination / "libportaudio64bit.dll")
     shutil.copy2(ROOT / "LICENSE", destination / "LICENSE")
     shutil.copy2(ROOT / "native/ui/third_party/PORTAUDIO_LICENSE.txt", destination / "PORTAUDIO_LICENSE.txt")
@@ -604,7 +660,8 @@ def command_package(args: argparse.Namespace) -> int:
         "Test render is 4 seconds mono; long releases may be cut off.\n"
         "Not an installer or public redistribution release. Qt 6 and MSVC runtimes are dynamically deployed.\n"
         "A clean Windows machine and physical audio still require validation.\n", encoding="utf-8")
-    env = os.environ.copy(); env["PATH"] = str(prefix / "bin") + os.pathsep + env.get("PATH", "")
+    env = os.environ.copy()
+    env["PATH"] = str(prefix / "bin") + os.pathsep + env.get("PATH", "")
     deploy_result = run_logged([str(deploy), "--" + args.config.lower(), "--no-translations", "--compiler-runtime", "--include-plugins", "qoffscreen",
                                "--qmldir", str(ROOT / "native/ui/qml"), str(destination / executable.name)],
                               ROOT, _unique_report_path("package-deploy", ".log"), env, timeout=180)
@@ -614,7 +671,8 @@ def command_package(args: argparse.Namespace) -> int:
         # Exclude development SDK/plugin/backend overrides. This is a local isolated-path
         # smoke check, not proof of installation on a clean Windows machine.
         clean = _portable_runtime_env(destination)
-        clean["QT_QPA_PLATFORM"] = "offscreen"; clean["QT_QUICK_BACKEND"] = "software"
+        clean["QT_QPA_PLATFORM"] = "offscreen"
+        clean["QT_QUICK_BACKEND"] = "software"
         clean["QT_FORCE_STDERR_LOGGING"] = "1"
         smoke = run_logged([str(destination / executable.name), "--smoke-test", "--screenshot",
                             str(destination / "package-smoke.png"), "--report", str(destination / "package-smoke.json")],
@@ -664,7 +722,8 @@ def command_package(args: argparse.Namespace) -> int:
         failed = failed or {"name": "package_inventory"}
     record["status"] = "failed" if failed else "passed"
     record["summary"] = "Local portable package, offline smoke, normal-window startup and integrity inventory passed" if not failed else f"Package {failed['name']} failed; see log/report"
-    path = _save_record(record); _print_record(record, path, args.json)
+    path = _save_record(record)
+    _print_record(record, path, args.json)
     return 1 if failed else 0
 
 
@@ -761,7 +820,8 @@ def command_check(args: argparse.Namespace) -> int:
     for item in artifacts:
         location = item.get("report") or item.get("log") or "—"
         state = item.get("status", "passed" if item.get("exit_code") == 0 else "failed")
-        if "exit_code" in item and item["exit_code"] == 0: state = "passed"
+        if "exit_code" in item and item["exit_code"] == 0:
+            state = "passed"
         lines.append(f"| {item['name']} | {state} | `{location}` |")
     markdown.write_text("\n".join(lines) + "\n", encoding="utf-8")
     record["markdown_summary"] = str(markdown)
@@ -773,6 +833,14 @@ def command_check(args: argparse.Namespace) -> int:
 def make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Wirescape native foundation tools")
     sub = parser.add_subparsers(dest="action", required=True)
+    from foundation.acceptance import run as run_acceptance
+    child = sub.add_parser("accept", help="run a task's local acceptance commands")
+    child.add_argument("issue", type=int, nargs="?")
+    child.add_argument("--file", help="explicit task file instead of issue discovery")
+    child.add_argument("--base", default="origin/main", help="diff base ref for size checks (default: origin/main)")
+    child.add_argument("--timeout", type=float, default=600, help="seconds per command")
+    child.add_argument("--json", action="store_true", help="print only the JSON summary")
+    child.set_defaults(func=lambda args: run_acceptance(ROOT, args))
     for name, func in (("doctor", command_doctor), ("snapshot", command_snapshot), ("report", command_report)):
         child = sub.add_parser(name)
         child.add_argument("--json", action="store_true", help="print the full result as JSON")

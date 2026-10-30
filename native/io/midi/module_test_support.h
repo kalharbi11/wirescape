@@ -39,6 +39,7 @@ template<class T> struct MidiRig {
         std::stable_sort(events.begin(), events.end(), [](const ws2_event& a, const ws2_event& b) { return a.offset < b.offset; });
         input_events = {sizeof(ws2_event_list), uint32_t(events.size()), events.data()}; ctx.events = input_events; ctx.frames = frames;
         int result; { allocation_watch::Scope scope; result = d->process(instance, &ctx); REQUIRE(scope.allocations() == 0); }
+        input_events = {}; ctx.events = {};
         REQUIRE(result == WS2_OK); ctx.frame_position += frames;
         for (uint32_t p = 0; p < d->output_count; ++p) if (d->outputs[p].kind == WS2_SIGNAL) for (uint32_t c = 0; c < outputs[p].channels; ++c) for (uint32_t i = 0; i < frames; ++i) REQUIRE(std::isfinite(buffer->output[p][c][i]));
     }

@@ -18,12 +18,10 @@ Channel pressure, poly pressure and CC1 remain distinct outputs. Panic and sourc
 choke release notes even with sustain held. CC120/123 releases only that MIDI channel.
 Changing allocation/filter settings releases old notes before configuring the core.
 
-**Open planner item:** `retrigger` currently exposes only `on_new_note` (fixed1),
-which emits balanced activation changes while gate follows the allocator, including
-continuous mono-legato gates. The brief's optional `off` policy is not implemented:
-its intended event lifecycle needs a decision before exposing a switch that would
-silently do nothing or strand notes. This keeps #71 blocked alongside its inherited
-J1 equivalence gate; the default path is implemented/tested.
+The planner's fixed `on_new_note` policy emits balanced activation changes while
+sustaining mono-legato gates. No retrigger parameter is exposed. Legacy parameter
+slot5 is reserved; sustain/bend/filter IDs keep slots6–9. An optional `off` policy
+is post-J9 and is not implemented.
 
 Only UMP group0 is converted; other groups are preserved by MIDI In and counted as
 ignored by this converter. State restores parameters through the host and resets

@@ -86,7 +86,7 @@ int wirescape_play(int argc,char**argv){
  }
  std::signal(SIGINT,previous);if(!wav)throw std::runtime_error("WAV write failed");
  if(rendered!=frames){wav.seekp(4);u32(wav,uint32_t(36+rendered*4));wav.seekp(40);u32(wav,uint32_t(rendered*4));}
- std::sort(times.begin(),times.end());auto percentile=[&](double p){return times.empty()?0.:times[size_t(std::ceil(p*(times.size()-1)))];};
- std::cout<<"{\"offline\":true,\"loader\":\"runtime_patch\",\"frames\":"<<rendered<<",\"rate\":"<<rate<<",\"block\":"<<block<<",\"blocks\":"<<times.size()<<",\"peak\":"<<peak<<",\"rms\":"<<(rendered?std::sqrt(sum/(rendered*2)):0)<<",\"period_us\":"<<period<<",\"p50_us\":"<<percentile(.5)<<",\"p95_us\":"<<percentile(.95)<<",\"p99_us\":"<<percentile(.99)<<",\"worst_us\":"<<percentile(1)<<",\"overruns\":"<<overruns<<"}\n";
+ std::sort(times.begin(),times.end());auto percentile=[&](double p){return times.empty()?0.:times[size_t(std::ceil(p*static_cast<double>(times.size()-1)))];};
+ std::cout<<"{\"offline\":true,\"loader\":\"runtime_patch\",\"frames\":"<<rendered<<",\"rate\":"<<rate<<",\"block\":"<<block<<",\"blocks\":"<<times.size()<<",\"peak\":"<<peak<<",\"rms\":"<<(rendered?std::sqrt(sum/(static_cast<double>(rendered)*2)):0)<<",\"period_us\":"<<period<<",\"p50_us\":"<<percentile(.5)<<",\"p95_us\":"<<percentile(.95)<<",\"p99_us\":"<<percentile(.99)<<",\"worst_us\":"<<percentile(1)<<",\"overruns\":"<<overruns<<"}\n";
  std::cerr<<"Offline WAV: "<<output<<'\n';return 0;
 }
