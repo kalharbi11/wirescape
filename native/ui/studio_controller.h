@@ -1,14 +1,15 @@
 #pragma once
 #include "app_patch.h"
-#include "midi_host.h"
 #include "audio_device.h"
-#include <QObject>
+#include "midi_host.h"
 #include <QJsonObject>
+#include <QObject>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
-#include <memory>
+#include <cstdint>
 #include <functional>
+#include <memory>
 class QSettings;
 
 class StudioController final : public QObject {
@@ -38,11 +39,12 @@ class StudioController final : public QObject {
     Q_PROPERTY(int sampleRate READ sampleRate CONSTANT)
     Q_PROPERTY(int blockSize READ blockSize CONSTANT)
 public:
-  enum class MidiPreference { Ignore, Interactive };
+  enum class MidiPreference : std::uint8_t { Ignore, Interactive };
   using PatchWriter = std::function<bool(const QString &, const QByteArray &, QString &)>;
   explicit StudioController(QString directory, QObject *parent = nullptr, PatchWriter writer = {},
                             bool confirmMidi = false, MidiPreference midiPreference = MidiPreference::Ignore,
-                            std::unique_ptr<wirescape::midi::Backend> fakeMidi = {}, QString midiSettingsPath = {});
+                            std::unique_ptr<wirescape::midi::Backend> fakeMidi = {},
+                            const QString &midiSettingsPath = {});
   ~StudioController() override;
   QVariantMap midiCounters() const;
   QVariantList midiEndpoints();
@@ -98,6 +100,7 @@ signals:
   void parameterChanged(int node, int parameter, double value, QString display);
   void statusChanged();
   void metersChanged();
+
 private:
     using Engine = std::unique_ptr<AppEngine, decltype(&app_engine_destroy)>;
     Engine makeEngine(const QJsonObject&, QString& error) const;

@@ -51,7 +51,7 @@ QString display(double value, const QString& unit) {
 
 StudioController::StudioController(QString directory, QObject *parent, PatchWriter writer, bool confirmMidi,
                                    MidiPreference midiPreference, std::unique_ptr<wirescape::midi::Backend> fakeMidi,
-                                   QString midiSettingsPath)
+                                   const QString &midiSettingsPath)
     : QObject(parent), directory_(std::move(directory)), patchWriter_(std::move(writer)),
       midi_(confirmMidi, std::move(fakeMidi)) {
     if (midiPreference == MidiPreference::Interactive) {
