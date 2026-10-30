@@ -6,6 +6,7 @@
 #include "../vca/dsp.h"
 #include "../vco/dsp.h"
 #include "dsp.h"
+#include <chrono>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -151,8 +152,68 @@ static void graph_tests() {
                     check(engine.output_sample(1, 1, c, frames - 1) == 0, "panic clears every gate");
             }
 }
+static void reclamation_burst() {
+    engine2::Config config;
+    config.max_block = 128;
+    config.max_channels = 1;
+    engine2::Engine engine(config);
+    engine.register_producer();
+    check(engine.add_node(1, ws::Module<ws2ports::HostKeyboard>::descriptor()) &&
+              engine.add_node(2, ws::Module<ws2ports::Vco>::descriptor()) && engine.connect(1, 0, 2, 0) &&
+              engine.output(2, 0, 0) && engine.prepare(),
+          "burst graph");
+    float samples[128]{};
+    float *rows[]{samples};
+    engine2::Outgoing outgoing;
+    auto drain = [&]() {
+        while (engine.pop_egress(outgoing)) {
+        }
+    };
+    ws2_event event{};
+    event.struct_size = sizeof(event);
+    event.key = 60;
+    event.value = 1;
+    event.note_id = -1;
+    event.type = WS2_NOTE_ON;
+    // Stolen anonymous activations pin the first127 mappings until their offs.
+    for (uint32_t source = 0; source < 127; ++source) {
+        event.source_id = source;
+        check(engine.enqueue(0, 1, WS2_DIRECT_PORT, event, engine.meter().frame) == WS2_OK, "prime burst source");
+        check(engine.render(rows, 1, 128) == WS2_OK, "prime burst render");
+        drain();
+    }
+    long long worst = 0;
+    for (uint32_t burst = 0; burst < 16; ++burst) {
+        event.note_id = 7;
+        for (uint32_t pair = 0; pair < 32; ++pair) {
+            event.source_id = 1000 + burst * 32 + pair;
+            event.type = WS2_NOTE_ON;
+            check(engine.enqueue(0, 1, WS2_DIRECT_PORT, event, engine.meter().frame + uint64_t{pair} * 2) == WS2_OK, "burst on");
+            event.type = WS2_NOTE_OFF;
+            check(engine.enqueue(0, 1, WS2_DIRECT_PORT, event, engine.meter().frame + uint64_t{pair} * 2 + 1) == WS2_OK,
+                  "burst off");
+        }
+        const auto begin = std::chrono::steady_clock::now();
+        int result;
+        size_t allocations;
+        {
+            allocation_watch::Scope scope;
+            result = engine.render(rows, 1, 128);
+            allocations = scope.allocations();
+        }
+        const auto elapsed =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - begin).count();
+        worst = std::max(worst, static_cast<long long>(elapsed));
+        check(result == WS2_OK && allocations == 0 && engine.meter().faults == 0, "reclamation burst allocation/fault");
+        check(engine.output_sample(1, 1, 0, 127) == 0, "burst releases final gate");
+        drain();
+    }
+    std::cout << "source_reclamation rate=48000 block=128 events=64 bursts=16 worst_ns=" << worst
+              << " period_ns=2666666 allocations=0 (timing report only)\n";
+}
 int main() {
     try {
+        reclamation_burst();
         shared_tests();
         graph_tests();
         std::cout << "keyboard/core matrices pass\n";

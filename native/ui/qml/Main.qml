@@ -142,6 +142,24 @@ ApplicationWindow {
         let index = keys.indexOf(key); return index < 0 ? -1 : 60 + index;
     }
     onActiveChanged: if (!active) { releaseHeldKeys(); studio.setGate(false); studio.panic(); }
+    Dialog {
+        id: midiDialog; title: "MIDI inputs"; modal: true; standardButtons: Dialog.Close
+        Column {
+            spacing: 8
+            Label { text: studio.midiAuthorized ? "Stop playback to select inputs." : "Launch with --confirm-midi to enable MIDI inputs." }
+            Label { text: "Received " + studio.midiCounters.received + " / dropped " + studio.midiCounters.dropped + " / malformed " + studio.midiCounters.malformed }
+            Repeater {
+                model: studio.midiEndpoints
+                CheckBox {
+                    required property var modelData
+                    text: modelData.name; checked: modelData.enabled
+                    enabled: studio.midiAuthorized && !studio.running
+                    onToggled: studio.setMidiEndpoint(modelData.name, modelData.systemName, checked)
+                }
+            }
+            Button { text: "Refresh inputs"; enabled: !studio.running; onClicked: studio.refreshMidi() }
+        }
+    }
     FileDialog {
         id: saveDialog; objectName: "saveDialog"; title: "Save patch"; fileMode: FileDialog.SaveFile
         nameFilters: ["Wirescape patch (*.json)"]; defaultSuffix: "json"
@@ -235,6 +253,7 @@ ApplicationWindow {
                 Text { width: parent.width; elide: Text.ElideRight; text: studio.running ? "Live signal · stop audio to edit the patch" : "A small system. An open signal path."; color: "#858681"; font.pixelSize: 10 }
             }
             Row { id: toolbarActions; objectName: "toolbarActions"; anchors.right: parent.right; anchors.rightMargin: 22; anchors.verticalCenter: parent.verticalCenter; spacing: 5
+                StudioButton { text: "MIDI"; enabled: !studio.running; onClicked: midiDialog.open() }
                 StudioButton { objectName: "newButton"; text: "New"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("new") }
                 StudioButton { objectName: "openButton"; text: "Open"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("open") }
                 StudioButton { objectName: "saveButton"; text: "Save"; onClicked: root.beginSave("") }

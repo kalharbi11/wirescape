@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 import os
+import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -8,10 +9,43 @@ from unittest.mock import patch
 
 import static_checks
 
+ANALYSIS_UNITS = static_checks.analysis_units
+
 DIFF = "+++ b/native/test.cpp\n@@ -1 +2,3 @@\n+x\n@@ -8 +10,0 @@\n-x\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n"
 
 
 class StaticChecksTests(unittest.TestCase):
+    def setUp(self):
+        def units(root, files):
+            return [{"file": str(root / f), "directory": str(root),
+                     "command": "c++ -c " + f} for f in files]
+        mock = patch.object(static_checks, "analysis_units", side_effect=units)
+        mock.start()
+        self.addCleanup(mock.stop)
+
+    def test_compiler_dependencies_map_nested_header_and_xmacro(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            build = root / "build/static"
+            build.mkdir(parents=True)
+            entries = [{"directory": str(build), "file": str(root / "native/test.cpp"),
+                        "command": "c++ -o test.o -c " + str(root / "native/test.cpp")}]
+            (build / "compile_commands.json").write_text(json.dumps(entries))
+            deps = "test.o: #deps 2, deps mtime 1 (VALID)\n    " + str(root / "native/nested.h")
+            deps += "\n    " + str(root / "native/catalog.inc") + "\n"
+            with patch.object(static_checks.subprocess, "check_output", return_value=deps):
+                self.assertEqual(ANALYSIS_UNITS(root, {"native/nested.h": [], "native/catalog.inc": []}), entries)
+                with self.assertRaisesRegex(ValueError, "No compiled owner"):
+                    ANALYSIS_UNITS(root, {"native/orphan.h": []})
+
+    def test_missing_database_fails_closed_but_runs_other_tools(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(static_checks, "analysis_units", side_effect=FileNotFoundError("database")), \
+                patch.object(static_checks.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, "", "")) as run:
+            self.assertEqual(static_checks.run_checks(Path(tmp), DIFF, "unused"), 1)
+            self.assertIn("database", run.call_args_list[0].args[0][-1])
+            self.assertEqual(run.call_args_list[-1].args[0], ["actionlint"])
+
     def test_ranges_ignore_deletions_and_non_cpp(self):
         diff = DIFF + "+++ b/tools/script.py\n@@ -1 +1 @@\n+x\n"
         self.assertEqual(static_checks.changed_ranges(diff), {"native/test.cpp": [(2, 4)]})
@@ -29,7 +63,7 @@ class StaticChecksTests(unittest.TestCase):
                 self.assertEqual(run.call_count, 5)
                 commands = [call.args[0] for call in run.call_args_list]
                 self.assertIn("--lines=2:4", commands[2])
-                self.assertEqual(run.call_args_list[0].kwargs["input"], DIFF + "+++ b/tools/script.py\n")
+                self.assertIn("--line-filter=", " ".join(commands[0]))
                 self.assertIn("| cppcheck changed files | 1 | failed |", summary.read_text())
                 self.assertIn("ruff changed files", summary.read_text())
 
@@ -38,16 +72,11 @@ class StaticChecksTests(unittest.TestCase):
         with patch.object(static_checks.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
             self.assertEqual(static_checks.run_checks(Path("."), diff, "tidy.py"), 0)
         commands = [c.args[0] for c in run.call_args_list if c.args[0][0] == "cppcheck"]
-        self.assertEqual(len(commands), 2)
-        cpp, c = commands
-        self.assertIn("--language=c++", cpp)
-        self.assertIn("--std=c++17", cpp)
-        self.assertIn("./native/rng.hpp", cpp)
-        self.assertNotIn("./native/driver.c", cpp)
-        self.assertIn("--language=c", c)
-        self.assertIn("--std=c11", c)
-        self.assertIn("./native/driver.c", c)
-        self.assertNotIn("./native/rng.hpp", c)
+        self.assertEqual(len(commands), 1)
+        self.assertIn("--library=qt", commands[0])
+        project = next(arg.split("=", 1)[1] for arg in commands[0] if arg.startswith("--project="))
+        entries = json.loads(Path(project).read_text())
+        self.assertEqual({Path(e["file"]).name for e in entries}, {"rng.hpp", "driver.c"})
 
     def test_ruff_checks_only_changed_surviving_tools_files(self):
         diff = '+++ b/tools/changed.py\n+++ /dev/null\n+++ b/docs/example.py\n+++ "b/tools/space name.py"\n+++ b/tools/changed.py\n'

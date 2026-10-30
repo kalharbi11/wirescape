@@ -135,6 +135,7 @@ target_link_libraries(abi2_returned_filter_stress PRIVATE wirescape_sdk2 wiresca
 add_dependencies(abi2_returned_filter_stress ws2_ladder ws_ladder)
 add_test(NAME abi2_returned_filter_stress COMMAND abi2_returned_filter_stress $<TARGET_FILE_DIR:ws_ladder>)
 
+add_subdirectory(../io/midi midi_io)
 add_library(wirescape_app_engine STATIC ../control/app_engine.cpp)
 target_include_directories(wirescape_app_engine PUBLIC ../control)
 target_link_libraries(wirescape_app_engine PUBLIC wirescape_engine2 wirescape_engine wirescape_catalog_dependencies)
@@ -143,6 +144,23 @@ target_link_libraries(wirescape_cli PRIVATE wirescape_app_engine)
 add_executable(abi2_host_keyboard_tests ../modules2/host_keyboard/tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(abi2_host_keyboard_tests PRIVATE wirescape_engine2 wirescape_voice2)
 add_test(NAME abi2_host_keyboard_tests COMMAND abi2_host_keyboard_tests)
+
+add_library(wirescape_audio_service STATIC ../io/audio/portaudio_service.cpp)
+target_link_libraries(wirescape_audio_service PUBLIC wirescape_app_engine PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
+target_link_libraries(wirescape_cli PRIVATE wirescape_runtime_document wirescape_audio_service)
+
+target_sources(wirescape_cli PRIVATE ../cli/play.cpp)
+add_executable(abi2_midi_release_tests tests/midi_release_tests.cpp)
+target_link_libraries(abi2_midi_release_tests PRIVATE wirescape_engine2)
+add_test(NAME abi2_midi_release_tests COMMAND abi2_midi_release_tests)
+
+add_library(wirescape_midi_host STATIC ../control/midi_host.cpp)
+target_include_directories(wirescape_midi_host PUBLIC ../control)
+target_link_libraries(wirescape_midi_host PUBLIC wirescape_app_engine wirescape_midi_service wirescape_midi_backend PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(wirescape_cli PRIVATE wirescape_midi_host)
+add_executable(midi_host_tests ../control/midi_host_tests.cpp)
+target_link_libraries(midi_host_tests PRIVATE wirescape_midi_host)
+add_test(NAME midi_host_tests COMMAND midi_host_tests)
 add_executable(app_engine_tests ../control/app_engine_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(app_engine_tests PRIVATE wirescape_app_engine)
 add_library(app_legacy_fixture SHARED ../control/app_legacy_fixture.cpp)
@@ -155,5 +173,11 @@ if(TARGET wirescape_document)
   add_test(NAME app_document_soak COMMAND wirescape_soak --patch
     "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json" --rate 48000 --block 128 --seconds 0.01)
   set_tests_properties(app_document_soak PROPERTIES TIMEOUT 15)
+  # wirescape_soak links QtCore through wirescape_document; Windows needs its DLL directory on PATH.
+  if(WIN32)
+    find_package(Qt6 6.5 QUIET COMPONENTS Core)
+    set_tests_properties(abi2_soak_smoke abi2_soak_cli app_document_soak PROPERTIES
+      ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
+  endif()
 endif()
 add_subdirectory(../modules2/chaos_lite chaos_lite)

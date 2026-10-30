@@ -20,6 +20,7 @@ class NoteToCv {
         int channel = 0, key = 0;
         int32_t id = 0;
         uint64_t order = 0;
+        bool retired = false;
     };
     std::array<Anonymous, kMaxHeldNotes> anonymous_{};
     uint32_t serial_ = 0;
@@ -45,7 +46,23 @@ class NoteToCv {
             if (s.used && s.id == source && s.channel == channel) return i;
             if (!s.used && empty < 0) empty = i;
         }
-        if (!create || empty < 0) return -1;
+        if (!create) return -1;
+        if (empty < 0) {
+            // Reclaim only between events, after synchronous release emission.
+            // Host output queues hold original source IDs, not these tokens.
+            std::array<bool, kMaxHeldNotes> reserved{};
+            allocator_.visit_sources_in_use([&](uint32_t source) {
+                if (source < reserved.size()) reserved[source] = true;
+            });
+            for (const auto &a : anonymous_)
+                if (a.used) reserved[a.source] = true;
+            for (int i = 0; i < kMaxHeldNotes; ++i)
+                if (!reserved[i]) {
+                    empty = i;
+                    break;
+                }
+        }
+        if (empty < 0) return -1;
         sources_[empty] = {true, source, static_cast<int16_t>(channel)};
         return empty;
     }
@@ -114,6 +131,15 @@ class NoteToCv {
         allocator_.sustain(static_cast<uint32_t>(t), down);
         changes(before, e, emit, false);
     }
+    template <class Emit> void release_channel(uint32_t source, int channel, const ws2_event &e, Emit emit) {
+        int t = token(source, channel, false);
+        if (t < 0) return;
+        auto before = snapshot();
+        allocator_.release_all_from_source(static_cast<uint32_t>(t));
+        changes(before, e, emit, true);
+        for (auto &a : anonymous_)
+            if (a.used && a.source == static_cast<uint32_t>(t)) a = {};
+    }
     template <class Emit> void release_all(uint32_t source, const ws2_event &e, Emit emit) {
         auto before = snapshot();
         if (source == UINT32_MAX) allocator_.reset();
@@ -151,6 +177,9 @@ class NoteToCv {
             auto result = allocator_.note_on(n);
             if (result.status == Status::Ok && slot >= 0)
                 anonymous_[slot] = {true, n.source_id, channel, n.key, n.note_id, ++activation_};
+            if (result.status == Status::Ok && slot < 0)
+                for (auto &a : anonymous_)
+                    if (a.used && a.source == n.source_id && a.id == n.note_id) a.retired = true;
         } else if (e.type == WS2_NOTE_OFF) {
             int slot = -1;
             if (n.note_id < 0) {
@@ -162,7 +191,9 @@ class NoteToCv {
                 }
                 if (slot < 0) return;
                 n.note_id = anonymous_[slot].id;
+                bool retired = anonymous_[slot].retired;
                 anonymous_[slot] = {};
+                if (retired) return;
             }
             // A stolen activation remains in our FIFO until its own Note Off.
             // Its allocator record may be gone; that off must not close its replacement.
@@ -172,12 +203,15 @@ class NoteToCv {
                 const auto &v = allocator_.voice(c);
                 if (v.source_id == n.source_id &&
                     ((n.note_id >= 0 && n.note_id == v.note_id) || (n.note_id < 0 && n.key == v.key))) {
-                    allocator_.expression(n, e.expression == WS2_EX_PRESSURE ? e.value : v.pressure,
+                    Note addressed = n;
+                    addressed.note_id = v.note_id;
+                    allocator_.expression(addressed, e.expression == WS2_EX_PRESSURE ? e.value : v.pressure,
                                           e.expression == WS2_EX_TIMBRE ? e.value : v.timbre);
                     auto out = e;
                     out.channel = c;
+                    out.note_id = v.note_id;
                     emit(out);
-                    break;
+                    if (n.note_id >= 0) break;
                 }
             }
         }

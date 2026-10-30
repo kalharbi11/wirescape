@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# J4: MIDI In, MIDI→CV and CC→CV (#71, PR #81, stacked on J3 #80)
+# J4: MIDI In, MIDI→CV and CC→CV (#71, PR #81, stacked on J2 #79; retains required J3 CLI/runtime dependencies)
 
 Spec: `docs/tasks/J_JAM_CHECKPOINT.md` § "B3 / J4"; behaviour reference `docs/design/BETA08_MUSICAL_CORE_BRIEF.md` §1–2 (IN-01..07, CV-01..12, fixtures 1, 2, 4).
 
@@ -12,14 +12,22 @@ Spec: `docs/tasks/J_JAM_CHECKPOINT.md` § "B3 / J4"; behaviour reference `docs/d
 
 CC rows: 7-bit by default, per-row 14-bit toggle (MSB CC 0–31 + LSB CC+32).
 
+File cap60 is the planner's 2026-10-29 10:30 decision on#29.
+
+Self-decisions (WORKFLOW3c): caps1800→2400lines (+33.3%),60→70files (+16.7%)
+retain required J3 CLI/runtime/audio dependencies while refreshing on J2 for
+the owner's demo. No tests removed; J3 standalone acceptance is not claimed.
+
 ```acceptance
 tier: T2            # services thread model + ingress rings
 budget: 2 Codex sessions (remaining)
-size: <= 1800 changed lines, <= 30 files
+size: <= 2400 changed lines, <= 70 files
 must_pass:
   - python tools/dev.py build --headless
-  - ctest --test-dir build/native -R "midi|note_identity|runtime_module_config|abi2_host_keyboard" --output-on-failure
-  - fixtures 1, 2, 4 from the brief §5 as offline graph tests at blocks 1/17/128 and 44.1/48/96 kHz
+  - ctest --test-dir build/native -R "midi|note_identity|runtime_module_config|abi2_host_keyboard|app_patch_tests|app_engine_tests" --output-on-failure
+  - ctest --test-dir build/native -R "^abi2_midi_to_cv_tests$" --output-on-failure   # brief fixtures 1/2/4 MIDI portion, blocks 1/17/128, 44.1/48/96 kHz; quantizer remains post-J9
+  - python -m unittest discover -s tools/foundation/tests -p "test_pi_ui_probe.py"
+  - pi-run: python tools/pi_ui_probe.py
   - ci: linux-arm64, windows-x64, sanitizers (TSan on the service/ingress tests), guard green on the exact head
   - pi: ctest -R "midi|note_identity"
 stops: [ABI edit, new dependency beyond libremidi, real MIDI port opened in a test, unspecified design choice]
