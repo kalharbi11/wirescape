@@ -123,6 +123,7 @@ private slots:
 
         audio->forceActiveFocus();
         QTRY_VERIFY(audio->hasActiveFocus());
+        QVERIFY(!keyboard->hasActiveFocus()); // Establish the real transport-focus precondition.
         QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(audio));
         QTRY_VERIFY(fakeStudio->property("running").toBool());
         QTRY_VERIFY(keyboard->hasActiveFocus());
