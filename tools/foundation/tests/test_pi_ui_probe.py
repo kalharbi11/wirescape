@@ -29,7 +29,7 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(call.call_args_list[0].args[0][1:4], ["-S", str(Path("/probe").resolve() / "native"), "-B"])
         self.assertIn("-DWIRESCAPE_BUILD_UI=ON", report["commands"][0])
         self.assertTrue(all(t in report["commands"][1] for t in
-                            ("--target", "wirescape_studio", "studio_ui_tests", "controller_failure_tests", "audio_device_tests")))
+                            ("--target", "wirescape_studio", "studio_ui_tests", "controller_failure_tests", "audio_device_tests", "ws_prepare_failure")))
         self.assertEqual(report["commands"][2][report["commands"][2].index("-R") + 1],
                          "^(studio_ui_tests|controller_failure_tests|audio_device_tests)$")
         self.assertIn("--no-tests=error", report["commands"][2])

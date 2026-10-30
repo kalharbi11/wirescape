@@ -6,7 +6,8 @@ from pathlib import Path
 import subprocess
 import sys
 
-TARGETS = ("wirescape_studio", "studio_ui_tests", "controller_failure_tests", "audio_device_tests")
+TARGETS = ("wirescape_studio", "studio_ui_tests", "controller_failure_tests", "audio_device_tests",
+           "ws_prepare_failure")
 TESTS = "^(studio_ui_tests|controller_failure_tests|audio_device_tests)$"
 TIMEOUT = 900
 
