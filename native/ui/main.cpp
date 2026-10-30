@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
         if (auto* window = qobject_cast<QQuickWindow*>(view.rootObjects().first())) window->resize(dimensions[0].toInt(), dimensions[1].toInt());
     }
     if (parser.isSet("fullscreen")) {
-        if (auto* window = qobject_cast<QQuickWindow*>(view.rootObjects().first()))
+        if (auto *window = qobject_cast<QQuickWindow *>(view.rootObjects().first()))
             window->setVisibility(QWindow::FullScreen);
     }
     if (parser.isSet("ready-report")) QTimer::singleShot(300, &app, [&] {
@@ -68,7 +68,8 @@ int main(int argc, char** argv) {
         const bool ready = window && window->isVisible() && !studio.running();
         QJsonObject report{{"status", ready ? "ready" : "failed"}, {"audio_started", studio.running()},
                            {"normal_window", window && window->isVisible() && QGuiApplication::platformName() != "offscreen" && QGuiApplication::platformName() != "minimal"},
-                           {"platform", QGuiApplication::platformName()}, {"patch_ready", studio.ready()}, {"font_family", app.font().family()}, {"fullscreen", window && window->visibility() == QWindow::FullScreen}};
+                           {"platform", QGuiApplication::platformName()}, {"patch_ready", studio.ready()}, {"font_family", app.font().family()}};
+        report.insert("fullscreen", window && window->visibility() == QWindow::FullScreen);
         const auto path = QFileInfo(parser.value("ready-report")).absoluteFilePath();
         QDir().mkpath(QFileInfo(path).absolutePath()); QSaveFile file(path);
         const auto bytes = QJsonDocument(report).toJson();
