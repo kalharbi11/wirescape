@@ -37,6 +37,12 @@ ApplicationWindow {
         }
     }
     onActiveFocusItemChanged: if (activeFocusItem !== keyboardSurface) releaseHeldKeys()
+    // Window-scoped so Escape exits fullscreen even when a toolbar/control has focus.
+    Shortcut {
+        sequence: "Esc"
+        enabled: root.visibility === Window.FullScreen
+        onActivated: root.visibility = Window.Windowed
+    }
     Connections {
         target: studio
         function onStatusChanged() { if (!studio.running) root.releaseHeldKeys(); }
@@ -241,6 +247,18 @@ ApplicationWindow {
                 StudioButton { text: "Test render"; enabled: !studio.running; onClicked: { root.releaseHeldKeys(); renderDialog.open(); } }
                 Item { width: 9; height: 1 }
                 StudioButton { text: studio.cleanupPending ? "Retry audio cleanup" : studio.running ? "Stop audio" : "Start audio"; accent: true; enabled: (studio.running || studio.cleanupPending || studio.ready); objectName: "audioButton"; onClicked: { root.releaseHeldKeys(); (studio.running || studio.cleanupPending) ? studio.stopAudio() : studio.startAudio(); } }
+                Item { width: 9; height: 1 }
+                StudioButton {
+                    objectName: "minimizeButton"; text: "Minimize"; quiet: true
+                    onClicked: root.visibility = Window.Minimized
+                    ToolTip.visible: hovered; ToolTip.text: "Minimize to the taskbar"
+                }
+                StudioButton {
+                    objectName: "fullscreenButton"; quiet: true
+                    text: root.visibility === Window.FullScreen ? "Exit full screen" : "Full screen"
+                    onClicked: root.visibility = root.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen
+                    ToolTip.visible: hovered; ToolTip.text: "Toggle full screen (Esc to exit)"
+                }
             }
         }
         Item {
