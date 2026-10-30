@@ -93,9 +93,15 @@ private slots:
         QVERIFY2(object, qPrintable(component.errorString()));
         object->setProperty("moduleId", "essentials.clock");
         object->setProperty("nodeId", 42);
-        object->setProperty("descriptor", QVariantMap{{"id", 3}, {"name", "Run"}, {"minimum", 0.},
-                                                      {"maximum", 1.}, {"value", 1.}, {"unit", ""},
-                                                      {"display", "1"}});
+        QVariantMap runDescriptor;
+        runDescriptor.insert("id", 3);
+        runDescriptor.insert("name", "Run");
+        runDescriptor.insert("minimum", 0.);
+        runDescriptor.insert("maximum", 1.);
+        runDescriptor.insert("value", 1.);
+        runDescriptor.insert("unit", "");
+        runDescriptor.insert("display", "1");
+        object->setProperty("descriptor", runDescriptor);
         component.completeCreate();
         QScopedPointer<QObject> owner(object);
         auto *control = qobject_cast<QQuickItem *>(object);
