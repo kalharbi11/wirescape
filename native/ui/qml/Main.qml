@@ -40,6 +40,7 @@ ApplicationWindow {
     // Window-scoped so Escape exits fullscreen even when a toolbar/control has focus.
     Shortcut {
         sequence: "Esc"
+        context: Qt.WindowShortcut
         enabled: root.visibility === Window.FullScreen
         onActivated: root.visibility = Window.Windowed
     }
