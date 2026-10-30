@@ -197,7 +197,8 @@ ApplicationWindow {
             Text { x: 22; y: 164; text: "ESSENTIALS"; font.pixelSize: 9; font.letterSpacing: 1.3; color: "#858681" }
             Item {
                 id: libraryRegion; objectName: "libraryRegion"
-                x: 12; y: 187; width: 178
+                x: 12; width: 178
+                anchors.top: parent.top; anchors.topMargin: 187
                 anchors.bottom: legendPanel.top; anchors.bottomMargin: 15
                 Flickable {
                     id: libraryScroll; objectName: "moduleLibraryScroll"
