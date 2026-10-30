@@ -89,8 +89,8 @@ StudioController::StudioController(QString directory, QObject* parent, PatchWrit
 StudioController::~StudioController() { midi_.stop(); if (!audio_.stop()) {
     // A backend that cannot establish quiescence still owns the engine. Its
     // detached callback context is retained by AudioDevice; retain descriptors too.
-    static_cast<void>(engine_.release());
-    static_cast<void>(catalog_.release());
+    [[maybe_unused]] auto* quarantinedEngine = engine_.release();
+    [[maybe_unused]] auto* quarantinedCatalog = catalog_.release();
 } }
 
 const ws_module_descriptor* StudioController::descriptor(const QString& id) const {
