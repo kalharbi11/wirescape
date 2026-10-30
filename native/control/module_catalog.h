@@ -7,6 +7,7 @@
 #include "../modules2/host_keyboard/dsp.h"
 #include "../modules2/ladder/dsp.h"
 #include "../modules2/lfo/dsp.h"
+#include "../modules2/macro_oscillator/dsp.h"
 #include "../modules2/midi_cc_to_cv/dsp.h"
 #include "../modules2/midi_in/dsp.h"
 #include "../modules2/midi_to_cv/dsp.h"

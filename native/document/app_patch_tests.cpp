@@ -19,16 +19,68 @@ static void require(bool ok,const char*s){if(!ok)throw std::runtime_error(s);}
 int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  require(argc==4,"modules, demo and legacy fixtures arguments");ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>cat(app_engine_create(&cfg),app_engine_destroy);
- require(app_engine_module_count(cat.get()) == 18,
-         "CHAOS plus thirteen ABI2 ports, host.keyboard and three MIDI modules in catalogue");
+ require(app_engine_module_count(cat.get()) == 19,
+         "Macro and CHAOS plus thirteen ABI2 ports, host.keyboard and three MIDI modules in catalogue");
  for (const char *expected :
       {"essentials.vco", "essentials.lfo", "essentials.vcf", "essentials.adsr", "essentials.vca", "essentials.clock",
        "essentials.function_envelope", "essentials.ladder", "essentials.mixer", "essentials.noise", "essentials.output",
-       "essentials.scale_offset", "essentials.slew", "host.keyboard"}) {
+       "essentials.scale_offset", "essentials.slew", "host.keyboard", "essentials.chaos_lite", "midi.in", "midi.to_cv",
+       "midi.cc_to_cv", "ports.macro_oscillator"}) {
      bool found = false;
      for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i)
          if (std::string(app_engine_module(cat.get(), i)->id) == expected) found = true;
-     require(found, "all thirteen Essentials plus keyboard in catalogue");
+     require(found, "all existing entries and Macro in catalogue");
+ }
+ {
+     const QByteArray fixture = R"({
+       "format":"wirescape.native.patch","version":2,"name":"Offline keyboard to Macro",
+       "settings":{"sample_rate":48000,"max_block_frames":128,"max_channels":16,"seed":42},
+       "modules":[
+         {"id":1,"module":"host.keyboard","version":1,"parameters":{"voices":4}},
+         {"id":2,"module":"ports.macro_oscillator","version":1,"parameters":{}},
+         {"id":3,"module":"essentials.output","version":2,"parameters":{}}],
+       "connections":[
+         {"kind":"signal","from":{"module":1,"port":"pitch"},"to":{"module":2,"port":"pitch"}},
+         {"kind":"signal","from":{"module":1,"port":"gate"},"to":{"module":2,"port":"trigger"}},
+         {"kind":"signal","from":{"module":1,"port":"velocity"},"to":{"module":2,"port":"level"}},
+         {"kind":"signal","from":{"module":2,"port":"main"},"to":{"module":3,"port":"audio"}}],
+       "outputs":[{"module":3,"port":"audio","bus_channel":0}]})";
+     const auto document = read_patch(fixture, app_catalog(cat.get()));
+     require(document.valid(), "validate keyboard-to-Macro document");
+     QString why;
+     std::unique_ptr<AppEngine, decltype(&app_engine_destroy)> graph(build_app_patch(cat.get(), document, cfg, why),
+                                                                     app_engine_destroy);
+     require(bool(graph), "build Macro through the app loader at 48 kHz");
+     for (uint32_t key : {60u, 64u, 67u, 72u}) {
+         ws_event on{
+             sizeof(on), 0, 1, WS_NOTE_ON, 0, static_cast<float>(key), 1, key, app_engine_generation(graph.get())};
+         require(app_engine_enqueue(graph.get(), &on) == WS_OK, "synthetic Macro keyboard chord");
+     }
+     float output[128], peak = 0;
+     for (int block = 0; block < 64; ++block) {
+         int result;
+         size_t allocations;
+         {
+             allocation_watch::Scope watch;
+             result = app_engine_render(graph.get(), output, 128);
+             allocations = watch.allocations();
+         }
+         require(result == WS_OK && allocations == 0, "allocation-free Macro app callback");
+         for (float sample : output) {
+             require(std::isfinite(sample), "finite Macro app output");
+             peak = std::max(peak, std::abs(sample));
+         }
+     }
+     auto &engine = app_engine_native(graph.get());
+     require(engine.output_channels(2, 0) == 4 && peak > 0 && engine.meter().faults == 0,
+             "four-voice non-silent fault-free Macro app fixture");
+     for (double rate : {44100., 96000.}) {
+         auto unsupported = cfg;
+         unsupported.sample_rate = rate;
+         std::unique_ptr<AppEngine, decltype(&app_engine_destroy)> rejected(
+             build_app_patch(cat.get(), document, unsupported, why), app_engine_destroy);
+         require(!rejected && !why.isEmpty(), "Macro app rejects non-48-kHz preparation with an error");
+     }
  }
  {
      QFile fixture(QFileInfo(QString::fromLocal8Bit(argv[2])).dir().filePath("chaos_two.json"));
