@@ -151,6 +151,64 @@ private slots:
         QCOMPARE(json.value("status").toString(), QString("ready"));
         QVERIFY(!json.value("audio_started").toBool());
     }
+    void clockRunToggleUsesStableParameter() {
+        ParameterBridge bridge;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty("studio", &bridge);
+        QQmlComponent component(&engine, QUrl("qrc:/qml/ParameterControl.qml"));
+        auto *object = component.beginCreate(engine.rootContext());
+        QVERIFY2(object, qPrintable(component.errorString()));
+        object->setProperty("moduleId", "essentials.clock");
+        object->setProperty("nodeId", 42);
+        QVariantMap runDescriptor;
+        runDescriptor.insert("id", 3);
+        runDescriptor.insert("name", "Run");
+        runDescriptor.insert("minimum", 0.);
+        runDescriptor.insert("maximum", 1.);
+        runDescriptor.insert("value", 1.);
+        runDescriptor.insert("unit", "");
+        runDescriptor.insert("display", "1");
+        object->setProperty("descriptor", runDescriptor);
+        component.completeCreate();
+        QScopedPointer<QObject> owner(object);
+        auto *control = qobject_cast<QQuickItem *>(object);
+        QVERIFY(control);
+        QQuickWindow window;
+        window.resize(360, 160);
+        control->setParentItem(window.contentItem());
+        control->setWidth(280);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        auto *toggle = qobject_cast<QQuickItem *>(findNamed(control, "clockRunToggle"));
+        auto *slider = qobject_cast<QQuickItem *>(findNamed(control, "parameterSlider"));
+        QVERIFY(toggle);
+        QVERIFY(slider);
+        QVERIFY(toggle->isVisible());
+        QVERIFY(!slider->isVisible());
+        QCOMPARE(toggle->property("text").toString(), QString("Stop Clock"));
+        QTest::mouseClick(&window, Qt::LeftButton, Qt::NoModifier, center(toggle));
+        QCOMPARE(bridge.accepted, 0.);
+        QCOMPARE(bridge.calls, 1);
+        QTRY_COMPARE(toggle->property("text").toString(), QString("Start Clock"));
+        toggle->forceActiveFocus();
+        QTRY_VERIFY(toggle->hasActiveFocus());
+        QTest::keyClick(&window, Qt::Key_Space);
+        QTRY_COMPARE(bridge.accepted, 1.);
+        QCOMPARE(bridge.calls, 2);
+        QTRY_COMPARE(toggle->property("text").toString(), QString("Stop Clock"));
+        bridge.accepted = 0.;
+        emit bridge.parameterChanged(42, 3, 0., "0");
+        QTRY_COMPARE(toggle->property("text").toString(), QString("Start Clock"));
+        bridge.reject = true;
+        QTest::mouseClick(&window, Qt::LeftButton, Qt::NoModifier, center(toggle));
+        QCOMPARE(bridge.calls, 3);
+        QCOMPARE(bridge.accepted, 0.);
+        QCOMPARE(toggle->property("text").toString(), QString("Start Clock"));
+        // Parameter ID 3 alone must never turn another module's slider into Clock transport.
+        control->setProperty("moduleId", "essentials.vco");
+        QTRY_VERIFY(!toggle->isVisible());
+        QTRY_VERIFY(slider->isVisible());
+    }
     void genericPaletteDiscovery() {
         StudioController studio(directory_); QSet<QString> ids;
         for (const auto& item : studio.palette()) ids.insert(item.toMap().value("id").toString());
