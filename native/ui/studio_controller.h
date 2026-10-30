@@ -38,65 +38,66 @@ class StudioController final : public QObject {
     Q_PROPERTY(int sampleRate READ sampleRate CONSTANT)
     Q_PROPERTY(int blockSize READ blockSize CONSTANT)
 public:
-    using PatchWriter = std::function<bool(const QString&, const QByteArray&, QString&)>;
-    explicit StudioController(QString directory, QObject *parent = nullptr, PatchWriter writer = {},
-                              bool confirmMidi = false, bool interactiveMidi = false,
-                              std::unique_ptr<wirescape::midi::Backend> fakeMidi = {}, QString midiSettingsPath = {});
-    ~StudioController() override;
-    QVariantMap midiCounters()const;
-    QVariantList midiEndpoints();
-    bool midiAuthorized()const{return midi_.authorized();}
-    bool midiSettingsAvailable() const { return bool(midiPreferences_); }
-    Q_INVOKABLE void setMidiAuthorized(bool);
-    Q_INVOKABLE void setMidiEndpoint(const QString&,const QString&,bool);
-    Q_INVOKABLE void refreshMidi();
-    QVariantList modules() const;
-    QVariantList connections() const;
-    QVariantList palette() const;
-    bool running() const { return audio_.running(); }
-    bool ready() const { return ready_; }
-    bool cleanupPending() const { return audio_.hasStream() && !running(); }
-    QString statusText() const;
-    QString errorText() const { return error_; }
-    QString noticeText() const { return notice_; }
-    QString diagnosticText() const;
-    Q_INVOKABLE QVariantMap diagnostics() const;
-    Q_INVOKABLE bool saveDiagnostics(const QUrl&);
-    int outputNode() const { return document_.value("outputNode").toInt(); }
-    double peak() const { return peak_; }
-    double cpuLoad() const { return audio_.cpuLoad() * 100.; }
-    int underruns() const { return static_cast<int>(audio_.underruns()); }
-    bool dirty() const { return dirty_; }
-    QString patchName() const { return name_; }
-    QVariantList devices() const { return audio_.devices(); }
-    int selectedDevice() const { return device_; }
-    int sampleRate() const { return 48000; }
-    int blockSize() const { return 256; }
-    Q_INVOKABLE bool setParameter(int node, int parameter, double value);
-    Q_INVOKABLE void moveModule(int node, double x, double y);
-    Q_INVOKABLE void addModule(const QString& id);
-    Q_INVOKABLE void removeModule(int node);
-    Q_INVOKABLE void connectPorts(int from, const QString& port, int to, const QString& input);
-    Q_INVOKABLE void disconnectCable(int index);
-    Q_INVOKABLE void startAudio();
-    Q_INVOKABLE void stopAudio();
-    Q_INVOKABLE void setGate(bool on);
-    Q_INVOKABLE void note(int pitch, bool on);
-    Q_INVOKABLE void panic();
-    Q_INVOKABLE void setDevice(int id);
-    Q_INVOKABLE void refreshDevices();
-    Q_INVOKABLE void selectOutput(int node);
-    Q_INVOKABLE bool savePatch(const QUrl&);
-    Q_INVOKABLE bool loadPatch(const QUrl&);
-    Q_INVOKABLE void renderDemo(const QUrl&);
-    Q_INVOKABLE void resetPatch();
-    bool smokeCheck(QJsonObject& result);
-    bool keyboardChordCheck(QJsonObject &result);
-  signals:
-    void documentChanged();
-    void parameterChanged(int node, int parameter, double value, QString display);
-    void statusChanged();
-    void metersChanged();
+  enum class MidiPreference { Ignore, Interactive };
+  using PatchWriter = std::function<bool(const QString &, const QByteArray &, QString &)>;
+  explicit StudioController(QString directory, QObject *parent = nullptr, PatchWriter writer = {},
+                            bool confirmMidi = false, MidiPreference midiPreference = MidiPreference::Ignore,
+                            std::unique_ptr<wirescape::midi::Backend> fakeMidi = {}, QString midiSettingsPath = {});
+  ~StudioController() override;
+  QVariantMap midiCounters() const;
+  QVariantList midiEndpoints();
+  bool midiAuthorized() const { return midi_.authorized(); }
+  bool midiSettingsAvailable() const { return bool(midiPreferences_); }
+  Q_INVOKABLE void setMidiAuthorized(bool);
+  Q_INVOKABLE void setMidiEndpoint(const QString &, const QString &, bool);
+  Q_INVOKABLE void refreshMidi();
+  QVariantList modules() const;
+  QVariantList connections() const;
+  QVariantList palette() const;
+  bool running() const { return audio_.running(); }
+  bool ready() const { return ready_; }
+  bool cleanupPending() const { return audio_.hasStream() && !running(); }
+  QString statusText() const;
+  QString errorText() const { return error_; }
+  QString noticeText() const { return notice_; }
+  QString diagnosticText() const;
+  Q_INVOKABLE QVariantMap diagnostics() const;
+  Q_INVOKABLE bool saveDiagnostics(const QUrl &);
+  int outputNode() const { return document_.value("outputNode").toInt(); }
+  double peak() const { return peak_; }
+  double cpuLoad() const { return audio_.cpuLoad() * 100.; }
+  int underruns() const { return static_cast<int>(audio_.underruns()); }
+  bool dirty() const { return dirty_; }
+  QString patchName() const { return name_; }
+  QVariantList devices() const { return audio_.devices(); }
+  int selectedDevice() const { return device_; }
+  int sampleRate() const { return 48000; }
+  int blockSize() const { return 256; }
+  Q_INVOKABLE bool setParameter(int node, int parameter, double value);
+  Q_INVOKABLE void moveModule(int node, double x, double y);
+  Q_INVOKABLE void addModule(const QString &id);
+  Q_INVOKABLE void removeModule(int node);
+  Q_INVOKABLE void connectPorts(int from, const QString &port, int to, const QString &input);
+  Q_INVOKABLE void disconnectCable(int index);
+  Q_INVOKABLE void startAudio();
+  Q_INVOKABLE void stopAudio();
+  Q_INVOKABLE void setGate(bool on);
+  Q_INVOKABLE void note(int pitch, bool on);
+  Q_INVOKABLE void panic();
+  Q_INVOKABLE void setDevice(int id);
+  Q_INVOKABLE void refreshDevices();
+  Q_INVOKABLE void selectOutput(int node);
+  Q_INVOKABLE bool savePatch(const QUrl &);
+  Q_INVOKABLE bool loadPatch(const QUrl &);
+  Q_INVOKABLE void renderDemo(const QUrl &);
+  Q_INVOKABLE void resetPatch();
+  bool smokeCheck(QJsonObject &result);
+  bool keyboardChordCheck(QJsonObject &result);
+signals:
+  void documentChanged();
+  void parameterChanged(int node, int parameter, double value, QString display);
+  void statusChanged();
+  void metersChanged();
 private:
     using Engine = std::unique_ptr<AppEngine, decltype(&app_engine_destroy)>;
     Engine makeEngine(const QJsonObject&, QString& error) const;

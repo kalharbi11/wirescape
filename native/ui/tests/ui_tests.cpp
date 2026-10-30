@@ -92,7 +92,7 @@ private slots:
         const auto settings = temp_.filePath("midi-preference.ini");
         int opens = 0;
         {
-            StudioController studio(directory_, nullptr, {}, false, true,
+            StudioController studio(directory_, nullptr, {}, false, StudioController::MidiPreference::Interactive,
                                     std::make_unique<PreferenceMidiBackend>(opens), settings);
             QVERIFY(studio.midiSettingsAvailable());
             QVERIFY(!studio.midiAuthorized());
@@ -101,10 +101,10 @@ private slots:
             QCOMPARE(studio.midiEndpoints().size(), 1);
         }
         {
-            StudioController restored(directory_, nullptr, {}, false, true,
+            StudioController restored(directory_, nullptr, {}, false, StudioController::MidiPreference::Interactive,
                                       std::make_unique<PreferenceMidiBackend>(opens), settings);
             QVERIFY(restored.midiAuthorized());
-            StudioController probe(directory_, nullptr, {}, false, false,
+            StudioController probe(directory_, nullptr, {}, false, StudioController::MidiPreference::Ignore,
                                    std::make_unique<PreferenceMidiBackend>(opens), settings);
             QVERIFY(!probe.midiSettingsAvailable());
             QVERIFY(!probe.midiAuthorized());
@@ -113,8 +113,8 @@ private slots:
             QVERIFY(probe.midiEndpoints().isEmpty());
             restored.setMidiAuthorized(false);
         }
-        StudioController disabled(directory_, nullptr, {}, false, true, std::make_unique<PreferenceMidiBackend>(opens),
-                                  settings);
+        StudioController disabled(directory_, nullptr, {}, false, StudioController::MidiPreference::Interactive,
+                                  std::make_unique<PreferenceMidiBackend>(opens), settings);
         QVERIFY(!disabled.midiAuthorized());
         QCOMPARE(opens, 0); // Preference restoration never starts an input stream.
     }

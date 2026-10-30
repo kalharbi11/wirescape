@@ -79,7 +79,7 @@ int main(){
     CHECK(host.enabled()[0].system_name == "system-name");
     std::string error;
     CHECK(!host.start(nullptr, R"({"modules":[]})", error));
-    CHECK(error.find("--confirm-midi") != std::string::npos);
+    CHECK(error.find("Enable MIDI") != std::string::npos);
     CHECK(ptr->enumerations == 0 && ptr->opens == 0);
     host.stop();
     host.stop();

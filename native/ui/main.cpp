@@ -51,7 +51,9 @@ int main(int argc, char** argv) {
     const bool interactiveMidi = !smoke && !parser.isSet("startup-check") &&
                                  QGuiApplication::platformName() != "offscreen" &&
                                  QGuiApplication::platformName() != "minimal";
-    StudioController studio(directory, nullptr, {}, interactiveMidi && parser.isSet("confirm-midi"), interactiveMidi);
+    StudioController studio(directory, nullptr, {}, interactiveMidi && parser.isSet("confirm-midi"),
+                            interactiveMidi ? StudioController::MidiPreference::Interactive
+                                            : StudioController::MidiPreference::Ignore);
     QQmlApplicationEngine view;
     view.rootContext()->setContextProperty("studio", &studio);
     view.rootContext()->setContextProperty("studioFontFamily", app.font().family());

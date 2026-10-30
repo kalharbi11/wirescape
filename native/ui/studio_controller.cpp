@@ -50,11 +50,11 @@ QString display(double value, const QString& unit) {
 }
 
 StudioController::StudioController(QString directory, QObject *parent, PatchWriter writer, bool confirmMidi,
-                                   bool interactiveMidi, std::unique_ptr<wirescape::midi::Backend> fakeMidi,
+                                   MidiPreference midiPreference, std::unique_ptr<wirescape::midi::Backend> fakeMidi,
                                    QString midiSettingsPath)
     : QObject(parent), directory_(std::move(directory)), patchWriter_(std::move(writer)),
       midi_(confirmMidi, std::move(fakeMidi)) {
-    if (interactiveMidi) {
+    if (midiPreference == MidiPreference::Interactive) {
         midiPreferences_ = midiSettingsPath.isEmpty()
                                ? std::make_unique<QSettings>()
                                : std::make_unique<QSettings>(midiSettingsPath, QSettings::IniFormat);
@@ -575,7 +575,10 @@ void StudioController::setMidiAuthorized(bool enabled) {
 void StudioController::refreshMidi(){if(!running()&&!audio_.engineInUse())emit statusChanged();}
 void StudioController::setMidiEndpoint(const QString&name,const QString&system,bool enabled){
  if(running()||audio_.engineInUse()){setError("Stop playback before changing MIDI endpoints.");return;}
- if(!midi_.authorized()){setError("MIDI requires launch with --confirm-midi.");return;}
+ if (!midi_.authorized()) {
+     setError("Enable MIDI in the input settings first.");
+     return;
+ }
  midi_.select({name.toStdString(),system.toStdString()},enabled);dirty_=true;emit statusChanged();
 }
 

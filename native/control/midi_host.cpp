@@ -69,27 +69,31 @@ int Host::deliver(void *opaque, uint32_t node, const ws2_event &e, uint64_t ns) 
     return result;
 }
 bool Host::start(AppEngine*engine,const std::string&document,std::string&error){stop();try{
- if(enabled_.empty())return true;if(!authorized_||!backend_)throw std::runtime_error("MIDI endpoints require --confirm-midi");
- if(!engine)throw std::runtime_error("No MIDI render engine");
- auto j=nlohmann::json::parse(document);engine_=engine;service_=std::make_unique<Service>(*backend_,Sink{this,deliver});
- for(auto&s:enabled_)if(!service_->enable({s.name,s.system_name}))throw std::runtime_error("Too many enabled MIDI endpoints");
- for (auto &m : j.at("modules")) {
-     const auto type = m.value("module", m.value("type", std::string{}));
-     if (type == "host.keyboard") {
-         const auto node = m.at("id").get<uint32_t>();
-         if (!service_->subscribe({node, {}, true})) throw std::runtime_error("Too many MIDI routes");
-         keyboard_nodes_.push_back(node);
-         continue;
-     }
-     if (type != "midi.in") continue;
-     auto c = m.value("config", nlohmann::json::object());
-     auto name = c.value("endpoint", std::string("all_enabled"));
-     Route r;
-     r.node = m.at("id").get<uint32_t>();
-     r.all_enabled = name == "all_enabled";
-     r.endpoint = {name, c.value("system_name", std::string{})};
-     if (!service_->subscribe(r)) throw std::runtime_error("Too many MIDI routes");
- }
+        if (enabled_.empty()) return true;
+        if (!authorized_ || !backend_) throw std::runtime_error("Enable MIDI before opening selected endpoints");
+        if (!engine) throw std::runtime_error("No MIDI render engine");
+        auto j = nlohmann::json::parse(document);
+        engine_ = engine;
+        service_ = std::make_unique<Service>(*backend_, Sink{this, deliver});
+        for (auto &s : enabled_)
+            if (!service_->enable({s.name, s.system_name})) throw std::runtime_error("Too many enabled MIDI endpoints");
+        for (auto &m : j.at("modules")) {
+            const auto type = m.value("module", m.value("type", std::string{}));
+            if (type == "host.keyboard") {
+                const auto node = m.at("id").get<uint32_t>();
+                if (!service_->subscribe({node, {}, true})) throw std::runtime_error("Too many MIDI routes");
+                keyboard_nodes_.push_back(node);
+                continue;
+            }
+            if (type != "midi.in") continue;
+            auto c = m.value("config", nlohmann::json::object());
+            auto name = c.value("endpoint", std::string("all_enabled"));
+            Route r;
+            r.node = m.at("id").get<uint32_t>();
+            r.all_enabled = name == "all_enabled";
+            r.endpoint = {name, c.value("system_name", std::string{})};
+            if (!service_->subscribe(r)) throw std::runtime_error("Too many MIDI routes");
+        }
  if(!service_->start())throw std::runtime_error("MIDI service did not start");error.clear();return true;
  }catch(const std::exception&e){error=e.what();stop();return false;}}
 void Host::stop() {
