@@ -93,24 +93,24 @@ private slots:
         QVERIFY(full);
         QVERIFY(minimize);
         QVERIFY(save);
-        QVERIFY(!window->isFullScreen());
+        QVERIFY(!(window->visibility() == QWindow::FullScreen));
         QCOMPARE(full->property("text").toString(), QString("Full screen"));
         QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(full));
-        QTRY_VERIFY(window->isFullScreen());
+        QTRY_VERIFY((window->visibility() == QWindow::FullScreen));
         QCOMPARE(full->property("text").toString(), QString("Exit full screen"));
         save->forceActiveFocus();
         QTRY_VERIFY(save->hasActiveFocus());
         QTest::keyClick(window, Qt::Key_Escape);
-        QTRY_VERIFY(!window->isFullScreen());
+        QTRY_VERIFY(!(window->visibility() == QWindow::FullScreen));
         QCOMPARE(full->property("text").toString(), QString("Full screen"));
         QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(full));
-        QTRY_VERIFY(window->isFullScreen());
+        QTRY_VERIFY((window->visibility() == QWindow::FullScreen));
         QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(full));
-        QTRY_VERIFY(!window->isFullScreen());
+        QTRY_VERIFY(!(window->visibility() == QWindow::FullScreen));
         QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(minimize));
-        QTRY_VERIFY(window->isMinimized());
+        QTRY_VERIFY((window->visibility() == QWindow::Minimized));
         window->showNormal();
-        QTRY_VERIFY(!window->isMinimized());
+        QTRY_VERIFY(!(window->visibility() == QWindow::Minimized));
         QVERIFY(!studio.running());
     }
     void fullscreenLaunchFlagOffline() {
