@@ -61,12 +61,53 @@ Rectangle {
             MouseArea { objectName: "output_" + card.descriptor.id + "_" + modelData.id; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.CrossCursor; onClicked: workspace.chooseOutput(card.descriptor.id, modelData.id, modelData.kind); hoverEnabled: true; ToolTip.visible: containsMouse; ToolTip.text: modelData.label + " · " + modelData.kind + " output" }
         }
     }
-    Column {
+    // UI-only mapping of parameter IDs from native/modules/*/module.json.
+    // Unknown modules and parameters deliberately retain the stock slider.
+    function controlStyle(p) {
+        var m = descriptor.moduleId, id = Number(p.id);
+        if (m === "essentials.mixer") return "fader";
+        if (m === "essentials.clock" && id === 1) return "stepper";
+        if (m === "essentials.adsr") return id === 2 ? "knob" : "slider";
+        if ((m === "essentials.vco" && id === 0) ||
+            (m === "essentials.lfo" && id >= 0 && id <= 2) ||
+            (m === "essentials.vcf" && id >= 0 && id <= 1) ||
+            (m === "essentials.ladder" && id >= 0 && id <= 2) ||
+            (m === "essentials.function_envelope" && id >= 0 && id <= 2) ||
+            (m === "essentials.slew" && id >= 0 && id <= 1) ||
+            (m === "essentials.scale_offset" && id >= 0 && id <= 1) ||
+            (m === "essentials.clock" && id === 0))
+            return "knob";
+        return "slider";
+    }
+    function priority(p) {
+        var m = descriptor.moduleId, id = Number(p.id);
+        return id === 0 && (m === "essentials.vco" || m === "essentials.lfo" ||
+               m === "essentials.vcf" || m === "essentials.ladder" ||
+               m === "essentials.clock") ? "primary" : "related";
+    }
+    function controlWidth(p) {
+        var style = controlStyle(p);
+        return style === "fader" || style === "stepper" ||
+               (style === "knob" && priority(p) !== "primary") ?
+               (parameters.width - parameters.spacing) / 2 : parameters.width;
+    }
+    Flow {
         id: parameters
         x: 22; y: card.controlsTop; width: parent.width - 44
+        spacing: 8
         Repeater {
             model: card.descriptor.parameters
-            delegate: ParameterControl { required property var modelData; width: parameters.width; descriptor: modelData; nodeId: card.descriptor.id; moduleId: card.descriptor.moduleId }
+            delegate: ParameterControl {
+                required property var modelData
+                width: card.controlWidth(modelData)
+                descriptor: modelData
+                nodeId: card.descriptor.id
+                moduleId: card.descriptor.moduleId
+                presentation: card.controlStyle(modelData)
+                hierarchy: card.priority(modelData)
+                discrete: card.descriptor.moduleId === "essentials.clock" &&
+                          (Number(modelData.id) === 1 || Number(modelData.id) === 3)
+            }
         }
     }
     StudioButton {
