@@ -27,6 +27,18 @@ ApplicationWindow {
     property string pendingAction: ""
     property bool closeApproved: false
     property string saveContinuation: ""
+    property string currentPatchFile: ""
+    property string pendingLibraryFile: ""
+    function openPatchFile(url) {
+        if (!studio.loadPatch(url)) return false;
+        currentPatchFile = String(url);
+        patchLibrary.recordOpened(currentPatchFile);
+        return true;
+    }
+    function requestLibraryPatch(url) {
+        pendingLibraryFile = String(url);
+        requestAction("library");
+    }
     property var heldKeys: ({})
     readonly property int heldKeyCount: Object.keys(heldKeys).length
     function releaseHeldKeys() {
@@ -63,13 +75,19 @@ ApplicationWindow {
         // Consume the dialog transaction even when persistence fails.
         let action = saveContinuation; saveContinuation = ""; pendingAction = "";
         if (!studio.savePatch(url)) { saveFailureDialog.open(); return false; }
+        currentPatchFile = String(url);
+        patchLibrary.recordOpened(currentPatchFile);
         if (action) { pendingAction = action; finishAction(); }
         return true;
     }
     function finishAction() {
         let action = pendingAction; pendingAction = "";
-        if (action === "new") studio.resetPatch();
+        if (action === "new") { studio.resetPatch(); currentPatchFile = ""; }
         else if (action === "open") loadDialog.open();
+        else if (action === "library") {
+            let url = pendingLibraryFile; pendingLibraryFile = "";
+            if (url) openPatchFile(url);
+        }
         else if (action === "close") { closeApproved = true; root.close(); }
     }
     onClosing: function(close) {
@@ -180,7 +198,7 @@ ApplicationWindow {
     FileDialog {
         id: loadDialog; title: "Open patch"; fileMode: FileDialog.OpenFile
         nameFilters: ["Wirescape patch (*.json)", "All files (*)"]
-        onAccepted: studio.loadPatch(selectedFile)
+        onAccepted: root.openPatchFile(selectedFile)
     }
     FileDialog {
         id: renderDialog; title: "Test render / 4 s mono / 2 s gate / gain 0.2"; fileMode: FileDialog.SaveFile
@@ -292,6 +310,13 @@ ApplicationWindow {
                 StudioButton { text: "MIDI"; enabled: !studio.running; onClicked: midiDialog.open() }
                 StudioButton { objectName: "newButton"; text: "New"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("new") }
                 StudioButton { objectName: "openButton"; text: "Open"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("open") }
+                PatchLibrary {
+                    id: patchLibrary
+                    width: root.width < 1200 ? 170 : 218
+                    currentFile: root.currentPatchFile
+                    running: studio.running
+                    onOpenRequested: function(url) { root.requestLibraryPatch(url); }
+                }
                 StudioButton { objectName: "saveButton"; text: "Save"; onClicked: root.beginSave("") }
                 StudioButton { text: "Test render"; enabled: !studio.running; onClicked: { root.releaseHeldKeys(); renderDialog.open(); } }
                 Item { width: 9; height: 1 }
