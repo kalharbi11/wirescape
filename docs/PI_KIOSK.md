@@ -66,7 +66,10 @@ build = root / 'build/native'
 exe = build / 'Release/wirescape_studio'
 if not exe.is_file():
     raise SystemExit('Release Studio executable is missing; stop here.')
-problem = dev._launch_freshness_error(exe, 'Release')
+verify = getattr(dev, '_launch_freshness_error', None)
+if verify is None:
+    raise SystemExit('Choose an accepted revision that includes GUI provenance support (#156).')
+problem = verify(exe, 'Release')
 if problem:
     raise SystemExit('Build verification failed: ' + problem)
 if any(c in str(root) for c in ('"', '%', '\n', '\r', '\\', '$', '`')):
