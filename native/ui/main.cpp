@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
         const bool ready = window && window->isVisible() && !studio.running();
         QJsonObject report{{"status", ready ? "ready" : "failed"}, {"audio_started", studio.running()},
                            {"normal_window", window && window->isVisible() && QGuiApplication::platformName() != "offscreen" && QGuiApplication::platformName() != "minimal"},
-                           {"platform", QGuiApplication::platformName()}, {"patch_ready", studio.ready()}, {"font_family", app.font().family()}, {"fullscreen", window && window->isFullScreen()}};
+                           {"platform", QGuiApplication::platformName()}, {"patch_ready", studio.ready()}, {"font_family", app.font().family()}, {"fullscreen", window && window->visibility() == QWindow::FullScreen}};
         const auto path = QFileInfo(parser.value("ready-report")).absoluteFilePath();
         QDir().mkpath(QFileInfo(path).absolutePath()); QSaveFile file(path);
         const auto bytes = QJsonDocument(report).toJson();
