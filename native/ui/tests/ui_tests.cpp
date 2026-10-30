@@ -388,8 +388,4 @@ private slots:
     }
 };
 int main(int argc,char** argv) { QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs); QQuickStyle::setStyle("Basic"); QGuiApplication app(argc,argv); app.setQuitOnLastWindowClosed(false); UiTests tests; return QTest::qExec(&tests,argc,argv); }
-// Cppcheck scans the authored test translation unit; Qt's generated MOC guard
-// is evaluated with incomplete Qt preprocessor state and is not authored test code.
-#ifndef __CPPCHECK__
 #include "ui_tests.moc"
-#endif
