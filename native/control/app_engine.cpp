@@ -74,7 +74,9 @@ int app_engine_enqueue(AppEngine*e,const ws_event*v){
  else if(v->type==WS_GATE){
   // ABI1 gate controls envelopes, never oscillator pitch. Preserve that routing.
   auto it=e->nodes.find(v->node_id);if(it==e->nodes.end())return WS_NOT_FOUND;
-  if(it->second->native && std::strcmp(it->second->metadata.id,"essentials.adsr") && std::strcmp(it->second->metadata.id,"host.keyboard"))return WS_OK;
+  if (it->second->native && std::strcmp(it->second->metadata.id, "essentials.adsr") != 0 &&
+      std::strcmp(it->second->metadata.id, "host.keyboard") != 0)
+      return WS_OK;
   x.type=v->value>0?WS2_NOTE_ON:WS2_NOTE_OFF;x.key=60;
  }else x.type=v->type==WS_NOTE_ON?WS2_NOTE_ON:WS2_NOTE_OFF;
  int r=e->engine.enqueue(0,v->node_id,WS2_DIRECT_PORT,x,v->frame,wirescape::engine2::Timing::Frames,v->generation);

@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: GPL-3.0-only
+name: Static analysis
+on:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: static-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  static:
+    # Informational rollout: do not add this job to branch protection yet.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install named analysis tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build clang-tidy-18 clang-format-18 cppcheck
+          python -m pip install ruff==0.14.1
+          actionlint_tmp="$(mktemp -d)"
+          trap 'rm -rf "$actionlint_tmp"' EXIT
+          cd "$actionlint_tmp"
+          curl -fsSLO https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
+          curl -fsSLo checksums.txt https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_checksums.txt
+          sha256sum --check --ignore-missing checksums.txt
+          tar -xzf actionlint_1.7.7_linux_amd64.tar.gz actionlint
+          install -m 755 actionlint "$RUNNER_TEMP/actionlint"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0, existing CI action
+        with:
+          version: '6.10.3'
+          arch: linux_gcc_64
+          cache: true
+      - name: Configure Qt compile database
+        run: cmake -S native -B build/static -G Ninja -DCMAKE_BUILD_TYPE=Release -DWIRESCAPE_BUILD_UI=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Build translation units and record compiler dependencies
+        run: |
+          cmake --build build/static --target studio_ui_tests --parallel 2
+          cmake --build build/static --parallel 2
+      - name: Validate compiled header and X-macro ownership
+        run: |
+          python - <<'PYCODE'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, 'tools/ci')
+          from static_checks import analysis_units
+          owners = analysis_units(Path.cwd(), {'native/control/module_catalog.inc': [], 'native/ui/studio_controller.h': []})
+          print(f'Validated compiled header ownership: {len(owners)} translation units')
+          PYCODE
+      - name: Analyze and summarize every tool
+        if: always()
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          CLANG_TIDY_DIFF="$(dpkg -L clang-tidy-18 | grep -E '/clang-tidy-diff(-18)?(\.py)?$' | head -n 1 || true)"
+          if [[ -z "$CLANG_TIDY_DIFF" || ! -f "$CLANG_TIDY_DIFF" ]]; then
+            echo "::error::clang-tidy diff script was not found in the installed package"
+            exit 1
+          fi
+          python "$CLANG_TIDY_DIFF" --help > /dev/null
+          export CLANG_TIDY_DIFF
+          python tools/ci/static_checks.py --base "$BASE_SHA" --head "$HEAD_SHA"

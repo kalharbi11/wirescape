@@ -36,7 +36,10 @@ int Allocator::find(Note note) const noexcept {
         const bool same = note.note_id >= 0
             ? h.note.note_id == note.note_id
             : h.note.note_id < 0 && h.note.channel == note.channel && h.note.key == note.key;
-        if (same && (result < 0 || (note.note_id >= 0 ? h.order > newest : h.order < newest))) { result = i; newest = h.order; }
+        if (same && (result < 0 || (note.note_id >= 0 ? h.order > newest : h.order < newest))) {
+            result = i;
+            newest = h.order;
+        }
     }
     return result;
 }

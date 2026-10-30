@@ -28,8 +28,10 @@ No agent reaches the Pi or the laptop. Pi work goes through the `pi5` runner on 
 - One issue = one branch `task/<issue#>-<slug>` = one draft PR with `Closes #<issue#>`. Work only on your issue.
 - Push small commits; WIP commits may use `[skip ci]`, the final push never does.
 - **Done is decided by the acceptance block:** run its `must_pass` lines (`python tools/dev.py accept <issue#>` once it exists), post the report, set `status/ready-to-merge` when green on the exact head. `pi:` lines run on the Pi runner.
-- **Review tiers** (`docs/WORKFLOW.md` §3): T0 scripts only; T1 adds a ChatGPT pre-review of the review pack; T2 adds Claude. The tier is in the acceptance block.
-- **Merging** (`docs/WORKFLOW.md` §3b): a builder may **enable GitHub auto-merge** (merge commit) on its own PR only when all hold: base is `main`; not a draft; tier T0, or T1 with a "ChatGPT pre-review" whose Highs are all fixed or answered; no label-only path in the diff; `status/ready-to-merge` set after a green acceptance run. GitHub then merges only when the required checks pass. T2 PRs, stacked PRs and anything else wait for the user. Never click merge directly, approve, dismiss reviews or change branch protection. Agent reviews are `COMMENT` only.
+- **Review tiers** (`docs/WORKFLOW.md` §3): T0 scripts only; T1 adds a ChatGPT pre-review of the review pack; T2 adds a second ChatGPT pass; T2-Claude (ABI, CI/guard, specs, label-only, milestones) adds Claude. The tier is in the acceptance block.
+- **Merging** (`docs/WORKFLOW.md` §3b): a builder may **enable GitHub auto-merge** (any method; squash is fine) on its own PR only when all hold: base is `main`; not a draft; tier T0, or T1 with a "ChatGPT pre-review" whose Highs are all fixed or answered; no label-only path in the diff; `status/ready-to-merge` set after a green acceptance run. GitHub then merges only when the required checks pass. T2 PRs need `ChatGPT: approved for auto-merge <sha7>` from a second ChatGPT pass; ABI, CI/guard, spec, label-only and milestone PRs need `Claude: approved for auto-merge <sha7>`; stacked PRs wait until GitHub retargets them to `main`. The merge gate workflow enables auto-merge by itself once a PR qualifies. Never click merge directly, approve, dismiss reviews or change branch protection. Agent reviews are `COMMENT` only.
+- **Check-ins** (`docs/WORKFLOW.md` §3d): Claude checks in once a day (17:30 New York). The user starts Codex, which works the latest planner queue on #29. Two ChatGPT agents (reviewer, steward) run hourly watches.
+- **Autonomous mode** (`docs/WORKFLOW.md` §3c) is the default: never idle while waiting, make the listed self-decisions and record them, self-review with the review pack before `status/ready-to-merge`.
 - Before you stop (done, near a limit, blocked): post the handoff below and set the status label.
 - Don't widen scope; ideas go under "Follow-ups".
 
@@ -40,7 +42,7 @@ ABI header edit · equivalence delta without a planner decision · test removal 
 - One issue per agent thread; start fresh per issue. Don't paste whole logs; tail on failure.
 - Don't run the full suite locally when CI will; run tests for touched files, push, read the CI summary.
 - Pi evidence only through the Pi runner and only for engine, DSP, audio-path or build changes. No re-runs after a merge from `main` that touches no compiled code.
-- Claude: fresh session per check-in; Sonnet for routine work, Opus only for T2/architecture, Haiku for search.
+- Claude: fresh session per check-in; start from `docs/planner/STATE.md`; Sonnet for routine work, Opus only for T2-Claude reviews, Haiku for search.
 
 ## External agent queue (optional)
 For ≤3-file work that benefits from an independent strong model: build a split review pack, ask in the issue "External-queue task: run it outside, or should I do it myself?". Blocking work: ask once, then do it yourself. Non-blocking: label `external-queue` and move on. The user replies with a comment headed "External result". Detail: `docs/WORKFLOW.md` §7.
@@ -74,6 +76,12 @@ Status `status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · 
 ## Commands (all keep audio off)
 `python tools/dev.py doctor | build [--headless] | test | check --package | launch`. Qt: `WIRESCAPE_QT_DIR`, then `CMAKE_PREFIX_PATH`.
 **Cloud containers (Codex, Claude):** if `cmake` or `ninja` is missing, run the repo's setup script first (`tools/cloud/setup.sh`, or `tools/ci/codex_cloud_setup.sh` until #83 moves it) and use the PATH it prints. Fix setup problems in that script, never by asking the user to change environment settings.
+
+## Pi evidence from Codex cloud
+- Codex cloud cannot reach the Pi or the Windows laptop. Do not use SSH or open audio/MIDI devices.
+- Pi evidence runs through the private `kalharbi11/wirescape-pi` bridge on the `pi5` runner. Public-repository workflows never target that runner. See `docs/PI_RUNNER.md` for setup, the 24/7 five-minute daemon and task commands.
+- Use `pi5` for exact-head build/tests. Label real-loader soak requests `ci/pi-soak` (drafts also need `ci/pi`) and require `pi5/soak`. After fixing an infrastructure failure, `ci/pi-retry` requests one rerun on the same head; the bridge consumes the label after publishing results. Link the private workflow run; queued runs are not evidence. Never run fork PRs on the Pi.
+- Run tests for the code touched locally and let CI run the remaining suites. Merge-only changes need no new Pi evidence unless compiled code conflicted.
 
 ## Docs upkeep
 `docs/PLAN.md` belongs to the planner (others may tick checkboxes). Update `docs/ARCHITECTURE.md` in the PR that changes the architecture; `docs/STATUS.md` when a milestone completes. Tasks in `docs/tasks/`, reviews in `docs/reviews/`.
