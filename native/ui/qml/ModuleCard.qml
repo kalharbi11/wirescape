@@ -20,6 +20,7 @@ Rectangle {
     Text { x: 22; y: 15; text: "ESSENTIALS / " + String(card.descriptor.id).padStart(2, "0"); font.family: (typeof studioFontFamily !== "undefined" ? studioFontFamily : "Arial"); font.pixelSize: 9; font.letterSpacing: 1; color: "#858681" }
     Text { x: 21; y: 34; text: card.descriptor.title; font.family: (typeof studioFontFamily !== "undefined" ? studioFontFamily : "Arial"); font.pixelSize: 26; font.letterSpacing: -1.4; font.weight: Font.Medium; color: "#262824" }
     MouseArea {
+        objectName: "moduleHeader_" + card.descriptor.id
         x: 0; y: 0; width: parent.width - 37; height: 81
         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         drag.target: card; drag.axis: Drag.XAndYAxis

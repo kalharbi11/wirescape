@@ -373,6 +373,7 @@ ApplicationWindow {
                             border.width: 2
                             border.color: root.selectedCable === cable.index ? "#c5774c" : cable.modelData.kind === "audio" ? "#777e79" : "#c17853"
                             MouseArea {
+                                objectName: "cableHandle_" + cable.index
                                 anchors.fill: parent; anchors.margins: -7
                                 cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                 onClicked: { root.selectedCable = cable.index; root.selectedNode = -1; }
@@ -405,7 +406,7 @@ ApplicationWindow {
             Row {
                 visible: root.selectedCable >= 0 && root.selectedCable < studio.connections.length
                 x: 20; anchors.bottom: parent.bottom; anchors.bottomMargin: 18; spacing: 5
-                StudioButton { text: "Disconnect cable"; enabled: !studio.running; onClicked: { studio.disconnectCable(root.selectedCable); root.selectedCable = -1; } }
+                StudioButton { objectName: "disconnectCableButton"; text: "Disconnect cable"; enabled: !studio.running; onClicked: { studio.disconnectCable(root.selectedCable); root.selectedCable = -1; } }
                 StudioButton { text: "×"; quiet: true; onClicked: root.selectedCable = -1 }
             }
         }
