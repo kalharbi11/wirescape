@@ -34,6 +34,7 @@ public:
     bool initialize(const QString& directory);
     bool refresh(const QString& directory);
     bool start(ws_engine* engine, int device, double sampleRate, uint32_t block);
+    bool startRender(void*, int (*)(void*,float*,uint32_t), int device, double sampleRate, uint32_t block);
     // False means a callback still owns the borrowed engine: do not reset/destroy it.
     bool stop();
     bool poll(); // Control-thread monitoring; true if state/error changed.
@@ -49,7 +50,8 @@ public:
     QVariantMap diagnostics() const;
 private:
     struct CallbackContext {
-        ws_engine* engine = nullptr;
+        void* engine = nullptr;
+        int (*render)(void*,float*,uint32_t) = nullptr;
         double sampleRate = 48000;
         std::vector<float> scratch;
         std::atomic<bool> enabled{false}, failed{false};

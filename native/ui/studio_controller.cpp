@@ -25,10 +25,19 @@ QJsonObject baseDocument() {
     nodes.append(QJsonObject{{"id", 2}, {"type", "essentials.adsr"}, {"x", 400}, {"y", 210}, {"values", QJsonObject{{"0", .025}, {"1", .18}, {"2", .65}, {"3", .5}}}});
     nodes.append(QJsonObject{{"id", 3}, {"type", "essentials.vca"}, {"x", 740}, {"y", 100}, {"values", QJsonObject{{"0", .7}}}});
     nodes.append(QJsonObject{{"id", 4}, {"type", "essentials.output"}, {"x", 1060}, {"y", 230}, {"values", QJsonObject{}}});
+    nodes.append(QJsonObject{{"id", 5},
+                             {"type", "host.keyboard"},
+                             {"x", 20},
+                             {"y", 430},
+                             {"values", QJsonObject{{"0", 8}, {"1", 0}, {"2", 0}}}});
     QJsonArray cables;
     cables.append(QJsonObject{{"fromNode", 1}, {"fromPort", "audio"}, {"toNode", 3}, {"toPort", "audio"}, {"kind", "audio"}});
     cables.append(QJsonObject{{"fromNode", 2}, {"fromPort", "envelope"}, {"toNode", 3}, {"toPort", "gain_cv"}, {"kind", "control"}});
     cables.append(QJsonObject{{"fromNode", 3}, {"fromPort", "audio"}, {"toNode", 4}, {"toPort", "audio"}, {"kind", "audio"}});
+    cables.append(
+        QJsonObject{{"fromNode", 5}, {"fromPort", "pitch"}, {"toNode", 1}, {"toPort", "pitch"}, {"kind", "control"}});
+    cables.append(
+        QJsonObject{{"fromNode", 5}, {"fromPort", "gate"}, {"toNode", 2}, {"toPort", "gate"}, {"kind", "control"}});
     return {{"format", "wirescape.native.patch"}, {"version", 1}, {"name", "Essential voice"}, {"outputNode", 4}, {"modules", nodes}, {"connections", cables}};
 }
 QString text(const char* value) { return value ? QString::fromUtf8(value) : QString(); }
@@ -48,7 +57,7 @@ StudioController::StudioController(QString directory, QObject* parent, PatchWrit
         return true;
     };
     ws_engine_config config{sizeof(config), 48000, 512, 64, 2048};
-    catalog_.reset(ws_engine_create(&config));
+    catalog_.reset(app_engine_create(&config));
     if (catalog_) {
 #ifdef Q_OS_WIN
         const QStringList filters{"ws_*.dll"};
@@ -59,17 +68,17 @@ StudioController::StudioController(QString directory, QObject* parent, PatchWrit
 #endif
         for (const auto& file : QDir(directory_).entryInfoList(filters, QDir::Files, QDir::Name)) {
             const auto path = file.absoluteFilePath().toUtf8();
-            if (ws_engine_load_module(catalog_.get(), path.constData()) != WS_OK) error_ = text(ws_engine_error(catalog_.get()));
+            if (app_engine_load_module(catalog_.get(), path.constData()) != WS_OK) error_ = text(app_engine_error(catalog_.get()));
         }
     }
     resetPatch();
     timer_.setInterval(50);
     connect(&timer_, &QTimer::timeout, this, [this] {
         if (audio_.poll()) {
-            if (!audio_.running() && !audio_.engineInUse() && engine_) { lastSessionMeter_.struct_size = sizeof(lastSessionMeter_); ws_engine_get_meter(engine_.get(), &lastSessionMeter_); ws_engine_reset(engine_.get()); lastFrame_ = 0; peak_ = 0; }
+            if (!audio_.running() && !audio_.engineInUse() && engine_) { lastSessionMeter_.struct_size = sizeof(lastSessionMeter_); app_engine_get_meter(engine_.get(), &lastSessionMeter_); app_engine_reset(engine_.get()); lastFrame_ = 0; peak_ = 0; }
             setError(audio_.error());
         }
-        if (engine_) { ws_meter meter{}; meter.struct_size = sizeof(meter); ws_engine_get_meter(engine_.get(), &meter); peak_ = running() ? meter.peak * WS_OUTPUT_GAIN : 0; }
+        if (engine_) { ws_meter meter{}; meter.struct_size = sizeof(meter); app_engine_get_meter(engine_.get(), &meter); peak_ = running() ? meter.peak * WS_OUTPUT_GAIN : 0; }
         emit metersChanged();
 
     });
@@ -84,8 +93,8 @@ StudioController::~StudioController() { if (!audio_.stop()) {
 
 const ws_module_descriptor* StudioController::descriptor(const QString& id) const {
     if (!catalog_) return nullptr;
-    for (uint32_t i = 0; i < ws_engine_module_count(catalog_.get()); ++i) {
-        const auto* d = ws_engine_module(catalog_.get(), i);
+    for (uint32_t i = 0; i < app_engine_module_count(catalog_.get()); ++i) {
+        const auto* d = app_engine_module(catalog_.get(), i);
         if (text(d->id) == id) return d;
     }
     return nullptr;
@@ -99,7 +108,7 @@ const ws_module_descriptor* StudioController::nodeDescriptor(int id) const {
 QVariantList StudioController::palette() const {
     QVariantList result;
     if (!catalog_) return result;
-    for (uint32_t i = 0; i < ws_engine_module_count(catalog_.get()); ++i) { const auto* d = ws_engine_module(catalog_.get(), i); result.append(QVariantMap{{"id", text(d->id)}, {"name", text(d->name)}, {"description", "Essentials / processor"}}); }
+    for (uint32_t i = 0; i < app_engine_module_count(catalog_.get()); ++i) { const auto* d = app_engine_module(catalog_.get(), i); result.append(QVariantMap{{"id", text(d->id)}, {"name", text(d->name)}, {"description", "Essentials / processor"}}); }
     return result;
 }
 
@@ -129,7 +138,35 @@ QVariantList StudioController::modules() const {
     return result;
 }
 
-QVariantList StudioController::connections() const { return document_.value("connections").toArray().toVariantList(); }
+QVariantList StudioController::connections() const {
+    QVariantList result;
+    QMap<int, int> channels;
+    const auto nodes = document_["modules"].toArray();
+    const auto cables = document_["connections"].toArray();
+    for (auto node : nodes) {
+        auto n = node.toObject();
+        int count = 1;
+        if (n["type"] == "host.keyboard") {
+            auto v = n["values"].toObject();
+            count = v["1"].toInt() == 3 ? 1 : v["0"].toInt(8);
+        }
+        channels[n["id"].toInt()] = count;
+    }
+    // Configured widths are safe to read during rendering. Propagate along the
+    // document DAG; the Output SUM policy collapses its outgoing signal to mono.
+    for (int pass = 0; pass < nodes.size(); ++pass)
+        for (auto value : cables) {
+            auto c = value.toObject();
+            int to = c["toNode"].toInt();
+            if (to != outputNode()) channels[to] = std::max(channels[to], channels[c["fromNode"].toInt()]);
+        }
+    for (auto value : cables) {
+        auto c = value.toObject();
+        c["channels"] = channels[c["fromNode"].toInt()];
+        result.append(c.toVariantMap());
+    }
+    return result;
+}
 QString StudioController::statusText() const { return running() ? "AUDIO RUNNING" : ready_ ? "READY / AUDIO OFF" : "PATCH NEEDS ATTENTION"; }
 void StudioController::setError(QString value) { error_ = std::move(value); emit statusChanged(); }
 
@@ -193,39 +230,16 @@ QString StudioController::incompleteReason(const QJsonObject& doc) const {
 }
 
 StudioController::Engine StudioController::makeEngine(const QJsonObject& doc, QString& error) const {
-    ws_engine_config config{sizeof(config), 48000, 512, 64, 2048};
-    Engine result(ws_engine_create(&config), ws_engine_destroy);
-    if (!result || !catalog_) { error = "Cannot create the native engine."; return {nullptr, ws_engine_destroy}; }
-    for (uint32_t i = 0; i < ws_engine_module_count(catalog_.get()); ++i) if (ws_engine_register_module(result.get(), ws_engine_module(catalog_.get(), i)) != WS_OK) { error = "A processor could not be registered."; return {nullptr, ws_engine_destroy}; }
-    const auto nodes = doc.value("modules").toArray();
-    for (const auto& value : nodes) {
-        const auto n = value.toObject();
-        if (!n.value("id").isDouble() || n.value("id").toInt() <= 0 || !std::isfinite(n.value("x").toDouble()) || !std::isfinite(n.value("y").toDouble())) { error = "A module has invalid identity or coordinates."; return {nullptr, ws_engine_destroy}; }
-        const auto type = n.value("type").toString().toUtf8();
-        const int code = ws_engine_add_node(result.get(), static_cast<uint32_t>(n.value("id").toInt()), type.constData());
-        if (code != WS_OK) { error = QStringLiteral("Module %1 is unavailable or invalid. Its saved data is preserved.").arg(n.value("type").toString()); return {nullptr, ws_engine_destroy}; }
-    }
-    auto find = [&](int id) -> const ws_module_descriptor* { for (const auto& v : nodes) if (v.toObject().value("id").toInt() == id) return descriptor(v.toObject().value("type").toString()); return nullptr; };
-    for (const auto& value : doc.value("connections").toArray()) {
-        const auto cable = value.toObject(); const int a = cable.value("fromNode").toInt(), b = cable.value("toNode").toInt();
-        const auto* source = find(a); const auto* destination = find(b);
-        const int sp = source ? portIndex(source->outputs, source->output_count, cable.value("fromPort").toString()) : -1;
-        const int dp = destination ? portIndex(destination->inputs, destination->input_count, cable.value("toPort").toString()) : -1;
-        if (sp < 0 || dp < 0 || ws_engine_connect(result.get(), a, sp, b, dp) != WS_OK) { error = "A cable has an unavailable endpoint or incompatible signal type."; return {nullptr, ws_engine_destroy}; }
-    }
-    int output = doc.value("outputNode").toInt();
-    if (!output) { error = "Select an Output destination to enable audio. The patch remains editable."; return {nullptr, ws_engine_destroy}; }
-    if (ws_engine_prepare(result.get(), output, 0) != WS_OK) { error = text(ws_engine_error(result.get())); if (error.isEmpty()) error = "Connect an Output module to prepare this patch."; return {nullptr, ws_engine_destroy}; }
-    if (!applyParameters(result.get(), doc)) { error = "A saved parameter is outside its declared range."; return {nullptr, ws_engine_destroy}; }
-    error.clear();
-    return result;
+    ws_engine_config config{sizeof(config),48000,512,64,2048};
+    auto patch=wirescape::document::editor_patch(doc,catalog_.get(),documentSource_);
+    return Engine(wirescape::document::build_app_patch(catalog_.get(),patch,config,error),app_engine_destroy);
 }
 
-bool StudioController::applyParameters(ws_engine* e, const QJsonObject& doc) const {
+bool StudioController::applyParameters(AppEngine* e, const QJsonObject& doc) const {
     for (const auto& value : doc.value("modules").toArray()) {
         const auto n = value.toObject(); const auto* d = descriptor(n.value("type").toString()); if (!d) return false;
         const auto values = n.value("values").toObject();
-        for (uint32_t i = 0; i < d->parameter_count; ++i) { const auto& p = d->parameters[i]; const auto entry = values.value(QString::number(p.id)); if (!entry.isUndefined() && !entry.isDouble()) return false; const auto v = entry.toDouble(p.initial); if (!std::isfinite(v) || ws_engine_initialize_parameter(e, static_cast<uint32_t>(n.value("id").toInt()), p.id, static_cast<float>(v)) != WS_OK) return false; }
+        for (uint32_t i = 0; i < d->parameter_count; ++i) { const auto& p = d->parameters[i]; const auto entry = values.value(QString::number(p.id)); if (!entry.isUndefined() && !entry.isDouble()) return false; const auto v = entry.toDouble(p.initial); if (!std::isfinite(v) || app_engine_initialize_parameter(e, static_cast<uint32_t>(n.value("id").toInt()), p.id, static_cast<float>(v)) != WS_OK) return false; }
     }
     return true;
 }
@@ -243,7 +257,7 @@ bool StudioController::commitTopology(QJsonObject candidate) {
     QString error;
     if (!validateDocument(candidate, error)) { setError(error); return false; }
     const auto incomplete = incompleteReason(candidate);
-    auto next = incomplete.isEmpty() ? makeEngine(candidate, error) : Engine(nullptr, ws_engine_destroy);
+    auto next = incomplete.isEmpty() ? makeEngine(candidate, error) : Engine(nullptr, app_engine_destroy);
     if (!next && incomplete.isEmpty()) { setError(error); return false; }
     if (!incomplete.isEmpty()) error = incomplete;
     engine_ = std::move(next); document_ = std::move(candidate); ready_ = bool(engine_); dirty_ = true; lastFrame_ = 0;
@@ -295,10 +309,10 @@ void StudioController::disconnectCable(int index) { auto next = document_; auto 
 
 bool StudioController::send(int node, uint32_t type, float value, uint32_t parameter, uint32_t noteId) {
     if (!engine_) return false;
-    ws_meter meter{}; meter.struct_size = sizeof(meter); ws_engine_get_meter(engine_.get(), &meter);
+    ws_meter meter{}; meter.struct_size = sizeof(meter); app_engine_get_meter(engine_.get(), &meter);
     lastFrame_ = std::max(lastFrame_, meter.frame_position + (running() ? blockSize() : 0));
-    ws_event event{sizeof(event), lastFrame_, static_cast<uint32_t>(node), type, parameter, value, 1, noteId, ws_engine_generation(engine_.get())};
-    const int result = ws_engine_enqueue(engine_.get(), &event);
+    ws_event event{sizeof(event), lastFrame_, static_cast<uint32_t>(node), type, parameter, value, 1, noteId, app_engine_generation(engine_.get())};
+    const int result = app_engine_enqueue(engine_.get(), &event);
     if (result != WS_OK) {
         if (result == WS_CAPACITY && type != WS_PARAMETER) { stopAudio(); setError(QStringLiteral("Control queue is full. Playback stopped to prevent a stuck gate; restart explicitly when ready. %1").arg(audio_.error())); }
         else if (result == WS_CAPACITY) setError("Control queue is full. This change was not accepted; release and retry.");
@@ -316,32 +330,58 @@ void StudioController::startAudio() {
     if (running()) return;
     if (audio_.hasStream()) { setError("Device cleanup is pending. Stop audio again before restarting."); return; }
     if (!compileDocument()) return;
-    if (!audio_.initialize(directory_) || !audio_.start(engine_.get(), device_, 48000, blockSize())) { setError(audio_.error()); return; }
+    if (!audio_.initialize(directory_) || !audio_.startRender(engine_.get(), [](void* e,float* out,uint32_t n){return app_engine_render(static_cast<AppEngine*>(e),out,n);}, device_, 48000, blockSize())) { setError(audio_.error()); return; }
     lastSessionMeter_ = {}; setError({}); emit statusChanged();
 }
 
-void StudioController::stopAudio() { if (!audio_.stop()) { setError(audio_.error()); return; } if (engine_) { lastSessionMeter_.struct_size = sizeof(lastSessionMeter_); ws_engine_get_meter(engine_.get(), &lastSessionMeter_); ws_engine_reset(engine_.get()); } lastFrame_ = 0; peak_ = 0; setError(audio_.error()); emit metersChanged(); }
+void StudioController::stopAudio() { if (!audio_.stop()) { setError(audio_.error()); return; } if (engine_) { lastSessionMeter_.struct_size = sizeof(lastSessionMeter_); app_engine_get_meter(engine_.get(), &lastSessionMeter_); app_engine_reset(engine_.get()); } lastFrame_ = 0; peak_ = 0; setError(audio_.error()); emit metersChanged(); }
 void StudioController::setGate(bool on) { if (!running()) return; for (const auto& item : document_.value("modules").toArray()) if (!send(item.toObject().value("id").toInt(), WS_GATE, on ? 1.f : 0.f)) break; }
-void StudioController::note(int pitch, bool on) { if (!running() || pitch < 0 || pitch > 127) return; for (const auto& item : document_.value("modules").toArray()) if (!send(item.toObject().value("id").toInt(), on ? WS_NOTE_ON : WS_NOTE_OFF, static_cast<float>(pitch), 0, static_cast<uint32_t>(pitch + 2))) break; }
-void StudioController::panic() { if (engine_) { ws_engine_panic(engine_.get()); lastFrame_ = 0; } emit statusChanged(); }
-void StudioController::resetPatch() { if (audio_.hasStream()) stopAudio(); if (audio_.engineInUse()) return; document_ = baseDocument(); name_ = "Essential voice"; dirty_ = false; compileDocument(); emit documentChanged(); }
+void StudioController::note(int pitch, bool on) {
+    if (!engine_ || pitch < 0 || pitch > 127) return;
+    for (const auto &item : document_.value("modules").toArray()) {
+        auto n = item.toObject();
+        if (n["type"] == "host.keyboard") {
+            send(n["id"].toInt(), on ? WS_NOTE_ON : WS_NOTE_OFF, float(pitch), 0, pitch + 2);
+            return;
+        }
+    }
+    if (!running()) return;
+    for (const auto &item : document_["modules"].toArray())
+        if (!send(item.toObject()["id"].toInt(), on ? WS_NOTE_ON : WS_NOTE_OFF, float(pitch), 0, pitch + 2)) break;
+}
+void StudioController::panic() {
+    if (engine_) {
+        // With no callback owner, reset immediately so the new generation is applied
+        // before the next offline key event. A live/unclean stream owns its reset.
+        if (audio_.engineInUse()) app_engine_panic(engine_.get());
+        else app_engine_reset(engine_.get());
+        lastFrame_ = 0;
+    }
+    emit statusChanged();
+}
+void StudioController::resetPatch() { if (audio_.hasStream()) stopAudio(); if (audio_.engineInUse()) return; documentSource_ = {}; document_ = baseDocument(); name_ = "Essential voice"; dirty_ = false; compileDocument(); emit documentChanged(); }
 
 void StudioController::selectOutput(int node) { auto next = document_; next["outputNode"] = node; commitTopology(next); }
 
 bool StudioController::savePatch(const QUrl& url) {
     const QString path = url.isLocalFile() ? url.toLocalFile() : url.toString(); if (path.isEmpty()) return false;
-    const auto bytes = QJsonDocument(document_).toJson(QJsonDocument::Indented);
+    auto patch=wirescape::document::editor_patch(document_,catalog_.get(),documentSource_);
+    if(!patch.valid()){setError(patch.error);return false;}
     QString error;
-    if (!patchWriter_(path, bytes, error)) { setError(error); return false; }
-    name_ = QFileInfo(path).completeBaseName(); dirty_ = false; setError({}); return true;
+    const auto bytes=QJsonDocument(patch.object).toJson(QJsonDocument::Indented);
+    if(!wirescape::document::save_patch(path,patch,&error,patchWriter_)){setError(error);return false;}
+    documentSource_=patch;documentSource_.source_version=2;documentSource_.original_bytes=bytes;
+    document_=wirescape::document::editor_view(patch,catalog_.get());
+    name_=QFileInfo(path).completeBaseName();dirty_=false;setError({});return true;
 }
+
 QVariantMap StudioController::diagnostics() const {
     auto result = audio_.diagnostics();
     result["created_utc"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     result["scope"] = "session counters; not an end-to-end latency measurement";
     result["patch_ready"] = ready_; result["node_count"] = modules().size();
     if (engine_) {
-        ws_meter meter = lastSessionMeter_; meter.struct_size = sizeof(meter); if (running() || !meter.rendered_blocks) ws_engine_get_meter(engine_.get(), &meter);
+        ws_meter meter = lastSessionMeter_; meter.struct_size = sizeof(meter); if (running() || !meter.rendered_blocks) app_engine_get_meter(engine_.get(), &meter);
         result["overload_blocks"] = QVariant::fromValue<qulonglong>(meter.overload_blocks);
         result["overload_reason"] = meter.overload_reason == 1 ? "event_budget" : meter.overload_reason == 2 ? "graph_span_budget" : "none";
         result["queue_overflows"] = QVariant::fromValue<qulonglong>(meter.overflow_events);
@@ -353,7 +393,7 @@ QVariantMap StudioController::diagnostics() const {
 }
 QString StudioController::diagnosticText() const {
     ws_meter meter = lastSessionMeter_; meter.struct_size = sizeof(meter);
-    if (engine_ && (running() || !meter.rendered_blocks)) ws_engine_get_meter(engine_.get(), &meter);
+    if (engine_ && (running() || !meter.rendered_blocks)) app_engine_get_meter(engine_.get(), &meter);
     return meter.overload_blocks || audio_.faults() ? QStringLiteral("faults %1 / overloads %2").arg(audio_.faults()).arg(meter.overload_blocks) : QString();
 }
 bool StudioController::saveDiagnostics(const QUrl& url) {
@@ -372,7 +412,10 @@ bool StudioController::loadPatch(const QUrl& url) {
     const auto bytes = file.read(wirescape::document::MaximumDocumentBytes + 1);
     if (bytes.size() > wirescape::document::MaximumDocumentBytes) { setError("Document exceeds the 2 MiB inspection limit; original file unchanged."); return false; }
     if (file.error() != QFileDevice::NoError) { setError(QStringLiteral("Patch could not be read: %1").arg(file.errorString())); return false; }
-    const auto inspected = wirescape::document::inspect(bytes);
+    auto inspected = wirescape::document::inspect(bytes);
+    // inspect classifies the v1 envelope; NativeV1 selects native dispatch here.
+    // read_patch below performs full native v1/v2 validation before committing.
+    if(QJsonDocument::fromJson(bytes).object()["version"]==2 && QJsonDocument::fromJson(bytes).object()["format"]=="wirescape.native.patch")inspected.format=wirescape::document::Format::NativeV1;
     using wirescape::document::Format;
     switch (inspected.format) {
     case Format::NativeV1: break;
@@ -389,11 +432,14 @@ bool StudioController::loadPatch(const QUrl& url) {
     case Format::Invalid:
         setError(inspected.diagnostic + QStringLiteral(" Original file unchanged.")); return false;
     }
-    const auto candidate = inspected.object; QString error;
-    if (!validateDocument(candidate, error)) { setError(error); return false; }
+    const auto loaded=wirescape::document::read_patch(bytes,wirescape::document::app_catalog(catalog_.get()));
+    if(!loaded.valid()){setError(loaded.error);return false;}
+    const auto candidate=wirescape::document::editor_view(loaded,catalog_.get()); QString error;
+    auto previousSource=documentSource_;documentSource_=loaded;
+    if (!validateDocument(candidate, error)) { documentSource_=previousSource;setError(error); return false; }
     const auto incomplete = incompleteReason(candidate);
-    auto next = incomplete.isEmpty() ? makeEngine(candidate, error) : Engine(nullptr, ws_engine_destroy);
-    if (!next && incomplete.isEmpty()) { setError(error); return false; }
+    auto next = incomplete.isEmpty() ? makeEngine(candidate, error) : Engine(nullptr, app_engine_destroy);
+    if (!next && incomplete.isEmpty()) { documentSource_=previousSource;setError(error); return false; }
     if (!incomplete.isEmpty()) error = incomplete;
     document_ = candidate; engine_ = std::move(next); ready_ = bool(engine_); lastFrame_ = 0; peak_ = 0;
     name_ = QFileInfo(path).completeBaseName(); dirty_ = false; setError(error); emit documentChanged(); emit metersChanged(); return true;
@@ -403,10 +449,10 @@ void StudioController::renderDemo(const QUrl& url) {
     const QString path = url.isLocalFile() ? url.toLocalFile() : url.toString(); if (path.isEmpty()) return;
     if (QFileInfo::exists(path)) { setError("Choose a new WAV filename; existing files are not overwritten."); return; }
     QString error; auto e = makeEngine(document_, error); if (!e) { setError(error); return; }
-    for (const auto& n : document_.value("modules").toArray()) { ws_event on{sizeof(on), 0, static_cast<uint32_t>(n.toObject().value("id").toInt()), WS_GATE, 0, 1, 1, 1, ws_engine_generation(e.get())}; ws_engine_enqueue(e.get(), &on); }
-    for (const auto& n : document_.value("modules").toArray()) { ws_event off{sizeof(off), 96000, static_cast<uint32_t>(n.toObject().value("id").toInt()), WS_GATE, 0, 0, 1, 1, ws_engine_generation(e.get())}; ws_engine_enqueue(e.get(), &off); }
+    for (const auto& n : document_.value("modules").toArray()) { ws_event on{sizeof(on), 0, static_cast<uint32_t>(n.toObject().value("id").toInt()), WS_GATE, 0, 1, 1, 1, app_engine_generation(e.get())}; app_engine_enqueue(e.get(), &on); }
+    for (const auto& n : document_.value("modules").toArray()) { ws_event off{sizeof(off), 96000, static_cast<uint32_t>(n.toObject().value("id").toInt()), WS_GATE, 0, 0, 1, 1, app_engine_generation(e.get())}; app_engine_enqueue(e.get(), &off); }
     const uint32_t frames = 192000; std::vector<qint16> samples(frames); float block[256];
-    for (uint32_t at = 0; at < frames; at += 256) { const auto n = std::min<uint32_t>(256, frames - at); if (ws_engine_render(e.get(), block, n) != WS_OK) { setError("Offline render failed."); return; } for (uint32_t i = 0; i < n; ++i) samples[at + i] = static_cast<qint16>(std::clamp(block[i] * WS_OUTPUT_GAIN, -1.f, 1.f) * 32767); }
+    for (uint32_t at = 0; at < frames; at += 256) { const auto n = std::min<uint32_t>(256, frames - at); if (app_engine_render(e.get(), block, n) != WS_OK) { setError("Offline render failed."); return; } for (uint32_t i = 0; i < n; ++i) samples[at + i] = static_cast<qint16>(std::clamp(block[i] * WS_OUTPUT_GAIN, -1.f, 1.f) * 32767); }
     QSaveFile file(path); if (!file.open(QIODevice::WriteOnly)) { setError(file.errorString()); return; }
     QDataStream stream(&file); stream.setByteOrder(QDataStream::LittleEndian);
     file.write("RIFF", 4); stream << quint32(36 + frames * 2); file.write("WAVEfmt ", 8); stream << quint32(16) << quint16(1) << quint16(1) << quint32(48000) << quint32(96000) << quint16(2) << quint16(16); file.write("data", 4); stream << quint32(frames * 2);
@@ -422,11 +468,35 @@ bool StudioController::smokeCheck(QJsonObject& result) {
     if (!ready_ || running()) { result["error"] = error_; return false; }
     const bool parameterAccepted = setParameter(1, 0, 330);
     QString error; auto e = makeEngine(document_, error); if (!e) { result["error"] = error; return false; }
-    for (const auto& n : document_.value("modules").toArray()) { ws_event on{sizeof(on), 0, static_cast<uint32_t>(n.toObject().value("id").toInt()), WS_GATE, 0, 1, 1, 1, ws_engine_generation(e.get())}; if (ws_engine_enqueue(e.get(), &on) != WS_OK) return false; }
+    for (const auto& n : document_.value("modules").toArray()) { ws_event on{sizeof(on), 0, static_cast<uint32_t>(n.toObject().value("id").toInt()), WS_GATE, 0, 1, 1, 1, app_engine_generation(e.get())}; if (app_engine_enqueue(e.get(), &on) != WS_OK) return false; }
     float block[256]; float peak = 0;
-    for (int i = 0; i < 30; ++i) { if (ws_engine_render(e.get(), block, 256) != WS_OK) return false; for (const auto v : block) { if (!std::isfinite(v)) return false; peak = std::max(peak, std::abs(v)); } }
+    for (int i = 0; i < 30; ++i) { if (app_engine_render(e.get(), block, 256) != WS_OK) return false; for (const auto v : block) { if (!std::isfinite(v)) return false; peak = std::max(peak, std::abs(v)); } }
     result["parameter_bridge"] = parameterAccepted; result["offline_peak"] = peak;
-    result["engine_abi"] = static_cast<int>(ws_engine_abi_version());
+    result["engine_abi"] = static_cast<int>(app_engine_abi_version());
     return parameterAccepted && peak > .01f && peak <= 1;
 }
 
+// Device-free offscreen integration probe, using the same note() ingress as QML.
+bool StudioController::keyboardChordCheck(QJsonObject &result) {
+    if (running() || !engine_) return false;
+    int keyboard = 0;
+    for (auto value : document_["modules"].toArray())
+        if (value.toObject()["type"] == "host.keyboard") {
+            keyboard = value.toObject()["id"].toInt();
+            break;
+        }
+    if (!keyboard) return false;
+    for (int pitch : {60, 64, 67, 72}) note(pitch, true);
+    float samples[256]{};
+    if (app_engine_render(engine_.get(), samples, 256) != WS_OK) return false;
+    const auto &native = app_engine_native(engine_.get());
+    int active = 0;
+    for (uint32_t c = 0; c < native.output_channels(keyboard, 1); ++c)
+        active += native.output_sample(keyboard, 1, c, 255) > .5f;
+    result["active_channels"] = active;
+    panic();
+    if (app_engine_render(engine_.get(), samples, 256) != WS_OK) return false;
+    for (uint32_t c = 0; c < native.output_channels(keyboard, 1); ++c)
+        if (native.output_sample(keyboard, 1, c, 255) != 0) return false;
+    return active == 4;
+}
