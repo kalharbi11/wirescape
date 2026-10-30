@@ -9,10 +9,16 @@ struct CcToCv {
     static constexpr std::array outputs{ws::port("cc1", "CC 1", WS2_CV_BI), ws::port("cc2", "CC 2", WS2_CV_BI), ws::port("cc3", "CC 3", WS2_CV_BI), ws::port("cc4", "CC 4", WS2_CV_BI), ws::port("cc5", "CC 5", WS2_CV_BI), ws::port("cc6", "CC 6", WS2_CV_BI), ws::port("cc7", "CC 7", WS2_CV_BI), ws::port("cc8", "CC 8", WS2_CV_BI)};
     static constexpr std::array<ws2_param, 0> params{};
     CcConfiguration config;
-    struct Row { double current = 0, target = 0, coefficient = 1; std::array<uint8_t, 128> msb{}, lsb{}; };
+    // Match the service's full 16-endpoint x 16-channel identity space.
+    static constexpr size_t identity_capacity = 16 * 16;
+    struct Row {
+        double current = 0, target = 0, coefficient = 1;
+        std::array<uint8_t, identity_capacity> msb{}, lsb{};
+    };
     std::array<Row, 8> rows{};
     struct Source { bool used = false; uint32_t id = 0, channel = 0; };
-    std::array<Source, 128> sources{}; uint64_t dropped = 0;
+    std::array<Source, identity_capacity> sources{};
+    uint64_t dropped = 0;
     int token(uint32_t id, uint32_t channel) {
         int free = -1;
         for (uint32_t i = 0; i < sources.size(); ++i) { if (sources[i].used && sources[i].id == id && sources[i].channel == channel) return int(i); if (!sources[i].used && free < 0) free = int(i); }

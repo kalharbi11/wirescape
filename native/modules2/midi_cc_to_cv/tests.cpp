@@ -2,7 +2,29 @@
 #include "dsp.h"
 #include "../../io/midi/module_test_support.h"
 using namespace wirescape::midi;
+static void full_endpoint_channel_matrix() {
+    CcConfiguration config;
+    config.rows[0].fourteen_bit = 1;
+    config.rows[0].smoothing_ms = 0;
+    MidiRig<CcToCv> r(reinterpret_cast<const uint8_t *>(&config), sizeof(config));
+    for (uint32_t source = 1; source <= 16; ++source)
+        for (uint32_t channel = 0; channel < 16; ++channel) {
+            r.run({midi1(uint8_t(0xb0 | channel), 33, 17, 0, source)});
+            REQUIRE(r.sample(0) == float(17. / 16383.));
+            r.run({midi1(uint8_t(0xb0 | channel), 1, 100, 0, source)});
+            REQUIRE(r.sample(0) == float((100. * 128 + 17) / 16383.));
+        }
+    for (uint32_t source = 1; source < 16; ++source) r.run({source_choke(source)});
+    for (uint32_t source = 17; source < 32; ++source)
+        for (uint32_t channel = 0; channel < 16; ++channel) {
+            r.run({midi1(uint8_t(0xb0 | channel), 33, 3, 0, source)});
+            REQUIRE(r.sample(0) == float(3. / 16383.)); // no retired source's MSB
+        }
+    r.run({midi1(0xbf, 33, 4, 0, 16)});
+    REQUIRE(r.sample(0) == float((100. * 128 + 4) / 16383.)); // survivor preserved
+}
 int main() {
+    full_endpoint_channel_matrix();
     CcConfiguration config; for (auto& row : config.rows) row.smoothing_ms = 0;
     config.rows[0].fourteen_bit = 1; config.rows[0].channel = 1; config.rows[1].bipolar = 1;
     MidiRig<CcToCv> r(reinterpret_cast<const uint8_t*>(&config), sizeof(config));
