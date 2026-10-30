@@ -338,6 +338,59 @@ private slots:
         emit bridge.parameterChanged(1, 0, 20000., "20000.0 Hz");
         QTRY_COMPARE(value(), 1.);
     }
+    void humanReadableParameterTooltips() {
+        ParameterBridge bridge;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty("studio", &bridge);
+        QQmlComponent component(&engine, QUrl("qrc:/qml/ParameterControl.qml"));
+        auto *object = component.beginCreate(engine.rootContext());
+        QVERIFY2(object, qPrintable(component.errorString()));
+        QVariantMap descriptor{{"id", 0},
+                               {"name", "Frequency"},
+                               {"minimum", 0.009999999776482582},
+                               {"maximum", 20000.},
+                               {"value", 440.},
+                               {"unit", "Hz"},
+                               {"display", "440 Hz"}};
+        object->setProperty("nodeId", 1);
+        object->setProperty("moduleId", "essentials.vco");
+        object->setProperty("presentation", "knob");
+        object->setProperty("descriptor", descriptor);
+        component.completeCreate();
+        QScopedPointer<QObject> owner(object);
+        auto *control = qobject_cast<QQuickItem *>(object);
+        QVERIFY(control);
+        QQuickWindow window;
+        window.resize(360, 230);
+        control->setParentItem(window.contentItem());
+        control->setWidth(236);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        QVERIFY(findNamed(control, "parameterKnob"));
+        const auto tooltip = [&] { return object->property("tooltipText").toString(); };
+        QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 0.01 Hz–20 kHz"));
+        QCOMPARE(object->property("acceptedValue").toDouble(), 440.);
+        QCOMPARE(object->property("acceptedDisplay").toString(), QString("440 Hz"));
+        const auto range = [&](double lo, const QString &unit, double hi) {
+            descriptor["minimum"] = lo;
+            descriptor["maximum"] = hi;
+            descriptor["unit"] = unit;
+            object->setProperty("descriptor", descriptor);
+        };
+        range(440., "Hz", 440.);
+        QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 440 Hz–440 Hz"));
+        range(0., "%", 100.);
+        QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 0 %–100 %"));
+        range(-12.345, "dB", 6.);
+        QCOMPARE(tooltip(), QString::fromUtf8("Frequency · -12.3 dB–6 dB"));
+        range(0.005, "s", 2.5);
+        QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 5 ms–2.5 s"));
+        object->setProperty("presentation", "slider");
+        QTRY_VERIFY(findNamed(control, "parameterSlider"));
+        QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 5 ms–2.5 s"));
+        QCOMPARE(object->property("acceptedValue").toDouble(), 440.);
+        QCOMPARE(bridge.calls, 0);
+    }
     void steppedSelectorRollback() {
         ParameterBridge bridge;
         bridge.accepted = 1.;
