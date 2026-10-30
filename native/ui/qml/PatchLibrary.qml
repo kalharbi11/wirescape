@@ -10,6 +10,10 @@ Item {
     width: 218; height: 34
     property string currentFile: ""
     property bool running: false
+    // Tests use transient history so they never modify user application settings.
+    property bool persistHistory: true
+    property string sessionRecent: "[]"
+    property string sessionFavourites: "[]"
     signal openRequested(string url)
     Settings {
         id: saved
@@ -55,21 +59,30 @@ Item {
                               hint: "Recently opened saved patch"});
         return choices;
     }
-    readonly property var entries: buildEntries(saved.recentPaths, saved.favouritePaths)
+    readonly property var entries: buildEntries(
+        persistHistory ? saved.recentPaths : sessionRecent,
+        persistHistory ? saved.favouritePaths : sessionFavourites)
     function recordOpened(url) {
         url = String(url);
         if (!isUserFile(url)) return;
-        var current = paths(saved.recentPaths).filter(function(item) { return item !== url; });
+        var current = paths(persistHistory ? saved.recentPaths : sessionRecent)
+            .filter(function(item) { return item !== url; });
         current.unshift(url);
-        saved.recentPaths = JSON.stringify(current.slice(0, 12));
+        if (persistHistory) saved.recentPaths = JSON.stringify(current.slice(0, 12));
+        else sessionRecent = JSON.stringify(current.slice(0, 12));
     }
-    function isFavourite(url) { return paths(saved.favouritePaths).indexOf(String(url)) >= 0; }
+    function isFavourite(url) {
+        return paths(persistHistory ? saved.favouritePaths : sessionFavourites)
+            .indexOf(String(url)) >= 0;
+    }
     function toggleFavourite() {
         if (!isUserFile(currentFile) || running) return;
-        var current = paths(saved.favouritePaths), index = current.indexOf(currentFile);
+        var current = paths(persistHistory ? saved.favouritePaths : sessionFavourites);
+        var index = current.indexOf(currentFile);
         if (index >= 0) current.splice(index, 1);
         else current.unshift(currentFile);
-        saved.favouritePaths = JSON.stringify(current.slice(0, 12));
+        if (persistHistory) saved.favouritePaths = JSON.stringify(current.slice(0, 12));
+        else sessionFavourites = JSON.stringify(current.slice(0, 12));
     }
     ComboBox {
         id: selector
