@@ -250,13 +250,16 @@ ApplicationWindow {
                 StudioButton { text: studio.cleanupPending ? "Retry audio cleanup" : studio.running ? "Stop audio" : "Start audio"; accent: true; enabled: (studio.running || studio.cleanupPending || studio.ready); objectName: "audioButton"; onClicked: { root.releaseHeldKeys(); (studio.running || studio.cleanupPending) ? studio.stopAudio() : studio.startAudio(); } }
                 Item { width: 9; height: 1 }
                 StudioButton {
-                    objectName: "minimizeButton"; text: "Minimize"; quiet: true
+                    objectName: "minimizeButton"; text: root.width < 1200 ? "Min" : "Minimize"; quiet: true
+                    Accessible.name: "Minimize window"
                     onClicked: root.visibility = Window.Minimized
                     ToolTip.visible: hovered; ToolTip.text: "Minimize to the taskbar"
                 }
                 StudioButton {
                     objectName: "fullscreenButton"; quiet: true
-                    text: root.visibility === Window.FullScreen ? "Exit full screen" : "Full screen"
+                    text: root.width < 1200 ? (root.visibility === Window.FullScreen ? "Exit" : "Full") :
+                          (root.visibility === Window.FullScreen ? "Exit full screen" : "Full screen")
+                    Accessible.name: root.visibility === Window.FullScreen ? "Exit full screen" : "Full screen"
                     onClicked: root.visibility = root.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen
                     ToolTip.visible: hovered; ToolTip.text: "Toggle full screen (Esc to exit)"
                 }
