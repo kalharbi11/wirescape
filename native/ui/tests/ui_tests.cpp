@@ -103,7 +103,8 @@ private slots:
         function refreshMidi() {} function setMidiAuthorized(v) {} function setMidiEndpoint(a,b,c) {}
     }
     )QML",
-                              QUrl("inmemory:/FakeStudio.qml"));
+                              QUrl("qrc:/qml/FakeStudio.qml"));
+        QTRY_VERIFY2(!fakeComponent.isLoading(), qPrintable(fakeComponent.errorString()));
         QVERIFY2(fakeComponent.isReady(), qPrintable(fakeComponent.errorString()));
         QScopedPointer<QObject> fakeStudio(fakeComponent.create());
         QVERIFY2(fakeStudio, qPrintable(fakeComponent.errorString()));
