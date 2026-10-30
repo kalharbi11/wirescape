@@ -101,11 +101,11 @@ Item {
         Slider {
             id: range
             objectName: "parameterSlider"
-            readonly property bool vertical: control.presentation === "fader"
-            width: vertical ? Math.min(72, input.width) : input.width
-            height: vertical ? input.height : 34
-            x: vertical ? (input.width - width) / 2 : 0
-            orientation: vertical ? Qt.Vertical : Qt.Horizontal
+            readonly property bool isFader: control.presentation === "fader"
+            width: isFader ? Math.min(72, input.width) : input.width
+            height: isFader ? input.height : 34
+            x: isFader ? (input.width - width) / 2 : 0
+            orientation: isFader ? Qt.Vertical : Qt.Horizontal
             enabled: control.hi > control.lo
             from: 0; to: 1
             stepSize: control.discrete ? 1 / (control.hi - control.lo) : 0
@@ -125,30 +125,30 @@ Item {
             Accessible.name: control.descriptor.name
             Accessible.description: control.acceptedDisplay
             background: Rectangle {
-                x: range.vertical ? range.width / 2 - width / 2 : range.leftPadding
-                y: range.vertical ? range.topPadding : range.topPadding + range.availableHeight / 2 - height / 2
-                width: range.vertical ? 3 : range.availableWidth
-                height: range.vertical ? range.availableHeight : 3
+                x: range.isFader ? range.width / 2 - width / 2 : range.leftPadding
+                y: range.isFader ? range.topPadding : range.topPadding + range.availableHeight / 2 - height / 2
+                width: range.isFader ? 3 : range.availableWidth
+                height: range.isFader ? range.availableHeight : 3
                 radius: 2; color: "#e4e1da"
                 Rectangle {
                     x: 0
-                    y: range.vertical ? parent.height * (1 - range.visualPosition) : 0
-                    width: range.vertical ? parent.width : range.visualPosition * parent.width
-                    height: range.vertical ? range.visualPosition * parent.height : parent.height
+                    y: range.isFader ? parent.height * (1 - range.visualPosition) : 0
+                    width: range.isFader ? parent.width : range.visualPosition * parent.width
+                    height: range.isFader ? range.visualPosition * parent.height : parent.height
                     radius: 2; color: "#c5774c"
                 }
             }
             handle: Rectangle {
-                x: range.vertical ? (range.width - width) / 2 :
+                x: range.isFader ? (range.width - width) / 2 :
                    range.leftPadding + range.visualPosition * (range.availableWidth - width)
-                y: range.vertical ? range.topPadding + (1 - range.visualPosition) * (range.availableHeight - height) :
+                y: range.isFader ? range.topPadding + (1 - range.visualPosition) * (range.availableHeight - height) :
                    range.topPadding + range.availableHeight / 2 - height / 2
-                width: range.vertical ? 31 : 18; height: range.vertical ? 16 : 24
+                width: range.isFader ? 31 : 18; height: range.isFader ? 16 : 24
                 radius: 5; color: "#393b39"
                 border.color: range.activeFocus ? "#c5774c" : "#393b39"
                 Rectangle {
                     anchors.centerIn: parent
-                    width: range.vertical ? 12 : 2; height: range.vertical ? 2 : 10
+                    width: range.isFader ? 12 : 2; height: range.isFader ? 2 : 10
                     color: "#faf9f6"; radius: 1
                 }
             }
