@@ -17,6 +17,10 @@ On refusal, rerun `python tools/dev.py build --config Release` (replace
 `Release` with `Debug` as needed). There is no automatic build. Portable
 packages, startup-test, audio readiness and UI test behavior are unchanged.
 
+Local full-file lint: `python -m ruff check tools/dev.py tools/foundation/tests/test_launch_freshness.py`.
+The hosted acceptance job does not provision Ruff; the existing static job runs it
+on these changed Python files. Keep lint required there rather than skipping it.
+
 ## Acceptance
 
 ```acceptance
@@ -25,7 +29,7 @@ budget: one bounded implementation attempt plus one fix
 size: <= 240 changed lines, <= 4 files
 must_pass:
   - python -m unittest tools.foundation.tests.test_launch_freshness tools.foundation.tests.test_build_parallel
-  - python -m ruff check tools/dev.py tools/foundation/tests/test_launch_freshness.py
+  - ci: static (Ruff on changed Python files)
   - ci: existing Windows Qt build and named offscreen tests green
 stops: [protected path, dependency, scope beyond development launcher freshness, budget exceeded]
 ```
