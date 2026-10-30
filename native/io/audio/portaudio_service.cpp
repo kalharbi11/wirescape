@@ -55,7 +55,7 @@ struct Context {
  std::function<void()> stop_producers;
  ~Context(){if(stop_producers)stop_producers();}
  EngineOwner engine;std::vector<float> scratch;std::atomic<uint64_t> xruns{0},faults{0};
- Context(EngineOwner e,uint32_t block):engine(std::move(e)),scratch(block*2){}
+ Context(EngineOwner e,uint32_t block):engine(std::move(e)),scratch(size_t{block}*2){}
 };
 int callback(const void*,void*output,unsigned long frames,const PaStreamCallbackTimeInfo*,PaStreamCallbackFlags flags,void*data){
  auto&c=*static_cast<Context*>(data);auto*out=static_cast<float*>(output);

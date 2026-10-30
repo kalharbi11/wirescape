@@ -19,7 +19,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,const n
  wirescape::midi::CcConfiguration config;size_t index=0;
  for(const auto&row:value.at("rows")){
   require(row.is_object(),"CC row must be an object");auto&r=config.rows[index++];
-  for(auto it=row.begin();it!=row.end();++it){auto key=it.key();auto&v=it.value();
+  for(auto it=row.begin();it!=row.end();++it){const auto& key=it.key();auto&v=it.value();
    if(key=="channel"||key=="controller"){
     require(v.is_number_integer(),"CC channel/controller must be integers");auto n=v.get<int64_t>();require(n>=0&&n<=(key=="channel"?16:127),"CC channel/controller outside range");
     if(key=="channel")r.channel=static_cast<uint8_t>(n);else r.controller=static_cast<uint8_t>(n);
