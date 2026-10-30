@@ -117,6 +117,7 @@ ApplicationWindow {
             let card = cards.itemAt(i);
             let input = card ? card.inputAt(position) : null;
             if (input) { chooseInput(card.descriptor.id, input.id, input.kind); return; }
+            if (card && card.coversDrop(position)) return;
         }
     }
     function centerNode(card) {

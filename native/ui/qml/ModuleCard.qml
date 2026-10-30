@@ -41,14 +41,19 @@ Rectangle {
         elide: Text.ElideRight; color: card.descriptor.missing ? "#b85d43" : "#858681"; font.pixelSize: 9; font.family: (typeof studioFontFamily !== "undefined" ? studioFontFamily : "Arial")
     }
     // Map the release through the scene transform, including pan and zoom.
-    function inputAt(position) {
-        for (let i = 0; i < inputPorts.count; ++i) {
-            let row = inputPorts.itemAt(i);
+    function portAt(ports, position) {
+        for (let i = 0; i < ports.count; ++i) {
+            let row = ports.itemAt(i);
             let p = row.mapFromItem(workspace.contentItem, position.x, position.y);
             if (p.x >= -4 && p.x <= row.width + 4 && p.y >= -4 && p.y <= row.height + 4)
                 return row.modelData;
         }
         return null;
+    }
+    function inputAt(position) { return portAt(inputPorts, position); }
+    function coversDrop(position) {
+        return contains(mapFromItem(workspace.contentItem, position.x, position.y)) ||
+               portAt(outputPorts, position) !== null;
     }
     Repeater {
         id: inputPorts
@@ -63,6 +68,7 @@ Rectangle {
         }
     }
     Repeater {
+        id: outputPorts
         model: card.descriptor.outputs
         delegate: Item {
             required property var modelData

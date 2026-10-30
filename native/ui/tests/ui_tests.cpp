@@ -558,17 +558,18 @@ private slots:
         QVERIFY(card->x() > oldPosition.x() + 10);
         QVERIFY(card->y() > oldPosition.y() + 10);
         const QPointF moved = card->position();
-        auto cableDrag = [&](const QString &source, const QString &destination) {
+        auto cableDrag = [&](const QString &source, const QString &destination, double targetX = .5) {
             auto *from = item(source), *to = item(destination);
             if (!from || !to) return false;
-            const QPoint a = center(from), b = center(to);
+            const QPoint a = center(from);
+            const QPoint b = to->mapToScene(QPointF(to->width() * targetX, to->height() / 2)).toPoint();
             QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, a);
             QTest::mouseMove(window, (a + b) / 2, 20);
             QTest::mouseMove(window, b, 20);
             QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, b);
             return true;
         };
-        QVERIFY(cableDrag("output_1_audio", "input_3_audio"));
+        QVERIFY(cableDrag("output_1_audio", "input_3_audio", .02));
         QTRY_COMPARE(studio.connections().size(), 1);
         QVERIFY(cableDrag("output_3_audio", "input_4_audio"));
         QTRY_COMPARE(studio.connections().size(), 2);
@@ -594,10 +595,25 @@ private slots:
         const auto expected = studio.connections();
         QVERIFY(studio.savePatch(path("mouse-edit.json")));
         QVERIFY(studio.loadPatch(path("mouse-edit.json")));
-        QCOMPARE(studio.connections(), expected);
+        const auto restored = studio.connections();
+        QCOMPARE(restored.size(), expected.size());
+        // Reload preserves nested v2 endpoint metadata in the editor view; compare all link fields.
+        for (int i = 0; i < expected.size(); ++i)
+            for (const auto &key : {"fromNode", "fromPort", "toNode", "toPort", "kind", "channels"})
+                QCOMPARE(restored[i].toMap().value(key), expected[i].toMap().value(key));
+        QVERIFY(studio.savePatch(path("mouse-edit-reloaded.json")));
+        QCOMPARE(read("mouse-edit-reloaded.json")["connections"], read("mouse-edit.json")["connections"]);
         card = item("module_1");
         QVERIFY(card);
         QCOMPARE(card->position(), moved);
+        // A later-painted LFO header covers VCA's CV input. Never connect through it.
+        studio.moveModule(2, 400, 100);
+        studio.disconnectCable(2); // Rebuild delegates with the overlapping layout; CV input is empty.
+        QTest::qWait(30);
+        QVERIFY(cableDrag("output_2_control", "input_3_gain_cv"));
+        QCOMPARE(studio.connections().size(), 2);
+        QTest::keyClick(window, Qt::Key_Escape);
+        QCOMPARE(window->property("pendingNode").toInt(), -1);
         QVERIFY(!studio.running());
     }
     void studioCableHandlesAreDistanceBounded() {
