@@ -15,6 +15,6 @@ budget: 1 bounded documentation pass
 size: <= 140 changed lines, <= 3 files
 must_pass:
   - python -m unittest tools/foundation/tests/test_doc_links.py
-  - git diff --check
+  - python -c "import subprocess; subprocess.run(['git', 'diff', '--check'], check=True)"
 stops: [scope exceeds size budget, source reference absent from main]
 ```
