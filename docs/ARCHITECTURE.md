@@ -207,8 +207,8 @@ MIDI ingress uses `native/io/midi/` (pinned libremidi plus a fake backend).
 producer 1 is reserved before engine preparation for timestamped D13 ingress.
 Interactive Studio accepts an explicit, remembered Enable MIDI preference;
 `--confirm-midi` remains supported for manual runner use. Offline, startup,
-smoke and probe paths ignore the interactive preference and never create a real
-backend from it. Enabled endpoint names and system-name fallbacks are saved in
+smoke, probe and CI-marked (`CI`/`GITHUB_ACTIONS`) paths ignore the interactive
+preference and never create a real backend from it. Enabled endpoint names and system-name fallbacks are saved in
 the patch's device records. The service exposes independent atomic receive
 counts per selected endpoint, including ports sharing a display name.
 Enabled input notes also reach existing `host.keyboard` nodes through producer1;

@@ -4,6 +4,7 @@
 #include "midi_host.h"
 #include <QJsonObject>
 #include <QObject>
+#include <QProcessEnvironment>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
@@ -40,6 +41,12 @@ class StudioController final : public QObject {
     Q_PROPERTY(int blockSize READ blockSize CONSTANT)
 public:
   enum class MidiPreference : std::uint8_t { Ignore, Interactive };
+  static MidiPreference midiMode(const QString &platform, bool probe, const QProcessEnvironment &env) {
+      return !probe && platform != QStringLiteral("offscreen") && platform != QStringLiteral("minimal") &&
+                     !env.contains(QStringLiteral("CI")) && !env.contains(QStringLiteral("GITHUB_ACTIONS"))
+                 ? MidiPreference::Interactive
+                 : MidiPreference::Ignore;
+  }
   using PatchWriter = std::function<bool(const QString &, const QByteArray &, QString &)>;
   explicit StudioController(QString directory, QObject *parent = nullptr, PatchWriter writer = {},
                             bool confirmMidi = false, MidiPreference midiPreference = MidiPreference::Ignore,

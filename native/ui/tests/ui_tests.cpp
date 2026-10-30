@@ -88,6 +88,21 @@ class UiTests : public QObject {
     static QPoint center(QQuickItem* item) { return item->mapToScene(QPointF(item->width()/2, item->height()/2)).toPoint(); }
 private slots:
     void initTestCase() { QVERIFY(temp_.isValid()); }
+    void midiModePolicy() {
+        const auto interactive = StudioController::MidiPreference::Interactive;
+        const auto ignore = StudioController::MidiPreference::Ignore;
+        const auto empty = QProcessEnvironment{};
+        QCOMPARE(StudioController::midiMode("windows", false, empty), interactive);
+        auto ci = empty;
+        ci.insert("CI", "");
+        QCOMPARE(StudioController::midiMode("windows", false, ci), ignore);
+        auto actions = empty;
+        actions.insert("GITHUB_ACTIONS", "true");
+        QCOMPARE(StudioController::midiMode("windows", false, actions), ignore);
+        QVERIFY(StudioController::midiMode("windows", true, empty) == ignore);
+        QVERIFY(StudioController::midiMode("offscreen", false, empty) == ignore);
+        QVERIFY(StudioController::midiMode("minimal", false, empty) == ignore);
+    }
     void midiPreferenceIsInteractiveOnly() {
         const auto settings = temp_.filePath("midi-preference.ini");
         int opens = 0;
