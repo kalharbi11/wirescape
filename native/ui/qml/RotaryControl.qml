@@ -8,7 +8,6 @@ Item {
     property string label: ""
     property string valueText: ""
     property int diameter: 86
-    property bool stepped: false
     signal moved(real position, bool fine)
     objectName: "parameterKnob"
     implicitWidth: diameter
@@ -73,7 +72,7 @@ Item {
             initial = dial.value;
         }
         onPositionChanged: function(mouse) {
-            if (pressed) dial.moved(Math.max(0, Math.min(1, initial + (origin - mouse.y) / 140)),
+            if (pressed) dial.moved(Math.max(0, Math.min(1, initial + (origin - mouse.y) /\n                                  ((mouse.modifiers & Qt.ShiftModifier) !== 0 ? 1400 : 140))),
                                   (mouse.modifiers & Qt.ShiftModifier) !== 0);
         }
     }
