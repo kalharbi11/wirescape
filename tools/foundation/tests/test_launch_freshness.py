@@ -75,6 +75,27 @@ class LaunchFreshnessTests(unittest.TestCase):
                     ready.assert_called_once()
                     self.assertIn("audio has not started", captured[0]["summary"])
 
+    def test_failed_build_invalidates_previous_gui_certificate(self):
+        for results in ([{"exit_code": 7}], [{"exit_code": 0}, {"exit_code": 7}]):
+            with self.subTest(stage=len(results)), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / "native").mkdir()
+                (root / "native/CMakeLists.txt").touch()
+                build = root / "build"
+                build.mkdir()
+                metadata = build / "build-metadata.json"
+                metadata.write_text(json.dumps({"ui_verified": True}))
+                with patch.object(dev, "ROOT", root), \
+                     patch.object(dev, "BUILD_DIR", build), \
+                     patch.object(dev, "_base_record", return_value={"source": {}}), \
+                     patch.object(dev, "_cmake_and_generator", return_value=("cmake", "Ninja", "x64")), \
+                     patch.object(dev, "_qt_prefix", return_value=None), \
+                     patch.object(dev, "run_logged", side_effect=results), \
+                     patch.object(dev, "_save_record"), patch.object(dev, "_print_record"):
+                    args = argparse.Namespace(config="Release", qt_prefix=None, headless=False, json=False)
+                    self.assertEqual(dev.command_build(args), 7)
+                self.assertIs(json.loads(metadata.read_text())["ui_verified"], False)
+
     def test_metadata_refresh_cannot_certify_leftover_gui(self):
         for ui_built, cache_value, expected in ((False, "ON", False),
                                                 (True, "OFF", False),

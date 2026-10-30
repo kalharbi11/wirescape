@@ -21,12 +21,16 @@ Local full-file lint: `python -m ruff check tools/dev.py tools/foundation/tests/
 The hosted acceptance job does not provision Ruff; the existing static job runs it
 on these changed Python files. Keep lint required there rather than skipping it.
 
+Self-decision: the standing planner authorization permits up to +50% for #156.
+Use 280 lines (from 240, +16.7%) and the same 4-file cap for failed-build
+certificate regression coverage and isolation of helper-test build metadata.
+
 ## Acceptance
 
 ```acceptance
 tier: T0
 budget: one bounded implementation attempt plus one fix
-size: <= 240 changed lines, <= 4 files
+size: <= 280 changed lines, <= 4 files
 must_pass:
   - python -m unittest tools.foundation.tests.test_launch_freshness tools.foundation.tests.test_build_parallel
   - ci: static (Ruff on changed Python files)
