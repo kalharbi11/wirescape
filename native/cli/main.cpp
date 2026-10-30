@@ -1,4 +1,5 @@
 #include "app_engine.h"
+#include "play.h"
 #include "wirescape/output_policy.h"
 #include <algorithm>
 #include <chrono>
@@ -173,6 +174,7 @@ void benchmark(const std::string &dir, const std::string &path, uint32_t blocks)
 } // namespace
 int main(int argc, char **argv) {
     try {
+        if(argc>1&&std::string(argv[1])=="play")return wirescape_play(argc,argv);
         if (argc < 2) {
             std::cout << "wirescape_cli render --modules DIR --output demo.wav\nwirescape_cli "
                          "benchmark --modules DIR [--json report.json] [--blocks 3000]\n";

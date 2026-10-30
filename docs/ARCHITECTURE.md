@@ -170,3 +170,44 @@ The ABI2 built-in catalogue has one registration list,
 module DSP header in `module_catalog.h`. Modules with external link dependencies
 attach those dependencies to the `wirescape_catalog_dependencies` interface target
 in their own CMake registration. The app engine links that target.
+
+## J2 keyboard polyphony candidate
+
+`native/voice/note_to_cv.h` (MIT) is the reusable event-to-voice adapter used by
+`host.keyboard` and available to MIDI→CV. It preserves source identity, isolates
+sustain by source/channel, forwards assigned-voice events, and emits choke before
+replacement attack. Anonymous repeated-key releases are FIFO in the allocator.
+Only the first Keyboard module receives app keys. New patches connect Keyboard
+pitch to VCO and gate to ADSR. Output uses SUM input policy; voices collapse at
+that module before the stereo device duplication. Cable badges display configured
+signal widths propagated through the document graph without reading render-owned
+metadata concurrently. Computer key-repeat suppression and focus-loss release
+remain in the existing QML key handler. Panic resets every voice at render boundary.
+
+## J3 runtime candidate
+
+`native/document/runtime_patch.*` is the Qt-free v1/v2 parser and graph builder
+used by `app_patch` and `wirescape_cli play`. The pinned MIT nlohmann/json library
+is used only quiescently. Qt document migration/preservation and the atomic writer
+remain separate. Runtime input rejects duplicates, oversized/deep documents,
+unknown modules/parameters and unsupported nonempty module config. Service-specific
+config adapters are left to J4/J5 rather than silently dropping configuration.
+
+Without `--confirm-audio`, play writes a ten-second stereo WAV under build and
+reports peak/RMS and block timings. `--seconds 600 --pace` runs the loader soak.
+Only explicit user confirmation reaches `native/io/audio/portaudio_service.*`,
+which dynamically loads PortAudio and keeps backend code resident. Its callback
+renders engine2 into preallocated stereo buffers; control code prints CPU/xruns.
+Ctrl+C stops the loop and closes/terminates the backend before destroying the
+engine. The Qt-free runner exposes reserved MIDI/OSC options that currently refuse
+execution pending their services. See `docs/PI_SETUP.md` for the user commands.
+
+MIDI ingress uses `native/io/midi/` (pinned libremidi plus a fake backend).
+`native/control/midi_host.*` owns endpoint selections and the service lifetime;
+producer 1 is reserved before engine preparation for timestamped D13 ingress.
+The app's MIDI settings and runner `play --midi <name>` require launch with
+`--confirm-midi` before a real backend is created. Enabled endpoint names and
+system-name fallbacks are saved in the patch's device records. Shutdown joins
+MIDI producers and drains source chokes before stopping render or destroying its
+engine. Raw MIDI releases use the same reserved queue classification as note
+releases; MIDI 2 zero-velocity Note On remains a Note On.

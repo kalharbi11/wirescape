@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "ports.macro_oscillator",
+  "name": "Macro Oscillator",
+  "library": "ws2_macro_oscillator",
+  "description": "Twenty-four-model oscillator; 48 kHz only, up to eight voices.",
+  "license": "GPL-3.0-only",
+  "parameters": {
+    "model": 0,
+    "coarse": 1,
+    "harmonics": 2,
+    "timbre": 3,
+    "morph": 4,
+    "fm_amount": 5,
+    "timbre_amount": 6,
+    "morph_amount": 7,
+    "decay": 8,
+    "lpg_colour": 9
+  },
+  "inputs": {
+    "pitch": "signal",
+    "model_cv": "signal",
+    "fm": "signal",
+    "harmonics_cv": "signal",
+    "timbre_cv": "signal",
+    "morph_cv": "signal",
+    "trigger": "signal",
+    "level": "signal"
+  },
+  "outputs": {
+    "main": "signal",
+    "aux": "signal"
+  }
+}

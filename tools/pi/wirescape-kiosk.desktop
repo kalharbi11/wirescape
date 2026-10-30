@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-only
+[Desktop Entry]
+Type=Application
+Name=Wirescape Studio
+Comment=Full-screen Studio; audio remains stopped until the owner starts it
+Exec=wirescape_studio --fullscreen
+TryExec=wirescape_studio
+Terminal=false
+Hidden=true
+Categories=AudioVideo;Audio;

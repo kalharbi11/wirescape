@@ -5,6 +5,8 @@ Item {
     id: control
     required property var descriptor
     required property int nodeId
+    property string moduleId: ""
+    readonly property bool isClockRun: moduleId === "essentials.clock" && Number(descriptor.id) === 3
     readonly property real lo: Number(descriptor.minimum)
     readonly property real hi: Number(descriptor.maximum)
     readonly property bool logarithmic: lo > 0 && hi / lo >= 20 && (descriptor.unit === "Hz" || descriptor.unit === "s")
@@ -18,13 +20,15 @@ Item {
     Text {
         anchors.right: parent.right; y: 2
         objectName: "parameterDisplay"
+        visible: !control.isClockRun
         text: control.acceptedDisplay
         color: "#393b39"; font.family: (typeof studioFontFamily !== "undefined" ? studioFontFamily : "Arial"); font.pixelSize: 12
     }
     Slider {
         id: slider
         objectName: "parameterSlider"
-        enabled: control.hi > control.lo
+        enabled: !control.isClockRun && control.hi > control.lo
+        visible: !control.isClockRun
         anchors.left: parent.left; anchors.right: parent.right; y: 20; height: 34
         from: 0; to: 1
         value: control.normalized(control.acceptedValue)
@@ -46,6 +50,19 @@ Item {
         }
         ToolTip.visible: hovered
         ToolTip.text: control.descriptor.name + " · " + control.lo + "–" + control.hi + " " + control.descriptor.unit
+    }
+    StudioButton {
+        id: clockRunButton
+        objectName: "clockRunToggle"
+        visible: control.isClockRun
+        enabled: control.isClockRun && control.hi > control.lo
+        x: 0; y: 20; width: parent.width; height: 34
+        quiet: true
+        text: control.acceptedValue >= 0.5 ? "Stop Clock" : "Start Clock"
+        Accessible.name: text
+        ToolTip.visible: hovered
+        ToolTip.text: "Toggle this Clock module only; global audio is unchanged"
+        onClicked: studio.setParameter(control.nodeId, control.descriptor.id, control.acceptedValue >= 0.5 ? 0 : 1)
     }
     Connections {
         target: studio

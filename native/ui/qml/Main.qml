@@ -37,6 +37,13 @@ ApplicationWindow {
         }
     }
     onActiveFocusItemChanged: if (activeFocusItem !== keyboardSurface) releaseHeldKeys()
+    // Window-scoped so Escape exits fullscreen even when a toolbar/control has focus.
+    Shortcut {
+        sequence: "Esc"
+        context: Qt.WindowShortcut
+        enabled: root.visibility === Window.FullScreen
+        onActivated: root.visibility = Window.Windowed
+    }
     Connections {
         target: studio
         function onStatusChanged() { if (!studio.running) root.releaseHeldKeys(); }
@@ -142,6 +149,24 @@ ApplicationWindow {
         let index = keys.indexOf(key); return index < 0 ? -1 : 60 + index;
     }
     onActiveChanged: if (!active) { releaseHeldKeys(); studio.setGate(false); studio.panic(); }
+    Dialog {
+        id: midiDialog; title: "MIDI inputs"; modal: true; standardButtons: Dialog.Close
+        Column {
+            spacing: 8
+            Label { text: studio.midiAuthorized ? "Stop playback to select inputs." : "Launch with --confirm-midi to enable MIDI inputs." }
+            Label { text: "Received " + studio.midiCounters.received + " / dropped " + studio.midiCounters.dropped + " / malformed " + studio.midiCounters.malformed }
+            Repeater {
+                model: studio.midiEndpoints
+                CheckBox {
+                    required property var modelData
+                    text: modelData.name; checked: modelData.enabled
+                    enabled: studio.midiAuthorized && !studio.running
+                    onToggled: studio.setMidiEndpoint(modelData.name, modelData.systemName, checked)
+                }
+            }
+            Button { text: "Refresh inputs"; enabled: !studio.running; onClicked: studio.refreshMidi() }
+        }
+    }
     FileDialog {
         id: saveDialog; objectName: "saveDialog"; title: "Save patch"; fileMode: FileDialog.SaveFile
         nameFilters: ["Wirescape patch (*.json)"]; defaultSuffix: "json"
@@ -235,12 +260,28 @@ ApplicationWindow {
                 Text { width: parent.width; elide: Text.ElideRight; text: studio.running ? "Live signal · stop audio to edit the patch" : "A small system. An open signal path."; color: "#858681"; font.pixelSize: 10 }
             }
             Row { id: toolbarActions; objectName: "toolbarActions"; anchors.right: parent.right; anchors.rightMargin: 22; anchors.verticalCenter: parent.verticalCenter; spacing: 5
+                StudioButton { text: "MIDI"; enabled: !studio.running; onClicked: midiDialog.open() }
                 StudioButton { objectName: "newButton"; text: "New"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("new") }
                 StudioButton { objectName: "openButton"; text: "Open"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("open") }
                 StudioButton { objectName: "saveButton"; text: "Save"; onClicked: root.beginSave("") }
                 StudioButton { text: "Test render"; enabled: !studio.running; onClicked: { root.releaseHeldKeys(); renderDialog.open(); } }
                 Item { width: 9; height: 1 }
                 StudioButton { text: studio.cleanupPending ? "Retry audio cleanup" : studio.running ? "Stop audio" : "Start audio"; accent: true; enabled: (studio.running || studio.cleanupPending || studio.ready); objectName: "audioButton"; onClicked: { root.releaseHeldKeys(); (studio.running || studio.cleanupPending) ? studio.stopAudio() : studio.startAudio(); } }
+                Item { width: 9; height: 1 }
+                StudioButton {
+                    objectName: "minimizeButton"; text: root.width < 1200 ? "Min" : "Minimize"; quiet: true
+                    Accessible.name: "Minimize window"
+                    onClicked: root.visibility = Window.Minimized
+                    ToolTip.visible: hovered; ToolTip.text: "Minimize to the taskbar"
+                }
+                StudioButton {
+                    objectName: "fullscreenButton"; quiet: true
+                    text: root.width < 1200 ? (root.visibility === Window.FullScreen ? "Exit" : "Full") :
+                          (root.visibility === Window.FullScreen ? "Exit full screen" : "Full screen")
+                    Accessible.name: root.visibility === Window.FullScreen ? "Exit full screen" : "Full screen"
+                    onClicked: root.visibility = root.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen
+                    ToolTip.visible: hovered; ToolTip.text: "Toggle full screen (Esc to exit)"
+                }
             }
         }
         Item {
@@ -287,6 +328,13 @@ ApplicationWindow {
                             fillColor: "transparent"
                             startX: cable.a.x; startY: cable.a.y
                             PathCubic { x: cable.b.x; y: cable.b.y; control1X: cable.a.x + cable.bend; control1Y: cable.a.y + 20; control2X: cable.b.x - cable.bend; control2Y: cable.b.y + 20 }
+                        }
+                        Rectangle {
+                            visible: cable.modelData.channels > 1
+                            x: (cable.a.x + cable.b.x) / 2 + 10
+                            y: (cable.a.y + cable.b.y) / 2 + 8
+                            width: 22; height: 17; radius: 4; color: "#eeede9"
+                            Text { anchors.centerIn: parent; text: cable.modelData.channels; font.pixelSize: 11; color: "#614d42" }
                         }
                         Rectangle {
                             x: (cable.a.x + cable.b.x) / 2 - 7

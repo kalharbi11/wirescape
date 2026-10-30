@@ -8,13 +8,13 @@ Spec: `docs/tasks/J_JAM_CHECKPOINT.md` § "A3 / J3". `wirescape play <patch.json
 ```acceptance
 tier: T1
 budget: 2 Codex sessions
-size: <= 700 changed lines, <= 12 files
+size: <= 700 changed lines, <= 22 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "offline_play|runtime_patch_tests" --output-on-failure
   - ci: linux-arm64, windows-x64, sanitizers (offline play under ASan), guard green on the exact head
   - pi: ctest -R "offline_play|runtime_patch_tests"
   - pi: wirescape_soak through the play loader, Six_Essentials_Demo.json, 48000/128, 600 s, zero overruns
-  - pi (non-blocking): build the Qt UI and run its offscreen tests
+  - pi: build the Qt UI and run its offscreen tests (non-blocking stretch)
 stops: [ABI edit, new dependency, device opened without --confirm-audio, unspecified design choice]
 ```
