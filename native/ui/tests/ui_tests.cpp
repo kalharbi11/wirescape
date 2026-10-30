@@ -345,9 +345,13 @@ private slots:
         QQmlComponent component(&engine, QUrl("qrc:/qml/ParameterControl.qml"));
         auto *object = component.beginCreate(engine.rootContext());
         QVERIFY2(object, qPrintable(component.errorString()));
-        QVariantMap descriptor{{"id", 0}, {"name", "Frequency"},
-                               {"minimum", 0.009999999776482582}, {"maximum", 20000.},
-                               {"value", 440.}, {"unit", "Hz"}, {"display", "440 Hz"}};
+        QVariantMap descriptor{{"id", 0},
+                               {"name", "Frequency"},
+                               {"minimum", 0.009999999776482582},
+                               {"maximum", 20000.},
+                               {"value", 440.},
+                               {"unit", "Hz"},
+                               {"display", "440 Hz"}};
         object->setProperty("nodeId", 1);
         object->setProperty("moduleId", "essentials.vco");
         object->setProperty("presentation", "knob");
@@ -367,19 +371,19 @@ private slots:
         QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 0.01 Hz–20 kHz"));
         QCOMPARE(object->property("acceptedValue").toDouble(), 440.);
         QCOMPARE(object->property("acceptedDisplay").toString(), QString("440 Hz"));
-        const auto range = [&](double lo, double hi, const QString &unit) {
+        const auto range = [&](double lo, const QString &unit, double hi) {
             descriptor["minimum"] = lo;
             descriptor["maximum"] = hi;
             descriptor["unit"] = unit;
             object->setProperty("descriptor", descriptor);
         };
-        range(440., 440., "Hz");
+        range(440., "Hz", 440.);
         QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 440 Hz–440 Hz"));
-        range(0., 100., "%");
+        range(0., "%", 100.);
         QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 0 %–100 %"));
-        range(-12.345, 6., "dB");
+        range(-12.345, "dB", 6.);
         QCOMPARE(tooltip(), QString::fromUtf8("Frequency · -12.3 dB–6 dB"));
-        range(0.005, 2.5, "s");
+        range(0.005, "s", 2.5);
         QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 5 ms–2.5 s"));
         object->setProperty("presentation", "slider");
         QTRY_VERIFY(findNamed(control, "parameterSlider"));
