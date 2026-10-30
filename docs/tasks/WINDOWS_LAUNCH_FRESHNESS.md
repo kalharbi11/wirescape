@@ -24,8 +24,8 @@ tier: T0
 budget: one bounded implementation attempt plus one fix
 size: <= 240 changed lines, <= 4 files
 must_pass:
-  - focused Python unittest tests for launcher/build provenance
-  - ruff on changed Python files
+  - python -m unittest tools.foundation.tests.test_launch_freshness tools.foundation.tests.test_build_parallel
+  - ruff check tools/dev.py tools/foundation/tests/test_launch_freshness.py
   - ci: existing Windows Qt build and named offscreen tests green
 stops: [protected path, dependency, scope beyond development launcher freshness, budget exceeded]
 ```

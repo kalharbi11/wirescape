@@ -7,7 +7,6 @@ import argparse
 import json
 import os
 import sys
-import subprocess
 import shutil
 import io
 import unittest
@@ -573,7 +572,8 @@ def command_ui_test(args: argparse.Namespace) -> int:
         record["command_result"] = layouts[-1]["command_result"]
         record["screenshot"] = layouts[-1]["screenshot"]
         record["ui_report"] = layouts[-1]["ui_report"]
-        if "ui_test" in layouts[-1]: record["ui_test"] = layouts[-1]["ui_test"]
+        if "ui_test" in layouts[-1]:
+            record["ui_test"] = layouts[-1]["ui_test"]
     success = len(layouts) == 2 and all(item["status"] == "passed" for item in layouts)
     record["status"] = "passed" if success else "failed"
     record["summary"] = "Qt offscreen UI passed at 1400x900 and 1000x650" if success else "Qt UI size check failed; see per-layout reports"
@@ -587,12 +587,16 @@ def command_startup_test(args: argparse.Namespace) -> int:
     record = _base_record("startup-test", args.config)
     if not args.portable and os.name != "nt":
         record.update(status="skipped", summary="Normal-window startup check is Windows-only")
-        path = _save_record(record); _print_record(record, path, args.json); return 2
+        path = _save_record(record)
+        _print_record(record, path, args.json)
+        return 2
     executable = (Path(args.portable).expanduser().resolve() / ("wirescape_studio.exe" if os.name == "nt" else "wirescape_studio")
                   if args.portable else _studio_executable(args.config))
     if not executable or not executable.is_file():
         record.update(status="skipped", summary="Startup check skipped: Wirescape Studio executable was not found")
-        path = _save_record(record); _print_record(record, path, args.json); return 2
+        path = _save_record(record)
+        _print_record(record, path, args.json)
+        return 2
     ready_path = _unique_report_path("studio-startup-ready", ".json")
     env = _qt_runtime_env(executable) if not args.portable else _portable_runtime_env(executable.parent)
     env["QT_FORCE_STDERR_LOGGING"] = "1"
@@ -609,7 +613,8 @@ def command_startup_test(args: argparse.Namespace) -> int:
                   summary="Normal-window startup reached ready state with audio off" if valid else "Startup readiness report failed validation",
                   executable=str(executable), command_result=result, readiness_report=str(ready_path),
                   readiness=ready, scope="Self-closing startup check; does not start audio")
-    path = _save_record(record); _print_record(record, path, args.json)
+    path = _save_record(record)
+    _print_record(record, path, args.json)
     return 0 if valid else 1
 
 
@@ -631,16 +636,21 @@ def command_package(args: argparse.Namespace) -> int:
     backend = next((path for path in candidates if path.is_file()), None)
     if os.name != "nt" or not executable or not deploy or not deploy.is_file() or not backend or not backend.is_file():
         record.update(status="failed", summary="Package requires a Windows Qt build and PortAudio DLL (set WIRESCAPE_PORTAUDIO or use --portaudio PATH).")
-        path = _save_record(record); _print_record(record, path, args.json); return 1
+        path = _save_record(record)
+        _print_record(record, path, args.json)
+        return 1
     if metadata.get("configuration") != args.config:
         record.update(status="failed", summary="Build configuration does not match requested package configuration.")
-        path = _save_record(record); _print_record(record, path, args.json); return 1
+        path = _save_record(record)
+        _print_record(record, path, args.json)
+        return 1
     destination = ROOT / "build" / "packages" / f"wirescape-{args.config.lower()}-{utc_stamp()}"
     destination.mkdir(parents=True, exist_ok=False)
     for name in ("wirescape_studio.exe", "wirescape_cli.exe", "wirescape_engine.dll"):
         shutil.copy2(executable.parent / name, destination / name)
     for pattern in ("ws_*.dll", "ws_*.module.json"):
-        for module in executable.parent.glob(pattern): shutil.copy2(module, destination / module.name)
+        for module in executable.parent.glob(pattern):
+            shutil.copy2(module, destination / module.name)
     shutil.copy2(backend, destination / "libportaudio64bit.dll")
     shutil.copy2(ROOT / "LICENSE", destination / "LICENSE")
     shutil.copy2(ROOT / "native/ui/third_party/PORTAUDIO_LICENSE.txt", destination / "PORTAUDIO_LICENSE.txt")
@@ -650,7 +660,8 @@ def command_package(args: argparse.Namespace) -> int:
         "Test render is 4 seconds mono; long releases may be cut off.\n"
         "Not an installer or public redistribution release. Qt 6 and MSVC runtimes are dynamically deployed.\n"
         "A clean Windows machine and physical audio still require validation.\n", encoding="utf-8")
-    env = os.environ.copy(); env["PATH"] = str(prefix / "bin") + os.pathsep + env.get("PATH", "")
+    env = os.environ.copy()
+    env["PATH"] = str(prefix / "bin") + os.pathsep + env.get("PATH", "")
     deploy_result = run_logged([str(deploy), "--" + args.config.lower(), "--no-translations", "--compiler-runtime", "--include-plugins", "qoffscreen",
                                "--qmldir", str(ROOT / "native/ui/qml"), str(destination / executable.name)],
                               ROOT, _unique_report_path("package-deploy", ".log"), env, timeout=180)
@@ -660,7 +671,8 @@ def command_package(args: argparse.Namespace) -> int:
         # Exclude development SDK/plugin/backend overrides. This is a local isolated-path
         # smoke check, not proof of installation on a clean Windows machine.
         clean = _portable_runtime_env(destination)
-        clean["QT_QPA_PLATFORM"] = "offscreen"; clean["QT_QUICK_BACKEND"] = "software"
+        clean["QT_QPA_PLATFORM"] = "offscreen"
+        clean["QT_QUICK_BACKEND"] = "software"
         clean["QT_FORCE_STDERR_LOGGING"] = "1"
         smoke = run_logged([str(destination / executable.name), "--smoke-test", "--screenshot",
                             str(destination / "package-smoke.png"), "--report", str(destination / "package-smoke.json")],
@@ -710,7 +722,8 @@ def command_package(args: argparse.Namespace) -> int:
         failed = failed or {"name": "package_inventory"}
     record["status"] = "failed" if failed else "passed"
     record["summary"] = "Local portable package, offline smoke, normal-window startup and integrity inventory passed" if not failed else f"Package {failed['name']} failed; see log/report"
-    path = _save_record(record); _print_record(record, path, args.json)
+    path = _save_record(record)
+    _print_record(record, path, args.json)
     return 1 if failed else 0
 
 
@@ -807,7 +820,8 @@ def command_check(args: argparse.Namespace) -> int:
     for item in artifacts:
         location = item.get("report") or item.get("log") or "—"
         state = item.get("status", "passed" if item.get("exit_code") == 0 else "failed")
-        if "exit_code" in item and item["exit_code"] == 0: state = "passed"
+        if "exit_code" in item and item["exit_code"] == 0:
+            state = "passed"
         lines.append(f"| {item['name']} | {state} | `{location}` |")
     markdown.write_text("\n".join(lines) + "\n", encoding="utf-8")
     record["markdown_summary"] = str(markdown)
