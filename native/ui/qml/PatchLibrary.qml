@@ -62,6 +62,7 @@ Item {
     readonly property var entries: buildEntries(
         persistHistory ? saved.recentPaths : sessionRecent,
         persistHistory ? saved.favouritePaths : sessionFavourites)
+    readonly property int entryCount: entries.length
     function recordOpened(url) {
         url = String(url);
         if (!isUserFile(url)) return;
