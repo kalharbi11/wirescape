@@ -59,6 +59,22 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
              "two CHAOS instances each render exactly four voices");
      require(native.meter().faults == 0 && peak > 0, "non-silent fault-free CHAOS fixture");
  }
+ {
+  QFile fixture(QFileInfo(QString::fromLocal8Bit(argv[2])).dir().filePath("chaos_usb_midi.json"));
+  require(fixture.open(QIODevice::ReadOnly),"read USB MIDI CHAOS fixture");
+  auto document=read_patch(fixture.readAll(),app_catalog(cat.get()));QString why;
+  require(document.valid(),"validate USB MIDI CHAOS fixture");
+  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)> graph(build_app_patch(cat.get(),document,cfg,why),app_engine_destroy);
+  require(bool(graph),"build USB MIDI CHAOS fixture");auto& engine=app_engine_native(graph.get());
+  for(uint32_t key:{60u,64u,67u,72u}){ws2_event event{};event.struct_size=sizeof(event);event.type=WS2_MIDI;
+   event.source_id=1;event.channel=-1;event.note_id=-1;event.ump_words=1;event.ump[0]=0x20900000u|(key<<8)|127u;
+   require(engine.enqueue(0,1,WS2_DIRECT_PORT,event,0)==WS2_OK,"fake USB MIDI chord");}
+  float output[128];float peak=0;
+  for(int block=0;block<16;++block){int result;{allocation_watch::Scope watch;result=app_engine_render(graph.get(),output,128);require(watch.allocations()==0,"MIDI CHAOS callback allocations");}
+   require(result==WS_OK,"MIDI CHAOS render");for(float sample:output){require(std::isfinite(sample),"finite MIDI CHAOS output");peak=std::max(peak,std::abs(sample));}}
+  require(engine.output_channels(2,0)==4&&engine.output_channels(3,0)==4,"MIDI CHAOS four voices");
+  require(peak>0&&engine.meter().faults==0,"MIDI CHAOS non-silent without devices");
+ }
  QFile file(argv[2]);require(file.open(QIODevice::ReadOnly),"read demo");auto bytes=file.readAll();auto source=QJsonDocument::fromJson(bytes).object();auto patch=read_patch(bytes,app_catalog(cat.get()));require(patch.valid(),"migrate demo");QString error;
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>e(build_app_patch(cat.get(),patch,cfg,error),app_engine_destroy);if(!e)std::cerr<<error.toStdString()<<'\n';require(bool(e),"build engine2 demo from loader");
  require(app_engine_native(e.get()).descriptor(1)->abi_version==2,"app uses ABI2, not shim for Essentials");
