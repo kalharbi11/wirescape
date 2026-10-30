@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Storage isolation for the pinned upstream RNG API. No DSP translation unit is edited.
+#pragma once
+#include <cstdint>
+#include <cstdio>
+#define Random WirescapeUnusedGlobalRandom
+#include "stmlib/utils/random.h"
+#undef Random
+namespace stmlib {
+// Exact upstream 32-bit LCG arithmetic, with a thread-local register instead of
+// mutable process-global storage. The adapter checkpoints it for every voice.
+// Copyright 2012 Emilie Gillet. Permission is hereby granted, free of charge, to any
+// person obtaining a copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including without
+// limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom the Software
+// is furnished to do so, subject to the following conditions: The above copyright
+// notice and this permission notice shall be included in all copies or substantial
+// portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+// ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
+// EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+// OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+class Random {
+#if defined(__GNUC__) && !defined(_WIN32)
+    // Reserve static TLS at load time rather than lazily allocating on first render.
+    inline static thread_local uint32_t state_ __attribute__((tls_model("initial-exec"))) = 0x21;
+#else
+    inline static thread_local uint32_t state_ = 0x21;
+#endif
+  public:
+    static uint32_t state() { return state_; }
+    static void Seed(uint32_t value) { state_ = value; }
+    static uint32_t GetWord() {
+        state_ = state_ * 1664525u + 1013904223u;
+        return state_;
+    }
+    static int16_t GetSample() { return static_cast<int16_t>(GetWord() >> 16); }
+    static float GetFloat() { return static_cast<float>(GetWord()) / 4294967296.0f; }
+};
+} // namespace stmlib
+namespace macro_oscillator {
+struct RngScope {
+    uint32_t &voice;
+    uint32_t prior;
+    explicit RngScope(uint32_t &state) : voice(state), prior(stmlib::Random::state()) { stmlib::Random::Seed(voice); }
+    ~RngScope() {
+        voice = stmlib::Random::state();
+        stmlib::Random::Seed(prior);
+    }
+};
+} // namespace macro_oscillator
