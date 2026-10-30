@@ -20,7 +20,8 @@ struct MidiToCv {
         ws::param("channel_filter", "Channel (0 = Omni)", 0, 16, 0, "", stepped, WS2_LINEAR, 9, 4, 1)};
     voice::NoteToCv core;
     struct Expression { bool used = false; uint32_t source = 0, channel = 0; float bend = 0, aftertouch = 0, mod = 0; bool pedal = false; };
-    std::array<Expression, 128> expressions{};
+    // Service supports 16 endpoints x 16 channels; retain controller state until source choke.
+    std::array<Expression, size_t{16} * 16> expressions{};
     std::array<ws2_event, 256> pending{}; uint32_t pending_count = 0; bool panic_pending = false;
     uint32_t max_channels = 16; voice::Config configured{}; uint32_t filter = 0; bool valid_config = false, sustain_hold = true;
     uint64_t dropped = 0, ignored = 0;

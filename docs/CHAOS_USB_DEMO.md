@@ -6,9 +6,12 @@ J2 + J4 + the CHAOS catalogue integration. It uses current CHAOS-lite synthesis,
 with no tape stage. Other synthesis/body/drift features are retained.
 
 1. User connects USB-to-aux audio adapter and the powered USB hub to the Pi;
-   M8 and Launchpad X/Launchkey connect to the hub. HDMI is display-only.
-2. On the Pi's graphical desktop, launch `build/pi-ui/wirescape_studio --modules build/pi-ui --confirm-midi`.
-   Add `--fullscreen` only after the fullscreen feature is integrated in this build.
+   Launchkey/LPD8 (or M8/Launchpad) connect to the hub. HDMI is display-only.
+2. From a UI-enabled Release build on the Pi desktop, launch
+   `build/pi-ui/Release/wirescape_studio --modules build/pi-ui --confirm-midi --fullscreen`.
+   For a persistent `tools/dev.py build` checkout, use `build/native/Release/wirescape_studio`
+   and `--modules build/native` instead. Keep that checkout outside runner cleanup;
+   use the accepted SHA, not a temporary workflow build directory. Esc leaves fullscreen.
 3. Open `native/examples/chaos_usb_midi.json`. While stopped, use MIDI settings
    to enable the actual device endpoints. No device names are guessed or enabled
    by this preset. Select performance/note ports as shown by the device, not an

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# eurorack f4cfa7697095a28d292bff758beb51deb49b5a86
+--- a/plaits/resources.cc
++++ b/plaits/resources.cc
+@@ -4030,6 +4030,7 @@
+ 
+ 
+ const int32_t* const lookup_table_i32_table[] = {
++  nullptr,
+ };
+ 
+ const int8_t lut_lpc_excitation_pulse[] = {

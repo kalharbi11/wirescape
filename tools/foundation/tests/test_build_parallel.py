@@ -21,6 +21,7 @@ class BuildParallelTests(unittest.TestCase):
                 env = {} if limit is None else {"CMAKE_BUILD_PARALLEL_LEVEL": limit}
                 with patch.dict(os.environ, env, clear=True), \
                      patch.object(dev, "ROOT", root), \
+                     patch.object(dev, "BUILD_DIR", root / "build"), \
                      patch.object(dev, "_base_record", return_value={"source": {}}), \
                      patch.object(dev, "_cmake_and_generator", return_value=("cmake", "Ninja", "x64")), \
                      patch.object(dev, "_qt_prefix", return_value=None), \

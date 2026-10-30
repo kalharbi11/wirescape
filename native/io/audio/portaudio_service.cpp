@@ -55,7 +55,7 @@ struct Context {
  std::function<void()> stop_producers;
  ~Context(){if(stop_producers)stop_producers();}
  EngineOwner engine;std::vector<float> scratch;std::atomic<uint64_t> xruns{0},faults{0};
- Context(EngineOwner e,uint32_t block):engine(std::move(e)),scratch(block*2){}
+ Context(EngineOwner e,uint32_t block):engine(std::move(e)),scratch(size_t{block}*2){}
 };
 int callback(const void*,void*output,unsigned long frames,const PaStreamCallbackTimeInfo*,PaStreamCallbackFlags flags,void*data){
  auto&c=*static_cast<Context*>(data);auto*out=static_cast<float*>(output);
@@ -70,7 +70,7 @@ void list_devices(const std::string&directory){Backend b(directory);int count=b.
 void play(EngineOwner engine,const std::string&directory,const std::string&name,double rate,uint32_t block,const std::atomic<bool>&quit,std::function<void()> stop_producers){
  struct StopOnError {std::function<void()>&stop;~StopOnError(){if(stop)stop();}} cleanup{stop_producers};
  Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block);context->stop_producers=stop_producers;int device=b.default_device();
- if(!name.empty()){size_t consumed=0;try{device=std::stoi(name,&consumed);}catch(const std::exception&){}if(consumed!=name.size()){
+ if(!name.empty()){size_t consumed=0;try{device=std::stoi(name,&consumed);}catch(const std::exception&){consumed=0;}if(consumed!=name.size()){
    device=paNoDevice;int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&name==d->name){device=i;break;}}
  }}
  const auto*info=device>=0?b.info(device):nullptr;if(!info||info->maxOutputChannels<2)throw std::runtime_error("No matching stereo output device");
@@ -87,7 +87,7 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  PaError terminated=b.terminate();b.initialized=false;
  if(terminated<0&&(stopped<0||closed<0)){
    // Keep callback state and its engine alive if the backend cannot prove stop.
-   context.release();throw std::runtime_error("Audio shutdown failed; engine quarantined until process exit");
+   [[maybe_unused]] auto* quarantined=context.release();throw std::runtime_error("Audio shutdown failed; engine quarantined until process exit");
  }
  if(start<0)b.check(start);b.check(run_status);if(context->faults.load())throw std::runtime_error("Audio callback stopped after a render fault");
  b.check(terminated);

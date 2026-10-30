@@ -181,10 +181,44 @@ static void partitioned_graph_fixtures() {
     }
 }
 
+static void full_endpoint_channel_matrix() {
+    MidiRig<MidiToCv> r;
+    // All 16 enabled endpoints may send on all 16 channels without disconnecting.
+    for (uint32_t source = 1; source <= 16; ++source)
+        for (uint32_t channel = 0; channel < 16; ++channel) {
+            r.run({midi1(uint8_t(0x90 | channel), 60, 127, 0, source)});
+            REQUIRE(r.emitted.back().type == WS2_NOTE_ON && r.emitted.back().source_id == source);
+            r.run({midi1(uint8_t(0x80 | channel), 60, 0, 0, source)});
+            for (uint32_t voice = 0; voice < 4; ++voice) REQUIRE(r.sample(1, voice) == 0);
+        }
+    // Retirement frees only that source's state; another source keeps its sustain.
+    r.run({midi1(0x90, 64, 127, 0, 16), midi1(0xb0, 64, 127, 1, 16), midi1(0x80, 64, 0, 2, 16)});
+    for (uint32_t source = 1; source < 16; ++source) r.run({source_choke(source)});
+    for (uint32_t source = 17; source < 32; ++source)
+        for (uint32_t channel = 0; channel < 16; ++channel) {
+            r.run(
+                {midi1(uint8_t(0x90 | channel), 60, 127, 0, source), midi1(uint8_t(0x80 | channel), 60, 0, 1, source)});
+            REQUIRE(r.emitted.back().type == WS2_NOTE_OFF && r.emitted.back().source_id == source);
+        }
+    uint32_t held = 0;
+    for (uint32_t voice = 0; voice < 4; ++voice) held += r.sample(1, voice) > 0;
+    REQUIRE(held == 1);
+    r.run({midi1(0xb0, 64, 0, 0, 16)});
+    for (uint32_t voice = 0; voice < 4; ++voice) REQUIRE(r.sample(1, voice) == 0);
+}
+
 static void metadata_contract() {
     REQUIRE(MidiToCv::params.size() == 9);
     for (const auto& parameter : MidiToCv::params) REQUIRE(std::strcmp(parameter.id, "retrigger") != 0);
     REQUIRE(MidiToCv::params[5].legacy_index == 6);
     REQUIRE(MidiToCv::params[8].legacy_index == 9);
 }
-int main() { metadata_contract(); basic_and_steal(); sustain_bend_expression(); modes_state_and_bounds(); graph_fixtures(); partitioned_graph_fixtures(); }
+int main() {
+    full_endpoint_channel_matrix();
+    metadata_contract();
+    basic_and_steal();
+    sustain_bend_expression();
+    modes_state_and_bounds();
+    graph_fixtures();
+    partitioned_graph_fixtures();
+}
