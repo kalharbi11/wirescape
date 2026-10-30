@@ -165,6 +165,8 @@ Item {
             // Loader children are never recreated just to update a value.
             if (input.item && input.item.objectName === "parameterSlider" && !input.item.pressed)
                 input.item.value = control.normalized(value);
+            if (input.item && input.item.objectName === "parameterStepper")
+                input.item.value = Math.round(value);
         }
     }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#e9e7e1" }
