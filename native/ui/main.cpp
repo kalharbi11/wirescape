@@ -48,7 +48,10 @@ int main(int argc, char** argv) {
     if (parser.isSet("startup-check") && !parser.isSet("ready-report")) return 3;
     if (smoke) QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
     const auto directory = parser.isSet("modules") ? parser.value("modules") : app.applicationDirPath();
-    StudioController studio(directory,nullptr,{},parser.isSet("confirm-midi"));
+    const bool interactiveMidi = !smoke && !parser.isSet("startup-check") &&
+                                 QGuiApplication::platformName() != "offscreen" &&
+                                 QGuiApplication::platformName() != "minimal";
+    StudioController studio(directory, nullptr, {}, interactiveMidi && parser.isSet("confirm-midi"), interactiveMidi);
     QQmlApplicationEngine view;
     view.rootContext()->setContextProperty("studio", &studio);
     view.rootContext()->setContextProperty("studioFontFamily", app.font().family());

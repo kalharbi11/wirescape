@@ -9,12 +9,14 @@
 #include <QVariantList>
 #include <memory>
 #include <functional>
+class QSettings;
 
 class StudioController final : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariantMap midiCounters READ midiCounters NOTIFY metersChanged)
     Q_PROPERTY(QVariantList midiEndpoints READ midiEndpoints NOTIFY statusChanged)
-    Q_PROPERTY(bool midiAuthorized READ midiAuthorized CONSTANT)
+    Q_PROPERTY(bool midiAuthorized READ midiAuthorized NOTIFY statusChanged)
+    Q_PROPERTY(bool midiSettingsAvailable READ midiSettingsAvailable CONSTANT)
     Q_PROPERTY(QVariantList modules READ modules NOTIFY documentChanged)
     Q_PROPERTY(QVariantList connections READ connections NOTIFY documentChanged)
     Q_PROPERTY(QVariantList palette READ palette CONSTANT)
@@ -37,11 +39,15 @@ class StudioController final : public QObject {
     Q_PROPERTY(int blockSize READ blockSize CONSTANT)
 public:
     using PatchWriter = std::function<bool(const QString&, const QByteArray&, QString&)>;
-    explicit StudioController(QString directory, QObject* parent = nullptr, PatchWriter writer = {}, bool confirmMidi = false);
+    explicit StudioController(QString directory, QObject *parent = nullptr, PatchWriter writer = {},
+                              bool confirmMidi = false, bool interactiveMidi = false,
+                              std::unique_ptr<wirescape::midi::Backend> fakeMidi = {}, QString midiSettingsPath = {});
     ~StudioController() override;
     QVariantMap midiCounters()const;
     QVariantList midiEndpoints();
     bool midiAuthorized()const{return midi_.authorized();}
+    bool midiSettingsAvailable() const { return bool(midiPreferences_); }
+    Q_INVOKABLE void setMidiAuthorized(bool);
     Q_INVOKABLE void setMidiEndpoint(const QString&,const QString&,bool);
     Q_INVOKABLE void refreshMidi();
     QVariantList modules() const;
@@ -110,6 +116,7 @@ private:
     wirescape::document::PatchDocument documentSource_;
     Engine catalog_{nullptr, app_engine_destroy}, engine_{nullptr, app_engine_destroy};
     wirescape::midi::Host midi_;
+    std::unique_ptr<QSettings> midiPreferences_;
     AudioDevice audio_;
     QTimer timer_;
     bool ready_ = false, dirty_ = false;

@@ -34,6 +34,18 @@ public:
 signals:
     void parameterChanged(int node, int parameter, double value, QString display);
 };
+class PreferenceMidiBackend : public wirescape::midi::Backend {
+    int &opens_;
+
+  public:
+    explicit PreferenceMidiBackend(int &opens) : opens_(opens) {}
+    std::vector<wirescape::midi::Endpoint> endpoints() override { return {{"Fake notes", "test:notes"}}; }
+    bool open(const wirescape::midi::Endpoint &, wirescape::midi::Callback) override {
+        ++opens_;
+        return true;
+    }
+    void close(const wirescape::midi::Endpoint &) override {}
+};
 
 static QObject* findNamed(QObject* root, const QString& name) {
     if (root->objectName() == name) return root;
@@ -76,6 +88,36 @@ class UiTests : public QObject {
     static QPoint center(QQuickItem* item) { return item->mapToScene(QPointF(item->width()/2, item->height()/2)).toPoint(); }
 private slots:
     void initTestCase() { QVERIFY(temp_.isValid()); }
+    void midiPreferenceIsInteractiveOnly() {
+        const auto settings = temp_.filePath("midi-preference.ini");
+        int opens = 0;
+        {
+            StudioController studio(directory_, nullptr, {}, false, true,
+                                    std::make_unique<PreferenceMidiBackend>(opens), settings);
+            QVERIFY(studio.midiSettingsAvailable());
+            QVERIFY(!studio.midiAuthorized());
+            studio.setMidiAuthorized(true);
+            QVERIFY(studio.midiAuthorized());
+            QCOMPARE(studio.midiEndpoints().size(), 1);
+        }
+        {
+            StudioController restored(directory_, nullptr, {}, false, true,
+                                      std::make_unique<PreferenceMidiBackend>(opens), settings);
+            QVERIFY(restored.midiAuthorized());
+            StudioController probe(directory_, nullptr, {}, false, false,
+                                   std::make_unique<PreferenceMidiBackend>(opens), settings);
+            QVERIFY(!probe.midiSettingsAvailable());
+            QVERIFY(!probe.midiAuthorized());
+            probe.setMidiAuthorized(true);
+            QVERIFY(!probe.midiAuthorized());
+            QVERIFY(probe.midiEndpoints().isEmpty());
+            restored.setMidiAuthorized(false);
+        }
+        StudioController disabled(directory_, nullptr, {}, false, true, std::make_unique<PreferenceMidiBackend>(opens),
+                                  settings);
+        QVERIFY(!disabled.midiAuthorized());
+        QCOMPARE(opens, 0); // Preference restoration never starts an input stream.
+    }
     void keyboardChordOffscreen() {
         StudioController studio(directory_);
         QJsonObject result;
