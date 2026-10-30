@@ -1,5 +1,6 @@
 #include "studio_controller.h"
 #include <QGuiApplication>
+#include <QObject>
 #include <cmath>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
@@ -201,16 +202,22 @@ private slots:
         QVERIFY(actions->mapToScene(QPointF()).x() >= 202); QVERIFY(!studio.running());
     }
     void studioSidebarLibraryReservesLegend() {
-        StudioController studio(directory_); QQmlApplicationEngine engine;
+        StudioController studio(directory_);
+        QQmlApplicationEngine engine;
         engine.rootContext()->setContextProperty("studio", &studio);
-        engine.load(QUrl("qrc:/qml/Main.qml")); QVERIFY(!engine.rootObjects().isEmpty());
-        auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects()[0]); QVERIFY(window);
-        window->show(); QVERIFY(QTest::qWaitForWindowExposed(window));
-        auto* library = qobject_cast<QQuickItem*>(findNamed(window, "moduleLibraryScroll"));
-        auto* legend = qobject_cast<QQuickItem*>(findNamed(window, "sidebarLegend"));
-        QVERIFY(library); QVERIFY(legend);
+        engine.load(QUrl("qrc:/qml/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects()[0]);
+        QVERIFY(window);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        auto *library = qobject_cast<QQuickItem *>(findNamed(window, "moduleLibraryScroll"));
+        auto *legend = qobject_cast<QQuickItem *>(findNamed(window, "sidebarLegend"));
+        QVERIFY(library);
+        QVERIFY(legend);
         for (const QSize size : {QSize(1366, 768), QSize(1093, 650), QSize(1000, 650)}) {
-            window->resize(size); QTRY_COMPARE(window->size(), size);
+            window->resize(size);
+            QTRY_COMPARE(window->size(), size);
             const QRectF libraryBounds(library->mapToScene(QPointF()), library->size());
             const QRectF legendBounds(legend->mapToScene(QPointF()), legend->size());
             QVERIFY(libraryBounds.height() > 120);
@@ -222,8 +229,10 @@ private slots:
                 QVERIFY(libraryBounds.bottom() + 8 <= legendBounds.top());
             }
         }
-        auto* last = qobject_cast<QQuickItem*>(findNamed(window, QString("paletteEntry_%1").arg(studio.palette().size() - 1)));
-        QVERIFY(last); last->forceActiveFocus();
+        auto *last = qobject_cast<QQuickItem *>(
+            findNamed(window, QString("paletteEntry_%1").arg(studio.palette().size() - 1)));
+        QVERIFY(last);
+        last->forceActiveFocus();
         QTRY_VERIFY(library->property("contentY").toDouble() > 0);
         const QRectF lastBounds(last->mapToItem(library, QPointF()), last->size());
         QVERIFY(lastBounds.top() >= -1);
@@ -231,26 +240,29 @@ private slots:
         QVERIFY(!studio.running());
     }
     void studioCableHandlesAreDistanceBounded() {
-        StudioController studio(directory_); QQmlApplicationEngine engine;
+        StudioController studio(directory_);
+        QQmlApplicationEngine engine;
         engine.rootContext()->setContextProperty("studio", &studio);
-        engine.load(QUrl("qrc:/qml/Main.qml")); QVERIFY(!engine.rootObjects().isEmpty());
-        auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects()[0]); QVERIFY(window);
+        engine.load(QUrl("qrc:/qml/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects()[0]);
+        QVERIFY(window);
         // Coincident, adjacent, far, reversed, vertical and diagonal endpoints.
         const QList<QVariantList> endpoints = {
-            {0., 0., 0., 0.}, {0., 0., 2., 0.}, {0., 0., 20., 0.},
-            {0., 0., 900., 0.}, {100., 25., -100., 25.},
-            {20., 0., 20., 220.}, {70., 40., 30., -10.}
-        };
+            {0., 0., 0., 0.},   {0., 0., 2., 0.},       {0., 0., 20., 0.},   {0., 0., 900., 0.},
+            {100., 25., -100., 25.}, {20., 0., 20., 220.}, {70., 40., 30., -10.}};
         double prior = -1;
-        for (const auto& p : endpoints) {
+        for (const auto &p : endpoints) {
             QVariant handle;
-            QVERIFY(QMetaObject::invokeMethod(window, "cableBend", Q_RETURN_ARG(QVariant, handle),
-                Q_ARG(QVariant, p[0]), Q_ARG(QVariant, p[1]),
-                Q_ARG(QVariant, p[2]), Q_ARG(QVariant, p[3])));
-            const double length = std::hypot(p[2].toDouble() - p[0].toDouble(),
-                                             p[3].toDouble() - p[1].toDouble());
+            const bool invoked = QMetaObject::invokeMethod(
+                window, "cableBend", Q_RETURN_ARG(QVariant, handle), Q_ARG(QVariant, p[0]), Q_ARG(QVariant, p[1]),
+                Q_ARG(QVariant, p[2]), Q_ARG(QVariant, p[3]));
+            QVERIFY(invoked);
+            const double length =
+                std::hypot(p[2].toDouble() - p[0].toDouble(), p[3].toDouble() - p[1].toDouble());
             const double bend = handle.toDouble();
-            QVERIFY(std::isfinite(bend)); QVERIFY(bend >= 0.);
+            QVERIFY(std::isfinite(bend));
+            QVERIFY(bend >= 0.);
             QVERIFY(bend <= std::min(150., length * 0.38) + 1e-9);
             if (length == 0.) QCOMPARE(bend, 0.);
             if (prior >= 0. && length == 20.) QVERIFY(bend > prior);
