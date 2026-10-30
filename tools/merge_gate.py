@@ -23,9 +23,23 @@ CHATGPT_OK = 'chatgpt: approved for auto-merge'
 PREREVIEW_OK = 'chatgpt: pre-review passed'
 
 
+def approval_lines(body):
+    """Unquoted lines outside fenced code blocks; quoted examples never count."""
+    fenced = False
+    for line in (body or '').splitlines():
+        text = line.strip()
+        if text.startswith('```') or text.startswith('~~~'):
+            fenced = not fenced
+        elif not fenced and not text.startswith('>'):
+            yield text.strip('*_` ').lower()
+
+
 def approved(comments, owner, phrase, sha7):
-    return any(c.get('user', {}).get('login') == owner and phrase in (c.get('body') or '').lower()
-               and sha7 in (c.get('body') or '') for c in comments)
+    """A standalone line "<phrase> [on] <sha7>" (optionally with a trailing period) by the owner."""
+    wanted = {f'{phrase} {sha7}', f'{phrase} on {sha7}'}
+    return any(c.get('user', {}).get('login') == owner
+               and any(line.rstrip('.') in wanted for line in approval_lines(c.get('body')))
+               for c in comments)
 
 
 def decide(pr, files, comments, owner):

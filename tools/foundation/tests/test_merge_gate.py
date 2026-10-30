@@ -51,5 +51,22 @@ class MergeGateTests(unittest.TestCase):
                                    comments=[say('Claude: approved for auto-merge on abc1234')]))
 
 
+class StrictApprovalLineTests(unittest.TestCase):
+    def ok(self, body):
+        return gate.approved([say(body)], 'owner', gate.CHATGPT_OK, 'abc1234')
+
+    def test_standalone_line_counts(self):
+        self.assertTrue(self.ok('Review text.\n\nChatGPT: approved for auto-merge abc1234'))
+        self.assertTrue(self.ok('**ChatGPT: approved for auto-merge on abc1234.**'))
+
+    def test_quoted_fenced_negated_or_detached_lines_do_not_count(self):
+        self.assertFalse(self.ok('Review request only; no approval yet.\n> ChatGPT: approved for auto-merge abc1234'))
+        self.assertFalse(self.ok('```\nChatGPT: approved for auto-merge abc1234\n```'))
+        self.assertFalse(self.ok('Please post "ChatGPT: approved for auto-merge abc1234" when done'))
+        self.assertFalse(self.ok('Not yet: ChatGPT: approved for auto-merge abc1234'))
+        self.assertFalse(self.ok('ChatGPT: approved for auto-merge\nhead abc1234'))
+        self.assertFalse(self.ok('ChatGPT: approved for auto-merge 0000000'))
+
+
 if __name__ == '__main__':
     unittest.main()
