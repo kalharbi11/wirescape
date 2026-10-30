@@ -1,0 +1,237 @@
+{
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "name": "USB MIDI to two CHAOS-lite instruments",
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 42,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "midi.in",
+      "version": 1,
+      "parameters": {},
+      "config": {
+        "endpoint": "all_enabled"
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.chaos_lite",
+      "version": 1,
+      "parameters": {
+        "level": 0.15
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.chaos_lite",
+      "version": 1,
+      "parameters": {
+        "level": 0.15,
+        "octave_b": 1
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 5,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 6,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 7,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 8,
+      "module": "midi.to_cv",
+      "version": 1,
+      "parameters": {
+        "voice_count": 4
+      }
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 2,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 3,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "left"
+      },
+      "to": {
+        "module": 4,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "right"
+      },
+      "to": {
+        "module": 4,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "left"
+      },
+      "to": {
+        "module": 5,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "right"
+      },
+      "to": {
+        "module": 5,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "audio"
+      },
+      "to": {
+        "module": 7,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "gate"
+      },
+      "to": {
+        "module": 2,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 2,
+        "port": "velocity"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "gate"
+      },
+      "to": {
+        "module": 3,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 3,
+        "port": "velocity"
+      }
+    },
+    {
+      "kind": "event",
+      "from": {
+        "module": 1,
+        "port": "midi"
+      },
+      "to": {
+        "module": 8,
+        "port": "midi"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "module": 7,
+      "port": "audio",
+      "bus_channel": 0
+    }
+  ],
+  "devices": []
+}

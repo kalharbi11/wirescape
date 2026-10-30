@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#include "app_patch.h"
+#include "../engine2/engine2.h"
 #include "../tests2/allocation_watch.h"
+#include "app_patch.h"
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
-#include <QJsonDocument>
+#include <QFileInfo>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QTemporaryDir>
 #include <algorithm>
 #include <cmath>
@@ -16,7 +19,8 @@ static void require(bool ok,const char*s){if(!ok)throw std::runtime_error(s);}
 int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  require(argc==4,"modules, demo and legacy fixtures arguments");ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>cat(app_engine_create(&cfg),app_engine_destroy);
- require(app_engine_module_count(cat.get()) == 17, "thirteen ABI2 ports, host.keyboard and three MIDI modules in catalogue");
+ require(app_engine_module_count(cat.get()) == 18,
+         "CHAOS plus thirteen ABI2 ports, host.keyboard and three MIDI modules in catalogue");
  for (const char *expected :
       {"essentials.vco", "essentials.lfo", "essentials.vcf", "essentials.adsr", "essentials.vca", "essentials.clock",
        "essentials.function_envelope", "essentials.ladder", "essentials.mixer", "essentials.noise", "essentials.output",
@@ -25,6 +29,75 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
      for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i)
          if (std::string(app_engine_module(cat.get(), i)->id) == expected) found = true;
      require(found, "all thirteen Essentials plus keyboard in catalogue");
+ }
+ {
+     QFile fixture(QFileInfo(QString::fromLocal8Bit(argv[2])).dir().filePath("chaos_two.json"));
+     require(fixture.open(QIODevice::ReadOnly), "read two CHAOS fixture");
+     auto document = read_patch(fixture.readAll(), app_catalog(cat.get()));
+     QString why;
+     require(document.valid(), "validate two CHAOS document");
+     std::unique_ptr<AppEngine, decltype(&app_engine_destroy)> graph(build_app_patch(cat.get(), document, cfg, why),
+                                                                     app_engine_destroy);
+     if (!graph) std::cerr << why.toStdString() << '\n';
+     require(bool(graph), "build two CHAOS document");
+     float output[128];
+     float peak = 0;
+     for (int block = 0; block < 32; ++block) {
+         int result;
+         {
+             allocation_watch::Scope watch;
+             result = app_engine_render(graph.get(), output, 128);
+             require(watch.allocations() == 0, "CHAOS fixture callback allocations");
+         }
+         require(result == WS_OK, "render two CHAOS fixture");
+         for (float sample : output) {
+             require(std::isfinite(sample), "finite CHAOS output");
+             peak = std::max(peak, std::abs(sample));
+         }
+     }
+     auto &native = app_engine_native(graph.get());
+     require(native.output_channels(2, 0) == 4 && native.output_channels(3, 0) == 4,
+             "two CHAOS instances each render exactly four voices");
+     require(native.meter().faults == 0 && peak > 0, "non-silent fault-free CHAOS fixture");
+ }
+ {
+     QFile fixture(QFileInfo(QString::fromLocal8Bit(argv[2])).dir().filePath("chaos_usb_midi.json"));
+     require(fixture.open(QIODevice::ReadOnly), "read USB MIDI CHAOS fixture");
+     auto document = read_patch(fixture.readAll(), app_catalog(cat.get()));
+     QString why;
+     require(document.valid(), "validate USB MIDI CHAOS fixture");
+     std::unique_ptr<AppEngine, decltype(&app_engine_destroy)> graph(build_app_patch(cat.get(), document, cfg, why),
+                                                                     app_engine_destroy);
+     require(bool(graph), "build USB MIDI CHAOS fixture");
+     auto &engine = app_engine_native(graph.get());
+     for (uint32_t key : {60u, 64u, 67u, 72u}) {
+         ws2_event event{};
+         event.struct_size = sizeof(event);
+         event.type = WS2_MIDI;
+         event.source_id = 1;
+         event.channel = -1;
+         event.note_id = -1;
+         event.ump_words = 1;
+         event.ump[0] = 0x20900000u | (key << 8) | 127u;
+         require(engine.enqueue(0, 1, WS2_DIRECT_PORT, event, 0) == WS2_OK, "fake USB MIDI chord");
+     }
+     float output[128];
+     float peak = 0;
+     for (int block = 0; block < 16; ++block) {
+         int result;
+         {
+             allocation_watch::Scope watch;
+             result = app_engine_render(graph.get(), output, 128);
+             require(watch.allocations() == 0, "MIDI CHAOS callback allocations");
+         }
+         require(result == WS_OK, "MIDI CHAOS render");
+         for (float sample : output) {
+             require(std::isfinite(sample), "finite MIDI CHAOS output");
+             peak = std::max(peak, std::abs(sample));
+         }
+     }
+     require(engine.output_channels(2, 0) == 4 && engine.output_channels(3, 0) == 4, "MIDI CHAOS four voices");
+     require(peak > 0 && engine.meter().faults == 0, "MIDI CHAOS non-silent without devices");
  }
  QFile file(argv[2]);require(file.open(QIODevice::ReadOnly),"read demo");auto bytes=file.readAll();auto source=QJsonDocument::fromJson(bytes).object();auto patch=read_patch(bytes,app_catalog(cat.get()));require(patch.valid(),"migrate demo");QString error;
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>e(build_app_patch(cat.get(),patch,cfg,error),app_engine_destroy);if(!e)std::cerr<<error.toStdString()<<'\n';require(bool(e),"build engine2 demo from loader");
