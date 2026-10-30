@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import shutil
+import subprocess
 import io
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
@@ -79,6 +80,8 @@ def _refresh_build_metadata(config: str, expected_source: dict[str, Any] | None 
                 cmake_cache=cache, ui_verified=bool(ui_built and stable and cache.get("WIRESCAPE_BUILD_UI") == "ON"),
                 qt_prefix=qt_prefix or meta.get("qt_prefix"),
                 artifact_root=str(BUILD_DIR), binaries=_artifact_inventory(config))
+    if ui_built and stable:
+        meta.update(build_commit=git_revision(ROOT), source_root=str(ROOT.resolve()))
     write_json(BUILD_DIR / "build-metadata.json", meta)
     return meta, stable
 
@@ -498,6 +501,53 @@ def _launch_freshness_error(executable: Path, config: str) -> str | None:
     return None
 
 
+def _launcher_dependencies(args: argparse.Namespace, executable: Path) -> dict:
+    from foundation.launcher_runtime import choose_path
+    settings = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "Wirescape" / "launcher.json"
+    saved = json.loads(settings.read_text(encoding="utf-8")) if settings.exists() else {}
+    if not isinstance(saved, dict):
+        raise ValueError("Invalid launcher settings; use an object with qt/portaudio paths.")
+    metadata = _build_metadata() or {}
+    qt = choose_path("qt", getattr(args, "qt_prefix", None), saved.get("qt"), [
+        ("environment", os.environ.get("WIRESCAPE_QT_DIR")),
+        ("build", metadata.get("qt_prefix")),
+        ("repository", ROOT / ".tools/qt/6.10.3/msvc2022_64")])
+    pa = choose_path("portaudio", getattr(args, "portaudio", None), saved.get("portaudio"), [
+        ("environment", os.environ.get("WIRESCAPE_PORTAUDIO")),
+        ("repository", ROOT / ".tools/portaudio/libportaudio64bit.dll"),
+        ("build", executable.parent / "libportaudio64bit.dll")])
+    if getattr(args, "remember_runtime", False):
+        write_json(settings, {"qt": qt["path"], "portaudio": pa["path"]})
+    return {"qt": qt, "portaudio": pa}
+
+
+def command_updates(args: argparse.Namespace) -> int:
+    """Explicit read-only remote check; never pull, build or install automatically."""
+    from foundation.launcher_runtime import compare_revisions
+    record = _base_record("updates", args.config)
+    try:
+        result = subprocess.run(["git", "ls-remote", "origin", "refs/heads/main"],
+                                cwd=ROOT, capture_output=True, text=True, timeout=15, check=False)
+        if result.returncode:
+            raise ValueError("Cannot read origin/main; check Git access and retry.")
+        latest = result.stdout.split()[0] if result.stdout.split() else ""
+        metadata = _build_metadata() or {}
+        installed = metadata.get("build_commit")
+        if not installed:
+            raise ValueError("No installed build revision recorded; build Studio first.")
+        state = compare_revisions(installed, latest)
+        record.update(status="passed", installed=installed, latest_main=latest,
+                      installed_source_dirty=metadata.get("source", {}).get("git_dirty"),
+                      comparison=state, checkout=git_revision(ROOT),
+                      summary=f"Installed {installed}; latest main {latest}: {state}. "
+                      "Different does not establish ancestry. Follow docs/WINDOWS_DEMO_UPDATE.md; no changes applied.")
+    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        record.update(status="failed", summary=str(exc))
+    report = _save_record(record)
+    _print_record(record, report, args.json)
+    return 0 if record["status"] == "passed" else 1
+
+
 def command_launch(args: argparse.Namespace) -> int:
     record = _base_record("launch", args.config)
     executable = _studio_executable(args.config)
@@ -513,6 +563,21 @@ def command_launch(args: argparse.Namespace) -> int:
         _print_record(record, report, args.json)
         return 2
     env = _qt_runtime_env(executable)
+    if os.name == "nt":
+        try:
+            runtime = _launcher_dependencies(args, executable)
+        except (OSError, ValueError, TypeError) as exc:
+            record.update(status="failed", summary=f"Runtime selection failed: {exc}")
+            report = _save_record(record)
+            _print_record(record, report, args.json)
+            return 2
+        prefix = Path(runtime["qt"]["path"])
+        env.update(WIRESCAPE_PORTAUDIO=runtime["portaudio"]["path"],
+                   QT_PLUGIN_PATH=str(prefix / "plugins"), QML2_IMPORT_PATH=str(prefix / "qml"))
+        env["PATH"] = str(prefix / "bin") + os.pathsep + env.get("PATH", "")
+        record["runtime"] = runtime
+        if not args.json:
+            print(json.dumps(runtime, indent=2))
     env["QT_FORCE_STDERR_LOGGING"] = "1"
     ready_path = _unique_report_path("studio-ready", ".json")
     result = wait_for_readiness([str(executable)], ROOT, _unique_report_path("studio-launch", ".log"),
@@ -623,17 +688,15 @@ def command_package(args: argparse.Namespace) -> int:
     record = _base_record("package", args.config)
     executable = _studio_executable(args.config)
     metadata = _build_metadata()
-    prefix = Path(metadata["qt_prefix"]) if metadata and metadata.get("qt_prefix") else None
+    runtime = None
+    try:
+        runtime = _launcher_dependencies(args, executable) if executable and os.name == "nt" else None
+    except (OSError, ValueError, TypeError) as exc:
+        record["runtime_error"] = str(exc)
+    prefix = Path(runtime["qt"]["path"]) if runtime else None
+    backend = Path(runtime["portaudio"]["path"]) if runtime else None
     deploy = prefix / "bin" / "windeployqt.exe" if prefix else None
-    candidates = [Path(args.portaudio).resolve()] if args.portaudio else []
-    if not args.portaudio:
-        external = os.environ.get("WIRESCAPE_PORTAUDIO")
-        if external:
-            candidates.append(Path(external).expanduser().resolve())
-        candidates.extend((ROOT / ".tools/portaudio/libportaudio64bit.dll",))
-        if executable:
-            candidates.append(executable.parent / "libportaudio64bit.dll")
-    backend = next((path for path in candidates if path.is_file()), None)
+    record["runtime"] = runtime
     if os.name != "nt" or not executable or not deploy or not deploy.is_file() or not backend or not backend.is_file():
         record.update(status="failed", summary="Package requires a Windows Qt build and PortAudio DLL (set WIRESCAPE_PORTAUDIO or use --portaudio PATH).")
         path = _save_record(record)
@@ -862,6 +925,10 @@ def make_parser() -> argparse.ArgumentParser:
             child.add_argument("--headless", action="store_true", help="disable the optional Qt UI target")
         child.add_argument("--json", action="store_true", help="print the full result as JSON")
         child.set_defaults(func=func)
+    child = sub.add_parser("updates", help="Check installed revision against latest main; show assisted update instructions")
+    child.add_argument("--config", choices=("Debug", "Release"), default="Release")
+    child.add_argument("--json", action="store_true")
+    child.set_defaults(func=command_updates)
     child = sub.add_parser("benchmark")
     child.add_argument("--config", choices=("Debug", "Release"), default="Release")
     child.add_argument("--blocks", type=int, default=256, help="bounded workload size (default: 256)")
@@ -876,8 +943,10 @@ def make_parser() -> argparse.ArgumentParser:
         child = sub.add_parser(name)
         child.add_argument("--config", choices=("Debug", "Release"), default="Release")
         child.add_argument("--json", action="store_true", help="print the full result as JSON")
-        if name == "package":
-            child.add_argument("--portaudio", help="Explicit PortAudio DLL to include (defaults to built app directory)")
+        if name in {"launch", "package"}:
+            child.add_argument("--portaudio", help="Explicit local libportaudio64bit.dll")
+            child.add_argument("--qt-prefix", help="Explicit local Qt SDK prefix")
+            child.add_argument("--remember-runtime", action="store_true", help="Remember validated runtime selections for this Windows user")
         if name == "startup-test":
             child.add_argument("--portable", help="Check a staged portable app directory instead of the development build")
         child.set_defaults(func=func)

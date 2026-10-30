@@ -1,7 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-only
 param([Parameter(Mandatory=$true)][string]$Package, [string]$LocalFont)
 $ErrorActionPreference = 'Stop'
 $packageRoot = (Resolve-Path -LiteralPath $Package).Path
-$executable = Join-Path $packageRoot 'wirescape_studio.exe'
+$checkout = Split-Path -Parent $PSScriptRoot
+# Share target validation with fake-tree unit tests, before writing any shortcut.
+$executable = & python (Join-Path $PSScriptRoot 'foundation/launcher_runtime.py') --checkout $checkout --package $packageRoot
+if ($LASTEXITCODE -ne 0) { throw 'Package is not verified for this active checkout.' }
+$executable = $executable.Trim()
 if ($LocalFont) { $LocalFont = (Resolve-Path -LiteralPath $LocalFont).Path }
 if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { throw 'Packaged Wirescape app was not found.' }
 $shell = New-Object -ComObject WScript.Shell
@@ -21,6 +26,7 @@ foreach ($destination in $destinations) {
     $shortcut = $shell.CreateShortcut($destination)
     $shortcut.TargetPath = $executable
     $shortcut.WorkingDirectory = $packageRoot
+    $shortcut.Arguments = ''
     if ($LocalFont) { $shortcut.Arguments = '--local-font "' + $LocalFont + '"' }
     $shortcut.IconLocation = "$executable,0"
     $shortcut.Description = 'Wirescape Studio - standalone modular sound environment'
