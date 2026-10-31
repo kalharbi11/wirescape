@@ -111,6 +111,15 @@ ApplicationWindow {
         studio.connectPorts(pendingNode, pendingPort, id, port);
         pendingNode = -1; localHint = "";
     }
+    function completeCableDrag(position) {
+        if (pendingNode < 0 || studio.running) return;
+        for (let i = cards.count - 1; i >= 0; --i) {
+            let card = cards.itemAt(i);
+            let input = card ? card.inputAt(position) : null;
+            if (input) { chooseInput(card.descriptor.id, input.id, input.kind); return; }
+            if (card && card.coversDrop(position)) return;
+        }
+    }
     function centerNode(card) {
         panX = viewport.width / 2 - (card.x + card.width / 2) * zoom;
         panY = viewport.height / 2 - (card.y + card.height / 2) * zoom;
@@ -380,6 +389,7 @@ ApplicationWindow {
                             border.width: 2
                             border.color: root.selectedCable === cable.index ? "#c5774c" : cable.modelData.kind === "audio" ? "#777e79" : "#c17853"
                             MouseArea {
+                                objectName: "cableHandle_" + cable.index
                                 anchors.fill: parent; anchors.margins: -7
                                 cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                 onClicked: { root.selectedCable = cable.index; root.selectedNode = -1; }
@@ -412,7 +422,7 @@ ApplicationWindow {
             Row {
                 visible: root.selectedCable >= 0 && root.selectedCable < studio.connections.length
                 x: 20; anchors.bottom: parent.bottom; anchors.bottomMargin: 18; spacing: 5
-                StudioButton { text: "Disconnect cable"; enabled: !studio.running; onClicked: { studio.disconnectCable(root.selectedCable); root.selectedCable = -1; } }
+                StudioButton { objectName: "disconnectCableButton"; text: "Disconnect cable"; enabled: !studio.running; onClicked: { studio.disconnectCable(root.selectedCable); root.selectedCable = -1; } }
                 StudioButton { text: "×"; quiet: true; onClicked: root.selectedCable = -1 }
             }
         }
