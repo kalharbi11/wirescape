@@ -44,7 +44,9 @@ static bool wait_gate(AppEngine *engine, bool wanted) {
     float samples[128]{};
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     do {
-        CHECK(app_engine_render(engine, samples, 128) == WS_OK);
+        // Render like the live callback: real service chokes carry steady-clock stamps.
+        float *rows[]{samples};
+        CHECK(app_engine_render_live(engine, rows, 1, 128, app_engine_clock_ns()) == WS_OK);
         bool gate = false;
         for (float value : samples) gate |= value > .5f;
         if (gate == wanted) return true;
