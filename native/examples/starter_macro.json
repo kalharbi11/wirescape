@@ -1,0 +1,18 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "format": "wirescape.native.patch", "version": 2,
+  "name": "Starter: Macro Oscillator",
+  "settings": {"sample_rate":48000,"max_block_frames":128,"max_channels":16,"feedback_block":32,"seed":42,"timing_mode":"immediate"},
+  "modules": [
+    {"id":1,"module":"host.keyboard","version":1,"x":75,"y":400,"parameters":{"voices":4}},
+    {"id":2,"module":"ports.macro_oscillator","version":1,"x":420,"y":90,"parameters":{}},
+    {"id":3,"module":"essentials.output","version":2,"x":800,"y":100,"parameters":{}}
+  ],
+  "connections": [
+    {"kind":"signal","from":{"module":1,"port":"pitch"},"to":{"module":2,"port":"pitch"}},
+    {"kind":"signal","from":{"module":1,"port":"gate"},"to":{"module":2,"port":"trigger"}},
+    {"kind":"signal","from":{"module":1,"port":"velocity"},"to":{"module":2,"port":"level"}},
+    {"kind":"signal","from":{"module":2,"port":"main"},"to":{"module":3,"port":"audio"}}
+  ],
+  "outputs": [{"module":3,"port":"audio","bus_channel":0}]
+}

@@ -1,0 +1,20 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "format": "wirescape.native.patch", "version": 2,
+  "name": "Starter: LFO shaped filter and amplitude",
+  "settings": {"sample_rate":48000,"max_block_frames":128,"max_channels":16,"feedback_block":32,"seed":42,"timing_mode":"immediate"},
+  "modules": [
+    {"id":1,"module":"essentials.vco","version":2,"x":70,"y":100,"parameters":{}},
+    {"id":2,"module":"essentials.vcf","version":2,"x":405,"y":100,"parameters":{}},
+    {"id":3,"module":"essentials.vca","version":2,"x":740,"y":100,"parameters":{}},
+    {"id":4,"module":"essentials.output","version":2,"x":1075,"y":100,"parameters":{}},
+    {"id":5,"module":"essentials.lfo","version":2,"x":400,"y":455,"parameters":{}}
+  ],
+  "connections": [
+    {"kind":"signal","from":{"module":1,"port":"audio"},"to":{"module":2,"port":"audio"}},
+    {"kind":"signal","from":{"module":2,"port":"low24"},"to":{"module":3,"port":"audio"}},
+    {"kind":"signal","from":{"module":5,"port":"control"},"to":{"module":3,"port":"gain_cv"}},
+    {"kind":"signal","from":{"module":3,"port":"audio"},"to":{"module":4,"port":"audio"}}
+  ],
+  "outputs": [{"module":4,"port":"audio","bus_channel":0}]
+}

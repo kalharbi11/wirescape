@@ -680,8 +680,10 @@ private slots:
         QVERIFY(QTest::qWaitForWindowExposed(window));
         auto *library = qobject_cast<QQuickItem *>(findNamed(window, "moduleLibraryScroll"));
         auto *legend = qobject_cast<QQuickItem *>(findNamed(window, "sidebarLegend"));
+        auto *patchSelector = qobject_cast<QQuickItem *>(findNamed(window, "patchLibraryPanel"));
         QVERIFY(library);
         QVERIFY(legend);
+        QVERIFY(patchSelector);
         for (const QSize size : {QSize(1366, 768), QSize(1093, 650), QSize(1000, 650)}) {
             window->resize(size);
             QTRY_COMPARE(window->size(), size);
@@ -690,6 +692,10 @@ private slots:
             const QRectF libraryBounds(library->mapToScene(QPointF()), library->size());
             const QRectF legendBounds(legend->mapToScene(QPointF()), legend->size());
             QVERIFY(libraryBounds.height() > 120);
+            const QRectF patchBounds(patchSelector->mapToScene(QPointF()), patchSelector->size());
+            QVERIFY(patchBounds.left() >= 0);
+            QVERIFY(patchBounds.right() <= 202);
+            QVERIFY(patchBounds.bottom() + 8 <= libraryBounds.top());
             QVERIFY(libraryBounds.bottom() + 8 <= legendBounds.top());
             QVERIFY(legendBounds.bottom() < window->height());
             QVERIFY(library->property("contentHeight").toDouble() > library->height());
@@ -891,6 +897,122 @@ private slots:
         QCOMPARE(savedNodes.size(), 5);
         QCOMPARE(savedNodes.last().toObject().value("module").toString(), QString("host.keyboard"));
         QCOMPARE(savedNodes.at(0).toObject().value("parameters").toObject().value("frequency").toDouble(), 880.);
+    }
+    void starterPatchLibraryAndOfflineRender() {
+        StudioController studio(directory_);
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("studio", &studio);
+        engine.load(QUrl("qrc:/qml/Main.qml"));
+        QVERIFY2(!engine.rootObjects().isEmpty(), "Studio QML must load");
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(window);
+        window->resize(1100, 750);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        auto *library = findNamed(window, "patchLibraryPanel");
+        auto *dropdown = findNamed(window, "patchLibraryDropdown");
+        QVERIFY(library);
+        QVERIFY(dropdown);
+        QVERIFY(library->setProperty("persistHistory", false));
+        QCOMPARE(library->property("entryCount").toInt(), 7);
+        QVERIFY(!findNamed(window, "favouritePatchButton")->property("enabled").toBool());
+        const QStringList starters{"minimal", "lfo_filter", "midi", "poly", "chaos", "macro"};
+        for (const auto &name : starters) {
+            const QString resource = QString(":/starter/starter_%1.json").arg(name);
+            QFile patch(resource);
+            QVERIFY2(patch.open(QIODevice::ReadOnly), qPrintable(resource));
+            const QUrl bundledUrl("file:" + resource);
+            QVERIFY(bundledUrl.isLocalFile());
+            QCOMPARE(bundledUrl.toLocalFile(), resource);
+            QVERIFY2(studio.loadPatch(bundledUrl), qPrintable(studio.errorText()));
+            QVERIFY(!studio.running());
+            const auto wavPath = temp_.filePath("starter_" + name + ".wav");
+            studio.renderDemo(QUrl::fromLocalFile(wavPath));
+            QFile wav(wavPath);
+            QVERIFY2(wav.open(QIODevice::ReadOnly), qPrintable(studio.errorText()));
+            const QByteArray data = wav.readAll();
+            QVERIFY2(data.size() > 44, qPrintable(name));
+            bool nonSilent = false;
+            for (qsizetype at = 44; at + 1 < data.size(); at += 2) {
+                if (data[at] != 0 || data[at + 1] != 0) {
+                    nonSilent = true;
+                    break;
+                }
+            }
+            QVERIFY2(nonSilent, qPrintable("silent starter: " + name));
+        }
+        // Exercise the real dropdown's activation signal, not just a controller load.
+        QVERIFY(QMetaObject::invokeMethod(dropdown, "activated", Q_ARG(int, 1)));
+        const auto currentPatchFile = [&] { return window->property("currentPatchFile").toString(); };
+        QTRY_COMPARE(currentPatchFile(), QString("file::/starter/starter_minimal.json"));
+        QCOMPARE(library->property("entryCount").toInt(), 7);
+        // Recent and favourite entries are transient in tests; no user file is modified.
+        const auto savedPath = temp_.filePath("saved-example.json");
+        QVERIFY(studio.savePatch(QUrl::fromLocalFile(savedPath)));
+        const auto original = read("saved-example.json");
+        const QString localUrl = QUrl::fromLocalFile(savedPath).toString();
+        const bool opened = QMetaObject::invokeMethod(window, "openPatchFile", Q_ARG(QVariant, QVariant(localUrl)));
+        QVERIFY(opened);
+        QTRY_COMPARE(library->property("entryCount").toInt(), 8);
+        QCOMPARE(window->property("currentPatchFile").toString(), localUrl);
+        QVERIFY(QMetaObject::invokeMethod(library, "toggleFavourite"));
+        QTRY_COMPARE(library->property("entryCount").toInt(), 8);
+        QCOMPARE(read("saved-example.json"), original);
+        // A pending library selection must respect the pre-existing dirty prompt.
+        QVERIFY(studio.setParameter(1, 0, 330));
+        QVERIFY(QMetaObject::invokeMethod(window, "requestLibraryPatch",
+                                          Q_ARG(QVariant, QVariant(":/starter/starter_poly.json"))));
+        auto *dialog = findNamed(window, "unsavedDialog");
+        QVERIFY(dialog);
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        QCOMPARE(window->property("currentPatchFile").toString(), localUrl);
+        QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
+        QCOMPARE(window->property("pendingAction").toString(), QString());
+        QCOMPARE(read("saved-example.json"), original);
+        QTRY_VERIFY(!dialog->property("visible").toBool());
+        // Discard loads the requested bundled patch without saving over the user file.
+        const QString polyUrl = "file::/starter/starter_poly.json";
+        QVERIFY(QMetaObject::invokeMethod(window, "requestLibraryPatch", Q_ARG(QVariant, QVariant(polyUrl))));
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        auto *discard = findButton(dialog, "Discard");
+        QVERIFY(discard);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(discard));
+        QTRY_COMPARE(currentPatchFile(), polyUrl);
+        QVERIFY(!studio.dirty());
+        QCOMPARE(window->property("pendingLibraryFile").toString(), QString());
+        QCOMPARE(read("saved-example.json"), original);
+        // Save commits the edited source to a new test-owned file, then loads the selection.
+        QVERIFY(studio.setParameter(2, 0, 550));
+        const QString minimalUrl = "file::/starter/starter_minimal.json";
+        QVERIFY(QMetaObject::invokeMethod(window, "requestLibraryPatch", Q_ARG(QVariant, QVariant(minimalUrl))));
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        auto *save = findButton(dialog, "Save");
+        QVERIFY(save);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(save));
+        auto *chooser = findNamed(window, "saveDialog");
+        QVERIFY(chooser);
+        QTRY_VERIFY(chooser->property("visible").toBool());
+        QCOMPARE(window->property("saveContinuation").toString(), QString("library"));
+        QVERIFY(chooser->setProperty("selectedFile", path("library-before-switch.json")));
+        QCOMPARE(chooser->property("selectedFile").toUrl(), path("library-before-switch.json"));
+        // Deliver the selected URL without the offscreen platform dialog reselecting a native path.
+        QVERIFY(QMetaObject::invokeMethod(chooser, "accepted"));
+        QTRY_COMPARE(currentPatchFile(), minimalUrl);
+        QVERIFY(!studio.dirty());
+        QCOMPARE(window->property("pendingLibraryFile").toString(), QString());
+        QCOMPARE(window->property("saveContinuation").toString(), QString());
+        QFile savedOutput(path("library-before-switch.json").toLocalFile());
+        QVERIFY2(savedOutput.open(QIODevice::ReadOnly), qPrintable(savedOutput.errorString()));
+        QJsonParseError savedError{};
+        const auto savedDocument = QJsonDocument::fromJson(savedOutput.readAll(), &savedError);
+        QCOMPARE(savedError.error, QJsonParseError::NoError);
+        const auto savedModules = savedDocument.object().value("modules").toArray();
+        QCOMPARE(savedModules.size(), 3);
+        QCOMPARE(savedModules.at(1).toObject().value("parameters").toObject().value("frequency").toDouble(), 550.);
+        const auto recent = QJsonDocument::fromJson(library->property("sessionRecent").toString().toUtf8()).array();
+        QCOMPARE(recent.size(), 2);
+        QCOMPARE(recent.first().toString(), path("library-before-switch.json").toString());
+        QCOMPARE(read("saved-example.json"), original);
     }
     void actualDocumentActionsAndCable() {
         bool failWrite = true; int writeAttempts = 0; QString acceptedPath;

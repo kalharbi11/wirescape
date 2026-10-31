@@ -27,6 +27,18 @@ ApplicationWindow {
     property string pendingAction: ""
     property bool closeApproved: false
     property string saveContinuation: ""
+    property string currentPatchFile: ""
+    property string pendingLibraryFile: ""
+    function openPatchFile(url) {
+        if (!studio.loadPatch(url)) return false;
+        currentPatchFile = String(url);
+        patchLibrary.recordOpened(currentPatchFile);
+        return true;
+    }
+    function requestLibraryPatch(url) {
+        pendingLibraryFile = String(url);
+        requestAction("library");
+    }
     property var heldKeys: ({})
     readonly property int heldKeyCount: Object.keys(heldKeys).length
     function releaseHeldKeys() {
@@ -63,13 +75,19 @@ ApplicationWindow {
         // Consume the dialog transaction even when persistence fails.
         let action = saveContinuation; saveContinuation = ""; pendingAction = "";
         if (!studio.savePatch(url)) { saveFailureDialog.open(); return false; }
+        currentPatchFile = String(url);
+        patchLibrary.recordOpened(currentPatchFile);
         if (action) { pendingAction = action; finishAction(); }
         return true;
     }
     function finishAction() {
         let action = pendingAction; pendingAction = "";
-        if (action === "new") studio.resetPatch();
+        if (action === "new") { studio.resetPatch(); currentPatchFile = ""; }
         else if (action === "open") loadDialog.open();
+        else if (action === "library") {
+            let url = pendingLibraryFile; pendingLibraryFile = "";
+            if (url) openPatchFile(url);
+        }
         else if (action === "close") { closeApproved = true; root.close(); }
     }
     onClosing: function(close) {
@@ -196,7 +214,7 @@ ApplicationWindow {
     FileDialog {
         id: loadDialog; title: "Open patch"; fileMode: FileDialog.OpenFile
         nameFilters: ["Wirescape patch (*.json)", "All files (*)"]
-        onAccepted: studio.loadPatch(selectedFile)
+        onAccepted: root.openPatchFile(selectedFile)
     }
     FileDialog {
         id: renderDialog; title: "Test render / 4 s mono / 2 s gate / gain 0.2"; fileMode: FileDialog.SaveFile
@@ -234,12 +252,20 @@ ApplicationWindow {
             Text { x: 22; y: 29; text: "WIRESCAPE"; font.pixelSize: 25; font.letterSpacing: -1.6; color: "#393b39" }
             Text { x: 23; y: 66; text: "STUDIO / 01"; font.pixelSize: 9; font.letterSpacing: 1.8; color: "#858681" }
             Rectangle { y: 105; width: parent.width; height: 1; color: "#d9d8d2" }
-            Text { x: 22; y: 133; text: "MODULE LIBRARY"; font.pixelSize: 10; font.letterSpacing: 1; color: "#393b39" }
-            Text { x: 22; y: 164; text: "ESSENTIALS"; font.pixelSize: 9; font.letterSpacing: 1.3; color: "#858681" }
+            Text { x: 22; y: 123; text: "PATCHES"; font.pixelSize: 10; font.letterSpacing: 1; color: "#393b39" }
+            PatchLibrary {
+                id: patchLibrary
+                x: 12; y: 146; width: 178
+                currentFile: root.currentPatchFile
+                running: studio.running
+                onOpenRequested: function(url) { root.requestLibraryPatch(url); }
+            }
+            Text { x: 22; y: 198; text: "MODULE LIBRARY"; font.pixelSize: 10; font.letterSpacing: 1; color: "#393b39" }
+            Text { x: 22; y: 228; text: "ESSENTIALS"; font.pixelSize: 9; font.letterSpacing: 1.3; color: "#858681" }
             Item {
                 id: libraryRegion; objectName: "libraryRegion"
                 x: 12; width: 178
-                anchors.top: parent.top; anchors.topMargin: 187
+                anchors.top: parent.top; anchors.topMargin: 252
                 anchors.bottom: legendPanel.top; anchors.bottomMargin: 15
                 Flickable {
                     id: libraryScroll; objectName: "moduleLibraryScroll"
