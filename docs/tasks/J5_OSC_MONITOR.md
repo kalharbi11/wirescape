@@ -21,6 +21,10 @@ Additional standing-v2 self-decision:2800lines (+7.7% over the approved2600)
 for authored static fixes and iterative bounded-bundle traversal; file cap52
 and all parsing/depth/allocation assertions remain unchanged.
 
+The real localhost graph regression retains nonzero worker timestamps and verifies
+D13's bounded scheduling lead with allocation watching. UI and headless PortAudio
+callbacks publish the same live clock anchor; offline wrappers stay deterministic.
+
 ```acceptance
 tier: T2
 budget: 2 Codex sessions (remaining)

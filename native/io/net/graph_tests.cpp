@@ -17,10 +17,13 @@
 struct GraphSink {
     AppEngine *engine;
     std::atomic<int> result{-1};
-    static int deliver(void *context, uint32_t node, const ws2_event &event, uint64_t) noexcept {
+    std::atomic<uint64_t> timestamp{0};
+    static int deliver(void *context, uint32_t node, const ws2_event &event, uint64_t timestamp) noexcept {
         auto &self = *static_cast<GraphSink *>(context);
         const int status = app_engine_native(self.engine)
-                               .enqueue(2, node, WS2_DIRECT_PORT, event, 0, wirescape::engine2::Timing::Immediate);
+                               .enqueue(2, node, WS2_DIRECT_PORT, event, timestamp, wirescape::engine2::Timing::Timestamped,
+                                        app_engine_generation(self.engine));
+        self.timestamp.store(timestamp, std::memory_order_release);
         self.result.store(status, std::memory_order_release);
         return status;
     }
@@ -50,6 +53,7 @@ int main() {
     address.sin_family = AF_INET;
     address.sin_port = htons(service.bound_port());
     address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    const auto sent_at = app_engine_clock_ns();
     REQUIRE(sendto(sender, reinterpret_cast<const char *>(packet), int(bytes), 0,
                    reinterpret_cast<sockaddr *>(&address), sizeof(address)) == int(bytes));
     for (uint32_t attempt = 0; attempt < 2000 && sink.result.load(std::memory_order_acquire) == -1; ++attempt)
@@ -61,14 +65,27 @@ int main() {
     close(sender);
 #endif
     REQUIRE(sink.result.load() == WS2_OK && service.counters().received == 1);
+    const auto callback_time = app_engine_clock_ns();
+    REQUIRE(sink.timestamp.load() >= sent_at && sink.timestamp.load() <= callback_time);
+    REQUIRE(sink.timestamp.load() != 0);
     float output[128];
+    float *channels[] = {output};
     int status;
     {
         allocation_watch::Scope scope;
-        status = app_engine_render(engine.get(), output, 128);
+        status = app_engine_render_live(engine.get(), channels, 1, 128, callback_time);
+        REQUIRE(scope.allocations() == 0);
+    }
+    REQUIRE(status == WS_OK);
+    // Timestamped ingress has one max-block of bounded scheduling lead.
+    REQUIRE(app_engine_native(engine.get()).output_sample(1, 0, 0, 0) == 0);
+    {
+        allocation_watch::Scope scope;
+        status = app_engine_render_live(engine.get(), channels, 1, 128, app_engine_clock_ns());
         REQUIRE(scope.allocations() == 0);
     }
     REQUIRE(status == WS_OK);
     REQUIRE(app_engine_native(engine.get()).output_sample(1, 0, 0, 0) == .75f);
     REQUIRE(app_engine_native(engine.get()).output_sample(1, 0, 0, 127) == .75f);
 }
+

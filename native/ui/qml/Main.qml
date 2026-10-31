@@ -164,15 +164,22 @@ ApplicationWindow {
     onActiveChanged: if (!active) { releaseHeldKeys(); studio.setGate(false); studio.panic(); }
     Dialog {
         id: midiDialog; title: "MIDI inputs"; modal: true; standardButtons: Dialog.Close
+        function receivedFor(name, system) {
+            let ports = studio.midiCounters.ports || [];
+            for (let port of ports)
+                if (port.name === name && port.system_name === system) return port.received;
+            return 0;
+        }
         Column {
             spacing: 8
-            Label { text: studio.midiAuthorized ? "Stop playback to select inputs." : "Launch with --confirm-midi to enable MIDI inputs." }
+            Switch { text: "Enable MIDI"; checked: studio.midiAuthorized; enabled: studio.midiSettingsAvailable && !studio.running; onToggled: studio.setMidiAuthorized(checked) }
+            Label { text: studio.midiSettingsAvailable ? "Enable the note endpoint; DAW/control ports may carry no notes. Stop playback to change inputs." : "MIDI is disabled for offline checks and probes."; wrapMode: Text.Wrap; width: 500 }
             Label { text: "Received " + studio.midiCounters.received + " / dropped " + studio.midiCounters.dropped + " / malformed " + studio.midiCounters.malformed }
             Repeater {
                 model: studio.midiEndpoints
                 CheckBox {
                     required property var modelData
-                    text: modelData.name; checked: modelData.enabled
+                    text: modelData.name + " · MIDI input · " + modelData.systemName + " · received " + midiDialog.receivedFor(modelData.name,modelData.systemName); checked: modelData.enabled
                     enabled: studio.midiAuthorized && !studio.running
                     onToggled: studio.setMidiEndpoint(modelData.name, modelData.systemName, checked)
                 }
@@ -328,7 +335,7 @@ ApplicationWindow {
                 StudioButton {
                     text: "I/O"; onClicked: ioMenu.open()
                     Menu { id: ioMenu
-                        MenuItem { text: "MIDI inputs"; enabled: !studio.running; onTriggered: midiDialog.open() }
+                        MenuItem { text: "MIDI inputs"; onTriggered: midiDialog.open() }
                         MenuItem { text: "Monitor"; onTriggered: monitorDialog.open() }
                     }
                 }
@@ -500,3 +507,4 @@ ApplicationWindow {
         }
     }
 }
+

@@ -15,6 +15,8 @@ int app_engine_register_module(AppEngine*,const ws_module_descriptor*);
 int app_engine_copy_modules(AppEngine* destination,const AppEngine* source);
 uint32_t app_engine_module_count(const AppEngine*);
 const ws_module_descriptor* app_engine_module(const AppEngine*,uint32_t);
+// Borrowed metadata; valid while the internal catalogue owner lives.
+const ws2_descriptor *app_engine_native_descriptor(const AppEngine *, const char *module);
 int app_engine_add_node(AppEngine*,uint32_t,const char*);
 int app_engine_add_node_config(AppEngine*,uint32_t,const char*,const std::vector<uint8_t>&);
 int app_engine_connect(AppEngine*,uint32_t,uint32_t,uint32_t,uint32_t);
@@ -23,6 +25,10 @@ int app_engine_initialize_parameter(AppEngine*,uint32_t,uint32_t,float);
 int app_engine_enqueue(AppEngine*,const ws_event*);
 int app_engine_render(AppEngine*,float*,uint32_t);
 int app_engine_render_channels(AppEngine*,float*const*,uint32_t,uint32_t);
+// Live audio callbacks: publish the callback's steady-clock time as the D13 anchor so
+// Timestamped ingress (MIDI SystemMonotonic, service chokes) maps onto the timeline.
+uint64_t app_engine_clock_ns();
+int app_engine_render_live(AppEngine *, float *const *, uint32_t, uint32_t, uint64_t callback_time_ns);
 int app_engine_reset(AppEngine*);
 int app_engine_activate(AppEngine*);
 int app_engine_deactivate(AppEngine*);
@@ -44,3 +50,4 @@ struct AppMonitorTap {
 };
 std::vector<AppMonitorTap> app_engine_monitor_taps(AppEngine *);
 void app_engine_monitor_prefix(AppEngine *, uint32_t, const std::string &);
+

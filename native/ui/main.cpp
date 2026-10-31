@@ -35,7 +35,9 @@ int main(int argc, char** argv) {
     parser.addOption({"report", "Save the smoke-test JSON report.", "path"});
     parser.addOption({"modules", "Directory containing installed native processor libraries.", "directory"});
     parser.addOption({"local-font", "Load an optional private local font file, without installing it.", "path"});
-    parser.addOption({"ready-report", "Write startup readiness without opening audio.", "path"});
+    parser.addOption({"ready-report", "Write device-disabled startup readiness.", "path"});
+    parser.addOption({"interactive-ready-report",
+                      "Keep interactive MIDI preferences during an explicit user launch with readiness reporting."});
     parser.addOption({"window-size", "Initial logical window size, at least 1000x650.", "widthxheight"});
     parser.addOption({"fullscreen", "Launch the studio in full-screen mode."});
     parser.addOption({"startup-check", "Exit after writing a ready report; never start audio."});
@@ -49,7 +51,12 @@ int main(int argc, char** argv) {
     if (parser.isSet("startup-check") && !parser.isSet("ready-report")) return 3;
     if (smoke) QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
     const auto directory = parser.isSet("modules") ? parser.value("modules") : app.applicationDirPath();
-    StudioController studio(directory, nullptr, {}, parser.isSet("confirm-midi"), parser.isSet("confirm-lan"));
+    const auto midiMode =
+        StudioController::midiMode(QGuiApplication::platformName(), smoke || parser.isSet("startup-check"),
+                                   QProcessEnvironment::systemEnvironment(), parser.optionNames());
+    const bool interactiveMidi = midiMode == StudioController::MidiPreference::Interactive;
+    StudioController studio(directory, nullptr, {}, interactiveMidi && parser.isSet("confirm-midi"), midiMode,
+                            {}, {}, parser.isSet("confirm-lan"));
     QQmlApplicationEngine view;
     view.rootContext()->setContextProperty("studio", &studio);
     view.rootContext()->setContextProperty("studioFontFamily", app.font().family());
@@ -96,3 +103,4 @@ int main(int argc, char** argv) {
     });
     return app.exec();
 }
+
