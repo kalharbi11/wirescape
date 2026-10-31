@@ -135,6 +135,18 @@ private slots:
         QTest::keyRelease(window, Qt::Key_A);
         QTRY_COMPARE(fakeStudio->property("noteOffCount").toInt(), 1);
         QCOMPARE(fakeStudio->property("lastPitch").toInt(), 60);
+
+        audio->forceActiveFocus();
+        QTRY_COMPARE(window->activeFocusItem(), audio);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(audio));
+        QTRY_VERIFY(!fakeStudio->property("running").toBool());
+        QTRY_COMPARE(window->activeFocusItem(), keyboard);
+        QTest::keyPress(window, Qt::Key_A);
+        QTRY_COMPARE(fakeStudio->property("noteOnCount").toInt(), 2);
+        QCOMPARE(fakeStudio->property("lastPitch").toInt(), 60);
+        QTest::keyRelease(window, Qt::Key_A);
+        QTRY_COMPARE(fakeStudio->property("noteOffCount").toInt(), 2);
+        QCOMPARE(fakeStudio->property("lastPitch").toInt(), 60);
     }
     void keyboardChordOffscreen() {
         StudioController studio(directory_);
