@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -102,6 +103,20 @@ class LauncherCommandTests(unittest.TestCase):
                  contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(dev.command_updates(argparse.Namespace(config='Release', json=True)), 1)
                 self.assertNotIn('comparison', record)
+
+    def test_package_reports_invalid_runtime_without_loading_it(self):
+        record = {'action': 'package'}
+        with patch.object(dev, '_base_record', return_value=record), \
+             patch.object(dev, '_studio_executable', return_value=Path('studio.exe')), \
+             patch.object(dev, '_build_metadata', return_value={}), \
+             patch.object(dev, 'os', SimpleNamespace(name='nt')), \
+             patch.object(dev, '_launcher_dependencies', side_effect=ValueError('Invalid remembered Qt path\nmissing Qt6Core.dll')), \
+             patch.object(dev, '_save_record', return_value=Path('unused')), \
+             patch.object(dev.subprocess, 'run') as run, \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(dev.command_package(argparse.Namespace(config='Release', json=False)), 1)
+        self.assertIn('Runtime selection failed: Invalid remembered Qt path missing Qt6Core.dll', output.getvalue())
+        run.assert_not_called()
 
     def test_cli_runtime_overrides_and_update_entry(self):
         args = dev.make_parser().parse_args(['launch', '--qt-prefix', 'qt', '--portaudio', 'pa', '--remember-runtime'])

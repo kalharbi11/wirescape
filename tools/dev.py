@@ -719,7 +719,11 @@ def command_package(args: argparse.Namespace) -> int:
     deploy = prefix / "bin" / "windeployqt.exe" if prefix else None
     record["runtime"] = runtime
     if os.name != "nt" or not executable or not deploy or not deploy.is_file() or not backend or not backend.is_file():
-        record.update(status="failed", summary="Package requires a Windows Qt build and PortAudio DLL (set WIRESCAPE_PORTAUDIO or use --portaudio PATH).")
+        reason = record.get("runtime_error")
+        summary = "Package requires a Windows Qt build and PortAudio DLL (set WIRESCAPE_PORTAUDIO or use --portaudio PATH)."
+        if reason:
+            summary += " Runtime selection failed: " + " ".join(reason.split())
+        record.update(status="failed", summary=summary)
         path = _save_record(record)
         _print_record(record, path, args.json)
         return 1
