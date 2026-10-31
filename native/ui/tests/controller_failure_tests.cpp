@@ -18,6 +18,39 @@ static void write(const QString& path, const QByteArray& bytes) {
     check(f.write(bytes) == bytes.size(), "write fixture");
     f.close(); check(f.error() == QFileDevice::NoError, "close fixture");
 }
+struct TestAudio {
+    static TestAudio *current;
+    bool connected = true;
+    int opens = 0, opened = -99, closeError = 0, countCode = 2;
+    PaDeviceInfo first{1, "Default physical", 0, 0, 2, 0, .01, 0, .02, 48000};
+    PaDeviceInfo second{1, "Chosen physical", 0, 0, 2, 0, .01, 0, .02, 48000};
+    PaHostApiInfo hostInfo{1, paDirectSound, "Fake output host", 2, paNoDevice, 0};
+    TestAudio() { current = this; }
+    static PaError ok() { return 0; }
+    static PaDeviceIndex count() { return current->countCode; }
+    static const PaDeviceInfo *info(PaDeviceIndex id) {
+        return id == 0 ? &current->first : id == 1 && current->connected ? &current->second : nullptr;
+    }
+    static const PaHostApiInfo *host(PaHostApiIndex) { return &current->hostInfo; }
+    static PaDeviceIndex defaultOutput() { return 0; }
+    static PaError open(PaStream **stream, const PaStreamParameters *, const PaStreamParameters *output, double,
+                        unsigned long, PaStreamFlags, PaStreamCallback *, void *) {
+        ++current->opens;
+        current->opened = output->device;
+        *stream = reinterpret_cast<PaStream *>(current);
+        return 0;
+    }
+    static PaError streamOk(PaStream *) { return 0; }
+    static PaError close(PaStream *) { return current->closeError; }
+    static PaError active(PaStream *) { return 1; }
+    static const char *error(PaError) { return "Fake backend failure"; }
+    static PaError format(const PaStreamParameters *, const PaStreamParameters *, double) { return 0; }
+    AudioDevice::Backend backend() {
+        return {ok,       ok,       count,    info,  host,   defaultOutput, open,
+                streamOk, streamOk, streamOk, close, active, error,         format};
+    }
+};
+TestAudio *TestAudio::current = nullptr;
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     try {
@@ -153,6 +186,74 @@ int main(int argc, char** argv) {
         for (qsizetype i = 44; i + 1 < demoBytes.size(); i += 2)
             if (demoBytes[i] != 0 || demoBytes[i + 1] != 0) demoSignal = true;
         check(demoSignal, "shipped demo produces nonzero offline signal");
+        StudioController route(temp.path());
+        const auto physicalId = route.selectedDevice();
+        const auto graphOutput = route.outputNode();
+        route.selectOutput(0);
+        check(route.selectedDevice() == physicalId, "graph output changes do not select physical hardware");
+        route.selectOutput(graphOutput);
+        route.setDevice(9999);
+        check(route.selectedDevice() == physicalId && !route.errorText().isEmpty(),
+              "unavailable physical selection preserves existing route");
+        check(!route.running() && route.audioOutputStatus().contains("Refresh"),
+              "stopped flow explains refresh/select/start");
+        const auto routeInfo = route.diagnostics();
+        check(routeInfo["graph_output_node"].toInt() == graphOutput &&
+                  routeInfo["selected_output_id"].toInt() == physicalId,
+              "diagnostics distinguish graph output and requested physical output");
+        {
+            TestAudio fakeAudio;
+            StudioController hardware(temp.path(), nullptr, {}, false, StudioController::MidiPreference::Ignore, {}, {},
+                                      fakeAudio.backend());
+            hardware.refreshDevices();
+            hardware.setDevice(1);
+            const auto selectedPatch = QUrl::fromLocalFile(temp.filePath("hardware-selected.json"));
+            check(hardware.savePatch(selectedPatch) && hardware.loadPatch(selectedPatch) &&
+                      hardware.selectedDevice() == 1,
+                  "patch save/reload keeps explicit physical selection separate from graph data");
+            check(hardware.selectedDevice() == 1 && fakeAudio.opens == 0,
+                  "select explicit physical ID without starting");
+            hardware.startAudio();
+            check(hardware.running() && fakeAudio.opened == 1 && fakeAudio.opens == 1 &&
+                      hardware.audioOutputStatus().contains("Chosen physical") &&
+                      hardware.audioOutputStatus().contains("Fake output host"),
+                  "fake active route displays actual hardware/backend");
+            hardware.setDevice(0);
+            hardware.refreshDevices();
+            check(hardware.selectedDevice() == 1 && fakeAudio.opens == 1, "running route cannot change or refresh");
+            hardware.stopAudio();
+            hardware.refreshDevices();
+            check(hardware.selectedDevice() == -2 && !hardware.running(),
+                  "refresh invalidates ephemeral explicit index");
+            hardware.startAudio();
+            check(!hardware.running() && fakeAudio.opens == 1, "refresh never silently starts the default route");
+            hardware.setDevice(0);
+            hardware.startAudio();
+            check(hardware.running() && fakeAudio.opened == 0 && fakeAudio.opens == 2,
+                  "explicit reselection permits restart");
+            fakeAudio.closeError = paDeviceUnavailable;
+            hardware.stopAudio();
+            check(hardware.cleanupPending() && hardware.audioOutputStatus().contains("Cleanup"),
+                  "cleanup failure is visible");
+            hardware.setDevice(1);
+            hardware.refreshDevices();
+            check(hardware.selectedDevice() == 0 && fakeAudio.opens == 2, "cleanup blocks route changes and refresh");
+            fakeAudio.closeError = 0;
+            hardware.stopAudio();
+            hardware.refreshDevices();
+            check(!hardware.cleanupPending() && hardware.selectedDevice() == -2,
+                  "cleanup retry permits explicit refresh flow");
+            fakeAudio.connected = false;
+            hardware.setDevice(1);
+            check(hardware.selectedDevice() == -2 && !hardware.errorText().isEmpty(),
+                  "disconnected output is not replaced by default");
+            hardware.setDevice(0);
+            fakeAudio.countCode = paInternalError;
+            hardware.refreshDevices();
+            check(hardware.selectedDevice() == -2 && hardware.errorText().contains("Enumerate"),
+                  "failed refresh also invalidates potentially reindexed physical selection");
+            fakeAudio.countCode = 2;
+        }
         // No backend is authorized: native event metadata must survive editable v2 loading.
         StudioController events(temp.path());
         auto eventPatch = QJsonDocument::fromJson(before).object();

@@ -8,6 +8,12 @@
 
 AudioDevice::AudioDevice() : context_(std::make_unique<CallbackContext>()) {}
 AudioDevice::AudioDevice(Backend backend) : AudioDevice() { backend_ = backend; injected_ = true; }
+AudioDevice::AudioDevice(std::optional<Backend> backend) : AudioDevice() {
+    if (backend) {
+        backend_ = *backend;
+        injected_ = true;
+    }
+}
 AudioDevice::~AudioDevice() {
     stop();
     if (initialized_) {
@@ -76,22 +82,63 @@ bool AudioDevice::refresh(const QString& directory) {
     return true;
 }
 QVariantMap AudioDevice::diagnostics() const {
-    return {{"state", static_cast<int>(state_)}, {"running", running()}, {"cleanup_pending", hasStream() && !running()},
-            {"device_id", device_}, {"device", deviceName_}, {"backend", hostName_},
-            {"sample_rate", context_->sampleRate}, {"block_frames", block_}, {"output_channels", 2},
+    return {{"state", static_cast<int>(state_)},
+            {"running", running()},
+            {"cleanup_pending", (hasStream() || engineInUse()) && !running()},
+            {"device_id", device_},
+            {"device", deviceName_},
+            {"backend", hostName_},
+            {"sample_rate", context_->sampleRate},
+            {"block_frames", block_},
+            {"output_channels", 2},
             {"underruns", QVariant::fromValue<qulonglong>(underruns())},
-            {"callback_faults", QVariant::fromValue<qulonglong>(faults())}, {"error", error_}};
+            {"callback_faults", QVariant::fromValue<qulonglong>(faults())},
+            {"error", error_}};
 }
 QVariantList AudioDevice::devices() const {
     QVariantList result;
-    result.append(QVariantMap{{"id", -1}, {"name", "System default output"}});
+    const auto entry = [](int id, const PaDeviceInfo *info, const PaHostApiInfo *host, bool isDefault) {
+        const int channels = info ? info->maxOutputChannels : 0;
+        const bool supported = info && channels >= 2;
+        const QString base = info ? QStringLiteral("%1 / %2").arg(QString::fromUtf8(info->name),
+                                                                  host ? QString::fromUtf8(host->name)
+                                                                       : QStringLiteral("Unknown host API"))
+                                  : QStringLiteral("System default output unavailable");
+        const QString label =
+            info && !supported ? QStringLiteral("Unsupported output: %1 (stereo required)").arg(base) : base;
+        return QVariantMap{
+            {"id", id},
+            {"device_id", id},
+            {"name", label},
+            {"supported", supported},
+            {"reason", info ? channels == 1
+                                  ? QStringLiteral("Mono output is unsupported; Wirescape requires stereo output.")
+                              : channels < 1 ? QStringLiteral("Device has no output channels.")
+                                             : QString()
+                            : QStringLiteral("No available default output device.")},
+            {"max_output_channels", channels},
+            {"default_sample_rate", info ? info->defaultSampleRate : 0.0},
+            {"is_default", isDefault}};
+    };
+    const int defaultId = initialized_ ? backend_.defaultDevice() : paNoDevice;
+    const auto *defaultInfo = defaultId >= 0 ? backend_.deviceInfo(defaultId) : nullptr;
+    const auto *defaultHost = defaultInfo ? backend_.hostInfo(defaultInfo->hostApi) : nullptr;
+    auto defaultRow = entry(-1, defaultInfo, defaultHost, true);
+    defaultRow["name"] = defaultInfo ? QStringLiteral("System default: %1").arg(defaultRow.value("name").toString())
+                                     : QStringLiteral("System default output (unavailable)");
+    defaultRow["device_id"] = defaultId;
+    if (!initialized_) {
+        defaultRow["name"] = QStringLiteral("System default output (refresh to discover)");
+        defaultRow["reason"] = QStringLiteral("Refresh outputs to discover available devices.");
+    }
+    result.append(defaultRow);
     if (!initialized_) return result;
     const auto count = backend_.deviceCount();
     for (int i = 0; i < count; ++i) {
         const auto* info = backend_.deviceInfo(i);
-        if (!info || info->maxOutputChannels < 2) continue;
+        if (!info || info->maxOutputChannels < 1) continue;
         const auto* host = backend_.hostInfo(info->hostApi);
-        result.append(QVariantMap{{"id", i}, {"name", QStringLiteral("%1 / %2").arg(QString::fromUtf8(info->name), host ? QString::fromUtf8(host->name) : QString())}});
+        result.append(entry(i, info, host, i == defaultId));
     }
     return result;
 }
@@ -125,7 +172,22 @@ bool AudioDevice::startRender(void* engine,int (*render)(void*,float*,uint32_t),
     error_.clear();
     if (device == -1) device = backend_.defaultDevice();
     const auto* info = device >= 0 ? backend_.deviceInfo(device) : nullptr;
-    if (!info || info->maxOutputChannels < 2) { error_ = "Choose an available stereo output device."; state_ = State::Faulted; return false; }
+    if (!info) {
+        error_ = device == backend_.defaultDevice() ? "The system default output device is unavailable."
+                                                    : "The selected output device is unavailable.";
+        state_ = State::Faulted;
+        return false;
+    }
+    if (info->maxOutputChannels == 1) {
+        error_ = "The selected output device is mono; Wirescape requires stereo output.";
+        state_ = State::Faulted;
+        return false;
+    }
+    if (info->maxOutputChannels < 2) {
+        error_ = "The selected device has no stereo output channels.";
+        state_ = State::Faulted;
+        return false;
+    }
     PaStreamParameters output{device, 2, paFloat32, info->defaultLowOutputLatency, nullptr};
     const auto supported = backend_.formatSupported(nullptr, &output, rate);
     if (supported != paFormatIsSupported) { backendError("Output does not support the requested stereo sample rate", supported); state_ = State::Faulted; return false; }

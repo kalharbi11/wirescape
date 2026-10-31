@@ -27,6 +27,7 @@ class StudioController final : public QObject {
     Q_PROPERTY(bool ready READ ready NOTIFY statusChanged)
     Q_PROPERTY(bool cleanupPending READ cleanupPending NOTIFY statusChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY statusChanged)
+    Q_PROPERTY(QString audioOutputStatus READ audioOutputStatus NOTIFY statusChanged)
     Q_PROPERTY(QString errorText READ errorText NOTIFY statusChanged)
     Q_PROPERTY(QString noticeText READ noticeText NOTIFY statusChanged)
     Q_PROPERTY(QString diagnosticText READ diagnosticText NOTIFY metersChanged)
@@ -56,7 +57,8 @@ public:
   explicit StudioController(QString directory, QObject *parent = nullptr, PatchWriter writer = {},
                             bool confirmMidi = false, MidiPreference midiPreference = MidiPreference::Ignore,
                             std::unique_ptr<wirescape::midi::Backend> fakeMidi = {},
-                            const QString &midiSettingsPath = {});
+                            const QString &midiSettingsPath = {},
+                            std::optional<AudioDevice::Backend> testAudio = std::nullopt);
   ~StudioController() override;
   QVariantMap midiCounters() const;
   QVariantList midiEndpoints();
@@ -70,8 +72,9 @@ public:
   QVariantList palette() const;
   bool running() const { return audio_.running(); }
   bool ready() const { return ready_; }
-  bool cleanupPending() const { return audio_.hasStream() && !running(); }
+  bool cleanupPending() const { return (audio_.hasStream() || audio_.engineInUse()) && !running(); }
   QString statusText() const;
+  QString audioOutputStatus() const;
   QString errorText() const { return error_; }
   QString noticeText() const { return notice_; }
   QString diagnosticText() const;

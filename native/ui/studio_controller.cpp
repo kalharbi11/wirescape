@@ -51,9 +51,9 @@ QString display(double value, const QString& unit) {
 
 StudioController::StudioController(QString directory, QObject *parent, PatchWriter writer, bool confirmMidi,
                                    MidiPreference midiPreference, std::unique_ptr<wirescape::midi::Backend> fakeMidi,
-                                   const QString &midiSettingsPath)
+                                   const QString &midiSettingsPath, std::optional<AudioDevice::Backend> testAudio)
     : QObject(parent), directory_(std::move(directory)), patchWriter_(std::move(writer)),
-      midi_(confirmMidi, std::move(fakeMidi)) {
+      midi_(confirmMidi, std::move(fakeMidi)), audio_(testAudio) {
     if (midiPreference == MidiPreference::Interactive) {
         midiPreferences_ = midiSettingsPath.isEmpty()
                                ? std::make_unique<QSettings>()
@@ -204,6 +204,16 @@ QVariantList StudioController::connections() const {
     return result;
 }
 QString StudioController::statusText() const { return running() ? "AUDIO RUNNING" : ready_ ? "READY / AUDIO OFF" : "PATCH NEEDS ATTENTION"; }
+QString StudioController::audioOutputStatus() const {
+    if (cleanupPending()) return QStringLiteral("Cleanup pending: retry Stop audio before changing outputs.");
+    if (!running()) return QStringLiteral("Audio stopped: Refresh outputs, select hardware, then Start audio.");
+    const auto details = audio_.diagnostics();
+    const auto backend = details.value("backend").toString();
+    return QStringLiteral("%1 / %2 | %3 ch | %4 kHz | Stop audio to change output")
+        .arg(details.value("device").toString(), backend.isEmpty() ? QStringLiteral("Unknown host API") : backend)
+        .arg(details.value("output_channels").toInt())
+        .arg(details.value("sample_rate").toDouble() / 1000, 0, 'f', 1);
+}
 void StudioController::setError(QString value) { error_ = std::move(value); emit statusChanged(); }
 
 int StudioController::portIndex(const ws_port_descriptor* ports, uint32_t count, const QString& id) { for (uint32_t i = 0; i < count; ++i) if (text(ports[i].id) == id) return static_cast<int>(i); return -1; }
@@ -375,11 +385,47 @@ bool StudioController::send(int node, uint32_t type, float value, uint32_t param
     return true;
 }
 
-void StudioController::refreshDevices() { if (audio_.hasStream()) { setError("Stop audio and complete device cleanup before refreshing outputs."); return; } if (audio_.refresh(directory_)) setError({}); else setError(audio_.error()); emit statusChanged(); }
-void StudioController::setDevice(int id) { if (!running()) { device_ = id; emit statusChanged(); } }
+void StudioController::refreshDevices() {
+    if (audio_.hasStream() || audio_.engineInUse()) {
+        setError("Stop audio and complete device cleanup before refreshing outputs.");
+        return;
+    }
+    if (!audio_.refresh(directory_)) {
+        if (device_ >= 0) device_ = -2; // Refresh can reindex devices even when enumeration then fails.
+        setError(audio_.error());
+        return;
+    }
+    if (device_ >= 0) {
+        device_ = -2; // PortAudio indexes may be reassigned after hotplug; require an explicit new choice.
+        setError("Outputs refreshed. Select the physical output again before starting audio.");
+    } else setError({});
+    emit statusChanged();
+}
+void StudioController::setDevice(int id) {
+    if (running() || audio_.hasStream() || audio_.engineInUse()) {
+        setError("Stop audio and complete cleanup before choosing an output.");
+        return;
+    }
+    for (const auto &value : devices()) {
+        const auto row = value.toMap();
+        if (row.value("id").toInt() != id) continue;
+        if (!row.value("supported").toBool()) {
+            setError(row.value("reason").toString());
+            return;
+        }
+        device_ = id;
+        setError({});
+        return;
+    }
+    setError("That physical output is unavailable. Refresh outputs and choose an available stereo device.");
+}
 
 void StudioController::startAudio() {
     if (running()) return;
+    if (device_ == -2) {
+        setError("Select a physical output after refreshing before starting audio.");
+        return;
+    }
     if (audio_.hasStream()) { setError("Device cleanup is pending. Stop audio again before restarting."); return; }
     if (!compileDocument()) return;
     if (!audio_.initialize(directory_) || !audio_.startRender(
@@ -454,8 +500,12 @@ QVariantMap StudioController::diagnostics() const {
     result["created_utc"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     result["scope"] = "session counters; not an end-to-end latency measurement";
     result["patch_ready"] = ready_; result["node_count"] = modules().size();
+    result["graph_output_node"] = outputNode();
+    result["selected_output_id"] = device_;
+    result["audio_output_status"] = audioOutputStatus();
     if (engine_) {
         ws_meter meter = lastSessionMeter_; meter.struct_size = sizeof(meter); if (running() || !meter.rendered_blocks) app_engine_get_meter(engine_.get(), &meter);
+        result["engine_peak"] = meter.peak;
         result["overload_blocks"] = QVariant::fromValue<qulonglong>(meter.overload_blocks);
         result["overload_reason"] = meter.overload_reason == 1 ? "event_budget" : meter.overload_reason == 2 ? "graph_span_budget" : "none";
         result["queue_overflows"] = QVariant::fromValue<qulonglong>(meter.overflow_events);
