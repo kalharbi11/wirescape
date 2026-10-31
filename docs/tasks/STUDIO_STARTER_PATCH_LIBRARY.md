@@ -13,8 +13,10 @@ native/examples/chaos_two.json, native/document/app_patch_tests.cpp.
 The existing controller remains unchanged. Starter JSON is shipped as
 read-only Qt resources, never copied over user patches. QML Settings holds
 only recent/favourite file URLs; a failed open never changes history.
-The embedded asset paths use Qt's existing `:/starter/` resource namespace and
-are opened through the current file loader without creating local patch files.
+Starter resources use the existing `:/starter/` namespace. The picker passes
+`file::/starter/...` so QUrl's `toLocalFile()` yields the read-only
+`:/starter/...` QFile resource path. No controller extension, installed file
+copy, or user-patch write is required.
 Existing dirty-save/discard/cancel continuations, fullscreen and Clock
 behavior remain intact. Tests isolate history and write WAVs and saved
 patches only in temporary test-owned paths.
