@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "engine2.h"
 #include "midi_release.h"
-#include "wirescape_sdk.h"
 #include "wirescape/module.h"
+#include "wirescape_sdk.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <functional>
 #include <limits>
 #include <new>
+#include <thread>
 #include <tuple>
 #include <utility>
 #if defined(__SSE2__) || defined(_M_X64)
@@ -35,7 +37,7 @@ struct Buffer {
 };
 struct Packet {
     uint32_t node=0,port=WS2_DIRECT_PORT,producer=0;Timing mode=Timing::Frames;
-    uint64_t when=0,generation=1,order=0,mapped_time_ns=0;
+    uint64_t when = 0, generation = 1, order = 0, mapped_time_ns = 0, revision = 0;
     ws2_event event{};std::array<uint8_t,WS2_MAX_PAYLOAD>payload{};
     void fix(){event.data=event.bytes?payload.data():nullptr;}
 };
@@ -64,8 +66,14 @@ struct Producer {
     Ring normal,critical;uint64_t serial=0;
     explicit Producer(uint32_t capacity):normal(capacity),critical(capacity){}
 };
-struct Item {ws2_event event{};uint64_t frame=0,order=0;};
-bool ordered(const Item&a,const Item&b){return std::tie(a.frame,a.order)<std::tie(b.frame,b.order);}
+struct Item {
+    ws2_event event{};
+    uint64_t frame = 0, order = 0;
+    bool cleanup = false;
+};
+bool ordered(const Item &a, const Item &b) {
+    return std::make_tuple(a.frame, !a.cleanup, a.order) < std::make_tuple(b.frame, !b.cleanup, b.order);
+}
 struct Allocation {void*p;size_t alignment,bytes;uint32_t hint;};
 struct Parameter {
     ws2_param info{};ws::LinearRamp base;
@@ -88,6 +96,7 @@ struct Parameter {
 struct Edge;
 struct Node {
     uint32_t id=0,index=0,component=0;const ws2_descriptor*d=nullptr;
+    uint64_t born_revision = 0;
     const ws_module_descriptor*legacy=nullptr;void*instance=nullptr;
     std::vector<ws2_port>inputs,outputs;
     std::vector<ws2_param>parameters;std::vector<std::string>legacy_ids;
@@ -128,6 +137,7 @@ struct Edge {
 };
 struct Component {std::vector<Node*>nodes;bool loop=false;};
 struct Bus {uint32_t node,port,channel;Node*source=nullptr;};
+enum class Park : uint8_t { Running, Requested, Parked, Cancelled };
 }
 
 struct Engine::Impl {
@@ -140,13 +150,18 @@ struct Engine::Impl {
     std::unique_ptr<Producer>egress;
     std::vector<Packet>future;std::vector<uint8_t>arena;
     bool prepared=false;std::atomic_flag rendering=ATOMIC_FLAG_INIT;
+    std::atomic<Park> park{Park::Running};
+    std::atomic<uint64_t> revision{0};
+    std::vector<std::pair<uint32_t, uint32_t>> replan_chokes;
+    bool fade_in = false;
     std::atomic<uint64_t>position{0},generation{1},applied{1},event_count{0},dropped{0},coalesced{0},ring_full{0},stale{0},late{0},emergencies{0},arena_full{0},faults{0};
     std::atomic<bool>egress_emergency{false};
     uint64_t anchor_frame=0,anchor_ns=0,sequence=0,block_start=0;
     double frames_per_ns=0,beat=0;
     std::atomic<uint32_t>arena_used{0};
-    uint32_t block_frames=0,ordinary_used=0,critical_used=0,feedback_count=0,latency=0;
-    size_t setup_bytes=0;
+    uint32_t block_frames = 0, ordinary_used = 0, critical_used = 0;
+    std::atomic<uint32_t> feedback_count{0}, latency{0};
+    std::atomic<size_t> setup_bytes{0};
     Node*processing=nullptr;uint32_t processing_start=0,processing_frames=0;
     explicit Impl(Config c):cfg(c),anchor_ns(c.epoch_ns),frames_per_ns(c.sample_rate/1.e9) {
         nodes.reserve(cfg.max_nodes);future.reserve(cfg.future_capacity);
@@ -189,7 +204,8 @@ struct Engine::Impl {
     bool topology();
     bool finish_prepare();
     bool setup(Node&);
-    bool admit(Node&,uint32_t,const ws2_event&,uint64_t,uint64_t);
+    bool valid_target(const Node &, uint32_t, const ws2_event &) const;
+    bool admit(Node &, uint32_t, const ws2_event &, uint64_t, uint64_t, bool cleanup = false);
     void collect();
     bool route(uint32_t,const ws2_event&);
     void process_node(Node&,uint32_t,uint32_t);
@@ -306,11 +322,31 @@ bool Engine::Impl::topology() {
         for(auto&e:edges)if(!e.removed&&!e.back&&e.kind==0&&e.destination==n)upstream=std::max(upstream,distance[e.source->index]);
         distance[n->index]=static_cast<uint32_t>(std::min<uint64_t>(UINT32_MAX,uint64_t(upstream)+n->latency));
     }
-    for(auto&bus:buses){auto*n=find(bus.node);if(n){bus_latency[bus.channel]=std::max(bus_latency[bus.channel],distance[n->index]);latency=std::max(latency,bus_latency[bus.channel]);}}
+    for (auto &bus : buses) {
+        auto *n = find(bus.node);
+        if (n) {
+            bus_latency[bus.channel] = std::max(bus_latency[bus.channel], distance[n->index]);
+            latency = std::max(latency.load(), bus_latency[bus.channel]);
+        }
+    }
     return true;
 }
 
-bool Engine::Impl::admit(Node&n,uint32_t port,const ws2_event&source,uint64_t frame,uint64_t order) {
+bool Engine::Impl::valid_target(const Node &n, uint32_t port, const ws2_event &e) const {
+    if (port != WS2_DIRECT_PORT && (port >= n.inputs.size() || n.inputs[port].kind != WS2_EVENT)) return false;
+    if (e.type == WS2_PARAM || e.type == WS2_PARAM_MOD) {
+        if (e.index >= n.parameters.size()) return false;
+        if (e.type == WS2_PARAM && (e.value < n.parameters[e.index].minimum || e.value > n.parameters[e.index].maximum))
+            return false;
+    }
+    return true;
+}
+bool Engine::Impl::admit(Node &n, uint32_t port, const ws2_event &source, uint64_t frame, uint64_t order,
+                         bool cleanup) {
+    if (!valid_target(n, port, source)) {
+        ++dropped;
+        return false;
+    }
     auto e=source;e.port=port;
     const bool critical=release(e);
     bool full=n.pending.size()>=cfg.event_budget||ordinary_used+critical_used>=cfg.event_budget||(!critical&&ordinary_used>=cfg.event_budget-cfg.release_reserve);
@@ -323,19 +359,44 @@ bool Engine::Impl::admit(Node&n,uint32_t port,const ws2_event&source,uint64_t fr
         if(e.bytes>WS2_MAX_PAYLOAD||!e.data||e.bytes>arena.size()-arena_used){++arena_full;++dropped;return false;}
         std::memcpy(arena.data()+arena_used,e.data,e.bytes);e.data=arena.data()+arena_used;arena_used+=e.bytes;
     }
-    n.pending.push_back({e,frame,order});if(critical)++critical_used;else ++ordinary_used;++event_count;return true;
+    n.pending.push_back({e, frame, order, cleanup});
+    if (critical) ++critical_used;
+    else ++ordinary_used;
+    ++event_count;
+    return true;
 }
 
 void Engine::Impl::collect() {
     for(auto&n:nodes)n->pending.clear();
     Packet p;
     const uint64_t gen=generation.load(std::memory_order_acquire);
+    for (auto target : replan_chokes) {
+        ws2_event e{};
+        e.struct_size = sizeof(e);
+        e.type = WS2_NOTE_CHOKE;
+        e.source_id = UINT32_MAX;
+        e.note_id = -1;
+        e.channel = -1;
+        e.flags = 1;
+        if (auto *n = find(target.first)) admit(*n, target.second, e, block_start, 0, true);
+        else ++stale;
+    }
+    replan_chokes.clear();
     for(uint32_t producer=0;producer<producer_count;++producer){
         auto&source=*producers[producer];
         for(Ring*ring:{&source.critical,&source.normal}){
             // Snapshot-like bounded drain. A busy producer cannot extend this indefinitely.
             for(uint32_t work=0;work<cfg.ring_capacity&&ring->pop(p);++work){
                 if(p.generation!=gen){++stale;continue;}
+                auto *target = find(p.node);
+                if (!target || p.revision < target->born_revision) {
+                    ++stale;
+                    continue;
+                }
+                if (!valid_target(*target, p.port, p.event)) {
+                    ++dropped;
+                    continue;
+                }
                 if(p.mode==Timing::Immediate)p.when=block_start;
                 else if(p.mode==Timing::Timestamped){uint64_t f=map_time(p.when);p.when=f>UINT64_MAX-cfg.max_block?UINT64_MAX:f+cfg.max_block;}
                 if(future.size()==future.capacity()){if(release(p.event))emergency();else ++dropped;continue;}
@@ -347,10 +408,18 @@ void Engine::Impl::collect() {
     for(size_t i=0;i<future.size();++i){
         auto&packet=future[i];packet.fix();
         if(packet.generation!=gen){++stale;continue;}
+        Node *n = find(packet.node);
+        if (!n || packet.revision < n->born_revision) {
+            ++stale;
+            continue;
+        }
+        if (!valid_target(*n, packet.port, packet.event)) {
+            ++dropped;
+            continue;
+        }
         if(packet.when>=block_start+block_frames){if(keep!=i)future[keep]=packet;++keep;continue;}
         if(packet.when<block_start){packet.when=block_start;++late;}
-        Node*n=find(packet.node);
-        if(n)admit(*n,packet.port,packet.event,packet.when,packet.order);
+        admit(*n, packet.port, packet.event, packet.when, packet.order);
     }future.resize(keep);
 }
 
@@ -368,7 +437,14 @@ bool Engine::Impl::route(uint32_t port,const ws2_event&source) {
         if(destination_frame<block_start+block_frames)okay=admit(*e.destination,e.input,source,destination_frame,(UINT64_C(1)<<63)|sequence++)&&okay;
         else {
             if(future.size()==future.capacity()){if(release(source))emergency();else ++dropped;okay=false;continue;}
-            Packet p;p.node=e.to;p.port=e.input;p.event=source;p.when=destination_frame;p.generation=generation.load();p.order=(UINT64_C(1)<<63)|sequence++;
+            Packet p;
+            p.node = e.to;
+            p.port = e.input;
+            p.event = source;
+            p.when = destination_frame;
+            p.generation = generation.load();
+            p.revision = revision.load();
+            p.order = (UINT64_C(1) << 63) | sequence++;
             if(source.bytes)std::memcpy(p.payload.data(),source.data,source.bytes);p.fix();future.push_back(p);
         }
     }
@@ -557,15 +633,10 @@ int Engine::enqueue(uint32_t producer,uint32_t node,uint32_t port,const ws2_even
     auto&p=*p_;if(!p.prepared||producer>=p.producer_count)return WS2_STATE;
     const auto gen=p.generation.load(std::memory_order_acquire);
     if(gen!=p.applied.load(std::memory_order_acquire)||(wanted_generation&&wanted_generation!=gen))return WS2_STATE;
-    auto*n=p.find(node);
-    if(!n||!ws::valid_event(event))return WS2_INVALID;
-    if(port!=WS2_DIRECT_PORT&&(port>=n->inputs.size()||n->inputs[port].kind!=WS2_EVENT))return WS2_INVALID;
-    if(event.type==WS2_PARAM||event.type==WS2_PARAM_MOD){
-        if(event.index>=n->parameters.size())return WS2_INVALID;
-        if(event.type==WS2_PARAM&&(event.value<n->parameters[event.index].minimum||event.value>n->parameters[event.index].maximum))return WS2_INVALID;
-    }
+    if (!ws::valid_event(event)) return WS2_INVALID;
     auto&source=*p.producers[producer];
     Packet packet;packet.node=node;packet.port=port;packet.when=time;packet.mode=mode;packet.producer=producer;packet.generation=gen;
+    packet.revision = p.revision.load(std::memory_order_acquire);
     packet.order=(static_cast<uint64_t>(producer)<<48)|(source.serial++&UINT64_C(0x0000ffffffffffff));packet.event=event;
     if(event.bytes)std::memcpy(packet.payload.data(),event.data,event.bytes);packet.fix();
     if(!(release(event)?source.critical:source.normal).push(packet)){
@@ -602,6 +673,14 @@ int Engine::render(float*const*outputs,uint32_t output_channels,uint32_t frames,
     }guard(p.rendering);
     p.block_start=p.position.load(std::memory_order_relaxed);p.block_frames=frames;
     if(callback_time_ns!=UINT64_MAX)publish_clock(p.block_start,callback_time_ns);
+    const auto parked = p.park.load(std::memory_order_acquire);
+    if (parked == Park::Parked) {
+        for (uint32_t c = 0; c < output_channels; ++c) std::fill_n(outputs[c], frames, 0.f);
+        if (p.cfg.playing) p.beat += frames * p.cfg.bpm / (60. * p.cfg.sample_rate);
+        p.position.store(p.block_start + frames, std::memory_order_release);
+        return WS2_OK;
+    }
+    if (parked == Park::Cancelled) p.park.store(Park::Running, std::memory_order_release);
     if(p.generation.load()!=p.applied.load()){p.reset_processors();p.applied.store(p.generation.load(),std::memory_order_release);}
     p.arena_used.store(0);p.ordinary_used=p.critical_used=0;
     for(auto&n:p.nodes)n->touched=false;
@@ -631,6 +710,20 @@ int Engine::render(float*const*outputs,uint32_t output_channels,uint32_t frames,
     if(p.cfg.playing)p.beat+=frames*p.cfg.bpm/(60.*p.cfg.sample_rate);
     p.position.store(p.block_start+frames,std::memory_order_release);
     if(p.generation.load()!=p.applied.load()){p.reset_processors();p.applied.store(p.generation.load(),std::memory_order_release);}
+    if (p.fade_in) {
+        for (uint32_t c = 0; c < output_channels; ++c)
+            for (uint32_t i = 0; i < frames; ++i) outputs[c][i] *= float(i + 1) / float(frames);
+        p.fade_in = false;
+    }
+    if (p.park.load(std::memory_order_acquire) == Park::Requested) {
+        for (uint32_t c = 0; c < output_channels; ++c)
+            for (uint32_t i = 0; i < frames; ++i) outputs[c][i] *= float(frames - i - 1) / float(frames);
+        p.fade_in = true;
+        auto expected = Park::Requested;
+        if (!p.park.compare_exchange_strong(expected, Park::Parked, std::memory_order_acq_rel,
+                                            std::memory_order_acquire))
+            p.park.store(Park::Running, std::memory_order_release);
+    }
     return WS2_OK;
 }
 
@@ -652,7 +745,28 @@ bool Engine::pop_egress(Outgoing&out)noexcept {
     }return false;
 }
 void Engine::panic()noexcept {p_->generation.fetch_add(1,std::memory_order_acq_rel);p_->egress_emergency.store(true,std::memory_order_release);}
-void Engine::reset(){auto&p=*p_;for(uint32_t i=0;i<p.producer_count;++i){p.producers[i]->normal.clear();p.producers[i]->critical.clear();}if(p.egress){p.egress->normal.clear();p.egress->critical.clear();}p.reset_processors();p.position.store(0);p.beat=0;p.anchor_frame=0;p.anchor_ns=p.cfg.epoch_ns;p.frames_per_ns=p.cfg.sample_rate/1.e9;p.generation.fetch_add(1);p.applied.store(p.generation.load());}
+void Engine::reset() {
+    auto &p = *p_;
+    for (uint32_t i = 0; i < p.producer_count; ++i) {
+        p.producers[i]->normal.clear();
+        p.producers[i]->critical.clear();
+    }
+    if (p.egress) {
+        p.egress->normal.clear();
+        p.egress->critical.clear();
+    }
+    p.reset_processors();
+    p.position.store(0);
+    p.beat = 0;
+    p.anchor_frame = 0;
+    p.anchor_ns = p.cfg.epoch_ns;
+    p.frames_per_ns = p.cfg.sample_rate / 1.e9;
+    p.generation.fetch_add(1);
+    p.applied.store(p.generation.load());
+    p.replan_chokes.clear();
+    p.fade_in = false;
+    p.park.store(Park::Running);
+}
 void Engine::transport(double bpm,bool playing,double beat){if(std::isfinite(bpm)&&bpm>0&&std::isfinite(beat)){p_->cfg.bpm=bpm;p_->cfg.playing=playing;p_->beat=beat;}}
 Meter Engine::meter()const noexcept {
     auto&p=*p_;return {p.position.load(),p.generation.load(),p.applied.load(),p.event_count.load(),p.dropped.load(),p.coalesced.load(),p.ring_full.load(),p.stale.load(),p.late.load(),p.emergencies.load(),p.arena_full.load(),p.faults.load(),p.arena_used.load(),p.feedback_count,p.latency,p.setup_bytes};
@@ -739,6 +853,144 @@ bool Engine::reconfigure(uint32_t node,const std::vector<uint8_t>&config){
     for(auto pair:delays){auto&e=fresh.edges[pair.first];auto&v=old.edges[pair.second];std::swap(e.delay,v.delay);e.delay_channels.swap(v.delay_channels);std::swap(e.head,v.head);}
     fresh.setup_bytes=0;for(auto&n:fresh.nodes)fresh.setup_bytes+=n->requested_fast+n->requested_large;
     fresh.position.store(old.position.load());fresh.beat=old.beat;fresh.anchor_frame=old.anchor_frame;fresh.anchor_ns=old.anchor_ns;fresh.frames_per_ns=old.frames_per_ns;
+    fresh.revision.store(old.revision.load());
     fresh.generation.store(old.generation.load()+1);fresh.applied.store(fresh.generation.load());p_.swap(next.p_);return true;
+}
+
+bool Engine::rebind_abi1_descriptor(uint32_t node, const ws_module_descriptor *d) {
+    auto *n = p_->find(node);
+    if (!n || !n->legacy || !d || !d->id || std::strcmp(n->legacy->id, d->id) || n->legacy->create != d->create ||
+        n->legacy->destroy != d->destroy || n->legacy->prepare != d->prepare || n->legacy->process != d->process ||
+        n->legacy->event != d->event || n->legacy->input_count != d->input_count ||
+        n->legacy->output_count != d->output_count || n->legacy->parameter_count != d->parameter_count)
+        return false;
+    n->legacy = d;
+    return true;
+}
+
+bool Engine::replan(Engine &candidate, uint64_t timeout_ns) {
+    auto &old = *p_;
+    auto &fresh = *candidate.p_;
+    if (this == &candidate || !old.prepared || !fresh.prepared || old.park.load() != Park::Running)
+        return old.fail("Live graph is unavailable or already parking");
+    auto limits = [](const Config &c) {
+        return std::tie(c.sample_rate, c.max_block, c.max_channels, c.max_nodes, c.event_budget, c.release_reserve,
+                        c.ring_capacity, c.future_capacity, c.message_arena_bytes, c.feedback_block, c.seed);
+    };
+    const auto bound = uint64_t(3.e9 * old.cfg.max_block / old.cfg.sample_rate);
+    if (limits(old.cfg) != limits(fresh.cfg) || !timeout_ns || timeout_ns > bound)
+        return old.fail("Live graph configuration or park deadline differs");
+    std::vector<Node *> actual;
+    std::vector<std::pair<size_t, size_t>> retained, delays;
+    std::vector<std::pair<uint32_t, uint32_t>> chokes;
+    std::vector<bool> used(fresh.edges.size(), false), delay_used(old.edges.size(), false);
+    const auto next_revision = old.revision.load() + 1;
+    if (!next_revision) return old.fail("Live graph revision exhausted");
+    actual.reserve(fresh.nodes.size());
+    retained.reserve(fresh.nodes.size());
+    for (size_t i = 0; i < fresh.nodes.size(); ++i) {
+        auto &n = *fresh.nodes[i];
+        auto *prior = old.find(n.id);
+        if (prior && prior->d == n.d && prior->legacy == n.legacy && prior->config == n.config) {
+            if (prior->inputs.size() != n.inputs.size() || prior->outputs.size() != n.outputs.size() ||
+                prior->parameters.size() != n.parameters.size())
+                return old.fail("Surviving node ports changed");
+            actual.push_back(prior);
+            retained.emplace_back(i, prior->index);
+        } else {
+            n.born_revision = next_revision;
+            actual.push_back(&n);
+        }
+    }
+    auto key = [](const Edge &e) { return std::tie(e.from, e.output, e.to, e.input, e.kind, e.amount); };
+    for (auto &e : old.edges)
+        if (!e.removed && e.kind == 1) {
+            bool kept = false;
+            for (size_t i = 0; i < fresh.edges.size(); ++i)
+                if (!used[i] && !fresh.edges[i].removed && key(e) == key(fresh.edges[i])) {
+                    used[i] = true;
+                    kept = true;
+                    break;
+                }
+            auto *destination = fresh.find(e.to);
+            if (!kept && destination && actual[destination->index] == e.destination) {
+                if (chokes.size() == old.cfg.release_reserve) return old.fail("Too many edge releases for one edit");
+                chokes.emplace_back(e.to, e.input);
+            }
+        }
+    for (size_t i = 0; i < fresh.edges.size(); ++i) {
+        auto &e = fresh.edges[i];
+        if (!e.back || e.kind == 1) continue;
+        for (size_t j = 0; j < old.edges.size(); ++j) {
+            auto &prior = old.edges[j];
+            if (!delay_used[j] && !prior.removed && prior.back && key(e) == key(prior) &&
+                actual[e.source->index] == prior.source && actual[e.destination->index] == prior.destination) {
+                delay_used[j] = true;
+                delays.emplace_back(i, j);
+                break;
+            }
+        }
+    }
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::nanoseconds(timeout_ns);
+    auto expected = Park::Running;
+    if (!old.park.compare_exchange_strong(expected, Park::Requested, std::memory_order_acq_rel))
+        return old.fail("Another graph edit is pending");
+    while (old.park.load(std::memory_order_acquire) != Park::Parked) {
+        if (std::chrono::steady_clock::now() >= deadline) {
+            expected = Park::Requested;
+            if (old.park.compare_exchange_strong(expected, Park::Cancelled, std::memory_order_acq_rel))
+                return old.fail("Audio did not park before the edit deadline");
+            if (expected == Park::Parked) break;
+        }
+        std::this_thread::yield();
+    }
+    // All allocation and fallible work precedes the ack. Keep this Impl and its
+    // ingress/egress rings, clock, future packets and generation in place.
+    for (auto pair : retained) {
+        auto &node = *old.nodes[pair.second];
+        auto &layout = *fresh.nodes[pair.first];
+        node.index = layout.index;
+        node.component = layout.component;
+        node.loop = layout.loop;
+        node.incoming.swap(layout.incoming);
+        node.signal_edges.swap(layout.signal_edges);
+        node.modulation.swap(layout.modulation);
+        node.outgoing.swap(layout.outgoing);
+        fresh.nodes[pair.first].swap(old.nodes[pair.second]);
+    }
+    for (auto *n : actual)
+        for (uint32_t i = 0; i < n->event_outputs.size(); ++i)
+            n->event_outputs[i] = {sizeof(ws2_event_out), &old, i, Impl::emit};
+    for (auto &e : fresh.edges) {
+        e.source = actual[e.source->index];
+        e.destination = actual[e.destination->index];
+    }
+    for (auto &component : fresh.components)
+        for (auto *&n : component.nodes) n = actual[n->index];
+    for (auto &entry : fresh.node_table) entry.second = actual[entry.second->index];
+    for (auto &bus : fresh.buses) bus.source = actual[bus.source->index];
+    for (auto pair : delays) {
+        auto &e = fresh.edges[pair.first];
+        auto &prior = old.edges[pair.second];
+        std::swap(e.delay, prior.delay);
+        e.delay_channels.swap(prior.delay_channels);
+        std::swap(e.head, prior.head);
+    }
+    old.nodes.swap(fresh.nodes);
+    old.edges.swap(fresh.edges);
+    old.components.swap(fresh.components);
+    old.node_table.swap(fresh.node_table);
+    old.buses.swap(fresh.buses);
+    old.bus_latency.swap(fresh.bus_latency);
+    old.feedback_count.store(fresh.feedback_count.load());
+    old.latency.store(fresh.latency.load());
+    size_t bytes = 0;
+    for (auto &node : old.nodes) bytes += node->requested_fast + node->requested_large;
+    old.setup_bytes.store(bytes);
+    old.replan_chokes.swap(chokes);
+    old.revision.store(next_revision, std::memory_order_release);
+    old.error.clear();
+    old.park.store(Park::Running, std::memory_order_release);
+    return true;
 }
 }

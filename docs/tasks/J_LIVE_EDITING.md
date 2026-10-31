@@ -28,14 +28,20 @@ Review is T2 plus Claude, as the planner explicitly requires for engine threadin
 Record the measured fake-audio gap; Pi target is <=20ms at256frames. Never use
 device teardown as the live-edit mechanism. Physical live-patching remains owner-only.
 
+Standing-v2 file allowance:12→15 (+25%) covers the thread-local allocation
+instrumentation, actual ABI1 facade lifetime regression and Qt live-control
+coverage; existing allocation Scope semantics and every prior assertion remain.
+Standing-v2 line allowance:900→1200 (+33.4%) covers changed-range clang-format
+and explicit state/lifetime regressions. No protected paths or extra feature scope.
+
 ```acceptance
 tier: T2
-size: <= 900 changed lines, <= 12 files
+size: <= 1200 changed lines, <= 15 files
 must_pass:
   - ctest --test-dir build/native -R "^abi2_live_replan_tests$" --output-on-failure --no-tests=error
   - ci: windows-x64, linux-arm64, sanitizers including threaded live-replan regression
   - ci: Studio controller/UI live-edit and rollback regressions with devices disabled
-  - pi: fake-audio live-replan test at256frames, measured gap <=20ms
+  - pi-run: build/native/abi2_live_replan_tests --max-gap-ms 20
   - user: live patching on Windows
 stops: [ABI header edit, new dependency, ID or patch-format change, removed tests, unapproved threshold change]
 ```

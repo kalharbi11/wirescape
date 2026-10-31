@@ -31,7 +31,8 @@ struct Outgoing {
 // Construction, registration, graph/configuration/state operations and destruction
 // are quiescent. Each producer handle has exactly one writer. Only render owns
 // processor state. panic(), enqueue(), pop_egress() and meter() are the explicit
-// cross-thread surface; no other methods imply thread safety.
+// cross-thread surface. replan alone permits one control owner beside render;
+// the prepared candidate and all other graph operations remain quiescent.
 class Engine {
     struct Impl;std::unique_ptr<Impl>p_;
 public:
@@ -69,6 +70,11 @@ public:
     int load_state(uint32_t node,const std::vector<uint8_t>&bytes);
     const std::vector<uint8_t>&preserved_state(uint32_t node)const;
     bool reconfigure(uint32_t node,const std::vector<uint8_t>&config);
+    // One control owner stages a prepared candidate while render remains active.
+    // A timed-out park never changes the live graph. Candidate retirement is control-side.
+    bool replan(Engine &prepared_candidate, uint64_t timeout_ns);
+    // Quiescent staging helper: descriptors must outlive the eventual live graph.
+    bool rebind_abi1_descriptor(uint32_t node, const ws_module_descriptor *);
     uint32_t dropped_connections()const;
 };
 }

@@ -31,7 +31,7 @@ Rectangle {
     StudioButton {
         x: parent.width - 36; y: 15; width: 27; implicitWidth: 27; height: 27; implicitHeight: 27
         text: "×"; quiet: true
-        enabled: !studio.running
+        enabled: !studio.cleanupPending
         onClicked: studio.removeModule(card.descriptor.id)
         ToolTip.visible: hovered; ToolTip.text: "Remove module"
     }
@@ -142,7 +142,7 @@ Rectangle {
         visible: card.descriptor.moduleId === "essentials.output"
         x: 22; y: card.controlsTop; height: 25
         text: studio.outputNode === card.descriptor.id ? "SELECTED OUTPUT" : "Use this output"
-        enabled: !studio.running && studio.outputNode !== card.descriptor.id
+        enabled: !studio.cleanupPending && studio.outputNode !== card.descriptor.id
         onClicked: studio.selectOutput(card.descriptor.id)
     }
 }

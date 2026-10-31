@@ -5,8 +5,16 @@
 #ifdef _WIN32
 #include <malloc.h>
 #endif
-namespace allocation_watch {std::atomic<bool>enabled{false};std::atomic<uint64_t>count{0};}
-static void record(){if(allocation_watch::enabled.load(std::memory_order_relaxed))++allocation_watch::count;}
+namespace allocation_watch {
+std::atomic<bool> enabled{false};
+std::atomic<uint64_t> count{0};
+thread_local bool thread_enabled = false;
+thread_local uint64_t thread_count = 0;
+} // namespace allocation_watch
+static void record() {
+    if (allocation_watch::enabled.load(std::memory_order_relaxed)) ++allocation_watch::count;
+    if (allocation_watch::thread_enabled) ++allocation_watch::thread_count;
+}
 void*operator new(size_t n){record();if(auto*p=std::malloc(n?n:1))return p;throw std::bad_alloc();}
 void*operator new[](size_t n){return ::operator new(n);}
 void operator delete(void*p)noexcept{std::free(p);}void operator delete[](void*p)noexcept{std::free(p);}

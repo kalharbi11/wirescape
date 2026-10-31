@@ -21,6 +21,8 @@ int app_engine_add_node(AppEngine*,uint32_t,const char*);
 int app_engine_add_node_config(AppEngine*,uint32_t,const char*,const std::vector<uint8_t>&);
 int app_engine_connect(AppEngine*,uint32_t,uint32_t,uint32_t,uint32_t);
 int app_engine_prepare(AppEngine*,uint32_t,uint32_t);
+// Control thread only; candidate is prepared, live rendering stays on its owner.
+int app_engine_replan(AppEngine *live, AppEngine *candidate, uint64_t timeout_ns);
 int app_engine_initialize_parameter(AppEngine*,uint32_t,uint32_t,float);
 int app_engine_enqueue(AppEngine*,const ws_event*);
 int app_engine_render(AppEngine*,float*,uint32_t);

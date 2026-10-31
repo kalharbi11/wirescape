@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
+#include "../tests2/allocation_watch.h"
 #include "app_engine.h"
 #include "module_catalog.h"
-#include "../tests2/allocation_watch.h"
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <thread>
 static void check(bool ok,const char*message){if(!ok)throw std::runtime_error(message);}
 using App=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
 static App make(){ws_engine_config c{sizeof(c),48000,128,32,2048};App e(app_engine_create(&c),app_engine_destroy);check(bool(e),"create app engine");return e;}
@@ -48,6 +51,58 @@ static void shim(const char*library){
  check(result==WS_OK&&std::all_of(out,out+128,[](float v){return v==.75f;}),"shim event output exact");
  check(allocations==0,"shim callback no allocation");
  input.parameter_id=99;check(app_engine_enqueue(e.get(),&input)==WS_INVALID,"unknown parameter refused");
+ auto candidate = make();
+ check(app_engine_copy_modules(candidate.get(), e.get()) == WS_OK, "stage live catalogue");
+ check(app_engine_add_node(candidate.get(), 9, "test.app_legacy") == WS_OK &&
+           app_engine_add_node(candidate.get(), 10, "essentials.noise") == WS_OK &&
+           app_engine_add_node(candidate.get(), 11, "test.app_legacy") == WS_OK &&
+           app_engine_prepare(candidate.get(), 9, 0) == WS_OK,
+       "stage unrelated node addition");
+ check(app_engine_initialize_parameter(candidate.get(), 11, 7, .125f) == WS_OK, "initialize new staged ABI1 node");
+ std::atomic<bool> running{true}, failed{false};
+ std::atomic<unsigned> blocks{0};
+ std::atomic<float> last{0};
+ std::atomic<size_t> live_allocations{0};
+ std::thread render([&] {
+     float samples[128];
+     while (running.load()) {
+         int status;
+         {
+             allocation_watch::ThreadScope watch;
+             status = app_engine_render(e.get(), samples, 128);
+             live_allocations += watch.allocations();
+         }
+         if (status != WS_OK) failed = true;
+         last.store(samples[127]);
+         ++blocks;
+         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+     }
+ });
+ struct Join {
+     std::atomic<bool> &run;
+     std::thread &thread;
+     ~Join() {
+         run = false;
+         if (thread.joinable()) thread.join();
+     }
+ } join{running, render};
+ auto wait = [&](unsigned count) {
+     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+     while (blocks.load() < count && std::chrono::steady_clock::now() < deadline) std::this_thread::yield();
+     check(blocks.load() >= count, "fake render progresses");
+ };
+ wait(2);
+ const auto before = blocks.load();
+ const auto generation = app_engine_generation(e.get());
+ check(app_engine_replan(e.get(), candidate.get(), 8000000) == WS_OK, "live facade adopts prepared graph");
+ candidate.reset(); // A new ABI1 node must not borrow a retiring candidate descriptor.
+ wait(before + 5);
+ check(!failed.load() && last.load() == .75f, "retained ABI1 DSP and descriptor survive candidate retirement");
+ check(app_engine_generation(e.get()) == generation && live_allocations.load() == 0,
+       "facade preserves generation and allocation-free render");
+ running = false;
+ render.join();
+ check(app_engine_native(e.get()).output_sample(11, 0, 0, 127) == .125f, "new ABI1 descriptor outlives staged owner");
 }
 static void host_notes(){
  auto e=make();check(app_engine_build_essentials(e.get(),"")==WS_OK,"build app graph");

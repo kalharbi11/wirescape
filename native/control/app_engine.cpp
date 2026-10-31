@@ -68,6 +68,33 @@ int app_engine_add_node(AppEngine*e,uint32_t id,const char*type){return app_engi
 int app_engine_add_node_config(AppEngine*e,uint32_t id,const char*type,const std::vector<uint8_t>&config){auto*d=e->find(type);if(!d)return WS_NOT_FOUND;bool ok=d->native?e->engine.add_node(id,d->native,config):(config.empty()&&e->engine.add_abi1(id,&d->metadata));if(ok)e->nodes[id]=d;return ok?WS_OK:WS_GRAPH;}
 int app_engine_connect(AppEngine*e,uint32_t a,uint32_t ap,uint32_t b,uint32_t bp){return e->engine.connect(a,ap,b,bp)?WS_OK:WS_GRAPH;}
 int app_engine_prepare(AppEngine*e,uint32_t n,uint32_t p){return e->engine.output(n,p,0)&&e->engine.prepare()?WS_OK:WS_GRAPH;}
+int app_engine_replan(AppEngine *live, AppEngine *candidate, uint64_t timeout_ns) {
+    if (!live || !candidate || live == candidate) return WS_INVALID;
+    try {
+        std::map<uint32_t, const AppEngine::Entry *> nodes;
+        for (auto &item : candidate->nodes) {
+            const auto *entry = live->find(item.second->metadata.id);
+            if (!entry || entry->native != item.second->native) {
+                live->error = "Module catalogue differs from live graph";
+                return WS_GRAPH;
+            }
+            // ABI1 nodes must borrow the stable live catalogue, never a retiring
+            // candidate's copied descriptor. Native descriptors are static.
+            if (!entry->native && !candidate->engine.rebind_abi1_descriptor(item.first, &entry->metadata)) {
+                live->error = "Cannot retain live module metadata";
+                return WS_GRAPH;
+            }
+            nodes.emplace(item.first, entry);
+        }
+        if (!live->engine.replan(candidate->engine, timeout_ns)) return WS_GRAPH;
+        live->nodes.swap(nodes);
+        live->error.clear();
+        return WS_OK;
+    } catch (const std::exception &e) {
+        live->error = e.what();
+        return WS_GRAPH;
+    }
+}
 int app_engine_initialize_parameter(AppEngine*e,uint32_t n,uint32_t p,float v){auto it=e->nodes.find(n);if(it==e->nodes.end())return WS_NOT_FOUND;auto*d=it->second;for(uint32_t i=0;i<d->metadata.parameter_count;++i)if(d->metadata.parameters[i].id==p)return e->engine.set_parameter(n,i,v)?WS_OK:WS_INVALID;return WS_INVALID;}
 int app_engine_enqueue(AppEngine*e,const ws_event*v){
  if(!e||!v)return WS_INVALID;
