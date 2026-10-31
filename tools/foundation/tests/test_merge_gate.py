@@ -86,6 +86,20 @@ class StrictApprovalLineTests(unittest.TestCase):
                 self.assertFalse(self.ok(body))
                 self.assertFalse(gate.decide(pr('tier/T2'), ['native/x.cpp'], [say(body)], 'owner')[0])
 
+    def test_hidden_html_comments_never_approve(self):
+        for phrase, labels, files in ((gate.PREREVIEW_OK, ('tier/T1',), ['native/x.cpp']),
+                                      (gate.CHATGPT_OK, ('tier/T2',), ['native/x.cpp']),
+                                      (gate.CLAUDE_OK, ('tier/T2',), ['tools/merge_gate.py'])):
+            line = phrase + ' abc1234'
+            for body in ('<!-- ' + line + ' -->', '<!--\n' + line + '\n-->',
+                         '<!-- open\n\n' + line, '<!-- first --> <!-- second\n' + line + '\n-->',
+                         '<!-- open\n```\n' + line + '\n-->'):
+                with self.subTest(body=body, phrase=phrase):
+                    self.assertFalse(gate.approved([say(body)], 'owner', phrase, 'abc1234'))
+                    self.assertFalse(gate.decide(pr(*labels), files, [say(body)], 'owner')[0])
+            self.assertTrue(gate.decide(pr(*labels), files, [say('<!-- closed -->\n' + line)], 'owner')[0])
+            self.assertTrue(gate.decide(pr(*labels), files, [say('<!-- open\n-->\n' + line)], 'owner')[0])
+
     def test_valid_exact_tier_lines_and_context_exit(self):
         for phrase, labels, files in ((gate.PREREVIEW_OK, ('tier/T1',), ['native/x.cpp']),
                                       (gate.CHATGPT_OK, ('tier/T2',), ['native/x.cpp']),
