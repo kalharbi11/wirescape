@@ -566,6 +566,109 @@ private slots:
         QVERIFY(lastBounds.bottom() <= library->height() + 1);
         QVERIFY(!studio.running());
     }
+    void canvasMouseEditing_data() {
+        QTest::addColumn<double>("zoom");
+        QTest::newRow("100-percent") << 1.;
+        QTest::newRow("85-percent") << .85;
+        QTest::newRow("62-percent") << .62;
+    }
+    void canvasMouseEditing() {
+        QFETCH(double, zoom);
+        StudioController studio(directory_);
+        // Compact, non-overlapping cards, with a real output selected throughout.
+        studio.removeModule(2);
+        studio.removeModule(5);
+        studio.moveModule(1, 20, 20);
+        studio.moveModule(3, 400, 20);
+        studio.moveModule(4, 780, 20);
+        studio.addModule("essentials.lfo");
+        studio.moveModule(2, 20, 370);
+        while (!studio.connections().isEmpty()) studio.disconnectCable(0);
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("studio", &studio);
+        engine.load(QUrl("qrc:/qml/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects()[0]);
+        QVERIFY(window);
+        window->resize(1600, 1050);
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        window->setProperty("zoom", zoom);
+        window->setProperty("panX", 25.);
+        window->setProperty("panY", 20.);
+        auto item = [&](const QString &name) { return qobject_cast<QQuickItem *>(findNamed(window, name)); };
+        auto *card = item("module_1");
+        auto *header = item("moduleHeader_1");
+        QVERIFY(card);
+        QVERIFY(header);
+        QTest::qWait(30); // Let anchors and scaled item geometry polish before mouse delivery.
+        const QPoint start = center(header);
+        const QPoint end = start + QPoint(42, 28);
+        const QPointF oldPosition = card->position();
+        QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
+        QTest::mouseMove(window, start + QPoint(20, 14), 20);
+        QTest::mouseMove(window, end, 20);
+        QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, end);
+        QVERIFY(card->x() > oldPosition.x() + 10);
+        QVERIFY(card->y() > oldPosition.y() + 10);
+        const QPointF moved = card->position();
+        auto cableDrag = [&](const QString &source, const QString &destination, double targetX = .5) {
+            auto *from = item(source), *to = item(destination);
+            if (!from || !to) return false;
+            const QPoint a = center(from);
+            const QPoint b = to->mapToScene(QPointF(to->width() * targetX, to->height() / 2)).toPoint();
+            QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, a);
+            QTest::mouseMove(window, (a + b) / 2, 20);
+            QTest::mouseMove(window, b, 20);
+            QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, b);
+            return true;
+        };
+        QVERIFY(cableDrag("output_1_audio", "input_3_audio", .02));
+        QTRY_COMPARE(studio.connections().size(), 1);
+        QVERIFY(cableDrag("output_3_audio", "input_4_audio"));
+        QTRY_COMPARE(studio.connections().size(), 2);
+        auto *handle = item("cableHandle_0");
+        QVERIFY(handle);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(handle));
+        QTRY_COMPARE(window->property("selectedCable").toInt(), 0);
+        auto *disconnect = item("disconnectCableButton");
+        QVERIFY(disconnect);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(disconnect));
+        QTRY_COMPARE(studio.connections().size(), 1);
+        // Click-click remains supported alongside the new drag gesture.
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(item("output_1_audio")));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(item("input_3_audio")));
+        QTRY_COMPARE(studio.connections().size(), 2);
+        QVERIFY(cableDrag("output_2_control", "input_3_gain_cv"));
+        QTRY_COMPARE(studio.connections().size(), 3);
+        // An incompatible release never inserts a cable; Escape cancels the pending gesture.
+        QVERIFY(cableDrag("output_1_audio", "input_3_gain_cv"));
+        QCOMPARE(studio.connections().size(), 3);
+        QTest::keyClick(window, Qt::Key_Escape);
+        QCOMPARE(window->property("pendingNode").toInt(), -1);
+        const auto expected = studio.connections();
+        QVERIFY(studio.savePatch(path("mouse-edit.json")));
+        QVERIFY(studio.loadPatch(path("mouse-edit.json")));
+        const auto restored = studio.connections();
+        QCOMPARE(restored.size(), expected.size());
+        // Reload preserves nested v2 endpoint metadata in the editor view; compare all link fields.
+        for (int i = 0; i < expected.size(); ++i)
+            for (const auto &key : {"fromNode", "fromPort", "toNode", "toPort", "kind", "channels"})
+                QCOMPARE(restored[i].toMap().value(key), expected[i].toMap().value(key));
+        QVERIFY(studio.savePatch(path("mouse-edit-reloaded.json")));
+        QCOMPARE(read("mouse-edit-reloaded.json")["connections"], read("mouse-edit.json")["connections"]);
+        card = item("module_1");
+        QVERIFY(card);
+        QCOMPARE(card->position(), moved);
+        // A later-painted LFO header covers VCA's CV input. Never connect through it.
+        studio.moveModule(2, 400, 100);
+        studio.disconnectCable(2); // Rebuild delegates with the overlapping layout; CV input is empty.
+        QTest::qWait(30);
+        QVERIFY(cableDrag("output_2_control", "input_3_gain_cv"));
+        QCOMPARE(studio.connections().size(), 2);
+        QTest::keyClick(window, Qt::Key_Escape);
+        QCOMPARE(window->property("pendingNode").toInt(), -1);
+        QVERIFY(!studio.running());
+    }
     void studioCableHandlesAreDistanceBounded() {
         StudioController studio(directory_);
         QQmlApplicationEngine engine;
