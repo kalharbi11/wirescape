@@ -11,6 +11,7 @@ import argparse
 import fnmatch
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -23,9 +24,50 @@ CHATGPT_OK = 'chatgpt: approved for auto-merge'
 PREREVIEW_OK = 'chatgpt: pre-review passed'
 
 
+def approval_lines(body):
+    """Raw standalone lines; Markdown examples and lazy quote/list continuations do not count."""
+    fence = None
+    html_comment = False
+    continuation = False
+    for line in (body or '').splitlines():
+        if fence:
+            if re.fullmatch(' {0,3}' + re.escape(fence[0]) + '{' + str(fence[1]) + ',}[ \t]*', line):
+                fence = None
+            continue
+        # Hidden HTML comments cannot grant approval; process every marker so
+        # closing one comment and opening another on the same line stays hidden.
+        if html_comment or '<!--' in line:
+            cursor = 0
+            while True:
+                marker = '-->' if html_comment else '<!--'
+                position = line.find(marker, cursor)
+                if position < 0:
+                    break
+                html_comment = not html_comment
+                cursor = position + len(marker)
+            continue
+        if not line.strip():
+            continuation = False
+            continue
+        if line.startswith(('    ', '\t')):
+            continue
+        opening = re.match(r' {0,3}(`{3,}|~{3,})', line)
+        if opening:
+            marker = opening.group(1)
+            fence = (marker[0], len(marker))
+            continue
+        if re.match(r' {0,3}(>|(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)', line):
+            continuation = True
+            continue
+        if not continuation:
+            yield line.rstrip().lower()
+
+
 def approved(comments, owner, phrase, sha7):
-    return any(c.get('user', {}).get('login') == owner and phrase in (c.get('body') or '').lower()
-               and sha7 in (c.get('body') or '') for c in comments)
+    """Require the owner and the exact current-head approval line specified by the task."""
+    wanted = f'{phrase} {sha7}'.lower()
+    return any(c.get('user', {}).get('login') == owner
+               and wanted in approval_lines(c.get('body')) for c in comments)
 
 
 def decide(pr, files, comments, owner):

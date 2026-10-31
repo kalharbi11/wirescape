@@ -39,7 +39,7 @@ class MergeGateTests(unittest.TestCase):
 
     def test_t2_accepts_chatgpt_approval_outside_claude_paths(self):
         self.assertFalse(self.check(pr('tier/T2'), comments=[say('ChatGPT: pre-review passed abc1234')]))
-        self.assertTrue(self.check(pr('tier/T2'), comments=[say('ChatGPT: approved for auto-merge on abc1234')]))
+        self.assertTrue(self.check(pr('tier/T2'), comments=[say('ChatGPT: approved for auto-merge abc1234')]))
 
     def test_claude_paths_and_milestones_need_claude(self):
         chatgpt = [say('ChatGPT: approved for auto-merge abc1234')]
@@ -48,7 +48,69 @@ class MergeGateTests(unittest.TestCase):
             self.assertFalse(self.check(pr(), files=[path], comments=chatgpt), path)
         self.assertFalse(self.check(pr('milestone-review'), comments=chatgpt))
         self.assertTrue(self.check(pr('milestone-review'), files=['AGENTS.md'],
-                                   comments=[say('Claude: approved for auto-merge on abc1234')]))
+                                   comments=[say('Claude: approved for auto-merge abc1234')]))
+
+
+class StrictApprovalLineTests(unittest.TestCase):
+    def ok(self, body):
+        return gate.approved([say(body)], 'owner', gate.CHATGPT_OK, 'abc1234')
+
+    def test_standalone_line_counts(self):
+        self.assertTrue(self.ok('Review text.\n\nChatGPT: approved for auto-merge abc1234'))
+        self.assertTrue(self.ok('CHATGPT: APPROVED FOR AUTO-MERGE ABC1234   '))
+
+    def test_quoted_fenced_negated_or_detached_lines_do_not_count(self):
+        self.assertFalse(self.ok('Review request only; no approval yet.\n> ChatGPT: approved for auto-merge abc1234'))
+        self.assertFalse(self.ok('```\nChatGPT: approved for auto-merge abc1234\n```'))
+        self.assertFalse(self.ok('Please post "ChatGPT: approved for auto-merge abc1234" when done'))
+        self.assertFalse(self.ok('Not yet: ChatGPT: approved for auto-merge abc1234'))
+        self.assertFalse(self.ok('ChatGPT: approved for auto-merge\nhead abc1234'))
+        self.assertFalse(self.ok('ChatGPT: approved for auto-merge 0000000'))
+
+    def test_markdown_context_and_nonexact_lines_fail_closed(self):
+        line = gate.CHATGPT_OK + ' abc1234'
+        examples = [
+            '    ' + line, '\t' + line, ' ' + line, '`' + line + '`',
+            '**' + line + '**', '"' + line + '"', line + '.', line.replace(' abc', ' on abc'),
+            '- ' + line, '* ' + line, '1. ' + line,
+            '- Example\n' + line, '> Example\n' + line,
+            '~~~text\n' + line + '\n~~~',
+            '````text\n```\n' + line + '\n````',
+            '```text\n~~~\n' + line + '\n```',
+            '```text\n```not-a-close\n' + line + '\n```',
+        ]
+        for body in examples:
+            with self.subTest(body=body):
+                if body.startswith(('    ', '\t')):
+                    self.assertEqual(list(gate.approval_lines(body)), [])
+                self.assertFalse(self.ok(body))
+                self.assertFalse(gate.decide(pr('tier/T2'), ['native/x.cpp'], [say(body)], 'owner')[0])
+
+    def test_hidden_html_comments_never_approve(self):
+        for phrase, labels, files in ((gate.PREREVIEW_OK, ('tier/T1',), ['native/x.cpp']),
+                                      (gate.CHATGPT_OK, ('tier/T2',), ['native/x.cpp']),
+                                      (gate.CLAUDE_OK, ('tier/T2',), ['tools/merge_gate.py'])):
+            line = phrase + ' abc1234'
+            for body in ('<!-- ' + line + ' -->', '<!--\n' + line + '\n-->',
+                         '<!-- open\n\n' + line, '<!-- first --> <!-- second\n' + line + '\n-->',
+                         '<!-- open\n```\n' + line + '\n-->'):
+                with self.subTest(body=body, phrase=phrase):
+                    self.assertFalse(gate.approved([say(body)], 'owner', phrase, 'abc1234'))
+                    self.assertFalse(gate.decide(pr(*labels), files, [say(body)], 'owner')[0])
+            self.assertTrue(gate.decide(pr(*labels), files, [say('<!-- closed -->\n' + line)], 'owner')[0])
+            self.assertTrue(gate.decide(pr(*labels), files, [say('<!-- open\n-->\n' + line)], 'owner')[0])
+
+    def test_valid_exact_tier_lines_and_context_exit(self):
+        for phrase, labels, files in ((gate.PREREVIEW_OK, ('tier/T1',), ['native/x.cpp']),
+                                      (gate.CHATGPT_OK, ('tier/T2',), ['native/x.cpp']),
+                                      (gate.CLAUDE_OK, ('tier/T2',), ['tools/merge_gate.py'])):
+            line = phrase + ' abc1234'
+            self.assertTrue(gate.decide(pr(*labels), files, [say(line)], 'owner')[0])
+            self.assertFalse(gate.decide(pr(*labels), files, [say('    ' + line)], 'owner')[0])
+            self.assertFalse(gate.decide(pr(*labels), files, [say(line, 'stranger')], 'owner')[0])
+        line = gate.CHATGPT_OK + ' abc1234'
+        self.assertTrue(self.ok('~~~\nexample\n~~~\n' + line))
+        self.assertTrue(self.ok('- Example\n\n' + line))
 
 
 if __name__ == '__main__':
