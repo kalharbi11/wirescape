@@ -36,10 +36,15 @@ signals:
 };
 class PreferenceMidiBackend : public wirescape::midi::Backend {
     int &opens_;
+    int *enumerations_;
 
   public:
-    explicit PreferenceMidiBackend(int &opens) : opens_(opens) {}
-    std::vector<wirescape::midi::Endpoint> endpoints() override { return {{"Fake notes", "test:notes"}}; }
+    explicit PreferenceMidiBackend(int &opens, int *enumerations = nullptr)
+        : opens_(opens), enumerations_(enumerations) {}
+    std::vector<wirescape::midi::Endpoint> endpoints() override {
+        if (enumerations_) ++*enumerations_;
+        return {{"Fake notes", "test:notes"}};
+    }
     bool open(const wirescape::midi::Endpoint &, wirescape::midi::Callback) override {
         ++opens_;
         return true;
@@ -102,6 +107,11 @@ private slots:
         QVERIFY(StudioController::midiMode("windows", true, empty) == ignore);
         QVERIFY(StudioController::midiMode("offscreen", false, empty) == ignore);
         QVERIFY(StudioController::midiMode("minimal", false, empty) == ignore);
+        QCOMPARE(StudioController::midiMode("windows", false, empty, {"ready-report"}), ignore);
+        const QStringList interactiveReport{"ready-report", "interactive-ready-report"};
+        QCOMPARE(StudioController::midiMode("windows", false, empty, interactiveReport), interactive);
+        QCOMPARE(StudioController::midiMode("windows", true, empty, interactiveReport), ignore);
+        QCOMPARE(StudioController::midiMode("windows", false, ci, interactiveReport), ignore);
     }
     void midiPreferenceIsInteractiveOnly() {
         const auto settings = temp_.filePath("midi-preference.ini");
@@ -119,13 +129,16 @@ private slots:
             StudioController restored(directory_, nullptr, {}, false, StudioController::MidiPreference::Interactive,
                                       std::make_unique<PreferenceMidiBackend>(opens), settings);
             QVERIFY(restored.midiAuthorized());
-            StudioController probe(directory_, nullptr, {}, false, StudioController::MidiPreference::Ignore,
-                                   std::make_unique<PreferenceMidiBackend>(opens), settings);
+            int enumerations = 0;
+            const auto reportOnly = StudioController::midiMode("windows", false, {}, {"ready-report"});
+            StudioController probe(directory_, nullptr, {}, false, reportOnly,
+                                   std::make_unique<PreferenceMidiBackend>(opens, &enumerations), settings);
             QVERIFY(!probe.midiSettingsAvailable());
             QVERIFY(!probe.midiAuthorized());
             probe.setMidiAuthorized(true);
             QVERIFY(!probe.midiAuthorized());
             QVERIFY(probe.midiEndpoints().isEmpty());
+            QCOMPARE(enumerations, 0);
             restored.setMidiAuthorized(false);
         }
         StudioController disabled(directory_, nullptr, {}, false, StudioController::MidiPreference::Interactive,

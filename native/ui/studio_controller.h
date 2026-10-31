@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <QObject>
 #include <QProcessEnvironment>
+#include <QStringList>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
@@ -41,9 +42,13 @@ class StudioController final : public QObject {
     Q_PROPERTY(int blockSize READ blockSize CONSTANT)
 public:
   enum class MidiPreference : std::uint8_t { Ignore, Interactive };
-  static MidiPreference midiMode(const QString &platform, bool probe, const QProcessEnvironment &env) {
-      return !probe && platform != QStringLiteral("offscreen") && platform != QStringLiteral("minimal") &&
-                     !env.contains(QStringLiteral("CI")) && !env.contains(QStringLiteral("GITHUB_ACTIONS"))
+  static MidiPreference midiMode(const QString &platform, bool probe, const QProcessEnvironment &env,
+                                 const QStringList &options = {}) {
+      const bool readinessProbe = options.contains(QStringLiteral("ready-report")) &&
+                                  !options.contains(QStringLiteral("interactive-ready-report"));
+      return !probe && !readinessProbe && platform != QStringLiteral("offscreen") &&
+                     platform != QStringLiteral("minimal") && !env.contains(QStringLiteral("CI")) &&
+                     !env.contains(QStringLiteral("GITHUB_ACTIONS"))
                  ? MidiPreference::Interactive
                  : MidiPreference::Ignore;
   }
