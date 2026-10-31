@@ -8,6 +8,14 @@ Rectangle {
     required property var workspace
     property bool selected: false
     readonly property int portRows: Math.max(descriptor.inputs.length, descriptor.outputs.length)
+    // A group exists only when the native descriptor exposes exactly two outputs.
+    readonly property string stereoGroup: {
+        let groups = {};
+        for (let port of descriptor.outputs)
+            if (port.stereoPair) groups[port.stereoPair] = (groups[port.stereoPair] || 0) + 1;
+        for (let group in groups) if (groups[group] === 2) return group;
+        return "";
+    }
     readonly property real controlsTop: 108 + portRows * 24
     width: 280
     height: controlsTop + parameters.height + 30
@@ -74,6 +82,7 @@ Rectangle {
             required property var modelData
             required property int index
             x: card.width - 127; y: 112 + index * 24 - 8; width: 135; height: 16
+            Rectangle { x: 6; width: 3; height: parent.height; color: "#c5774c"; visible: !!modelData.stereoPair }
             Text { anchors.right: parent.right; anchors.rightMargin: 23; anchors.verticalCenter: parent.verticalCenter; text: modelData.label.toUpperCase(); color: "#858681"; font.pixelSize: 9; font.family: (typeof studioFontFamily !== "undefined" ? studioFontFamily : "Arial") }
             Rectangle { anchors.right: parent.right; width: 15; height: 15; radius: 8; color: workspace.pendingNode === card.descriptor.id && workspace.pendingPort === modelData.id ? "#c5774c" : "#faf9f6"; border.width: 1; border.color: modelData.kind === "audio" ? "#393b39" : "#c5774c"; Rectangle { anchors.centerIn: parent; width: 5; height: 5; radius: 3; color: parent.border.color } }
             MouseArea { objectName: "output_" + card.descriptor.id + "_" + modelData.id; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.CrossCursor
@@ -86,8 +95,21 @@ Rectangle {
                     if (Math.hypot(mouse.x - pressPoint.x, mouse.y - pressPoint.y) >= Qt.styleHints.startDragDistance)
                         workspace.completeCableDrag(mapToItem(workspace.contentItem, mouse.x, mouse.y));
                 }
-                hoverEnabled: true; ToolTip.visible: containsMouse; ToolTip.text: modelData.label + " · " + modelData.kind + " output" }
+                hoverEnabled: true; ToolTip.visible: containsMouse
+                ToolTip.text: modelData.label + " · " + modelData.kind + " output" +
+                              (modelData.stereoPair ? " · stereo pair " + modelData.stereoPair : "") }
         }
+    }
+    StudioButton {
+        objectName: "stereoPair_" + card.descriptor.id
+        visible: card.stereoGroup !== ""
+        enabled: !studio.running
+        x: card.width - 142; y: card.controlsTop - 21
+        width: 122; implicitWidth: 122; height: 18; implicitHeight: 18
+        text: "Connect stereo"; quiet: true
+        onClicked: workspace.chooseStereo(card.descriptor.id, card.stereoGroup)
+        ToolTip.visible: hovered
+        ToolTip.text: "Route both paired outputs in one atomic edit"
     }
     // UI-only mapping of parameter IDs from native/modules/*/module.json.
     // Unknown modules and parameters deliberately retain the stock slider.
