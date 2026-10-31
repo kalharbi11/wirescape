@@ -153,6 +153,21 @@ ApplicationWindow {
         panX = viewport.width / 2 - (card.x + card.width / 2) * zoom;
         panY = viewport.height / 2 - (card.y + card.height / 2) * zoom;
     }
+    // Display the two real wires as a recognizable pair without fusing their IDs.
+    function stereoCableLabel(connection) {
+        const source = studio.modules.find(function(m) { return m.id === connection.fromNode; });
+        if (!source) return "";
+        const port = source.outputs.find(function(p) { return p.id === connection.fromPort; });
+        if (!port || !port.stereoPair) return "";
+        const siblings = source.outputs.filter(function(p) { return p.stereoPair === port.stereoPair; });
+        if (siblings.length !== 2) return "";
+        const other = siblings.find(function(p) { return p.id !== port.id; });
+        const linked = studio.connections.some(function(c) {
+            return c.fromNode === connection.fromNode && c.toNode === connection.toNode &&
+                   c.fromPort === other.id;
+        });
+        return linked ? (port.id === siblings[0].id ? "ST L" : "ST R") : "";
+    }
     function endpoint(nodeId, portId, output) {
         let revision = geometryRevision;
         for (let i = 0; i < cards.count; ++i) {
@@ -411,6 +426,7 @@ ApplicationWindow {
                         property point a: root.endpoint(modelData.fromNode, modelData.fromPort, true)
                         property point b: root.endpoint(modelData.toNode, modelData.toPort, false)
                         property real bend: root.cableBend(a.x, a.y, b.x, b.y)
+                        property string stereoLabel: root.stereoCableLabel(modelData)
                         width: 1; height: 1
                         preferredRendererType: Shape.CurveRenderer
                         ShapePath {
@@ -419,6 +435,15 @@ ApplicationWindow {
                             fillColor: "transparent"
                             startX: cable.a.x; startY: cable.a.y
                             PathCubic { x: cable.b.x; y: cable.b.y; control1X: cable.a.x + cable.bend; control1Y: cable.a.y; control2X: cable.b.x - cable.bend; control2Y: cable.b.y }
+                        }
+                        Rectangle {
+                            objectName: "stereoCableBadge_" + cable.index
+                            visible: cable.stereoLabel !== ""
+                            x: (cable.a.x + cable.b.x) / 2 - 12
+                            y: (cable.a.y + cable.b.y) / 2 - 29
+                            width: 35; height: 15; radius: 4; color: "#eeede9"
+                            border.width: 1; border.color: "#c5774c"
+                            Text { anchors.centerIn: parent; text: cable.stereoLabel; font.pixelSize: 9; color: "#614d42" }
                         }
                         Rectangle {
                             visible: cable.modelData.channels > 1
@@ -440,7 +465,7 @@ ApplicationWindow {
                                 cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                 onClicked: { root.selectedCable = cable.index; root.selectedNode = -1; }
                                 ToolTip.visible: containsMouse
-                                ToolTip.text: "Select cable"
+                                ToolTip.text: "Select cable" + (cable.stereoLabel ? " · " + cable.stereoLabel + " stereo pair" : "")
                             }
                         }
                     }
