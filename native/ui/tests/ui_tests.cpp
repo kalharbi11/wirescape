@@ -88,7 +88,8 @@ private slots:
         property string errorText: ""; property string noticeText: ""; property string statusText: "Ready"
         property string diagnosticText: ""; property real sampleRate: 48000; property int blockSize: 256
         property real cpuLoad: 0; property int underruns: 0; property real peak: 0
-        property var devices: []; property string selectedDevice: ""
+        property var devices: []; property int selectedDevice: -1
+        property string audioOutputStatus: "Fake output"
         property bool midiAuthorized: false; property bool midiSettingsAvailable: false
         property var midiEndpoints: []; property var midiCounters: ({received: 0, dropped: 0, malformed: 0, ports: []})
         property int noteOnCount: 0; property int noteOffCount: 0; property int lastPitch: -1
