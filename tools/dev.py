@@ -9,6 +9,7 @@ import os
 import sys
 import shutil
 import subprocess
+import webbrowser
 import io
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
@@ -535,7 +536,11 @@ def command_updates(args: argparse.Namespace) -> int:
         installed = metadata.get("build_commit")
         if not installed:
             raise ValueError("No installed build revision recorded; build Studio first.")
+        if getattr(args, "open_instructions", False):
+            webbrowser.open((ROOT / "docs/WINDOWS_DEMO_UPDATE.md").as_uri())
         state = compare_revisions(installed, latest)
+        if metadata.get("source", {}).get("git_dirty") is not False:
+            state = "modified-or-unverified-build"
         record.update(status="passed", installed=installed, latest_main=latest,
                       installed_source_dirty=metadata.get("source", {}).get("git_dirty"),
                       comparison=state, checkout=git_revision(ROOT),
@@ -928,6 +933,7 @@ def make_parser() -> argparse.ArgumentParser:
     child = sub.add_parser("updates", help="Check installed revision against latest main; show assisted update instructions")
     child.add_argument("--config", choices=("Debug", "Release"), default="Release")
     child.add_argument("--json", action="store_true")
+    child.add_argument("--open-instructions", action="store_true", help="Open the assisted update guide; never install automatically")
     child.set_defaults(func=command_updates)
     child = sub.add_parser("benchmark")
     child.add_argument("--config", choices=("Debug", "Release"), default="Release")

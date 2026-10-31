@@ -13,9 +13,12 @@ Preserve normal interactive MIDI preferences; never add confirmation/device flag
 Read first: tools/dev.py runtime/package commands, foundation/package_inventory.py,
 install_windows_shortcuts.ps1, docs/WINDOWS_DEMO_UPDATE.md.
 
+File/line self-decision: WORKFLOW3c allows +50% lines (500→750) for the
+Windows launch fixture and modified-build regression; file cap remains8.
+
 ```acceptance
 tier: T1
-size: <= 500 changed lines, <= 8 files
+size: <= 750 changed lines, <= 8 files
 must_pass:
   - python -m unittest discover -s tools/foundation/tests -p 'test_launcher*.py'
   - ci: windows-x64 green

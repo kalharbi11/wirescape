@@ -74,7 +74,7 @@ After building this revision, select existing local dependencies once:
 
 ```powershell
 python tools/dev.py launch --qt-prefix '<Qt SDK>' --portaudio '<path to libportaudio64bit.dll>' --remember-runtime
-python tools/dev.py updates
+python tools/dev.py updates --open-instructions
 ```
 
 The launcher prints each validated path and its source. Saved selections live in
