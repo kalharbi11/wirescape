@@ -5,11 +5,12 @@ Keep this under 80 lines. Rewrite it at the end of each check-in; history lives 
 
 **Updated:** 2026-10-31 afternoon, New York.
 
-## Check-in recipe (cheap)
-1. Read this file. Skip PLAN.md, WORKFLOW.md and task files unless an item below needs them.
-2. One REST query each: open PRs, issues labelled `needs-planner`, the last 3 comments on #29. Tail, never read whole logs.
-3. Act only on `needs-planner` items, T2-Claude gates and queue refills (fewer than 3 `status/todo`).
-4. Rewrite this file (small PR, auto-merge), post one queue comment on #29, stop.
+## Check-in recipe
+Follow `docs/planner/CHECKIN.md`: routine Sonnet every 4 h, Opus for escalations and daily at 17:30.
+
+## Deferred for Opus
+(Sonnet adds `- #N sha7: question (since date time)`; Opus empties this list.)
+- #206 `2706ce1`: approvals v3. Needs an independent ChatGPT T2 line, then the **owner's** Claude line (Claude wrote it).
 
 ## Goal
 Owner Jam report #182 drives priorities until the owner retests and closes it. J9 #45 is the owner's session.
