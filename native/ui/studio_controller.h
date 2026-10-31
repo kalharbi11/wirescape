@@ -2,6 +2,7 @@
 #include "app_patch.h"
 #include "audio_device.h"
 #include "midi_host.h"
+#include "osc_host.h"
 #include <QJsonObject>
 #include <QObject>
 #include <QProcessEnvironment>
@@ -16,6 +17,11 @@ class QSettings;
 
 class StudioController final : public QObject {
     Q_OBJECT
+    Q_PROPERTY(QStringList monitorLines READ monitorLines NOTIFY monitorChanged)
+    Q_PROPERTY(bool monitorPaused READ monitorPaused WRITE setMonitorPaused NOTIFY monitorChanged)
+    Q_PROPERTY(qulonglong monitorSuppressed READ monitorSuppressed NOTIFY metersChanged)
+    Q_PROPERTY(qulonglong monitorDropped READ monitorDropped NOTIFY metersChanged)
+    Q_PROPERTY(QVariantMap oscCounters READ oscCounters NOTIFY metersChanged)
     Q_PROPERTY(QVariantMap midiCounters READ midiCounters NOTIFY metersChanged)
     Q_PROPERTY(QVariantList midiEndpoints READ midiEndpoints NOTIFY statusChanged)
     Q_PROPERTY(bool midiAuthorized READ midiAuthorized NOTIFY statusChanged)
@@ -56,8 +62,19 @@ public:
   explicit StudioController(QString directory, QObject *parent = nullptr, PatchWriter writer = {},
                             bool confirmMidi = false, MidiPreference midiPreference = MidiPreference::Ignore,
                             std::unique_ptr<wirescape::midi::Backend> fakeMidi = {},
-                            const QString &midiSettingsPath = {});
+                            const QString &midiSettingsPath = {}, bool confirmLan = false);
   ~StudioController() override;
+  QStringList monitorLines() const { return monitorLines_; }
+  bool monitorPaused() const { return monitorPaused_; }
+  void setMonitorPaused(bool value) {
+      monitorPaused_ = value;
+      emit monitorChanged();
+  }
+  qulonglong monitorDropped() const;
+  qulonglong monitorSuppressed() const;
+  QVariantMap oscCounters() const;
+  Q_INVOKABLE void clearMonitor();
+  Q_INVOKABLE void confirmOscLan() { osc_.authorize(true); }
   QVariantMap midiCounters() const;
   QVariantList midiEndpoints();
   bool midiAuthorized() const { return midi_.authorized(); }
@@ -108,6 +125,8 @@ public:
   bool smokeCheck(QJsonObject &result);
   bool keyboardChordCheck(QJsonObject &result);
 signals:
+  void monitorChanged();
+  void lanConfirmationNeeded();
   void documentChanged();
   void parameterChanged(int node, int parameter, double value, QString display);
   void statusChanged();
@@ -131,7 +150,12 @@ private:
     QJsonObject document_;
     wirescape::document::PatchDocument documentSource_;
     Engine catalog_{nullptr, app_engine_destroy}, engine_{nullptr, app_engine_destroy};
+    void drainMonitor();
+    QStringList monitorLines_;
+    bool monitorPaused_ = false;
+    size_t monitorCursor_ = 0;
     wirescape::midi::Host midi_;
+    wirescape::osc::Host osc_;
     std::unique_ptr<QSettings> midiPreferences_;
     AudioDevice audio_;
     QTimer timer_;
@@ -141,4 +165,3 @@ private:
     double peak_ = 0;
     ws_meter lastSessionMeter_{};
 };
-

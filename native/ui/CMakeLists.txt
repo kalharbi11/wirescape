@@ -11,7 +11,7 @@ if(WIN32)
   target_sources(wirescape_studio PRIVATE assets/wirescape.rc)
 endif()
 qt_add_resources(wirescape_studio studio_icon PREFIX "/" FILES assets/wirescape.png)
-target_link_libraries(wirescape_studio PRIVATE wirescape_app_engine wirescape_document wirescape_midi_host Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2)
+target_link_libraries(wirescape_studio PRIVATE wirescape_app_engine wirescape_document wirescape_midi_host wirescape_osc_host Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2)
 target_include_directories(wirescape_studio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(wirescape_studio PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
@@ -26,7 +26,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 qt_add_executable(studio_ui_tests tests/ui_tests.cpp studio_controller.cpp audio_device.cpp)
 add_dependencies(studio_ui_tests wirescape_studio)
 target_compile_definitions(studio_ui_tests PRIVATE WS_STUDIO_TEST_EXECUTABLE="$<TARGET_FILE:wirescape_studio>")
-target_link_libraries(studio_ui_tests PRIVATE wirescape_app_engine wirescape_document wirescape_midi_host Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Test)
+target_link_libraries(studio_ui_tests PRIVATE wirescape_app_engine wirescape_document wirescape_midi_host wirescape_osc_host Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Test)
 target_include_directories(studio_ui_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 qt_add_resources(studio_ui_tests test_resources PREFIX "/" FILES ${WIRESCAPE_QML})
 add_test(NAME studio_ui_tests COMMAND studio_ui_tests)
@@ -45,7 +45,7 @@ set_target_properties(ws_prepare_failure PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${
   LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test_fixtures")
 qt_add_executable(controller_failure_tests tests/controller_failure_tests.cpp studio_controller.cpp audio_device.cpp)
 target_include_directories(controller_failure_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(controller_failure_tests PRIVATE wirescape_app_engine wirescape_document wirescape_midi_host Qt6::Core)
+target_link_libraries(controller_failure_tests PRIVATE wirescape_app_engine wirescape_document wirescape_midi_host wirescape_osc_host Qt6::Core)
 add_test(NAME controller_failure_tests COMMAND controller_failure_tests $<TARGET_FILE:ws_prepare_failure> "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
 set_tests_properties(controller_failure_tests PROPERTIES TIMEOUT 30
   ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
@@ -53,5 +53,5 @@ set_tests_properties(controller_failure_tests PROPERTIES TIMEOUT 30
 # Explicitly invoked hardware session only; never registered with CTest/check.
 qt_add_executable(wirescape_audio_session audio_session_probe.cpp studio_controller.cpp audio_device.cpp)
 target_include_directories(wirescape_audio_session PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(wirescape_audio_session PRIVATE wirescape_app_engine wirescape_document wirescape_midi_host Qt6::Core)
+target_link_libraries(wirescape_audio_session PRIVATE wirescape_app_engine wirescape_document wirescape_midi_host wirescape_osc_host Qt6::Core)
 

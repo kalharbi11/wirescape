@@ -10,14 +10,29 @@ Spec: `docs/tasks/J_JAM_CHECKPOINT.md` § "B4 / J5"; reference `docs/specs/COMMU
 - **Wildcard rows** (`/pico1/knob/*`) output a poly signal, one channel per matched index, sorted numerically.
 - Fuzzing: a corpus test now; the libFuzzer job is #94 after this merges.
 
+Planner authorization on #29 comment6536318466 permits2600changed lines/52files,
+including both catalogue-count updates and changed-line formatting. The host regression tests refusal
+of an unconfirmed LAN request using fake/offline routing; no LAN socket opens.
+
+Draft Monitor port IDs are aligned to the approved `in1`/`in2` names above;
+no existing module or port ID on main changes.
+
+Additional standing-v2 self-decision:2800lines (+7.7% over the approved2600)
+for authored static fixes and iterative bounded-bundle traversal; file cap52
+and all parsing/depth/allocation assertions remain unchanged.
+
+The real localhost graph regression retains nonzero worker timestamps and verifies
+D13's bounded scheduling lead with allocation watching. UI and headless PortAudio
+callbacks publish the same live clock anchor; offline wrappers stay deterministic.
+
 ```acceptance
-tier: T2            # network thread + ingress
+tier: T2
 budget: 2 Codex sessions (remaining)
-size: <= 1300 changed lines, <= 24 files
+size: <= 2800 changed lines, <= 52 files
 must_pass:
   - python tools/dev.py build --headless
-  - ctest --test-dir build/native -R "osc|monitor_log|app_engine_lifetime" --output-on-failure
-  - LAN bind refused without the confirm flag (test)
+  - ctest --test-dir build/native -R "osc|monitor_log|abi2_monitor_tests|app_engine_lifetime" --output-on-failure
+  - ctest --test-dir build/native -R "^osc_host_tests$" --output-on-failure --no-tests=error
   - ci: linux-arm64, windows-x64, sanitizers (TSan on loopback tests), guard green on the exact head
   - pi: ctest -R "osc|monitor_log"
 stops: [ABI edit, new dependency, non-localhost socket in a test, unspecified design choice]
