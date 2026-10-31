@@ -485,8 +485,10 @@ private slots:
         QVERIFY(QTest::qWaitForWindowExposed(window));
         auto *library = qobject_cast<QQuickItem *>(findNamed(window, "moduleLibraryScroll"));
         auto *legend = qobject_cast<QQuickItem *>(findNamed(window, "sidebarLegend"));
+        auto *patchSelector = qobject_cast<QQuickItem *>(findNamed(window, "patchLibraryPanel"));
         QVERIFY(library);
         QVERIFY(legend);
+        QVERIFY(patchSelector);
         for (const QSize size : {QSize(1366, 768), QSize(1093, 650), QSize(1000, 650)}) {
             window->resize(size);
             QTRY_COMPARE(window->size(), size);
@@ -495,6 +497,10 @@ private slots:
             const QRectF libraryBounds(library->mapToScene(QPointF()), library->size());
             const QRectF legendBounds(legend->mapToScene(QPointF()), legend->size());
             QVERIFY(libraryBounds.height() > 120);
+            const QRectF patchBounds(patchSelector->mapToScene(QPointF()), patchSelector->size());
+            QVERIFY(patchBounds.left() >= 0);
+            QVERIFY(patchBounds.right() <= 202);
+            QVERIFY(patchBounds.bottom() + 8 <= libraryBounds.top());
             QVERIFY(libraryBounds.bottom() + 8 <= legendBounds.top());
             QVERIFY(legendBounds.bottom() < window->height());
             QVERIFY(library->property("contentHeight").toDouble() > library->height());
@@ -617,7 +623,10 @@ private slots:
             const QString resource = QString(":/starter/starter_%1.json").arg(name);
             QFile patch(resource);
             QVERIFY2(patch.open(QIODevice::ReadOnly), qPrintable(resource));
-            QVERIFY2(studio.loadPatch(QUrl(resource)), qPrintable(studio.errorText()));
+            const QUrl bundledUrl("file:" + resource);
+            QVERIFY(bundledUrl.isLocalFile());
+            QCOMPARE(bundledUrl.toLocalFile(), resource);
+            QVERIFY2(studio.loadPatch(bundledUrl), qPrintable(studio.errorText()));
             QVERIFY(!studio.running());
             const auto wavPath = temp_.filePath("starter_" + name + ".wav");
             studio.renderDemo(QUrl::fromLocalFile(wavPath));
@@ -637,14 +646,14 @@ private slots:
         // Exercise the real dropdown's activation signal, not just a controller load.
         QVERIFY(QMetaObject::invokeMethod(dropdown, "activated", Q_ARG(int, 1)));
         const auto currentPatchFile = [&] { return window->property("currentPatchFile").toString(); };
-        QTRY_COMPARE(currentPatchFile(), QString(":/starter/starter_minimal.json"));
+        QTRY_COMPARE(currentPatchFile(), QString("file::/starter/starter_minimal.json"));
+        QCOMPARE(library->property("entryCount").toInt(), 7);
         // Recent and favourite entries are transient in tests; no user file is modified.
         const auto savedPath = temp_.filePath("saved-example.json");
         QVERIFY(studio.savePatch(QUrl::fromLocalFile(savedPath)));
         const auto original = read("saved-example.json");
         const QString localUrl = QUrl::fromLocalFile(savedPath).toString();
-        const bool opened = QMetaObject::invokeMethod(window, "openPatchFile",
-                                                      Q_ARG(QVariant, QVariant(localUrl)));
+        const bool opened = QMetaObject::invokeMethod(window, "openPatchFile", Q_ARG(QVariant, QVariant(localUrl)));
         QVERIFY(opened);
         QTRY_COMPARE(library->property("entryCount").toInt(), 8);
         QCOMPARE(window->property("currentPatchFile").toString(), localUrl);
