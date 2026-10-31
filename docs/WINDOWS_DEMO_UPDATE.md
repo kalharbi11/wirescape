@@ -67,3 +67,30 @@ The helper sets Desktop and Programs shortcuts to this package's `wirescape_stud
 ## User-only playback check
 
 The startup check confirms a normal window opens and audio has not started. It does not open devices or establish that sound works. At the Windows laptop, the user can then check audible USB output, keyboard/MIDI notes, Panic and device hotplug, CC control, and save/reopen of a patch. Record the actual device and result separately. Missing laptop access or screenshots is pending evidence, not a failed automated check.
+
+## Explicit launcher runtime and update check (#188)
+
+After building this revision, select existing local dependencies once:
+
+```powershell
+python tools/dev.py launch --qt-prefix '<Qt SDK>' --portaudio '<path to libportaudio64bit.dll>' --remember-runtime
+python tools/dev.py updates --open-instructions
+```
+
+The launcher prints each validated path and its source. Saved selections live in
+`%LOCALAPPDATA%/Wirescape/launcher.json`; explicit flags override them. An invalid
+explicit or saved path produces an error instead of silently choosing another DLL.
+The package command accepts the same options. Normal launch preserves the app's
+interactive MIDI preference; it never adds probe or MIDI-confirmation flags.
+
+`updates` explicitly reads latest `origin/main` with `git ls-remote`, displays the
+installed build commit and checkout commit separately, and makes no local changes.
+A different SHA does not prove the installed revision is behind. Use the accepted
+revision procedure above; the command never pulls, switches or installs for you.
+Older build metadata needs a fresh successful UI build to record its installed SHA.
+
+Run the existing shortcut installer from the active checkout with the package
+path returned by `dev.py package`. It rejects packages outside that checkout's
+`build/packages`, missing/mismatched provenance, and changed executable digests.
+The packaged Qt/PortAudio runtime is deployed by `package`; no SDK path is needed
+when launching that verified package. Physical playback remains an owner check.
