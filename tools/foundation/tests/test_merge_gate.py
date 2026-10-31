@@ -9,8 +9,8 @@ import merge_gate as gate
 SHA = 'abc1234def'
 
 
-def pr(*labels, base='main', draft=False):
-    return {'state': 'open', 'draft': draft, 'base': {'ref': base}, 'head': {'sha': SHA},
+def pr(*labels, base='main', draft=False, ref='task/1-x'):
+    return {'state': 'open', 'draft': draft, 'base': {'ref': base}, 'head': {'sha': SHA, 'ref': ref},
             'labels': [{'name': name} for name in ('status/ready-to-merge',) + labels]}
 
 
@@ -49,6 +49,35 @@ class MergeGateTests(unittest.TestCase):
         self.assertFalse(self.check(pr('milestone-review'), comments=chatgpt))
         self.assertTrue(self.check(pr('milestone-review'), files=['AGENTS.md'],
                                    comments=[say('Claude: approved for auto-merge abc1234')]))
+
+
+class ApprovalsV3Tests(unittest.TestCase):
+    def check(self, p, files=('native/x.cpp',), comments=()):
+        return gate.decide(p, list(files), list(comments), 'owner')[0]
+
+    def test_codex_line_finishes_t1_but_not_t2_or_claude_paths(self):
+        codex = [say('Codex: approved for auto-merge abc1234')]
+        self.assertTrue(self.check(pr('tier/T1'), comments=codex))
+        self.assertFalse(self.check(pr('tier/T1'), comments=[say('Codex: approved for auto-merge 0000000')]))
+        self.assertFalse(self.check(pr('tier/T2'), comments=codex))
+        self.assertFalse(self.check(pr('tier/T1'), files=['docs/specs/ABI2_PLAN.md'], comments=codex))
+        self.assertFalse(self.check(pr('tier/T1', 'status/blocked'), comments=codex))
+
+    def test_claude_line_finishes_any_tier(self):
+        claude = [say('Claude: approved for auto-merge abc1234')]
+        for p in (pr('tier/T1'), pr('tier/T2'), pr('milestone-review')):
+            self.assertTrue(self.check(p, comments=claude))
+        self.assertTrue(self.check(pr(ref='claude/x'), files=['docs/PLAN.md', 'AGENTS.md'], comments=claude))
+
+    def test_claude_authored_control_change_needs_independent_chatgpt(self):
+        claude = say('Claude: approved for auto-merge abc1234')
+        chatgpt = say('ChatGPT: approved for auto-merge abc1234')
+        for path in ('tools/merge_gate.py', '.github/workflows/ci.yml', 'tools/ci/guard.py',
+                     'native/include/wirescape/module2.h'):
+            self.assertFalse(self.check(pr(ref='claude/x'), files=[path], comments=[claude]), path)
+            self.assertFalse(self.check(pr(ref='claude/x'), files=[path], comments=[chatgpt]), path)
+            self.assertTrue(self.check(pr(ref='claude/x'), files=[path], comments=[claude, chatgpt]), path)
+            self.assertTrue(self.check(pr(), files=[path], comments=[claude]), path)
 
 
 class StrictApprovalLineTests(unittest.TestCase):

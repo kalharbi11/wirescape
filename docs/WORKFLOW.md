@@ -21,25 +21,30 @@ CodeQL (C/C++, Python and Actions) runs through `.github/workflows/codeql.yml` o
 
 Builders: add `ci/pi` to a draft PR when its acceptance block has `pi:` lines; the `pi5` status appears within about 20 minutes plus build time. Safety: public code runs with a scrubbed environment (no token, no Actions credentials); fork heads are skipped; no `sudo`, devices or LAN listeners; one job at a time.
 
-## 3. Review tiers
-| Tier | Applies to | Needs before the user merges |
-|---|---|---|
-| **T0** scripts only | docs, tests-only, CI tweaks, `size/s` code with no protected paths | CI green + `accept` green. User skims and merges |
-| **T1** + one cheap review | `size/m`/`size/l` modules, ports, tools, UI | T0 + a "ChatGPT pre-review" comment on the review pack, every High fixed or answered |
-| **T2** second review | engine2 scheduler, threading/rings, realtime callback, services thread model, patch format, or a T1 with an unsettled High | T1 + a second ChatGPT pass in a fresh chat that ends `ChatGPT: approved for auto-merge <sha7>`, plus the Pi evidence the task names. Claude audits merged T2 PRs at the weekly check-in |
-| **T2-Claude** | ABI/SDK headers, CI guard and workflows, specs, label-only paths, milestone gates (`milestone-review`) | Claude reads only the pack and the pre-review, then spot-checks named lines, and comments `Claude: approved for auto-merge <sha7>` |
+## 3. Approvals v3 (2026-10-31): who approves what
+Principle: the cheapest party that can catch the risk approves. Small things merge on green; Codex approves
+ordinary work; Claude (the planner) can approve anything; a second, independent look is required only where a
+mistake is hard to undo (merge control, CI, ABI). The owner approves nothing routinely and can veto any time.
 
-When `accept` is green on the exact head, the builder sets `status/ready-to-merge` and posts the report.
+| Tier | Applies to | Gate needs (on the current head, plus `status/ready-to-merge` and green required checks) |
+|---|---|---|
+| **T0** | docs, tests-only, planner notes, formatting, `size/s` code, CI-red fixes inside touched files | nothing else |
+| **T1** | features, modules, ports, tools, UI, scripts | `Codex: approved for auto-merge <sha7>` after the builder's self-review, **or** a ChatGPT/Claude line |
+| **T2** | engine2 scheduler, threading/rings, realtime callback, services thread model, patch format/migration, SDK | `ChatGPT: approved for auto-merge <sha7>` (fresh second pass) **or** a Claude line |
+| **T2-Claude** | label-only paths, CI/guard/workflows, `tools/merge_gate.py`, specs, `docs/PLAN.md`, ABI headers, `milestone-review` | `Claude: approved for auto-merge <sha7>`. If Claude wrote it (branch `claude/...`) **and** it touches merge control, CI or ABI headers, also an independent `ChatGPT: approved for auto-merge <sha7>` |
+
+Rules that keep it safe:
+- **Any reviewer can stop any PR** by posting a High and setting `status/blocked`; the gate never merges a blocked PR. A builder never approves over an open High.
+- **Codex self-approval (T1)** comes after the `Self-review` comment (§3c) and a green `accept` run. ChatGPT's hourly watch still reviews T1 heads; a High found after merge becomes a fix issue the same day.
+- **Claude approves anything**, including its own planner docs and `docs/PLAN.md`. The only thing Claude can't approve alone is its own merge-control/CI/ABI change (row above).
+- **Tier comes from the task file**; when the diff touches a higher tier's paths, the higher tier wins (the gate enforces the Claude paths itself).
+- **Owner-only:** licence changes, `legacy/**`, `docs/history/**`, branch protection, revoking authorization, and real-device results.
+- Weekly, Claude spot-audits a sample of merged T1/T2 PRs and tightens a tier if it finds a miss.
 
 ## 3b. Who merges what
-| PR | Who | When |
-|---|---|---|
-| T0, base `main`, no label-only paths | builder enables auto-merge | after `status/ready-to-merge`; GitHub merges when required checks are green |
-| T1, base `main` | builder enables auto-merge | additionally a "ChatGPT pre-review" with every High fixed or answered |
-| T2, base `main` | merge gate | `ChatGPT: approved for auto-merge <sha7>` on the current head |
-| T2-Claude (ABI, CI/guard, specs, label-only, milestones) | merge gate | `Claude: approved for auto-merge <sha7>` on the current head |
-| Stacked PR (base is another task branch) | nobody | only after its base merges and GitHub retargets it to `main` |
-| Planner docs PRs | user (or planner-enabled auto-merge for docs-only T0) | green |
+Nobody clicks merge. The merge gate (below) enables squash auto-merge once the table in section 3 holds; GitHub
+then waits for the required checks. Builders may also enable auto-merge themselves when the same conditions hold.
+Stacked PRs (base is another task branch) wait until GitHub retargets them to `main`.
 
 **Details settled 2026-10-29:**
 - Auto-merge may use any merge method; squash is fine.
@@ -47,9 +52,7 @@ When `accept` is green on the exact head, the builder sets `status/ready-to-merg
 - Mechanical, behaviour-free type fixes in `native/sdk/**` (no new API, no ABI header) are T0; anything else in the SDK is T2.
 - Exact output hashes are asserted only **within one build** (same compiler and flags), for example patched vs. original in the same binary. Hashes from other compilers or architectures are recorded in reports, never asserted.
 
-**Merge gate (2026-10-29):** `.github/workflows/merge_gate.yml` runs `tools/merge_gate.py` whenever a PR is labelled or the owner's account comments on it, and enables squash auto-merge when the rows above hold. So any agent that can label and comment can finish a PR; nobody needs the auto-merge button. Approval phrases count only from the owner's account and only with the first 7 characters of the current head SHA, so a new push needs a new phrase. The phrases are `ChatGPT: pre-review passed <sha7>` (T1), `ChatGPT: approved for auto-merge <sha7>` (T2), `Claude: approved for auto-merge <sha7>` (anything). Merges made by the gate use the workflow token, so they don't start push workflows on `main`; the Pi and laptop poll `main` themselves and CodeQL runs weekly.
-
-**The user's rule of thumb:** a PR with base `main`, all checks green and no `tier/T2` label can be merged without asking Claude. Non-required checks (the static job, the optional acceptance job) may be red only if the PR didn't touch what they report on. Auto-merge needs the repository setting *Allow auto-merge* (Settings → General → Pull Requests).
+**Merge gate:** `.github/workflows/merge_gate.yml` runs `tools/merge_gate.py` whenever a PR is labelled or the owner's account comments on it. Approval lines count only from the owner's account (every agent posts from it), only as a standalone line outside quotes, code and HTML comments, and only with the first 7 characters of the current head SHA, so a new push needs a new line. Lines: `Codex: approved for auto-merge <sha7>` (T1), `ChatGPT: pre-review passed <sha7>` (T1), `ChatGPT: approved for auto-merge <sha7>` (T1/T2), `Claude: approved for auto-merge <sha7>` (anything). Gate merges use the workflow token, so they don't start push workflows on `main`; the Pi and laptop poll `main` themselves. Non-required checks may be red only if the PR didn't touch what they report on. Auto-merge needs *Allow auto-merge* in the repository settings.
 
 ## 3c. Autonomous mode (the default; the user is often away 04:00–11:00 New York)
 Goal: agents keep moving without the user or Claude in the loop, and every shortcut stays reviewable later.
@@ -62,12 +65,14 @@ Goal: agents keep moving without the user or Claude in the loop, and every short
 - Merging `main` (or the parent branch) in and resolving conflicts by keeping both sides.
 - Adding `ci/pi`, `ci/pi-soak` or `ci/pi-retry`, and retrying an infrastructure failure once.
 - Picking among options the task file already lists; small refactors inside touched files needed to get CI green; fixing bugs in its own earlier PRs.
+- Design choices the spec leaves open that change no IDs, file formats, ABI or realtime behaviour.
+- Adding, splitting or strengthening tests, and fixing flaky tests without loosening them.
 
-**Still a stop** (ask on the issue, block only that item): ABI header edit, new dependency, equivalence or hash delta beyond a planner-set bound, deleting or skipping tests, label-only paths, a security finding, or a design choice that changes IDs, file formats or user-visible behaviour not in the spec.
+**Still a stop** (ask on the issue, block only that item; Claude rules, the owner isn't needed): ABI header edit, new dependency, equivalence or hash delta beyond a planner-set bound, deleting or skipping tests, label-only paths, a security finding, or a design choice that changes IDs, file formats or user-visible behaviour not in the spec.
 
 **Self-review before `status/ready-to-merge`:** run `python tools/review_pack.py <PR#> --prompt chatgpt`, read it against its checklist (realtime, IDs, state/versioning, thresholds, licences, devices) and post a `Self-review` comment with each item ticked or explained. T1 additionally needs the ChatGPT pre-review (posted by ChatGPT's scheduled watch).
 
-**T2 and label-only auto-merge:** when Claude's review comment on a T2 PR, or on a PR touching label-only paths, says **`Claude: approved for auto-merge`**, the builder may enable auto-merge on it like a T0, as long as the head hasn't changed since that comment (any new push needs a fresh one). Stacked children are retargeted to `main` automatically by GitHub once their parent merges; then the builder re-runs their acceptance against `main` and treats them as normal PRs.
+**Approval lines** follow section 3; any new push needs a fresh line. Stacked children are retargeted to `main` automatically by GitHub once their parent merges; then the builder re-runs their acceptance against `main` and treats them as normal PRs.
 
 **J stack merge order** (stacked PRs never auto-merge while stacked): #78 J1 → GitHub retargets #79 to `main` → builder merges `main` in, re-runs acceptance against `main`, gets green + pre-review → auto-merge → same for #80 → then #81 and #82 are refreshed onto `main` (they're stale) and follow. A child's own diff is reviewed while stacked, so retargeting needs only a green re-run, not a second review, unless the merge changed its code.
 
@@ -129,7 +134,7 @@ For work of at most 3 files that benefits from an independent strong model (seco
 1. Planner session (Claude Sonnet, fresh): update "Now", shape the next issues with acceptance blocks.
 2. Codex works the queue; ChatGPT builds self-contained modules on separate branches.
 3. ChatGPT pre-reviews T1/T2 PRs (a second fresh pass on T2).
-4. The user merges T0/T1 when green.
+4. The merge gate merges T0/T1 when green and approved (section 3); the user only vetoes.
 5. Gate review (Claude Opus, fresh) only at milestone ends or on a T2 escalation.
 
 ## 9. Not worth it
