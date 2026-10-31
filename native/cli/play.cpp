@@ -56,7 +56,7 @@ int wirescape_play(int argc,char**argv){
             else throw std::runtime_error("MIDI/OSC needs its explicit confirmation flag and J4/J5 service");
         } else if (!arg.empty() && arg[0] != '-' && patch.empty()) patch = arg;
         else throw std::runtime_error("Unknown play argument: " + arg);
- }
+    }
  if(!midiName.empty()&&!confirmMidi)throw std::runtime_error("--midi requires explicit confirmation with --confirm-midi");
  if(list){wirescape::audio::list_devices(directory);return 0;}
  if(patch.empty())throw std::runtime_error("play requires a native v1/v2 patch.json");
@@ -97,7 +97,7 @@ int wirescape_play(int argc,char**argv){
  if (confirm) {
      try {
          wirescape::audio::play(
-             std::move(engine), directory, device, rate, block, quit,
+             std::move(engine), directory, rate, device, block, quit,
              [&] {
                  osc.stop();
                  midi.stop();

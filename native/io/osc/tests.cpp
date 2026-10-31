@@ -67,10 +67,23 @@ int main() {
     const size_t first = bundle.size();
     bundle.resize(first + 4 + valid.size());
     put32(bundle.data() + first, uint32_t(valid.size()));
-    std::copy(valid.begin(), valid.end(), bundle.begin() + first + 4);
+    std::memcpy(bundle.data() + first + 4, valid.data(), valid.size());
     calls = 0;
     REQUIRE(parse(bundle.data(), bundle.size(), [&](const Message &) { ++calls; }));
     REQUIRE(calls == 1);
+    auto ordered = bundle;
+    const auto second = packet("/second", .5f);
+    const auto offset = ordered.size();
+    ordered.resize(offset + 4 + second.size());
+    put32(ordered.data() + offset, uint32_t(second.size()));
+    std::memcpy(ordered.data() + offset + 4, second.data(), second.size());
+    calls = 0;
+    REQUIRE(parse(ordered.data(), ordered.size(),
+                  [&](const Message &message) {
+                      REQUIRE(message.address == (calls == 0 ? "/pico1/knob/3" : "/second"));
+                      ++calls;
+                  }) &&
+            calls == 2);
     auto nested = bundle;
     for (int depth = 0; depth < 4; ++depth) {
         std::vector<uint8_t> next(20 + nested.size());
@@ -80,4 +93,14 @@ int main() {
         nested = std::move(next);
     }
     REQUIRE(!parse(nested.data(), nested.size(), [](const Message &) {}));
+    auto maximum = bundle;
+    for (int depth = 0; depth < 3; ++depth) {
+        std::vector<uint8_t> next(20 + maximum.size());
+        std::memcpy(next.data(), "#bundle\0", 8);
+        put32(next.data() + 16, uint32_t(maximum.size()));
+        std::copy(maximum.begin(), maximum.end(), next.begin() + 20);
+        maximum = std::move(next);
+    }
+    calls = 0;
+    REQUIRE(parse(maximum.data(), maximum.size(), [&](const Message &) { ++calls; }) && calls == 1);
 }

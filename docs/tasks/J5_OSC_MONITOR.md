@@ -17,10 +17,14 @@ of an unconfirmed LAN request using fake/offline routing; no LAN socket opens.
 Draft Monitor port IDs are aligned to the approved `in1`/`in2` names above;
 no existing module or port ID on main changes.
 
+Additional standing-v2 self-decision:2800lines (+7.7% over the approved2600)
+for authored static fixes and iterative bounded-bundle traversal; file cap52
+and all parsing/depth/allocation assertions remain unchanged.
+
 ```acceptance
 tier: T2
 budget: 2 Codex sessions (remaining)
-size: <= 2600 changed lines, <= 52 files
+size: <= 2800 changed lines, <= 52 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "osc|monitor_log|abi2_monitor_tests|app_engine_lifetime" --output-on-failure

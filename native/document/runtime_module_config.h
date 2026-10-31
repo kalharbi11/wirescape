@@ -25,7 +25,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,const n
      wirescape::osc::Configuration config;
      for (auto it = value.begin(); it != value.end(); ++it) {
          auto &v = it.value();
-         auto key = it.key();
+         const auto &key = it.key();
          if (key == "port") {
              require(v.is_number_integer(), "OSC port must be integer");
              auto n = v.get<int64_t>();
@@ -41,7 +41,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,const n
                  require(row.is_object(), "OSC row must be object");
                  auto &r = config.rows[i++];
                  for (auto field = row.begin(); field != row.end(); ++field) {
-                     auto name = field.key();
+                     const auto &name = field.key();
                      auto &data = field.value();
                      if (name == "pattern") {
                          require(data.is_string(), "OSC pattern must be string");

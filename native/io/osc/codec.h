@@ -36,19 +36,8 @@ inline bool string(const uint8_t *bytes, size_t size, size_t &at, std::string_vi
         if (bytes[at]) return false;
     return true;
 }
-template <class Emit> bool parse(const uint8_t *bytes, size_t size, Emit emit, uint32_t depth = 0) {
-    if (!bytes || !size || size > 65507 || (size & 3) || depth > 4) return false;
-    if (size >= 8 && std::memcmp(bytes, "#bundle\0", 8) == 0) {
-        if (size < 16 || depth == 4) return false;
-        for (size_t at = 16; at < size;) {
-            if (size - at < 4) return false;
-            const uint32_t n = big32(bytes + at);
-            at += 4;
-            if (!n || n > size - at || !parse(bytes + at, n, emit, depth + 1)) return false;
-            at += n;
-        }
-        return true; // timetags deliberately ignored for J
-    }
+namespace detail {
+template <class Emit> bool parse_message(const uint8_t *bytes, size_t size, Emit &emit) {
     Message message;
     size_t at = 0;
     std::string_view tags;
@@ -92,6 +81,46 @@ template <class Emit> bool parse(const uint8_t *bytes, size_t size, Emit emit, u
     emit(message);
     return true;
 }
+} // namespace detail
+// Walk the same bounded bundle tree without recursion or dynamic allocation.
+template <class Emit> bool parse(const uint8_t *bytes, size_t size, Emit emit, uint32_t depth = 0) {
+    struct Frame {
+        const uint8_t *bytes;
+        size_t size, at;
+        uint32_t depth;
+        bool entered;
+    };
+    std::array<Frame, 5> stack{};
+    if (depth > 4) return false;
+    size_t used = 1;
+    stack[0] = {bytes, size, 0, depth, false};
+    while (used) {
+        auto &frame = stack[used - 1];
+        if (!frame.entered) {
+            if (!frame.bytes || !frame.size || frame.size > 65507 || (frame.size & 3)) return false;
+            if (frame.size < 8 || std::memcmp(frame.bytes, "#bundle\0", 8) != 0) {
+                if (!detail::parse_message(frame.bytes, frame.size, emit)) return false;
+                --used;
+                continue;
+            }
+            if (frame.size < 16 || frame.depth == 4) return false;
+            frame.entered = true;
+            frame.at = 16; // J deliberately ignores timetags.
+        }
+        if (frame.at == frame.size) {
+            --used;
+            continue;
+        }
+        if (frame.size - frame.at < 4) return false;
+        const uint32_t length = big32(frame.bytes + frame.at);
+        frame.at += 4;
+        if (!length || length > frame.size - frame.at || used == stack.size()) return false;
+        const auto *child = frame.bytes + frame.at;
+        frame.at += length;
+        stack[used++] = {child, length, 0, frame.depth + 1, false};
+    }
+    return true;
+}
 // Encode a valid message into the ABI payload bound, truncating only string/blob
 // contents while retaining a valid complete packet and all numeric arguments.
 inline size_t encode(const Message &m, uint8_t *out, size_t capacity, bool &truncated) {
@@ -112,7 +141,7 @@ inline size_t encode(const Message &m, uint8_t *out, size_t capacity, bool &trun
     if (!text(tags, m.count + 1)) return 0;
     for (uint32_t i = 0; i < m.count; ++i) {
         const auto &arg = m.arguments[i];
-        const size_t reserve = (m.count - i - 1) * 8;
+        const size_t reserve = size_t(m.count - i - 1) * 8;
         if (arg.type == 'i' || arg.type == 'f') {
             uint32_t bits;
             if (arg.type == 'i') std::memcpy(&bits, &arg.integer, 4);

@@ -67,8 +67,9 @@ int callback(const void*,void*output,unsigned long frames,const PaStreamCallback
 }
 }
 void list_devices(const std::string&directory){Backend b(directory);int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&d->maxOutputChannels>=2)std::cout<<i<<": "<<d->name<<" ("<<d->defaultSampleRate<<" Hz default)\n";}}
-void play(EngineOwner engine, const std::string &directory, const std::string &name, double rate, uint32_t block,
-          const std::atomic<bool> &quit, std::function<void()> stop_producers, std::function<void()> control_tick) {
+void play(EngineOwner engine, const std::string &directory, double rate, const std::string &name, uint32_t block,
+          const std::atomic<bool> &quit, std::function<void()> stop_producers,
+          const std::function<void()> &control_tick) {
     struct StopOnError {
         std::function<void()> &stop;
         ~StopOnError() {
