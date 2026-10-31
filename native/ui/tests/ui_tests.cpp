@@ -34,6 +34,23 @@ public:
 signals:
     void parameterChanged(int node, int parameter, double value, QString display);
 };
+class PreferenceMidiBackend : public wirescape::midi::Backend {
+    int &opens_;
+    int *enumerations_;
+
+  public:
+    explicit PreferenceMidiBackend(int &opens, int *enumerations = nullptr)
+        : opens_(opens), enumerations_(enumerations) {}
+    std::vector<wirescape::midi::Endpoint> endpoints() override {
+        if (enumerations_) ++*enumerations_;
+        return {{"Fake notes", "test:notes"}};
+    }
+    bool open(const wirescape::midi::Endpoint &, wirescape::midi::Callback) override {
+        ++opens_;
+        return true;
+    }
+    void close(const wirescape::midi::Endpoint &) override {}
+};
 
 static QObject* findNamed(QObject* root, const QString& name) {
     if (root->objectName() == name) return root;
@@ -76,6 +93,59 @@ class UiTests : public QObject {
     static QPoint center(QQuickItem* item) { return item->mapToScene(QPointF(item->width()/2, item->height()/2)).toPoint(); }
 private slots:
     void initTestCase() { QVERIFY(temp_.isValid()); }
+    void midiModePolicy() {
+        const auto interactive = StudioController::MidiPreference::Interactive;
+        const auto ignore = StudioController::MidiPreference::Ignore;
+        const auto empty = QProcessEnvironment{};
+        QCOMPARE(StudioController::midiMode("windows", false, empty), interactive);
+        auto ci = empty;
+        ci.insert("CI", "");
+        QCOMPARE(StudioController::midiMode("windows", false, ci), ignore);
+        auto actions = empty;
+        actions.insert("GITHUB_ACTIONS", "true");
+        QCOMPARE(StudioController::midiMode("windows", false, actions), ignore);
+        QVERIFY(StudioController::midiMode("windows", true, empty) == ignore);
+        QVERIFY(StudioController::midiMode("offscreen", false, empty) == ignore);
+        QVERIFY(StudioController::midiMode("minimal", false, empty) == ignore);
+        QCOMPARE(StudioController::midiMode("windows", false, empty, {"ready-report"}), ignore);
+        const QStringList interactiveReport{"ready-report", "interactive-ready-report"};
+        QCOMPARE(StudioController::midiMode("windows", false, empty, interactiveReport), interactive);
+        QCOMPARE(StudioController::midiMode("windows", true, empty, interactiveReport), ignore);
+        QCOMPARE(StudioController::midiMode("windows", false, ci, interactiveReport), ignore);
+    }
+    void midiPreferenceIsInteractiveOnly() {
+        const auto settings = temp_.filePath("midi-preference.ini");
+        int opens = 0;
+        {
+            StudioController studio(directory_, nullptr, {}, false, StudioController::MidiPreference::Interactive,
+                                    std::make_unique<PreferenceMidiBackend>(opens), settings);
+            QVERIFY(studio.midiSettingsAvailable());
+            QVERIFY(!studio.midiAuthorized());
+            studio.setMidiAuthorized(true);
+            QVERIFY(studio.midiAuthorized());
+            QCOMPARE(studio.midiEndpoints().size(), 1);
+        }
+        {
+            StudioController restored(directory_, nullptr, {}, false, StudioController::MidiPreference::Interactive,
+                                      std::make_unique<PreferenceMidiBackend>(opens), settings);
+            QVERIFY(restored.midiAuthorized());
+            int enumerations = 0;
+            const auto reportOnly = StudioController::midiMode("windows", false, {}, {"ready-report"});
+            StudioController probe(directory_, nullptr, {}, false, reportOnly,
+                                   std::make_unique<PreferenceMidiBackend>(opens, &enumerations), settings);
+            QVERIFY(!probe.midiSettingsAvailable());
+            QVERIFY(!probe.midiAuthorized());
+            probe.setMidiAuthorized(true);
+            QVERIFY(!probe.midiAuthorized());
+            QVERIFY(probe.midiEndpoints().isEmpty());
+            QCOMPARE(enumerations, 0);
+            restored.setMidiAuthorized(false);
+        }
+        StudioController disabled(directory_, nullptr, {}, false, StudioController::MidiPreference::Interactive,
+                                  std::make_unique<PreferenceMidiBackend>(opens), settings);
+        QVERIFY(!disabled.midiAuthorized());
+        QCOMPARE(opens, 0); // Preference restoration never starts an input stream.
+    }
     void keyboardChordOffscreen() {
         StudioController studio(directory_);
         QJsonObject result;
@@ -338,6 +408,59 @@ private slots:
         emit bridge.parameterChanged(1, 0, 20000., "20000.0 Hz");
         QTRY_COMPARE(value(), 1.);
     }
+    void humanReadableParameterTooltips() {
+        ParameterBridge bridge;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty("studio", &bridge);
+        QQmlComponent component(&engine, QUrl("qrc:/qml/ParameterControl.qml"));
+        auto *object = component.beginCreate(engine.rootContext());
+        QVERIFY2(object, qPrintable(component.errorString()));
+        QVariantMap descriptor{{"id", 0},
+                               {"name", "Frequency"},
+                               {"minimum", 0.009999999776482582},
+                               {"maximum", 20000.},
+                               {"value", 440.},
+                               {"unit", "Hz"},
+                               {"display", "440 Hz"}};
+        object->setProperty("nodeId", 1);
+        object->setProperty("moduleId", "essentials.vco");
+        object->setProperty("presentation", "knob");
+        object->setProperty("descriptor", descriptor);
+        component.completeCreate();
+        QScopedPointer<QObject> owner(object);
+        auto *control = qobject_cast<QQuickItem *>(object);
+        QVERIFY(control);
+        QQuickWindow window;
+        window.resize(360, 230);
+        control->setParentItem(window.contentItem());
+        control->setWidth(236);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        QVERIFY(findNamed(control, "parameterKnob"));
+        const auto tooltip = [&] { return object->property("tooltipText").toString(); };
+        QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 0.01 Hz–20 kHz"));
+        QCOMPARE(object->property("acceptedValue").toDouble(), 440.);
+        QCOMPARE(object->property("acceptedDisplay").toString(), QString("440 Hz"));
+        const auto range = [&](double lo, const QString &unit, double hi) {
+            descriptor["minimum"] = lo;
+            descriptor["maximum"] = hi;
+            descriptor["unit"] = unit;
+            object->setProperty("descriptor", descriptor);
+        };
+        range(440., "Hz", 440.);
+        QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 440 Hz–440 Hz"));
+        range(0., "%", 100.);
+        QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 0 %–100 %"));
+        range(-12.345, "dB", 6.);
+        QCOMPARE(tooltip(), QString::fromUtf8("Frequency · -12.3 dB–6 dB"));
+        range(0.005, "s", 2.5);
+        QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 5 ms–2.5 s"));
+        object->setProperty("presentation", "slider");
+        QTRY_VERIFY(findNamed(control, "parameterSlider"));
+        QCOMPARE(tooltip(), QString::fromUtf8("Frequency · 5 ms–2.5 s"));
+        QCOMPARE(object->property("acceptedValue").toDouble(), 440.);
+        QCOMPARE(bridge.calls, 0);
+    }
     void steppedSelectorRollback() {
         ParameterBridge bridge;
         bridge.accepted = 1.;
@@ -517,6 +640,109 @@ private slots:
         const QRectF lastBounds(last->mapToItem(library, QPointF()), last->size());
         QVERIFY(lastBounds.top() >= -1);
         QVERIFY(lastBounds.bottom() <= library->height() + 1);
+        QVERIFY(!studio.running());
+    }
+    void canvasMouseEditing_data() {
+        QTest::addColumn<double>("zoom");
+        QTest::newRow("100-percent") << 1.;
+        QTest::newRow("85-percent") << .85;
+        QTest::newRow("62-percent") << .62;
+    }
+    void canvasMouseEditing() {
+        QFETCH(double, zoom);
+        StudioController studio(directory_);
+        // Compact, non-overlapping cards, with a real output selected throughout.
+        studio.removeModule(2);
+        studio.removeModule(5);
+        studio.moveModule(1, 20, 20);
+        studio.moveModule(3, 400, 20);
+        studio.moveModule(4, 780, 20);
+        studio.addModule("essentials.lfo");
+        studio.moveModule(2, 20, 370);
+        while (!studio.connections().isEmpty()) studio.disconnectCable(0);
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("studio", &studio);
+        engine.load(QUrl("qrc:/qml/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects()[0]);
+        QVERIFY(window);
+        window->resize(1600, 1050);
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        window->setProperty("zoom", zoom);
+        window->setProperty("panX", 25.);
+        window->setProperty("panY", 20.);
+        auto item = [&](const QString &name) { return qobject_cast<QQuickItem *>(findNamed(window, name)); };
+        auto *card = item("module_1");
+        auto *header = item("moduleHeader_1");
+        QVERIFY(card);
+        QVERIFY(header);
+        QTest::qWait(30); // Let anchors and scaled item geometry polish before mouse delivery.
+        const QPoint start = center(header);
+        const QPoint end = start + QPoint(42, 28);
+        const QPointF oldPosition = card->position();
+        QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, start);
+        QTest::mouseMove(window, start + QPoint(20, 14), 20);
+        QTest::mouseMove(window, end, 20);
+        QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, end);
+        QVERIFY(card->x() > oldPosition.x() + 10);
+        QVERIFY(card->y() > oldPosition.y() + 10);
+        const QPointF moved = card->position();
+        auto cableDrag = [&](const QString &source, const QString &destination, double targetX = .5) {
+            auto *from = item(source), *to = item(destination);
+            if (!from || !to) return false;
+            const QPoint a = center(from);
+            const QPoint b = to->mapToScene(QPointF(to->width() * targetX, to->height() / 2)).toPoint();
+            QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, a);
+            QTest::mouseMove(window, (a + b) / 2, 20);
+            QTest::mouseMove(window, b, 20);
+            QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, b);
+            return true;
+        };
+        QVERIFY(cableDrag("output_1_audio", "input_3_audio", .02));
+        QTRY_COMPARE(studio.connections().size(), 1);
+        QVERIFY(cableDrag("output_3_audio", "input_4_audio"));
+        QTRY_COMPARE(studio.connections().size(), 2);
+        auto *handle = item("cableHandle_0");
+        QVERIFY(handle);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(handle));
+        QTRY_COMPARE(window->property("selectedCable").toInt(), 0);
+        auto *disconnect = item("disconnectCableButton");
+        QVERIFY(disconnect);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(disconnect));
+        QTRY_COMPARE(studio.connections().size(), 1);
+        // Click-click remains supported alongside the new drag gesture.
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(item("output_1_audio")));
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(item("input_3_audio")));
+        QTRY_COMPARE(studio.connections().size(), 2);
+        QVERIFY(cableDrag("output_2_control", "input_3_gain_cv"));
+        QTRY_COMPARE(studio.connections().size(), 3);
+        // An incompatible release never inserts a cable; Escape cancels the pending gesture.
+        QVERIFY(cableDrag("output_1_audio", "input_3_gain_cv"));
+        QCOMPARE(studio.connections().size(), 3);
+        QTest::keyClick(window, Qt::Key_Escape);
+        QCOMPARE(window->property("pendingNode").toInt(), -1);
+        const auto expected = studio.connections();
+        QVERIFY(studio.savePatch(path("mouse-edit.json")));
+        QVERIFY(studio.loadPatch(path("mouse-edit.json")));
+        const auto restored = studio.connections();
+        QCOMPARE(restored.size(), expected.size());
+        // Reload preserves nested v2 endpoint metadata in the editor view; compare all link fields.
+        for (int i = 0; i < expected.size(); ++i)
+            for (const auto &key : {"fromNode", "fromPort", "toNode", "toPort", "kind", "channels"})
+                QCOMPARE(restored[i].toMap().value(key), expected[i].toMap().value(key));
+        QVERIFY(studio.savePatch(path("mouse-edit-reloaded.json")));
+        QCOMPARE(read("mouse-edit-reloaded.json")["connections"], read("mouse-edit.json")["connections"]);
+        card = item("module_1");
+        QVERIFY(card);
+        QCOMPARE(card->position(), moved);
+        // A later-painted LFO header covers VCA's CV input. Never connect through it.
+        studio.moveModule(2, 400, 100);
+        studio.disconnectCable(2); // Rebuild delegates with the overlapping layout; CV input is empty.
+        QTest::qWait(30);
+        QVERIFY(cableDrag("output_2_control", "input_3_gain_cv"));
+        QCOMPARE(studio.connections().size(), 2);
+        QTest::keyClick(window, Qt::Key_Escape);
+        QCOMPARE(window->property("pendingNode").toInt(), -1);
         QVERIFY(!studio.running());
     }
     void studioCableHandlesAreDistanceBounded() {

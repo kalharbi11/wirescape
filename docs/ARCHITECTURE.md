@@ -205,9 +205,16 @@ execution pending their services. See `docs/PI_SETUP.md` for the user commands.
 MIDI ingress uses `native/io/midi/` (pinned libremidi plus a fake backend).
 `native/control/midi_host.*` owns endpoint selections and the service lifetime;
 producer 1 is reserved before engine preparation for timestamped D13 ingress.
-The app's MIDI settings and runner `play --midi <name>` require launch with
-`--confirm-midi` before a real backend is created. Enabled endpoint names and
-system-name fallbacks are saved in the patch's device records. Shutdown joins
+Interactive Studio accepts an explicit, remembered Enable MIDI preference;
+`--confirm-midi` remains supported for manual runner use. Offline, startup,
+smoke, probe and CI-marked (`CI`/`GITHUB_ACTIONS`) paths ignore the interactive
+preference and never create a real backend from it. Enabled endpoint names and system-name fallbacks are saved in
+the patch's device records. The service exposes independent atomic receive
+counts per selected endpoint, including ports sharing a display name.
+Enabled input notes also reach existing `host.keyboard` nodes through producer1;
+MIDI1/2 notes become source/channel-preserving note events. Existing `midi.in`
+routes still receive raw events for explicit controller/converter routing.
+Shutdown joins
 MIDI producers and drains source chokes before stopping render or destroying its
 engine. Raw MIDI releases use the same reserved queue classification as note
 releases; MIDI 2 zero-velocity Note On remains a Note On.

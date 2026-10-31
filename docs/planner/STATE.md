@@ -3,42 +3,56 @@
 
 Keep this under 80 lines. Rewrite it at the end of each check-in; history lives in git.
 
-**Updated:** 2026-10-29 13:45 New York.
+**Updated:** 2026-10-31 afternoon, New York.
 
 ## Check-in recipe (cheap)
-1. Read this file. Don't read PLAN.md, WORKFLOW.md or task files unless an item below needs them.
-2. Run one REST query for open PRs (`gh api repos/kalharbi11/wirescape/pulls`) and read the latest steward summary on #101. Don't sweep everything.
-3. Act only on: PRs labelled or listed as waiting on T2-Claude, items under "Planner decisions pending", and queue refills when fewer than 3 `status/todo` items remain.
-4. Rewrite this file, post the Codex queue on #29, and stop. No status essays.
+1. Read this file. Skip PLAN.md, WORKFLOW.md and task files unless an item below needs them.
+2. One REST query each: open PRs, issues labelled `needs-planner`, the last 3 comments on #29. Tail, never read whole logs.
+3. Act only on `needs-planner` items, T2-Claude gates and queue refills (fewer than 3 `status/todo`).
+4. Rewrite this file (small PR, auto-merge), post one queue comment on #29, stop.
 
 ## Goal
-Jam checkpoint: J0–J9 (`docs/tasks/J_JAM_CHECKPOINT.md`).
+Owner Jam report #182 drives priorities until the owner retests and closes it. J9 #45 is the owner's session.
 
-## Where things stand
-| Item | PR | State |
-|---|---|---|
-| J1 engine2 in app | #78 | merged |
-| J2 polyphony | #79 | on `main`; file cap 24 accepted; needs ChatGPT pre-review, then merges via the gate |
-| J3 headless playback | #80 | stacked on #79; acceptance red; retarget after #79 |
-| J4 MIDI In | #81 | stacked, stale; refresh after #80 (cap 60 files) |
-| J5 OSC In | #82 | stacked, stale; refresh after #81 (cap 55 files) |
-| J6 Macro Osc | #77 | Pi acceptance green; needs ChatGPT pre-review |
-| J7 CHAOS-lite | #124 | Pi acceptance green (520 µs, 0 alloc); conflict with base; waits on #79 |
-| J8 author guide | — | see the task file |
-| J9 user's jam session | — | user only |
-| Static-check fix | #126 | Claude-approved (55bb36d), auto-merge on |
-| Qt PATH test fix | #134 | auto-merge on |
-| Unknown v2 modules | #133 (issue #132) | `static` red until #126 lands |
-| Merge gate + rules | (this PR) | label-only |
+## Merged
+J1, J2 poly, J4 MIDI #81, J6 Macro, J7 CHAOS #124, Clock, fullscreen, layout #145, controls #147, kiosk docs #169,
+author guide #170, Macro catalogue #171, goldens #138, M2 dossier #191, tooltips #189, cable editing #190,
+MIDI routing #193, M3-1 design #197 (#177 closed), event cable identity #199, M3-3 feedback design #202.
 
-## Planner decisions pending
-- None.
+## Open work (queue comment 6540585199 on #29)
+| PR | Issue | Owner | State |
+|---|---|---|---|
+| #203 | #201 transport focus | Codex | T1 reviewed; acceptance + ready label |
+| #194 | #186 live editing | Codex | draft; part 2 park/edit/resume, T2 + Claude review |
+| #195 | #188 launcher/update | Codex | Medium: `updates` vs stale GUI `current`; fake test, fresh T1 |
+| #200 | #140 audio output | Codex | T2 (no Claude path); two ChatGPT passes |
+| #82 | #72 OSC | Codex | draft; merge main + real-timestamp regression |
+| #192 | #187 starter patches | UI | merge main, rerun studio_ui_tests, fresh T1 |
+| #204 | #178 stereo pairs | UI | base branch merged via #199: retarget to main |
+| #181 | #180 module guide | docs | draft; T1, link #170 |
+| #175 | #173 gate fix | **owner** | clean T2 line at `f69bdba`; Claude co-authored, owner posts the Claude line or merges |
+| #161 | #159 portability | parked | Cortex is non-required (authorization v2 item 4) |
+
+## Next phase (below #182)
+- #163 MIDI: extend `midi.to_cv` / `midi.cc_to_cv`. Codex, after #82.
+- M3-1 implementation issue: write after #182 items land (design approved on #177).
+- Later: #80 J3, #143 telemetry, `<details>` gate Low (from #175 review).
+
+## Standing authorization v2 (#29, comment 6534860663)
+Valid until revoked. Formatting never stops; +50% size; offscreen/fake evidence stands in for devices;
+inherited non-required checks don't block; ChatGPT reviewer posts T1/T2 gate lines. Still stops: ABI,
+patch-format/ID changes, new deps, test removal, looser thresholds, protected paths, real devices, force-push.
+
+## Agents
+- Codex (owner starts it; reads #29), ChatGPT reviewer + steward (hourly), UI agent, docs agent
+  (prompts: `docs/planner/CHATGPT_AGENTS.md`). Sonnet routine every 4 h: quick approvals, labels `needs-planner`.
+- Merge gate: `tools/merge_gate.py` + `.github/workflows/merge_gate.yml` auto-merge on `status/ready-to-merge`
+  plus a standalone gate line for the current head.
 
 ## Runners
-- Pi: `poll --minutes 330` daemon in wirescape-pi; nightly at 03:17. Sometimes offline when the Pi drops off Wi-Fi.
-- Laptop: Python fixed 2026-10-29. Needs the `WIRESCAPE_TOKEN` "Issues: Read and write" permission on wirescape (user). Results go to #122.
+- Pi `pi5` via `kalharbi11/wirescape-pi` (poll daemon, nightly). Laptop results on #122; Pi/steward summaries on #101.
 
-## Standing rules from the user
-- Conserve Claude usage: one check-in a day; the weekly limit resets Monday.
-- Never @mention or start Codex; the user runs it. Post its queue on #29.
-- Claude may enable auto-merge and post gate phrases on safe PRs.
+## Standing rules from the owner
+- Minimal owner involvement; agents keep moving. Never @mention Codex.
+- Claude usage is scarce: REST only, tail logs, delegate searches, one #29 comment per session.
+- Real-device tests are the owner's; Pi and laptop run offline tests only.

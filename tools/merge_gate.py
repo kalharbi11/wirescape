@@ -11,6 +11,7 @@ import argparse
 import fnmatch
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -18,18 +19,66 @@ import sys
 CLAUDE_PATHS = ('AGENTS.md', 'CLAUDE.md', 'tools/ci/**', '.github/**', 'docs/specs/**', 'docs/PLAN.md',
                 'native/include/wirescape/*.h', 'LICENSE*', 'LICENSES/**', 'docs/history/**', 'legacy/**',
                 'tools/merge_gate.py')
+# Merge-control and contract paths: a Claude-authored change here also needs an independent ChatGPT line.
+CONTROL_PATHS = ('tools/merge_gate.py', 'tools/ci/**', '.github/**', 'native/include/wirescape/*.h')
 CLAUDE_OK = 'claude: approved for auto-merge'
+CODEX_OK = 'codex: approved for auto-merge'
 CHATGPT_OK = 'chatgpt: approved for auto-merge'
 PREREVIEW_OK = 'chatgpt: pre-review passed'
 
 
+def approval_lines(body):
+    """Raw standalone lines; Markdown examples and lazy quote/list continuations do not count."""
+    fence = None
+    html_comment = False
+    continuation = False
+    for line in (body or '').splitlines():
+        if fence:
+            if re.fullmatch(' {0,3}' + re.escape(fence[0]) + '{' + str(fence[1]) + ',}[ \t]*', line):
+                fence = None
+            continue
+        # Hidden HTML comments cannot grant approval; process every marker so
+        # closing one comment and opening another on the same line stays hidden.
+        if html_comment or '<!--' in line:
+            cursor = 0
+            while True:
+                marker = '-->' if html_comment else '<!--'
+                position = line.find(marker, cursor)
+                if position < 0:
+                    break
+                html_comment = not html_comment
+                cursor = position + len(marker)
+            continue
+        if not line.strip():
+            continuation = False
+            continue
+        if line.startswith(('    ', '\t')):
+            continue
+        opening = re.match(r' {0,3}(`{3,}|~{3,})', line)
+        if opening:
+            marker = opening.group(1)
+            fence = (marker[0], len(marker))
+            continue
+        if re.match(r' {0,3}(>|(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)', line):
+            continuation = True
+            continue
+        if not continuation:
+            yield line.rstrip().lower()
+
+
 def approved(comments, owner, phrase, sha7):
-    return any(c.get('user', {}).get('login') == owner and phrase in (c.get('body') or '').lower()
-               and sha7 in (c.get('body') or '') for c in comments)
+    """Require the owner and the exact current-head approval line specified by the task."""
+    wanted = f'{phrase} {sha7}'.lower()
+    return any(c.get('user', {}).get('login') == owner
+               and wanted in approval_lines(c.get('body')) for c in comments)
+
+
+def matching(files, rules):
+    return sorted(f for f in files if any(fnmatch.fnmatchcase(f, rule) for rule in rules))
 
 
 def decide(pr, files, comments, owner):
-    """Return (ok, reason)."""
+    """Return (ok, reason). Rules: docs/WORKFLOW.md §3 (approvals v3)."""
     labels = {label['name'] for label in pr.get('labels', [])}
     if pr.get('state') != 'open' or pr.get('draft'):
         return False, 'PR is closed or a draft'
@@ -40,18 +89,27 @@ def decide(pr, files, comments, owner):
     if 'status/blocked' in labels:
         return False, 'status/blocked is set'
     sha7 = pr['head']['sha'][:7]
-    if approved(comments, owner, CLAUDE_OK, sha7):
-        return True, f'Claude approved {sha7}'
-    claude_only = sorted(f for f in files if any(fnmatch.fnmatchcase(f, rule) for rule in CLAUDE_PATHS))
+    says = lambda phrase: approved(comments, owner, phrase, sha7)
+    claude_only = matching(files, CLAUDE_PATHS)
     if claude_only or 'milestone-review' in labels:
-        return False, f'needs "Claude: approved for auto-merge {sha7}" ({", ".join(claude_only) or "milestone-review"})'
-    if approved(comments, owner, CHATGPT_OK, sha7):
-        return True, f'ChatGPT approved {sha7}'
+        if not says(CLAUDE_OK):
+            return False, f'needs "Claude: approved for auto-merge {sha7}" ({", ".join(claude_only) or "milestone-review"})'
+        control = matching(files, CONTROL_PATHS)
+        if control and pr['head'].get('ref', '').startswith('claude/') and not says(CHATGPT_OK):
+            return False, f'Claude-authored control change needs "ChatGPT: approved for auto-merge {sha7}" too'
+        return True, f'Claude approved {sha7}'
+    if says(CLAUDE_OK):
+        return True, f'Claude approved {sha7}'
     if 'tier/T2' in labels:
-        return False, f'T2 needs "ChatGPT: approved for auto-merge {sha7}" after a second ChatGPT pass'
-    if 'tier/T1' in labels and not approved(comments, owner, PREREVIEW_OK, sha7):
-        return False, f'T1 needs "ChatGPT: pre-review passed {sha7}"'
-    return True, 'T0/T1 conditions met'
+        if says(CHATGPT_OK):
+            return True, f'ChatGPT approved {sha7}'
+        return False, f'T2 needs "ChatGPT: approved for auto-merge {sha7}" or a Claude line'
+    if 'tier/T1' in labels:
+        for phrase, who in ((CHATGPT_OK, 'ChatGPT'), (PREREVIEW_OK, 'ChatGPT pre-review'), (CODEX_OK, 'Codex')):
+            if says(phrase):
+                return True, f'T1: {who} approved {sha7}'
+        return False, f'T1 needs "Codex: approved for auto-merge {sha7}" (or a ChatGPT/Claude line)'
+    return True, 'T0: ready label and required checks'
 
 
 def gh_json(path):

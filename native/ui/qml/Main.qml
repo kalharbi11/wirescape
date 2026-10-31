@@ -129,6 +129,15 @@ ApplicationWindow {
         studio.connectPorts(pendingNode, pendingPort, id, port);
         pendingNode = -1; localHint = "";
     }
+    function completeCableDrag(position) {
+        if (pendingNode < 0 || studio.running) return;
+        for (let i = cards.count - 1; i >= 0; --i) {
+            let card = cards.itemAt(i);
+            let input = card ? card.inputAt(position) : null;
+            if (input) { chooseInput(card.descriptor.id, input.id, input.kind); return; }
+            if (card && card.coversDrop(position)) return;
+        }
+    }
     function centerNode(card) {
         panX = viewport.width / 2 - (card.x + card.width / 2) * zoom;
         panY = viewport.height / 2 - (card.y + card.height / 2) * zoom;
@@ -173,15 +182,22 @@ ApplicationWindow {
     onActiveChanged: if (!active) { releaseHeldKeys(); studio.setGate(false); studio.panic(); }
     Dialog {
         id: midiDialog; title: "MIDI inputs"; modal: true; standardButtons: Dialog.Close
+        function receivedFor(name, system) {
+            let ports = studio.midiCounters.ports || [];
+            for (let port of ports)
+                if (port.name === name && port.system_name === system) return port.received;
+            return 0;
+        }
         Column {
             spacing: 8
-            Label { text: studio.midiAuthorized ? "Stop playback to select inputs." : "Launch with --confirm-midi to enable MIDI inputs." }
+            Switch { text: "Enable MIDI"; checked: studio.midiAuthorized; enabled: studio.midiSettingsAvailable && !studio.running; onToggled: studio.setMidiAuthorized(checked) }
+            Label { text: studio.midiSettingsAvailable ? "Enable the note endpoint; DAW/control ports may carry no notes. Stop playback to change inputs." : "MIDI is disabled for offline checks and probes."; wrapMode: Text.Wrap; width: 500 }
             Label { text: "Received " + studio.midiCounters.received + " / dropped " + studio.midiCounters.dropped + " / malformed " + studio.midiCounters.malformed }
             Repeater {
                 model: studio.midiEndpoints
                 CheckBox {
                     required property var modelData
-                    text: modelData.name; checked: modelData.enabled
+                    text: modelData.name + " · MIDI input · " + modelData.systemName + " · received " + midiDialog.receivedFor(modelData.name,modelData.systemName); checked: modelData.enabled
                     enabled: studio.midiAuthorized && !studio.running
                     onToggled: studio.setMidiEndpoint(modelData.name, modelData.systemName, checked)
                 }
@@ -315,7 +331,7 @@ ApplicationWindow {
                 Text { width: parent.width; elide: Text.ElideRight; text: studio.running ? "Live signal · stop audio to edit the patch" : "A small system. An open signal path."; color: "#858681"; font.pixelSize: 10 }
             }
             Row { id: toolbarActions; objectName: "toolbarActions"; anchors.right: parent.right; anchors.rightMargin: 22; anchors.verticalCenter: parent.verticalCenter; spacing: 5
-                StudioButton { text: "MIDI"; enabled: !studio.running; onClicked: midiDialog.open() }
+                StudioButton { text: "MIDI"; onClicked: midiDialog.open() }
                 StudioButton { objectName: "newButton"; text: "New"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("new") }
                 StudioButton { objectName: "openButton"; text: "Open"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("open") }
                 StudioButton { objectName: "saveButton"; text: "Save"; onClicked: root.beginSave("") }
@@ -399,6 +415,7 @@ ApplicationWindow {
                             border.width: 2
                             border.color: root.selectedCable === cable.index ? "#c5774c" : cable.modelData.kind === "audio" ? "#777e79" : "#c17853"
                             MouseArea {
+                                objectName: "cableHandle_" + cable.index
                                 anchors.fill: parent; anchors.margins: -7
                                 cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                 onClicked: { root.selectedCable = cable.index; root.selectedNode = -1; }
@@ -431,7 +448,7 @@ ApplicationWindow {
             Row {
                 visible: root.selectedCable >= 0 && root.selectedCable < studio.connections.length
                 x: 20; anchors.bottom: parent.bottom; anchors.bottomMargin: 18; spacing: 5
-                StudioButton { text: "Disconnect cable"; enabled: !studio.running; onClicked: { studio.disconnectCable(root.selectedCable); root.selectedCable = -1; } }
+                StudioButton { objectName: "disconnectCableButton"; text: "Disconnect cable"; enabled: !studio.running; onClicked: { studio.disconnectCable(root.selectedCable); root.selectedCable = -1; } }
                 StudioButton { text: "×"; quiet: true; onClicked: root.selectedCable = -1 }
             }
         }
