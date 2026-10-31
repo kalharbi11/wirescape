@@ -52,11 +52,12 @@ class LauncherCommandTests(unittest.TestCase):
 
     def test_update_check_is_read_only_and_compares_installed_not_checkout(self):
         installed, latest = 'a' * 40, 'b' * 40
-        args = argparse.Namespace(config='Release', json=True)
+        args = argparse.Namespace(config='Release', json=True, open_instructions=True)
         record = {}
         with patch.object(dev, '_base_record', return_value=record), \
              patch.object(dev, '_build_metadata', return_value={'build_commit': installed, 'source': {'git_dirty': False}}), \
              patch.object(dev, 'git_revision', return_value='c' * 40), \
+             patch.object(dev.webbrowser, 'open', return_value=True) as opener, \
              patch.object(dev, '_save_record', return_value=Path('unused')), \
              patch.object(dev.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, latest + '\trefs/heads/main\n')) as run, \
              contextlib.redirect_stdout(io.StringIO()):
@@ -65,6 +66,7 @@ class LauncherCommandTests(unittest.TestCase):
         self.assertEqual(record['comparison'], 'different')
         self.assertEqual(run.call_args.args[0], ['git', 'ls-remote', 'origin', 'refs/heads/main'])
         self.assertEqual(run.call_count, 1)
+        opener.assert_called_once_with((dev.ROOT / 'docs/WINDOWS_DEMO_UPDATE.md').as_uri())
 
     def test_dirty_installed_build_is_not_current(self):
         record = {}
