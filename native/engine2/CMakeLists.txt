@@ -137,6 +137,7 @@ add_test(NAME abi2_returned_filter_stress COMMAND abi2_returned_filter_stress $<
 
 add_subdirectory(../io/midi midi_io)
 add_subdirectory(../modules2/macro_oscillator macro_oscillator)
+target_link_libraries(wirescape_catalog_dependencies INTERFACE macro_upstream)
 add_library(wirescape_app_engine STATIC ../control/app_engine.cpp)
 target_include_directories(wirescape_app_engine PUBLIC ../control)
 target_link_libraries(wirescape_app_engine PUBLIC wirescape_engine2 wirescape_engine wirescape_catalog_dependencies)

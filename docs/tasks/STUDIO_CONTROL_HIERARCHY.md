@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Studio UI: module-specific knobs, sliders and control hierarchy
+# Studio UI: module-specific knobs, sliders and control hierarchy (#142)
 
 Depends on the refinement brief only; coordinate Main.qml/test edits with layout task, otherwise separate PR. Own ParameterControl.qml/ModuleCard.qml/new reusable QML controls and module presentation metadata. Read module descriptors to map EXISTING stable parameter IDs; no new DSP parameter, range/default/unit or patch-format change. Same source of accepted controller values and failure rollback as current sliders.
 Build reusable accessible rotary knob and slider presentations, keyboard arrows/fine adjustment, numeric/display value, focus, hover and drag behavior. Respect existing log/linear and stepped mappings. Large primary controls, smaller related secondary controls and compact selectors form hierarchy; do not turn every slider into an identical knob. Palette stays warm off-white/charcoal with restrained orange and signal accents; vary size/grouping first, color only when meaningful. No new font/asset/dependency.
@@ -11,7 +11,8 @@ tier: T1
 budget: 1 Codex session or bounded ChatGPT task
 size: <= 650 changed lines, <= 10 files
 must_pass:
-  - ctest --test-dir build/native -R "studio_ui_tests|controller_failure_tests|audio_device_tests" --output-on-failure --no-tests=error
-  - ci: Windows Qt build and actual named offscreen tests green on exact head
+  # Qt tests are absent from the headless task-acceptance build; Windows Qt CI
+  # executes these same three named test binaries on the exact PR head.
+  - ci: windows-x64 green on exact head, with studio_ui_tests, controller_failure_tests and audio_device_tests all passing
 stops: [ABI header edit, new dependency, format or ID change, tests removed, unapproved threshold change]
 ```

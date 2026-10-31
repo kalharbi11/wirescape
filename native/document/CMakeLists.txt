@@ -55,3 +55,12 @@ add_test(NAME abi2_app_patch_tests COMMAND app_patch_tests $<TARGET_FILE_DIR:ws_
   "${PROJECT_SOURCE_DIR}/tests/fixtures/legacy_documents")
 set_tests_properties(abi2_app_patch_tests PROPERTIES
   ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_executable(golden_render ../tests/golden_render.cpp)
+target_link_libraries(golden_render PRIVATE wirescape_document)
+target_compile_definitions(golden_render PRIVATE QT_NO_KEYWORDS)
+add_test(NAME golden_render_hashes COMMAND "${Python3_EXECUTABLE}"
+  "${PROJECT_SOURCE_DIR}/../tools/golden.py" check --renderer $<TARGET_FILE:golden_render>)
+add_test(NAME golden_event_stream COMMAND golden_render --event-self-test)
+set_tests_properties(golden_render_hashes golden_event_stream PROPERTIES TIMEOUT 60
+  ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")

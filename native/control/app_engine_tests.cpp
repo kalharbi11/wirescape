@@ -13,8 +13,8 @@ using App=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
 static App make(){ws_engine_config c{sizeof(c),48000,128,32,2048};App e(app_engine_create(&c),app_engine_destroy);check(bool(e),"create app engine");return e;}
 static void shim(const char*library){
     auto source = make();
-    check(app_engine_module_count(source.get()) == 18,
-          "CHAOS plus thirteen Essentials, keyboard and three MIDI modules");
+    check(app_engine_module_count(source.get()) == 21,
+          "OSC, Monitor, Macro and CHAOS plus thirteen Essentials, keyboard and three MIDI modules");
     for (auto *native : wirescape::app::builtin_modules()) {
         const ws_module_descriptor *metadata = nullptr;
         for (uint32_t i = 0; i < app_engine_module_count(source.get()); ++i) {

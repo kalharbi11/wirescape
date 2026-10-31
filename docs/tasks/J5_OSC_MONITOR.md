@@ -10,14 +10,14 @@ Spec: `docs/tasks/J_JAM_CHECKPOINT.md` § "B4 / J5"; reference `docs/specs/COMMU
 - **Wildcard rows** (`/pico1/knob/*`) output a poly signal, one channel per matched index, sorted numerically.
 - Fuzzing: a corpus test now; the libFuzzer job is #94 after this merges.
 
-Planner authorization on #29 permits the existing 49-file integration within
-a 50-file cap, with the line cap unchanged. The host regression tests refusal
+Planner authorization on #29 comment6536318466 permits2600changed lines/52files,
+including both catalogue-count updates and changed-line formatting. The host regression tests refusal
 of an unconfirmed LAN request using fake/offline routing; no LAN socket opens.
 
 ```acceptance
 tier: T2
 budget: 2 Codex sessions (remaining)
-size: <= 1300 changed lines, <= 50 files
+size: <= 2600 changed lines, <= 52 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "osc|monitor_log|abi2_monitor_tests|app_engine_lifetime" --output-on-failure
