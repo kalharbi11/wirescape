@@ -1,5 +1,6 @@
 #pragma once
 #include "app_patch.h"
+#include "midi_host.h"
 #include "audio_device.h"
 #include <QObject>
 #include <QJsonObject>
@@ -11,6 +12,9 @@
 
 class StudioController final : public QObject {
     Q_OBJECT
+    Q_PROPERTY(QVariantMap midiCounters READ midiCounters NOTIFY metersChanged)
+    Q_PROPERTY(QVariantList midiEndpoints READ midiEndpoints NOTIFY statusChanged)
+    Q_PROPERTY(bool midiAuthorized READ midiAuthorized CONSTANT)
     Q_PROPERTY(QVariantList modules READ modules NOTIFY documentChanged)
     Q_PROPERTY(QVariantList connections READ connections NOTIFY documentChanged)
     Q_PROPERTY(QVariantList palette READ palette CONSTANT)
@@ -33,8 +37,13 @@ class StudioController final : public QObject {
     Q_PROPERTY(int blockSize READ blockSize CONSTANT)
 public:
     using PatchWriter = std::function<bool(const QString&, const QByteArray&, QString&)>;
-    explicit StudioController(QString directory, QObject* parent = nullptr, PatchWriter writer = {});
+    explicit StudioController(QString directory, QObject* parent = nullptr, PatchWriter writer = {}, bool confirmMidi = false);
     ~StudioController() override;
+    QVariantMap midiCounters()const;
+    QVariantList midiEndpoints();
+    bool midiAuthorized()const{return midi_.authorized();}
+    Q_INVOKABLE void setMidiEndpoint(const QString&,const QString&,bool);
+    Q_INVOKABLE void refreshMidi();
     QVariantList modules() const;
     QVariantList connections() const;
     QVariantList palette() const;
@@ -76,8 +85,8 @@ public:
     Q_INVOKABLE void renderDemo(const QUrl&);
     Q_INVOKABLE void resetPatch();
     bool smokeCheck(QJsonObject& result);
-    bool keyboardChordCheck(QJsonObject& result);
-signals:
+    bool keyboardChordCheck(QJsonObject &result);
+  signals:
     void documentChanged();
     void parameterChanged(int node, int parameter, double value, QString display);
     void statusChanged();
@@ -100,6 +109,7 @@ private:
     QJsonObject document_;
     wirescape::document::PatchDocument documentSource_;
     Engine catalog_{nullptr, app_engine_destroy}, engine_{nullptr, app_engine_destroy};
+    wirescape::midi::Host midi_;
     AudioDevice audio_;
     QTimer timer_;
     bool ready_ = false, dirty_ = false;

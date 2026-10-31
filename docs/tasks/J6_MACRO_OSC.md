@@ -8,14 +8,20 @@ UBSan finds a left shift of a negative value in pinned upstream `plaits/dsp/fm/d
 
 Also: fix the Windows build failure on #77 (logs are readable through the GitHub API or posted by the planner; see #83 for the network setting).
 
+**Self-decisions (review later), 2026-10-29:** the line cap is1200
+(original1000, +20%, within WORKFLOW section3c's +50%) to format this PR's
+new C++ files and address pre-review findings. The16-file cap and all numeric
+acceptance bounds stay unchanged. The private RNG header uses a C++ .hpp
+extension so header-only analysis selects the correct language.
+
 ```acceptance
 tier: T1
 budget: 2 Codex sessions
-size: <= 1000 Wirescape-owned changed lines (fetched upstream excluded), <= 16 files
+size: <= 1200 changed lines, <= 16 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_macro_oscillator_tests" --output-on-failure
   - ci: linux-arm64, windows-x64, sanitizers (no suppressions), cortex-m7 (report only), guard green on the exact head
-  - pi: 8 voices x 24 models at 48000/128, worst block < 25% of the period (666.7 us)
+  - pi-run: build/native/abi2_macro_oscillator_tests --benchmark   # label ci/pi-accept; 8 voices x 24 models at 48000/128, worst block < 25% of the period (666.7 us)
 stops: [ABI edit, upstream edit beyond the authorized patch, new dependency, sanitizer suppression]
 ```

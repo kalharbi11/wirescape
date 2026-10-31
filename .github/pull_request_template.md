@@ -1,11 +1,14 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 Closes #
 
-## What changed
+**Tier:** T0 / T1 / T2 (choose one)
 
-## Tests run
-- [ ] `python tools/dev.py test`
-- [ ] CI green (Linux ARM64; Windows when ready for review)
+**Problem and resulting behavior:**
 
-## Deviations from the spec / task file
+- [ ] Acceptance report for this exact head: link
+- [ ] `pi:` lines status: passed / pending / not applicable, with evidence link
+- [ ] ChatGPT pre-review (T1/T2): link, with High findings fixed or answered
 
-## Notes for the reviewer
+**Deviations:** none, or link the planner's decision
+
+**Notes:** limitations and remaining manual steps

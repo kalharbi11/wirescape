@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "engine2.h"
+#include "midi_release.h"
 #include "wirescape_sdk.h"
 #include "wirescape/module.h"
 #include <algorithm>
@@ -18,7 +19,7 @@
 
 namespace wirescape::engine2 {
 namespace {
-bool release(const ws2_event&e){return e.type==WS2_NOTE_OFF||e.type==WS2_NOTE_CHOKE;}
+bool release(const ws2_event&e){return e.type==WS2_NOTE_OFF||e.type==WS2_NOTE_CHOKE||midi_release(e);}
 struct AlignedDelete {void operator()(float*p)const{::operator delete[](p,std::align_val_t(32));}};
 struct Buffer {
     std::unique_ptr<float[],AlignedDelete>memory;

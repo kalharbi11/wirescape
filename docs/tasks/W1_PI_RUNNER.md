@@ -11,14 +11,15 @@
 
 **Access:** Codex needs write access to `kalharbi11/wirescape-pi` (the user grants it). Workflows can be validated with `actionlint` in the cloud; the first real run needs the user's runner registration.
 
+**Status (2026-10-29):** delivered in wirescape-pi (`bridge.py`, `poll.yml` daemon, `nightly.yml`, `laptop.yml`; labels `ci/pi`, `ci/pi-soak`, `ci/pi-retry`, `ci/pi-accept`). What remains is PR #98 documenting it in this repo.
+
 ```acceptance
-tier: T1
-budget: 2 Codex sessions
-size: <= 450 changed lines, <= 6 files (in wirescape-pi)
+tier: T0
+budget: 1 Codex session
+size: <= 150 changed lines, <= 4 files
 must_pass:
-  - actionlint .github/workflows/*.yml                      # in wirescape-pi
-  - python scripts/select_heads.py --self-test             # fork heads skipped, already-statused heads skipped
-  - user: runner registered with label pi5; one dispatch of pr.yml on an open PR sets pi5/tests on its head
-  - user: one dispatch of nightly.yml opens the "Pi nightly" issue with all table rows filled or marked "not yet"
-stops: [workflow in kalharbi11/wirescape targeting the Pi, device access, sudo, token scope wider than above]
+  - python -m unittest discover -s tools/foundation/tests -p test_doc_links.py
+  - ci: guard, linux-arm64 green on the exact head
+  - user: a pi5 status appears on an open PR head within 30 minutes of the daemon starting
+stops: [workflow in this repo targeting the Pi]
 ```

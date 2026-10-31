@@ -18,6 +18,10 @@ add_test(NAME abi2_offline_play COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_D
 set_tests_properties(abi2_offline_play PROPERTIES TIMEOUT 45)
 
 # Optional QtCore document tooling; the engine remains independent of Qt.
+add_executable(runtime_module_config_tests runtime_module_config_tests.cpp)
+target_link_libraries(runtime_module_config_tests PRIVATE nlohmann_json::nlohmann_json)
+add_test(NAME runtime_module_config_tests COMMAND runtime_module_config_tests)
+
 find_package(Qt6 6.5 QUIET COMPONENTS Core)
 if(NOT TARGET Qt6::Core)
   message(STATUS "Qt Core unavailable: document inspection tests disabled")
@@ -47,5 +51,16 @@ set_tests_properties(patch_render_tests PROPERTIES TIMEOUT 30
   ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
 add_executable(app_patch_tests app_patch_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(app_patch_tests PRIVATE wirescape_document)
-add_test(NAME app_patch_tests COMMAND app_patch_tests $<TARGET_FILE_DIR:ws_noise> "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json"
+add_test(NAME abi2_app_patch_tests COMMAND app_patch_tests $<TARGET_FILE_DIR:ws_noise> "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json"
   "${PROJECT_SOURCE_DIR}/tests/fixtures/legacy_documents")
+set_tests_properties(abi2_app_patch_tests PROPERTIES
+  ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_executable(golden_render ../tests/golden_render.cpp)
+target_link_libraries(golden_render PRIVATE wirescape_document)
+target_compile_definitions(golden_render PRIVATE QT_NO_KEYWORDS)
+add_test(NAME golden_render_hashes COMMAND "${Python3_EXECUTABLE}"
+  "${PROJECT_SOURCE_DIR}/../tools/golden.py" check --renderer $<TARGET_FILE:golden_render>)
+add_test(NAME golden_event_stream COMMAND golden_render --event-self-test)
+set_tests_properties(golden_render_hashes golden_event_stream PROPERTIES TIMEOUT 60
+  ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")

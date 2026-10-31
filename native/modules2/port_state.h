@@ -13,7 +13,7 @@ struct PortRamp {
  double current,target,step=0;uint32_t duration=240,remaining=0;bool rendered=false;float last;
  explicit PortRamp(double initial=0):current(initial),target(initial),last(static_cast<float>(initial)){}
  void reset(){current=target;remaining=0;rendered=false;}
- void prepare(double rate){duration=std::max(1u,static_cast<uint32_t>(rate*.005));reset();}
+ void prepare(double rate){duration=std::max<uint32_t>(1u,static_cast<uint32_t>(rate*.005));reset();}
  void update(float value){if(value==last)return;last=value;if(double(value)==target)return;target=value;if(!rendered){current=value;remaining=0;return;}remaining=duration;step=(target-current)/remaining;}
  double next(){rendered=true;if(remaining&&! --remaining)current=target;else if(remaining)current+=step;return current;}
  bool write(ws::Writer w)const{return write_double(w,current)&&write_double(w,target)&&write_double(w,step)&&w.u32(duration)&&w.u32(remaining)&&w.u32(rendered?1:0)&&w.f32(last);}

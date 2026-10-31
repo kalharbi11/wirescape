@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+Checks: '-*,bugprone-*,performance-*,clang-analyzer-core.*,clang-analyzer-cplusplus.NewDelete*,misc-no-recursion'
+WarningsAsErrors: ''
+HeaderFilterRegex: 'native/.*'
+FormatStyle: none

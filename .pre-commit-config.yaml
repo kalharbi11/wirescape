@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-only
+repos:
+  - repo: local
+    hooks:
+      - id: staged-guard
+        name: Guard staged paths and new SPDX headers
+        entry: python tools/ci/guard.py --staged
+        language: system
+        pass_filenames: false
+        always_run: true
+        verbose: true
+      - id: staged-clang-format
+        name: Check staged C++ changed lines
+        entry: python tools/ci/guard.py --staged-format
+        language: system
+        pass_filenames: false
+        always_run: true

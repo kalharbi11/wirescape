@@ -37,6 +37,13 @@ ApplicationWindow {
         }
     }
     onActiveFocusItemChanged: if (activeFocusItem !== keyboardSurface) releaseHeldKeys()
+    // Window-scoped so Escape exits fullscreen even when a toolbar/control has focus.
+    Shortcut {
+        sequence: "Esc"
+        context: Qt.WindowShortcut
+        enabled: root.visibility === Window.FullScreen
+        onActivated: root.visibility = Window.Windowed
+    }
     Connections {
         target: studio
         function onStatusChanged() { if (!studio.running) root.releaseHeldKeys(); }
@@ -104,6 +111,15 @@ ApplicationWindow {
         studio.connectPorts(pendingNode, pendingPort, id, port);
         pendingNode = -1; localHint = "";
     }
+    function completeCableDrag(position) {
+        if (pendingNode < 0 || studio.running) return;
+        for (let i = cards.count - 1; i >= 0; --i) {
+            let card = cards.itemAt(i);
+            let input = card ? card.inputAt(position) : null;
+            if (input) { chooseInput(card.descriptor.id, input.id, input.kind); return; }
+            if (card && card.coversDrop(position)) return;
+        }
+    }
     function centerNode(card) {
         panX = viewport.width / 2 - (card.x + card.width / 2) * zoom;
         panY = viewport.height / 2 - (card.y + card.height / 2) * zoom;
@@ -118,6 +134,10 @@ ApplicationWindow {
                 if (ports[j].id === portId) return Qt.point(card.x + (output ? card.width : 0), card.y + 112 + j * 24);
         }
         return Qt.point(0, 0);
+    }
+    // Distance-proportional handles: adjacent or coincident jacks cannot form a fixed-radius loop.
+    function cableBend(ax, ay, bx, by) {
+        return Math.min(150, Math.hypot(bx - ax, by - ay) * 0.38);
     }
     function zoomAt(factor, x, y) {
         let old = zoom;
@@ -142,6 +162,24 @@ ApplicationWindow {
         let index = keys.indexOf(key); return index < 0 ? -1 : 60 + index;
     }
     onActiveChanged: if (!active) { releaseHeldKeys(); studio.setGate(false); studio.panic(); }
+    Dialog {
+        id: midiDialog; title: "MIDI inputs"; modal: true; standardButtons: Dialog.Close
+        Column {
+            spacing: 8
+            Label { text: studio.midiAuthorized ? "Stop playback to select inputs." : "Launch with --confirm-midi to enable MIDI inputs." }
+            Label { text: "Received " + studio.midiCounters.received + " / dropped " + studio.midiCounters.dropped + " / malformed " + studio.midiCounters.malformed }
+            Repeater {
+                model: studio.midiEndpoints
+                CheckBox {
+                    required property var modelData
+                    text: modelData.name; checked: modelData.enabled
+                    enabled: studio.midiAuthorized && !studio.running
+                    onToggled: studio.setMidiEndpoint(modelData.name, modelData.systemName, checked)
+                }
+            }
+            Button { text: "Refresh inputs"; enabled: !studio.running; onClicked: studio.refreshMidi() }
+        }
+    }
     FileDialog {
         id: saveDialog; objectName: "saveDialog"; title: "Save patch"; fileMode: FileDialog.SaveFile
         nameFilters: ["Wirescape patch (*.json)"]; defaultSuffix: "json"
@@ -191,29 +229,54 @@ ApplicationWindow {
             Rectangle { y: 105; width: parent.width; height: 1; color: "#d9d8d2" }
             Text { x: 22; y: 133; text: "MODULE LIBRARY"; font.pixelSize: 10; font.letterSpacing: 1; color: "#393b39" }
             Text { x: 22; y: 164; text: "ESSENTIALS"; font.pixelSize: 9; font.letterSpacing: 1.3; color: "#858681" }
-            Column {
-                x: 12; y: 187; width: 178; spacing: 4
-                Repeater {
-                    model: studio.palette
-                    delegate: AbstractButton {
-                        id: libraryButton
-                        required property var modelData
-                        required property int index
-                        width: 178; height: root.height < 750 ? 50 : 62; enabled: !studio.running
-                        hoverEnabled: true
-                        background: Rectangle { radius: 7; color: libraryButton.hovered ? "#faf9f6" : "transparent"; border.color: libraryButton.hovered ? "#d9d8d2" : "transparent" }
-                        contentItem: Item {
-                            Rectangle { x: 8; y: 15; width: 31; height: 31; radius: 16; color: "transparent"; border.color: "#d9d8d2"; Text { anchors.centerIn: parent; text: ["~", "/", "x", "+"][index % 4]; color: "#777e79"; font.pixelSize: 20 } }
-                            Text { x: 49; y: 15; width: 104; text: libraryButton.modelData.name; elide: Text.ElideRight; color: libraryButton.enabled ? "#393b39" : "#a7a8a1"; font.pixelSize: 11 }
-                            Text { x: 49; y: 34; width: 104; text: libraryButton.modelData.description; elide: Text.ElideRight; color: "#858681"; font.pixelSize: 9 }
-                            Text { anchors.right: parent.right; anchors.rightMargin: 7; y: 21; text: "+"; color: "#c5774c"; font.pixelSize: 18 }
+            Item {
+                id: libraryRegion; objectName: "libraryRegion"
+                x: 12; width: 178
+                anchors.top: parent.top; anchors.topMargin: 187
+                anchors.bottom: legendPanel.top; anchors.bottomMargin: 15
+                Flickable {
+                    id: libraryScroll; objectName: "moduleLibraryScroll"
+                    anchors.fill: parent; clip: true
+                    contentWidth: width; contentHeight: libraryItems.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    flickableDirection: Flickable.VerticalFlick
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                    Column {
+                        id: libraryItems
+                        width: libraryScroll.width - (libraryScroll.contentHeight > libraryScroll.height ? 10 : 0)
+                        spacing: 4
+                        Repeater {
+                            model: studio.palette
+                            delegate: AbstractButton {
+                                id: libraryButton
+                                objectName: "paletteEntry_" + index
+                                required property var modelData
+                                required property int index
+                                width: parent.width; height: root.height < 750 ? 50 : 62; enabled: !studio.running
+                                activeFocusOnTab: true; hoverEnabled: true
+                                // Keep tabbed-to entries visible within the reserved library viewport.
+                                onActiveFocusChanged: {
+                                    if (!activeFocus) return;
+                                    if (y < libraryScroll.contentY) libraryScroll.contentY = y;
+                                    else if (y + height > libraryScroll.contentY + libraryScroll.height)
+                                        libraryScroll.contentY = y + height - libraryScroll.height;
+                                }
+                                background: Rectangle { radius: 7; color: libraryButton.hovered ? "#faf9f6" : "transparent"; border.color: libraryButton.hovered ? "#d9d8d2" : "transparent" }
+                                contentItem: Item {
+                                    Rectangle { x: 8; y: 15; width: 31; height: 31; radius: 16; color: "transparent"; border.color: "#d9d8d2"; Text { anchors.centerIn: parent; text: ["~", "/", "x", "+"][index % 4]; color: "#777e79"; font.pixelSize: 20 } }
+                                    Text { x: 49; y: 15; width: 104; text: libraryButton.modelData.name; elide: Text.ElideRight; color: libraryButton.enabled ? "#393b39" : "#a7a8a1"; font.pixelSize: 11 }
+                                    Text { x: 49; y: 34; width: 104; text: libraryButton.modelData.description; elide: Text.ElideRight; color: "#858681"; font.pixelSize: 9 }
+                                    Text { anchors.right: parent.right; anchors.rightMargin: 7; y: 21; text: "+"; color: "#c5774c"; font.pixelSize: 18 }
+                                }
+                                onClicked: { studio.addModule(modelData.id); root.takeKeyboardFocus(); }
+                                ToolTip.visible: hovered; ToolTip.text: modelData.description
+                            }
                         }
-                        onClicked: { studio.addModule(modelData.id); root.takeKeyboardFocus(); }
-                        ToolTip.visible: hovered; ToolTip.text: modelData.description
                     }
                 }
             }
             Column {
+                id: legendPanel; objectName: "sidebarLegend"
                 x: 22; anchors.bottom: parent.bottom; anchors.bottomMargin: 25; width: 158; spacing: 13
                 Rectangle { width: parent.width; height: 1; color: "#d9d8d2" }
                 Text { text: "SIGNAL TYPES"; font.pixelSize: 9; font.letterSpacing: 1; color: "#858681" }
@@ -221,7 +284,7 @@ ApplicationWindow {
                     model: [{name: "Audio", tone: "#777e79"}, {name: "Control / gate", tone: "#c17853"}]
                     delegate: Row { required property var modelData; spacing: 10; Rectangle { width: 20; height: 2; y: 6; color: modelData.tone } Text { text: modelData.name; color: "#858681"; font.pixelSize: 10 } }
                 }
-                Text { visible: root.height >= 750; width: parent.width; text: "Connect an output to an input.\nDrag the canvas to explore.\nScroll to zoom."; wrapMode: Text.Wrap; lineHeight: 1.5; font.pixelSize: 10; color: "#858681" }
+                Text { width: parent.width; text: "Connect an output to an input.\nDrag the canvas to explore.\nScroll to zoom."; wrapMode: Text.Wrap; lineHeight: 1.5; font.pixelSize: 10; color: "#858681" }
                 Text { width: parent.width; text: "WIRESCAPE ESSENTIALS"; font.pixelSize: 8; font.letterSpacing: 0.8; color: "#a7a8a1" }
             }
         }
@@ -235,12 +298,28 @@ ApplicationWindow {
                 Text { width: parent.width; elide: Text.ElideRight; text: studio.running ? "Live signal · stop audio to edit the patch" : "A small system. An open signal path."; color: "#858681"; font.pixelSize: 10 }
             }
             Row { id: toolbarActions; objectName: "toolbarActions"; anchors.right: parent.right; anchors.rightMargin: 22; anchors.verticalCenter: parent.verticalCenter; spacing: 5
+                StudioButton { text: "MIDI"; enabled: !studio.running; onClicked: midiDialog.open() }
                 StudioButton { objectName: "newButton"; text: "New"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("new") }
                 StudioButton { objectName: "openButton"; text: "Open"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("open") }
                 StudioButton { objectName: "saveButton"; text: "Save"; onClicked: root.beginSave("") }
                 StudioButton { text: "Test render"; enabled: !studio.running; onClicked: { root.releaseHeldKeys(); renderDialog.open(); } }
                 Item { width: 9; height: 1 }
                 StudioButton { text: studio.cleanupPending ? "Retry audio cleanup" : studio.running ? "Stop audio" : "Start audio"; accent: true; enabled: (studio.running || studio.cleanupPending || studio.ready); objectName: "audioButton"; onClicked: { root.releaseHeldKeys(); (studio.running || studio.cleanupPending) ? studio.stopAudio() : studio.startAudio(); } }
+                Item { width: 9; height: 1 }
+                StudioButton {
+                    objectName: "minimizeButton"; text: root.width < 1200 ? "Min" : "Minimize"; quiet: true
+                    Accessible.name: "Minimize window"
+                    onClicked: root.visibility = Window.Minimized
+                    ToolTip.visible: hovered; ToolTip.text: "Minimize to the taskbar"
+                }
+                StudioButton {
+                    objectName: "fullscreenButton"; quiet: true
+                    text: root.width < 1200 ? (root.visibility === Window.FullScreen ? "Exit" : "Full") :
+                          (root.visibility === Window.FullScreen ? "Exit full screen" : "Full screen")
+                    Accessible.name: root.visibility === Window.FullScreen ? "Exit full screen" : "Full screen"
+                    onClicked: root.visibility = root.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen
+                    ToolTip.visible: hovered; ToolTip.text: "Toggle full screen (Esc to exit)"
+                }
             }
         }
         Item {
@@ -278,7 +357,7 @@ ApplicationWindow {
                         required property int index
                         property point a: root.endpoint(modelData.fromNode, modelData.fromPort, true)
                         property point b: root.endpoint(modelData.toNode, modelData.toPort, false)
-                        property real bend: Math.max(55, Math.abs(b.x - a.x) * 0.45)
+                        property real bend: root.cableBend(a.x, a.y, b.x, b.y)
                         width: 1; height: 1
                         preferredRendererType: Shape.CurveRenderer
                         ShapePath {
@@ -286,7 +365,7 @@ ApplicationWindow {
                             strokeWidth: root.selectedCable === cable.index ? 3.2 : 2.2
                             fillColor: "transparent"
                             startX: cable.a.x; startY: cable.a.y
-                            PathCubic { x: cable.b.x; y: cable.b.y; control1X: cable.a.x + cable.bend; control1Y: cable.a.y + 20; control2X: cable.b.x - cable.bend; control2Y: cable.b.y + 20 }
+                            PathCubic { x: cable.b.x; y: cable.b.y; control1X: cable.a.x + cable.bend; control1Y: cable.a.y; control2X: cable.b.x - cable.bend; control2Y: cable.b.y }
                         }
                         Rectangle {
                             visible: cable.modelData.channels > 1
@@ -297,12 +376,13 @@ ApplicationWindow {
                         }
                         Rectangle {
                             x: (cable.a.x + cable.b.x) / 2 - 7
-                            y: (cable.a.y + cable.b.y) / 2 + 15 - 7
+                            y: (cable.a.y + cable.b.y) / 2 - 7
                             width: 14; height: 14; radius: 7
                             color: "#eeede9"
                             border.width: 2
                             border.color: root.selectedCable === cable.index ? "#c5774c" : cable.modelData.kind === "audio" ? "#777e79" : "#c17853"
                             MouseArea {
+                                objectName: "cableHandle_" + cable.index
                                 anchors.fill: parent; anchors.margins: -7
                                 cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                 onClicked: { root.selectedCable = cable.index; root.selectedNode = -1; }
@@ -335,7 +415,7 @@ ApplicationWindow {
             Row {
                 visible: root.selectedCable >= 0 && root.selectedCable < studio.connections.length
                 x: 20; anchors.bottom: parent.bottom; anchors.bottomMargin: 18; spacing: 5
-                StudioButton { text: "Disconnect cable"; enabled: !studio.running; onClicked: { studio.disconnectCable(root.selectedCable); root.selectedCable = -1; } }
+                StudioButton { objectName: "disconnectCableButton"; text: "Disconnect cable"; enabled: !studio.running; onClicked: { studio.disconnectCable(root.selectedCable); root.selectedCable = -1; } }
                 StudioButton { text: "×"; quiet: true; onClicked: root.selectedCable = -1 }
             }
         }

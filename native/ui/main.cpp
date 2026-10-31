@@ -28,6 +28,7 @@ int main(int argc, char** argv) {
 #endif
     app.setApplicationName("Wirescape"); app.setOrganizationName("Wirescape"); app.setApplicationVersion("0.6.0-foundation.1");
     QCommandLineParser parser; parser.addHelpOption(); parser.addVersionOption();
+    parser.addOption({"confirm-midi", "Allow the user to explicitly enable real MIDI endpoints in settings."});
     parser.addOption({"smoke-test", "Exercise the native UI and engine offline, then exit. No audio device is opened."});
     parser.addOption({"screenshot", "Save an image during the smoke test.", "path"});
     parser.addOption({"report", "Save the smoke-test JSON report.", "path"});
@@ -35,6 +36,7 @@ int main(int argc, char** argv) {
     parser.addOption({"local-font", "Load an optional private local font file, without installing it.", "path"});
     parser.addOption({"ready-report", "Write startup readiness without opening audio.", "path"});
     parser.addOption({"window-size", "Initial logical window size, at least 1000x650.", "widthxheight"});
+    parser.addOption({"fullscreen", "Launch the studio in full-screen mode."});
     parser.addOption({"startup-check", "Exit after writing a ready report; never start audio."});
     parser.process(app);
     if (parser.isSet("local-font")) {
@@ -46,7 +48,7 @@ int main(int argc, char** argv) {
     if (parser.isSet("startup-check") && !parser.isSet("ready-report")) return 3;
     if (smoke) QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
     const auto directory = parser.isSet("modules") ? parser.value("modules") : app.applicationDirPath();
-    StudioController studio(directory);
+    StudioController studio(directory,nullptr,{},parser.isSet("confirm-midi"));
     QQmlApplicationEngine view;
     view.rootContext()->setContextProperty("studio", &studio);
     view.rootContext()->setContextProperty("studioFontFamily", app.font().family());
@@ -57,6 +59,10 @@ int main(int argc, char** argv) {
         const auto dimensions = parser.value("window-size").split('x');
         if (dimensions.size() != 2 || dimensions[0].toInt() < 1000 || dimensions[1].toInt() < 650) return 3;
         if (auto* window = qobject_cast<QQuickWindow*>(view.rootObjects().first())) window->resize(dimensions[0].toInt(), dimensions[1].toInt());
+    }
+    if (parser.isSet("fullscreen")) {
+        if (auto *window = qobject_cast<QQuickWindow *>(view.rootObjects().first()))
+            window->setVisibility(QWindow::FullScreen);
     }
     if (parser.isSet("ready-report")) QTimer::singleShot(300, &app, [&] {
         auto* window = qobject_cast<QQuickWindow*>(view.rootObjects().first());
