@@ -2,7 +2,9 @@
 # WIRESCAPE — FULL MODULE AUTHORING GUIDE
 ## One-file, independent module-building reference for people and AI agents
 
-**Snapshot:** 2026-10-30, public main at **4bd78d57f197c686dad20a6a0367467ad58e118d**. This is a source-audited documentation snapshot, not a build or hardware certification. Status on an unmerged PR is **not** a feature on main. When updating, compare the latest main with the source pointers at the end. Existing detailed author guide: docs/SDK_AUTHOR_GUIDE.md; this document is the shareable, self-contained alternative.
+**Snapshot:** 2026-10-30, public main at **4bd78d57f197c686dad20a6a0367467ad58e118d**. This is a source-audited documentation snapshot, not a build or hardware certification. Status on an unmerged PR is **not** a feature on main. When updating, compare the latest main with the source pointers at the end. For the maintained step-by-step guide, see [docs/SDK_AUTHOR_GUIDE.md](docs/SDK_AUTHOR_GUIDE.md), especially its [worked examples](native/sdk/examples/); this file is the single-file, extractable handoff for sharing the SDK source payload.
+
+**Current catalogue check (2026-10-31):** main at **b0d19461e9a4fc9b873ae0f82aa0bdd8d4627efa** has 19 registrations in `native/control/module_catalog.inc`, including `ports.macro_oscillator`. PR #171 merged after the pinned snapshot, so the historical table below still describes 4bd78d5 while the macro-oscillator row's former “not in catalogue / open PR” status is no longer current. This source check does not claim that the embedded snapshot compiled or certify hardware behavior.
 
 **Scope:** Author a new C++17 **ABI 2 native DSP module** independently, build and test its binary without the entire Wirescape application, then submit it for Wirescape integration. This one Markdown document contains the SDK source headers, a working starter module, a manifest, callback tests, a standalone CMake project, and its extraction instructions. It is **one text file, not a ZIP**. The compiler, CMake, Qt application, real hardware backends, and the full Wirescape host implementation are not embedded.
 
@@ -18,7 +20,7 @@ This matrix means **in main at the snapshot**, not "implemented on somebody's op
 | **host.keyboard** | **Registered** | Polyphonic keyboard/note-to-CV path, shared allocator |
 | **essentials.chaos_lite** | **Registered** | Stereo-pair outputs, up to 8 voices, two-instance offline Pi workload tested |
 | **midi.in, midi.to_cv, midi.cc_to_cv** | **Registered** | MIDI service and ported modules exist; inbound USB MIDI uses bounded host backend; synthetic coverage; real hardware still needs owner checks |
-| **ports.macro_oscillator** | **Built/tested SDK DSP, NOT in main's Studio catalogue** | 24 models; **48 kHz only**, up to 8 voices, 12-frame internal buffering; catalogue integration is proposed in open PR #171, not included here |
+| **ports.macro_oscillator** | **Built/tested SDK DSP; absent from the app catalogue at this snapshot** | 24 models; **48 kHz only**, up to 8 voices, 12-frame internal buffering; PR #171 subsequently registered it in main (see current catalogue check above) |
 | **OSC In + Monitor** | **Open PR #82, not merged** | Do not assume working Studio/host services |
 | **CLI playback and native v1/v2 patch loading** | **Code present** | Offline playback / explicit device gating; patch and module compatibility still need testing |
 | **Qt Studio on Pi 5** | **Owner-reported snapshot** | On 2026-10-30, issue #174 records a Release UI build, 14/14 focused tests and fullscreen session; audible output and controller functioning were **not certified** |
@@ -28,7 +30,7 @@ This matrix means **in main at the snapshot**, not "implemented on somebody's op
 | **MIDI Out / MIDI Clock Out, OSC Out, UDP Send, DMX, serial, scripts, MPE** | **Not general production host capabilities** | Requires host/IO service work; an SDK event descriptor alone does not provide a socket or device |
 | **CLAP/VST3 plugins and Daisy hardware adapters** | **Design targets, not turnkey exports** | Pure DSP portability does not imply built/tested adapters |
 
-The source of truth for what appears in the app is native/control/module_catalog.inc together with native/control/module_catalog.h and native/control/app_engine.cpp. At this snapshot that catalogue has **18** registrations (13+keyboard+CHAOS-lite+3 MIDI). The source also has native/modules2/macro_oscillator, but it is deliberately distinguished from the app catalogue. The older docs/STATUS.md and docs/ARCHITECTURE.md describe pre-Jam architecture/availability and must not override newer compiled source and merged PRs.
+The source of truth for what appears in the app is `native/control/module_catalog.inc` together with `native/control/module_catalog.h` and `native/control/app_engine.cpp`. At the pinned snapshot that catalogue has **18** registrations (13+keyboard+CHAOS-lite+3 MIDI); current main has 19 after #171 added the macro oscillator. The older docs/STATUS.md and docs/ARCHITECTURE.md describe pre-Jam architecture/availability and must not override newer compiled source and merged PRs.
 
 ## 2. What module types can you build independently?
 
