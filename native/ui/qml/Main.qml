@@ -325,8 +325,13 @@ ApplicationWindow {
                 Text { width: parent.width; elide: Text.ElideRight; text: studio.running ? "Live signal · stop audio to edit the patch" : "A small system. An open signal path."; color: "#858681"; font.pixelSize: 10 }
             }
             Row { id: toolbarActions; objectName: "toolbarActions"; anchors.right: parent.right; anchors.rightMargin: 22; anchors.verticalCenter: parent.verticalCenter; spacing: 5
-                StudioButton { text: "Monitor"; onClicked: monitorDialog.open() }
-                StudioButton { text: "MIDI"; enabled: !studio.running; onClicked: midiDialog.open() }
+                StudioButton {
+                    text: "I/O"; onClicked: ioMenu.open()
+                    Menu { id: ioMenu
+                        MenuItem { text: "MIDI inputs"; enabled: !studio.running; onTriggered: midiDialog.open() }
+                        MenuItem { text: "Monitor"; onTriggered: monitorDialog.open() }
+                    }
+                }
                 StudioButton { objectName: "newButton"; text: "New"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("new") }
                 StudioButton { objectName: "openButton"; text: "Open"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("open") }
                 StudioButton { objectName: "saveButton"; text: "Save"; onClicked: root.beginSave("") }
