@@ -45,8 +45,8 @@ inherited non-required checks don't block; ChatGPT reviewer posts T1/T2 gate lin
 patch-format/ID changes, new deps, test removal, looser thresholds, protected paths, real devices, force-push.
 
 ## Agents
-- Codex (owner starts it; reads #29), ChatGPT reviewer + steward (hourly), UI agent, docs agent
-  (prompts: `docs/planner/CHATGPT_AGENTS.md`). Sonnet routine every 4 h: quick approvals, labels `needs-planner`.
+- Lean roster (`docs/planner/CHATGPT_AGENTS.md`): Codex per issue (owner starts it; reads #29); one ChatGPT
+  reviewer + light steward every 4 h; UI and docs builders on demand. Claude: `CHECKIN.md`.
 - Merge gate: `tools/merge_gate.py` + `.github/workflows/merge_gate.yml` auto-merge on `status/ready-to-merge`
   plus a standalone gate line for the current head.
 
