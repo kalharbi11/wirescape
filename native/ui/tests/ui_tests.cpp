@@ -293,6 +293,10 @@ private slots:
         const int before = studio.connections().size();
         QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
         QTRY_COMPARE(studio.connections().size(), before + 2);
+        auto *leftBadge = findNamed(window, QString("stereoCableBadge_%1").arg(before));
+        auto *rightBadge = findNamed(window, QString("stereoCableBadge_%1").arg(before + 1));
+        QVERIFY(leftBadge && rightBadge);
+        QTRY_VERIFY(leftBadge->property("visible").toBool() && rightBadge->property("visible").toBool());
         QCOMPARE(studio.connections()[before].toMap()["toPort"].toString(), QString("a"));
         QCOMPARE(studio.connections()[before + 1].toMap()["toPort"].toString(), QString("b"));
         QVERIFY(!dialog->property("visible").toBool());
