@@ -11,28 +11,37 @@ Item {
     property string currentFile: ""
     property bool running: false
     // Tests use transient history so they never modify user application settings.
-    property bool persistHistory: true
+    // The offscreen test application has a different name, so do not even
+    // construct QSettings there (or touch real users' history).
+    property bool persistHistory: Qt.application.name === "Wirescape"
     property string sessionRecent: "[]"
     property string sessionFavourites: "[]"
     signal openRequested(string url)
-    Settings {
+    Loader {
         id: saved
-        category: "PatchLibrary"
-        property string recentPaths: "[]"
-        property string favouritePaths: "[]"
+        active: library.persistHistory
+        sourceComponent: Component {
+            Settings {
+                category: "PatchLibrary"
+                property string recentPaths: "[]"
+                property string favouritePaths: "[]"
+            }
+        }
     }
     readonly property var starters: [
-        {label: "Minimal synth", path: ":/starter/starter_minimal.json",
+        // QUrl's file: relative-path form round-trips to the Qt resource
+        // filename ":/starter/..." through StudioController's toLocalFile().
+        {label: "Minimal synth", path: "file::/starter/starter_minimal.json",
          hint: "Continuous VCO tone · no MIDI needed"},
-        {label: "LFO / filter / VCA", path: ":/starter/starter_lfo_filter.json",
+        {label: "LFO / filter / VCA", path: "file::/starter/starter_lfo_filter.json",
          hint: "Filtered tone pulses with LFO amplitude · no MIDI"},
-        {label: "MIDI-controlled synth", path: ":/starter/starter_midi.json",
+        {label: "MIDI-controlled synth", path: "file::/starter/starter_midi.json",
          hint: "Continuous reference tone; MIDI input changes pitch · enable an endpoint"},
-        {label: "Poly chords", path: ":/starter/starter_poly.json",
+        {label: "Poly chords", path: "file::/starter/starter_poly.json",
          hint: "Four-voice keyboard pitch · play A–K keys"},
-        {label: "CHAOS-lite", path: ":/starter/starter_chaos.json",
+        {label: "CHAOS-lite", path: "file::/starter/starter_chaos.json",
          hint: "Layered CHAOS oscillator · 48 kHz, no MIDI"},
-        {label: "Macro Oscillator", path: ":/starter/starter_macro.json",
+        {label: "Macro Oscillator", path: "file::/starter/starter_macro.json",
          hint: "Macro main output · 48 kHz; play A–K keys to trigger"}
     ]
     function paths(text) {
@@ -41,7 +50,9 @@ Item {
             return Array.isArray(data) ? data.filter(isUserFile) : [];
         } catch (error) { return []; }
     }
-    function isUserFile(path) { return typeof path === "string" && path.indexOf("file:") === 0; }
+    function isUserFile(path) {
+        return typeof path === "string" && path.indexOf("file:/") === 0;
+    }
     function filename(path) {
         try { return decodeURIComponent(path.substring(path.lastIndexOf("/") + 1)); }
         catch (error) { return path.substring(path.lastIndexOf("/") + 1); }
@@ -60,29 +71,29 @@ Item {
         return choices;
     }
     readonly property var entries: buildEntries(
-        persistHistory ? saved.recentPaths : sessionRecent,
-        persistHistory ? saved.favouritePaths : sessionFavourites)
+        persistHistory && saved.item ? saved.item.recentPaths : sessionRecent,
+        persistHistory && saved.item ? saved.item.favouritePaths : sessionFavourites)
     readonly property int entryCount: entries.length
     function recordOpened(url) {
         url = String(url);
         if (!isUserFile(url)) return;
-        var current = paths(persistHistory ? saved.recentPaths : sessionRecent)
+        var current = paths(persistHistory && saved.item ? saved.item.recentPaths : sessionRecent)
             .filter(function(item) { return item !== url; });
         current.unshift(url);
-        if (persistHistory) saved.recentPaths = JSON.stringify(current.slice(0, 12));
+        if (persistHistory && saved.item) saved.item.recentPaths = JSON.stringify(current.slice(0, 12));
         else sessionRecent = JSON.stringify(current.slice(0, 12));
     }
     function isFavourite(url) {
-        return paths(persistHistory ? saved.favouritePaths : sessionFavourites)
+        return paths(persistHistory && saved.item ? saved.item.favouritePaths : sessionFavourites)
             .indexOf(String(url)) >= 0;
     }
     function toggleFavourite() {
         if (!isUserFile(currentFile) || running) return;
-        var current = paths(persistHistory ? saved.favouritePaths : sessionFavourites);
+        var current = paths(persistHistory && saved.item ? saved.item.favouritePaths : sessionFavourites);
         var index = current.indexOf(currentFile);
         if (index >= 0) current.splice(index, 1);
         else current.unshift(currentFile);
-        if (persistHistory) saved.favouritePaths = JSON.stringify(current.slice(0, 12));
+        if (persistHistory && saved.item) saved.item.favouritePaths = JSON.stringify(current.slice(0, 12));
         else sessionFavourites = JSON.stringify(current.slice(0, 12));
     }
     ComboBox {
