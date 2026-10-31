@@ -19,6 +19,13 @@ ApplicationWindow {
     property int pendingNode: -1
     property string pendingPort: ""
     property string pendingKind: ""
+    property int stereoSourceNode: -1
+    property string stereoSourceGroup: ""
+    property string stereoSourceKind: ""
+    property int stereoTargetNode: -1
+    property var stereoInputs: []
+    property int stereoFirstIndex: 0
+    property int stereoSecondIndex: 1
     property string localHint: ""
     property int geometryRevision: 0
     property real zoom: 0.85
@@ -100,12 +107,34 @@ ApplicationWindow {
         keyboardSurface.forceActiveFocus();
     }
     function selectNode(id) { selectedNode = id; selectedCable = -1; }
+    function clearStereo() { stereoSourceNode = -1; stereoSourceGroup = ""; stereoInputs = []; }
+    function chooseStereo(id, group) {
+        if (studio.running) { localHint = "Stop audio to edit connections."; return; }
+        const source = studio.modules.find(function(item) { return item.id === id; });
+        const pair = source ? source.outputs.filter(function(p) { return p.stereoPair === group; }) : [];
+        if (pair.length !== 2) { localHint = "This module has no native stereo pair."; return; }
+        stereoSourceNode = id; stereoSourceGroup = group; stereoSourceKind = pair[0].kind;
+        pendingNode = -1;
+        localHint = "Stereo: choose a compatible destination input, then assign left and right.";
+    }
     function chooseOutput(id, port, kind) {
         if (studio.running) { localHint = "Stop audio to edit connections."; return; }
+        clearStereo();
         pendingNode = id; pendingPort = port; pendingKind = kind;
         localHint = "Choose a " + kind + " input to complete the cable. Esc cancels.";
     }
     function chooseInput(id, port, kind) {
+        if (stereoSourceNode >= 0) {
+            if (kind !== stereoSourceKind) { localHint = "Both stereo outputs need compatible inputs."; return; }
+            const destination = studio.modules.find(function(item) { return item.id === id; });
+            const options = destination ? destination.inputs.filter(function(p) { return p.kind === kind; }) : [];
+            if (options.length < 2) { localHint = "Select a module with two separate compatible inputs."; return; }
+            stereoTargetNode = id; stereoInputs = options;
+            stereoFirstIndex = options.findIndex(function(p) { return p.id === port; });
+            stereoSecondIndex = options.findIndex(function(p, i) { return i !== stereoFirstIndex; });
+            stereoChoiceDialog.open();
+            return;
+        }
         if (pendingNode < 0) { localHint = "Choose an output first, then an input."; return; }
         if (kind !== pendingKind) { localHint = "This input needs a " + kind + " signal."; return; }
         studio.connectPorts(pendingNode, pendingPort, id, port);
@@ -163,6 +192,30 @@ ApplicationWindow {
     }
     onActiveChanged: if (!active) { releaseHeldKeys(); studio.setGate(false); studio.panic(); }
     Dialog {
+        id: stereoChoiceDialog; objectName: "stereoPairDialog"
+        title: "Route both stereo outputs"; modal: true; focus: true
+        anchors.centerIn: parent; standardButtons: Dialog.Ok | Dialog.Cancel
+        Column {
+            spacing: 8; width: 290
+            Label { text: "Assign two separate inputs; both cables commit together."; width: parent.width; wrapMode: Text.Wrap }
+            Label { text: "Left output →"; }
+            ComboBox { id: stereoLeftChoice; objectName: "stereoLeftChoice"; width: parent.width; model: root.stereoInputs; textRole: "label"; currentIndex: root.stereoFirstIndex }
+            Label { text: "Right output →"; }
+            ComboBox { id: stereoRightChoice; objectName: "stereoRightChoice"; width: parent.width; model: root.stereoInputs; textRole: "label"; currentIndex: root.stereoSecondIndex }
+        }
+        onAccepted: {
+            const a = root.stereoInputs[stereoLeftChoice.currentIndex];
+            const b = root.stereoInputs[stereoRightChoice.currentIndex];
+            if (!a || !b || !studio.connectStereoPair(root.stereoSourceNode, root.stereoSourceGroup,
+                                                       root.stereoTargetNode, a.id, b.id))
+                root.localHint = studio.errorText || "Choose two different compatible inputs.";
+            else root.localHint = "Two separate stereo cables connected.";
+            root.clearStereo();
+            root.takeKeyboardFocus();
+        }
+        onRejected: { root.clearStereo(); root.localHint = ""; root.takeKeyboardFocus(); }
+    }
+    Dialog {
         id: midiDialog; title: "MIDI inputs"; modal: true; standardButtons: Dialog.Close
         Column {
             spacing: 8
@@ -201,7 +254,7 @@ ApplicationWindow {
         objectName: "keyboardSurface"
         anchors.fill: parent; focus: true
         Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape) { root.pendingNode = -1; root.localHint = ""; event.accepted = true; return; }
+            if (event.key === Qt.Key_Escape) { root.pendingNode = -1; root.clearStereo(); root.localHint = ""; event.accepted = true; return; }
             if (root.activeFocusItem !== keyboardSurface || event.isAutoRepeat) return;
             if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return;
             if (root.heldKeys[event.key] !== undefined) { event.accepted = true; return; }
