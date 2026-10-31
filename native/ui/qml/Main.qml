@@ -304,7 +304,7 @@ ApplicationWindow {
                 StudioButton { objectName: "saveButton"; text: "Save"; onClicked: root.beginSave("") }
                 StudioButton { text: "Test render"; enabled: !studio.running; onClicked: { root.releaseHeldKeys(); renderDialog.open(); } }
                 Item { width: 9; height: 1 }
-                StudioButton { text: studio.cleanupPending ? "Retry audio cleanup" : studio.running ? "Stop audio" : "Start audio"; accent: true; enabled: (studio.running || studio.cleanupPending || studio.ready); objectName: "audioButton"; onClicked: { root.releaseHeldKeys(); (studio.running || studio.cleanupPending) ? studio.stopAudio() : studio.startAudio(); } }
+                StudioButton { text: studio.cleanupPending ? "Retry audio cleanup" : studio.running ? "Stop audio" : "Start audio"; accent: true; enabled: (studio.running || studio.cleanupPending || (studio.ready && studio.selectedDevice >= -1)); objectName: "audioButton"; onClicked: { root.releaseHeldKeys(); (studio.running || studio.cleanupPending) ? studio.stopAudio() : studio.startAudio(); } }
                 Item { width: 9; height: 1 }
                 StudioButton {
                     objectName: "minimizeButton"; text: root.width < 1200 ? "Min" : "Minimize"; quiet: true
@@ -435,20 +435,21 @@ ApplicationWindow {
             }
             Row {
                 objectName: "deviceControls"; anchors.right: parent.right; anchors.rightMargin: 22; y: root.width < 1200 ? 62 : (transport.height - height) / 2; spacing: 13
-                StudioButton { text: "Refresh"; enabled: !studio.running; onClicked: studio.refreshDevices(); ToolTip.visible: hovered; ToolTip.text: "Discover audio outputs without starting playback" }
+                StudioButton { text: "Refresh"; enabled: !studio.running && !studio.cleanupPending; onClicked: studio.refreshDevices(); ToolTip.visible: hovered; ToolTip.text: "Stop and finish cleanup, then Refresh, select physical output and Start audio" }
                 ComboBox {
                     id: deviceBox; objectName: "deviceBox"
                     width: root.width < 1150 ? 130 : 190; height: 32
-                    model: studio.devices; textRole: "name"; enabled: !studio.running
+                    model: studio.devices; textRole: "name"; enabled: !studio.running && !studio.cleanupPending
                     currentIndex: {
                         for (let i = 0; i < studio.devices.length; ++i)
                             if (studio.devices[i].id === studio.selectedDevice) return i;
-                        return 0;
+                        return -1;
                     }
+                    displayText: currentIndex < 0 ? "Choose physical output" : currentText
                     font.pixelSize: 10
                     onActivated: function(index) { studio.setDevice(model[index].id); }
                     background: Rectangle { color: "#faf9f6"; border.color: "#d9d8d2"; radius: 5 }
-                    ToolTip.visible: hovered; ToolTip.text: "Audio output device"
+                    ToolTip.visible: hovered; ToolTip.text: (currentIndex >= 0 ? currentText + "\n" : "") + "Stop, finish cleanup, Refresh, select hardware, then Start. The Output module selects the graph signal."
                 }
                 Column { spacing: 5
                     Text { text: "OUTPUT"; color: "#858681"; font.pixelSize: 8; font.letterSpacing: 1 }
@@ -462,7 +463,7 @@ ApplicationWindow {
             color: "#eeede9"
             Rectangle { width: parent.width; height: 1; color: "#d9d8d2" }
             Rectangle { x: 23; anchors.verticalCenter: parent.verticalCenter; width: 5; height: 5; radius: 3; color: studio.running ? "#c5774c" : "#a7a8a1" }
-            Text { x: 37; anchors.verticalCenter: parent.verticalCenter; width: Math.max(0, parent.width - statusMetrics.width - 65); elide: Text.ElideRight; text: studio.errorText || studio.noticeText || root.localHint || studio.statusText; color: studio.errorText ? "#b85d43" : "#858681"; font.pixelSize: 10 }
+            Text { x: 37; anchors.verticalCenter: parent.verticalCenter; width: Math.max(0, parent.width - statusMetrics.width - 65); elide: Text.ElideRight; text: studio.errorText || ((studio.running || studio.cleanupPending) ? (studio.audioOutputStatus || studio.statusText) : studio.noticeText || root.localHint || studio.audioOutputStatus || studio.statusText); color: studio.errorText ? "#b85d43" : "#858681"; font.pixelSize: 10 }
             Text { id: statusMetrics; width: Math.min(implicitWidth, parent.width * 0.55); elide: Text.ElideLeft; anchors.right: parent.right; anchors.rightMargin: 23; anchors.verticalCenter: parent.verticalCenter; text: (studio.diagnosticText ? studio.diagnosticText + "  /  " : "") + (studio.sampleRate / 1000).toFixed(1) + " kHz  /  " + studio.blockSize + "  ·  CPU " + Number(studio.cpuLoad).toFixed(1) + "%" + (studio.underruns ? "  ·  " + studio.underruns + " dropouts" : ""); color: "#858681"; font.pixelSize: 9 }
         }
     }

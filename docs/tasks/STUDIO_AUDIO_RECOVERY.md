@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Studio: diagnose silence and make physical audio output selection clear
+# Studio: diagnose silence and make physical audio output selection clear (#140)
 
 Priority: first; blocks the user's one-minute audible checkpoint (#45). Screenshots show live audio but no sound; physical interface absent. Do not claim a cause or completed audible evidence from UI state alone.
 Read first: native/ui/audio_device.*, studio_controller.*, qml/Main.qml, audio_device_tests and controller_failure_tests, docs/design/STUDIO_REFINEMENT_BRIEF.md.
@@ -7,12 +7,28 @@ Confirmed: Refresh/device ComboBox disabled while running; controller refuses re
 Implement an unambiguous stopped/cleanup/refresh/select/start flow, actionable disabled-state explanation and visible active physical device/backend/channel/rate. Keep graph output-node selection distinct from hardware device selection. Preserve callback quiescence and explicit user start. Expose supported channel/rate failures; do not auto-start, guess that a running stream is audible, or replace the user's route silently. Capture diagnostics that distinguish graph silence, unavailable device, wrong route and stream failure.
 Tests: fake enumeration incl default/nondefault/mono/disconnected device, refresh after stop/cleanup, selected ID roundtrip, start failure and graph output vs hardware selection. Real listening/interface enumeration is USER ONLY; provide a short checklist and record its result separately. User can stop audio, Refresh, select interface and restart now; failure remains a defect, not user error.
 
+Execution location: the three named Qt suites run in hosted Windows CI; cloud
+QtCore-only builds can execute the audio backend/controller tests separately.
+No assertion or hardware check is removed. Explicit PortAudio index selections
+are invalidated after Refresh because hotplug can reuse indexes; reselect before
+Start. A deliberate system-default selection remains a system-default selection.
+
 ```acceptance
 tier: T2
 budget: 1 Codex session or bounded ChatGPT task
 size: <= 600 changed lines, <= 10 files
 must_pass:
-  - ctest --test-dir build/native -R "studio_ui_tests|controller_failure_tests|audio_device_tests" --output-on-failure --no-tests=error
+  - ci: ctest --test-dir build/native -R "studio_ui_tests|controller_failure_tests|audio_device_tests" --output-on-failure --no-tests=error
   - ci: Windows Qt build and actual named offscreen tests green on exact head
 stops: [ABI header edit, new dependency, format or ID change, tests removed, unapproved threshold change]
 ```
+
+## Owner-only accepted-build check
+
+Stop audio and finish cleanup, Refresh, then explicitly choose the intended
+physical stereo interface. Mono outputs should remain visible with an unsupported
+reason; no other route should be silently selected. Start explicitly and compare
+the visible active device/backend/channel/rate with the desired interface.
+Listen for one minute, exercise Stop/Refresh/reselect, and save diagnostics if the
+route or sound differs. Record the exact build SHA, selected hardware and result
+separately; fake tests and a running meter are not listening evidence.
