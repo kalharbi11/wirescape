@@ -37,6 +37,7 @@ struct Buffer {
 };
 struct Packet {
     uint32_t node=0,port=WS2_DIRECT_PORT,producer=0;Timing mode=Timing::Frames;
+    uint32_t routed_from = 0, routed_output = 0; // Zero source denotes external ingress.
     uint64_t when = 0, generation = 1, order = 0, mapped_time_ns = 0, revision = 0;
     ws2_event event{};std::array<uint8_t,WS2_MAX_PAYLOAD>payload{};
     void fix(){event.data=event.bytes?payload.data():nullptr;}
@@ -440,6 +441,8 @@ bool Engine::Impl::route(uint32_t port,const ws2_event&source) {
             Packet p;
             p.node = e.to;
             p.port = e.input;
+            p.routed_from = e.from;
+            p.routed_output = e.output;
             p.event = source;
             p.when = destination_frame;
             p.generation = generation.load();
@@ -883,6 +886,7 @@ bool Engine::replan(Engine &candidate, uint64_t timeout_ns) {
     std::vector<Node *> actual;
     std::vector<std::pair<size_t, size_t>> retained, delays;
     std::vector<std::pair<uint32_t, uint32_t>> chokes;
+    std::vector<std::array<uint32_t, 4>> removed_routes;
     std::vector<bool> used(fresh.edges.size(), false), delay_used(old.edges.size(), false);
     const auto next_revision = old.revision.load() + 1;
     if (!next_revision) return old.fail("Live graph revision exhausted");
@@ -907,12 +911,15 @@ bool Engine::replan(Engine &candidate, uint64_t timeout_ns) {
         if (!e.removed && e.kind == 1) {
             bool kept = false;
             for (size_t i = 0; i < fresh.edges.size(); ++i)
-                if (!used[i] && !fresh.edges[i].removed && key(e) == key(fresh.edges[i])) {
+                if (!used[i] && !fresh.edges[i].removed && key(e) == key(fresh.edges[i]) &&
+                    actual[fresh.edges[i].source->index] == e.source &&
+                    actual[fresh.edges[i].destination->index] == e.destination) {
                     used[i] = true;
                     kept = true;
                     break;
                 }
             auto *destination = fresh.find(e.to);
+            if (!kept) removed_routes.push_back({e.from, e.output, e.to, e.input});
             if (!kept && destination && actual[destination->index] == e.destination) {
                 if (chokes.size() == old.cfg.release_reserve) return old.fail("Too many edge releases for one edit");
                 chokes.emplace_back(e.to, e.input);
@@ -931,6 +938,7 @@ bool Engine::replan(Engine &candidate, uint64_t timeout_ns) {
             }
         }
     }
+    std::sort(removed_routes.begin(), removed_routes.end());
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::nanoseconds(timeout_ns);
     auto expected = Park::Running;
     if (!old.park.compare_exchange_strong(expected, Park::Requested, std::memory_order_acq_rel))
@@ -946,6 +954,19 @@ bool Engine::replan(Engine &candidate, uint64_t timeout_ns) {
     }
     // All allocation and fallible work precedes the ack. Keep this Impl and its
     // ingress/egress rings, clock, future packets and generation in place.
+    // A disconnected feedback edge must not replay an old NoteOn after its choke.
+    // Preserve independently scheduled producer events to surviving targets.
+    old.future.erase(std::remove_if(old.future.begin(), old.future.end(),
+                                    [&](const Packet &p) {
+                                        const std::array<uint32_t, 4> route{p.routed_from, p.routed_output, p.node,
+                                                                            p.port};
+                                        if (!p.routed_from ||
+                                            !std::binary_search(removed_routes.begin(), removed_routes.end(), route))
+                                            return false;
+                                        ++old.stale;
+                                        return true;
+                                    }),
+                     old.future.end());
     for (auto pair : retained) {
         auto &node = *old.nodes[pair.second];
         auto &layout = *fresh.nodes[pair.first];

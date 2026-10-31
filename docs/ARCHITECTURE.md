@@ -152,7 +152,9 @@ surviving Nodes/DSP, producer rings, queued events and unchanged feedback delays
 Render fades out/in within one block and advances its clock while parked silent;
 it never waits on control. Ack versus timeout has one atomic winner. Target
 validation runs on render drain, with packet revisions rejecting removed/reused
-node targets. Removed event edges receive a resume choke. The control facade
+node targets. Removed event edges receive a resume choke. Replan discards
+counted stale future events routed through removed edges while retaining
+external future events for surviving targets. The control facade
 retains its catalogue and rebinds staged ABI1 descriptors before retirement.
 Device and input-selection controls remain stop-only.
 

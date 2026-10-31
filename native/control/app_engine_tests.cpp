@@ -75,7 +75,7 @@ static void shim(const char*library){
          if (status != WS_OK) failed = true;
          last.store(samples[127]);
          ++blocks;
-         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+         std::this_thread::yield(); // Avoid Windows sleep granularity exceeding the unchanged three-block park bound.
      }
  });
  struct Join {
@@ -92,11 +92,11 @@ static void shim(const char*library){
      check(blocks.load() >= count, "fake render progresses");
  };
  wait(2);
- const auto before = blocks.load();
  const auto generation = app_engine_generation(e.get());
- check(app_engine_replan(e.get(), candidate.get(), 8000000) == WS_OK, "live facade adopts prepared graph");
- candidate.reset(); // A new ABI1 node must not borrow a retiring candidate descriptor.
- wait(before + 5);
+ const auto adopted = app_engine_replan(e.get(), candidate.get(), 8000000);
+ check(adopted == WS_OK, app_engine_error(e.get()));
+ candidate.reset();       // A new ABI1 node must not borrow a retiring candidate descriptor.
+ wait(blocks.load() + 5); // Require fresh callbacks after retirement, not callbacks completed while staging.
  check(!failed.load() && last.load() == .75f, "retained ABI1 DSP and descriptor survive candidate retirement");
  check(app_engine_generation(e.get()) == generation && live_allocations.load() == 0,
        "facade preserves generation and allocation-free render");

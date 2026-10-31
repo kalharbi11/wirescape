@@ -103,6 +103,103 @@ static ws2_event note(uint32_t type = WS2_NOTE_ON, float value = .75f) {
     e.value = value;
     return e;
 }
+struct EventSink : Voice {
+    static constexpr ws::Info info{"test.live_sink", "Live sink", 1};
+    void process(ws::Block &b) {
+        b.out(0).set_channels(1);
+        b.out(0).mark_constant(false);
+        b.out(1).set_channels(0);
+        b.split(
+            [&](uint32_t first, uint32_t end) {
+                for (uint32_t i = first; i < end; ++i) b.out(0).ch(0)[i] = held;
+            },
+            [&](const ws2_event &e) {
+                if (e.type == WS2_NOTE_ON) held = e.value;
+                else if (e.type == WS2_NOTE_OFF || e.type == WS2_NOTE_CHOKE) held = 0;
+            });
+    }
+};
+struct EventEmitter : Voice {
+    static constexpr ws::Info info{"test.live_emitter", "Live emitter", 1};
+    void process(ws::Block &b) {
+        b.out(0).set_channels(1);
+        b.out(0).mark_constant(true);
+        b.out(0).ch(0)[0] = 1;
+        b.out(1).set_channels(0);
+        auto e = note();
+        e.offset = b.frames() - 1;
+        CHECK(b.emit(1, e));
+    }
+};
+// The marker bus stays at one until the acknowledgement callback fades it out.
+// Stop callbacks there so a queued feedback note cannot arrive before the edit.
+static void replan_at_fade_out(Engine &live, Engine &candidate) {
+    std::atomic<bool> done{false}, success{false};
+    std::thread edit([&] {
+        success = live.replan(candidate, uint64_t(frames) * 3 * 1000000000 / 48000);
+        done = true;
+    });
+    float samples[frames]{}, marker[frames]{};
+    float *out[]{samples, marker};
+    const auto deadline = Clock::now() + std::chrono::seconds(2);
+    bool acknowledged = false;
+    while (!done.load() && Clock::now() < deadline) {
+        {
+            allocation_watch::ThreadScope watch;
+            CHECK(live.render(out, 2, frames) == WS2_OK);
+            CHECK(watch.allocations() == 0);
+        }
+        Outgoing outgoing;
+        while (live.pop_egress(outgoing)) {
+        }
+        if (marker[frames - 1] == 0) {
+            acknowledged = true;
+            break;
+        }
+        std::this_thread::yield();
+    }
+    edit.join();
+    CHECK(acknowledged && success.load());
+}
+static void removed_event_routes_release() {
+    for (bool replace_source : {false, true}) {
+        auto make = [&](bool candidate) {
+            auto e = std::make_unique<Engine>(config());
+            CHECK(e->add_node(1, ws::Module<EventSink>::descriptor()));
+            CHECK(e->add_node(2, ws::Module<EventEmitter>::descriptor(),
+                              candidate && replace_source ? std::vector<uint8_t>{1} : std::vector<uint8_t>{}));
+            CHECK(e->connect(1, 1, 2, 0));
+            if (!candidate || replace_source) CHECK(e->connect(2, 1, 1, 0));
+            CHECK(e->output(1, 0, 0));
+            CHECK(e->output(2, 0, 1));
+            CHECK(e->register_producer() == 0);
+            CHECK(e->prepare());
+            return e;
+        };
+        auto live = make(false), candidate = make(true);
+        float samples[frames]{}, marker[frames]{};
+        float *out[]{samples, marker};
+        CHECK(live->render(out, 2, frames) == WS2_OK);
+        CHECK(samples[frames - 1] == .75f);
+        const auto stale = live->meter().stale;
+        replan_at_fade_out(*live, *candidate);
+        candidate.reset();
+        // The old source's final back-edge note must not restart the destination
+        // after its resume choke, even if the numeric cable survives source reuse.
+        // Check replacement before newly emitted back-edge notes can arrive.
+        {
+            allocation_watch::ThreadScope watch;
+            CHECK(live->render(out, 2, 1) == WS2_OK);
+            CHECK(watch.allocations() == 0);
+        }
+        CHECK(samples[0] == 0);
+        if (!replace_source) {
+            CHECK(live->render(out, 2, frames) == WS2_OK);
+            for (float sample : samples) CHECK(sample == 0);
+        }
+        CHECK(live->meter().stale > stale);
+    }
+}
 struct Audio {
     Engine &engine;
     std::atomic<bool> run{true}, enabled{true}, in_render{false}, measure{false};
@@ -392,6 +489,7 @@ int main(int argc, char **argv) {
     else CHECK(argc == 1);
     allocation_scope_is_thread_local();
     counted_target_rejection();
+    removed_event_routes_release();
     feedback_delay_survives();
     ramp_survives();
     const auto gap = live_edits();
