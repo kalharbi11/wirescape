@@ -236,12 +236,20 @@ ApplicationWindow {
             Text { x: 22; y: 29; text: "WIRESCAPE"; font.pixelSize: 25; font.letterSpacing: -1.6; color: "#393b39" }
             Text { x: 23; y: 66; text: "STUDIO / 01"; font.pixelSize: 9; font.letterSpacing: 1.8; color: "#858681" }
             Rectangle { y: 105; width: parent.width; height: 1; color: "#d9d8d2" }
-            Text { x: 22; y: 133; text: "MODULE LIBRARY"; font.pixelSize: 10; font.letterSpacing: 1; color: "#393b39" }
-            Text { x: 22; y: 164; text: "ESSENTIALS"; font.pixelSize: 9; font.letterSpacing: 1.3; color: "#858681" }
+            Text { x: 22; y: 123; text: "PATCHES"; font.pixelSize: 10; font.letterSpacing: 1; color: "#393b39" }
+            PatchLibrary {
+                id: patchLibrary
+                x: 12; y: 146; width: 178
+                currentFile: root.currentPatchFile
+                running: studio.running
+                onOpenRequested: function(url) { root.requestLibraryPatch(url); }
+            }
+            Text { x: 22; y: 198; text: "MODULE LIBRARY"; font.pixelSize: 10; font.letterSpacing: 1; color: "#393b39" }
+            Text { x: 22; y: 228; text: "ESSENTIALS"; font.pixelSize: 9; font.letterSpacing: 1.3; color: "#858681" }
             Item {
                 id: libraryRegion; objectName: "libraryRegion"
                 x: 12; width: 178
-                anchors.top: parent.top; anchors.topMargin: 187
+                anchors.top: parent.top; anchors.topMargin: 252
                 anchors.bottom: legendPanel.top; anchors.bottomMargin: 15
                 Flickable {
                     id: libraryScroll; objectName: "moduleLibraryScroll"
@@ -310,13 +318,6 @@ ApplicationWindow {
                 StudioButton { text: "MIDI"; enabled: !studio.running; onClicked: midiDialog.open() }
                 StudioButton { objectName: "newButton"; text: "New"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("new") }
                 StudioButton { objectName: "openButton"; text: "Open"; quiet: true; enabled: !studio.running; onClicked: root.requestAction("open") }
-                PatchLibrary {
-                    id: patchLibrary
-                    width: root.width < 1200 ? 170 : 218
-                    currentFile: root.currentPatchFile
-                    running: studio.running
-                    onOpenRequested: function(url) { root.requestLibraryPatch(url); }
-                }
                 StudioButton { objectName: "saveButton"; text: "Save"; onClicked: root.beginSave("") }
                 StudioButton { text: "Test render"; enabled: !studio.running; onClicked: { root.releaseHeldKeys(); renderDialog.open(); } }
                 Item { width: 9; height: 1 }
