@@ -995,7 +995,8 @@ private slots:
         QCOMPARE(window->property("saveContinuation").toString(), QString("library"));
         QVERIFY(chooser->setProperty("selectedFile", path("library-before-switch.json")));
         QCOMPARE(chooser->property("selectedFile").toUrl(), path("library-before-switch.json"));
-        QVERIFY(QMetaObject::invokeMethod(chooser, "accept"));
+        // Deliver the selected URL without the offscreen platform dialog reselecting a native path.
+        QVERIFY(QMetaObject::invokeMethod(chooser, "accepted"));
         QTRY_COMPARE(currentPatchFile(), minimalUrl);
         QVERIFY(!studio.dirty());
         QCOMPARE(window->property("pendingLibraryFile").toString(), QString());
