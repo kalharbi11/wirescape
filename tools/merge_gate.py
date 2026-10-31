@@ -11,6 +11,7 @@ import argparse
 import fnmatch
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -24,22 +25,36 @@ PREREVIEW_OK = 'chatgpt: pre-review passed'
 
 
 def approval_lines(body):
-    """Unquoted lines outside fenced code blocks; quoted examples never count."""
-    fenced = False
+    """Raw standalone lines; Markdown examples and lazy quote/list continuations do not count."""
+    fence = None
+    continuation = False
     for line in (body or '').splitlines():
-        text = line.strip()
-        if text.startswith('```') or text.startswith('~~~'):
-            fenced = not fenced
-        elif not fenced and not text.startswith('>'):
-            yield text.strip('*_` ').lower()
+        if fence:
+            if re.fullmatch(' {0,3}' + re.escape(fence[0]) + '{' + str(fence[1]) + ',}[ \t]*', line):
+                fence = None
+            continue
+        if not line.strip():
+            continuation = False
+            continue
+        if line.startswith(('    ', '\t')):
+            continue
+        opening = re.match(r' {0,3}(`{3,}|~{3,})', line)
+        if opening:
+            marker = opening.group(1)
+            fence = (marker[0], len(marker))
+            continue
+        if re.match(r' {0,3}(>|(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)', line):
+            continuation = True
+            continue
+        if not continuation:
+            yield line.rstrip().lower()
 
 
 def approved(comments, owner, phrase, sha7):
-    """A standalone line "<phrase> [on] <sha7>" (optionally with a trailing period) by the owner."""
-    wanted = {f'{phrase} {sha7}', f'{phrase} on {sha7}'}
+    """Require the owner and the exact current-head approval line specified by the task."""
+    wanted = f'{phrase} {sha7}'.lower()
     return any(c.get('user', {}).get('login') == owner
-               and any(line.rstrip('.') in wanted for line in approval_lines(c.get('body')))
-               for c in comments)
+               and wanted in approval_lines(c.get('body')) for c in comments)
 
 
 def decide(pr, files, comments, owner):
