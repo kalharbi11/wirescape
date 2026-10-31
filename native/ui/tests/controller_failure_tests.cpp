@@ -203,7 +203,8 @@ int main(int argc, char** argv) {
               "diagnostics distinguish graph output and requested physical output");
         {
             TestAudio fakeAudio;
-            StudioController hardware(temp.path(), nullptr, {}, false, fakeAudio.backend());
+            StudioController hardware(temp.path(), nullptr, {}, false, StudioController::MidiPreference::Ignore, {}, {},
+                                      fakeAudio.backend());
             hardware.refreshDevices();
             hardware.setDevice(1);
             const auto selectedPatch = QUrl::fromLocalFile(temp.filePath("hardware-selected.json"));
@@ -253,6 +254,61 @@ int main(int argc, char** argv) {
                   "failed refresh also invalidates potentially reindexed physical selection");
             fakeAudio.countCode = 2;
         }
+        // No backend is authorized: native event metadata must survive editable v2 loading.
+        StudioController events(temp.path());
+        auto eventPatch = QJsonDocument::fromJson(before).object();
+        QJsonArray eventNodes;
+        const QStringList moduleTypes{"midi.in", "midi.to_cv", "essentials.output", "essentials.vco"};
+        for (int i = 0; i < moduleTypes.size(); ++i)
+            eventNodes.append(QJsonObject{{"id", i + 1},
+                                          {"module", moduleTypes[i]},
+                                          {"version", 1},
+                                          {"parameters", QJsonObject{}},
+                                          {"x", i * 250},
+                                          {"y", 100}});
+        eventPatch["modules"] = eventNodes;
+        const QJsonObject midiEdge{{"kind", "event"},
+                                   {"from", QJsonObject{{"module", 1}, {"port", "midi"}}},
+                                   {"to", QJsonObject{{"module", 2}, {"port", "midi"}}}};
+        eventPatch["connections"] =
+            QJsonArray{midiEdge, QJsonObject{{"kind", "signal"},
+                                             {"from", QJsonObject{{"module", 4}, {"port", "audio"}}},
+                                             {"to", QJsonObject{{"module", 3}, {"port", "audio"}}}}};
+        eventPatch["outputs"] = QJsonArray{QJsonObject{{"module", 3}, {"port", "audio"}, {"bus_channel", 0}}};
+        eventPatch.remove("outputNode");
+        const auto eventPath = temp.filePath("events.json");
+        write(eventPath, QJsonDocument(eventPatch).toJson());
+        check(events.loadPatch(QUrl::fromLocalFile(eventPath)) && events.ready() && !events.running(),
+              "v2 MIDI event cable loads without a backend");
+        const auto eventModules = events.modules();
+        check(eventModules[0].toMap()["outputs"].toList()[0].toMap()["kind"] == "event" &&
+                  eventModules[1].toMap()["inputs"].toList()[0].toMap()["kind"] == "event",
+              "native event ports are exposed as event, not control");
+        const auto savedEvents = QUrl::fromLocalFile(temp.filePath("events-saved.json"));
+        check(events.savePatch(savedEvents), "save event patch");
+        check(QJsonDocument::fromJson(read(savedEvents.toLocalFile())).object()["connections"].toArray()[0] == midiEdge,
+              "event kind and endpoints survive editor save");
+        check(events.loadPatch(savedEvents), "reload saved event patch");
+        const auto acceptedEvents = events.connections();
+        events.connectPorts(1, "midi", 3, "audio");
+        check(events.connections() == acceptedEvents && !events.errorText().isEmpty(),
+              "event-to-signal edit rejected transactionally");
+        events.disconnectCable(0);
+        events.connectPorts(1, "midi", 2, "midi");
+        check(events.connections().size() == 2 && events.connections().last().toMap()["kind"] == "event",
+              "interactive event reconnect retains event kind");
+        check(events.savePatch(savedEvents) && events.loadPatch(savedEvents), "reconnected event saves and reloads");
+        auto mixed = eventPatch;
+        auto mixedEdges = mixed["connections"].toArray();
+        auto wrongKind = midiEdge;
+        wrongKind["kind"] = "signal";
+        mixedEdges[0] = wrongKind;
+        mixed["connections"] = mixedEdges;
+        const auto mixedPath = temp.filePath("mixed-kind.json");
+        write(mixedPath, QJsonDocument(mixed).toJson());
+        const auto beforeRejectedLoad = events.connections();
+        check(!events.loadPatch(QUrl::fromLocalFile(mixedPath)) && events.connections() == beforeRejectedLoad,
+              "signal-labelled event cable load rejected without replacing accepted graph");
         std::cout << "PASS controller document dispatch, transactional failures, unknown-module preservation, and offline diagnostics\n"; return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }
