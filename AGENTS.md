@@ -17,7 +17,7 @@ Wirescape is an open-source modular patching environment for music: a native C++
 | Agent | Runs | Use for | Label |
 |---|---|---|---|
 | Codex cloud tasks | cloud | building, CI fixes, the automation backlog, anything that needs a build | `agent/codex` |
-| ChatGPT (GitHub-connected) | cloud | docs, triage, self-contained modules (CI is its build), first-round "ChatGPT pre-review" | `agent/chatgpt` |
+| ChatGPT (GitHub-connected) | cloud | independent reviewer + light steward (scheduled), on-demand UI and docs builders (CI is its build) | `agent/chatgpt` |
 | Claude Code (web) | cloud | plan, task files with acceptance blocks, T2 reviews, gate decisions | `agent/claude` |
 | Pi 5 runner | Pi, no AI | PR checks, nightly tests, soaks, benchmarks, fuzzing, static analysis, review packs | — |
 | Copilot | — | nothing for now (credits nearly gone) | — |
@@ -30,7 +30,7 @@ No agent reaches the Pi or the laptop. Pi work goes through the `pi5` runner on 
 - **Done is decided by the acceptance block:** run its `must_pass` lines (`python tools/dev.py accept <issue#>` once it exists), post the report, set `status/ready-to-merge` when green on the exact head. `pi:` lines run on the Pi runner.
 - **Approvals** (`docs/WORKFLOW.md` §3, approvals v3): T0 (docs, tests, `size/s`, CI fixes) merges on green. T1 (features, modules, UI, tools) merges on `Codex: approved for auto-merge <sha7>` after the self-review, or a ChatGPT/Claude line. T2 (engine threading/realtime, patch format, SDK) needs `ChatGPT: approved for auto-merge <sha7>` from a second pass, or a Claude line. T2-Claude (label-only, CI/guard, merge gate, specs, PLAN, ABI, milestones) needs `Claude: approved for auto-merge <sha7>`; a Claude-authored merge-control/CI/ABI change also needs the ChatGPT line. Claude may approve anything else, including its own planner docs. Any reviewer stops a PR with a High plus `status/blocked`. The tier is in the acceptance block.
 - **Merging** (`docs/WORKFLOW.md` §3b): nobody clicks merge. Set `status/ready-to-merge` after a green acceptance run on base `main`; the merge gate enables auto-merge once the current head has its approval line, and GitHub merges when required checks pass. Stacked PRs wait for retargeting. Never approve formally, dismiss reviews or change branch protection. Agent reviews are `COMMENT` only.
-- **Check-ins** (`docs/WORKFLOW.md` §3d): Claude checks in once a day (17:30 New York). The user starts Codex, which works the latest planner queue on #29. Two ChatGPT agents (reviewer, steward) run hourly watches.
+- **Check-ins** (`docs/WORKFLOW.md` §3d, roster in `docs/planner/CHATGPT_AGENTS.md`): Claude follows `docs/planner/CHECKIN.md` (Sonnet every 4 h, Opus on escalation and daily at 17:30 New York). The user starts Codex, a fresh chat per issue, from the queue on #29. One scheduled ChatGPT reviewer with a light steward duty; the UI and docs builders run on demand.
 - **Autonomous mode** (`docs/WORKFLOW.md` §3c) is the default: never idle while waiting, make the listed self-decisions and record them, self-review with the review pack before `status/ready-to-merge`.
 - Before you stop (done, near a limit, blocked): post the handoff below and set the status label.
 - Don't widen scope; ideas go under "Follow-ups".
@@ -42,7 +42,7 @@ ABI header edit · equivalence delta without a planner decision · test removal 
 - One issue per agent thread; start fresh per issue. Don't paste whole logs; tail on failure.
 - Don't run the full suite locally when CI will; run tests for touched files, push, read the CI summary.
 - Pi evidence only through the Pi runner and only for engine, DSP, audio-path or build changes. No re-runs after a merge from `main` that touches no compiled code.
-- Claude: fresh session per check-in; start from `docs/planner/STATE.md`; Sonnet for routine work, Opus only for T2-Claude reviews, Haiku for search.
+- Claude: fresh session per check-in; start from `docs/planner/STATE.md`; Sonnet for routine work, Opus for escalations, T2-Claude reviews and the daily check-in, Haiku for search.
 
 ## External agent queue (optional)
 For ≤3-file work that benefits from an independent strong model: build a split review pack, ask in the issue "External-queue task: run it outside, or should I do it myself?". Blocking work: ask once, then do it yourself. Non-blocking: label `external-queue` and move on. The user replies with a comment headed "External result". Detail: `docs/WORKFLOW.md` §7.
@@ -90,7 +90,7 @@ Status `status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · 
 Sol medium by default, Luna for mechanical edits, Sol high only after two failed attempts. At most one extra worker, only for independent work with stated file ownership.
 
 ## If you are ChatGPT
-Take `agent/chatgpt` issues and review-pack requests. You can't run builds: CI on your branch is your build; read its summary and fix. Post reviews as "ChatGPT pre-review" with severity and file:line.
+Take `agent/chatgpt` issues and review-pack requests. You can't run builds: CI on your branch is your build; read its summary and fix. Post reviews as "ChatGPT review" with severity and file:line (prompts in `docs/planner/CHATGPT_AGENTS.md`).
 
 ## If you are Claude
 Planner and T2 reviewer. A check-in reads "Now", open issues/PRs, latest handoffs and CI summaries, then updates "Now", the issues and task files (each with an acceptance block). Don't write feature code unless asked. Don't build in routine check-ins; gate reviews (`milestone-review`) may. After every review, end with "Next steps for you": the user's click-level steps in order, a paste-ready prompt per agent that acts next (issue, branch, task file, stop condition), and what can run in parallel.
