@@ -78,12 +78,12 @@ int main() {
     put32(ordered.data() + offset, uint32_t(second.size()));
     std::memcpy(ordered.data() + offset + 4, second.data(), second.size());
     calls = 0;
-    REQUIRE(parse(ordered.data(), ordered.size(),
-                  [&](const Message &message) {
-                      REQUIRE(message.address == (calls == 0 ? "/pico1/knob/3" : "/second"));
-                      ++calls;
-                  }) &&
-            calls == 2);
+    const bool orderedParsed = parse(ordered.data(), ordered.size(), [&](const Message &message) {
+        REQUIRE(message.address == (calls == 0 ? "/pico1/knob/3" : "/second"));
+        ++calls;
+    });
+    REQUIRE(orderedParsed);
+    REQUIRE(calls == 2);
     auto nested = bundle;
     for (int depth = 0; depth < 4; ++depth) {
         std::vector<uint8_t> next(20 + nested.size());
@@ -102,5 +102,7 @@ int main() {
         maximum = std::move(next);
     }
     calls = 0;
-    REQUIRE(parse(maximum.data(), maximum.size(), [&](const Message &) { ++calls; }) && calls == 1);
+    const bool maximumParsed = parse(maximum.data(), maximum.size(), [&](const Message &) { ++calls; });
+    REQUIRE(maximumParsed);
+    REQUIRE(calls == 1);
 }

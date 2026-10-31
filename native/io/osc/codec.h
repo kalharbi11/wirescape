@@ -37,7 +37,7 @@ inline bool string(const uint8_t *bytes, size_t size, size_t &at, std::string_vi
     return true;
 }
 namespace detail {
-template <class Emit> bool parse_message(const uint8_t *bytes, size_t size, Emit &emit) {
+template <class Emit> bool parse_message(const uint8_t *bytes, size_t size, Emit &receive) {
     Message message;
     size_t at = 0;
     std::string_view tags;
@@ -78,12 +78,12 @@ template <class Emit> bool parse_message(const uint8_t *bytes, size_t size, Emit
             return false; // arrays rejected
     }
     if (at != size) return false;
-    emit(message);
+    receive(message);
     return true;
 }
 } // namespace detail
 // Walk the same bounded bundle tree without recursion or dynamic allocation.
-template <class Emit> bool parse(const uint8_t *bytes, size_t size, Emit emit, uint32_t depth = 0) {
+template <class Emit> bool parse(const uint8_t *bytes, size_t size, Emit receive, uint32_t depth = 0) {
     struct Frame {
         const uint8_t *bytes;
         size_t size, at;
@@ -99,7 +99,7 @@ template <class Emit> bool parse(const uint8_t *bytes, size_t size, Emit emit, u
         if (!frame.entered) {
             if (!frame.bytes || !frame.size || frame.size > 65507 || (frame.size & 3)) return false;
             if (frame.size < 8 || std::memcmp(frame.bytes, "#bundle\0", 8) != 0) {
-                if (!detail::parse_message(frame.bytes, frame.size, emit)) return false;
+                if (!detail::parse_message(frame.bytes, frame.size, receive)) return false;
                 --used;
                 continue;
             }
