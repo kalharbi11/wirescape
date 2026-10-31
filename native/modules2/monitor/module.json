@@ -8,8 +8,8 @@
   "parameters": {},
   "inputs": {
     "events": "event",
-    "signal1": "signal",
-    "signal2": "signal"
+    "in1": "signal",
+    "in2": "signal"
   },
   "outputs": {}
 }

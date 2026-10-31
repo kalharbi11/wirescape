@@ -14,6 +14,9 @@ Planner authorization on #29 comment6536318466 permits2600changed lines/52files,
 including both catalogue-count updates and changed-line formatting. The host regression tests refusal
 of an unconfirmed LAN request using fake/offline routing; no LAN socket opens.
 
+Draft Monitor port IDs are aligned to the approved `in1`/`in2` names above;
+no existing module or port ID on main changes.
+
 ```acceptance
 tier: T2
 budget: 2 Codex sessions (remaining)

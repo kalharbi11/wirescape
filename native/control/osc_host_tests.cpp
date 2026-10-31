@@ -20,7 +20,7 @@ int main() {
     CHECK(!denied.start(nullptr, lan, 0, error));
     CHECK(error.find("LAN") != std::string::npos);
     const std::string patch =
-        R"({"format":"wirescape.native.patch","version":2,"settings":{},"modules":[{"id":1,"module":"osc.in","version":1,"parameters":{},"config":{"rows":[{"pattern":"/knob","smoothing_ms":0}]}},{"id":2,"module":"monitor","version":1,"parameters":{},"config":{"prefix":"Pico"}},{"id":3,"module":"essentials.vco","version":1,"parameters":{}}],"connections":[{"kind":"event","from":{"module":1,"port":"messages"},"to":{"module":2,"port":"events"}},{"kind":"signal","from":{"module":1,"port":"row1"},"to":{"module":2,"port":"signal1"}}],"outputs":[{"module":3,"port":"audio","bus_channel":0}]})";
+        R"({"format":"wirescape.native.patch","version":2,"settings":{},"modules":[{"id":1,"module":"osc.in","version":1,"parameters":{},"config":{"rows":[{"pattern":"/knob","smoothing_ms":0}]}},{"id":2,"module":"monitor","version":1,"parameters":{},"config":{"prefix":"Pico"}},{"id":3,"module":"essentials.vco","version":1,"parameters":{}}],"connections":[{"kind":"event","from":{"module":1,"port":"messages"},"to":{"module":2,"port":"events"}},{"kind":"signal","from":{"module":1,"port":"row1"},"to":{"module":2,"port":"in1"}}],"outputs":[{"module":3,"port":"audio","bus_channel":0}]})";
     ws_engine_config config{sizeof(config), 48000, 128, 64, 2048};
     std::unique_ptr<AppEngine, decltype(&app_engine_destroy)> catalog(app_engine_create(&config), app_engine_destroy);
     std::unique_ptr<AppEngine, decltype(&app_engine_destroy)> engine(

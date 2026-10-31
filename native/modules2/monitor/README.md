@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Monitor (`monitor`)
 
-One fan-in event input `events`, plus `signal1` and `signal2`. No outputs. Configuration
+One fan-in event input `events`, plus `in1` and `in2`. No outputs. Configuration
 JSON is `{ "prefix": "Pico" }`; the host supplies the tap internally, never a saved
 pointer. The app's log dialog provides pause/clear/counters; `play --monitor` drains
 the same binary entries to stderr on the control thread.

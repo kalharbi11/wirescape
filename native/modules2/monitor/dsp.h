@@ -8,8 +8,7 @@ namespace wirescape::monitor {
 struct Monitor {
     static constexpr ws::Info info{"monitor", "Monitor", 1};
     static constexpr std::array inputs{ws::port("events", "Events", WS2_EV_MESSAGE, WS2_POLY, 0, nullptr, WS2_EVENT),
-                                       ws::port("signal1", "Signal 1", WS2_ANY),
-                                       ws::port("signal2", "Signal 2", WS2_ANY)};
+                                       ws::port("in1", "Signal 1", WS2_ANY), ws::port("in2", "Signal 2", WS2_ANY)};
     static constexpr std::array<ws2_port, 0> outputs{};
     static constexpr std::array<ws2_param, 0> params{};
     struct Key {
