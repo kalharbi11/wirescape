@@ -59,6 +59,11 @@ int app_engine_copy_modules(AppEngine*e,const AppEngine*source){
 int app_engine_load_module(AppEngine*e,const char*path){int r=ws_engine_load_module(e->legacy.get(),path);if(r!=WS_OK)return r;for(uint32_t i=0;i<ws_engine_module_count(e->legacy.get());++i)app_engine_register_module(e,ws_engine_module(e->legacy.get(),i));return WS_OK;}
 uint32_t app_engine_module_count(const AppEngine*e){return static_cast<uint32_t>(e->entries.size());}
 const ws_module_descriptor* app_engine_module(const AppEngine*e,uint32_t i){return i<e->entries.size()?&e->entries[i].metadata:nullptr;}
+const ws2_descriptor *app_engine_native_descriptor(const AppEngine *e, const char *module) {
+    if (!e || !module) return nullptr;
+    const auto *entry = e->find(module);
+    return entry ? entry->native : nullptr;
+}
 int app_engine_add_node(AppEngine*e,uint32_t id,const char*type){return app_engine_add_node_config(e,id,type,{});}
 int app_engine_add_node_config(AppEngine*e,uint32_t id,const char*type,const std::vector<uint8_t>&config){auto*d=e->find(type);if(!d)return WS_NOT_FOUND;bool ok=d->native?e->engine.add_node(id,d->native,config):(config.empty()&&e->engine.add_abi1(id,&d->metadata));if(ok)e->nodes[id]=d;return ok?WS_OK:WS_GRAPH;}
 int app_engine_connect(AppEngine*e,uint32_t a,uint32_t ap,uint32_t b,uint32_t bp){return e->engine.connect(a,ap,b,bp)?WS_OK:WS_GRAPH;}
