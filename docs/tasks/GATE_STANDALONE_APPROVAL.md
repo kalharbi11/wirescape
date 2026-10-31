@@ -13,7 +13,7 @@ tiers and required checks exactly as they are.
 **Read first:** `tools/merge_gate.py`, `tools/foundation/tests/test_merge_gate.py`, #173, review on #175.
 
 ```acceptance
-tier: T2-Claude
+tier: T2
 budget: 1 Codex session
 size: <= 120 changed lines, <= 3 files
 must_pass:
@@ -21,6 +21,6 @@ must_pass:
   - tests: valid standalone T1/T2/Claude lines pass; fenced, 4-space, tab, blockquote, list, quoted,
     negated ("not approved for auto-merge"), inline-in-prose and wrong-sha lines all fail
   - ci: guard, static, acceptance green on the exact head
-review: independent ChatGPT reviewer line, then "Claude: approved for auto-merge <sha7>" (Claude wrote #175)
+review: T2-Claude (gate code). Independent ChatGPT reviewer line, then "Claude: approved for auto-merge <sha7>" (Claude wrote #175)
 stops: [any change to required checks, owner restriction or tier rules; workflow edits]
 ```
