@@ -40,6 +40,29 @@ static void fanout_identity_disconnect() {
     backend.list.push_back({"A renamed", "sys:A"}); service.poll(); REQUIRE(backend.opens == 3); REQUIRE(service.endpoint_states()[0].online);
     REQUIRE(service.endpoint_states()[0].saved.name == "A"); // saved label, never reassigned by enumeration index
 }
+static void per_endpoint_counts() {
+    Fake backend;
+    Output out;
+    // Two input endpoints on one controller can share the display name.
+    backend.list = {{"Launchkey", "notes"}, {"Launchkey", "daw"}};
+    Service service(backend, out.sink());
+    REQUIRE(service.enable({"Launchkey", "notes"}));
+    REQUIRE(service.enable({"Launchkey", "daw"}));
+    REQUIRE(service.subscribe({1, {}, true}));
+    service.poll();
+    REQUIRE(backend.opens == 2);
+    backend.bytes("notes", {0x90, 60, 100}, 1);
+    service.poll();
+    auto states = service.endpoint_states();
+    REQUIRE(states.size() == 2);
+    REQUIRE(states[0].saved.system_name == "notes" && states[0].received == 1);
+    REQUIRE(states[1].saved.system_name == "daw" && states[1].received == 0);
+    backend.bytes("daw", {0x90, 62, 100}, 2);
+    service.poll();
+    states = service.endpoint_states();
+    REQUIRE(states[0].received == 1 && states[1].received == 1);
+    REQUIRE(states[0].source_id != states[1].source_id);
+}
 static void protocol_bounds_and_reserve() {
     Fake backend; Output out; Service service(backend, out.sink()); REQUIRE(service.enable({"A", "sys:A"})); REQUIRE(service.subscribe({1, {}, true})); service.poll();
     backend.bytes("sys:A", {0x70, 60, 1}, 0); backend.bytes("sys:A", {0x90, 200, 1}, 0); backend.bytes("sys:A", {0xf0, 1, 2, 3, 0xf7}, 0);
@@ -90,6 +113,7 @@ static void missing_and_shutdown() {
     REQUIRE(!real_backend(false));
 }
 int main() {
+    per_endpoint_counts();
     saturated_source_isolation();
     fanout_identity_disconnect();
     protocol_bounds_and_reserve();

@@ -50,7 +50,9 @@ void Service::ump(void* context, const uint32_t* words, size_t count, uint64_t t
     if (count != wanted) { ++service.malformed_; return; }
     Packet packet; packet.timestamp = timestamp; auto& event = packet.event;
     event.struct_size = sizeof(event); event.type = WS2_MIDI; event.source_id = slot.source; event.channel = -1; event.note_id = -1; event.ump_words = uint32_t(count);
-    std::copy_n(words, count, event.ump); ++service.received_;
+    std::copy_n(words, count, event.ump);
+    ++service.received_;
+    ++slot.received;
     if (type == 2 && ((words[0] >> 20) & 15) == 11) {
         const uint32_t channel = (words[0] >> 16) & 15, controller = (words[0] >> 8) & 127, value = words[0] & 127;
         if (controller == 101) slot.rpn_msb[channel] = uint8_t(value);
@@ -129,7 +131,8 @@ void Service::stop() {
 Counters Service::counters() const noexcept { return {received_, dropped_, malformed_, oversize_, ring_full_, disconnects_, send_fail_, ignored_rpn_}; }
 std::vector<EndpointState> Service::endpoint_states() const {
     std::vector<EndpointState> states;
-    for (size_t i = 0; i < count_; ++i) states.push_back({slots_[i]->saved, slots_[i]->source, slots_[i]->online.load()});
+    for (size_t i = 0; i < count_; ++i)
+        states.push_back({slots_[i]->saved, slots_[i]->source, slots_[i]->online.load(), slots_[i]->received.load()});
     return states;
 }
 }

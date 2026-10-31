@@ -3,18 +3,19 @@
 #include "wirescape/output_policy.h"
 #include <QCoreApplication>
 #include <QDataStream>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QMap>
 #include <QSaveFile>
 #include <QSet>
-#include <QMap>
-#include <QDateTime>
-#include <functional>
+#include <QSettings>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <limits>
 #include <vector>
 
@@ -48,7 +49,23 @@ QString display(double value, const QString& unit) {
 }
 }
 
-StudioController::StudioController(QString directory, QObject* parent, PatchWriter writer, bool confirmMidi) : QObject(parent), directory_(std::move(directory)), patchWriter_(std::move(writer)), midi_(confirmMidi) {
+StudioController::StudioController(QString directory, QObject *parent, PatchWriter writer, bool confirmMidi,
+                                   MidiPreference midiPreference, std::unique_ptr<wirescape::midi::Backend> fakeMidi,
+                                   const QString &midiSettingsPath)
+    : QObject(parent), directory_(std::move(directory)), patchWriter_(std::move(writer)),
+      midi_(confirmMidi, std::move(fakeMidi)) {
+    if (midiPreference == MidiPreference::Interactive) {
+        midiPreferences_ = midiSettingsPath.isEmpty()
+                               ? std::make_unique<QSettings>()
+                               : std::make_unique<QSettings>(midiSettingsPath, QSettings::IniFormat);
+        if (midiPreferences_->value("midi/enabled", false).toBool()) {
+            try {
+                midi_.authorize(true);
+            } catch (const std::exception &e) {
+                notice_ = QString::fromUtf8(e.what());
+            }
+        }
+    }
     if (!patchWriter_) patchWriter_ = [](const QString& path, const QByteArray& bytes, QString& error) {
         QSaveFile file(path);
         if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit()) {
@@ -93,6 +110,17 @@ StudioController::~StudioController() { midi_.stop(); if (!audio_.stop()) {
     [[maybe_unused]] auto* quarantinedCatalog = catalog_.release();
 } }
 
+static QString portKind(const AppEngine *catalog, const ws_module_descriptor *module, uint32_t index, bool output) {
+    const auto *native = app_engine_native_descriptor(catalog, module->id);
+    if (native) {
+        const auto count = output ? native->output_count : native->input_count;
+        const auto *ports = output ? native->outputs : native->inputs;
+        if (index < count && ports[index].kind == WS2_EVENT) return QStringLiteral("event");
+    }
+    const auto *ports = output ? module->outputs : module->inputs;
+    return ports[index].kind == WS_AUDIO ? QStringLiteral("audio") : QStringLiteral("control");
+}
+
 const ws_module_descriptor* StudioController::descriptor(const QString& id) const {
     if (!catalog_) return nullptr;
     for (uint32_t i = 0; i < app_engine_module_count(catalog_.get()); ++i) {
@@ -120,8 +148,14 @@ QVariantList StudioController::modules() const {
         const auto node = item.toObject(); const auto* d = descriptor(node.value("type").toString());
         QVariantList inputs, outputs, parameters;
         if (d) {
-            for (uint32_t i = 0; i < d->input_count; ++i) inputs.append(QVariantMap{{"id", text(d->inputs[i].id)}, {"label", text(d->inputs[i].name)}, {"kind", d->inputs[i].kind == WS_AUDIO ? "audio" : "control"}});
-            for (uint32_t i = 0; i < d->output_count; ++i) outputs.append(QVariantMap{{"id", text(d->outputs[i].id)}, {"label", text(d->outputs[i].name)}, {"kind", d->outputs[i].kind == WS_AUDIO ? "audio" : "control"}});
+            for (uint32_t i = 0; i < d->input_count; ++i)
+                inputs.append(QVariantMap{{"id", text(d->inputs[i].id)},
+                                          {"label", text(d->inputs[i].name)},
+                                          {"kind", portKind(catalog_.get(), d, i, false)}});
+            for (uint32_t i = 0; i < d->output_count; ++i)
+                outputs.append(QVariantMap{{"id", text(d->outputs[i].id)},
+                                           {"label", text(d->outputs[i].name)},
+                                           {"kind", portKind(catalog_.get(), d, i, true)}});
             const auto values = node.value("values").toObject();
             for (uint32_t i = 0; i < d->parameter_count; ++i) { const auto& p = d->parameters[i]; const double v = values.value(QString::number(p.id)).toDouble(p.initial); parameters.append(QVariantMap{{"id", p.id}, {"name", text(p.name)}, {"minimum", p.minimum}, {"maximum", p.maximum}, {"value", v}, {"unit", text(p.unit)}, {"display", display(v, text(p.unit))}}); }
         }
@@ -204,7 +238,11 @@ bool StudioController::validateDocument(const QJsonObject& doc, QString& error) 
     for (const auto& item : cables) {
         if (!item.isObject()) return fail("Each cable must be an object.");
         const auto c = item.toObject();
-        if (!integer(c.value("fromNode"), 1) || !integer(c.value("toNode"), 1) || !c.value("fromPort").isString() || c.value("fromPort").toString().isEmpty() || !c.value("toPort").isString() || c.value("toPort").toString().isEmpty() || (c.value("kind") != "audio" && c.value("kind") != "control")) return fail("A cable has invalid field types.");
+        if (!integer(c.value("fromNode"), 1) || !integer(c.value("toNode"), 1) || !c.value("fromPort").isString() ||
+            c.value("fromPort").toString().isEmpty() || !c.value("toPort").isString() ||
+            c.value("toPort").toString().isEmpty() ||
+            (c.value("kind") != "audio" && c.value("kind") != "control" && c.value("kind") != "event"))
+            return fail("A cable has invalid field types.");
         const int a = c.value("fromNode").toInt(), b = c.value("toNode").toInt();
         if (!types.contains(a) || !types.contains(b) || a == b) return fail("A cable references an invalid module.");
         const QString input = QString::number(b) + ":" + c.value("toPort").toString();
@@ -213,8 +251,10 @@ bool StudioController::validateDocument(const QJsonObject& doc, QString& error) 
         const auto* source = types[a]; const auto* destination = types[b];
         const int sp = source ? portIndex(source->outputs, source->output_count, c.value("fromPort").toString()) : -1;
         const int dp = destination ? portIndex(destination->inputs, destination->input_count, c.value("toPort").toString()) : -1;
-        const auto kind = c.value("kind") == "audio" ? WS_AUDIO : WS_CONTROL;
-        if ((source && (sp < 0 || source->outputs[sp].kind != kind)) || (destination && (dp < 0 || destination->inputs[dp].kind != kind))) return fail("A cable has an invalid port or incompatible signal type.");
+        const auto kind = c.value("kind").toString();
+        if ((source && (sp < 0 || portKind(catalog_.get(), source, uint32_t(sp), true) != kind)) ||
+            (destination && (dp < 0 || portKind(catalog_.get(), destination, uint32_t(dp), false) != kind)))
+            return fail("A cable has an invalid port or incompatible signal type.");
     }
     QSet<int> visiting, visited;
     std::function<bool(int)> cycle = [&](int node) { if (visiting.contains(node)) return true; if (visited.contains(node)) return false; visiting.insert(node); for (int next : edges.value(node)) if (cycle(next)) return true; visiting.remove(node); visited.insert(node); return false; };
@@ -302,9 +342,18 @@ void StudioController::removeModule(int id) {
 void StudioController::connectPorts(int from, const QString& port, int to, const QString& input) {
     const auto* source = nodeDescriptor(from); const auto* destination = nodeDescriptor(to); if (!source || !destination) return;
     const int a = portIndex(source->outputs, source->output_count, port), b = portIndex(destination->inputs, destination->input_count, input);
-    if (a < 0 || b < 0 || source->outputs[a].kind != destination->inputs[b].kind) { setError("Audio and control ports need an explicit converter."); return; }
+    if (a < 0 || b < 0 ||
+        portKind(catalog_.get(), source, uint32_t(a), true) !=
+            portKind(catalog_.get(), destination, uint32_t(b), false)) {
+        setError("Audio, control and event ports need compatible endpoints.");
+        return;
+    }
     auto next = document_; auto cables = next.value("connections").toArray();
-    cables.append(QJsonObject{{"fromNode", from}, {"fromPort", port}, {"toNode", to}, {"toPort", input}, {"kind", source->outputs[a].kind == WS_AUDIO ? "audio" : "control"}});
+    cables.append(QJsonObject{{"fromNode", from},
+                              {"fromPort", port},
+                              {"toNode", to},
+                              {"toPort", input},
+                              {"kind", portKind(catalog_.get(), source, uint32_t(a), true)}});
     next["connections"] = cables; commitTopology(next);
 }
 
@@ -333,7 +382,17 @@ void StudioController::startAudio() {
     if (running()) return;
     if (audio_.hasStream()) { setError("Device cleanup is pending. Stop audio again before restarting."); return; }
     if (!compileDocument()) return;
-    if (!audio_.initialize(directory_) || !audio_.startRender(engine_.get(), [](void* e,float* out,uint32_t n){return app_engine_render(static_cast<AppEngine*>(e),out,n);}, device_, 48000, blockSize())) { setError(audio_.error()); return; }
+    if (!audio_.initialize(directory_) || !audio_.startRender(
+                                              engine_.get(),
+                                              [](void *e, float *out, uint32_t n) {
+                                                  float *rows[]{out};
+                                                  return app_engine_render_live(static_cast<AppEngine *>(e), rows, 1, n,
+                                                                                app_engine_clock_ns());
+                                              },
+                                              device_, 48000, blockSize())) {
+        setError(audio_.error());
+        return;
+    }
     std::string midiError;
     if(!midi_.start(engine_.get(),QJsonDocument(document_).toJson().toStdString(),midiError)){stopAudio();setError(QString::fromStdString(midiError));return;}
     lastSessionMeter_ = {}; setError({}); emit statusChanged();
@@ -518,14 +577,50 @@ bool StudioController::keyboardChordCheck(QJsonObject &result) {
 }
 
 QVariantList StudioController::midiEndpoints(){
- QVariantList result;if(running()||audio_.engineInUse())return result;
+    QVariantList result;
+    if (running() || audio_.engineInUse()) {
+        for (const auto &e : midi_.enabled())
+            result.append(QVariantMap{{"name", QString::fromStdString(e.name)},
+                                      {"systemName", QString::fromStdString(e.system_name)},
+                                      {"enabled", true}});
+        return result;
+    }
  try{for(const auto&e:midi_.endpoints()){bool enabled=false;for(const auto&s:midi_.enabled())enabled|=s.name==e.name&&s.system_name==e.system_name;result.append(QVariantMap{{"name",QString::fromStdString(e.name)},{"systemName",QString::fromStdString(e.system_name)},{"enabled",enabled}});}}
  catch(const std::exception&e){setError(QString::fromUtf8(e.what()));}return result;
+}
+void StudioController::setMidiAuthorized(bool enabled) {
+    if (!midiPreferences_) {
+        setError("MIDI preferences are disabled in offline checks and probes.");
+        return;
+    }
+    if (running() || audio_.engineInUse()) {
+        setError("Stop playback before changing MIDI authorization.");
+        return;
+    }
+    const bool previous = midi_.authorized();
+    try {
+        midi_.authorize(enabled);
+        midiPreferences_->setValue("midi/enabled", enabled);
+        midiPreferences_->sync();
+        if (midiPreferences_->status() != QSettings::NoError) {
+            midi_.authorize(previous);
+            setError("Could not save MIDI preference.");
+            return;
+        }
+    } catch (const std::exception &e) {
+        setError(QString::fromUtf8(e.what()));
+        return;
+    }
+    setError({});
+    emit statusChanged();
 }
 void StudioController::refreshMidi(){if(!running()&&!audio_.engineInUse())emit statusChanged();}
 void StudioController::setMidiEndpoint(const QString&name,const QString&system,bool enabled){
  if(running()||audio_.engineInUse()){setError("Stop playback before changing MIDI endpoints.");return;}
- if(!midi_.authorized()){setError("MIDI requires launch with --confirm-midi.");return;}
+ if (!midi_.authorized()) {
+     setError("Enable MIDI in the input settings first.");
+     return;
+ }
  midi_.select({name.toStdString(),system.toStdString()},enabled);dirty_=true;emit statusChanged();
 }
 

@@ -14,7 +14,12 @@ struct Sink {
     int (*emit)(void*, uint32_t node, const ws2_event&, uint64_t timestamp_ns) noexcept = nullptr;
 };
 struct Counters { uint64_t received = 0, dropped = 0, malformed = 0, oversize = 0, ring_full = 0, disconnects = 0, send_fail = 0, ignored_rpn = 0; };
-struct EndpointState { Selection saved; uint32_t source_id = 0; bool online = false; };
+struct EndpointState {
+    Selection saved;
+    uint32_t source_id = 0;
+    bool online = false;
+    uint64_t received = 0;
+};
 // All configuration is quiescent. Worker owns enumeration/pump; callbacks only push
 // their own SPSC ring. Stop joins producers and drains releases before host teardown.
 class Service {
@@ -46,6 +51,7 @@ private:
         std::array<uint8_t, 16> rpn_msb{}, rpn_lsb{};
         Slot() { rpn_msb.fill(127); rpn_lsb.fill(127); }
         std::atomic<bool> accepting{false}, online{false}, emergency{false};
+        std::atomic<uint64_t> received{0};
     };
     Backend& backend_;
     Sink sink_;

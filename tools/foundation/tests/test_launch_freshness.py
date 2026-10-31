@@ -74,6 +74,7 @@ class LaunchFreshnessTests(unittest.TestCase):
                     self.assertIn("python tools/dev.py build --config Release", captured[0]["summary"])
                 else:
                     ready.assert_called_once()
+                    self.assertEqual(ready.call_args.args[0], [str(exe), "--interactive-ready-report"])
                     self.assertIn("audio has not started", captured[0]["summary"])
 
     def test_failed_build_invalidates_previous_gui_certificate(self):
@@ -118,3 +119,4 @@ class LaunchFreshnessTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -609,7 +609,7 @@ def command_launch(args: argparse.Namespace) -> int:
             print(json.dumps(runtime, indent=2))
     env["QT_FORCE_STDERR_LOGGING"] = "1"
     ready_path = _unique_report_path("studio-ready", ".json")
-    result = wait_for_readiness([str(executable)], ROOT, _unique_report_path("studio-launch", ".log"),
+    result = wait_for_readiness([str(executable), "--interactive-ready-report"], ROOT, _unique_report_path("studio-launch", ".log"),
                                 ready_path, env, timeout=20)
     success = result["ready"]
     record.update(status="passed" if success else "failed",
@@ -994,4 +994,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
