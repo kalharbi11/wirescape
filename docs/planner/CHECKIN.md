@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Claude check-ins: routine (Sonnet, every 3 h) and escalation (Opus)
+# Claude check-ins: routine (Sonnet, every 4 h) and escalation (Opus)
 
 Every check-in is a **fresh session**. Never continue an old chat. State lives in `STATE.md` and on #29.
 Tools: the `mcp__github__*` tools (no `gh` CLI), REST-style, never GraphQL. Tail logs, don't read them whole.

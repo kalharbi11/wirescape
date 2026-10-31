@@ -6,7 +6,7 @@ Keep this under 80 lines. Rewrite it at the end of each check-in; history lives 
 **Updated:** 2026-10-31 afternoon, New York.
 
 ## Check-in recipe
-Follow `docs/planner/CHECKIN.md`: routine Sonnet every 3 h, Opus for escalations and daily at 17:30.
+Follow `docs/planner/CHECKIN.md`: routine Sonnet every 4 h, Opus for escalations and daily at 17:30.
 
 ## Deferred for Opus
 (Sonnet adds `- #N sha7: question (since date time)`; Opus empties this list.)
