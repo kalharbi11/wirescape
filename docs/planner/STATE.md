@@ -3,7 +3,7 @@
 
 Keep this under 80 lines. Rewrite it at the end of each check-in; history lives in git.
 
-**Updated:** 2026-10-31 New York.
+**Updated:** 2026-10-31 afternoon, New York.
 
 ## Check-in recipe (cheap)
 1. Read this file. Skip PLAN.md, WORKFLOW.md and task files unless an item below needs them.
@@ -15,31 +15,28 @@ Keep this under 80 lines. Rewrite it at the end of each check-in; history lives 
 Owner Jam report #182 drives priorities until the owner retests and closes it. J9 #45 is the owner's session.
 
 ## Merged
-J1, J2 poly, J4 MIDI #81, J6 Macro, J7 CHAOS #124, Clock, fullscreen, layout #145, controls #147,
-kiosk docs #169, author guide #170, Macro catalogue #171, goldens #138, M2 dossier #191, tooltips #189 (#185).
+J1, J2 poly, J4 MIDI #81, J6 Macro, J7 CHAOS #124, Clock, fullscreen, layout #145, controls #147, kiosk docs #169,
+author guide #170, Macro catalogue #171, goldens #138, M2 dossier #191, tooltips #189, cable editing #190,
+MIDI routing #193, M3-1 design #197 (#177 closed), event cable identity #199, M3-3 feedback design #202.
 
-## Jam report #182 (top of the queue)
-| Issue | PR | Owner | State |
+## Open work (queue comment 6540585199 on #29)
+| PR | Issue | Owner | State |
 |---|---|---|---|
-| #183 cable editing | #190 `5d8232f` | Codex | T1 pre-review: no open High; Codex settles the QPointer analyzer note, then ready label + gate |
-| #184 MIDI routing | #193 `f2fc382` | Codex | T2 second pass: High (`--ready-report` alone can enable saved MIDI consent); fix + fake test, then fresh T2 |
-| #185 tooltips | #189 | UI | merged |
-| #186 live editing | #194 (draft, stacked on #190) | Codex | after #190 merges; retarget |
-| #187 starter patches | #192 `14c25cb` | UI | T1 pre-review: Highs (Windows UI load/layout/static on this head) |
-| #188 launcher/update | #195 (draft) | Codex | CI fixes in progress |
+| #203 | #201 transport focus | Codex | T1 reviewed; acceptance + ready label |
+| #194 | #186 live editing | Codex | draft; part 2 park/edit/resume, T2 + Claude review |
+| #195 | #188 launcher/update | Codex | Medium: `updates` vs stale GUI `current`; fake test, fresh T1 |
+| #200 | #140 audio output | Codex | T2 (no Claude path); two ChatGPT passes |
+| #82 | #72 OSC | Codex | draft; merge main + real-timestamp regression |
+| #192 | #187 starter patches | UI | merge main, rerun studio_ui_tests, fresh T1 |
+| #204 | #178 stereo pairs | UI | base branch merged via #199: retarget to main |
+| #181 | #180 module guide | docs | draft; T1, link #170 |
+| #175 | #173 gate fix | **owner** | clean T2 line at `f69bdba`; Claude co-authored, owner posts the Claude line or merges |
+| #161 | #159 portability | parked | Cortex is non-required (authorization v2 item 4) |
 
 ## Next phase (below #182)
-- #163 MIDI: extend existing `midi.to_cv` / `midi.cc_to_cv` (no new modules). Codex, after #184.
-- #177 M3-1 parameter-edge design: **owner approved doing it**; design PR stays `milestone-review`, Claude gates.
-- #178 M3-2 stereo pairs: UI agent after #187 (controller change authorized; see #178 handoff).
-- #179 M3-3 feedback design: docs agent, not prioritized.
-- Later: #80 J3, #82 J5 OSC (cap 50), #161 portability (parked), #175 gate fix, #143, #140.
-
-## Planner decisions pending / waiting on Claude
-- #175 / #173 merge-gate fix: task scope + protected-path line written on #173 (2026-10-31). Codex fixes the
-  indented-code High; Claude wrote #175, so the **reviewer's** independent line plus a Claude line on the new head.
-- #161: parked. Cortex is a non-required check (authorization v2 item 4); revisit after #182.
-- #177 design review when its PR appears (T2-Claude, Opus).
+- #163 MIDI: extend `midi.to_cv` / `midi.cc_to_cv`. Codex, after #82.
+- M3-1 implementation issue: write after #182 items land (design approved on #177).
+- Later: #80 J3, #143 telemetry, `<details>` gate Low (from #175 review).
 
 ## Standing authorization v2 (#29, comment 6534860663)
 Valid until revoked. Formatting never stops; +50% size; offscreen/fake evidence stands in for devices;
