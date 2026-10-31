@@ -65,6 +65,7 @@ class LaunchFreshnessTests(unittest.TestCase):
                      patch.object(dev, "_save_record", side_effect=save), \
                      patch.object(dev, "_print_record"), \
                      patch.object(dev, "_qt_runtime_env", return_value={}), \
+                     patch.object(dev, "_launcher_dependencies", return_value={"qt": {"path": str(root / "qt")}, "portaudio": {"path": str(root / "libportaudio64bit.dll")}}), \
                      patch.object(dev, "wait_for_readiness", return_value={"ready": True}) as ready:
                     result = dev.command_launch(argparse.Namespace(config="Release", json=False))
                 self.assertEqual(result, expected)
@@ -118,3 +119,4 @@ class LaunchFreshnessTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

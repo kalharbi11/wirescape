@@ -5,11 +5,12 @@ Keep this under 80 lines. Rewrite it at the end of each check-in; history lives 
 
 **Updated:** 2026-10-31 afternoon, New York.
 
-## Check-in recipe (cheap)
-1. Read this file. Skip PLAN.md, WORKFLOW.md and task files unless an item below needs them.
-2. One REST query each: open PRs, issues labelled `needs-planner`, the last 3 comments on #29. Tail, never read whole logs.
-3. Act only on `needs-planner` items, T2-Claude gates and queue refills (fewer than 3 `status/todo`).
-4. Rewrite this file (small PR, auto-merge), post one queue comment on #29, stop.
+## Check-in recipe
+Follow `docs/planner/CHECKIN.md`: routine Sonnet every 4 h, Opus for escalations and daily at 17:30.
+
+## Deferred for Opus
+(Sonnet adds `- #N sha7: question (since date time)`; Opus empties this list.)
+- #206 `2706ce1`: approvals v3. Needs an independent ChatGPT T2 line, then the **owner's** Claude line (Claude wrote it).
 
 ## Goal
 Owner Jam report #182 drives priorities until the owner retests and closes it. J9 #45 is the owner's session.
@@ -44,8 +45,8 @@ inherited non-required checks don't block; ChatGPT reviewer posts T1/T2 gate lin
 patch-format/ID changes, new deps, test removal, looser thresholds, protected paths, real devices, force-push.
 
 ## Agents
-- Codex (owner starts it; reads #29), ChatGPT reviewer + steward (hourly), UI agent, docs agent
-  (prompts: `docs/planner/CHATGPT_AGENTS.md`). Sonnet routine every 4 h: quick approvals, labels `needs-planner`.
+- Lean roster (`docs/planner/CHATGPT_AGENTS.md`): Codex per issue (owner starts it; reads #29); one ChatGPT
+  reviewer + light steward every 4 h; UI and docs builders on demand. Claude: `CHECKIN.md`.
 - Merge gate: `tools/merge_gate.py` + `.github/workflows/merge_gate.yml` auto-merge on `status/ready-to-merge`
   plus a standalone gate line for the current head.
 

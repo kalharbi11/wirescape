@@ -35,7 +35,7 @@ mistake is hard to undo (merge control, CI, ABI). The owner approves nothing rou
 
 Rules that keep it safe:
 - **Any reviewer can stop any PR** by posting a High and setting `status/blocked`; the gate never merges a blocked PR. A builder never approves over an open High.
-- **Codex self-approval (T1)** comes after the `Self-review` comment (§3c) and a green `accept` run. ChatGPT's hourly watch still reviews T1 heads; a High found after merge becomes a fix issue the same day.
+- **Codex self-approval (T1)** comes after the `Self-review` comment (§3c) and a green `accept` run. No ChatGPT pre-review is required for T1; the scheduled reviewer still reviews T1 heads when it reaches them, and a High found after merge becomes a fix issue the same day.
 - **Claude approves anything**, including its own planner docs and `docs/PLAN.md`. The only thing Claude can't approve alone is its own merge-control/CI/ABI change (row above).
 - **Tier comes from the task file**; when the diff touches a higher tier's paths, the higher tier wins (the gate enforces the Claude paths itself).
 - **Owner-only:** licence changes, `legacy/**`, `docs/history/**`, branch protection, revoking authorization, and real-device results.
@@ -70,7 +70,7 @@ Goal: agents keep moving without the user or Claude in the loop, and every short
 
 **Still a stop** (ask on the issue, block only that item; Claude rules, the owner isn't needed): ABI header edit, new dependency, equivalence or hash delta beyond a planner-set bound, deleting or skipping tests, label-only paths, a security finding, or a design choice that changes IDs, file formats or user-visible behaviour not in the spec.
 
-**Self-review before `status/ready-to-merge`:** run `python tools/review_pack.py <PR#> --prompt chatgpt`, read it against its checklist (realtime, IDs, state/versioning, thresholds, licences, devices) and post a `Self-review` comment with each item ticked or explained. T1 additionally needs the ChatGPT pre-review (posted by ChatGPT's scheduled watch).
+**Self-review before `status/ready-to-merge`:** run `python tools/review_pack.py <PR#> --prompt chatgpt`, read it against its checklist (realtime, IDs, state/versioning, thresholds, licences, devices) and post a `Self-review` comment with each item ticked or explained. T1 then takes the Codex line (section 3).
 
 **Approval lines** follow section 3; any new push needs a fresh line. Stacked children are retargeted to `main` automatically by GitHub once their parent merges; then the builder re-runs their acceptance against `main` and treats them as normal PRs.
 
@@ -80,24 +80,24 @@ Goal: agents keep moving without the user or Claude in the loop, and every short
 | When | Who | What |
 |---|---|---|
 | every 5 min | Pi runner daemon | `pi5`, `pi5/soak`, `pi5/accept` (task `pi-run:` lines) on eligible PR heads |
-| hourly | ChatGPT reviewer watch | for each open PR on `main`: pre-review (T1) or second review (T2) on the current head, ending with the gate phrase |
-| hourly | ChatGPT steward watch | stuck PRs, labels, retargeted stacks, Pi labels; one summary on #101 at 07:00 |
+| every 4 h | ChatGPT reviewer + light steward | new PR heads on `main`: review with the gate line; retargets, ready labels, Pi retries; summary on #101 at 17:00 only if changed |
+| every 4 h | Claude routine (Sonnet) | `docs/planner/CHECKIN.md`; escalates to Opus only when urgent |
 | hourly | Laptop runner | once per new `main` SHA: full Windows (Qt) build, tests, benchmark → "Laptop nightly summary" issue |
 | 03:17 | Pi runner | nightly: full tests, 600 s soaks, benchmark, render hashes → #101 |
 | see §3d | Claude scheduled check-in | T2-Claude reviews, plan and queues |
 | any time | Codex long task | works the queue in order, never idle (above) |
 
 ## 3d. Check-ins and agent hand-offs (from 2026-10-29: Claude usage is scarce)
-**Claude:** one check-in a day at **17:30 New York**, a fresh session each time (Sonnet; Opus only for a T2-Claude review). It reads `docs/planner/STATE.md` first and only what that file points to, then:
+**Claude:** follows `docs/planner/CHECKIN.md`: Sonnet every 4 h, Opus on escalation and once a day at **17:30 New York**, a fresh session each time. It reads `docs/planner/STATE.md` first and only what that file points to, then:
 1. Reviews PRs waiting on T2-Claude and posts the gate phrase when sound.
-2. Fixes what the steward reported as blocked that needs a planner decision.
+2. Fixes what the reviewer's steward duty reported as blocked that needs a planner decision.
 3. Adds the next issues (with acceptance blocks) so the queues never run dry.
 4. Rewrites `docs/planner/STATE.md` (merged via its own T0 PR) and posts the Codex queue on #29.
 Weekly (Mondays): audits PRs merged on ChatGPT approvals since the last audit.
 
 **Codex:** started by the user; it works the latest planner queue on #29 under §3c.
 
-**ChatGPT (two scheduled agents, prompts in `docs/planner/CHATGPT_AGENTS.md`):** the reviewer and the steward, both hourly. They act only through labels and comments; the merge gate does the merging.
+**ChatGPT (roster and prompts in `docs/planner/CHATGPT_AGENTS.md`):** one scheduled reviewer with a light steward duty (every 4 h; twice daily when quiet), plus UI and docs builders on demand. They act only through labels and comments; the merge gate does the merging.
 
 ## 4. Task files and the acceptance block
 Every issue points to a `docs/tasks/` file that ends with a fenced `acceptance` block. If the planner can't write one, the task isn't ready.
@@ -120,7 +120,7 @@ ABI header edit · non-zero equivalence delta without a planner decision · test
 ## 6. Usage hygiene
 - **Codex:** one issue per thread, fresh thread per issue. Narrow read map. Never paste whole logs: read tool summaries, tail logs only on failure. Don't run the full suite locally when CI will: run the tests for touched files, push, read the CI summary. No evidence re-runs after merging `main` when no compiled file changed. Sol medium by default, Luna for mechanical edits, Sol high only after two failed attempts.
 - **Claude Code:** a fresh session per check-in or review. Sonnet for routine check-ins, issue writing and plan edits; Opus only for T2 reviews and architecture decisions; Haiku for search sub-agents. Start from PLAN's "Now"; update it at the end. Reviews start from the review pack.
-- **ChatGPT:** attach the review pack; ask for findings by severity with file:line and a test that would catch each. Post as "ChatGPT pre-review".
+- **ChatGPT:** attach the review pack; ask for findings by severity with file:line and a test that would catch each. Post as "ChatGPT review".
 
 ## 7. External agent queue (optional, replaces any other outside reviewer)
 For work of at most 3 files that benefits from an independent strong model (second opinions on T2, DSP math checks, test brainstorming). No agent depends on it.
@@ -133,7 +133,7 @@ For work of at most 3 files that benefits from an independent strong model (seco
 ## 8. Weekly rhythm
 1. Planner session (Claude Sonnet, fresh): update "Now", shape the next issues with acceptance blocks.
 2. Codex works the queue; ChatGPT builds self-contained modules on separate branches.
-3. ChatGPT pre-reviews T1/T2 PRs (a second fresh pass on T2).
+3. The ChatGPT reviewer reviews new T1/T2 heads (its pass is the T2 gate).
 4. The merge gate merges T0/T1 when green and approved (section 3); the user only vetoes.
 5. Gate review (Claude Opus, fresh) only at milestone ends or on a T2 escalation.
 
