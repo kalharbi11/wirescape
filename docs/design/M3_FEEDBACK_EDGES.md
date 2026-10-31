@@ -164,5 +164,8 @@ and inactive modules through v1/v2 migration and save/reload.
   existing loops after an explicit patch-wide warning.
 
 This note does not authorize editing the Studio, controller, engine, ABI
-headers or patch format. Related design: [M3 interaction study](M3_INTERACTION_STUDY.md)
+headers or patch format. Document acceptance for #179 is
+`python -m unittest tools/foundation/tests/test_doc_links.py`; feature tests
+above are future requirements, not tests claimed to be green here.
+Related design: [M3 interaction study](M3_INTERACTION_STUDY.md)
 and [M3 readiness audit](M3_READINESS_GAPS.md).
