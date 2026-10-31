@@ -17,6 +17,7 @@
 #include <cmath>
 #include <limits>
 #include <vector>
+#include <utility>
 
 namespace {
 QJsonObject baseDocument() {
@@ -379,7 +380,7 @@ bool StudioController::connectStereoPair(int from, const QString& group, int to,
     }
     auto next = document_;
     auto cables = next.value("connections").toArray();
-    for (const auto mapping : {std::pair{first, firstInput}, std::pair{second, secondInput}}) {
+    for (const auto &mapping : {std::pair{first, firstInput}, std::pair{second, secondInput}}) {
         cables.append(QJsonObject{{"fromNode", from},
                                   {"fromPort", text(source->outputs[mapping.first].id)},
                                   {"toNode", to},
