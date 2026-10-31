@@ -897,6 +897,43 @@ private slots:
         QVERIFY(QMetaObject::invokeMethod(dialog, "reject"));
         QCOMPARE(window->property("pendingAction").toString(), QString());
         QCOMPARE(read("saved-example.json"), original);
+        QTRY_VERIFY(!dialog->property("visible").toBool());
+        // Discard loads the requested bundled patch without saving over the user file.
+        const QString polyUrl = "file::/starter/starter_poly.json";
+        QVERIFY(QMetaObject::invokeMethod(window, "requestLibraryPatch", Q_ARG(QVariant, QVariant(polyUrl))));
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        auto *discard = findButton(dialog, "Discard");
+        QVERIFY(discard);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(discard));
+        QTRY_COMPARE(currentPatchFile(), polyUrl);
+        QVERIFY(!studio.dirty());
+        QCOMPARE(window->property("pendingLibraryFile").toString(), QString());
+        QCOMPARE(read("saved-example.json"), original);
+        // Save commits the edited source to a new test-owned file, then loads the selection.
+        QVERIFY(studio.setParameter(2, 0, 550));
+        const QString minimalUrl = "file::/starter/starter_minimal.json";
+        QVERIFY(QMetaObject::invokeMethod(window, "requestLibraryPatch", Q_ARG(QVariant, QVariant(minimalUrl))));
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        auto *save = findButton(dialog, "Save");
+        QVERIFY(save);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(save));
+        auto *chooser = findNamed(window, "saveDialog");
+        QVERIFY(chooser);
+        QTRY_VERIFY(chooser->property("visible").toBool());
+        QCOMPARE(window->property("saveContinuation").toString(), QString("library"));
+        QVERIFY(chooser->setProperty("selectedFile", path("library-before-switch.json")));
+        QVERIFY(QMetaObject::invokeMethod(chooser, "accept"));
+        QTRY_COMPARE(currentPatchFile(), minimalUrl);
+        QVERIFY(!studio.dirty());
+        QCOMPARE(window->property("pendingLibraryFile").toString(), QString());
+        QCOMPARE(window->property("saveContinuation").toString(), QString());
+        const auto savedModules = read("library-before-switch.json").value("modules").toArray();
+        QCOMPARE(savedModules.size(), 3);
+        QCOMPARE(savedModules.at(1).toObject().value("parameters").toObject().value("frequency").toDouble(), 550.);
+        const auto recent = QJsonDocument::fromJson(library->property("sessionRecent").toString().toUtf8()).array();
+        QCOMPARE(recent.size(), 2);
+        QCOMPARE(recent.first().toString(), path("library-before-switch.json").toString());
+        QCOMPARE(read("saved-example.json"), original);
     }
     void actualDocumentActionsAndCable() {
         bool failWrite = true; int writeAttempts = 0; QString acceptedPath;
