@@ -17,6 +17,7 @@
 #include <cmath>
 #include <limits>
 #include <vector>
+#include <utility>
 
 namespace {
 QJsonObject baseDocument() {
@@ -104,6 +105,16 @@ static QString portKind(const AppEngine *catalog, const ws_module_descriptor *mo
     return ports[index].kind == WS_AUDIO ? QStringLiteral("audio") : QStringLiteral("control");
 }
 
+static QString stereoPairName(const AppEngine *catalog, const ws_module_descriptor *module,
+                              uint32_t index, bool output) {
+    const auto *native = app_engine_native_descriptor(catalog, module->id);
+    if (!native) return {};
+    const auto count = output ? native->output_count : native->input_count;
+    const auto *ports = output ? native->outputs : native->inputs;
+    if (index >= count || ports[index].kind != WS2_SIGNAL || !ports[index].stereo_pair) return {};
+    return QString::fromUtf8(ports[index].stereo_pair);
+}
+
 const ws_module_descriptor* StudioController::descriptor(const QString& id) const {
     if (!catalog_) return nullptr;
     for (uint32_t i = 0; i < app_engine_module_count(catalog_.get()); ++i) {
@@ -134,11 +145,13 @@ QVariantList StudioController::modules() const {
             for (uint32_t i = 0; i < d->input_count; ++i)
                 inputs.append(QVariantMap{{"id", text(d->inputs[i].id)},
                                           {"label", text(d->inputs[i].name)},
-                                          {"kind", portKind(catalog_.get(), d, i, false)}});
+                                          {"kind", portKind(catalog_.get(), d, i, false)},
+                                          {"stereoPair", stereoPairName(catalog_.get(), d, i, false)}});
             for (uint32_t i = 0; i < d->output_count; ++i)
                 outputs.append(QVariantMap{{"id", text(d->outputs[i].id)},
                                            {"label", text(d->outputs[i].name)},
-                                           {"kind", portKind(catalog_.get(), d, i, true)}});
+                                           {"kind", portKind(catalog_.get(), d, i, true)},
+                                           {"stereoPair", stereoPairName(catalog_.get(), d, i, true)}});
             const auto values = node.value("values").toObject();
             for (uint32_t i = 0; i < d->parameter_count; ++i) { const auto& p = d->parameters[i]; const double v = values.value(QString::number(p.id)).toDouble(p.initial); parameters.append(QVariantMap{{"id", p.id}, {"name", text(p.name)}, {"minimum", p.minimum}, {"maximum", p.maximum}, {"value", v}, {"unit", text(p.unit)}, {"display", display(v, text(p.unit))}}); }
         }
@@ -338,6 +351,45 @@ void StudioController::connectPorts(int from, const QString& port, int to, const
                               {"toPort", input},
                               {"kind", portKind(catalog_.get(), source, uint32_t(a), true)}});
     next["connections"] = cables; commitTopology(next);
+}
+
+bool StudioController::connectStereoPair(int from, const QString& group, int to,
+                                         const QString& firstInput, const QString& secondInput) {
+    const auto* source = nodeDescriptor(from);
+    const auto* destination = nodeDescriptor(to);
+    if (!source || !destination || from == to || group.isEmpty() || firstInput == secondInput) {
+        setError("Choose distinct endpoints for both stereo cables.");
+        return false;
+    }
+    int first = -1, second = -1;
+    for (uint32_t i = 0; i < source->output_count; ++i) {
+        if (stereoPairName(catalog_.get(), source, i, true) != group) continue;
+        if (first < 0) first = static_cast<int>(i);
+        else if (second < 0) second = static_cast<int>(i);
+        else { setError("Stereo source must have exactly two paired outputs."); return false; }
+    }
+    const int a = portIndex(destination->inputs, destination->input_count, firstInput);
+    const int b = portIndex(destination->inputs, destination->input_count, secondInput);
+    if (first < 0 || second < 0 || a < 0 || b < 0 ||
+        portKind(catalog_.get(), source, static_cast<uint32_t>(first), true) !=
+            portKind(catalog_.get(), destination, static_cast<uint32_t>(a), false) ||
+        portKind(catalog_.get(), source, static_cast<uint32_t>(second), true) !=
+            portKind(catalog_.get(), destination, static_cast<uint32_t>(b), false)) {
+        setError("Both stereo outputs need distinct, compatible signal inputs.");
+        return false;
+    }
+    auto next = document_;
+    auto cables = next.value("connections").toArray();
+    for (const auto &mapping : {std::pair{first, firstInput}, std::pair{second, secondInput}}) {
+        cables.append(QJsonObject{{"fromNode", from},
+                                  {"fromPort", text(source->outputs[mapping.first].id)},
+                                  {"toNode", to},
+                                  {"toPort", mapping.second},
+                                  {"kind", portKind(catalog_.get(), source,
+                                                    static_cast<uint32_t>(mapping.first), true)}});
+    }
+    next["connections"] = cables;
+    return commitTopology(next); // Both ordinary cables commit or neither does.
 }
 
 void StudioController::disconnectCable(int index) { auto next = document_; auto cables = next.value("connections").toArray(); if (index < 0 || index >= cables.size()) return; cables.removeAt(index); next["connections"] = cables; commitTopology(next); }

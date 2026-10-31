@@ -213,6 +213,94 @@ private slots:
         studio.addModule("essentials.mixer");
         QCOMPARE(studio.modules().size(), 6);
     }
+    void stereoPairMetadataAndAtomicConnect() {
+        StudioController studio(directory_);
+        studio.addModule("essentials.chaos_lite");
+        studio.addModule("essentials.mixer");
+        int chaos = -1, mixer = -1;
+        QVariantList outputs;
+        for (const auto &entry : studio.modules()) {
+            const auto m = entry.toMap();
+            if (m["moduleId"] == "essentials.chaos_lite") {
+                chaos = m["id"].toInt();
+                outputs = m["outputs"].toList();
+            }
+            if (m["moduleId"] == "essentials.mixer") mixer = m["id"].toInt();
+        }
+        QVERIFY(chaos > 0 && mixer > 0);
+        QCOMPARE(outputs.size(), 2);
+        QCOMPARE(outputs[0].toMap()["id"].toString(), QString("left"));
+        QCOMPARE(outputs[1].toMap()["id"].toString(), QString("right"));
+        for (const auto &output : outputs)
+            QCOMPARE(output.toMap()["stereoPair"].toString(), QString("stereo"));
+
+        studio.connectPorts(1, "audio", mixer, "b");
+        const auto occupied = studio.connections();
+        QVERIFY(!studio.connectStereoPair(chaos, "stereo", mixer, "a", "b"));
+        QCOMPARE(studio.connections(), occupied);
+        QVERIFY(!studio.connectStereoPair(chaos, "stereo", mixer, "a", "a"));
+        QCOMPARE(studio.connections(), occupied);
+        studio.disconnectCable(occupied.size() - 1);
+        QSignalSpy changed(&studio, &StudioController::documentChanged);
+        const int before = studio.connections().size();
+        QVERIFY(studio.connectStereoPair(chaos, "stereo", mixer, "a", "b"));
+        QCOMPARE(changed.size(), 1);
+        QCOMPARE(studio.connections().size(), before + 2);
+        auto first = studio.connections()[before].toMap();
+        auto second = studio.connections()[before + 1].toMap();
+        QCOMPARE(first["fromPort"].toString(), QString("left"));
+        QCOMPARE(first["toPort"].toString(), QString("a"));
+        QCOMPARE(second["fromPort"].toString(), QString("right"));
+        QCOMPARE(second["toPort"].toString(), QString("b"));
+        QCOMPARE(first["kind"].toString(), QString("audio"));
+        QCOMPARE(second["kind"].toString(), QString("audio"));
+        QVERIFY(studio.savePatch(path("stereo-two-cables.json")));
+        const auto saved = read("stereo-two-cables.json");
+        const auto cables = saved["connections"].toArray();
+        QCOMPARE(cables.size(), before + 2);
+        QCOMPARE(cables[before].toObject()["from"].toObject()["port"].toString(), QString("left"));
+        QCOMPARE(cables[before + 1].toObject()["from"].toObject()["port"].toString(), QString("right"));
+        QVERIFY(studio.loadPatch(path("stereo-two-cables.json")));
+        QCOMPARE(studio.connections().size(), before + 2);
+        QCOMPARE(studio.connections()[before].toMap()["fromPort"].toString(), QString("left"));
+        QCOMPARE(studio.connections()[before + 1].toMap()["fromPort"].toString(), QString("right"));
+        QVERIFY(!studio.connectStereoPair(chaos, "not-a-pair", mixer, "a", "b"));
+        QCOMPARE(studio.connections().size(), before + 2);
+    }
+    void stereoPairGestureOffscreen() {
+        StudioController studio(directory_);
+        studio.addModule("essentials.chaos_lite");
+        studio.addModule("essentials.mixer");
+        QQmlApplicationEngine engine;
+        engine.rootContext()->setContextProperty("studio", &studio);
+        engine.load(QUrl("qrc:/qml/Main.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        QVERIFY(window);
+        window->resize(1100, 760);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        auto *pairButton = qobject_cast<QQuickItem *>(findNamed(window, "stereoPair_6"));
+        auto *mixerInput = qobject_cast<QQuickItem *>(findNamed(window, "input_7_a"));
+        auto *dialog = findNamed(window, "stereoPairDialog");
+        QVERIFY(pairButton && mixerInput && dialog);
+        QVERIFY(QMetaObject::invokeMethod(window, "fitPatch"));
+        QTest::qWait(30);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(pairButton));
+        QCOMPARE(window->property("stereoSourceNode").toInt(), 6);
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(mixerInput));
+        QTRY_VERIFY(dialog->property("visible").toBool());
+        const int before = studio.connections().size();
+        QVERIFY(QMetaObject::invokeMethod(dialog, "accept"));
+        QTRY_COMPARE(studio.connections().size(), before + 2);
+        auto *leftBadge = findNamed(window, QString("stereoCableBadge_%1").arg(before));
+        auto *rightBadge = findNamed(window, QString("stereoCableBadge_%1").arg(before + 1));
+        QVERIFY(leftBadge && rightBadge);
+        QTRY_VERIFY(leftBadge->property("visible").toBool() && rightBadge->property("visible").toBool());
+        QCOMPARE(studio.connections()[before].toMap()["toPort"].toString(), QString("a"));
+        QCOMPARE(studio.connections()[before + 1].toMap()["toPort"].toString(), QString("b"));
+        QVERIFY(!dialog->property("visible").toBool());
+    }
     void transactionalValidation() {
         StudioController studio(directory_); QVERIFY(studio.ready());
         QVERIFY(studio.setParameter(1, 0, 440)); studio.moveModule(1, 120, 170);

@@ -71,6 +71,8 @@ public:
     Q_INVOKABLE void addModule(const QString& id);
     Q_INVOKABLE void removeModule(int node);
     Q_INVOKABLE void connectPorts(int from, const QString& port, int to, const QString& input);
+    Q_INVOKABLE bool connectStereoPair(int from, const QString& group, int to,
+                                      const QString& firstInput, const QString& secondInput);
     Q_INVOKABLE void disconnectCable(int index);
     Q_INVOKABLE void startAudio();
     Q_INVOKABLE void stopAudio();
