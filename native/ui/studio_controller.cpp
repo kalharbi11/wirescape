@@ -350,7 +350,17 @@ void StudioController::startAudio() {
     if (running()) return;
     if (audio_.hasStream()) { setError("Device cleanup is pending. Stop audio again before restarting."); return; }
     if (!compileDocument()) return;
-    if (!audio_.initialize(directory_) || !audio_.startRender(engine_.get(), [](void* e,float* out,uint32_t n){float* rows[]{out};return app_engine_render_live(static_cast<AppEngine*>(e),rows,1,n,app_engine_clock_ns());}, device_, 48000, blockSize())) { setError(audio_.error()); return; }
+    if (!audio_.initialize(directory_) || !audio_.startRender(
+                                              engine_.get(),
+                                              [](void *e, float *out, uint32_t n) {
+                                                  float *rows[]{out};
+                                                  return app_engine_render_live(static_cast<AppEngine *>(e), rows, 1, n,
+                                                                                app_engine_clock_ns());
+                                              },
+                                              device_, 48000, blockSize())) {
+        setError(audio_.error());
+        return;
+    }
     std::string midiError;
     if(!midi_.start(engine_.get(),QJsonDocument(document_).toJson().toStdString(),midiError)){stopAudio();setError(QString::fromStdString(midiError));return;}
     lastSessionMeter_ = {}; setError({}); emit statusChanged();

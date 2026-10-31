@@ -77,7 +77,7 @@ static void global_keyboard_notes() {
     CHECK(fake->opens.load(std::memory_order_acquire) == 2);
     const auto midi1 = [&](uint8_t status, uint8_t key, uint8_t velocity) {
         const uint8_t bytes[]{status, key, velocity};
-        fake->callbacks[0].message(fake->callbacks[0].context, bytes, sizeof(bytes), 0);
+        fake->callbacks[0].message(fake->callbacks[0].context, bytes, sizeof(bytes), app_engine_clock_ns());
     };
     midi1(0x90, 60, 100);
     CHECK(wait_gate(engine.get(), true));
@@ -89,7 +89,7 @@ static void global_keyboard_notes() {
     CHECK(wait_gate(engine.get(), false));
     const auto ump = [&](uint32_t first, uint32_t second) {
         const uint32_t words[]{first, second};
-        fake->callbacks[0].ump(fake->callbacks[0].context, words, 2, 0);
+        fake->callbacks[0].ump(fake->callbacks[0].context, words, 2, app_engine_clock_ns());
     };
     ump(0x40903c00, 0xffff0000);
     CHECK(wait_gate(engine.get(), true));
@@ -100,9 +100,9 @@ static void global_keyboard_notes() {
     ump(0x40803c00, 0);
     CHECK(wait_gate(engine.get(), false));
     const uint8_t pad_on[]{0x90, 62, 100}, pad_off[]{0x80, 62, 0};
-    fake->callbacks[1].message(fake->callbacks[1].context, pad_on, sizeof(pad_on), 0);
+    fake->callbacks[1].message(fake->callbacks[1].context, pad_on, sizeof(pad_on), app_engine_clock_ns());
     CHECK(wait_gate(engine.get(), true));
-    fake->callbacks[1].message(fake->callbacks[1].context, pad_off, sizeof(pad_off), 0);
+    fake->callbacks[1].message(fake->callbacks[1].context, pad_off, sizeof(pad_off), app_engine_clock_ns());
     CHECK(wait_gate(engine.get(), false)); // Global keyboard receives notes from every enabled source.
     CHECK(host.counters().received == 10);
     // Device loss chokes held notes; the worker later reopens the same saved source.
