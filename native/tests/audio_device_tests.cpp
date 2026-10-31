@@ -72,7 +72,13 @@ extern "C" int WS_CALL ws_engine_render(ws_engine*, float* output, uint32_t fram
 int main() {
     try {
         {
-            Mock m; AudioDevice audio(m.backend());
+            AudioDevice audio(std::optional<AudioDevice::Backend>{AudioDevice::Backend{}});
+            require(!audio.initialize({}) && audio.error().contains("incomplete"),
+                    "present incomplete test backend never falls back to physical devices");
+        }
+        {
+            Mock m;
+            AudioDevice audio(std::optional<AudioDevice::Backend>{m.backend()});
             require(audio.initialize({}), "mock initialization");
             require(m.opens == 0 && !audio.running(), "initialize must not start audio");
             const auto rows = audio.devices();

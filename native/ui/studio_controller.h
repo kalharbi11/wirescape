@@ -40,7 +40,7 @@ public:
     using PatchWriter = std::function<bool(const QString&, const QByteArray&, QString&)>;
     // Optional backend injection keeps controller lifecycle tests independent of hardware.
     explicit StudioController(QString directory, QObject *parent = nullptr, PatchWriter writer = {},
-                              bool confirmMidi = false, AudioDevice::Backend testAudio = {});
+                              bool confirmMidi = false, std::optional<AudioDevice::Backend> testAudio = std::nullopt);
     ~StudioController() override;
     QVariantMap midiCounters()const;
     QVariantList midiEndpoints();

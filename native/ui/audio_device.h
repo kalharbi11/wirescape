@@ -1,11 +1,12 @@
 #pragma once
-#include "wirescape/engine.h"
 #include "third_party/portaudio.h"
+#include "wirescape/engine.h"
 #include <QLibrary>
 #include <QString>
 #include <QVariantList>
 #include <atomic>
 #include <memory>
+#include <optional>
 #include <vector>
 
 // Control-thread service. Callback touches only its separately owned context.
@@ -30,6 +31,7 @@ public:
     enum class State { Uninitialized, Stopped, Running, Faulted, CleanupPending };
     AudioDevice();
     explicit AudioDevice(Backend backend); // Injected backend: no DLL/device access in tests.
+    explicit AudioDevice(std::optional<Backend> backend);
     ~AudioDevice();
     bool initialize(const QString& directory);
     bool refresh(const QString& directory);

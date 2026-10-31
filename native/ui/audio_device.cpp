@@ -8,6 +8,12 @@
 
 AudioDevice::AudioDevice() : context_(std::make_unique<CallbackContext>()) {}
 AudioDevice::AudioDevice(Backend backend) : AudioDevice() { backend_ = backend; injected_ = true; }
+AudioDevice::AudioDevice(std::optional<Backend> backend) : AudioDevice() {
+    if (backend) {
+        backend_ = *backend;
+        injected_ = true;
+    }
+}
 AudioDevice::~AudioDevice() {
     stop();
     if (initialized_) {

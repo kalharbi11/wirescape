@@ -49,9 +49,9 @@ QString display(double value, const QString& unit) {
 }
 
 StudioController::StudioController(QString directory, QObject *parent, PatchWriter writer, bool confirmMidi,
-                                   AudioDevice::Backend testAudio)
+                                   std::optional<AudioDevice::Backend> testAudio)
     : QObject(parent), directory_(std::move(directory)), patchWriter_(std::move(writer)), midi_(confirmMidi),
-      audio_(testAudio.initialize ? AudioDevice(testAudio) : AudioDevice()) {
+      audio_(testAudio) {
     if (!patchWriter_) patchWriter_ = [](const QString& path, const QByteArray& bytes, QString& error) {
         QSaveFile file(path);
         if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit()) {
