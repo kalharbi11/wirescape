@@ -57,6 +57,8 @@ class LauncherCommandTests(unittest.TestCase):
         record = {'action': 'updates'}
         with patch.object(dev, '_base_record', return_value=record), \
              patch.object(dev, '_build_metadata', return_value={'build_commit': installed, 'source': {'git_dirty': False}}), \
+             patch.object(dev, '_studio_executable', return_value=Path('studio.exe')), \
+             patch.object(dev, '_launch_freshness_error', return_value=None), \
              patch.object(dev, 'git_revision', return_value='c' * 40), \
              patch.object(dev.webbrowser, 'open', return_value=True) as opener, \
              patch.object(dev, '_save_record', return_value=Path('unused')), \
@@ -92,6 +94,58 @@ class LauncherCommandTests(unittest.TestCase):
             self.assertEqual(dev.command_updates(argparse.Namespace(config='Release', json=True)), 0)
         self.assertEqual(record['comparison'], 'modified-or-unverified-build')
 
+    def test_current_update_requires_actual_verified_gui(self):
+        for change in ('matching', 'headless', 'unstable', 'config', 'missing',
+                       'binary', 'source', 'ui_disabled', 'dirty'):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                build = root / 'build'
+                build.mkdir()
+                executable = build / ('wirescape_studio.exe' if os.name == 'nt' else 'wirescape_studio')
+                executable.write_bytes(b'verified GUI')
+                sha = 'a' * 40
+                metadata = {
+                    'build_commit': sha, 'configuration': 'Release',
+                    'ui_verified': True, 'source_stable': True,
+                    'source': {'sha256': 'original', 'git_dirty': False},
+                    'binaries': {executable.name: dev.sha256_file(executable)},
+                }
+                if change == 'headless':
+                    metadata['ui_verified'] = False
+                elif change == 'unstable':
+                    metadata['source_stable'] = False
+                elif change == 'config':
+                    metadata['configuration'] = 'Debug'
+                elif change == 'missing':
+                    executable.unlink()
+                elif change == 'binary':
+                    executable.write_bytes(b'replaced GUI')
+                elif change == 'dirty':
+                    metadata['source']['git_dirty'] = True
+                record = {}
+                with patch.object(dev, 'ROOT', root), patch.object(dev, 'BUILD_DIR', build), \
+                     patch.object(dev, '_base_record', return_value=record), \
+                     patch.object(dev, '_build_metadata', return_value=metadata), \
+                     patch.object(dev, '_cache_values', return_value={'WIRESCAPE_BUILD_UI': 'OFF' if change == 'ui_disabled' else 'ON'}), \
+                     patch.object(dev, 'source_provenance', return_value={'sha256': 'changed' if change == 'source' else 'original'}), \
+                     patch.object(dev, 'git_revision', return_value=sha), \
+                     patch.object(dev, '_save_record', return_value=root / 'unused'), \
+                     patch.object(dev.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, sha)) as run, \
+                     patch.object(dev, 'wait_for_readiness') as launch, \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(dev.command_updates(argparse.Namespace(config='Release', json=True)), 0)
+                expected = 'current' if change == 'matching' else 'modified-or-unverified-build'
+                self.assertEqual(record['comparison'], expected)
+                if change != 'matching':
+                    self.assertTrue(record['installed_build_error'])
+                    self.assertIn(record['installed_build_error'], record['summary'])
+                launch.assert_not_called()
+                self.assertEqual([call.args[0] for call in run.call_args_list], [
+                    ['git', 'ls-remote', 'origin', 'refs/heads/main'],
+                    ['git', 'show', '--no-patch', '--format=%cs', sha],
+                    ['git', 'show', '--no-patch', '--format=%cs', sha],
+                ])
+
     def test_update_failure_does_not_claim_current_or_update_checkout(self):
         for result in (subprocess.CompletedProcess([], 1, ''),
                        subprocess.CompletedProcess([], 0, 'not-a-sha\trefs/heads/main\n')):
@@ -126,3 +180,4 @@ class LauncherCommandTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

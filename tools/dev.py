@@ -553,14 +553,22 @@ def command_updates(args: argparse.Namespace) -> int:
             webbrowser.open((ROOT / "docs/WINDOWS_DEMO_UPDATE.md").as_uri())
         state = compare_revisions(installed, latest)
         installed_date, latest_date = _local_commit_date(installed), _local_commit_date(latest)
+        executable = _studio_executable(args.config)
+        problem = (_launch_freshness_error(executable, args.config) if executable
+                   else "Studio executable is missing for the requested configuration")
         if metadata.get("source", {}).get("git_dirty") is not False:
+            problem = "installed source is modified or unverified"
+        if problem:
+            problem = " ".join(problem.split())
             state = "modified-or-unverified-build"
         record.update(status="passed", installed=installed, latest_main=latest,
                       installed_commit_date=installed_date, latest_main_commit_date=latest_date,
                       installed_source_dirty=metadata.get("source", {}).get("git_dirty"),
+                      installed_build_error=problem,
                       comparison=state, checkout=git_revision(ROOT),
                       summary=f"Installed {installed[:7]} (commit date {installed_date}); "
                       f"latest main {latest[:7]} (commit date {latest_date}): {state}. "
+                      + (f"Installed build unverified: {problem}. " if problem else "") +
                       "Different does not establish ancestry. Follow docs/WINDOWS_DEMO_UPDATE.md; no changes applied.")
     except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
         record.update(status="failed", summary=str(exc))
@@ -986,3 +994,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
