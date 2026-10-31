@@ -3,18 +3,19 @@
 #include "wirescape/output_policy.h"
 #include <QCoreApplication>
 #include <QDataStream>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QMap>
 #include <QSaveFile>
 #include <QSet>
-#include <QMap>
-#include <QDateTime>
-#include <functional>
+#include <QSettings>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <limits>
 #include <vector>
 
@@ -48,7 +49,23 @@ QString display(double value, const QString& unit) {
 }
 }
 
-StudioController::StudioController(QString directory, QObject* parent, PatchWriter writer, bool confirmMidi) : QObject(parent), directory_(std::move(directory)), patchWriter_(std::move(writer)), midi_(confirmMidi) {
+StudioController::StudioController(QString directory, QObject *parent, PatchWriter writer, bool confirmMidi,
+                                   MidiPreference midiPreference, std::unique_ptr<wirescape::midi::Backend> fakeMidi,
+                                   const QString &midiSettingsPath)
+    : QObject(parent), directory_(std::move(directory)), patchWriter_(std::move(writer)),
+      midi_(confirmMidi, std::move(fakeMidi)) {
+    if (midiPreference == MidiPreference::Interactive) {
+        midiPreferences_ = midiSettingsPath.isEmpty()
+                               ? std::make_unique<QSettings>()
+                               : std::make_unique<QSettings>(midiSettingsPath, QSettings::IniFormat);
+        if (midiPreferences_->value("midi/enabled", false).toBool()) {
+            try {
+                midi_.authorize(true);
+            } catch (const std::exception &e) {
+                notice_ = QString::fromUtf8(e.what());
+            }
+        }
+    }
     if (!patchWriter_) patchWriter_ = [](const QString& path, const QByteArray& bytes, QString& error) {
         QSaveFile file(path);
         if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit()) {
@@ -333,7 +350,17 @@ void StudioController::startAudio() {
     if (running()) return;
     if (audio_.hasStream()) { setError("Device cleanup is pending. Stop audio again before restarting."); return; }
     if (!compileDocument()) return;
-    if (!audio_.initialize(directory_) || !audio_.startRender(engine_.get(), [](void* e,float* out,uint32_t n){return app_engine_render(static_cast<AppEngine*>(e),out,n);}, device_, 48000, blockSize())) { setError(audio_.error()); return; }
+    if (!audio_.initialize(directory_) || !audio_.startRender(
+                                              engine_.get(),
+                                              [](void *e, float *out, uint32_t n) {
+                                                  float *rows[]{out};
+                                                  return app_engine_render_live(static_cast<AppEngine *>(e), rows, 1, n,
+                                                                                app_engine_clock_ns());
+                                              },
+                                              device_, 48000, blockSize())) {
+        setError(audio_.error());
+        return;
+    }
     std::string midiError;
     if(!midi_.start(engine_.get(),QJsonDocument(document_).toJson().toStdString(),midiError)){stopAudio();setError(QString::fromStdString(midiError));return;}
     lastSessionMeter_ = {}; setError({}); emit statusChanged();
@@ -518,14 +545,50 @@ bool StudioController::keyboardChordCheck(QJsonObject &result) {
 }
 
 QVariantList StudioController::midiEndpoints(){
- QVariantList result;if(running()||audio_.engineInUse())return result;
+    QVariantList result;
+    if (running() || audio_.engineInUse()) {
+        for (const auto &e : midi_.enabled())
+            result.append(QVariantMap{{"name", QString::fromStdString(e.name)},
+                                      {"systemName", QString::fromStdString(e.system_name)},
+                                      {"enabled", true}});
+        return result;
+    }
  try{for(const auto&e:midi_.endpoints()){bool enabled=false;for(const auto&s:midi_.enabled())enabled|=s.name==e.name&&s.system_name==e.system_name;result.append(QVariantMap{{"name",QString::fromStdString(e.name)},{"systemName",QString::fromStdString(e.system_name)},{"enabled",enabled}});}}
  catch(const std::exception&e){setError(QString::fromUtf8(e.what()));}return result;
+}
+void StudioController::setMidiAuthorized(bool enabled) {
+    if (!midiPreferences_) {
+        setError("MIDI preferences are disabled in offline checks and probes.");
+        return;
+    }
+    if (running() || audio_.engineInUse()) {
+        setError("Stop playback before changing MIDI authorization.");
+        return;
+    }
+    const bool previous = midi_.authorized();
+    try {
+        midi_.authorize(enabled);
+        midiPreferences_->setValue("midi/enabled", enabled);
+        midiPreferences_->sync();
+        if (midiPreferences_->status() != QSettings::NoError) {
+            midi_.authorize(previous);
+            setError("Could not save MIDI preference.");
+            return;
+        }
+    } catch (const std::exception &e) {
+        setError(QString::fromUtf8(e.what()));
+        return;
+    }
+    setError({});
+    emit statusChanged();
 }
 void StudioController::refreshMidi(){if(!running()&&!audio_.engineInUse())emit statusChanged();}
 void StudioController::setMidiEndpoint(const QString&name,const QString&system,bool enabled){
  if(running()||audio_.engineInUse()){setError("Stop playback before changing MIDI endpoints.");return;}
- if(!midi_.authorized()){setError("MIDI requires launch with --confirm-midi.");return;}
+ if (!midi_.authorized()) {
+     setError("Enable MIDI in the input settings first.");
+     return;
+ }
  midi_.select({name.toStdString(),system.toStdString()},enabled);dirty_=true;emit statusChanged();
 }
 

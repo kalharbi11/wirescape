@@ -23,6 +23,10 @@ int app_engine_initialize_parameter(AppEngine*,uint32_t,uint32_t,float);
 int app_engine_enqueue(AppEngine*,const ws_event*);
 int app_engine_render(AppEngine*,float*,uint32_t);
 int app_engine_render_channels(AppEngine*,float*const*,uint32_t,uint32_t);
+// Live audio callbacks: publish the callback's steady-clock time as the D13 anchor so
+// Timestamped ingress (MIDI SystemMonotonic, service chokes) maps onto the timeline.
+uint64_t app_engine_clock_ns();
+int app_engine_render_live(AppEngine *, float *const *, uint32_t, uint32_t, uint64_t callback_time_ns);
 int app_engine_reset(AppEngine*);
 int app_engine_activate(AppEngine*);
 int app_engine_deactivate(AppEngine*);
