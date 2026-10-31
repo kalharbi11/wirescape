@@ -146,6 +146,18 @@ Clock, function envelope and ladder have isolated ABI2 ports with per-voice stat
 
 Engine2 reports forward signal latency per output bus and feedback delay separately per SCC. Quiescent reconfiguration stages only the changed processor; untouched instances and compatible loop delay lines retain their state, with port-ID remapping committed after validation.
 
+Live topology edits stage a complete candidate before a bounded render-park
+handshake. Commit swaps prepared graph layouts into the existing Impl, retaining
+surviving Nodes/DSP, producer rings, queued events and unchanged feedback delays.
+Render fades out/in within one block and advances its clock while parked silent;
+it never waits on control. Ack versus timeout has one atomic winner. Target
+validation runs on render drain, with packet revisions rejecting removed/reused
+node targets. Removed event edges receive a resume choke. Replan discards
+counted stale future events routed through removed edges while retaining
+external future events for surviving targets. The control facade
+retains its catalogue and rebinds staged ABI1 descriptors before retirement.
+Device and input-selection controls remain stop-only.
+
 ## J1 app integration candidate
 
 `native/control/app_engine.*` adapts app control and metadata to engine2; built-in
