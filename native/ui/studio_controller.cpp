@@ -345,6 +345,7 @@ void StudioController::refreshDevices() {
         return;
     }
     if (!audio_.refresh(directory_)) {
+        if (device_ >= 0) device_ = -2; // Refresh can reindex devices even when enumeration then fails.
         setError(audio_.error());
         return;
     }

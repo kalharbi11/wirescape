@@ -21,13 +21,13 @@ static void write(const QString& path, const QByteArray& bytes) {
 struct TestAudio {
     static TestAudio *current;
     bool connected = true;
-    int opens = 0, opened = -99, closeError = 0;
+    int opens = 0, opened = -99, closeError = 0, countCode = 2;
     PaDeviceInfo first{1, "Default physical", 0, 0, 2, 0, .01, 0, .02, 48000};
     PaDeviceInfo second{1, "Chosen physical", 0, 0, 2, 0, .01, 0, .02, 48000};
     PaHostApiInfo hostInfo{1, paDirectSound, "Fake output host", 2, paNoDevice, 0};
     TestAudio() { current = this; }
     static PaError ok() { return 0; }
-    static PaDeviceIndex count() { return 2; }
+    static PaDeviceIndex count() { return current->countCode; }
     static const PaDeviceInfo *info(PaDeviceIndex id) {
         return id == 0 ? &current->first : id == 1 && current->connected ? &current->second : nullptr;
     }
@@ -206,6 +206,10 @@ int main(int argc, char** argv) {
             StudioController hardware(temp.path(), nullptr, {}, false, fakeAudio.backend());
             hardware.refreshDevices();
             hardware.setDevice(1);
+            const auto selectedPatch = QUrl::fromLocalFile(temp.filePath("hardware-selected.json"));
+            check(hardware.savePatch(selectedPatch) && hardware.loadPatch(selectedPatch) &&
+                      hardware.selectedDevice() == 1,
+                  "patch save/reload keeps explicit physical selection separate from graph data");
             check(hardware.selectedDevice() == 1 && fakeAudio.opens == 0,
                   "select explicit physical ID without starting");
             hardware.startAudio();
@@ -242,6 +246,12 @@ int main(int argc, char** argv) {
             hardware.setDevice(1);
             check(hardware.selectedDevice() == -2 && !hardware.errorText().isEmpty(),
                   "disconnected output is not replaced by default");
+            hardware.setDevice(0);
+            fakeAudio.countCode = paInternalError;
+            hardware.refreshDevices();
+            check(hardware.selectedDevice() == -2 && hardware.errorText().contains("Enumerate"),
+                  "failed refresh also invalidates potentially reindexed physical selection");
+            fakeAudio.countCode = 2;
         }
         std::cout << "PASS controller document dispatch, transactional failures, unknown-module preservation, and offline diagnostics\n"; return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
