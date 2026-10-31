@@ -76,6 +76,65 @@ class UiTests : public QObject {
     static QPoint center(QQuickItem* item) { return item->mapToScene(QPointF(item->width()/2, item->height()/2)).toPoint(); }
 private slots:
     void initTestCase() { QVERIFY(temp_.isValid()); }
+    void transportStartReturnsKeyboardFocus() {
+        QQmlEngine engine;
+        QQmlComponent fakeComponent(&engine);
+        fakeComponent.setData(R"QML(
+    import QtQml
+    QtObject {
+        property string patchName: "Fake"; property bool dirty: false
+        property var modules: []; property var connections: []; property var palette: []
+        property bool running: false; property bool cleanupPending: false; property bool ready: true
+        property string errorText: ""; property string noticeText: ""; property string statusText: "Ready"
+        property string diagnosticText: ""; property real sampleRate: 48000; property int blockSize: 256
+        property real cpuLoad: 0; property int underruns: 0; property real peak: 0
+        property var devices: []; property string selectedDevice: ""
+        property bool midiAuthorized: false; property bool midiSettingsAvailable: false
+        property var midiEndpoints: []; property var midiCounters: ({received: 0, dropped: 0, malformed: 0, ports: []})
+        property int noteOnCount: 0; property int noteOffCount: 0; property int lastPitch: -1
+        signal statusChanged()
+        function startAudio() { running = true; statusChanged() }
+        function stopAudio() { running = false; statusChanged() }
+        function note(pitch, on) { lastPitch = pitch; if (on) ++noteOnCount; else ++noteOffCount }
+        function setGate(v) {} function panic() {}
+        function savePatch(url) { return true } function resetPatch() {} function loadPatch(url) {}
+        function renderDemo(url) {} function connectPorts(a,b,c,d) {} function disconnectCable(a) {}
+        function addModule(id) {} function refreshDevices() {} function setDevice(id) {}
+        function refreshMidi() {} function setMidiAuthorized(v) {} function setMidiEndpoint(a,b,c) {}
+    }
+    )QML",
+                              QUrl("qrc:/qml/FakeStudio.qml"));
+        QTRY_VERIFY2(!fakeComponent.isLoading(), qPrintable(fakeComponent.errorString()));
+        QVERIFY2(fakeComponent.isReady(), qPrintable(fakeComponent.errorString()));
+        QScopedPointer<QObject> fakeStudio(fakeComponent.create());
+        QVERIFY2(fakeStudio, qPrintable(fakeComponent.errorString()));
+        engine.rootContext()->setContextProperty("studio", fakeStudio.data());
+
+        QQmlComponent mainComponent(&engine, QUrl("qrc:/qml/Main.qml"));
+        QScopedPointer<QObject> root(mainComponent.create());
+        QVERIFY2(root, qPrintable(mainComponent.errorString()));
+        auto *window = qobject_cast<QQuickWindow *>(root.data());
+        QVERIFY(window);
+        window->show();
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        auto *audio = qobject_cast<QQuickItem *>(findNamed(window, "audioButton"));
+        auto *keyboard = qobject_cast<QQuickItem *>(findNamed(window, "keyboardSurface"));
+        QVERIFY(audio);
+        QVERIFY(keyboard);
+
+        audio->forceActiveFocus();
+        QTRY_COMPARE(window->activeFocusItem(), audio);
+        QVERIFY(window->activeFocusItem() != keyboard); // FocusScope also reports focus for active children.
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(audio));
+        QTRY_VERIFY(fakeStudio->property("running").toBool());
+        QTRY_COMPARE(window->activeFocusItem(), keyboard);
+        QTest::keyPress(window, Qt::Key_A);
+        QTRY_COMPARE(fakeStudio->property("noteOnCount").toInt(), 1);
+        QCOMPARE(fakeStudio->property("lastPitch").toInt(), 60);
+        QTest::keyRelease(window, Qt::Key_A);
+        QTRY_COMPARE(fakeStudio->property("noteOffCount").toInt(), 1);
+        QCOMPARE(fakeStudio->property("lastPitch").toInt(), 60);
+    }
     void keyboardChordOffscreen() {
         StudioController studio(directory_);
         QJsonObject result;
