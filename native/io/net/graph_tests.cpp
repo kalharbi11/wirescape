@@ -21,8 +21,8 @@ struct GraphSink {
     static int deliver(void *context, uint32_t node, const ws2_event &event, uint64_t timestamp) noexcept {
         auto &self = *static_cast<GraphSink *>(context);
         const int status = app_engine_native(self.engine)
-                               .enqueue(2, node, WS2_DIRECT_PORT, event, timestamp, wirescape::engine2::Timing::Timestamped,
-                                        app_engine_generation(self.engine));
+                               .enqueue(2, node, WS2_DIRECT_PORT, event, timestamp,
+                                        wirescape::engine2::Timing::Timestamped, app_engine_generation(self.engine));
         self.timestamp.store(timestamp, std::memory_order_release);
         self.result.store(status, std::memory_order_release);
         return status;
@@ -88,4 +88,3 @@ int main() {
     REQUIRE(app_engine_native(engine.get()).output_sample(1, 0, 0, 0) == .75f);
     REQUIRE(app_engine_native(engine.get()).output_sample(1, 0, 0, 127) == .75f);
 }
-

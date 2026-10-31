@@ -62,7 +62,11 @@ int callback(const void*,void*output,unsigned long frames,const PaStreamCallback
  if(flags&paOutputUnderflow)c.xruns.fetch_add(1,std::memory_order_relaxed);
  if(!out||frames>c.scratch.size()/2){c.faults.fetch_add(1,std::memory_order_relaxed);if(out)std::fill_n(out,frames*2,0.f);return paAbort;}
  float*rows[]={c.scratch.data(),c.scratch.data()+c.scratch.size()/2};
- if(app_engine_render_live(c.engine.get(),rows,2,uint32_t(frames),app_engine_clock_ns())!=WS_OK){std::fill_n(out,frames*2,0.f);c.faults.fetch_add(1,std::memory_order_relaxed);return paAbort;}
+ if (app_engine_render_live(c.engine.get(), rows, 2, uint32_t(frames), app_engine_clock_ns()) != WS_OK) {
+     std::fill_n(out, frames * 2, 0.f);
+     c.faults.fetch_add(1, std::memory_order_relaxed);
+     return paAbort;
+ }
  for(unsigned long i=0;i<frames;++i){out[2*i]=std::clamp(rows[0][i]*WS_OUTPUT_GAIN,-1.f,1.f);out[2*i+1]=std::clamp(rows[1][i]*WS_OUTPUT_GAIN,-1.f,1.f);}return paContinue;
 }
 }

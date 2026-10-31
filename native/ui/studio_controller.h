@@ -64,17 +64,17 @@ public:
                             std::unique_ptr<wirescape::midi::Backend> fakeMidi = {},
                             const QString &midiSettingsPath = {}, bool confirmLan = false);
   ~StudioController() override;
-    QStringList monitorLines() const { return monitorLines_; }
-    bool monitorPaused() const { return monitorPaused_; }
-    void setMonitorPaused(bool value) {
-        monitorPaused_ = value;
-        emit monitorChanged();
-    }
-    qulonglong monitorDropped() const;
-    qulonglong monitorSuppressed() const;
-    QVariantMap oscCounters() const;
-    Q_INVOKABLE void clearMonitor();
-    Q_INVOKABLE void confirmOscLan() { osc_.authorize(true); }
+  QStringList monitorLines() const { return monitorLines_; }
+  bool monitorPaused() const { return monitorPaused_; }
+  void setMonitorPaused(bool value) {
+      monitorPaused_ = value;
+      emit monitorChanged();
+  }
+  qulonglong monitorDropped() const;
+  qulonglong monitorSuppressed() const;
+  QVariantMap oscCounters() const;
+  Q_INVOKABLE void clearMonitor();
+  Q_INVOKABLE void confirmOscLan() { osc_.authorize(true); }
   QVariantMap midiCounters() const;
   QVariantList midiEndpoints();
   bool midiAuthorized() const { return midi_.authorized(); }
@@ -165,5 +165,3 @@ private:
     double peak_ = 0;
     ws_meter lastSessionMeter_{};
 };
-
-

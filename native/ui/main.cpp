@@ -55,8 +55,8 @@ int main(int argc, char** argv) {
         StudioController::midiMode(QGuiApplication::platformName(), smoke || parser.isSet("startup-check"),
                                    QProcessEnvironment::systemEnvironment(), parser.optionNames());
     const bool interactiveMidi = midiMode == StudioController::MidiPreference::Interactive;
-    StudioController studio(directory, nullptr, {}, interactiveMidi && parser.isSet("confirm-midi"), midiMode,
-                            {}, {}, parser.isSet("confirm-lan"));
+    StudioController studio(directory, nullptr, {}, interactiveMidi && parser.isSet("confirm-midi"), midiMode, {}, {},
+                            parser.isSet("confirm-lan"));
     QQmlApplicationEngine view;
     view.rootContext()->setContextProperty("studio", &studio);
     view.rootContext()->setContextProperty("studioFontFamily", app.font().family());
@@ -103,4 +103,3 @@ int main(int argc, char** argv) {
     });
     return app.exec();
 }
-

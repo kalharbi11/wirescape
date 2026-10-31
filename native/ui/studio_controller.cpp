@@ -700,4 +700,3 @@ qulonglong StudioController::monitorSuppressed() const {
     for (auto &t : app_engine_monitor_taps(engine_.get())) count += t.tap->rate_limited.load();
     return count;
 }
-
