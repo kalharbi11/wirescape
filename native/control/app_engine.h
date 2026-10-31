@@ -34,7 +34,13 @@ wirescape::engine2::Engine& app_engine_native(AppEngine*);
 
 const char* app_engine_parameter_id(const AppEngine*,const char*module,uint32_t index);
 
-namespace wirescape::monitor {struct Tap;}
-struct AppMonitorTap {uint32_t node=0;std::string prefix;std::shared_ptr<wirescape::monitor::Tap> tap;};
-std::vector<AppMonitorTap> app_engine_monitor_taps(AppEngine*);
-void app_engine_monitor_prefix(AppEngine*,uint32_t,const std::string&);
+namespace wirescape::monitor {
+struct Tap;
+}
+struct AppMonitorTap {
+    uint32_t node = 0;
+    std::string prefix;
+    std::shared_ptr<wirescape::monitor::Tap> tap;
+};
+std::vector<AppMonitorTap> app_engine_monitor_taps(AppEngine *);
+void app_engine_monitor_prefix(AppEngine *, uint32_t, const std::string &);

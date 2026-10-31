@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "play.h"
-#include "midi_host.h"
-#include "osc_host.h"
-#include "monitor_log.h"
-#include "runtime_patch.h"
 #include "../io/audio/portaudio_service.h"
+#include "midi_host.h"
+#include "monitor_log.h"
+#include "osc_host.h"
+#include "runtime_patch.h"
 #include "wirescape/output_policy.h"
 #include <algorithm>
 #include <atomic>
@@ -26,21 +26,36 @@ void u32(std::ofstream&out,uint32_t v){u16(out,uint16_t(v));u16(out,uint16_t(v>>
 uint32_t integer(const std::string&text,uint32_t maximum){size_t used=0;auto n=std::stoul(text,&used);if(used!=text.size()||!n||n>maximum)throw std::runtime_error("Option outside range");return uint32_t(n);}
 }
 int wirescape_play(int argc,char**argv){
- std::string midiName;bool confirmMidi=false,confirmLan=false,monitor=false;uint16_t oscPort=0;
- std::string patch,device,output="build/play-offline.wav",directory=std::filesystem::absolute(argv[0]).parent_path().string();
- uint32_t rate=48000,block=128,seconds=10;bool confirm=false,list=false,pace=false;
- for(int i=2;i<argc;++i){std::string arg=argv[i];
-  if(arg=="--confirm-audio")confirm=true;
-  else if(arg=="--list-devices")list=true;
-  else if(arg=="--pace")pace=true;
-  else if(arg=="--confirm-midi")confirmMidi=true;
-  else if(arg=="--confirm-lan")confirmLan=true;
-  else if(arg=="--monitor")monitor=true;
-  else if(arg=="--device"||arg=="--rate"||arg=="--block"||arg=="--output"||arg=="--seconds"||arg=="--modules"||arg=="--midi"||arg=="--osc-port"){
-   if(++i>=argc)throw std::runtime_error("Missing option value");std::string value=argv[i];
-   if(arg=="--osc-port")oscPort=static_cast<uint16_t>(integer(value,65535));else if(arg=="--midi")midiName=value;else if(arg=="--device")device=value;else if(arg=="--rate")rate=integer(value,192000);else if(arg=="--block")block=integer(value,4096);else if(arg=="--output")output=value;else if(arg=="--seconds")seconds=integer(value,600);else if(arg=="--modules")directory=value;
-   else throw std::runtime_error("MIDI/OSC needs its explicit confirmation flag and J4/J5 service");
-  }else if(!arg.empty()&&arg[0]!='-'&&patch.empty())patch=arg;else throw std::runtime_error("Unknown play argument: "+arg);
+    std::string midiName;
+    bool confirmMidi = false, confirmLan = false, monitor = false;
+    uint16_t oscPort = 0;
+    std::string patch, device, output = "build/play-offline.wav",
+                               directory = std::filesystem::absolute(argv[0]).parent_path().string();
+    uint32_t rate = 48000, block = 128, seconds = 10;
+    bool confirm = false, list = false, pace = false;
+    for (int i = 2; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--confirm-audio") confirm = true;
+        else if (arg == "--list-devices") list = true;
+        else if (arg == "--pace") pace = true;
+        else if (arg == "--confirm-midi") confirmMidi = true;
+        else if (arg == "--confirm-lan") confirmLan = true;
+        else if (arg == "--monitor") monitor = true;
+        else if (arg == "--device" || arg == "--rate" || arg == "--block" || arg == "--output" || arg == "--seconds" ||
+                 arg == "--modules" || arg == "--midi" || arg == "--osc-port") {
+            if (++i >= argc) throw std::runtime_error("Missing option value");
+            std::string value = argv[i];
+            if (arg == "--osc-port") oscPort = static_cast<uint16_t>(integer(value, 65535));
+            else if (arg == "--midi") midiName = value;
+            else if (arg == "--device") device = value;
+            else if (arg == "--rate") rate = integer(value, 192000);
+            else if (arg == "--block") block = integer(value, 4096);
+            else if (arg == "--output") output = value;
+            else if (arg == "--seconds") seconds = integer(value, 600);
+            else if (arg == "--modules") directory = value;
+            else throw std::runtime_error("MIDI/OSC needs its explicit confirmation flag and J4/J5 service");
+        } else if (!arg.empty() && arg[0] != '-' && patch.empty()) patch = arg;
+        else throw std::runtime_error("Unknown play argument: " + arg);
  }
  if(!midiName.empty()&&!confirmMidi)throw std::runtime_error("--midi requires explicit confirmation with --confirm-midi");
  if(list){wirescape::audio::list_devices(directory);return 0;}
@@ -64,11 +79,37 @@ int wirescape_play(int argc,char**argv){
  if(!engine)throw std::runtime_error(error);
  wirescape::midi::Host midi(confirmMidi);
  if(confirmMidi){midi.restore(bytes);if(!midiName.empty())midi.select({midiName,""},true);if(!midi.start(engine.get(),bytes,error))throw std::runtime_error(error);}
- wirescape::osc::Host osc(confirmLan);if(!osc.start(engine.get(),bytes,oscPort,error))throw std::runtime_error(error);
- auto taps=app_engine_monitor_taps(engine.get());
- auto drainMonitor=[&]{if(!monitor)return;size_t budget=256;for(auto&t:taps){wirescape::monitor::Entry e;while(budget&&t.tap->pop(e)){--budget;std::cerr<<format_monitor_entry(t,e)<<'\n';}}};
+ wirescape::osc::Host osc(confirmLan);
+ if (!osc.start(engine.get(), bytes, oscPort, error)) throw std::runtime_error(error);
+ auto taps = app_engine_monitor_taps(engine.get());
+ auto drainMonitor = [&] {
+     if (!monitor) return;
+     size_t budget = 256;
+     for (auto &t : taps) {
+         wirescape::monitor::Entry e;
+         while (budget && t.tap->pop(e)) {
+             --budget;
+             std::cerr << format_monitor_entry(t, e) << '\n';
+         }
+     }
+ };
  quit=false;auto previous=std::signal(SIGINT,interrupt);
- if(confirm){try{wirescape::audio::play(std::move(engine),directory,device,rate,block,quit,[&]{osc.stop();midi.stop();},drainMonitor);}catch(...){std::signal(SIGINT,previous);throw;}std::signal(SIGINT,previous);return 0;}
+ if (confirm) {
+     try {
+         wirescape::audio::play(
+             std::move(engine), directory, device, rate, block, quit,
+             [&] {
+                 osc.stop();
+                 midi.stop();
+             },
+             drainMonitor);
+     } catch (...) {
+         std::signal(SIGINT, previous);
+         throw;
+     }
+     std::signal(SIGINT, previous);
+     return 0;
+ }
  // No PortAudio code is initialized on the default path.
  const uint64_t frames=uint64_t(rate)*seconds;std::filesystem::path path(output);if(!path.parent_path().empty())std::filesystem::create_directories(path.parent_path());
  if(std::filesystem::absolute(path).lexically_normal()==std::filesystem::absolute(patch).lexically_normal())throw std::runtime_error("Offline WAV cannot overwrite its patch");

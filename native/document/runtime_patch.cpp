@@ -52,7 +52,10 @@ AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws
    if(version==2){need(m.at("version").is_number_integer()&&m.at("version").get<int64_t>()>0,"Invalid module version");if(m.contains("config"))need(m["config"].is_object(),"Module config must be an object");}
    auto module_config=runtime_module_config(type,version==2?m.value("config",Json::object()):Json::object());
    need(app_engine_add_node_config(engine.get(),node,type.c_str(),module_config)==WS_OK,"Module unavailable or prepare failed");
-   if(type=="monitor")app_engine_monitor_prefix(engine.get(),node,version==2?m.value("config",Json::object()).value("prefix",std::string{}):std::string{});
+   if (type == "monitor")
+       app_engine_monitor_prefix(engine.get(), node,
+                                 version == 2 ? m.value("config", Json::object()).value("prefix", std::string{})
+                                              : std::string{});
    for(uint32_t i=0;i<app_engine_module_count(engine.get());++i){auto*d=app_engine_module(engine.get(),i);if(type==d->id)nodes[node]=d;}
   }
   auto port=[&](uint32_t node,const std::string&name,bool output){need(nodes.count(node),"Missing cable/output module");auto*d=nodes.at(node);auto*p=output?d->outputs:d->inputs;uint32_t n=output?d->output_count:d->input_count;for(uint32_t i=0;i<n;++i)if(name==p[i].id)return i;throw std::runtime_error("Unknown port");};

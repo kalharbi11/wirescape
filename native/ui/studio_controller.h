@@ -1,16 +1,16 @@
 #pragma once
 #include "app_patch.h"
+#include "audio_device.h"
 #include "midi_host.h"
 #include "osc_host.h"
-#include <QStringList>
-#include "audio_device.h"
-#include <QObject>
 #include <QJsonObject>
+#include <QObject>
+#include <QStringList>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
-#include <memory>
 #include <functional>
+#include <memory>
 
 class StudioController final : public QObject {
     Q_OBJECT
@@ -44,16 +44,20 @@ class StudioController final : public QObject {
     Q_PROPERTY(int blockSize READ blockSize CONSTANT)
 public:
     using PatchWriter = std::function<bool(const QString&, const QByteArray&, QString&)>;
-    explicit StudioController(QString directory, QObject* parent = nullptr, PatchWriter writer = {}, bool confirmMidi = false, bool confirmLan = false);
+    explicit StudioController(QString directory, QObject *parent = nullptr, PatchWriter writer = {},
+                              bool confirmMidi = false, bool confirmLan = false);
     ~StudioController() override;
-    QStringList monitorLines()const{return monitorLines_;}
-    bool monitorPaused()const{return monitorPaused_;}
-    void setMonitorPaused(bool value){monitorPaused_=value;emit monitorChanged();}
-    qulonglong monitorDropped()const;
-    qulonglong monitorSuppressed()const;
-    QVariantMap oscCounters()const;
+    QStringList monitorLines() const { return monitorLines_; }
+    bool monitorPaused() const { return monitorPaused_; }
+    void setMonitorPaused(bool value) {
+        monitorPaused_ = value;
+        emit monitorChanged();
+    }
+    qulonglong monitorDropped() const;
+    qulonglong monitorSuppressed() const;
+    QVariantMap oscCounters() const;
     Q_INVOKABLE void clearMonitor();
-    Q_INVOKABLE void confirmOscLan(){osc_.authorize(true);}
+    Q_INVOKABLE void confirmOscLan() { osc_.authorize(true); }
     QVariantMap midiCounters()const;
     QVariantList midiEndpoints();
     bool midiAuthorized()const{return midi_.authorized();}
@@ -127,7 +131,9 @@ private:
     wirescape::document::PatchDocument documentSource_;
     Engine catalog_{nullptr, app_engine_destroy}, engine_{nullptr, app_engine_destroy};
     void drainMonitor();
-    QStringList monitorLines_;bool monitorPaused_=false;size_t monitorCursor_=0;
+    QStringList monitorLines_;
+    bool monitorPaused_ = false;
+    size_t monitorCursor_ = 0;
     wirescape::midi::Host midi_;
     wirescape::osc::Host osc_;
     AudioDevice audio_;

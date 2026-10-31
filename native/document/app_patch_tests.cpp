@@ -21,11 +21,27 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>cat(app_engine_create(&cfg),app_engine_destroy);
  require(app_engine_module_count(cat.get()) == 21,
          "OSC, Monitor, Macro and CHAOS plus thirteen ABI2 ports, host.keyboard and three MIDI modules in catalogue");
- for (const char *expected :
-      {"essentials.vco", "essentials.lfo", "essentials.vcf", "essentials.adsr", "essentials.vca", "essentials.clock",
-       "essentials.function_envelope", "essentials.ladder", "essentials.mixer", "essentials.noise", "essentials.output",
-       "essentials.scale_offset", "essentials.slew", "host.keyboard", "essentials.chaos_lite", "midi.in", "midi.to_cv",
-       "midi.cc_to_cv", "ports.macro_oscillator", "osc.in", "monitor"}) {
+ for (const char *expected : {"essentials.vco",
+                              "essentials.lfo",
+                              "essentials.vcf",
+                              "essentials.adsr",
+                              "essentials.vca",
+                              "essentials.clock",
+                              "essentials.function_envelope",
+                              "essentials.ladder",
+                              "essentials.mixer",
+                              "essentials.noise",
+                              "essentials.output",
+                              "essentials.scale_offset",
+                              "essentials.slew",
+                              "host.keyboard",
+                              "essentials.chaos_lite",
+                              "midi.in",
+                              "midi.to_cv",
+                              "midi.cc_to_cv",
+                              "ports.macro_oscillator",
+                              "osc.in",
+                              "monitor"}) {
      bool found = false;
      for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i)
          if (std::string(app_engine_module(cat.get(), i)->id) == expected) found = true;
