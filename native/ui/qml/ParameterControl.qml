@@ -17,6 +17,22 @@ Item {
         (descriptor.unit === "Hz" || descriptor.unit === "s")
     property real acceptedValue: Number(descriptor.value)
     property string acceptedDisplay: descriptor.display
+    // Format descriptor limits for humans; accepted values and write semantics stay untouched.
+    function displayBound(value) {
+        var unit = String(descriptor.unit || "");
+        var amount = Number(value);
+        if (unit === "Hz" && Math.abs(amount) >= 1000) {
+            amount /= 1000;
+            unit = "kHz";
+        } else if (unit === "s" && amount !== 0 && Math.abs(amount) < 1) {
+            amount *= 1000;
+            unit = "ms";
+        }
+        var digits = isFinite(amount) ? Number(amount.toPrecision(3)).toString() : String(amount);
+        return digits + (unit ? " " + unit : "");
+    }
+    readonly property string tooltipText: descriptor.name + " · " +
+        displayBound(lo) + "–" + displayBound(hi)
     objectName: "parameter_" + nodeId + "_" + descriptor.id
     implicitHeight: isClockRun ? 67 : presentation === "knob" ? (hierarchy === "primary" ? 154 : 125)
                     : presentation === "fader" ? 168 : 67
@@ -81,7 +97,7 @@ Item {
             valueText: control.acceptedDisplay
             onMoved: function(position, fine) { control.submit(position); }
             ToolTip.visible: activeFocus || hover.hovered
-            ToolTip.text: label + " · " + control.lo + "–" + control.hi + " " + control.descriptor.unit
+            ToolTip.text: control.tooltipText
             HoverHandler { id: hover }
         }
     }
@@ -161,7 +177,7 @@ Item {
                 }
             }
             ToolTip.visible: hovered
-            ToolTip.text: control.descriptor.name + " · " + control.lo + "–" + control.hi + " " + control.descriptor.unit
+            ToolTip.text: control.tooltipText
         }
     }
     StudioButton {
