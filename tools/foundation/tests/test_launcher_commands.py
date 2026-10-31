@@ -52,20 +52,32 @@ class LauncherCommandTests(unittest.TestCase):
 
     def test_update_check_is_read_only_and_compares_installed_not_checkout(self):
         installed, latest = 'a' * 40, 'b' * 40
-        args = argparse.Namespace(config='Release', json=True, open_instructions=True)
-        record = {}
+        args = argparse.Namespace(config='Release', json=False, open_instructions=True)
+        record = {'action': 'updates'}
         with patch.object(dev, '_base_record', return_value=record), \
              patch.object(dev, '_build_metadata', return_value={'build_commit': installed, 'source': {'git_dirty': False}}), \
              patch.object(dev, 'git_revision', return_value='c' * 40), \
              patch.object(dev.webbrowser, 'open', return_value=True) as opener, \
              patch.object(dev, '_save_record', return_value=Path('unused')), \
-             patch.object(dev.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, latest + '\trefs/heads/main\n')) as run, \
-             contextlib.redirect_stdout(io.StringIO()):
+             patch.object(dev.subprocess, 'run', side_effect=[subprocess.CompletedProcess([], 0, latest + '\trefs/heads/main\n'),
+                          subprocess.CompletedProcess([], 0, '2026-10-29\n'),
+                          subprocess.CompletedProcess([], 1, '')]) as run, \
+             contextlib.redirect_stdout(io.StringIO()) as output:
             self.assertEqual(dev.command_updates(args), 0)
+        self.assertIn(record['summary'], output.getvalue())
         self.assertEqual(record['installed'], installed)
         self.assertEqual(record['comparison'], 'different')
-        self.assertEqual(run.call_args.args[0], ['git', 'ls-remote', 'origin', 'refs/heads/main'])
-        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args_list[0].args[0], ['git', 'ls-remote', 'origin', 'refs/heads/main'])
+        self.assertEqual(run.call_count, 3)
+        self.assertEqual(record['latest_main'], latest)
+        self.assertEqual(record['installed_commit_date'], '2026-10-29')
+        self.assertEqual(record['latest_main_commit_date'], 'unavailable')
+        self.assertIn('Installed aaaaaaa (commit date 2026-10-29)', record['summary'])
+        self.assertIn('latest main bbbbbbb (commit date unavailable)', record['summary'])
+        self.assertNotIn(installed, record['summary'])
+        self.assertNotIn(latest, record['summary'])
+        for call, sha in zip(run.call_args_list[1:], (installed, latest)):
+            self.assertEqual(call.args[0], ['git', 'show', '--no-patch', '--format=%cs', sha])
         opener.assert_called_once_with((dev.ROOT / 'docs/WINDOWS_DEMO_UPDATE.md').as_uri())
 
     def test_dirty_installed_build_is_not_current(self):

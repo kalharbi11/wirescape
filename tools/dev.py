@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import json
 import os
 import sys
@@ -522,6 +523,18 @@ def _launcher_dependencies(args: argparse.Namespace, executable: Path) -> dict:
     return {"qt": qt, "portaudio": pa}
 
 
+def _local_commit_date(revision: str) -> str:
+    """Resolve a validated commit already present locally, without fetching."""
+    try:
+        result = subprocess.run(["git", "show", "--no-patch", "--format=%cs", revision],
+                                cwd=ROOT, capture_output=True, text=True, timeout=5, check=False)
+        if result.returncode == 0:
+            return date.fromisoformat(result.stdout.strip()).isoformat()
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        pass
+    return "unavailable"
+
+
 def command_updates(args: argparse.Namespace) -> int:
     """Explicit read-only remote check; never pull, build or install automatically."""
     from foundation.launcher_runtime import compare_revisions
@@ -539,12 +552,15 @@ def command_updates(args: argparse.Namespace) -> int:
         if getattr(args, "open_instructions", False):
             webbrowser.open((ROOT / "docs/WINDOWS_DEMO_UPDATE.md").as_uri())
         state = compare_revisions(installed, latest)
+        installed_date, latest_date = _local_commit_date(installed), _local_commit_date(latest)
         if metadata.get("source", {}).get("git_dirty") is not False:
             state = "modified-or-unverified-build"
         record.update(status="passed", installed=installed, latest_main=latest,
+                      installed_commit_date=installed_date, latest_main_commit_date=latest_date,
                       installed_source_dirty=metadata.get("source", {}).get("git_dirty"),
                       comparison=state, checkout=git_revision(ROOT),
-                      summary=f"Installed {installed}; latest main {latest}: {state}. "
+                      summary=f"Installed {installed[:7]} (commit date {installed_date}); "
+                      f"latest main {latest[:7]} (commit date {latest_date}): {state}. "
                       "Different does not establish ancestry. Follow docs/WINDOWS_DEMO_UPDATE.md; no changes applied.")
     except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
         record.update(status="failed", summary=str(exc))
