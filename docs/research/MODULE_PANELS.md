@@ -6,16 +6,27 @@
 
 ## Executive finding
 
-**Feasible, but the web catalog must expose the full native descriptor rather than just the current QML adapter.** ABI 2 already describes stable string IDs, names, signal/event port kinds and hints, stereo pairs, numeric bounds/defaults, tapers, steps and modulation flags. The SDK helper gives parameters no named options and no custom formatting callback by default. A *non-executable, optional sidecar* supplies sections, semantic labels, formatting and control choices; missing or malformed sidecars get a deterministic generic panel. This changes neither the ABI header nor existing patch IDs. Evidence: native/include/wirescape/module2.h:23-29,37-46,94-108; native/sdk/wirescape_sdk.h:16-28; native/control/app_engine.cpp:26-31.
+**Feasible, but the web catalog must expose the full native descriptor rather than just the current QML adapter.** ABI 2 already describes stable string IDs, names, signal/event port kinds and hints, stereo pairs, numeric bounds/defaults, tapers, steps, modulation flags and optional formatting interfaces. The SDK helper supplies zero named options and no custom value formatter by default, although the **ABI already supports** option arrays, display decimals and a value-to-text callback. A *non-executable, optional sidecar* supplies sections, semantic labels, formatting and control choices; missing or malformed sidecars get a deterministic generic panel. This changes neither the ABI header nor existing patch IDs. Evidence: native/include/wirescape/module2.h:23-29,37-46,94-108; native/sdk/wirescape_sdk.h:16-28; native/control/app_engine.cpp:26-31.
 
-**Measured source inventory:** 19 ABI-2 built-in types, 2 independently built SDK example types, and 13 ABI-1 module implementations, **34 compiled descriptor definitions / 21 distinct ABI-2 module IDs**. ABI-1 IDs overlap their ABI-2 ports; they are compatibility variants, not 13 new module types. The manifest/descriptor audit below totals **136 parameter entries and 103 port entries**, counting both ABI variants. The 19 built-ins appear in native/control/module_catalog.inc:2-20; SDK examples are built in native/engine2/CMakeLists.txt:90-98; ABI-1 sources are collected by native/CMakeLists.txt:35-41. These counts are **static source counts, not runtime enumeration or timing benchmarks**. An ABI-1 library can still be loaded but the app skips a duplicate ID: native/control/app_engine.cpp:50-68.
+**Measured source inventory:** 19 ABI-2 built-in types, 2 independently built SDK example types, and 13 ABI-1 module implementations, **34 compiled descriptor definitions / 21 distinct module type IDs**. ABI-1 IDs overlap their ABI-2 ports; they are compatibility variants, not 13 new module types. The descriptor audit below totals **136 parameter entries and 103 port entries**, counting both ABI variants. The 19 built-ins appear in native/control/module_catalog.inc:2-20; SDK examples are built in native/engine2/CMakeLists.txt:76-81; ABI-1 sources are collected by native/CMakeLists.txt:34-40. These counts are **static source counts, not runtime enumeration or timing benchmarks**. An ABI-1 library can still be loaded but the app skips a duplicate ID: native/control/app_engine.cpp:50-68.
+
+
+### Second-pass findings and corrections (2026-11-01)
+
+The counts above remain unchanged. This pass verified that **34 definitions is not 34 types in the visible UI palette**: the host statically registers 19 native ABI-2 built-ins, the SDK examples build independently, and the external loader calls the ABI-1 loader; ABI-1 duplicates are skipped by type ID (native/control/module_catalog.inc:2-20; native/engine2/CMakeLists.txt:76-81; native/control/app_engine.cpp:26-31,50-68). A **generic HTML renderer** can support all 34 descriptor variants in offline fixtures, but a **plugin-capable web host** additionally requires an ABI-2 discovery/registration path. Do not describe that path as implemented.
+
+Three independent identities must not be confused: (1) stable **module type string** (e.g. `essentials.vco`); (2) **patch-instance integer node ID**; (3) stable **ABI-2 parameter string ID**. Native processing also uses transient parameter array indices, while the legacy UI/patch adapter maps to numeric IDs through `legacy_index`. The existing C++ adapter constructs numeric IDs from `legacy_index` and its `app_engine_parameter_id()` resolves string IDs by descriptor index; patch-v2 conversion deliberately maps between the two (native/control/app_engine.cpp:26-31,118; native/document/app_patch.cpp:9-22,37-45). A web panel may display parameter slot and legacy index for debugging, but must **never serialize either as the patch-v2 target ID**.
+
+A fourth distinction is essential: **descriptor completeness is not configuration completeness**. CC-to-CV has zero parameters yet accepts eight configurable rows; MIDI In also accepts endpoint text configuration; these values come from patch-v2 `module.config` and quiescent host adapters, not from `ws2_param` (native/modules2/midi_cc_to_cv/dsp.h:7-13; native/modules2/midi_cc_to_cv/config.h:7-19; native/document/runtime_module_config.h:10-31). A generic panel can display their ports from native metadata immediately, but **cannot truthfully expose these settings until a separate typed host-owned config schema/binding is provided**.
+
+The current Qt module view is built from a **v1-shaped editor projection**, even when a native patch-v2 document is being edited; the conversion exists in `editor_view()` and `editor_patch()` (native/document/app_patch.cpp:16-56). The Qt view-side validator separately checks v1-shaped objects (native/ui/studio_controller.cpp:213-260). The runtime patch loader, by contrast, recognizes native v1/v2 and v2 `modulation` edges (native/document/runtime_patch.cpp:30-39,59-73). The HTML host should choose native patch-v2 documents as persistence authority, retaining the existing lossless conversion behavior rather than treating QML's view data as the saved format. **Preserving an unavailable module in a document is distinct from accepting it into an executable graph**; the runtime loader rejects unavailable/inactive modules (native/document/runtime_patch.cpp:49-54).
 
 ### Important limits
 
 - The owner-described single-file “WIRESCAPE Studio 01” HTML sketch was **not supplied with this task**. The visual hierarchy below follows the described header/typed cables/knobs/“01 / MOTION” vocabulary, not verified pixel values or exact CSS from that sketch. Planner can supply the sketch before visual implementation.
 - The ABI-2 `module.json` manifests list numeric legacy indices and coarse `signal`/`event` port types, **not** full descriptor hints/flags. The native `ws2_descriptor` and `ws2_param` remain authoritative (native/modules2/chaos_lite/module.json:7-45; native/modules2/chaos_lite/dsp.h:7-34; native/include/wirescape/module2.h:37-46).
 - Numeric manifest indices must not be conflated with native ABI-2 `legacy_index`: the SDK helper's default legacy index is zero, including the macro-expanded Step Sequencer parameters. Use the string parameter ID to round-trip settings (native/sdk/wirescape_sdk.h:20-25; native/sdk/examples/step_sequencer/dsp.h:10-13,30-33).
-- The ABI-2 helper sets `option_count=0`, `options=nullptr` and `value_to_text=nullptr` when creating parameters (native/sdk/wirescape_sdk.h:20-28). Some numeric mode semantics are documented in DSP, allocator enums and module READMEs, but **those labels are not supplied as machine-readable ABI options**. The appendix includes such **code-derived, cited enum labels** with an `enum_source` field; unknown mappings remain `enum_values:null`.
+- The ABI-2 structure **supports** `option_count`, `options`, `decimals` and `value_to_text`, but the current `ws::param` helper sets `option_count=0`, `options=nullptr`, `decimals=3` and `value_to_text=nullptr` for the audited built-ins/examples (native/include/wirescape/module2.h:41-46; native/sdk/wirescape_sdk.h:21-25). Some numeric mode semantics are documented in DSP, allocator enums and module READMEs, but **those labels are not supplied as machine-readable ABI options**. The appendix includes such **code-derived, cited enum labels** with an `enum_source` field; unknown mappings remain `enum_values:null`.
 - **Do not infer audio rate from a generic “signal” or event from a port's name.** The ABI-2 hint and kind are separate (native/include/wirescape/module2.h:23-25,37-40). An ABI-1 control port is only `WS_CONTROL`, without a more precise hint or stereo pairing (native/include/wirescape/module.h:16-31).
 - The current Qt UI is one shared `ModuleCard.qml`, not 34 bespoke panels. Its control-style function hardcodes selected numeric module IDs, and unknowns default to a slider (native/ui/qml/ModuleCard.qml:92-139). The special Clock run button is in native/ui/qml/ParameterControl.qml:183-195; Output selection is in native/ui/qml/ModuleCard.qml:141-147; per-app keyboard and device controls are in native/ui/qml/Main.qml:430-461. None is a module-specific QML file.
 
@@ -158,7 +169,7 @@ A complete generic panel remains mandatory even for these. Distinctive future vi
 
 **Prototype boundary:** implement one `GenericPanel(descriptor, presentation?, values, telemetry?, hostCapabilities)`; *zero* hardcoded module-ID branches in the generic renderer. Apply the 19 ABI-2 built-ins and two examples as fixtures, then 13 ABI-1 compatibility variants. Output screenshot/DOM snapshots from static catalog JSON with fake read-only values, and deterministic mouse/keyboard tests with an in-memory host. No physical audio/MIDI or LAN access in tests; no Pi/Windows hardware promise from a browser prototype. All 34 must render without exceptions, missing controls or cross-wired IDs.
 
-**Contract acceptance:** run a generated schema/collision test that compares normalized descriptors to actual native entries; independently check every ID, kind/hint, min/max/default, taper, flag, and stereo pair; check unknown sidecar fields ignored, malformed/absent sidecars fallback, values round-trip through JSON unchanged, unknown patch entries are lossless. Include a regression for `Frequency · 0.009999999776482582–20000 Hz` and tests of Hz/kHz and ms/s boundaries. Assert no duplicate per-module JSX/HTML panel source is required. For runtime port reconfiguration, get actual `query_ports` results per configuration rather than treating the static table as immutable (native/include/wirescape/module2.h:94-101; native/sdk/wirescape_sdk.h:122-126).
+**Contract acceptance:** run a generated schema/collision test that compares normalized descriptors to actual native entries; independently check every ID, kind/hint, min/max/default, taper, flag, and stereo pair; check unknown sidecar fields ignored, malformed/absent sidecars fallback, values round-trip through JSON unchanged, unknown patch entries are lossless. Include a regression for `Frequency · 0.009999999776482582–20000 Hz` and tests of Hz/kHz and ms/s boundaries. Assert no duplicate per-module JSX/HTML panel source is required. For runtime port reconfiguration, get actual `query_ports` results per configuration rather than treating the static table as immutable (native/include/wirescape/module2.h:94-101; native/sdk/wirescape_sdk.h:166-180).
 
 **Performance budget (proposal, not benchmark):** benchmark catalog parse and initial render on Windows and Pi 5 with 1, 19 and 100 node instances; record decoded JSON bytes, first-contentful panel time, p50/p95 update frame time, patch/drag latency and JS heap. Initial targets: no audio-thread sidecar work, ≤16.7ms UI render budget at 60Hz (or measured 30Hz fallback on Pi), ≤30Hz live visual telemetry and no per-animation catalog reparse. This research performs **zero** runtime performance measurements.
 
@@ -167,7 +178,7 @@ A complete generic panel remains mandatory even for these. Distinctive future vi
 
 ## Appendix A — complete native descriptor data (JSON)
 
-This is normalized **research data**, not a replacement for runtime enumeration. Each record has `abi_version`, `module_id`, `display_name`, `category_proposed`, `source`, `ports` (ID, direction, signal/event kind, hint, poly, stereo pairing, unpatched value, source line), `parameters` (ABI-2 string ID and legacy index, or ABI-1 numeric ID; name, bounds, unit, taper, default, step, flag list, modulatable, enum labels when verified, source), and `special_ui`. `null` means *not declared or not verified*, not zero/false. Source lines point to the declaration, including macro definitions for the expanded step array. For ABI-2 parameters, numeric manifest indices are ordinal slots and **do not necessarily equal** the descriptor’s `legacy_index` (SDK helper default is zero). Stable native identity is the string ID (native/sdk/wirescape_sdk.h:20-25; native/sdk/examples/step_sequencer/dsp.h:10-13,30-33). Categories, section ideas and generic UI badges are proposals.
+This is normalized **research data**, not a replacement for runtime enumeration. Each record has `abi_version`, `module_id`, `display_name`, `category_proposed`, `source`, `ports` (ID, direction, signal/event kind, hint, poly, stereo pairing, unpatched value, source line), `parameters` (ABI-2 string ID and legacy index, or ABI-1 numeric ID; name, bounds, unit, taper, default, step, flag list, modulatable, enum labels when verified, source), and `special_ui`. ABI-2 entries also include native `module_version`, source-backed default `decimals=3`, zero `option_count`, empty `native_options` and `has_value_to_text=false`; ABI 1 has null for these absent fields (native/sdk/wirescape_sdk.h:21-25,253-257; native/include/wirescape/module2.h:41-46). `enum_values` are independently source-derived UI candidates, **not** descriptor-provided ABI options. `null` means *not declared or not verified*, not zero/false. Source lines point to the declaration, including macro definitions for the expanded step array. For ABI-2 parameters, numeric manifest indices are ordinal slots and **do not necessarily equal** the descriptor’s `legacy_index` (SDK helper default is zero). Stable native identity is the string ID (native/sdk/wirescape_sdk.h:20-25; native/sdk/examples/step_sequencer/dsp.h:10-13,30-33). Categories, section ideas and generic UI badges are proposals.
 
 ```json
 [
@@ -231,7 +242,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/adsr/dsp.h:L10"
+        "source": "native/modules2/adsr/dsp.h:L10",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "decay",
@@ -251,7 +266,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/adsr/dsp.h:L10"
+        "source": "native/modules2/adsr/dsp.h:L10",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "sustain",
@@ -272,7 +291,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/adsr/dsp.h:L10"
+        "source": "native/modules2/adsr/dsp.h:L10",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "release",
@@ -292,10 +315,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/adsr/dsp.h:L10"
+        "source": "native/modules2/adsr/dsp.h:L10",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Sustain knob, other sliders (native/ui/qml/ModuleCard.qml:98)"
+    "special_ui": "Sustain knob, other sliders (native/ui/qml/ModuleCard.qml:98)",
+    "module_version": 2,
+    "version_source": "native/modules2/adsr/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -389,7 +418,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L18"
+        "source": "native/modules2/chaos_lite/dsp.h:L18",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "shape_b",
@@ -408,7 +441,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L18"
+        "source": "native/modules2/chaos_lite/dsp.h:L18",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "detune",
@@ -427,7 +464,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L19"
+        "source": "native/modules2/chaos_lite/dsp.h:L19",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "octave_a",
@@ -446,7 +487,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": false,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L20"
+        "source": "native/modules2/chaos_lite/dsp.h:L20",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "octave_b",
@@ -465,7 +510,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": false,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L21"
+        "source": "native/modules2/chaos_lite/dsp.h:L21",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "level_a",
@@ -484,7 +533,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L22"
+        "source": "native/modules2/chaos_lite/dsp.h:L22",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "level_b",
@@ -503,7 +556,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L22"
+        "source": "native/modules2/chaos_lite/dsp.h:L22",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "pan_a",
@@ -522,7 +579,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L23"
+        "source": "native/modules2/chaos_lite/dsp.h:L23",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "pan_b",
@@ -541,7 +602,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L23"
+        "source": "native/modules2/chaos_lite/dsp.h:L23",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "route",
@@ -574,7 +639,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/chaos_lite/dsp.h:L24",
-        "enum_source": "native/modules2/chaos_lite/dsp.h:24,106-109; native/modules2/chaos_lite/coupler.h:13-26"
+        "enum_source": "native/modules2/chaos_lite/dsp.h:24,106-109; native/modules2/chaos_lite/coupler.h:13-26",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "depth",
@@ -593,7 +662,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L25"
+        "source": "native/modules2/chaos_lite/dsp.h:L25",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "body_tune",
@@ -612,7 +685,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L25"
+        "source": "native/modules2/chaos_lite/dsp.h:L25",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "feedback",
@@ -631,7 +708,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L26"
+        "source": "native/modules2/chaos_lite/dsp.h:L26",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "damping",
@@ -650,7 +731,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L26"
+        "source": "native/modules2/chaos_lite/dsp.h:L26",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "body_mix",
@@ -669,7 +754,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L27"
+        "source": "native/modules2/chaos_lite/dsp.h:L27",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "roughness",
@@ -688,7 +777,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L27"
+        "source": "native/modules2/chaos_lite/dsp.h:L27",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "rough_rate",
@@ -707,7 +800,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L28"
+        "source": "native/modules2/chaos_lite/dsp.h:L28",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "drift",
@@ -726,7 +823,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L29"
+        "source": "native/modules2/chaos_lite/dsp.h:L29",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "jitter",
@@ -745,7 +846,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L29"
+        "source": "native/modules2/chaos_lite/dsp.h:L29",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "fall",
@@ -764,7 +869,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L30"
+        "source": "native/modules2/chaos_lite/dsp.h:L30",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "lfo_rate",
@@ -783,7 +892,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L30"
+        "source": "native/modules2/chaos_lite/dsp.h:L30",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "lfo_depth",
@@ -802,7 +915,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L31"
+        "source": "native/modules2/chaos_lite/dsp.h:L31",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "lfo_target",
@@ -835,7 +952,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/chaos_lite/dsp.h:L32",
-        "enum_source": "native/modules2/chaos_lite/dsp.h:92-103"
+        "enum_source": "native/modules2/chaos_lite/dsp.h:92-103",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "lfo_self",
@@ -854,7 +975,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L33"
+        "source": "native/modules2/chaos_lite/dsp.h:L33",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "cutoff",
@@ -873,7 +998,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L33"
+        "source": "native/modules2/chaos_lite/dsp.h:L33",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "level",
@@ -892,10 +1021,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L34"
+        "source": "native/modules2/chaos_lite/dsp.h:L34",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Generic card; stereo output pair is native (dsp.h:13-15)"
+    "special_ui": "Generic card; stereo output pair is native (dsp.h:13-15)",
+    "module_version": 1,
+    "version_source": "native/modules2/chaos_lite/dsp.h:L9"
   },
   {
     "abi_version": 2,
@@ -947,7 +1082,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/clock/dsp.h:L8"
+        "source": "native/modules2/clock/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "ticks_per_beat",
@@ -968,7 +1107,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/clock/dsp.h:L8"
+        "source": "native/modules2/clock/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "duty",
@@ -989,7 +1132,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/clock/dsp.h:L8"
+        "source": "native/modules2/clock/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "run",
@@ -1020,10 +1167,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/clock/dsp.h:L8",
-        "enum_source": "native/modules2/clock/dsp.h:8; native/ui/qml/ParameterControl.qml:183-195"
+        "enum_source": "native/modules2/clock/dsp.h:8; native/ui/qml/ParameterControl.qml:183-195",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Ticks stepper + run button (native/ui/qml/ModuleCard.qml:97,136-137; native/ui/qml/ParameterControl.qml:183-195)"
+    "special_ui": "Ticks stepper + run button (native/ui/qml/ModuleCard.qml:97,136-137; native/ui/qml/ParameterControl.qml:183-195)",
+    "module_version": 2,
+    "version_source": "native/modules2/clock/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -1075,7 +1228,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/function_envelope/dsp.h:L8"
+        "source": "native/modules2/function_envelope/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "fall",
@@ -1096,7 +1253,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/function_envelope/dsp.h:L8"
+        "source": "native/modules2/function_envelope/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "curve",
@@ -1117,10 +1278,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/function_envelope/dsp.h:L8"
+        "source": "native/modules2/function_envelope/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Shared QML generic module card"
+    "special_ui": "Shared QML generic module card",
+    "module_version": 2,
+    "version_source": "native/modules2/function_envelope/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -1192,7 +1359,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": false,
         "enum_values": null,
-        "source": "native/modules2/host_keyboard/dsp.h:L13"
+        "source": "native/modules2/host_keyboard/dsp.h:L13",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "mode",
@@ -1229,7 +1400,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/host_keyboard/dsp.h:L14",
-        "enum_source": "native/voice/allocator.h:12; native/modules2/host_keyboard/README.md:14-16"
+        "enum_source": "native/voice/allocator.h:12; native/modules2/host_keyboard/README.md:14-16",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "octave",
@@ -1248,10 +1423,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": false,
         "enum_values": null,
-        "source": "native/modules2/host_keyboard/dsp.h:L15"
+        "source": "native/modules2/host_keyboard/dsp.h:L15",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Global keyboard strip in Main.qml:430-441; generic card"
+    "special_ui": "Global keyboard strip in Main.qml:430-441; generic card",
+    "module_version": 1,
+    "version_source": "native/modules2/host_keyboard/dsp.h:L7"
   },
   {
     "abi_version": 2,
@@ -1303,7 +1484,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/ladder/dsp.h:L8"
+        "source": "native/modules2/ladder/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "resonance",
@@ -1324,7 +1509,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/ladder/dsp.h:L8"
+        "source": "native/modules2/ladder/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "drive",
@@ -1345,10 +1534,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/ladder/dsp.h:L8"
+        "source": "native/modules2/ladder/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Knobs on shared ModuleCard.qml:102"
+    "special_ui": "Knobs on shared ModuleCard.qml:102",
+    "module_version": 2,
+    "version_source": "native/modules2/ladder/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -1389,7 +1584,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/lfo/dsp.h:L11"
+        "source": "native/modules2/lfo/dsp.h:L11",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "depth",
@@ -1410,7 +1609,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/lfo/dsp.h:L12"
+        "source": "native/modules2/lfo/dsp.h:L12",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "offset",
@@ -1431,7 +1634,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/lfo/dsp.h:L13"
+        "source": "native/modules2/lfo/dsp.h:L13",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "sync",
@@ -1459,7 +1666,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/lfo/dsp.h:L14",
-        "enum_source": "native/modules2/lfo/dsp.h:14-15"
+        "enum_source": "native/modules2/lfo/dsp.h:14-15",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "beats",
@@ -1478,10 +1689,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/lfo/dsp.h:L15"
+        "source": "native/modules2/lfo/dsp.h:L15",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Rate/depth/offset knobs (native/ui/qml/ModuleCard.qml:100); no phase telemetry defined"
+    "special_ui": "Rate/depth/offset knobs (native/ui/qml/ModuleCard.qml:100); no phase telemetry defined",
+    "module_version": 2,
+    "version_source": "native/modules2/lfo/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -1619,7 +1836,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": false,
         "enum_values": null,
-        "source": "native/modules2/macro_oscillator/dsp.h:L21"
+        "source": "native/modules2/macro_oscillator/dsp.h:L21",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "coarse",
@@ -1639,7 +1860,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/macro_oscillator/dsp.h:L22"
+        "source": "native/modules2/macro_oscillator/dsp.h:L22",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "harmonics",
@@ -1659,7 +1884,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/macro_oscillator/dsp.h:L23"
+        "source": "native/modules2/macro_oscillator/dsp.h:L23",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "timbre",
@@ -1679,7 +1908,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/macro_oscillator/dsp.h:L24"
+        "source": "native/modules2/macro_oscillator/dsp.h:L24",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "morph",
@@ -1699,7 +1932,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/macro_oscillator/dsp.h:L25"
+        "source": "native/modules2/macro_oscillator/dsp.h:L25",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "fm_amount",
@@ -1719,7 +1956,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/macro_oscillator/dsp.h:L26"
+        "source": "native/modules2/macro_oscillator/dsp.h:L26",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "timbre_amount",
@@ -1739,7 +1980,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/macro_oscillator/dsp.h:L27"
+        "source": "native/modules2/macro_oscillator/dsp.h:L27",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "morph_amount",
@@ -1759,7 +2004,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/macro_oscillator/dsp.h:L28"
+        "source": "native/modules2/macro_oscillator/dsp.h:L28",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "decay",
@@ -1779,7 +2028,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/macro_oscillator/dsp.h:L29"
+        "source": "native/modules2/macro_oscillator/dsp.h:L29",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "lpg_colour",
@@ -1799,10 +2052,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/macro_oscillator/dsp.h:L30"
+        "source": "native/modules2/macro_oscillator/dsp.h:L30",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "24-model selector numeric; no custom QML (dsp.h:19-30)"
+    "special_ui": "24-model selector numeric; no custom QML (dsp.h:19-30)",
+    "module_version": 1,
+    "version_source": "native/modules2/macro_oscillator/dsp.h:L9"
   },
   {
     "abi_version": 2,
@@ -1912,7 +2171,9 @@ This is normalized **research data**, not a replacement for runtime enumeration.
       }
     ],
     "parameters": [],
-    "special_ui": "Eight rows in non-parameter config.h:7-21; global MIDI dialog in Main.qml:166-187"
+    "special_ui": "Eight rows in non-parameter config.h:7-21; global MIDI dialog in Main.qml:166-187",
+    "module_version": 1,
+    "version_source": "native/modules2/midi_cc_to_cv/dsp.h:L7"
   },
   {
     "abi_version": 2,
@@ -2021,10 +2282,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/midi_in/dsp.h:L10",
-        "enum_source": "native/modules2/midi_in/dsp.h:10,26-41"
+        "enum_source": "native/modules2/midi_in/dsp.h:10,26-41",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Physical MIDI selection belongs to Main.qml:166-187"
+    "special_ui": "Physical MIDI selection belongs to Main.qml:166-187",
+    "module_version": 1,
+    "version_source": "native/modules2/midi_in/dsp.h:L7"
   },
   {
     "abi_version": 2,
@@ -2151,7 +2418,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": false,
         "enum_values": null,
-        "source": "native/modules2/midi_to_cv/dsp.h:L12"
+        "source": "native/modules2/midi_to_cv/dsp.h:L12",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "allocation_mode",
@@ -2188,7 +2459,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/midi_to_cv/dsp.h:L13",
-        "enum_source": "native/voice/allocator.h:12; native/modules2/midi_to_cv/README.md:8-11"
+        "enum_source": "native/voice/allocator.h:12; native/modules2/midi_to_cv/README.md:8-11",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "steal_policy",
@@ -2213,7 +2488,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/midi_to_cv/dsp.h:L14",
-        "enum_source": "native/modules2/midi_to_cv/dsp.h:14; native/modules2/midi_to_cv/README.md:8-10"
+        "enum_source": "native/modules2/midi_to_cv/dsp.h:14; native/modules2/midi_to_cv/README.md:8-10",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "mono_priority",
@@ -2246,7 +2525,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/midi_to_cv/dsp.h:L15",
-        "enum_source": "native/voice/allocator.h:13; native/modules2/midi_to_cv/README.md:8-11"
+        "enum_source": "native/voice/allocator.h:13; native/modules2/midi_to_cv/README.md:8-11",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "legato",
@@ -2275,7 +2558,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/midi_to_cv/dsp.h:L16",
-        "enum_source": "native/modules2/midi_to_cv/dsp.h:16; native/modules2/midi_to_cv/README.md:8-11"
+        "enum_source": "native/modules2/midi_to_cv/dsp.h:16; native/modules2/midi_to_cv/README.md:8-11",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "sustain",
@@ -2304,7 +2591,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/midi_to_cv/dsp.h:L17",
-        "enum_source": "native/modules2/midi_to_cv/dsp.h:17; native/modules2/midi_to_cv/README.md:8-11"
+        "enum_source": "native/modules2/midi_to_cv/dsp.h:17; native/modules2/midi_to_cv/README.md:8-11",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "pitch_bend_range_semitones",
@@ -2323,7 +2614,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": false,
         "enum_values": null,
-        "source": "native/modules2/midi_to_cv/dsp.h:L18"
+        "source": "native/modules2/midi_to_cv/dsp.h:L18",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "apply_bend",
@@ -2352,7 +2647,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/midi_to_cv/dsp.h:L19",
-        "enum_source": "native/modules2/midi_to_cv/dsp.h:19; native/modules2/midi_to_cv/README.md:8-11"
+        "enum_source": "native/modules2/midi_to_cv/dsp.h:19; native/modules2/midi_to_cv/README.md:8-11",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "channel_filter",
@@ -2441,10 +2740,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           }
         ],
         "source": "native/modules2/midi_to_cv/dsp.h:L20",
-        "enum_source": "native/modules2/midi_to_cv/dsp.h:20; native/modules2/midi_to_cv/README.md:8-11"
+        "enum_source": "native/modules2/midi_to_cv/dsp.h:20; native/modules2/midi_to_cv/README.md:8-11",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "No custom panel; mode/allocation flags are stepped (dsp.h:10-20)"
+    "special_ui": "No custom panel; mode/allocation flags are stepped (dsp.h:10-20)",
+    "module_version": 1,
+    "version_source": "native/modules2/midi_to_cv/dsp.h:L7"
   },
   {
     "abi_version": 2,
@@ -2507,7 +2812,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/mixer/dsp.h:L9"
+        "source": "native/modules2/mixer/dsp.h:L9",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "level_b",
@@ -2528,10 +2837,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/mixer/dsp.h:L9"
+        "source": "native/modules2/mixer/dsp.h:L9",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Twin faders (native/ui/qml/ModuleCard.qml:96)"
+    "special_ui": "Twin faders (native/ui/qml/ModuleCard.qml:96)",
+    "module_version": 2,
+    "version_source": "native/modules2/mixer/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -2572,10 +2887,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/noise/dsp.h:L8"
+        "source": "native/modules2/noise/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Shared QML generic module card"
+    "special_ui": "Shared QML generic module card",
+    "module_version": 2,
+    "version_source": "native/modules2/noise/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -2608,7 +2929,9 @@ This is normalized **research data**, not a replacement for runtime enumeration.
       }
     ],
     "parameters": [],
-    "special_ui": "Host output select button in ModuleCard.qml:141-147"
+    "special_ui": "Host output select button in ModuleCard.qml:141-147",
+    "module_version": 2,
+    "version_source": "native/modules2/output/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -2660,7 +2983,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/scale_offset/dsp.h:L8"
+        "source": "native/modules2/scale_offset/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "offset",
@@ -2681,10 +3008,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/scale_offset/dsp.h:L8"
+        "source": "native/modules2/scale_offset/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Knob rule in ModuleCard.qml:105"
+    "special_ui": "Knob rule in ModuleCard.qml:105",
+    "module_version": 2,
+    "version_source": "native/modules2/scale_offset/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -2736,7 +3069,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/slew/dsp.h:L8"
+        "source": "native/modules2/slew/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "fall",
@@ -2757,10 +3094,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/slew/dsp.h:L8"
+        "source": "native/modules2/slew/dsp.h:L8",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Knob rule in ModuleCard.qml:104"
+    "special_ui": "Knob rule in ModuleCard.qml:104",
+    "module_version": 2,
+    "version_source": "native/modules2/slew/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -2823,10 +3166,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/vca/dsp.h:L9"
+        "source": "native/modules2/vca/dsp.h:L9",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Shared QML generic module card"
+    "special_ui": "Shared QML generic module card",
+    "module_version": 2,
+    "version_source": "native/modules2/vca/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -2889,7 +3238,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/vcf/dsp.h:L10"
+        "source": "native/modules2/vcf/dsp.h:L10",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "resonance",
@@ -2910,10 +3263,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/vcf/dsp.h:L10"
+        "source": "native/modules2/vcf/dsp.h:L10",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Cutoff/resonance knobs in ModuleCard.qml:101"
+    "special_ui": "Cutoff/resonance knobs in ModuleCard.qml:101",
+    "module_version": 2,
+    "version_source": "native/modules2/vcf/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -2987,10 +3346,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "modulatable": true,
         "enum_values": null,
-        "source": "native/modules2/vco/dsp.h:L11"
+        "source": "native/modules2/vco/dsp.h:L11",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "Frequency hero knob in ModuleCard.qml:99,112-114"
+    "special_ui": "Frequency hero knob in ModuleCard.qml:99,112-114",
+    "module_version": 2,
+    "version_source": "native/modules2/vco/dsp.h:L6"
   },
   {
     "abi_version": 2,
@@ -3053,7 +3418,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/random_source/dsp.h:L20",
         "slot": 0,
-        "manifest_index": 0
+        "manifest_index": 0,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "smooth",
@@ -3074,7 +3443,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/random_source/dsp.h:L21",
         "slot": 1,
-        "manifest_index": 1
+        "manifest_index": 1,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "range",
@@ -3095,10 +3468,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/random_source/dsp.h:L22",
         "slot": 2,
-        "manifest_index": 2
+        "manifest_index": 2,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "No custom QML; SDK example not in builtin catalog (native/control/module_catalog.inc:2-20)"
+    "special_ui": "No custom QML; SDK example not in builtin catalog (native/control/module_catalog.inc:2-20)",
+    "module_version": 1,
+    "version_source": "native/sdk/examples/random_source/dsp.h:L8"
   },
   {
     "abi_version": 2,
@@ -3204,7 +3583,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "source": "native/sdk/examples/step_sequencer/dsp.h:L31",
         "slot": 0,
         "manifest_index": 0,
-        "enum_source": "native/sdk/examples/step_sequencer/dsp.h:31-33"
+        "enum_source": "native/sdk/examples/step_sequencer/dsp.h:31-33",
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "length",
@@ -3225,7 +3608,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L32",
         "slot": 1,
-        "manifest_index": 1
+        "manifest_index": 1,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "pitch1",
@@ -3246,7 +3633,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L33",
         "slot": 2,
-        "manifest_index": 2
+        "manifest_index": 2,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "gate1",
@@ -3280,7 +3671,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L33",
         "slot": 3,
-        "manifest_index": 3
+        "manifest_index": 3,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "vel1",
@@ -3301,7 +3696,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L33",
         "slot": 4,
-        "manifest_index": 4
+        "manifest_index": 4,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "pitch2",
@@ -3322,7 +3721,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L33",
         "slot": 5,
-        "manifest_index": 5
+        "manifest_index": 5,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "gate2",
@@ -3356,7 +3759,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L33",
         "slot": 6,
-        "manifest_index": 6
+        "manifest_index": 6,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "vel2",
@@ -3377,7 +3784,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L33",
         "slot": 7,
-        "manifest_index": 7
+        "manifest_index": 7,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "pitch3",
@@ -3398,7 +3809,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L33",
         "slot": 8,
-        "manifest_index": 8
+        "manifest_index": 8,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "gate3",
@@ -3432,7 +3847,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L33",
         "slot": 9,
-        "manifest_index": 9
+        "manifest_index": 9,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "vel3",
@@ -3453,7 +3872,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L33",
         "slot": 10,
-        "manifest_index": 10
+        "manifest_index": 10,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "pitch4",
@@ -3474,7 +3897,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L33",
         "slot": 11,
-        "manifest_index": 11
+        "manifest_index": 11,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "gate4",
@@ -3508,7 +3935,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L33",
         "slot": 12,
-        "manifest_index": 12
+        "manifest_index": 12,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "vel4",
@@ -3529,7 +3960,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L33",
         "slot": 13,
-        "manifest_index": 13
+        "manifest_index": 13,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "pitch5",
@@ -3550,7 +3985,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L33",
         "slot": 14,
-        "manifest_index": 14
+        "manifest_index": 14,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "gate5",
@@ -3584,7 +4023,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L33",
         "slot": 15,
-        "manifest_index": 15
+        "manifest_index": 15,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "vel5",
@@ -3605,7 +4048,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L33",
         "slot": 16,
-        "manifest_index": 16
+        "manifest_index": 16,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "pitch6",
@@ -3626,7 +4073,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L33",
         "slot": 17,
-        "manifest_index": 17
+        "manifest_index": 17,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "gate6",
@@ -3660,7 +4111,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L33",
         "slot": 18,
-        "manifest_index": 18
+        "manifest_index": 18,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "vel6",
@@ -3681,7 +4136,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L33",
         "slot": 19,
-        "manifest_index": 19
+        "manifest_index": 19,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "pitch7",
@@ -3702,7 +4161,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L33",
         "slot": 20,
-        "manifest_index": 20
+        "manifest_index": 20,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "gate7",
@@ -3736,7 +4199,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L33",
         "slot": 21,
-        "manifest_index": 21
+        "manifest_index": 21,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "vel7",
@@ -3757,7 +4224,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L33",
         "slot": 22,
-        "manifest_index": 22
+        "manifest_index": 22,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "pitch8",
@@ -3778,7 +4249,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L33",
         "slot": 23,
-        "manifest_index": 23
+        "manifest_index": 23,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "gate8",
@@ -3812,7 +4287,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         ],
         "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L33",
         "slot": 24,
-        "manifest_index": 24
+        "manifest_index": 24,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       },
       {
         "id": "vel8",
@@ -3833,10 +4312,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "enum_values": null,
         "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L33",
         "slot": 25,
-        "manifest_index": 25
+        "manifest_index": 25,
+        "decimals": 3,
+        "option_count": 0,
+        "native_options": [],
+        "has_value_to_text": false
       }
     ],
-    "special_ui": "No custom QML; 8×3 pitch/gate/velocity array expanded from WS_STEP, with documented gate meanings (dsp.h:7-41)"
+    "special_ui": "No custom QML; 8×3 pitch/gate/velocity array expanded from WS_STEP, with documented gate meanings (dsp.h:7-41)",
+    "module_version": 1,
+    "version_source": "native/sdk/examples/step_sequencer/dsp.h:L16"
   },
   {
     "abi_version": 1,
@@ -3872,7 +4357,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/adsr/module.cpp:L96"
+        "source": "native/modules/adsr/module.cpp:L96",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 1,
@@ -3888,7 +4377,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/adsr/module.cpp:L97"
+        "source": "native/modules/adsr/module.cpp:L97",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 2,
@@ -3904,7 +4397,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/adsr/module.cpp:L98"
+        "source": "native/modules/adsr/module.cpp:L98",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 3,
@@ -3920,10 +4417,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/adsr/module.cpp:L99"
+        "source": "native/modules/adsr/module.cpp:L99",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       }
     ],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   },
   {
     "abi_version": 1,
@@ -3970,7 +4473,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/clock/module.cpp:L69"
+        "source": "native/modules/clock/module.cpp:L69",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 1,
@@ -3986,7 +4493,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/clock/module.cpp:L69"
+        "source": "native/modules/clock/module.cpp:L69",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 2,
@@ -4002,7 +4513,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/clock/module.cpp:L69"
+        "source": "native/modules/clock/module.cpp:L69",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 3,
@@ -4018,10 +4533,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/clock/module.cpp:L69"
+        "source": "native/modules/clock/module.cpp:L69",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       }
     ],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   },
   {
     "abi_version": 1,
@@ -4068,7 +4589,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/function_envelope/module.cpp:L76"
+        "source": "native/modules/function_envelope/module.cpp:L76",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 1,
@@ -4084,7 +4609,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/function_envelope/module.cpp:L76"
+        "source": "native/modules/function_envelope/module.cpp:L76",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 2,
@@ -4100,10 +4629,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/function_envelope/module.cpp:L76"
+        "source": "native/modules/function_envelope/module.cpp:L76",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       }
     ],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   },
   {
     "abi_version": 1,
@@ -4150,7 +4685,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/ladder/module.cpp:L87"
+        "source": "native/modules/ladder/module.cpp:L87",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 1,
@@ -4166,7 +4705,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/ladder/module.cpp:L87"
+        "source": "native/modules/ladder/module.cpp:L87",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 2,
@@ -4182,10 +4725,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/ladder/module.cpp:L87"
+        "source": "native/modules/ladder/module.cpp:L87",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       }
     ],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   },
   {
     "abi_version": 1,
@@ -4221,7 +4770,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/lfo/module.cpp:L55"
+        "source": "native/modules/lfo/module.cpp:L55",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 1,
@@ -4237,7 +4790,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/lfo/module.cpp:L56"
+        "source": "native/modules/lfo/module.cpp:L56",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 2,
@@ -4253,10 +4810,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/lfo/module.cpp:L57"
+        "source": "native/modules/lfo/module.cpp:L57",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       }
     ],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   },
   {
     "abi_version": 1,
@@ -4314,7 +4877,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/mixer/module.cpp:L71"
+        "source": "native/modules/mixer/module.cpp:L71",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 1,
@@ -4330,10 +4897,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/mixer/module.cpp:L72"
+        "source": "native/modules/mixer/module.cpp:L72",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       }
     ],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   },
   {
     "abi_version": 1,
@@ -4369,10 +4942,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/noise/module.cpp:L51"
+        "source": "native/modules/noise/module.cpp:L51",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       }
     ],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   },
   {
     "abi_version": 1,
@@ -4405,7 +4984,9 @@ This is normalized **research data**, not a replacement for runtime enumeration.
       }
     ],
     "parameters": [],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   },
   {
     "abi_version": 1,
@@ -4452,7 +5033,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/scale_offset/module.cpp:L41"
+        "source": "native/modules/scale_offset/module.cpp:L41",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 1,
@@ -4468,10 +5053,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/scale_offset/module.cpp:L42"
+        "source": "native/modules/scale_offset/module.cpp:L42",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       }
     ],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   },
   {
     "abi_version": 1,
@@ -4518,7 +5109,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/slew/module.cpp:L58"
+        "source": "native/modules/slew/module.cpp:L58",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 1,
@@ -4534,10 +5129,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/slew/module.cpp:L58"
+        "source": "native/modules/slew/module.cpp:L58",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       }
     ],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   },
   {
     "abi_version": 1,
@@ -4595,10 +5196,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/vca/module.cpp:L35"
+        "source": "native/modules/vca/module.cpp:L35",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       }
     ],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   },
   {
     "abi_version": 1,
@@ -4656,7 +5263,11 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/vcf/module.cpp:L87"
+        "source": "native/modules/vcf/module.cpp:L87",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       },
       {
         "id": 1,
@@ -4672,10 +5283,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/vcf/module.cpp:L87"
+        "source": "native/modules/vcf/module.cpp:L87",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       }
     ],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   },
   {
     "abi_version": 1,
@@ -4711,10 +5328,16 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "flags": null,
         "modulatable": null,
         "enum_values": null,
-        "source": "native/modules/vco/module.cpp:L45"
+        "source": "native/modules/vco/module.cpp:L45",
+        "decimals": null,
+        "option_count": null,
+        "native_options": null,
+        "has_value_to_text": null
       }
     ],
-    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+    "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors",
+    "module_version": null,
+    "version_source": null
   }
 ]
 ```
