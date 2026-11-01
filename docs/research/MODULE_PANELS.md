@@ -2722,3 +2722,797 @@ This is normalized **research data**, not a replacement for runtime enumeration.
   ],
   "special_ui": "Frequency hero knob in ModuleCard.qml:99,112-114"
 },
+{
+  "abi_version": 2,
+  "module_id": "example.random_source",
+  "display_name": "Random Source",
+  "category_proposed": "Random / control",
+  "source": "native/sdk/examples/random_source/dsp.h:L8",
+  "ports": [
+    {
+      "id": "clock",
+      "name": "Clock",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "trigger",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/sdk/examples/random_source/dsp.h:L12"
+    },
+    {
+      "id": "step",
+      "name": "Step",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/sdk/examples/random_source/dsp.h:L14"
+    },
+    {
+      "id": "smooth",
+      "name": "Smooth",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/sdk/examples/random_source/dsp.h:L15"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "voices",
+      "legacy_index": 0,
+      "name": "Voices",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/sdk/examples/random_source/dsp.h:L20",
+      "slot": 0,
+      "manifest_index": 0
+    },
+    {
+      "id": "smooth",
+      "legacy_index": 0,
+      "name": "Smooth",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.05,
+      "unit": "s",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/random_source/dsp.h:L21",
+      "slot": 1,
+      "manifest_index": 1
+    },
+    {
+      "id": "range",
+      "legacy_index": 0,
+      "name": "Range",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/random_source/dsp.h:L22",
+      "slot": 2,
+      "manifest_index": 2
+    }
+  ],
+  "special_ui": "No custom QML; SDK example not in builtin catalog (native/control/module_catalog.inc:2-20)"
+},
+{
+  "abi_version": 2,
+  "module_id": "example.step_sequencer",
+  "display_name": "Step Sequencer",
+  "category_proposed": "Sequencer",
+  "source": "native/sdk/examples/step_sequencer/dsp.h:L16",
+  "ports": [
+    {
+      "id": "clock",
+      "name": "Clock",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "trigger",
+      "poly": "first",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L20"
+    },
+    {
+      "id": "reset",
+      "name": "Reset",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "trigger",
+      "poly": "first",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L21"
+    },
+    {
+      "id": "pitch",
+      "name": "Pitch",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "pitch",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L24"
+    },
+    {
+      "id": "gate",
+      "name": "Gate",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "gate",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L25"
+    },
+    {
+      "id": "velocity",
+      "name": "Velocity",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L26"
+    },
+    {
+      "id": "notes",
+      "name": "Notes",
+      "direction": "output",
+      "kind": "event",
+      "hint": "ev_notes",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L27"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "pitch1",
+      "legacy_index": 0,
+      "name": "Pitch 1",
+      "minimum": -2,
+      "maximum": 2,
+      "default": 0,
+      "unit": "oct",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L40",
+      "slot": 0,
+      "manifest_index": 0
+    },
+    {
+      "id": "gate1",
+      "legacy_index": 0,
+      "name": "Gate 1",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": [
+        {
+          "value": 0,
+          "label": "Rest"
+        },
+        {
+          "value": 1,
+          "label": "Note"
+        },
+        {
+          "value": 2,
+          "label": "Tie"
+        }
+      ],
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L40",
+      "slot": 1,
+      "manifest_index": 1
+    },
+    {
+      "id": "vel1",
+      "legacy_index": 0,
+      "name": "Velocity 1",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.8,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L40",
+      "slot": 2,
+      "manifest_index": 2
+    },
+    {
+      "id": "pitch2",
+      "legacy_index": 0,
+      "name": "Pitch 2",
+      "minimum": -2,
+      "maximum": 2,
+      "default": 0,
+      "unit": "oct",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L40",
+      "slot": 3,
+      "manifest_index": 3
+    },
+    {
+      "id": "gate2",
+      "legacy_index": 0,
+      "name": "Gate 2",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": [
+        {
+          "value": 0,
+          "label": "Rest"
+        },
+        {
+          "value": 1,
+          "label": "Note"
+        },
+        {
+          "value": 2,
+          "label": "Tie"
+        }
+      ],
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L40",
+      "slot": 4,
+      "manifest_index": 4
+    },
+    {
+      "id": "vel2",
+      "legacy_index": 0,
+      "name": "Velocity 2",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.8,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L40",
+      "slot": 5,
+      "manifest_index": 5
+    },
+    {
+      "id": "pitch3",
+      "legacy_index": 0,
+      "name": "Pitch 3",
+      "minimum": -2,
+      "maximum": 2,
+      "default": 0,
+      "unit": "oct",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L40",
+      "slot": 6,
+      "manifest_index": 6
+    },
+    {
+      "id": "gate3",
+      "legacy_index": 0,
+      "name": "Gate 3",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": [
+        {
+          "value": 0,
+          "label": "Rest"
+        },
+        {
+          "value": 1,
+          "label": "Note"
+        },
+        {
+          "value": 2,
+          "label": "Tie"
+        }
+      ],
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L40",
+      "slot": 7,
+      "manifest_index": 7
+    },
+    {
+      "id": "vel3",
+      "legacy_index": 0,
+      "name": "Velocity 3",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.8,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L40",
+      "slot": 8,
+      "manifest_index": 8
+    },
+    {
+      "id": "pitch4",
+      "legacy_index": 0,
+      "name": "Pitch 4",
+      "minimum": -2,
+      "maximum": 2,
+      "default": 0,
+      "unit": "oct",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L40",
+      "slot": 9,
+      "manifest_index": 9
+    },
+    {
+      "id": "gate4",
+      "legacy_index": 0,
+      "name": "Gate 4",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": [
+        {
+          "value": 0,
+          "label": "Rest"
+        },
+        {
+          "value": 1,
+          "label": "Note"
+        },
+        {
+          "value": 2,
+          "label": "Tie"
+        }
+      ],
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L40",
+      "slot": 10,
+      "manifest_index": 10
+    },
+    {
+      "id": "vel4",
+      "legacy_index": 0,
+      "name": "Velocity 4",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.8,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L40",
+      "slot": 11,
+      "manifest_index": 11
+    },
+    {
+      "id": "pitch5",
+      "legacy_index": 0,
+      "name": "Pitch 5",
+      "minimum": -2,
+      "maximum": 2,
+      "default": 0,
+      "unit": "oct",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L40",
+      "slot": 12,
+      "manifest_index": 12
+    },
+    {
+      "id": "gate5",
+      "legacy_index": 0,
+      "name": "Gate 5",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": [
+        {
+          "value": 0,
+          "label": "Rest"
+        },
+        {
+          "value": 1,
+          "label": "Note"
+        },
+        {
+          "value": 2,
+          "label": "Tie"
+        }
+      ],
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L40",
+      "slot": 13,
+      "manifest_index": 13
+    },
+    {
+      "id": "vel5",
+      "legacy_index": 0,
+      "name": "Velocity 5",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.8,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L40",
+      "slot": 14,
+      "manifest_index": 14
+    },
+    {
+      "id": "pitch6",
+      "legacy_index": 0,
+      "name": "Pitch 6",
+      "minimum": -2,
+      "maximum": 2,
+      "default": 0,
+      "unit": "oct",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L40",
+      "slot": 15,
+      "manifest_index": 15
+    },
+    {
+      "id": "gate6",
+      "legacy_index": 0,
+      "name": "Gate 6",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": [
+        {
+          "value": 0,
+          "label": "Rest"
+        },
+        {
+          "value": 1,
+          "label": "Note"
+        },
+        {
+          "value": 2,
+          "label": "Tie"
+        }
+      ],
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L40",
+      "slot": 16,
+      "manifest_index": 16
+    },
+    {
+      "id": "vel6",
+      "legacy_index": 0,
+      "name": "Velocity 6",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.8,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L40",
+      "slot": 17,
+      "manifest_index": 17
+    },
+    {
+      "id": "pitch7",
+      "legacy_index": 0,
+      "name": "Pitch 7",
+      "minimum": -2,
+      "maximum": 2,
+      "default": 0,
+      "unit": "oct",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L40",
+      "slot": 18,
+      "manifest_index": 18
+    },
+    {
+      "id": "gate7",
+      "legacy_index": 0,
+      "name": "Gate 7",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": [
+        {
+          "value": 0,
+          "label": "Rest"
+        },
+        {
+          "value": 1,
+          "label": "Note"
+        },
+        {
+          "value": 2,
+          "label": "Tie"
+        }
+      ],
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L40",
+      "slot": 19,
+      "manifest_index": 19
+    },
+    {
+      "id": "vel7",
+      "legacy_index": 0,
+      "name": "Velocity 7",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.8,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L40",
+      "slot": 20,
+      "manifest_index": 20
+    },
+    {
+      "id": "pitch8",
+      "legacy_index": 0,
+      "name": "Pitch 8",
+      "minimum": -2,
+      "maximum": 2,
+      "default": 0,
+      "unit": "oct",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L11 (WS_STEP macro),L40",
+      "slot": 21,
+      "manifest_index": 21
+    },
+    {
+      "id": "gate8",
+      "legacy_index": 0,
+      "name": "Gate 8",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": [
+        {
+          "value": 0,
+          "label": "Rest"
+        },
+        {
+          "value": 1,
+          "label": "Note"
+        },
+        {
+          "value": 2,
+          "label": "Tie"
+        }
+      ],
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L9,L12 (WS_STEP macro),L40",
+      "slot": 22,
+      "manifest_index": 22
+    },
+    {
+      "id": "vel8",
+      "legacy_index": 0,
+      "name": "Velocity 8",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.8,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/sdk/examples/step_sequencer/dsp.h:L13 (WS_STEP macro),L40",
+      "slot": 23,
+      "manifest_index": 23
+    }
+  ],
+  "special_ui": "No custom QML; 8×3 pitch/gate/velocity array expanded from WS_STEP, with documented gate meanings (dsp.h:7-41)"
+},
