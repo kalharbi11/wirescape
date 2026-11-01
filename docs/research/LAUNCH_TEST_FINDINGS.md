@@ -1,12 +1,12 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Launch-test findings — source-grounded issue routing
 
-**Audit date:** 2026-11-01
+**Audit date:** 2026-11-01; independently rechecked 2026-11-01 (second pass, same main SHA)
 **Baseline:** main at 6e3c253550428f2bb964af4434bd429b5284cce2 (read-only)
 **Source:** [owner field report #182](https://github.com/kalharbi11/wirescape/issues/182) and [Jam checkpoint #45](https://github.com/kalharbi11/wirescape/issues/45)
 **Input limitation:** The request's OWNER NOTES section contains literally <paste here>. No new notes, screenshots, timestamps, patch files, or HTML sketch were attached for this audit. The eight routed categories below normalize **prior** owner observations in #182; they are **not** eight newly reported defects. Do not open new issues from this document without comparing additional notes with the existing records.
 
-**Method:** Read AGENTS.md first, the Now portion of docs/PLAN.md, #45, #182 and its planner triage comment, relevant existing issues and task acceptance blocks, and narrowly targeted production sources. Static source-path verification is **not** device reproduction, a passing test, proof of root cause, or a successful Windows/Pi launch. No code, devices, LAN endpoints, tests, labels on other PRs, or reviews were changed or run. No issues were created.
+**Method:** Read AGENTS.md first, the Now portion of docs/PLAN.md, #45, #182 and its planner triage comment, relevant existing issues and task acceptance blocks, and narrowly targeted production sources. The second pass also checked #132, #177's explicit planner approval, the existing M3 readiness analysis, engine2 connection/modulation rules, Studio's editor/runtime patch translation, and every #45 step. Static source-path verification is **not** device reproduction, a passing test, proof of root cause, or a successful Windows/Pi launch. No code, devices, LAN endpoints, tests, labels on other PRs, or reviews were changed or run. No issues were created.
 
 ## Executive routing and checkpoint assessment
 
@@ -20,8 +20,11 @@
 | F06. Starter patches/library missing; event cables in MIDI starter documents reject | [#187](https://github.com/kalharbi11/wirescape/issues/187), [#198](https://github.com/kalharbi11/wirescape/issues/198) | Library UX design; event-identity bridge/runtime persists | **major** library; **blocker** for event starter paths that cannot load | **Conditional** — required MIDI patch/load must work, library convenience does not gate | #198 has a concrete event-identity diagnosis; no test run here |
 | F07. Manual Qt environment, PortAudio packaging ambiguity, stale shortcuts | [#188](https://github.com/kalharbi11/wirescape/issues/188); related [#154](https://github.com/kalharbi11/wirescape/issues/154) | Packaging/launcher | **major** | **Conditional** — must launch app for #45; shortcut and updater not gates | Existing dev launcher and package guards identified; owner's actual DLL and shortcuts not inspected |
 | F08. Simple Check for updates, long-term Output-module hardware routing, per-device MIDI mapping | Existing [#188](https://github.com/kalharbi11/wirescape/issues/188), [#140](https://github.com/kalharbi11/wirescape/issues/140), [#163](https://github.com/kalharbi11/wirescape/issues/163); future design, no new issue yet | Product design / packaging | **minor** to **major** depending chosen scope | **No**, absent a redefinition of #45 | Owner-requested direction, not evidence of a failing current implementation |
+| G01. Studio cannot author the parameter-modulation edges that #45 literally tests | [#177](https://github.com/kalharbi11/wirescape/issues/177) **design approved only**; [#143](https://github.com/kalharbi11/wirescape/issues/143) **telemetry only**; implementation issue not found | Qt UI + controller authoring and engine integration | **blocker** against literal #45 | **Yes for knob-target modulation**, unless planner revises #45 to use existing CV ports | Source-proven missing Studio authoring; separate from cosmetic motion |
+| G02. Studio rejects audio/control signal-hint cross-connections that engine2 permits | Related [#183](https://github.com/kalharbi11/wirescape/issues/183) (mouse gestures), [#198](https://github.com/kalharbi11/wirescape/issues/198) (event identity); no dedicated issue found | Frontend/controller contract mismatch; not an engine signal-type restriction | **major**, conditional blocker | **Conditional** — if required signal cable crosses hints | Source-proven static inconsistency; no actual owner cable pair established |
+| G03. Old-patch checkpoint is under-specified against legacy-format rejection and unknown v2 handling | [#132](https://github.com/kalharbi11/wirescape/issues/132) covers unknown v2; #45 owns the exact pre-M2 specimen | Document import/editor compatibility | **major**, conditional blocker | **Yes if requested pre-M2 specimen is rejected** | Native v1 and legacy schemas must not be conflated |
 
-**Counts:** 0 new owner findings provided; 8 existing-report categories normalized; 0 issues created; 0 physical-device reproductions; 0 test executions. Existing GitHub issues are the action queue; these are **review-ready specifications / routing notes, not tickets to file again**. Source paths below are anchored to the baseline SHA above, not to unmerged PRs.
+**Counts:** 0 new owner findings provided; 8 existing-report categories normalized; 3 additional **source-derived checkpoint discrepancies** (G01–G03); 0 issues created; 0 physical-device reproductions; 0 test executions. Existing GitHub issues are the action queue; these are **review-ready specifications / routing notes, not tickets to file again**. Source paths below are anchored to the baseline SHA above, not to unmerged PRs.
 
 ## F01 — Canvas and cable interaction (reuse #183)
 
@@ -49,7 +52,7 @@ must_pass:
 stops: [patch format or stable ID change, device access in tests, new dependency]
 ```
 
-**Do not split into:** A new cable-geometry ticket; #141 is closed and only concerned shape/layout. Native event-cable identity is distinct and tracked by #198; modulation-to-parameter gestures require the approved #177 design, not an invented signal-port shortcut.
+**Do not split into:** A new cable-geometry ticket; #141 is closed and only concerned shape/layout. Native event-cable identity is distinct and tracked by #198; modulation-to-parameter gestures require the approved #177 design, not an invented signal-port shortcut. The independent audio/control *signal-hint equality* discrepancy is recorded as G02: a mouse-event regression test alone cannot prove that a valid cross-hint signal edge is accepted.
 
 ## F02 — MIDI enablement, endpoint identity and global keyboard (reuse #184)
 
@@ -139,7 +142,7 @@ stops: [ABI/patch schema/ID change, threshold change, physical devices in CI]
 
 **Migration:** Tooltip and dot drawing are Qt-specific (replaceable). DSP phase/effective-value sampling, bounded telemetry and mapping remain engine/runtime requirements. The HTML sketch's motion is not a valid substitute for DSP-origin measurements.
 
-**Issue draft disposition:** No new tooltip issue (#185 closed). #143 is the **major** telemetry task; #177 is approved design only and not its implementation. Cosmetic dots **do not block #45**; a functionally disconnected LFO-to-filter route **does block** the checkpoint and should attach to #183/#198 or a specific proven runtime edge defect rather than a dot ticket.
+**Issue draft disposition:** No new tooltip issue (#185 closed). #143 is the **major** telemetry task; #177 approved **the representation**, but its implementation issue is still absent. Cosmetic dots **do not block #45**; **actual parameter-edge authoring does block literal #45** (G01). An existing ordinary CV-input connection failure belongs to #183/#198 or G02 as appropriate; do not falsely present it as knob-target modulation.
 
 **Title:** Show real LFO phase and effective modulated value, preserving base knob value  
 **Problem:** An animation based on wall-clock UI time could misrepresent stopped, disconnected or clamped DSP.  
@@ -175,7 +178,7 @@ stops: [ABI edit, ID/format change, new dependency, invented telemetry]
 tier: T1
 size: <= 500 changed lines, <= 12 files
 must_pass:
-  - ci: every bundled patch loads and renders the declared expected output offline without hardware access
+  - ci: each bundled patch loads offline; audio-producing examples render non-silent output under documented synthetic gates/MIDI/OSC as applicable; monitor-only examples assert deterministic expected events or silence
   - ci: windows-x64 studio_ui_tests for bundled/recent/favorite/open flows; no writes to arbitrary user patches
   - ci: #198 controller_failure_tests preserve event kinds and stable identities through save/reload, reject mixed kinds transactionally
   - ci: linux-arm64, sanitizers, guard green
@@ -233,19 +236,127 @@ stops: [unreviewed ABI/patch representation change, new backend, automatic devic
 
 This F08 block is **design-only contingent scope**, not a new ticket to file during the pause.
 
+## G01 — Missing Studio knob-target modulation authoring (additional code/checkpoint finding)
+
+**Status:** Source-confirmed feature gap, **not** a newly submitted owner observation. This is a new research *draft*, **not** a created GitHub issue.
+
+**Why it matters:** #45 laptop step 1 expressly requests an LFO cable *to VCF cutoff as a modulated parameter*, and step 7 requests OSC → a knob. The Jam plan simultaneously defers the M3 UI until after J9 (docs/PLAN.md:76-89). That is a **checkpoint/scope contradiction** unless an intentionally narrow parameter-edge authoring slice is pulled forward or #45 is explicitly rewritten by the planner.
+
+**Code evidence and reproduction:** Current QML connects an output to a *port* only, and refuses to choose a mismatched pending kind (native/ui/qml/Main.qml:103-121). ModuleCard lists standard input/output port hit areas, while its ParameterControl delegate has no drop-to-knob target (native/ui/qml/ModuleCard.qml:58-89; native/ui/qml/ModuleCard.qml:127-139; native/ui/qml/ParameterControl.qml:87-101). The controller's connectPorts checks the destination **input** descriptor, and stores only kind + endpoint IDs (native/ui/studio_controller.cpp:342-357). Its editor validation explicitly allows only audio/control/event, not the v2 \`kind: modulation\` (native/ui/studio_controller.cpp:238-258). By contrast, the v2 document validator accepts modulation with a bounded amount (native/document/patch_document.cpp:125-132), and the runtime loader resolves destination stable parameter IDs and invokes Engine::modulate (native/document/runtime_patch.cpp:58-68; native/engine2/engine2.cpp:531-534). This is a **missing Studio authoring/representation path**, not proof that the engine lacks modulation.
+
+**Approved representation:** #177's planner approval (issue comment #6537669135) explicitly authorizes \`kind: modulation\`, stable \`to.port\` parameter ID, signed amount [-1,+1], initial +0.25, and independent amount badges. Its design document still says “pending explicit planner approval” at docs/design/M3_PARAMETER_EDGES.md:3 and :128–130; that **header/footer is stale relative to the GitHub approval comment**. Do not change it in this pause-only research PR. #143 concerns measured feedback/phase; closing #177 as a design task did **not** deliver a functional cable gesture.
+
+**Migration:** The exact Qt drop gesture goes away, but schema/ID binding, engine modulation, transaction rollback and preservation of unknown v2 properties remain essential in HTML/Tauri. Do not write a frontend-only “knob modulation” by animating JS state.
+
+**Severity:** **blocker** for *literal* #45, but not proof of a failed owner runtime experiment. **Suggested agent:** Claude planner scopes/authorizes the implementation; Codex builds core/controller path with Qt or future web UI (T2; CI required). A web UI sketch alone is insufficient.
+
+**Draft title:** Implement Studio parameter-edge authoring against approved v2 modulation representation  
+**Problem:** Source code supports native modulation edges but cannot author them from the Studio knob/patch canvas.  
+**Expected behavior:** Drag a signal jack to a MODULATABLE control, set amount/polarity independently of base knob, save/load with stable IDs and unknown members preserved, and reject invalid edits without changing the accepted graph.
+
+```acceptance
+tier: T2
+size: <= 700 changed lines, <= 12 files (planner to approve actual slice)
+must_pass:
+  - ci: device-free controller test creates positive/negative/zero-amount v2 modulation edges using stable string IDs; verifies save/load/save and nested unknown-field preservation
+  - ci: invalid/non-modulatable/event target and duplicate/invalid amount reject transactionally without replacing the accepted graph
+  - ci: windows-x64 actual offscreen gesture to parameter control and amount badge; normal knob changes base only; source and destination select correctly at 100%, 85%, 62% zoom
+  - ci: deterministic engine test demonstrates parameter-effective output change while base value stays fixed; linux-arm64, sanitizers, guard green on exact head
+  - user: #45 LFO -> cutoff and OSC -> knob operations work audibly on the real approved patch
+stops: [public ABI/header edit, new schema/ID, new dependency, real devices in CI, graph mutation on realtime callback]
+```
+
+**Planner boundary:** If M3 must remain deferred, amend #45's explicit knob-target tests to a supported CV-port-only flow and document that this is a **reduced** checkpoint. Do not silently count CV-port modulation as satisfying knob-target authoring.
+
+## G02 — Studio incorrectly conflates signal *hints* with incompatible cable *kinds* (additional code finding)
+
+**Static reproduction:** Engine2 \`Engine::connect\` compares fundamental \`WS2_SIGNAL\` or \`WS2_EVENT\` kind, then accepts the signal connection (native/engine2/engine2.cpp:525-530). The ABI2 contract treats audio/control labels as hints and permits signal connections (docs/PLAN.md:27; docs/specs/ABI2_PLAN.md:90-93). By contrast, the Studio's metadata bridge converts native WS2_SIGNAL hints to legacy WS_AUDIO / WS_CONTROL (native/control/app_engine.cpp:23-30); \`portKind\` returns “audio” or “control” for those ports (native/ui/studio_controller.cpp:113-121). QML \`chooseInput\` rejects when pendingKind differs (native/ui/qml/Main.qml:103-111), and the controller \`connectPorts\` and document validator repeat exact kind equality (native/ui/studio_controller.cpp:238-258; native/ui/studio_controller.cpp:342-357). This can reject otherwise valid **signal-to-signal** audio/control combinations *before engine2 sees them*. This is a verified source-contract mismatch, **not** an independently reproduced owner failure for a named pair of ports.
+
+**Compatibility constraint:** Never turn an event cable into a signal cable; native \`WS2_EVENT\` must stay distinct and is already #198. Treat audio/control as presentation labels only for normal signal connections. Serialize v2 \`kind: signal\` and preserve v1 patch and legacy display behavior without silent data loss. Do not “fix” by blindly accepting event/signal cross-kind or weakening the runtime graph validation.
+
+**Migration:** The bug can survive a UI rewrite if its controller/bridge or equivalent validation is reused; a new HTML typed-cable validation that repeats this rule recreates the bug. **Severity major; conditional #45 blocker** if the required connection is cross-hint. **Suggested agent:** Codex (Qt controller + ABI2 document/runtime tests; T2 due patch compatibility).
+
+**Draft title:** Align Studio audio/control cable validation with ABI2 WS2_SIGNAL semantics  
+**Problem:** Editor rejects valid signal ports based on their visual hints, despite engine2 accepting compatible WS2_SIGNAL endpoints.  
+**Expected behavior:** Audio/control-hinted signal ports connect without type-gated rejection; event endpoints remain strictly separate and all accepted documents round-trip without ID or kind corruption.
+
+```acceptance
+tier: T2
+size: <= 400 changed lines, <= 8 files
+must_pass:
+  - ci: fake native descriptors exercise WS2_SIGNAL audio-to-control and control-to-audio, plus signal-to-event rejection
+  - ci: click and drag with GUI + controller produce identical compatible edges; no false mismatch in 100%, 85%, 62% zoom tests
+  - ci: v1 audio/control and v2 signal/event load/save/reload preserve port strings, unknown data and original semantics
+  - ci: windows-x64, linux-arm64, sanitizers, guard green on exact head
+stops: [ABI/ID/schema change, event-kind coercion, test removal, new dependency]
+```
+
+**Dedupe policy:** First cross-link #183 and #198; request a standalone scope only if their existing acceptance explicitly excludes signal-hint semantics. #183 alone tests gestures, #198 event identity. No separate issue is created here.
+
+## G03 — Pre-M2 patch specimen and unknown v2 preservation must be checked separately (additional compatibility finding)
+
+**Static reproduction:** Studio's inspector recognizes native v1 but classifies \`wirescape.patch\` legacy versions 1–3 and visual study v4 separately (native/document/document_reader.cpp:52-69); Studio loadPatch reports recognized legacy documents as *not supported for execution*, preserving the source file (native/ui/studio_controller.cpp:479-508). It also has a special dispatch override for \`wirescape.native.patch\` version 2 before \`read_patch\` (native/ui/studio_controller.cpp:490-501). The v2 validator accepts signal/modulation/event (native/document/patch_document.cpp:125-132), but Studio's intermediate editor view uses native-v1-style rows and only audio/control/event connections (native/document/app_patch.cpp:15-34; native/ui/studio_controller.cpp:212-258). #132 already tracks v2 unknown-module semantics and dispatch; its draft #133 is **not merged proof**. #198 separately tracks event identity. No supplied pre-M2 specimen identifies which on-disk format #45 step 10 actually expects.
+
+**Expected outcome and gate:** A valid supported native-v1 example should round-trip/execute when its runtime modules exist; unknown/unsupported v2 data should remain losslessly preserved even if execution cannot proceed. A \`wirescape.patch\` legacy-format document **currently cannot be executed via this Studio load path** and needs an explicit migration decision. **Severity major; blocks #45 only for the exact pre-M2 specimen that fails**, not for all historical data by assumption.
+
+**Suggested agent:** Codex on existing #132/#198, with Claude planner defining the historical specimen/migration requirement. No new issue until the owner supplies the actual file/version.
+
+**Conditional draft title:** Support the specific pre-M2 patch format required by J9 without lossy conversion  
+**Problem:** #45 does not identify the earlier patch fixture, while the Studio intentionally rejects recognized non-native legacy schemas.  
+**Expected behavior:** The chosen historical fixture either loads with a tested, lossless mapping or yields an explicit planner-approved “not a J9 requirement” clarification; unsupported input never damages a user document.
+
+```acceptance
+tier: T2
+size: <= 400 changed lines, <= 8 files (conditional, not yet authorized)
+must_pass:
+  - planner: identify exact pre-M2 fixture and expected executable format; distinguish native-v1 from wirescape.patch legacy schemas
+  - ci: device-free original -> import -> save -> reload semantic equality, including unknown properties and module/port/parameter IDs
+  - ci: rejected versions leave current patch, active engine and original file unchanged
+  - ci: windows-x64, linux-arm64, sanitizers, guard green
+  - user: original pre-M2 patch from the checkpoint opens and plays equivalently on laptop
+stops: [unapproved migration rules, ABI/ID change, loss of unknown data, touching historical/legacy sources]
+```
+
+**No duplicate of #132:** Unknown native v2 handling and forced inspector override are already within #132. Do not file this conditional legacy importer until the owner-provided specimen demonstrates a genuinely separate requirement.
+
+## Full #45 coverage audit (not a pass/fail result)
+
+The original report focused on owner-observed complaints. It did **not** explicitly map the remainder of #45. The table below prevents a Qt UI research PR from silently claiming the whole Jam checkpoint is green. Status for **every** row is **not independently verified in this research**; passing CI or screenshots of a ready window are not physical/audio acceptance.
+
+| #45 step | Evidence still required (user-only when physical) | Existing work / risk |
+| --- | --- | --- |
+| Laptop 1: build VCO/VCF/VCA/ADSR and LFO to cutoff | Author cables at several zooms and verify effective modulation without stale visual claim | #183, **G01**, possibly G02 |
+| Laptop 2: held four-note computer chords and USB MIDI | Hear four correct notes through each input, correct release semantics | #69, #184 |
+| Laptop 3: sustain pedal | Note hold/release without stuck voices | #184 and MIDI runtime |
+| Laptop 4: unplug/reconnect USB during notes | Voice choke/reacquire and correct endpoint identity | #184 |
+| Laptop 5: tweak every knob live | No discontinuity/zipper/crackle; actual physical device output | #140, #186; T2 render behavior |
+| Laptop 6: CC→CV to VCF cutoff | Device message counter, proper CV routing, audible response | #163, #198, G02 if cross-hint |
+| Laptop 7: OSC over Wi-Fi, Monitor, OSC→knob | Explicit --confirm-lan on owner run; event visible and functional knob-target modulation | #72, **G01** |
+| Laptop 8: Macro Oscillator models | Live model switching and stable sound; code integration issue #162 is closed but not owner test evidence | #162 |
+| Laptop 9: two CHAOS-lite instances | Both render and sound; stable throughout session | #74 and #45 |
+| Laptop 10: save/reopen/demo/pre-M2 | Acoustic equivalence, lossless document identity, exact historic fixture | #132, #198, **G03** |
+| Laptop 11: optional capture | User-supplied capture run, not a mandatory gate | #43 (optional) |
+| Pi 1: CLI physical audio 48k/128 | \`wirescape play --list-devices\` then --confirm-audio through real interface | #70 |
+| Pi 2: USB MIDI and Wi-Fi OSC | Explicit --confirm-midi and --confirm-lan; actual receive and note release | #70, #72, #184 |
+| Pi 3: 20-minute two-CHAOS run | Time-bound xruns + CPU line from owner runner/device evidence | #45, #74 |
+| Pi 4: optional Pi UI | If built, open and note usability; stretch only | #70 |
+
+**Measured scope:** 11 laptop checklist entries (one optional) and 4 Pi entries (one stretch); **0/15 entries independently certified by this read-only research**. This is **not** a claim that none passed in other evidence. Explicit requirement changes belong to the planner; do not edit #45 in this PR.
+
+
 ## Web UI migration impact: recommended boundary
 
-**Facts about current implementation:** Main Qt entry loads qrc:/qml/Main.qml via QQmlApplicationEngine (native/ui/main.cpp:53-63). Graph-gesture/canvas and parameter presentations are QML (native/ui/qml/Main.qml:345-399; native/ui/qml/ParameterControl.qml:87-101). The existing controller compiles/validates topology and forwards runtime commands (native/ui/studio_controller.cpp:212-258; native/ui/studio_controller.cpp:289-307; native/ui/studio_controller.cpp:342-360). MIDI service routes are Qt-free native control code (native/control/midi_host.cpp:42-64; native/control/midi_host.cpp:74-97), and audio streams are native PortAudio code (native/ui/audio_device.cpp:120-141).
+**Facts about current implementation:** Main Qt entry loads qrc:/qml/Main.qml via QQmlApplicationEngine (native/ui/main.cpp:53-63). Graph-gesture/canvas and parameter presentations are QML (native/ui/qml/Main.qml:345-399; native/ui/qml/ParameterControl.qml:87-101). The existing controller compiles/validates topology and forwards runtime commands (native/ui/studio_controller.cpp:212-258; native/ui/studio_controller.cpp:289-307; native/ui/studio_controller.cpp:342-360). MIDI service routes are Qt-free native control code (native/control/midi_host.cpp:42-64; native/control/midi_host.cpp:74-97), while the **PortAudio stream wrapper currently lives under native/ui and uses Qt types** (native/ui/audio_device.cpp:78-96; native/ui/audio_device.cpp:120-141). Thus the audio behavior persists, but the wrapper may need decoupling during a Qt removal; it is not a ready-made Qt-free host.
 
 **Recommendations (not implementation findings):**
 1. Treat browser gestures and QML look/feel failures as *replaceable implementations*, not proof that a web frontend is automatically correct. Preserve typed cable kind, stable IDs, lossless patches, and rejected-edit rollback as frontend-independent behavior.
-2. Specify a narrow asynchronous command/ack and bounded telemetry interface between web UI and native engine host before selecting Tauri/WebView/localhost transport. No callbacks from the real-time render thread into web JS or blocking IPC. Keep physical devices/LAN disabled in all automated tests.
+2. Specify a narrow asynchronous command/ack and bounded telemetry interface between web UI and native engine host before selecting Tauri/WebView/localhost transport. No callbacks from the real-time render thread into web JS or blocking IPC. Keep physical devices/LAN disabled in all automated tests. Document whether the Qt-typed PortAudio wrapper becomes a Qt-free service or is replaced; verify Windows packaging and Pi ARM64 webview/browser dependency availability rather than assuming portability.
 3. Compare the owner's single-file HTML sketch only when it is attached; it was not part of this input. Do not infer its feature completeness or architecture from the description alone.
 4. Do not make a migration decision by counting Qt-specific bugs. Separate the UI redo cost from persistence, engine-swap, native audio/MIDI, licensing and Windows/Pi packaging costs.
 
 ## Dedupe map and missing evidence
 
-**Existing routing:** Parent #182 contains the owner observations, with planner triage to #183 (canvas), #184 (MIDI), #185 (tooltip, closed), #186 (live edits), #187 (library), #188 (launcher/update), #140 (audio output), #143 (telemetry), #163 (advanced MIDI), #177 (parameter-edge design), #198 (native event-cable metadata) and #201 (transport focus). #141 is prior closed visual geometry work; #178 covers stereo-paired ports only. Do not edit these issues or interpret closed tickets as owner-passed #45.
+**Existing routing:** Parent #182 contains the owner observations, with planner triage to #183 (canvas), #184 (MIDI), #185 (tooltip, closed), #186 (live edits), #187 (library), #188 (launcher/update), #140 (audio output), #143 (telemetry), #163 (advanced MIDI), #177 (parameter-edge **design only**), #198 (native event-cable metadata), #201 (transport focus), and now #132 (native v2 unknown-module preservation). G01 is not implemented by #177/#143; G02 is not the same as gesture geometry or event-kind handling. #141 is prior closed visual geometry work; #178 covers stereo-paired ports only. Do not edit these issues or interpret closed tickets as owner-passed #45.
 
 **Outstanding validation:** (a) actual new raw notes/screenshot files and exact date/build SHA, (b) current executable vs packaged/shortcut target, (c) starting patch and module/port IDs, (d) reproduction with audio stopped and running at 100/85/62% zoom, (e) primary vs secondary Launchkey endpoint counters and routing, (f) selected physical output/backend and real audible result, (g) MIDI event cable load/save and patch-specific path, (h) Windows and Pi owner retest. A screenshot of a running UI or CI pass is not an audible proof. Only the owner should perform physical-device checks.
 
@@ -253,9 +364,12 @@ This F08 block is **design-only contingent scope**, not a new ticket to file dur
 
 ## Decisions needed from the planner
 
-1. **Source of launch findings:** (A) Wait for actual pasted notes/screenshots and classify them against #182; (B) treat #182 as though it were newly submitted. **Recommend A**: retain the existing report as prior evidence and prevent fabricated duplicates.
-2. **#45 gate semantics:** (A) Gate on its specified patch creation, real audio, MIDI/OSC, save/reload and Pi tests; (B) also require full topology hot-edit, integrated updates and preset library. **Recommend A**, while tracking #186/#188/#187 as explicit follow-ups unless a live-edit lock blocks a scripted checkpoint step.
-3. **UI replanning:** (A) First specify/test an engine-host/frontend protocol and compare Qt fix vs web-port cost using the supplied HTML sketch; (B) immediately replace Qt and assume frontend defects disappear. **Recommend A**. No migration implementation during the pause.
-4. **MIDI consent and routing:** (A) explicit remembered interactive MIDI enable, with hardware-off CI and global keyboard default, then advanced mapping #163; (B) require manual CLI flag/per-port wiring forever; (C) activate physical endpoints automatically in every launch/test. **Recommend A**, consistent with #184 and device safety.
-5. **Audio output roadmap:** (A) Finish #140's single real physical-output diagnosis and #45 audible retest first; (B) design multi-device buses and move selectors onto Output modules immediately. **Recommend A**; only after the base path is proven, authorize a separate reviewed design.
-6. **Truthful motion:** (A) publish bounded actual LFO phase/effective parameter values under #143, with missing-telemetry indicators hidden; (B) animate a cosmetic dot in UI without DSP correspondence. **Recommend A**; fake motion would conceal rather than resolve a routing bug.
+1. **Literal knob-target modulation in #45 (G01):** (A) pull a minimal approved v2 parameter-edge authoring slice forward before J9, without the rest of M3; (B) explicitly amend J9 to use only supported ordinary CV input ports and defer knob-targeting to M3. **Recommend A** if the literal owner checkpoint remains the acceptance target; do not silently count a CV port as a knob edge.
+2. **Signal-hint validation (G02):** (A) have Codex verify/fix signal-to-signal cross-hint connections under distinct acceptance, retaining event separation; (B) treat strict audio/control UI hints as type gates. **Recommend A** to match engine2 and the settled contract.
+3. **Historical patch proof (G03):** (A) identify the exact pre-M2 specimen, run #132/#198 first, and authorize migration only if that specimen still fails; (B) declare every legacy patch format a compulsory J9 import target. **Recommend A**; avoid an unbounded importer without a named fixture.
+4. **Source of launch findings:** (A) Wait for actual pasted notes/screenshots and classify them against #182; (B) treat #182 as though it were newly submitted. **Recommend A**: retain the existing report as prior evidence and prevent fabricated duplicates.
+5. **#45 gate semantics:** (A) Gate on its specified patch creation, real audio, MIDI/OSC, save/reload and Pi tests; (B) also require full topology hot-edit, integrated updates and preset library. **Recommend A**, while tracking #186/#188/#187 as explicit follow-ups unless a live-edit lock blocks a scripted checkpoint step.
+6. **UI replanning:** (A) First specify/test an engine-host/frontend protocol and compare Qt fix vs web-port cost using the supplied HTML sketch; (B) immediately replace Qt and assume frontend defects disappear. **Recommend A**. No migration implementation during the pause.
+7. **MIDI consent and routing:** (A) explicit remembered interactive MIDI enable, with hardware-off CI and global keyboard default, then advanced mapping #163; (B) require manual CLI flag/per-port wiring forever; (C) activate physical endpoints automatically in every launch/test. **Recommend A**, consistent with #184 and device safety.
+8. **Audio output roadmap:** (A) Finish #140's single real physical-output diagnosis and #45 audible retest first; (B) design multi-device buses and move selectors onto Output modules immediately. **Recommend A**; only after the base path is proven, authorize a separate reviewed design.
+9. **Truthful motion:** (A) publish bounded actual LFO phase/effective parameter values under #143, with missing-telemetry indicators hidden; (B) animate a cosmetic dot in UI without DSP correspondence. **Recommend A**; fake motion would conceal rather than resolve a routing bug.
