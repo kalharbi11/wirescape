@@ -144,9 +144,9 @@ Wire: UTF-8 JSON, one message/frame, `v=1`, `type=command|reply|event`, unique c
 Examples:
 
 ```json
-{"v":1,"type":"command","id":"q-101","op":"parameter.set","args":{"node":5,"parameter":0,"value":0.65}}
-{"v":1,"type":"reply","id":"q-101","op":"parameter.set","ok":true,"revision":43,"result":{"accepted":true,"value":0.65,"display":"0.65"}}
-{"v":1,"type":"event","op":"parameter.changed","seq":911,"epoch":2,"revision":43,"data":{"node":5,"parameter":0,"value":0.65,"display":"0.65","revision":43}}
+{"v":1,"type":"command","id":"q-101","op":"parameter.set","args":{"node":1,"parameter":0,"value":220}}
+{"v":1,"type":"reply","id":"q-101","op":"parameter.set","ok":true,"revision":43,"result":{"accepted":true,"value":220,"display":"220.0 Hz","parameterId":"frequency"}}
+{"v":1,"type":"event","op":"parameter.changed","seq":911,"epoch":2,"revision":43,"data":{"node":1,"parameter":0,"parameterId":"frequency","value":220,"display":"220.0 Hz","revision":43}}
 {"v":1,"type":"reply","id":"q-102","op":"module.remove","ok":false,"revision":43,"error":{"code":"AUDIO_RUNNING","message":"Stop playback to edit topology","retryable":true}}
 ```
 
@@ -231,7 +231,7 @@ These paths **support** the separation, but **do not prove** an unimplemented ho
 **Example new messages (illustrative, not credentials):**
 
 ```json
-{"v":1,"type":"command","id":"auth-1","op":"session.authenticate","args":{"token":"<trusted-shell-token>"}}
+{"v":1,"type":"command","id":"auth-1","op":"session.authenticate","args":{"token":"DEMO_ONLY_NOT_A_REAL_SESSION_TOKEN_1234567890"}}
 {"v":1,"type":"command","id":"param-2","op":"parameter.set","args":{"node":1,"parameterId":"frequency","value":220}}
 {"v":1,"type":"command","id":"cable-3","op":"cable.connect","expectedRevision":43,"args":{"kind":"modulation","from":{"module":1,"port":"audio"},"to":{"module":3,"port":"gain"},"amount":0.25}}
 {"v":1,"type":"command","id":"sub-4","op":"stream.subscribe","args":{"stream":"meters","hz":30}}
@@ -1386,8 +1386,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                         "bus_channel"
                       ],
                       "additionalProperties": false
-                    },
-                    "maxItems": 16
+                    }
                   }
                 },
                 "required": [
