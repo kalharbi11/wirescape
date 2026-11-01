@@ -2263,3 +2263,462 @@ This is normalized **research data**, not a replacement for runtime enumeration.
   ],
   "special_ui": "Twin faders (native/ui/qml/ModuleCard.qml:96)"
 },
+{
+  "abi_version": 2,
+  "module_id": "essentials.noise",
+  "display_name": "Noise",
+  "category_proposed": "Source",
+  "source": "native/modules2/noise/dsp.h:L6",
+  "ports": [
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/noise/dsp.h:L7"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "level",
+      "legacy_index": 0,
+      "name": "Level",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.2,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice",
+        "audio_rate_ok"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/noise/dsp.h:L8"
+    }
+  ],
+  "special_ui": "Shared QML generic module card"
+},
+{
+  "abi_version": 2,
+  "module_id": "essentials.output",
+  "display_name": "Output",
+  "category_proposed": "I/O",
+  "source": "native/modules2/output/dsp.h:L6",
+  "ports": [
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "sum",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/output/dsp.h:L7"
+    },
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/output/dsp.h:L8"
+    }
+  ],
+  "parameters": [],
+  "special_ui": "Host output select button in ModuleCard.qml:141-147"
+},
+{
+  "abi_version": 2,
+  "module_id": "essentials.scale_offset",
+  "display_name": "Scale/Offset",
+  "category_proposed": "Utility",
+  "source": "native/modules2/scale_offset/dsp.h:L6",
+  "ports": [
+    {
+      "id": "control",
+      "name": "Control",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/scale_offset/dsp.h:L7"
+    },
+    {
+      "id": "control",
+      "name": "Control",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/scale_offset/dsp.h:L7"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "scale",
+      "legacy_index": 0,
+      "name": "Scale",
+      "minimum": -2,
+      "maximum": 2,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice",
+        "audio_rate_ok"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/scale_offset/dsp.h:L8"
+    },
+    {
+      "id": "offset",
+      "legacy_index": 1,
+      "name": "Offset",
+      "minimum": -1,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice",
+        "audio_rate_ok"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/scale_offset/dsp.h:L8"
+    }
+  ],
+  "special_ui": "Knob rule in ModuleCard.qml:105"
+},
+{
+  "abi_version": 2,
+  "module_id": "essentials.slew",
+  "display_name": "Slew",
+  "category_proposed": "Utility",
+  "source": "native/modules2/slew/dsp.h:L6",
+  "ports": [
+    {
+      "id": "control",
+      "name": "Control",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/slew/dsp.h:L7"
+    },
+    {
+      "id": "control",
+      "name": "Control",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/slew/dsp.h:L7"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "rise",
+      "legacy_index": 0,
+      "name": "Rise",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 0.1,
+      "unit": "s/unit",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice",
+        "audio_rate_ok"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/slew/dsp.h:L8"
+    },
+    {
+      "id": "fall",
+      "legacy_index": 1,
+      "name": "Fall",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 0.1,
+      "unit": "s/unit",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice",
+        "audio_rate_ok"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/slew/dsp.h:L8"
+    }
+  ],
+  "special_ui": "Knob rule in ModuleCard.qml:104"
+},
+{
+  "abi_version": 2,
+  "module_id": "essentials.vca",
+  "display_name": "VCA",
+  "category_proposed": "Dynamics",
+  "source": "native/modules2/vca/dsp.h:L6",
+  "ports": [
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/vca/dsp.h:L7"
+    },
+    {
+      "id": "gain_cv",
+      "name": "Gain CV",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 1,
+      "source": "native/modules2/vca/dsp.h:L7"
+    },
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/vca/dsp.h:L8"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "gain",
+      "legacy_index": 0,
+      "name": "Gain",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "per_voice",
+        "audio_rate_ok",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/vca/dsp.h:L9"
+    }
+  ],
+  "special_ui": "Shared QML generic module card"
+},
+{
+  "abi_version": 2,
+  "module_id": "essentials.vcf",
+  "display_name": "VCF",
+  "category_proposed": "Filter",
+  "source": "native/modules2/vcf/dsp.h:L6",
+  "ports": [
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/vcf/dsp.h:L7"
+    },
+    {
+      "id": "low12",
+      "name": "Low12",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/vcf/dsp.h:L8"
+    },
+    {
+      "id": "low24",
+      "name": "Low24",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/vcf/dsp.h:L8"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "cutoff",
+      "legacy_index": 0,
+      "name": "Cutoff",
+      "minimum": 20,
+      "maximum": 20000,
+      "default": 1000,
+      "unit": "Hz",
+      "taper": "log",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "per_voice",
+        "audio_rate_ok",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/vcf/dsp.h:L10"
+    },
+    {
+      "id": "resonance",
+      "legacy_index": 1,
+      "name": "Resonance",
+      "minimum": 0,
+      "maximum": 0.95,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "per_voice",
+        "audio_rate_ok",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/vcf/dsp.h:L10"
+    }
+  ],
+  "special_ui": "Cutoff/resonance knobs in ModuleCard.qml:101"
+},
+{
+  "abi_version": 2,
+  "module_id": "essentials.vco",
+  "display_name": "VCO",
+  "category_proposed": "Oscillator",
+  "source": "native/modules2/vco/dsp.h:L6",
+  "ports": [
+    {
+      "id": "pitch",
+      "name": "Pitch",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "pitch",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/vco/dsp.h:L8"
+    },
+    {
+      "id": "fm",
+      "name": "FM Hz",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/vco/dsp.h:L8"
+    },
+    {
+      "id": "notes",
+      "name": "Notes",
+      "direction": "input",
+      "kind": "event",
+      "hint": "ev_notes",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/vco/dsp.h:L9"
+    },
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/vco/dsp.h:L10"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "frequency",
+      "legacy_index": 0,
+      "name": "Frequency",
+      "minimum": 0.01,
+      "maximum": 20000,
+      "default": 220,
+      "unit": "Hz",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "per_voice",
+        "audio_rate_ok",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/vco/dsp.h:L11"
+    }
+  ],
+  "special_ui": "Frequency hero knob in ModuleCard.qml:99,112-114"
+},
