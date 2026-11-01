@@ -15,7 +15,7 @@
 - The owner-described single-file “WIRESCAPE Studio 01” HTML sketch was **not supplied with this task**. The visual hierarchy below follows the described header/typed cables/knobs/“01 / MOTION” vocabulary, not verified pixel values or exact CSS from that sketch. Planner can supply the sketch before visual implementation.
 - The ABI-2 `module.json` manifests list numeric legacy indices and coarse `signal`/`event` port types, **not** full descriptor hints/flags. The native `ws2_descriptor` and `ws2_param` remain authoritative (native/modules2/chaos_lite/module.json:7-45; native/modules2/chaos_lite/dsp.h:7-34; native/include/wirescape/module2.h:37-46).
 - Numeric manifest indices must not be conflated with native ABI-2 `legacy_index`: the SDK helper's default legacy index is zero, including the macro-expanded Step Sequencer parameters. Use the string parameter ID to round-trip settings (native/sdk/wirescape_sdk.h:20-25; native/sdk/examples/step_sequencer/dsp.h:10-13,30-33).
-- The ABI-2 helper sets `option_count=0`, `options=nullptr` and `value_to_text=nullptr` when creating parameters (native/sdk/wirescape_sdk.h:20-28). Some numeric mode semantics can be read from DSP comments, but they are **not present as machine-readable option labels**. Consequently the appendix records `enum_values:null` except for comment-confirmed step-gate semantics; this is a metadata gap, not a guess about the DSP.
+- The ABI-2 helper sets `option_count=0`, `options=nullptr` and `value_to_text=nullptr` when creating parameters (native/sdk/wirescape_sdk.h:20-28). Some numeric mode semantics are documented in DSP, allocator enums and module READMEs, but **those labels are not supplied as machine-readable ABI options**. The appendix includes such **code-derived, cited enum labels** with an `enum_source` field; unknown mappings remain `enum_values:null`.
 - **Do not infer audio rate from a generic “signal” or event from a port's name.** The ABI-2 hint and kind are separate (native/include/wirescape/module2.h:23-25,37-40). An ABI-1 control port is only `WS_CONTROL`, without a more precise hint or stereo pairing (native/include/wirescape/module.h:16-31).
 - The current Qt UI is one shared `ModuleCard.qml`, not 34 bespoke panels. Its control-style function hardcodes selected numeric module IDs, and unknowns default to a slider (native/ui/qml/ModuleCard.qml:92-139). The special Clock run button is in native/ui/qml/ParameterControl.qml:183-195; Output selection is in native/ui/qml/ModuleCard.qml:141-147; per-app keyboard and device controls are in native/ui/qml/Main.qml:430-461. None is a module-specific QML file.
 
@@ -75,6 +75,10 @@ ABI 1 declares numeric parameter IDs, min/max/default/unit and audio-or-control 
 | `vco` VCO | Oscillator | 0/1/1 | native/modules/vco/module.cpp:44-46 |
 
 **Migration caveat:** a panel must distinguish ABI 1 from ABI 2 even when IDs match: ABI-1 VCO has no patchable pitch, FM or note-event ports, whereas ABI-2 VCO declares all three (native/modules/vco/module.cpp:44-46; native/modules2/vco/dsp.h:8-11). Never synthesize ports from an unrelated version.
+
+### Verified mode semantics (not ABI option arrays)
+
+The following labels are **derived from implementation and module documentation**, not populated ABI-2 `options` fields. Sidecar choices must preserve their numeric values: Keyboard/MIDI modes 0 Rotate, 1 Reuse, 2 Reset, 3 Mono; mono priority 0 Last, 1 Low, 2 High (native/voice/allocator.h:12-13; native/modules2/host_keyboard/README.md:14-16; native/modules2/midi_to_cv/README.md:8-11); MIDI channel filter 0 Omni and 1–16 channels (native/modules2/midi_in/dsp.h:26-41); CHAOS coupling route 0 Direct, 1 Multiply, 2 Delay (native/modules2/chaos_lite/coupler.h:13-26); CHAOS LFO target 0 Oscillator A pitch, 1 Body tuning, 2 Filter cutoff (native/modules2/chaos_lite/dsp.h:92-103); step gate 0 Rest, 1 Note, 2 Tie (native/sdk/examples/step_sequencer/dsp.h:8-13). **Macro Oscillator's 24 model names are not declared in the ABI descriptor**, so keep numeric 0–23 until names are independently verified (native/modules2/macro_oscillator/dsp.h:19-22).
 
 ## Missing presentation metadata: facts versus additive recommendations
 
@@ -555,8 +559,22 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "automatable"
         ],
         "modulatable": false,
-        "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L24"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Direct"
+          },
+          {
+            "value": 1,
+            "label": "Multiply"
+          },
+          {
+            "value": 2,
+            "label": "Delay"
+          }
+        ],
+        "source": "native/modules2/chaos_lite/dsp.h:L24",
+        "enum_source": "native/modules2/chaos_lite/dsp.h:24,106-109; native/modules2/chaos_lite/coupler.h:13-26"
       },
       {
         "id": "depth",
@@ -802,8 +820,22 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "automatable"
         ],
         "modulatable": false,
-        "enum_values": null,
-        "source": "native/modules2/chaos_lite/dsp.h:L32"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Oscillator A pitch"
+          },
+          {
+            "value": 1,
+            "label": "Body tuning"
+          },
+          {
+            "value": 2,
+            "label": "Filter cutoff"
+          }
+        ],
+        "source": "native/modules2/chaos_lite/dsp.h:L32",
+        "enum_source": "native/modules2/chaos_lite/dsp.h:92-103"
       },
       {
         "id": "lfo_self",
@@ -977,8 +1009,18 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "audio_rate_ok"
         ],
         "modulatable": true,
-        "enum_values": null,
-        "source": "native/modules2/clock/dsp.h:L8"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Stop"
+          },
+          {
+            "value": 1,
+            "label": "Run"
+          }
+        ],
+        "source": "native/modules2/clock/dsp.h:L8",
+        "enum_source": "native/modules2/clock/dsp.h:8; native/ui/qml/ParameterControl.qml:183-195"
       }
     ],
     "special_ui": "Ticks stepper + run button (native/ui/qml/ModuleCard.qml:97,136-137; native/ui/qml/ParameterControl.qml:183-195)"
@@ -1168,8 +1210,26 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "automatable"
         ],
         "modulatable": false,
-        "enum_values": null,
-        "source": "native/modules2/host_keyboard/dsp.h:L14"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Rotate"
+          },
+          {
+            "value": 1,
+            "label": "Reuse"
+          },
+          {
+            "value": 2,
+            "label": "Reset"
+          },
+          {
+            "value": 3,
+            "label": "Mono"
+          }
+        ],
+        "source": "native/modules2/host_keyboard/dsp.h:L14",
+        "enum_source": "native/voice/allocator.h:12; native/modules2/host_keyboard/README.md:14-16"
       },
       {
         "id": "octave",
@@ -1388,8 +1448,18 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "stepped"
         ],
         "modulatable": false,
-        "enum_values": null,
-        "source": "native/modules2/lfo/dsp.h:L14"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Off"
+          },
+          {
+            "value": 1,
+            "label": "On"
+          }
+        ],
+        "source": "native/modules2/lfo/dsp.h:L14",
+        "enum_source": "native/modules2/lfo/dsp.h:14-15"
       },
       {
         "id": "beats",
@@ -1880,8 +1950,78 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "automatable"
         ],
         "modulatable": false,
-        "enum_values": null,
-        "source": "native/modules2/midi_in/dsp.h:L10"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Omni"
+          },
+          {
+            "value": 1,
+            "label": "Channel 1"
+          },
+          {
+            "value": 2,
+            "label": "Channel 2"
+          },
+          {
+            "value": 3,
+            "label": "Channel 3"
+          },
+          {
+            "value": 4,
+            "label": "Channel 4"
+          },
+          {
+            "value": 5,
+            "label": "Channel 5"
+          },
+          {
+            "value": 6,
+            "label": "Channel 6"
+          },
+          {
+            "value": 7,
+            "label": "Channel 7"
+          },
+          {
+            "value": 8,
+            "label": "Channel 8"
+          },
+          {
+            "value": 9,
+            "label": "Channel 9"
+          },
+          {
+            "value": 10,
+            "label": "Channel 10"
+          },
+          {
+            "value": 11,
+            "label": "Channel 11"
+          },
+          {
+            "value": 12,
+            "label": "Channel 12"
+          },
+          {
+            "value": 13,
+            "label": "Channel 13"
+          },
+          {
+            "value": 14,
+            "label": "Channel 14"
+          },
+          {
+            "value": 15,
+            "label": "Channel 15"
+          },
+          {
+            "value": 16,
+            "label": "Channel 16"
+          }
+        ],
+        "source": "native/modules2/midi_in/dsp.h:L10",
+        "enum_source": "native/modules2/midi_in/dsp.h:10,26-41"
       }
     ],
     "special_ui": "Physical MIDI selection belongs to Main.qml:166-187"
@@ -2029,8 +2169,26 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "automatable"
         ],
         "modulatable": false,
-        "enum_values": null,
-        "source": "native/modules2/midi_to_cv/dsp.h:L13"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Rotate"
+          },
+          {
+            "value": 1,
+            "label": "Reuse"
+          },
+          {
+            "value": 2,
+            "label": "Reset"
+          },
+          {
+            "value": 3,
+            "label": "Mono"
+          }
+        ],
+        "source": "native/modules2/midi_to_cv/dsp.h:L13",
+        "enum_source": "native/voice/allocator.h:12; native/modules2/midi_to_cv/README.md:8-11"
       },
       {
         "id": "steal_policy",
@@ -2048,8 +2206,14 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "automatable"
         ],
         "modulatable": false,
-        "enum_values": null,
-        "source": "native/modules2/midi_to_cv/dsp.h:L14"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Oldest"
+          }
+        ],
+        "source": "native/modules2/midi_to_cv/dsp.h:L14",
+        "enum_source": "native/modules2/midi_to_cv/dsp.h:14; native/modules2/midi_to_cv/README.md:8-10"
       },
       {
         "id": "mono_priority",
@@ -2067,8 +2231,22 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "automatable"
         ],
         "modulatable": false,
-        "enum_values": null,
-        "source": "native/modules2/midi_to_cv/dsp.h:L15"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Last"
+          },
+          {
+            "value": 1,
+            "label": "Low"
+          },
+          {
+            "value": 2,
+            "label": "High"
+          }
+        ],
+        "source": "native/modules2/midi_to_cv/dsp.h:L15",
+        "enum_source": "native/voice/allocator.h:13; native/modules2/midi_to_cv/README.md:8-11"
       },
       {
         "id": "legato",
@@ -2086,8 +2264,18 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "automatable"
         ],
         "modulatable": false,
-        "enum_values": null,
-        "source": "native/modules2/midi_to_cv/dsp.h:L16"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Off"
+          },
+          {
+            "value": 1,
+            "label": "On"
+          }
+        ],
+        "source": "native/modules2/midi_to_cv/dsp.h:L16",
+        "enum_source": "native/modules2/midi_to_cv/dsp.h:16; native/modules2/midi_to_cv/README.md:8-11"
       },
       {
         "id": "sustain",
@@ -2105,8 +2293,18 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "automatable"
         ],
         "modulatable": false,
-        "enum_values": null,
-        "source": "native/modules2/midi_to_cv/dsp.h:L17"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Ignore"
+          },
+          {
+            "value": 1,
+            "label": "Hold"
+          }
+        ],
+        "source": "native/modules2/midi_to_cv/dsp.h:L17",
+        "enum_source": "native/modules2/midi_to_cv/dsp.h:17; native/modules2/midi_to_cv/README.md:8-11"
       },
       {
         "id": "pitch_bend_range_semitones",
@@ -2143,8 +2341,18 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "automatable"
         ],
         "modulatable": false,
-        "enum_values": null,
-        "source": "native/modules2/midi_to_cv/dsp.h:L19"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Off"
+          },
+          {
+            "value": 1,
+            "label": "On"
+          }
+        ],
+        "source": "native/modules2/midi_to_cv/dsp.h:L19",
+        "enum_source": "native/modules2/midi_to_cv/dsp.h:19; native/modules2/midi_to_cv/README.md:8-11"
       },
       {
         "id": "channel_filter",
@@ -2162,8 +2370,78 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "automatable"
         ],
         "modulatable": false,
-        "enum_values": null,
-        "source": "native/modules2/midi_to_cv/dsp.h:L20"
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Omni"
+          },
+          {
+            "value": 1,
+            "label": "Channel 1"
+          },
+          {
+            "value": 2,
+            "label": "Channel 2"
+          },
+          {
+            "value": 3,
+            "label": "Channel 3"
+          },
+          {
+            "value": 4,
+            "label": "Channel 4"
+          },
+          {
+            "value": 5,
+            "label": "Channel 5"
+          },
+          {
+            "value": 6,
+            "label": "Channel 6"
+          },
+          {
+            "value": 7,
+            "label": "Channel 7"
+          },
+          {
+            "value": 8,
+            "label": "Channel 8"
+          },
+          {
+            "value": 9,
+            "label": "Channel 9"
+          },
+          {
+            "value": 10,
+            "label": "Channel 10"
+          },
+          {
+            "value": 11,
+            "label": "Channel 11"
+          },
+          {
+            "value": 12,
+            "label": "Channel 12"
+          },
+          {
+            "value": 13,
+            "label": "Channel 13"
+          },
+          {
+            "value": 14,
+            "label": "Channel 14"
+          },
+          {
+            "value": 15,
+            "label": "Channel 15"
+          },
+          {
+            "value": 16,
+            "label": "Channel 16"
+          }
+        ],
+        "source": "native/modules2/midi_to_cv/dsp.h:L20",
+        "enum_source": "native/modules2/midi_to_cv/dsp.h:20; native/modules2/midi_to_cv/README.md:8-11"
       }
     ],
     "special_ui": "No custom panel; mode/allocation flags are stepped (dsp.h:10-20)"
@@ -2913,10 +3191,20 @@ This is normalized **research data**, not a replacement for runtime enumeration.
           "automatable"
         ],
         "modulatable": false,
-        "enum_values": null,
+        "enum_values": [
+          {
+            "value": 0,
+            "label": "Off"
+          },
+          {
+            "value": 1,
+            "label": "On"
+          }
+        ],
         "source": "native/sdk/examples/step_sequencer/dsp.h:L31",
         "slot": 0,
-        "manifest_index": 0
+        "manifest_index": 0,
+        "enum_source": "native/sdk/examples/step_sequencer/dsp.h:31-33"
       },
       {
         "id": "length",
