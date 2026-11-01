@@ -109,12 +109,13 @@ Add under the module's existing design/provenance sections. **Do not edit the SD
 
 ```cpp
 // Host buffers, objects, schedules and all scratch built before the guard.
-prepare_and_warm(rig);
+// Reprepare for EACH changed rate/block/channel configuration.
 for (auto rate : {44100, 48000, 96000})
   for (auto frames : {1, 17, 64, 256})
     for (auto voices : {1, 2, 8, 16})
       for (auto mode : {Constant, Varying}) {
         configure_quiescent(rig, rate, frames, voices, mode);
+        prepare_and_warm(rig); // quiescent, uses host s.alloc
         for (int repeat = 0; repeat < 64; ++repeat) {
           set_preallocated_inputs_and_params(rig, repeat);
           uint64_t before = all_allocator_counters();
@@ -133,18 +134,44 @@ for (auto rate : {44100, 48000, 96000})
 
 **Instrumentation caution:** `new`/`malloc` shims must not count fixture setup, `REQUIRE`/`printf`, timing vector growth or output comparisons. Avoid overriding dynamic memory in shipping modules. A "zero malloc" result on a library that allocates via a custom arena is not proof that the arena is bounded; record host allocator calls and high-water marks separately.
 
-## 7. Practical policy: what is approved *without* a planner Stop
+## 7. Revised allowlist: exact permitted surfaces
 
-- **Green path:** a module using only DaisySP's audited oscillator/simple leaf, Signalsmith's pre-sized delay/filters, or CMSIS-DSP's caller-buffer C kernels, on immutable versions, with complete DESIGN and realtime tests, may proceed by normal module review without asking the planner to choose a DSP library. An upstream release bump, unknown file, callback memory allocation or unsupported SIMD path **exits** the green path.
-- **Notes path:** Mutable's **existing pinned adapter closure**; Faust code generated with verified input/architecture licence closure and only static/prepare memory; isolated STK instruments after error/logging suppression by contract (not by disabling a test); r8brain streaming after constructor allocation; self-contained Soundpipe C; and carefully isolated DSPFilters after build/static audit may proceed without a new library Stop **only when every documented restriction is met**. Do not import entire apps or audio device/file layers.
-- **Stop path:** chowdsp_utils (GPL module + possible JUCE/other dependency closure), Q (C++20), Dragonfly (callback setters may allocate and mixed licences), and JUCE8 (AGPL/commercial). No licence conversion by packaging a web UI, Tauri shell, dynamic library or plugin ABI. Linking/separation specifics require planner/legal decision where copyleft applies.
-- **Do not bake any third-party GPL/AGPL library into the MIT SDK**. Keep optional third-party code in GPL modules with original SPDX notices and pinned source. The helper ABI and portable data types stay MIT/C++17; no Qt, filesystem, devices or network from DSP code.
+Only the named, source-inspected DSP function and pinned revision are eligible for a no-planner-Stop path. A licence-compatible repository is not automatically realtime-safe. No-Stop status still requires a module DESIGN, ordinary module review, pinned source closure, allocation and determinism tests.
+
+| Tier | No-Stop subset | Material exclusions |
+|---|---|---|
+| **Approved — DaisySP** | Audited `Oscillator::Process`, equivalent fixed-state leaves, `FIRFILTER_USER_MEMORY` with host-owned buffers. | Separate DaisySP-LGPL, complex effects, unknown allocation paths. |
+| **Approved — Signalsmith** | `filters.h` fixed-state `BiquadStatic::operator()` and `reset` only. | `delay::Buffer`, FFT planning, size-changing `BoxFilter` without host-memory adaptation. |
+| **Approved — CMSIS-DSP** | Inspected caller-buffer C biquad kernels and matching platform-specific build. | Uninspected kernels, DSP++ NEON, extra FFT/NEON scratch requirements. |
+| **Approved with notes — Mutable** | Existing Wirescape Plaits+stmlib pin, fixed workspace and isolated RNG. | Other upstream code, revisions, unapproved patches or shared mutable data. |
+| **Approved with notes — Faust** | Generated static DSP with verified input/architecture licence and no runtime heap/lock. | Runtime compiler/JIT, unknown imports and memory managers. |
+| **Approved with notes — Soundpipe** | `sp_osc_compute` with host-owned object and prebuilt wavetable. | `sp_osc_create`, `revsc` and any other self-allocating opcode. |
+| **Needs planner** | STK, chowdsp_utils, Q, r8brain, DSPFilters, Dragonfly. | Heap/global RNG, mixed licence/JUCE, C++20, global filter cache/mutex, unproven processing closure, callback-time setters. |
+| **Rejected for default use** | JUCE 8 DSP. | AGPL-3.0-only or commercial framework; exception requires planner/legal decision. |
+
+## 8. Second-pass findings and verification limits
+
+### Confirmed facts, with function-level evidence
+
+- Wirescape `prepare` permits allocations **only through `s.alloc`**, not arbitrary hidden library `malloc`, `new` or `std::vector::resize`. See [docs/SDK_AUTHOR_GUIDE.md:81-91](https://github.com/kalharbi11/wirescape/blob/main/docs/SDK_AUTHOR_GUIDE.md#L81-L91). This is a stronger condition than a zero-allocation `process` test.
+- STK `OnePole::OnePole` allocates via `resize` ([src/OnePole.cpp:17-25](https://github.com/thestk/stk/blob/master/src/OnePole.cpp#L17-L25)); `setPole` reports invalid parameters through a shared error path ([src/OnePole.cpp:32-37](https://github.com/thestk/stk/blob/master/src/OnePole.cpp#L32-L37)); `Noise::setSeed` invokes process-global `srand` and optionally `time(NULL)` ([src/Noise.cpp:18-30](https://github.com/thestk/stk/blob/master/src/Noise.cpp#L18-L30)). Per-instance deterministic RNG and error-path isolation are missing.
+- r8brain `CDSPFracInterpolator::getFilterBank` acquires `R8BSYNC` ([CDSPFracInterpolator.h:443-453](https://github.com/avaneev/r8brain-free-src/blob/master/CDSPFracInterpolator.h#L443-L453)) and may allocate/delete cached banks ([CDSPFracInterpolator.h:483-519](https://github.com/avaneev/r8brain-free-src/blob/master/CDSPFracInterpolator.h#L483-L519)); for C++11 this uses `std::mutex`/`std::lock_guard` ([r8bbase.h:689-693](https://github.com/avaneev/r8brain-free-src/blob/master/r8bbase.h#L689-L693)). The separately inspected `CDSPFracInterpolator::process` ([CDSPFracInterpolator.h:847-900](https://github.com/avaneev/r8brain-free-src/blob/master/CDSPFracInterpolator.h#L847-L900)) does **not visibly invoke** the cache. This is a setup/lifetime and host-allocator problem, not proof of a mutex on every sample.
+- chowdsp_utils is **per-module licensed**: filter/reverb module declarations say `GPLv3` ([filters.h:6-15](https://github.com/Chowdhury-DSP/chowdsp_utils/blob/master/modules/dsp/chowdsp_filters/chowdsp_filters.h#L6-L15)), while `chowdsp_math` and `chowdsp_simd` declarations say `BSD-3-Clause` ([math.h:6-15](https://github.com/Chowdhury-DSP/chowdsp_utils/blob/master/modules/dsp/chowdsp_math/chowdsp_math.h#L6-L15), [simd.h:6-15](https://github.com/Chowdhury-DSP/chowdsp_utils/blob/master/modules/dsp/chowdsp_simd/chowdsp_simd.h#L6-L15)). Bare `GPLv3` is **not sufficient** evidence to choose SPDX `GPL-3.0-only` rather than `GPL-3.0-or-later`. Record exact GPL suffix **undetermined** pending a file-level notice audit.
+- DaisySP FIR offers explicit caller-provided state memory via `FIRFILTER_USER_MEMORY` ([fir.h:29-36,90-115](https://github.com/daisyaudio/DaisySP/blob/master/Source/Filters/fir.h#L29-L36)); Signalsmith `BiquadStatic` owns inline coefficients and sample history ([filters.h:45-50,244-255](https://github.com/Signalsmith-Audio/dsp/blob/main/filters.h#L45-L50)). Neither makes all upstream functions greenlisted.
+- The [Faust official FAQ](https://faustdoc.grame.fr/manual/faq/#what-is-the-situation-about-faust-compiler-licence-and-the-deployed-code) says generated-code licensing depends on its inputs, library imports and architecture files, **not** the compiler's LGPL. Record `LGPL-2.1-or-later` for the compiler and **unresolved SPDX until inputs/templates are audited** for each generated source.
+
+### Evidence still missing
+
+- **Zero** Windows, Pi 5 Linux ARM64 or bare-metal Daisy builds/benchmarks were executed for this research. CPU headroom, binary size, stack footprint and AArch64 NEON acceleration have **not** been measured. Daisy compile success, memory fit and no-heap audio callbacks must be demonstrated separately from desktop.
+- No test proves every possible execution path. The proposed **6,144 callbacks** are 3 sample rates × 4 frame lengths × 4 voice counts × 2 signal modes × 64 repeats. Prepare, allocate and warm up **outside the guard for every changed rate/max_block/channel configuration**. Existing [allocation_watch.cpp:8-39](https://github.com/kalharbi11/wirescape/blob/main/native/tests2/allocation_watch.cpp#L8-L39) observes C++ global `new` overloads, **not all C malloc, custom pools, locks or I/O**. Add exact linked-runtime interposition and call-graph review before declaring the test sufficient.
+- The report separates verified GitHub release metadata from a branch commit; missing stable tags remain **not verified**. Require a pinned commit and archive hash for every adopted closure. Do not infer GPL sublicensing terms, hardware portability, performance or maintenance from a repository-level licence badge or recent README commit.
+
 
 ## Decisions needed from the planner
 
-1. **Tier ratification:** (A) adopt this scoped 3/6/3/1 allowlist, revisiting on revision changes; (B) put **all** 13 in needs-planner; (C) blanket-approve permissive repositories. **Recommend A**: releases module builders from repeated stops without creating unsafe library-wide exemptions.
+1. **Tier ratification:** (A) adopt this scoped 3/3/6/1 allowlist, revisiting on revision changes; (B) put **all** 13 in needs-planner; (C) blanket-approve permissive repositories. **Recommend A**: releases module builders from repeated stops without creating unsafe library-wide exemptions.
 2. **Copyleft boundary:** (A) keep GPL/AGPL dependencies module-local, never in MIT SDK, and escalate JUCE/chow/Dragonfly full closure; (B) allow AGPL `juce_dsp` under a documented AGPLv3 `13 combined-work distribution strategy; (C) purchase and authorise a JUCE commercial licence. **Recommend A** unless a concrete JUCE-only DSP requirement emerges.
 3. **C++20 Q and hardware support:** (A) defer Q until a separately authored C++17-equivalent subset or toolchain compatibility decision; (B) raise Wirescape module compilation to C++20; (C) use an isolated C++20-to-C ABI library with ABI, link and Daisy compiler proofs. **Recommend A**: C++17 SDK portability and Daisy are current hard constraints.
-4. **Realtime evidence threshold:** (A) require the source-level call graph plus allocation/lock/I/O guards and the 6,144-callback matrix, with Pi/Daisy checks only when claims are made; (B) rely solely on the existing C++ `allocation_watch`; (C) require full Pi and bare-metal tests for every module. **Recommend A**, implementing C interposition and exact-host memory accounting before declaring complex libraries "approved."
-5. **Reverb priority:** (A) prototype Soundpipe `revsc`/`jcrev` with prepare-only allocation first; (B) port Dragonfly/freeverb3 after planner closure audit; (C) add chowdsp FDN/Dattorro with JUCE dependency resolution. **Recommend A** for smallest source/portability closure, and keep B/C as later quality comparisons.
+4. **Realtime evidence threshold:** (A) require source call-graph inspection, host-allocator-only setup provenance, C++ and C allocation/lock/I/O guards, and the 6,144-callback matrix, with Pi/Daisy checks only when claims are made; (B) rely solely on the existing C++ `allocation_watch`; (C) require full Pi and bare-metal tests for every module. **Recommend A**, implementing C interposition and exact-host memory accounting before declaring complex libraries "approved."
+5. **Reverb priority:** (A) build a small original Schroeder/FDN network with host-owned delay lines and approved fixed-state filters; (B) port Soundpipe `revsc` after replacing the internal aux allocator with `s.alloc`; (C) extract Dragonfly/freeverb3 or chowdsp after a full licence/call-graph audit. **Recommend A** for the smallest no-Stop closure; B/C need planner review.
 6. **Pinning and revisions:** (A) freeze per-module commit SHA + archive SHA256, redo audit for upgrades; (B) allow upstream semver-compatible updates automatically; (C) vendor entire upstream repositories. **Recommend A**, matching the existing macro-oscillator provenance/portability precedent.
