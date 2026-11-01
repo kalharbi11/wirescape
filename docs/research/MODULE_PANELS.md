@@ -4052,3 +4052,345 @@ This is normalized **research data**, not a replacement for runtime enumeration.
   ],
   "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
 },
+{
+  "abi_version": 1,
+  "module_id": "essentials.output",
+  "display_name": "Output",
+  "category_proposed": "I/O",
+  "source": "native/modules/output/module.cpp:L18",
+  "ports": [
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/output/module.cpp:L16"
+    },
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/output/module.cpp:L17"
+    }
+  ],
+  "parameters": [],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+},
+{
+  "abi_version": 1,
+  "module_id": "essentials.scale_offset",
+  "display_name": "Scale/Offset",
+  "category_proposed": "Utility",
+  "source": "native/modules/scale_offset/module.cpp:L43",
+  "ports": [
+    {
+      "id": "control",
+      "name": "Control",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "control",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/scale_offset/module.cpp:L39"
+    },
+    {
+      "id": "control",
+      "name": "Control",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "control",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/scale_offset/module.cpp:L40"
+    }
+  ],
+  "parameters": [
+    {
+      "id": 0,
+      "slot": 0,
+      "name": "Scale",
+      "minimum": -2,
+      "maximum": 2,
+      "default": 1,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/scale_offset/module.cpp:L41"
+    },
+    {
+      "id": 1,
+      "slot": 1,
+      "name": "Offset",
+      "minimum": -1,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/scale_offset/module.cpp:L42"
+    }
+  ],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+},
+{
+  "abi_version": 1,
+  "module_id": "essentials.slew",
+  "display_name": "Slew",
+  "category_proposed": "Utility",
+  "source": "native/modules/slew/module.cpp:L59",
+  "ports": [
+    {
+      "id": "control",
+      "name": "Control",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "control",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/slew/module.cpp:L56"
+    },
+    {
+      "id": "control",
+      "name": "Control",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "control",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/slew/module.cpp:L57"
+    }
+  ],
+  "parameters": [
+    {
+      "id": 0,
+      "slot": 0,
+      "name": "Rise",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 0.1,
+      "unit": "s/unit",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/slew/module.cpp:L58"
+    },
+    {
+      "id": 1,
+      "slot": 1,
+      "name": "Fall",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 0.1,
+      "unit": "s/unit",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/slew/module.cpp:L58"
+    }
+  ],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+},
+{
+  "abi_version": 1,
+  "module_id": "essentials.vca",
+  "display_name": "VCA",
+  "category_proposed": "Dynamics",
+  "source": "native/modules/vca/module.cpp:L36",
+  "ports": [
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/vca/module.cpp:L32"
+    },
+    {
+      "id": "gain_cv",
+      "name": "Gain CV",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "control",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/vca/module.cpp:L33"
+    },
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/vca/module.cpp:L34"
+    }
+  ],
+  "parameters": [
+    {
+      "id": 0,
+      "slot": 0,
+      "name": "Gain",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 1,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/vca/module.cpp:L35"
+    }
+  ],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+},
+{
+  "abi_version": 1,
+  "module_id": "essentials.vcf",
+  "display_name": "VCF",
+  "category_proposed": "Filter",
+  "source": "native/modules/vcf/module.cpp:L88",
+  "ports": [
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/vcf/module.cpp:L85"
+    },
+    {
+      "id": "low12",
+      "name": "Low12",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/vcf/module.cpp:L86"
+    },
+    {
+      "id": "low24",
+      "name": "Low24",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/vcf/module.cpp:L86"
+    }
+  ],
+  "parameters": [
+    {
+      "id": 0,
+      "slot": 0,
+      "name": "Cutoff",
+      "minimum": 20,
+      "maximum": 20000,
+      "default": 1000,
+      "unit": "Hz",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/vcf/module.cpp:L87"
+    },
+    {
+      "id": 1,
+      "slot": 1,
+      "name": "Resonance",
+      "minimum": 0,
+      "maximum": 0.95,
+      "default": 0,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/vcf/module.cpp:L87"
+    }
+  ],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+},
+{
+  "abi_version": 1,
+  "module_id": "essentials.vco",
+  "display_name": "VCO",
+  "category_proposed": "Oscillator",
+  "source": "native/modules/vco/module.cpp:L46",
+  "ports": [
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/vco/module.cpp:L44"
+    }
+  ],
+  "parameters": [
+    {
+      "id": 0,
+      "slot": 0,
+      "name": "Frequency",
+      "minimum": 0.01,
+      "maximum": 20000,
+      "default": 220,
+      "unit": "Hz",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/vco/module.cpp:L45"
+    }
+  ],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+}
