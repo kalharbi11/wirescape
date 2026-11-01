@@ -3516,3 +3516,539 @@ This is normalized **research data**, not a replacement for runtime enumeration.
   ],
   "special_ui": "No custom QML; 8×3 pitch/gate/velocity array expanded from WS_STEP, with documented gate meanings (dsp.h:7-41)"
 },
+{
+  "abi_version": 1,
+  "module_id": "essentials.adsr",
+  "display_name": "ADSR",
+  "category_proposed": "Envelope",
+  "source": "native/modules/adsr/module.cpp:L100",
+  "ports": [
+    {
+      "id": "envelope",
+      "name": "Envelope",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "control",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/adsr/module.cpp:L95"
+    }
+  ],
+  "parameters": [
+    {
+      "id": 0,
+      "slot": 0,
+      "name": "Attack",
+      "minimum": 0.0001,
+      "maximum": 30,
+      "default": 0.01,
+      "unit": "s",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/adsr/module.cpp:L96"
+    },
+    {
+      "id": 1,
+      "slot": 1,
+      "name": "Decay",
+      "minimum": 0.0001,
+      "maximum": 30,
+      "default": 0.1,
+      "unit": "s",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/adsr/module.cpp:L97"
+    },
+    {
+      "id": 2,
+      "slot": 2,
+      "name": "Sustain",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.7,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/adsr/module.cpp:L98"
+    },
+    {
+      "id": 3,
+      "slot": 3,
+      "name": "Release",
+      "minimum": 0.0001,
+      "maximum": 30,
+      "default": 0.2,
+      "unit": "s",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/adsr/module.cpp:L99"
+    }
+  ],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+},
+{
+  "abi_version": 1,
+  "module_id": "essentials.clock",
+  "display_name": "Clock",
+  "category_proposed": "Timing",
+  "source": "native/modules/clock/module.cpp:L70",
+  "ports": [
+    {
+      "id": "reset",
+      "name": "Reset",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "control",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/clock/module.cpp:L67"
+    },
+    {
+      "id": "clock",
+      "name": "Clock",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "control",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/clock/module.cpp:L68"
+    }
+  ],
+  "parameters": [
+    {
+      "id": 0,
+      "slot": 0,
+      "name": "BPM",
+      "minimum": 20,
+      "maximum": 300,
+      "default": 120,
+      "unit": "BPM",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/clock/module.cpp:L69"
+    },
+    {
+      "id": 1,
+      "slot": 1,
+      "name": "Ticks per beat",
+      "minimum": 1,
+      "maximum": 24,
+      "default": 1,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/clock/module.cpp:L69"
+    },
+    {
+      "id": 2,
+      "slot": 2,
+      "name": "Duty",
+      "minimum": 0.01,
+      "maximum": 0.99,
+      "default": 0.5,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/clock/module.cpp:L69"
+    },
+    {
+      "id": 3,
+      "slot": 3,
+      "name": "Run",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/clock/module.cpp:L69"
+    }
+  ],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+},
+{
+  "abi_version": 1,
+  "module_id": "essentials.function_envelope",
+  "display_name": "Function Envelope",
+  "category_proposed": "Envelope",
+  "source": "native/modules/function_envelope/module.cpp:L77",
+  "ports": [
+    {
+      "id": "gate",
+      "name": "Gate",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "control",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/function_envelope/module.cpp:L74"
+    },
+    {
+      "id": "envelope",
+      "name": "Envelope",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "control",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/function_envelope/module.cpp:L75"
+    }
+  ],
+  "parameters": [
+    {
+      "id": 0,
+      "slot": 0,
+      "name": "Rise",
+      "minimum": 0.0001,
+      "maximum": 30,
+      "default": 0.01,
+      "unit": "s",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/function_envelope/module.cpp:L76"
+    },
+    {
+      "id": 1,
+      "slot": 1,
+      "name": "Fall",
+      "minimum": 0.0001,
+      "maximum": 30,
+      "default": 0.1,
+      "unit": "s",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/function_envelope/module.cpp:L76"
+    },
+    {
+      "id": 2,
+      "slot": 2,
+      "name": "Curve",
+      "minimum": -1,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/function_envelope/module.cpp:L76"
+    }
+  ],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+},
+{
+  "abi_version": 1,
+  "module_id": "essentials.ladder",
+  "display_name": "Ladder Filter",
+  "category_proposed": "Filter",
+  "source": "native/modules/ladder/module.cpp:L88",
+  "ports": [
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/ladder/module.cpp:L85"
+    },
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/ladder/module.cpp:L86"
+    }
+  ],
+  "parameters": [
+    {
+      "id": 0,
+      "slot": 0,
+      "name": "Cutoff",
+      "minimum": 20,
+      "maximum": 20000,
+      "default": 1000,
+      "unit": "Hz",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/ladder/module.cpp:L87"
+    },
+    {
+      "id": 1,
+      "slot": 1,
+      "name": "Resonance",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/ladder/module.cpp:L87"
+    },
+    {
+      "id": 2,
+      "slot": 2,
+      "name": "Drive",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 0,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/ladder/module.cpp:L87"
+    }
+  ],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+},
+{
+  "abi_version": 1,
+  "module_id": "essentials.lfo",
+  "display_name": "LFO",
+  "category_proposed": "Motion",
+  "source": "native/modules/lfo/module.cpp:L58",
+  "ports": [
+    {
+      "id": "control",
+      "name": "Control",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "control",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/lfo/module.cpp:L54"
+    }
+  ],
+  "parameters": [
+    {
+      "id": 0,
+      "slot": 0,
+      "name": "Rate",
+      "minimum": 0.01,
+      "maximum": 20,
+      "default": 1,
+      "unit": "Hz",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/lfo/module.cpp:L55"
+    },
+    {
+      "id": 1,
+      "slot": 1,
+      "name": "Depth",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/lfo/module.cpp:L56"
+    },
+    {
+      "id": 2,
+      "slot": 2,
+      "name": "Offset",
+      "minimum": -1,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/lfo/module.cpp:L57"
+    }
+  ],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+},
+{
+  "abi_version": 1,
+  "module_id": "essentials.mixer",
+  "display_name": "Mixer",
+  "category_proposed": "Utility",
+  "source": "native/modules/mixer/module.cpp:L74",
+  "ports": [
+    {
+      "id": "a",
+      "name": "A",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/mixer/module.cpp:L64"
+    },
+    {
+      "id": "b",
+      "name": "B",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/mixer/module.cpp:L65"
+    },
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/mixer/module.cpp:L68"
+    }
+  ],
+  "parameters": [
+    {
+      "id": 0,
+      "slot": 0,
+      "name": "Level A",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 0.5,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/mixer/module.cpp:L71"
+    },
+    {
+      "id": 1,
+      "slot": 1,
+      "name": "Level B",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 0.5,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/mixer/module.cpp:L72"
+    }
+  ],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+},
+{
+  "abi_version": 1,
+  "module_id": "essentials.noise",
+  "display_name": "Noise",
+  "category_proposed": "Source",
+  "source": "native/modules/noise/module.cpp:L52",
+  "ports": [
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": null,
+      "stereo_pair": null,
+      "unpatched_value": null,
+      "source": "native/modules/noise/module.cpp:L50"
+    }
+  ],
+  "parameters": [
+    {
+      "id": 0,
+      "slot": 0,
+      "name": "Level",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.2,
+      "unit": "",
+      "taper": null,
+      "curve": null,
+      "step": null,
+      "flags": null,
+      "modulatable": null,
+      "enum_values": null,
+      "source": "native/modules/noise/module.cpp:L51"
+    }
+  ],
+  "special_ui": "No module-specific QML; shared ModuleCard.qml with ABI1 compatibility descriptors"
+},
