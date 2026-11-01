@@ -91,6 +91,28 @@ ABI 1 declares numeric parameter IDs, min/max/default/unit and audio-or-control 
 
 The following labels are **derived from implementation and module documentation**, not populated ABI-2 `options` fields. Sidecar choices must preserve their numeric values: Keyboard/MIDI modes 0 Rotate, 1 Reuse, 2 Reset, 3 Mono; mono priority 0 Last, 1 Low, 2 High (native/voice/allocator.h:12-13; native/modules2/host_keyboard/README.md:14-16; native/modules2/midi_to_cv/README.md:8-11); MIDI channel filter 0 Omni and 1–16 channels (native/modules2/midi_in/dsp.h:26-41); CHAOS coupling route 0 Direct, 1 Multiply, 2 Delay (native/modules2/chaos_lite/coupler.h:13-26); CHAOS LFO target 0 Oscillator A pitch, 1 Body tuning, 2 Filter cutoff (native/modules2/chaos_lite/dsp.h:92-103); step gate 0 Rest, 1 Note, 2 Tie (native/sdk/examples/step_sequencer/dsp.h:8-13). **Macro Oscillator's 24 model names are not declared in the ABI descriptor**, so keep numeric 0–23 until names are independently verified (native/modules2/macro_oscillator/dsp.h:19-22).
 
+
+### Descriptor coverage versus behavior/configuration coverage
+
+| Case | Native data available today | Web-host requirement (proposed, not implemented) |
+| --- | --- | --- |
+| Ordinary ABI-2 controls | 108 parameter declarations across 21 ABI-2 types; 106 linear and 2 logarithmic tapers, 30 stepped, 78 modulatable, 0 flagged `WS2_HIDDEN`. Counts from the normalized audited descriptors; ABI flags/tapers are defined at native/include/wirescape/module2.h:27-28 and helper at native/sdk/wirescape_sdk.h:21-25. | Generic controls use native range/taper/flags; never reclassify a non-modulatable parameter by name |
+| Dense layouts | CHAOS-lite and Step Sequencer each have 26 parameters (native/modules2/chaos_lite/dsp.h:17-34; native/sdk/examples/step_sequencer/dsp.h:9-13,30-33). | Sections, grids and vertical scrolling must remain keyboard- and screen-reader-reachable |
+| Stereo and event routing | Exactly two declared `stereo_pair` ports, CHAOS left/right (native/modules2/chaos_lite/dsp.h:13-15); event signals retain a separate ABI kind (native/include/wirescape/module2.h:23-25). | Paired gesture yields **two** separately saved cables; event source cannot be sent to a signal port merely because colours match |
+| CC-to-CV | Zero `ws2_param` values; eight configurable MIDI CC rows (native/modules2/midi_cc_to_cv/dsp.h:7-13; native/modules2/midi_cc_to_cv/config.h:7-19). | Provide host-certified `module.config.rows` schema/data and a generic eight-row form; otherwise display ports and “Configuration unavailable”, not fabricated knobs |
+| MIDI In | Channel filter is a native param; `config.endpoint`/`system_name` are strings accepted by the runtime document adapter (native/modules2/midi_in/dsp.h:7-10; native/document/runtime_module_config.h:13-16). | Host device selector capability, permission status and persisted symbolic endpoint; the adapter returns an empty module config byte array, so **do not infer that the parameter descriptor alone performs physical device selection** |
+| Output | Zero native parameters; a native sum input and audio output (native/modules2/output/dsp.h:6-9). | Expose a typed host action to select the graph output, separately from physical device selection; no device opens on render |
+| Macro Oscillator | `prepare` rejects non-48000 sample rates and caps prepared voices at 8 (native/modules2/macro_oscillator/dsp.h:47-54). | Show **runtime-reported** availability and unsupported rate/voice warnings, never rewrite capability or claim offline renders pass at arbitrary rates |
+| Runtime parameter edges | The v2 runtime recognizes `kind=modulation`, maps target stable parameter IDs to indices and validates signed `amount` (native/document/runtime_patch.cpp:59-66). | Separate parameter-edge targets from input-jack targets; always validate with host and preserve unknown nested JSON |
+
+**Typed configuration contract, recommended:** use a host-supplied, versioned **declarative form schema**, not a per-module JavaScript renderer. For `midi.cc_to_cv`, a read-only schema can expose rows 1–8 and fields `channel` (integer 0–16, 0=Omni), `controller` (integer 0–127), `fourteen_bit` (boolean), `bipolar` (boolean), and `smoothing_ms` (finite 0–2000). When `fourteen_bit=true`, `controller<=31`. Defaults are channel 0, consecutive CC numbers 1–8, both booleans false and 5 ms smoothing. **Authoritative validation** remains in the existing quiescent JSON adapter and `cc_configuration` validator (native/document/runtime_module_config.h:17-32; native/modules2/midi_cc_to_cv/config.h:7-19). The renderer binds each field by exact `config.rows[index].field` path, preserves any other saved fields, and submits one typed transaction rather than writing the module's raw 68-byte struct.
+
+The host can expose generic `actions[]` (stable action ID, label, enabled/disabled reason, confirmation/permission policy) for **graph-output selection, MIDI assignment, configuration editor and optionally transport**. The view does not call OS/device APIs, arbitrary module code or bundled scripts. It must not equate transport action capabilities with DSP parameters. `native/ui/qml/ModuleCard.qml:141-147` currently makes Output selection a special QML button; `native/ui/qml/Main.qml:166-187,430-461` hosts MIDI/audio services separately.
+
+**Discovery and packaging:** the ABI-2 built-ins are statically enumerated, the two SDK teaching modules are separately built, and `app_engine_load_module()` currently delegates to the ABI-1 dynamic loader (native/control/module_catalog.inc:2-20; native/engine2/CMakeLists.txt:76-81; native/control/app_engine.cpp:59-65). Sidecars are **not currently installed automatically** by those ABI-2 build rules; adding adjacent source JSON will not expose it to a deployed Tauri/web process without a packaging/resource-discovery task (native/engine2/CMakeLists.txt:86-94,139,185; compare the ABI-1 manifest copy in native/CMakeLists.txt:27-32). For a production bridge, include `schema_version`, `abi_version`, `module_id` and **native descriptor module version** in each catalog snapshot; bind any optional sidecar to the correct module binary/provenance and fall back when a version mismatch or path escape occurs. A module label must never be treated as an executable/script path. A future external ABI-2 plugin loader is a distinct engine/SDK decision; the generic panel proposal does not authorize one.
+
+**Licence boundary:** a per-module sidecar is presentation data shipped with the module and must retain that module's applicable licensing provenance. JSON does not accept an HTML comment-style SPDX header; before adding sidecars, the planner should approve a valid-JSON SPDX metadata convention and packaging tests without relaxing the repository's SPDX rule (AGENTS.md:69-85, native/sdk/examples/step_sequencer/dsp.h:1-4). No new sidecar file is created in this research PR.
+
 ## Missing presentation metadata: facts versus additive recommendations
 
 | Feature | Observed native/Qt state | Additive sidecar proposal |
@@ -140,13 +162,29 @@ Recommended overlay contract:
 
 **Portability:** serialize module catalog and sidecar content once on a background/control worker, not every frame. The web renderer consumes an immutable snapshot plus bounded value/meter updates; C++ engine and UI talk over a versioned localhost/in-process bridge, with no LAN sockets in unattended tests. Module add/remove/patch operations must retain transactional engine behavior and unknown patch fields. The UI's render loop never calls a realtime DSP function or treats a displayed value as an authoritative control state. Existing safety rules: AGENTS.md:69-85; native/control/app_engine.cpp:26-31,67-69.
 
+
+### Patch-v2 modulation targets and editor projection
+
+The existing `docs/design/M3_PARAMETER_EDGES.md:7-40` defines a **proposal**, not blanket planner approval: a v2 connection with `kind: "modulation"` uses `from.port` as an output port string, `to.port` as the **target parameter string ID** (not a signal jack), and one signed `amount` in [-1,1]. The source describes multiple edges per parameter, zero amounts, and preserving unknown nested fields. Dragging to a knob is a distinct action from dragging the knob's base value; event outputs and parameters without `WS2_MODULATABLE` must not become drop targets (docs/design/M3_PARAMETER_EDGES.md:19-69; native/include/wirescape/module2.h:27; native/document/runtime_patch.cpp:59-66). Implementation is conditional on the planner's approval of that design.
+
+**No “modulation port” may be invented in the native input port list.** The web UI should expose parameter-edge targets as separate typed drop zones associated with a parameter's stable string ID; keep routing geometry independent from port rows. The proposal's `effective = clamp(base_normalized + sum(amount * source_cv), 0, 1)` then applies taper; per-voice telemetry must identify a chosen voice or a bounded range, never pretend every voice has one effective value (docs/design/M3_PARAMETER_EDGES.md:64-103). Tooltip, saved base value and formatted current effective value remain separate; hide/stale-clear the overlay if data is not published. Live graph editing is gated by a separate safe graph-publication task, not by HTML drag success (docs/design/M3_PARAMETER_EDGES.md:105-124).
+
+### Serialization and bridge invariants
+
+- **Patch document** is a native v2 value tree with stable type/parameter/port IDs, settings, config, state, outputs and preserved unknown members. Maintain the existing v1-to-v2 migration/backups and native-v2 source-of-truth; never persist the v1-shaped `StudioController::modules()` projection by mistake (native/document/app_patch.cpp:16-56; native/document/patch_document.h:14-24; native/document/README.md:4-17).
+- **UI view model** uses node instance integer ID only to dispatch an edit and find its on-screen card. When `ws2_param.legacy_index` differs from the array index, use the existing host mapping, **not** an `id: Number(p.id)` assumption (native/control/app_engine.cpp:26-31,118; native/document/app_patch.cpp:9-12,39-45). An old ABI-1 module still uses its numeric IDs in v1 compatibility data.
+- **Commands** should carry an expected patch revision/generation, typed action and stable IDs. The host validates availability, module config, modulation authorization, range and graph feasibility; only a confirmed result updates “accepted” UI values. On rejection, the displayed value returns to the last confirmed state. This is a proposed bridge contract, not an existing API.
+- **Unknown extensions** must survive edits and undo/redo at their original nesting level. `docs/design/M3_PARAMETER_EDGES.md:34-52` explicitly distinguishes inactive/unavailable storage from executable graphs. Browser JSON parsing alone is not enough to reproduce the native reader's duplicate-key and 2 MiB limits (native/document/runtime_patch.cpp:29-37; native/document/README.md:4-17); delegate document validation/serialization to C++.
+- **Port positions** must be observed from actual rendered jack elements after layout and zoom, not reconstructed from a hardcoded y-offset. Current QML port rows use 112px + 24px × index (native/ui/qml/ModuleCard.qml:59-79), while canvas endpoint geometry is independently calculated (native/ui/qml/Main.qml:127-135); sections/collapsible controls must not change routing endpoints incorrectly. Zoom 0.35–1 and pointer hit testing are relevant current Qt behavior, not necessarily the final web spec (native/ui/qml/Main.qml:155-158).
+- **Accessibility**: screen-reader labels include node display name, module type, port/parameter stable ID, kind/hint and current value; keyboard can create/disconnect ordinary and permitted modulation edges. Drag/scroll do not steal text entry, and touch hit areas do not shrink below reasonable device-pixel size when canvas zoom changes. These are proposed acceptance rules.
+
 ## Generic automatic layout contract
 
 1. **Header:** slim module-index/category eyebrow; native display name; optional short description, bypass/selection/status actions from host capabilities (not fake DSP params). Example `01 / MOTION` as a section caption, not a hardcoded module name. Unique graph node ID and stable module type ID stay separate. For missing modules show an explicit unavailable header with original ports/values retained in the patch.
-2. **Ports:** left rail = descriptor inputs, right rail = descriptor outputs, in native order unless a valid sidecar order exists. Each jack carries label, kind (`signal`/`event`), hint (audio/pitch/CV/gate/trigger/MIDI/notes), poly policy and stereo pairing. Match paired L/R jacks visually but keep **two addressable ports**; never reinterpret two voices as stereo. Keyboard focus exposes every jack and typed cable route. No visual hint rejects a native-allowed connection.
+2. **Ports:** left rail = descriptor inputs, right rail = descriptor outputs, in native order unless a valid sidecar order exists. Each jack carries label, kind (`signal`/`event`), hint (audio/pitch/CV/gate/trigger/MIDI/notes), poly policy, unpatched default and stereo pairing. Match paired L/R jacks visually but keep **two addressable ports** and two saved cables; never reinterpret voices as stereo (native/modules2/chaos_lite/dsp.h:13-15; native/include/wirescape/module2.h:37-40). Keyboard focus exposes every jack and typed cable route. **Signal hints are advisory, not type gates; event-vs-signal kinds remain distinct**, as checked by the runtime loader (native/document/runtime_patch.cpp:64-66).
 3. **Body:** ordered sections from `sections[]`; otherwise natural native parameter order in a responsive two-column grid. Section captions `01 / MOTION`, `02 / SHAPE`, etc. Header/footer and left/right port rails remain aligned for all heights. At 280px panel width, use 24px minimum port-row pitch and keep knobs at touch-accessible hit areas; adapt card width for dense 26-param modules instead of forcing microscopic controls. Respect zoom for pointer hit testing and cable endpoints.
 4. **Controls:** continuous gets accessible knob by default, primary/hero for single frequency or rate; secondary gets small knob. Step >0 / stepped flag gets an integer stepper; two-state uses toggle; **buttons/segments only with verified choice labels**. Fixed range (`minimum==maximum`) gets disabled readout. For an ABI-1 parameter, use linear slider/knob with explicit range; no claim of native modulation. For 0-param modules display ports, description and any approved host action rather than an empty broken card.
-5. **Display:** separate *numeric plain value*, *normalized value*, *formatted value* and *formatted range*. Implement decimal rounding after float32 boundary conversion; e.g. `0.01 Hz–20 kHz`, not `0.009999999776482582–20000 Hz`. For Hz use Hz/kHz; seconds use ms/s; show unit once when unambiguous. Use descriptor taper (linear/log/exp) and step for interaction; never infer log taper solely from unit or ratio (current QML does: native/ui/qml/ParameterControl.qml:14-17). Tooltip, accessible text and keyboard adjustment use identical formatting.
+5. **Display:** separate *numeric plain value*, *normalized value*, *formatted value* and *formatted range*. Format float32 bounds with bounded decimal digits; e.g. `0.01 Hz–20 kHz`, not `0.009999999776482582–20000 Hz`. For Hz use Hz/kHz; seconds use ms/s; show unit once when unambiguous. **Formatting precedence:** trusted native `value_to_text` callback invoked only on the control side when supplied, then validated `options`/step choices, then sidecar formatting hint, then deterministic descriptor `decimals`/unit fallback. The current SDK helper leaves callback/options empty and supplies decimals=3 (native/include/wirescape/module2.h:41-46; native/sdk/wirescape_sdk.h:21-25); this code-derived case uses fallback. Use descriptor taper (linear/log/exp) and step for interaction, matching SDK conversion functions, and never infer a log taper solely from unit or ratio (native/sdk/wirescape_sdk.h:26-45; current Qt heuristic at native/ui/qml/ParameterControl.qml:14-17). Tooltip, accessibility and keyboard entry share one formatting implementation; UI formatting never changes the DSP min/max/default. Issue #182 reports the long VCO range string; the **currently inspected Qt code already attempts three-significant-digit formatting** (native/ui/qml/ParameterControl.qml:20-35), so the historical screenshot alone does not establish reproduction on this exact head.
 6. **Modulation display:** show base value and effective modulation arc/dot only with authenticated engine telemetry; otherwise hide it. A separate LFO phase dot requires a phase datum or equivalent truthful source, no independently ticking CSS animation. Host-supplied telemetry can be throttled (suggest initial ≤30 updates/s, subject to Pi profiling), never sampled with allocations/locks inside `process`. Validate staleness and clear on disconnect/reset.
 7. **Overflow and interactions:** advanced foldout retains controls and keyboard search; section and port counts capped by descriptor limits (32 ports per direction, 32 params in ABI 2; native/include/wirescape/module2.h:17-20). Pan/zoom operates in world coordinates; drag capture, cable hit targets and selection are independent. JSON import/export stores stable IDs, accepted numeric values and unknown extension fields without formatting side effects. Output device/transport permissions remain a **host service action**, not fictitious module data.
 8. **Unknown/invalid descriptors:** stable native name, ports and each numeric parameter produce a stock panel. No anonymous sliders where IDs exist; no crashes when `sidecar` absent, stale or from a different ABI. Duplicate string IDs or malformed native descriptors cause catalogue-level quarantine, not a silently remapped patch.
@@ -3675,7 +3713,8 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "decimals": 3,
         "option_count": 0,
         "native_options": [],
-        "has_value_to_text": false
+        "has_value_to_text": false,
+        "enum_source": "native/sdk/examples/step_sequencer/dsp.h:7-13"
       },
       {
         "id": "vel1",
@@ -3763,7 +3802,8 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "decimals": 3,
         "option_count": 0,
         "native_options": [],
-        "has_value_to_text": false
+        "has_value_to_text": false,
+        "enum_source": "native/sdk/examples/step_sequencer/dsp.h:7-13"
       },
       {
         "id": "vel2",
@@ -3851,7 +3891,8 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "decimals": 3,
         "option_count": 0,
         "native_options": [],
-        "has_value_to_text": false
+        "has_value_to_text": false,
+        "enum_source": "native/sdk/examples/step_sequencer/dsp.h:7-13"
       },
       {
         "id": "vel3",
@@ -3939,7 +3980,8 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "decimals": 3,
         "option_count": 0,
         "native_options": [],
-        "has_value_to_text": false
+        "has_value_to_text": false,
+        "enum_source": "native/sdk/examples/step_sequencer/dsp.h:7-13"
       },
       {
         "id": "vel4",
@@ -4027,7 +4069,8 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "decimals": 3,
         "option_count": 0,
         "native_options": [],
-        "has_value_to_text": false
+        "has_value_to_text": false,
+        "enum_source": "native/sdk/examples/step_sequencer/dsp.h:7-13"
       },
       {
         "id": "vel5",
@@ -4115,7 +4158,8 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "decimals": 3,
         "option_count": 0,
         "native_options": [],
-        "has_value_to_text": false
+        "has_value_to_text": false,
+        "enum_source": "native/sdk/examples/step_sequencer/dsp.h:7-13"
       },
       {
         "id": "vel6",
@@ -4203,7 +4247,8 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "decimals": 3,
         "option_count": 0,
         "native_options": [],
-        "has_value_to_text": false
+        "has_value_to_text": false,
+        "enum_source": "native/sdk/examples/step_sequencer/dsp.h:7-13"
       },
       {
         "id": "vel7",
@@ -4291,7 +4336,8 @@ This is normalized **research data**, not a replacement for runtime enumeration.
         "decimals": 3,
         "option_count": 0,
         "native_options": [],
-        "has_value_to_text": false
+        "has_value_to_text": false,
+        "enum_source": "native/sdk/examples/step_sequencer/dsp.h:7-13"
       },
       {
         "id": "vel8",
