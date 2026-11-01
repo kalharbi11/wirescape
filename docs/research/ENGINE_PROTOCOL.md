@@ -270,7 +270,11 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
             "render.demo",
             "patch.reset",
             "file.pick",
-            "patch.export"
+            "patch.export",
+            "session.authenticate",
+            "output.routes.set",
+            "stream.subscribe",
+            "stream.unsubscribe"
           ]
         },
         "type": {
@@ -512,26 +516,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
           "then": {
             "properties": {
               "args": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 256
-                  },
-                  "systemName": {
-                    "type": "string"
-                  },
-                  "enabled": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "name",
-                  "systemName",
-                  "enabled"
-                ],
-                "additionalProperties": false
+                "$ref": "#/$defs/midiEndpoint"
               }
             },
             "required": [
@@ -578,27 +563,51 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
           "then": {
             "properties": {
               "args": {
-                "type": "object",
-                "properties": {
-                  "node": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 4294967295
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "node": {
+                        "$ref": "#/$defs/nodeId"
+                      },
+                      "parameter": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "value": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "node",
+                      "parameter",
+                      "value"
+                    ],
+                    "additionalProperties": false
                   },
-                  "parameter": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "value": {
-                    "type": "number"
+                  {
+                    "type": "object",
+                    "properties": {
+                      "node": {
+                        "$ref": "#/$defs/nodeId"
+                      },
+                      "parameterId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "value": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "node",
+                      "parameterId",
+                      "value"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "node",
-                  "parameter",
-                  "value"
-                ],
-                "additionalProperties": false
+                ]
               }
             },
             "required": [
@@ -623,9 +632,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                 "type": "object",
                 "properties": {
                   "node": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 4294967295
+                    "$ref": "#/$defs/nodeId"
                   },
                   "x": {
                     "type": "number"
@@ -697,9 +704,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                 "type": "object",
                 "properties": {
                   "node": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 4294967295
+                    "$ref": "#/$defs/nodeId"
                   }
                 },
                 "required": [
@@ -730,51 +735,92 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                 "type": "object",
                 "properties": {
                   "from": {
-                    "type": "object",
-                    "properties": {
-                      "module": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 4294967295
-                      },
-                      "port": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 256
-                      }
-                    },
-                    "required": [
-                      "module",
-                      "port"
-                    ],
-                    "additionalProperties": false
+                    "$ref": "#/$defs/endpoint"
                   },
                   "to": {
-                    "type": "object",
-                    "properties": {
-                      "module": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 4294967295
-                      },
-                      "port": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 256
-                      }
-                    },
-                    "required": [
-                      "module",
-                      "port"
-                    ],
-                    "additionalProperties": false
+                    "$ref": "#/$defs/endpoint"
+                  },
+                  "kind": {
+                    "enum": [
+                      "signal",
+                      "modulation",
+                      "event"
+                    ]
+                  },
+                  "amount": {
+                    "type": "number",
+                    "minimum": -1,
+                    "maximum": 1
+                  },
+                  "feedback": {
+                    "type": "boolean"
+                  },
+                  "stereo_pair": {
+                    "type": "string"
                   }
                 },
                 "required": [
                   "from",
                   "to"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "kind": {
+                          "const": "modulation"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "amount"
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "signal",
+                            "event"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ]
+                    },
+                    "then": {
+                      "not": {
+                        "required": [
+                          "amount"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "not": {
+                        "required": [
+                          "kind"
+                        ]
+                      }
+                    },
+                    "then": {
+                      "not": {
+                        "required": [
+                          "amount"
+                        ]
+                      }
+                    }
+                  }
+                ]
               }
             },
             "required": [
@@ -1030,9 +1076,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                 "type": "object",
                 "properties": {
                   "node": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 4294967295
+                    "$ref": "#/$defs/nodeId"
                   }
                 },
                 "required": [
@@ -1099,6 +1143,9 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256
+                  },
+                  "discardUnsaved": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -1160,7 +1207,11 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
             "properties": {
               "args": {
                 "type": "object",
-                "properties": {},
+                "properties": {
+                  "discardUnsaved": {
+                    "type": "boolean"
+                  }
+                },
                 "required": [],
                 "additionalProperties": false
               }
@@ -1230,6 +1281,236 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
               "args"
             ]
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "session.authenticate"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "properties": {
+              "args": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "token"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "args"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "output.routes.set"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "properties": {
+              "args": {
+                "type": "object",
+                "properties": {
+                  "outputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "module": {
+                          "$ref": "#/$defs/nodeId"
+                        },
+                        "port": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        },
+                        "bus_channel": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 15
+                        }
+                      },
+                      "required": [
+                        "module",
+                        "port",
+                        "bus_channel"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 16
+                  }
+                },
+                "required": [
+                  "outputs"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "args"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "stream.subscribe"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "properties": {
+              "args": {
+                "type": "object",
+                "properties": {
+                  "stream": {
+                    "enum": [
+                      "meters",
+                      "scope"
+                    ]
+                  },
+                  "hz": {
+                    "enum": [
+                      30,
+                      60
+                    ]
+                  },
+                  "source": {
+                    "type": "object",
+                    "properties": {
+                      "node": {
+                        "$ref": "#/$defs/nodeId"
+                      },
+                      "port": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "channels": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 2
+                      },
+                      "points": {
+                        "type": "integer",
+                        "minimum": 16,
+                        "maximum": 512
+                      }
+                    },
+                    "required": [
+                      "node",
+                      "port"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "stream",
+                  "hz"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "stream": {
+                          "const": "scope"
+                        }
+                      },
+                      "required": [
+                        "stream"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "source"
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "stream": {
+                          "const": "meters"
+                        }
+                      },
+                      "required": [
+                        "stream"
+                      ]
+                    },
+                    "then": {
+                      "not": {
+                        "required": [
+                          "source"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "required": [
+              "args"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "stream.unsubscribe"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "properties": {
+              "args": {
+                "type": "object",
+                "properties": {
+                  "stream": {
+                    "enum": [
+                      "meters",
+                      "scope"
+                    ]
+                  }
+                },
+                "required": [
+                  "stream"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "args"
+            ]
+          }
         }
       ]
     },
@@ -1274,7 +1555,11 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
             "render.demo",
             "patch.reset",
             "file.pick",
-            "patch.export"
+            "patch.export",
+            "session.authenticate",
+            "output.routes.set",
+            "stream.subscribe",
+            "stream.unsubscribe"
           ]
         },
         "type": {
@@ -1407,437 +1692,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
           "then": {
             "properties": {
               "result": {
-                "type": "object",
-                "properties": {
-                  "midiCounters": {
-                    "type": "object",
-                    "properties": {
-                      "received": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "dropped": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "malformed": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "oversize": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "ring_full": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "disconnects": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "send_fail": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "ports": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "name": {
-                              "type": "string"
-                            },
-                            "system_name": {
-                              "type": "string"
-                            },
-                            "received": {
-                              "type": "integer",
-                              "minimum": 0
-                            },
-                            "online": {
-                              "type": "boolean"
-                            }
-                          },
-                          "required": [
-                            "name",
-                            "system_name",
-                            "received",
-                            "online"
-                          ],
-                          "additionalProperties": false
-                        },
-                        "maxItems": 4096
-                      }
-                    },
-                    "required": [
-                      "received",
-                      "dropped",
-                      "malformed",
-                      "oversize",
-                      "ring_full",
-                      "disconnects",
-                      "send_fail",
-                      "ports"
-                    ],
-                    "additionalProperties": false
-                  },
-                  "midiEndpoints": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "systemName": {
-                          "type": "string"
-                        },
-                        "enabled": {
-                          "type": "boolean"
-                        }
-                      },
-                      "required": [
-                        "name",
-                        "systemName",
-                        "enabled"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "maxItems": 4096
-                  },
-                  "midiAuthorized": {
-                    "type": "boolean"
-                  },
-                  "midiSettingsAvailable": {
-                    "type": "boolean"
-                  },
-                  "modules": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 4294967295
-                        },
-                        "moduleId": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "title": {
-                          "type": "string"
-                        },
-                        "description": {
-                          "type": "string"
-                        },
-                        "x": {
-                          "type": "number"
-                        },
-                        "y": {
-                          "type": "number"
-                        },
-                        "missing": {
-                          "type": "boolean"
-                        },
-                        "inputs": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 256
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "kind": {
-                                "enum": [
-                                  "audio",
-                                  "control",
-                                  "event"
-                                ]
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "label",
-                              "kind"
-                            ],
-                            "additionalProperties": false
-                          },
-                          "maxItems": 4096
-                        },
-                        "outputs": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 256
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "kind": {
-                                "enum": [
-                                  "audio",
-                                  "control",
-                                  "event"
-                                ]
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "label",
-                              "kind"
-                            ],
-                            "additionalProperties": false
-                          },
-                          "maxItems": 4096
-                        },
-                        "parameters": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "integer",
-                                "minimum": 0
-                              },
-                              "name": {
-                                "type": "string"
-                              },
-                              "minimum": {
-                                "type": "number"
-                              },
-                              "maximum": {
-                                "type": "number"
-                              },
-                              "value": {
-                                "type": "number"
-                              },
-                              "unit": {
-                                "type": "string"
-                              },
-                              "display": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "name",
-                              "minimum",
-                              "maximum",
-                              "value",
-                              "unit",
-                              "display"
-                            ],
-                            "additionalProperties": false
-                          },
-                          "maxItems": 4096
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "moduleId",
-                        "title",
-                        "description",
-                        "x",
-                        "y",
-                        "missing",
-                        "inputs",
-                        "outputs",
-                        "parameters"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "maxItems": 64
-                  },
-                  "connections": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "fromNode": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 4294967295
-                        },
-                        "fromPort": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "toNode": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 4294967295
-                        },
-                        "toPort": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "kind": {
-                          "enum": [
-                            "audio",
-                            "control",
-                            "event"
-                          ]
-                        },
-                        "channels": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 16
-                        }
-                      },
-                      "required": [
-                        "fromNode",
-                        "fromPort",
-                        "toNode",
-                        "toPort",
-                        "kind",
-                        "channels"
-                      ],
-                      "additionalProperties": true
-                    },
-                    "maxItems": 128
-                  },
-                  "palette": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "description": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "name",
-                        "description"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "maxItems": 4096
-                  },
-                  "running": {
-                    "type": "boolean"
-                  },
-                  "ready": {
-                    "type": "boolean"
-                  },
-                  "cleanupPending": {
-                    "type": "boolean"
-                  },
-                  "statusText": {
-                    "type": "string"
-                  },
-                  "errorText": {
-                    "type": "string"
-                  },
-                  "noticeText": {
-                    "type": "string"
-                  },
-                  "diagnosticText": {
-                    "type": "string"
-                  },
-                  "outputNode": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "peak": {
-                    "type": "number"
-                  },
-                  "cpuLoad": {
-                    "type": "number"
-                  },
-                  "underruns": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "dirty": {
-                    "type": "boolean"
-                  },
-                  "patchName": {
-                    "type": "string"
-                  },
-                  "devices": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer"
-                        },
-                        "name": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "name"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "maxItems": 4096
-                  },
-                  "selectedDevice": {
-                    "type": "integer"
-                  },
-                  "sampleRate": {
-                    "type": "integer",
-                    "minimum": 1
-                  },
-                  "blockSize": {
-                    "type": "integer",
-                    "minimum": 1
-                  }
-                },
-                "required": [
-                  "midiCounters",
-                  "midiEndpoints",
-                  "midiAuthorized",
-                  "midiSettingsAvailable",
-                  "modules",
-                  "connections",
-                  "palette",
-                  "running",
-                  "ready",
-                  "cleanupPending",
-                  "statusText",
-                  "errorText",
-                  "noticeText",
-                  "diagnosticText",
-                  "outputNode",
-                  "peak",
-                  "cpuLoad",
-                  "underruns",
-                  "dirty",
-                  "patchName",
-                  "devices",
-                  "selectedDevice",
-                  "sampleRate",
-                  "blockSize"
-                ],
-                "additionalProperties": false
+                "$ref": "#/$defs/snapshot"
               }
             },
             "required": [
@@ -1930,198 +1785,14 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                   "modules": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 4294967295
-                        },
-                        "moduleId": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "title": {
-                          "type": "string"
-                        },
-                        "description": {
-                          "type": "string"
-                        },
-                        "x": {
-                          "type": "number"
-                        },
-                        "y": {
-                          "type": "number"
-                        },
-                        "missing": {
-                          "type": "boolean"
-                        },
-                        "inputs": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 256
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "kind": {
-                                "enum": [
-                                  "audio",
-                                  "control",
-                                  "event"
-                                ]
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "label",
-                              "kind"
-                            ],
-                            "additionalProperties": false
-                          },
-                          "maxItems": 4096
-                        },
-                        "outputs": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 256
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "kind": {
-                                "enum": [
-                                  "audio",
-                                  "control",
-                                  "event"
-                                ]
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "label",
-                              "kind"
-                            ],
-                            "additionalProperties": false
-                          },
-                          "maxItems": 4096
-                        },
-                        "parameters": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "integer",
-                                "minimum": 0
-                              },
-                              "name": {
-                                "type": "string"
-                              },
-                              "minimum": {
-                                "type": "number"
-                              },
-                              "maximum": {
-                                "type": "number"
-                              },
-                              "value": {
-                                "type": "number"
-                              },
-                              "unit": {
-                                "type": "string"
-                              },
-                              "display": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "name",
-                              "minimum",
-                              "maximum",
-                              "value",
-                              "unit",
-                              "display"
-                            ],
-                            "additionalProperties": false
-                          },
-                          "maxItems": 4096
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "moduleId",
-                        "title",
-                        "description",
-                        "x",
-                        "y",
-                        "missing",
-                        "inputs",
-                        "outputs",
-                        "parameters"
-                      ],
-                      "additionalProperties": false
+                      "$ref": "#/$defs/moduleView"
                     },
                     "maxItems": 64
                   },
                   "connections": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "properties": {
-                        "fromNode": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 4294967295
-                        },
-                        "fromPort": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "toNode": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 4294967295
-                        },
-                        "toPort": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "kind": {
-                          "enum": [
-                            "audio",
-                            "control",
-                            "event"
-                          ]
-                        },
-                        "channels": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 16
-                        }
-                      },
-                      "required": [
-                        "fromNode",
-                        "fromPort",
-                        "toNode",
-                        "toPort",
-                        "kind",
-                        "channels"
-                      ],
-                      "additionalProperties": true
+                      "$ref": "#/$defs/connectionView"
                     },
                     "maxItems": 128
                   },
@@ -2389,26 +2060,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                   "endpoints": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "systemName": {
-                          "type": "string"
-                        },
-                        "enabled": {
-                          "type": "boolean"
-                        }
-                      },
-                      "required": [
-                        "name",
-                        "systemName",
-                        "enabled"
-                      ],
-                      "additionalProperties": false
+                      "$ref": "#/$defs/midiEndpoint"
                     },
                     "maxItems": 4096
                   }
@@ -2452,12 +2104,18 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                   },
                   "display": {
                     "type": "string"
+                  },
+                  "parameterId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
                   }
                 },
                 "required": [
                   "accepted",
                   "value",
-                  "display"
+                  "display",
+                  "parameterId"
                 ],
                 "additionalProperties": false
               }
@@ -2526,9 +2184,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                     "const": true
                   },
                   "nodeId": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 4294967295
+                    "$ref": "#/$defs/nodeId"
                   }
                 },
                 "required": [
@@ -2896,20 +2552,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                   "devices": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer"
-                        },
-                        "name": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "name"
-                      ],
-                      "additionalProperties": false
+                      "$ref": "#/$defs/device"
                     },
                     "maxItems": 4096
                   }
@@ -3195,53 +2838,188 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
               "result": {
                 "type": "object",
                 "properties": {
-                  "patch": {
-                    "type": "object",
-                    "required": [
-                      "format",
-                      "version",
-                      "settings",
-                      "modules",
-                      "connections",
-                      "outputs"
-                    ],
-                    "properties": {
-                      "format": {
-                        "const": "wirescape.native.patch"
-                      },
-                      "version": {
-                        "const": 2
-                      },
-                      "settings": {
-                        "type": "object"
-                      },
-                      "modules": {
-                        "type": "array",
-                        "maxItems": 64
-                      },
-                      "connections": {
-                        "type": "array",
-                        "maxItems": 128
-                      },
-                      "outputs": {
-                        "type": "array"
-                      },
-                      "devices": {
-                        "type": "array"
-                      },
-                      "host_mappings": {
-                        "type": "array"
-                      },
-                      "preserved": {
-                        "type": "object"
-                      }
-                    },
-                    "additionalProperties": true,
-                    "description": "Envelope only. Also validate against docs/specs/patch_v2_draft.schema.json and native semantic validator; preserve all unknown fields."
+                  "encoding": {
+                    "const": "base64"
+                  },
+                  "data": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000000
+                  },
+                  "byteLength": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2097152
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
                   }
                 },
                 "required": [
-                  "patch"
+                  "encoding",
+                  "data",
+                  "byteLength",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "result"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "session.authenticate"
+              },
+              "ok": {
+                "const": true
+              }
+            },
+            "required": [
+              "op",
+              "ok"
+            ]
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "type": "object",
+                "properties": {
+                  "authenticated": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "authenticated"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "result"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "output.routes.set"
+              },
+              "ok": {
+                "const": true
+              }
+            },
+            "required": [
+              "op",
+              "ok"
+            ]
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "type": "object",
+                "properties": {
+                  "accepted": {
+                    "const": true
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "accepted",
+                  "revision"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "result"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "stream.subscribe"
+              },
+              "ok": {
+                "const": true
+              }
+            },
+            "required": [
+              "op",
+              "ok"
+            ]
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "type": "object",
+                "properties": {
+                  "accepted": {
+                    "const": true
+                  },
+                  "stream": {
+                    "enum": [
+                      "meters",
+                      "scope"
+                    ]
+                  },
+                  "hz": {
+                    "enum": [
+                      30,
+                      60
+                    ]
+                  }
+                },
+                "required": [
+                  "accepted",
+                  "stream",
+                  "hz"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "result"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "stream.unsubscribe"
+              },
+              "ok": {
+                "const": true
+              }
+            },
+            "required": [
+              "op",
+              "ok"
+            ]
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "type": "object",
+                "properties": {
+                  "accepted": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "accepted"
                 ],
                 "additionalProperties": false
               }
@@ -3270,7 +3048,8 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
             "status.changed",
             "meters.changed",
             "stream.gap",
-            "render.completed"
+            "render.completed",
+            "scope.frame"
           ]
         },
         "seq": {
@@ -3317,437 +3096,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                 "type": "object",
                 "properties": {
                   "state": {
-                    "type": "object",
-                    "properties": {
-                      "midiCounters": {
-                        "type": "object",
-                        "properties": {
-                          "received": {
-                            "type": "integer",
-                            "minimum": 0
-                          },
-                          "dropped": {
-                            "type": "integer",
-                            "minimum": 0
-                          },
-                          "malformed": {
-                            "type": "integer",
-                            "minimum": 0
-                          },
-                          "oversize": {
-                            "type": "integer",
-                            "minimum": 0
-                          },
-                          "ring_full": {
-                            "type": "integer",
-                            "minimum": 0
-                          },
-                          "disconnects": {
-                            "type": "integer",
-                            "minimum": 0
-                          },
-                          "send_fail": {
-                            "type": "integer",
-                            "minimum": 0
-                          },
-                          "ports": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "name": {
-                                  "type": "string"
-                                },
-                                "system_name": {
-                                  "type": "string"
-                                },
-                                "received": {
-                                  "type": "integer",
-                                  "minimum": 0
-                                },
-                                "online": {
-                                  "type": "boolean"
-                                }
-                              },
-                              "required": [
-                                "name",
-                                "system_name",
-                                "received",
-                                "online"
-                              ],
-                              "additionalProperties": false
-                            },
-                            "maxItems": 4096
-                          }
-                        },
-                        "required": [
-                          "received",
-                          "dropped",
-                          "malformed",
-                          "oversize",
-                          "ring_full",
-                          "disconnects",
-                          "send_fail",
-                          "ports"
-                        ],
-                        "additionalProperties": false
-                      },
-                      "midiEndpoints": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "name": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 256
-                            },
-                            "systemName": {
-                              "type": "string"
-                            },
-                            "enabled": {
-                              "type": "boolean"
-                            }
-                          },
-                          "required": [
-                            "name",
-                            "systemName",
-                            "enabled"
-                          ],
-                          "additionalProperties": false
-                        },
-                        "maxItems": 4096
-                      },
-                      "midiAuthorized": {
-                        "type": "boolean"
-                      },
-                      "midiSettingsAvailable": {
-                        "type": "boolean"
-                      },
-                      "modules": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "integer",
-                              "minimum": 1,
-                              "maximum": 4294967295
-                            },
-                            "moduleId": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 256
-                            },
-                            "title": {
-                              "type": "string"
-                            },
-                            "description": {
-                              "type": "string"
-                            },
-                            "x": {
-                              "type": "number"
-                            },
-                            "y": {
-                              "type": "number"
-                            },
-                            "missing": {
-                              "type": "boolean"
-                            },
-                            "inputs": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "id": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 256
-                                  },
-                                  "label": {
-                                    "type": "string"
-                                  },
-                                  "kind": {
-                                    "enum": [
-                                      "audio",
-                                      "control",
-                                      "event"
-                                    ]
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "label",
-                                  "kind"
-                                ],
-                                "additionalProperties": false
-                              },
-                              "maxItems": 4096
-                            },
-                            "outputs": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "id": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 256
-                                  },
-                                  "label": {
-                                    "type": "string"
-                                  },
-                                  "kind": {
-                                    "enum": [
-                                      "audio",
-                                      "control",
-                                      "event"
-                                    ]
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "label",
-                                  "kind"
-                                ],
-                                "additionalProperties": false
-                              },
-                              "maxItems": 4096
-                            },
-                            "parameters": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "id": {
-                                    "type": "integer",
-                                    "minimum": 0
-                                  },
-                                  "name": {
-                                    "type": "string"
-                                  },
-                                  "minimum": {
-                                    "type": "number"
-                                  },
-                                  "maximum": {
-                                    "type": "number"
-                                  },
-                                  "value": {
-                                    "type": "number"
-                                  },
-                                  "unit": {
-                                    "type": "string"
-                                  },
-                                  "display": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "name",
-                                  "minimum",
-                                  "maximum",
-                                  "value",
-                                  "unit",
-                                  "display"
-                                ],
-                                "additionalProperties": false
-                              },
-                              "maxItems": 4096
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "moduleId",
-                            "title",
-                            "description",
-                            "x",
-                            "y",
-                            "missing",
-                            "inputs",
-                            "outputs",
-                            "parameters"
-                          ],
-                          "additionalProperties": false
-                        },
-                        "maxItems": 64
-                      },
-                      "connections": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "fromNode": {
-                              "type": "integer",
-                              "minimum": 1,
-                              "maximum": 4294967295
-                            },
-                            "fromPort": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 256
-                            },
-                            "toNode": {
-                              "type": "integer",
-                              "minimum": 1,
-                              "maximum": 4294967295
-                            },
-                            "toPort": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 256
-                            },
-                            "kind": {
-                              "enum": [
-                                "audio",
-                                "control",
-                                "event"
-                              ]
-                            },
-                            "channels": {
-                              "type": "integer",
-                              "minimum": 1,
-                              "maximum": 16
-                            }
-                          },
-                          "required": [
-                            "fromNode",
-                            "fromPort",
-                            "toNode",
-                            "toPort",
-                            "kind",
-                            "channels"
-                          ],
-                          "additionalProperties": true
-                        },
-                        "maxItems": 128
-                      },
-                      "palette": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 256
-                            },
-                            "name": {
-                              "type": "string"
-                            },
-                            "description": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "name",
-                            "description"
-                          ],
-                          "additionalProperties": false
-                        },
-                        "maxItems": 4096
-                      },
-                      "running": {
-                        "type": "boolean"
-                      },
-                      "ready": {
-                        "type": "boolean"
-                      },
-                      "cleanupPending": {
-                        "type": "boolean"
-                      },
-                      "statusText": {
-                        "type": "string"
-                      },
-                      "errorText": {
-                        "type": "string"
-                      },
-                      "noticeText": {
-                        "type": "string"
-                      },
-                      "diagnosticText": {
-                        "type": "string"
-                      },
-                      "outputNode": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "peak": {
-                        "type": "number"
-                      },
-                      "cpuLoad": {
-                        "type": "number"
-                      },
-                      "underruns": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "dirty": {
-                        "type": "boolean"
-                      },
-                      "patchName": {
-                        "type": "string"
-                      },
-                      "devices": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "integer"
-                            },
-                            "name": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "name"
-                          ],
-                          "additionalProperties": false
-                        },
-                        "maxItems": 4096
-                      },
-                      "selectedDevice": {
-                        "type": "integer"
-                      },
-                      "sampleRate": {
-                        "type": "integer",
-                        "minimum": 1
-                      },
-                      "blockSize": {
-                        "type": "integer",
-                        "minimum": 1
-                      }
-                    },
-                    "required": [
-                      "midiCounters",
-                      "midiEndpoints",
-                      "midiAuthorized",
-                      "midiSettingsAvailable",
-                      "modules",
-                      "connections",
-                      "palette",
-                      "running",
-                      "ready",
-                      "cleanupPending",
-                      "statusText",
-                      "errorText",
-                      "noticeText",
-                      "diagnosticText",
-                      "outputNode",
-                      "peak",
-                      "cpuLoad",
-                      "underruns",
-                      "dirty",
-                      "patchName",
-                      "devices",
-                      "selectedDevice",
-                      "sampleRate",
-                      "blockSize"
-                    ],
-                    "additionalProperties": false
+                    "$ref": "#/$defs/snapshot"
                   }
                 },
                 "required": [
@@ -3781,198 +3130,14 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                   "modules": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 4294967295
-                        },
-                        "moduleId": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "title": {
-                          "type": "string"
-                        },
-                        "description": {
-                          "type": "string"
-                        },
-                        "x": {
-                          "type": "number"
-                        },
-                        "y": {
-                          "type": "number"
-                        },
-                        "missing": {
-                          "type": "boolean"
-                        },
-                        "inputs": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 256
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "kind": {
-                                "enum": [
-                                  "audio",
-                                  "control",
-                                  "event"
-                                ]
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "label",
-                              "kind"
-                            ],
-                            "additionalProperties": false
-                          },
-                          "maxItems": 4096
-                        },
-                        "outputs": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 256
-                              },
-                              "label": {
-                                "type": "string"
-                              },
-                              "kind": {
-                                "enum": [
-                                  "audio",
-                                  "control",
-                                  "event"
-                                ]
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "label",
-                              "kind"
-                            ],
-                            "additionalProperties": false
-                          },
-                          "maxItems": 4096
-                        },
-                        "parameters": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "integer",
-                                "minimum": 0
-                              },
-                              "name": {
-                                "type": "string"
-                              },
-                              "minimum": {
-                                "type": "number"
-                              },
-                              "maximum": {
-                                "type": "number"
-                              },
-                              "value": {
-                                "type": "number"
-                              },
-                              "unit": {
-                                "type": "string"
-                              },
-                              "display": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "name",
-                              "minimum",
-                              "maximum",
-                              "value",
-                              "unit",
-                              "display"
-                            ],
-                            "additionalProperties": false
-                          },
-                          "maxItems": 4096
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "moduleId",
-                        "title",
-                        "description",
-                        "x",
-                        "y",
-                        "missing",
-                        "inputs",
-                        "outputs",
-                        "parameters"
-                      ],
-                      "additionalProperties": false
+                      "$ref": "#/$defs/moduleView"
                     },
                     "maxItems": 64
                   },
                   "connections": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "properties": {
-                        "fromNode": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 4294967295
-                        },
-                        "fromPort": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "toNode": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 4294967295
-                        },
-                        "toPort": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "kind": {
-                          "enum": [
-                            "audio",
-                            "control",
-                            "event"
-                          ]
-                        },
-                        "channels": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 16
-                        }
-                      },
-                      "required": [
-                        "fromNode",
-                        "fromPort",
-                        "toNode",
-                        "toPort",
-                        "kind",
-                        "channels"
-                      ],
-                      "additionalProperties": true
+                      "$ref": "#/$defs/connectionView"
                     },
                     "maxItems": 128
                   },
@@ -4017,9 +3182,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                 "type": "object",
                 "properties": {
                   "node": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 4294967295
+                    "$ref": "#/$defs/nodeId"
                   },
                   "parameter": {
                     "type": "integer",
@@ -4034,16 +3197,32 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                   "revision": {
                     "type": "integer",
                     "minimum": 0
+                  },
+                  "parameterId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
                   }
                 },
                 "required": [
                   "node",
-                  "parameter",
                   "value",
                   "display",
                   "revision"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "anyOf": [
+                  {
+                    "required": [
+                      "parameter"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "parameterId"
+                    ]
+                  }
+                ]
               }
             }
           }
@@ -4091,20 +3270,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                   "devices": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer"
-                        },
-                        "name": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "name"
-                      ],
-                      "additionalProperties": false
+                      "$ref": "#/$defs/device"
                     },
                     "maxItems": 4096
                   },
@@ -4114,26 +3280,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                   "midiEndpoints": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 256
-                        },
-                        "systemName": {
-                          "type": "string"
-                        },
-                        "enabled": {
-                          "type": "boolean"
-                        }
-                      },
-                      "required": [
-                        "name",
-                        "systemName",
-                        "enabled"
-                      ],
-                      "additionalProperties": false
+                      "$ref": "#/$defs/midiEndpoint"
                     },
                     "maxItems": 4096
                   },
@@ -4155,7 +3302,6 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                   "patchName",
                   "devices",
                   "selectedDevice",
-                  "midiEndpoints",
                   "midiAuthorized",
                   "midiSettingsAvailable"
                 ],
@@ -4194,77 +3340,7 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
                     "type": "string"
                   },
                   "midiCounters": {
-                    "type": "object",
-                    "properties": {
-                      "received": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "dropped": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "malformed": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "oversize": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "ring_full": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "disconnects": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "send_fail": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "ports": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "name": {
-                              "type": "string"
-                            },
-                            "system_name": {
-                              "type": "string"
-                            },
-                            "received": {
-                              "type": "integer",
-                              "minimum": 0
-                            },
-                            "online": {
-                              "type": "boolean"
-                            }
-                          },
-                          "required": [
-                            "name",
-                            "system_name",
-                            "received",
-                            "online"
-                          ],
-                          "additionalProperties": false
-                        },
-                        "maxItems": 4096
-                      }
-                    },
-                    "required": [
-                      "received",
-                      "dropped",
-                      "malformed",
-                      "oversize",
-                      "ring_full",
-                      "disconnects",
-                      "send_fail",
-                      "ports"
-                    ],
-                    "additionalProperties": false
+                    "$ref": "#/$defs/midiCounters"
                   },
                   "frame": {
                     "type": "integer",
@@ -4362,6 +3438,72 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "scope.frame"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "$ref": "#/$defs/nodeId"
+                  },
+                  "port": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "format": {
+                    "const": "f32le-base64"
+                  },
+                  "channels": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2
+                  },
+                  "points": {
+                    "type": "integer",
+                    "minimum": 16,
+                    "maximum": 512
+                  },
+                  "frameStart": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "sampleRate": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "samplesBase64": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16384
+                  }
+                },
+                "required": [
+                  "node",
+                  "port",
+                  "format",
+                  "channels",
+                  "points",
+                  "frameStart",
+                  "sampleRate",
+                  "samplesBase64"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
         }
       ]
     },
@@ -4385,7 +3527,8 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
             "PATCH_INVALID",
             "IO_ERROR",
             "TIMEOUT",
-            "INTERNAL"
+            "INTERNAL",
+            "UNSUPPORTED_CAPABILITY"
           ]
         },
         "message": {
@@ -4407,6 +3550,454 @@ This is a **proposed** schema for protocol v1. It describes every inventory prop
         "retryable"
       ],
       "additionalProperties": false
+    },
+    "snapshot": {
+      "type": "object",
+      "properties": {
+        "midiCounters": {
+          "$ref": "#/$defs/midiCounters"
+        },
+        "midiEndpoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/midiEndpoint"
+          },
+          "maxItems": 4096
+        },
+        "midiAuthorized": {
+          "type": "boolean"
+        },
+        "midiSettingsAvailable": {
+          "type": "boolean"
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/moduleView"
+          },
+          "maxItems": 64
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/connectionView"
+          },
+          "maxItems": 128
+        },
+        "palette": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "description"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 4096
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "cleanupPending": {
+          "type": "boolean"
+        },
+        "statusText": {
+          "type": "string"
+        },
+        "errorText": {
+          "type": "string"
+        },
+        "noticeText": {
+          "type": "string"
+        },
+        "diagnosticText": {
+          "type": "string"
+        },
+        "outputNode": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "peak": {
+          "type": "number"
+        },
+        "cpuLoad": {
+          "type": "number"
+        },
+        "underruns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dirty": {
+          "type": "boolean"
+        },
+        "patchName": {
+          "type": "string"
+        },
+        "devices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/device"
+          },
+          "maxItems": 4096
+        },
+        "selectedDevice": {
+          "type": "integer"
+        },
+        "sampleRate": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "blockSize": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "midiCounters",
+        "midiEndpoints",
+        "midiAuthorized",
+        "midiSettingsAvailable",
+        "modules",
+        "connections",
+        "palette",
+        "running",
+        "ready",
+        "cleanupPending",
+        "statusText",
+        "errorText",
+        "noticeText",
+        "diagnosticText",
+        "outputNode",
+        "peak",
+        "cpuLoad",
+        "underruns",
+        "dirty",
+        "patchName",
+        "devices",
+        "selectedDevice",
+        "sampleRate",
+        "blockSize"
+      ],
+      "additionalProperties": false
+    },
+    "moduleView": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "moduleId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "missing": {
+          "type": "boolean"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/port"
+          },
+          "maxItems": 4096
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/port"
+          },
+          "maxItems": 4096
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parameter"
+          },
+          "maxItems": 4096
+        }
+      },
+      "required": [
+        "id",
+        "moduleId",
+        "title",
+        "description",
+        "x",
+        "y",
+        "missing",
+        "inputs",
+        "outputs",
+        "parameters"
+      ],
+      "additionalProperties": false
+    },
+    "midiCounters": {
+      "type": "object",
+      "properties": {
+        "received": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dropped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "malformed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "oversize": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ring_full": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "disconnects": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "send_fail": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "system_name": {
+                "type": "string"
+              },
+              "received": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "online": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "system_name",
+              "received",
+              "online"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 4096
+        }
+      },
+      "required": [
+        "received",
+        "dropped",
+        "malformed",
+        "oversize",
+        "ring_full",
+        "disconnects",
+        "send_fail",
+        "ports"
+      ],
+      "additionalProperties": false
+    },
+    "connectionView": {
+      "type": "object",
+      "properties": {
+        "fromNode": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "fromPort": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "toNode": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "toPort": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "kind": {
+          "enum": [
+            "audio",
+            "control",
+            "event"
+          ]
+        },
+        "channels": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        }
+      },
+      "required": [
+        "fromNode",
+        "fromPort",
+        "toNode",
+        "toPort",
+        "kind",
+        "channels"
+      ],
+      "additionalProperties": true
+    },
+    "parameter": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "name": {
+          "type": "string"
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "value": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "display": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "minimum",
+        "maximum",
+        "value",
+        "unit",
+        "display"
+      ],
+      "additionalProperties": false
+    },
+    "midiEndpoint": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "systemName": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "systemName",
+        "enabled"
+      ],
+      "additionalProperties": false
+    },
+    "port": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "label": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "audio",
+            "control",
+            "event"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "endpoint": {
+      "type": "object",
+      "properties": {
+        "module": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "port": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "module",
+        "port"
+      ],
+      "additionalProperties": false
+    },
+    "device": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "nodeId": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967295
     }
   }
 }
