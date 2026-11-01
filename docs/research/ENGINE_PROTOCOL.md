@@ -211,7 +211,7 @@ Bounds: **2 MiB original patch bytes** (existing native/document/document_reader
 
 ### Backpressure at 30–60 Hz
 
-S samples once per 33.3ms at 30Hz (or 16.7ms at explicit 60Hz). Bounded 1 outstanding meters frame **per subscriber** and 1 latest scope frame; drop/replace older unsent telemetry when transport backlog exceeds 64 KiB or 250ms, increment telemetryDropped. Close only the overrun subscription after sustained stalls, not the critical control channel. Retain max 64 events worth of critical session/revision notifications in a separate ordered queue; if durable subscriber falls behind, force re-snapshot rather than emit an incomplete diff. Prioritize reply, critical status/keyboard release, durable document events, then meters/scope. Never block A/T on a slow browser. UI knobs coalesce at most once per animation frame per node/parameter but always flush final pointer-up value; QML today submits directly on moved (native/ui/qml/ParameterControl.qml:50-56,98,137-140). For optional future real scope, sample preallocated SPSC tap and reduce to e.g. 128 min/max bins/channel/update on S, **not** on A; send only when feature capability real_scope=true. At 60Hz and two channels that is 30,720 envelope pairs/s, subject to serialization overhead (design calculation, not measured throughput). Scope and the sketch's UI animation are separate concerns.
+S samples once per 33.3ms at 30Hz (or 16.7ms at explicit 60Hz). Bounded 1 outstanding meters frame **per subscriber** and 1 latest scope frame; drop/replace older unsent telemetry when transport backlog exceeds 64 KiB or 250ms, increment telemetryDropped. Close only the overrun subscription after sustained stalls, not the critical control channel. Retain max 64 events worth of critical session/revision notifications in a separate ordered queue; if durable subscriber falls behind, force re-snapshot rather than emit an incomplete diff. Prioritize reply, critical status/keyboard release, durable document events, then meters/scope. Never block A/T on a slow browser. UI knobs coalesce at most once per animation frame per node/parameter but always flush final pointer-up value; QML today submits directly on moved (native/ui/qml/ParameterControl.qml:50-56,98,137-140). For optional future real scope, sample preallocated SPSC tap and reduce to e.g. 128 min/max bins/channel/update on S, **not** on A; send only when feature capability real_scope=true. At 60Hz and two channels that is 15,360 min/max pairs/s (30,720 scalar values/s), subject to serialization overhead (design calculation, not measured throughput). Scope and the sketch's UI animation are separate concerns.
 
 ## 6. Patch v2 load/save and ID invariants
 
@@ -900,6 +900,36 @@ The following self-contained schema describes command/reply/event envelopes, all
                 "$ref": "#/$defs/commandArgs/patch_reset"
               }
             }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "parameter.set",
+                  "module.move",
+                  "module.add",
+                  "module.remove",
+                  "connection.add",
+                  "connection.remove",
+                  "midi.endpoint.set",
+                  "patch.output.select",
+                  "patch.save",
+                  "patch.load",
+                  "patch.import",
+                  "patch.reset"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "expectedRevision"
+            ]
           }
         }
       ]
@@ -4288,6 +4318,8 @@ The following self-contained schema describes command/reply/event envelopes, all
 4. Add telemetry, backpressure, crash/focus note-off, safe file handles and packaging. Gate real scope separately from illustrative animation.
 5. Perform paired owner UI visual and behavior acceptance on Windows, then Pi 5 performance acceptance using offline runner. No real-device session until explicit owner action.
 
+**Research closeout:** This document deliberately makes no patch format, ABI, module ID, realtime or merge-gate change. No existing file was edited. No tests or hardware access were performed.
+
 ## Decisions needed from the planner
 
 1. **Packaged transport:** (A) Tauri IPC for production + tokenized loopback WS for web/dev; (B) localhost WebSocket for every build; (C) IPC only. **Recommend A** for a browser-development escape hatch without committing the packaged product to an open listener.
@@ -4300,4 +4332,3 @@ The following self-contained schema describes command/reply/event envelopes, all
 8. **Host filesystem access:** (A) native picker-issued short-lived opaque file handles plus bounded JSON import/export; (B) arbitrary absolute paths received over socket. **Recommend A** for privilege separation and offline tests.
 9. **UI acceptance gate:** (A) owner-approved sketch screenshot/interaction contract plus fake-device scenario matrix on both platforms; (B) functional API tests alone; (C) visual review alone. **Recommend A**; both visuals and runtime semantics are part of the release requirement.
 
-**Research closeout:** This document deliberately makes no patch format, ABI, module ID, realtime or merge-gate change. No existing file was edited. No tests or hardware access were performed.
