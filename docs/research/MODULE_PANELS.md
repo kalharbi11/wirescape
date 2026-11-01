@@ -1298,3 +1298,968 @@ This is normalized **research data**, not a replacement for runtime enumeration.
   ],
   "special_ui": "Knobs on shared ModuleCard.qml:102"
 },
+{
+  "abi_version": 2,
+  "module_id": "essentials.lfo",
+  "display_name": "LFO",
+  "category_proposed": "Motion",
+  "source": "native/modules2/lfo/dsp.h:L6",
+  "ports": [
+    {
+      "id": "control",
+      "name": "Control",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/lfo/dsp.h:L8"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "rate",
+      "legacy_index": 0,
+      "name": "Rate",
+      "minimum": 0.01,
+      "maximum": 20,
+      "default": 1,
+      "unit": "Hz",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "per_voice",
+        "audio_rate_ok",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/lfo/dsp.h:L11"
+    },
+    {
+      "id": "depth",
+      "legacy_index": 1,
+      "name": "Depth",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "per_voice",
+        "audio_rate_ok",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/lfo/dsp.h:L12"
+    },
+    {
+      "id": "offset",
+      "legacy_index": 2,
+      "name": "Offset",
+      "minimum": -1,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "per_voice",
+        "audio_rate_ok",
+        "automatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/lfo/dsp.h:L13"
+    },
+    {
+      "id": "sync",
+      "legacy_index": 3,
+      "name": "Tempo sync",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/modules2/lfo/dsp.h:L14"
+    },
+    {
+      "id": "beats",
+      "legacy_index": 4,
+      "name": "Beats/cycle",
+      "minimum": 0.125,
+      "maximum": 16,
+      "default": 1,
+      "unit": "beats",
+      "taper": "log",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "automatable",
+        "modulatable"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/lfo/dsp.h:L15"
+    }
+  ],
+  "special_ui": "Rate/depth/offset knobs (native/ui/qml/ModuleCard.qml:100); no phase telemetry defined"
+},
+{
+  "abi_version": 2,
+  "module_id": "ports.macro_oscillator",
+  "display_name": "Macro Oscillator",
+  "category_proposed": "Instrument",
+  "source": "native/modules2/macro_oscillator/dsp.h:L9",
+  "ports": [
+    {
+      "id": "pitch",
+      "name": "Pitch",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "pitch",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/macro_oscillator/dsp.h:L10"
+    },
+    {
+      "id": "model_cv",
+      "name": "Model CV",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/macro_oscillator/dsp.h:L11"
+    },
+    {
+      "id": "fm",
+      "name": "FM",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/macro_oscillator/dsp.h:L12"
+    },
+    {
+      "id": "harmonics_cv",
+      "name": "Harmonics",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/macro_oscillator/dsp.h:L13"
+    },
+    {
+      "id": "timbre_cv",
+      "name": "Timbre",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/macro_oscillator/dsp.h:L14"
+    },
+    {
+      "id": "morph_cv",
+      "name": "Morph",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/macro_oscillator/dsp.h:L15"
+    },
+    {
+      "id": "trigger",
+      "name": "Trigger",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "gate",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/macro_oscillator/dsp.h:L16"
+    },
+    {
+      "id": "level",
+      "name": "Level",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/macro_oscillator/dsp.h:L17"
+    },
+    {
+      "id": "main",
+      "name": "Main",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/macro_oscillator/dsp.h:L18"
+    },
+    {
+      "id": "aux",
+      "name": "Aux",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/macro_oscillator/dsp.h:L18"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "model",
+      "legacy_index": 0,
+      "name": "Model",
+      "minimum": 0,
+      "maximum": 23,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/modules2/macro_oscillator/dsp.h:L21"
+    },
+    {
+      "id": "coarse",
+      "legacy_index": 1,
+      "name": "Coarse",
+      "minimum": -48,
+      "maximum": 48,
+      "default": 0,
+      "unit": "st",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/macro_oscillator/dsp.h:L22"
+    },
+    {
+      "id": "harmonics",
+      "legacy_index": 2,
+      "name": "Harmonics",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/macro_oscillator/dsp.h:L23"
+    },
+    {
+      "id": "timbre",
+      "legacy_index": 3,
+      "name": "Timbre",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/macro_oscillator/dsp.h:L24"
+    },
+    {
+      "id": "morph",
+      "legacy_index": 4,
+      "name": "Morph",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/macro_oscillator/dsp.h:L25"
+    },
+    {
+      "id": "fm_amount",
+      "legacy_index": 5,
+      "name": "FM amount",
+      "minimum": -1,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/macro_oscillator/dsp.h:L26"
+    },
+    {
+      "id": "timbre_amount",
+      "legacy_index": 6,
+      "name": "Timbre amount",
+      "minimum": -1,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/macro_oscillator/dsp.h:L27"
+    },
+    {
+      "id": "morph_amount",
+      "legacy_index": 7,
+      "name": "Morph amount",
+      "minimum": -1,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/macro_oscillator/dsp.h:L28"
+    },
+    {
+      "id": "decay",
+      "legacy_index": 8,
+      "name": "Decay",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/macro_oscillator/dsp.h:L29"
+    },
+    {
+      "id": "lpg_colour",
+      "legacy_index": 9,
+      "name": "LPG colour",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/macro_oscillator/dsp.h:L30"
+    }
+  ],
+  "special_ui": "24-model selector numeric; no custom QML (dsp.h:19-30)"
+},
+{
+  "abi_version": 2,
+  "module_id": "midi.cc_to_cv",
+  "display_name": "CC to CV",
+  "category_proposed": "MIDI / control",
+  "source": "native/modules2/midi_cc_to_cv/dsp.h:L7",
+  "ports": [
+    {
+      "id": "midi",
+      "name": "MIDI",
+      "direction": "input",
+      "kind": "event",
+      "hint": "ev_midi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_cc_to_cv/dsp.h:L8"
+    },
+    {
+      "id": "cc1",
+      "name": "CC 1",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_cc_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "cc2",
+      "name": "CC 2",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_cc_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "cc3",
+      "name": "CC 3",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_cc_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "cc4",
+      "name": "CC 4",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_cc_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "cc5",
+      "name": "CC 5",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_cc_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "cc6",
+      "name": "CC 6",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_cc_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "cc7",
+      "name": "CC 7",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_cc_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "cc8",
+      "name": "CC 8",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_cc_to_cv/dsp.h:L9"
+    }
+  ],
+  "parameters": [],
+  "special_ui": "Eight rows in non-parameter config.h:7-21; global MIDI dialog in Main.qml:166-187"
+},
+{
+  "abi_version": 2,
+  "module_id": "midi.in",
+  "display_name": "MIDI In",
+  "category_proposed": "MIDI / control",
+  "source": "native/modules2/midi_in/dsp.h:L7",
+  "ports": [
+    {
+      "id": "midi",
+      "name": "MIDI",
+      "direction": "output",
+      "kind": "event",
+      "hint": "ev_midi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_in/dsp.h:L9"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "channel_filter",
+      "legacy_index": 0,
+      "name": "Channel (0 = Omni)",
+      "minimum": 0,
+      "maximum": 16,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/modules2/midi_in/dsp.h:L10"
+    }
+  ],
+  "special_ui": "Physical MIDI selection belongs to Main.qml:166-187"
+},
+{
+  "abi_version": 2,
+  "module_id": "midi.to_cv",
+  "display_name": "MIDI to CV",
+  "category_proposed": "MIDI / control",
+  "source": "native/modules2/midi_to_cv/dsp.h:L7",
+  "ports": [
+    {
+      "id": "midi",
+      "name": "MIDI",
+      "direction": "input",
+      "kind": "event",
+      "hint": "ev_midi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_to_cv/dsp.h:L8"
+    },
+    {
+      "id": "pitch",
+      "name": "Pitch",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "pitch",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "gate",
+      "name": "Gate",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "gate",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "velocity",
+      "name": "Velocity",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "aftertouch",
+      "name": "Aftertouch",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "pressure",
+      "name": "Pressure",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "bend",
+      "name": "Bend",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_bi",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "mod",
+      "name": "Mod",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "cv_uni",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_to_cv/dsp.h:L9"
+    },
+    {
+      "id": "notes",
+      "name": "Notes",
+      "direction": "output",
+      "kind": "event",
+      "hint": "ev_notes",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/midi_to_cv/dsp.h:L9"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "voice_count",
+      "legacy_index": 0,
+      "name": "Voices",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 4,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/modules2/midi_to_cv/dsp.h:L12"
+    },
+    {
+      "id": "allocation_mode",
+      "legacy_index": 1,
+      "name": "Mode (rotate/reuse/reset/mono)",
+      "minimum": 0,
+      "maximum": 3,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/modules2/midi_to_cv/dsp.h:L13"
+    },
+    {
+      "id": "steal_policy",
+      "legacy_index": 2,
+      "name": "Steal (oldest)",
+      "minimum": 0,
+      "maximum": 0,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/modules2/midi_to_cv/dsp.h:L14"
+    },
+    {
+      "id": "mono_priority",
+      "legacy_index": 3,
+      "name": "Priority (last/low/high)",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/modules2/midi_to_cv/dsp.h:L15"
+    },
+    {
+      "id": "legato",
+      "legacy_index": 4,
+      "name": "Legato",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/modules2/midi_to_cv/dsp.h:L16"
+    },
+    {
+      "id": "sustain",
+      "legacy_index": 6,
+      "name": "Sustain (ignore/hold)",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/modules2/midi_to_cv/dsp.h:L17"
+    },
+    {
+      "id": "pitch_bend_range_semitones",
+      "legacy_index": 7,
+      "name": "Bend range",
+      "minimum": 0,
+      "maximum": 48,
+      "default": 2,
+      "unit": "st",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/modules2/midi_to_cv/dsp.h:L18"
+    },
+    {
+      "id": "apply_bend",
+      "legacy_index": 8,
+      "name": "Apply bend to pitch",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/modules2/midi_to_cv/dsp.h:L19"
+    },
+    {
+      "id": "channel_filter",
+      "legacy_index": 9,
+      "name": "Channel (0 = Omni)",
+      "minimum": 0,
+      "maximum": 16,
+      "default": 0,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 1,
+      "flags": [
+        "stepped",
+        "automatable"
+      ],
+      "modulatable": false,
+      "enum_values": null,
+      "source": "native/modules2/midi_to_cv/dsp.h:L20"
+    }
+  ],
+  "special_ui": "No custom panel; mode/allocation flags are stepped (dsp.h:10-20)"
+},
+{
+  "abi_version": 2,
+  "module_id": "essentials.mixer",
+  "display_name": "Mixer",
+  "category_proposed": "Utility",
+  "source": "native/modules2/mixer/dsp.h:L6",
+  "ports": [
+    {
+      "id": "a",
+      "name": "A",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/mixer/dsp.h:L7"
+    },
+    {
+      "id": "b",
+      "name": "B",
+      "direction": "input",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/mixer/dsp.h:L7"
+    },
+    {
+      "id": "audio",
+      "name": "Audio",
+      "direction": "output",
+      "kind": "signal",
+      "hint": "audio",
+      "poly": "poly",
+      "stereo_pair": null,
+      "unpatched_value": 0,
+      "source": "native/modules2/mixer/dsp.h:L8"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "level_a",
+      "legacy_index": 0,
+      "name": "Level A",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 0.5,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice",
+        "audio_rate_ok"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/mixer/dsp.h:L9"
+    },
+    {
+      "id": "level_b",
+      "legacy_index": 1,
+      "name": "Level B",
+      "minimum": 0,
+      "maximum": 2,
+      "default": 0.5,
+      "unit": "",
+      "taper": "linear",
+      "curve": 4,
+      "step": 0,
+      "flags": [
+        "modulatable",
+        "automatable",
+        "per_voice",
+        "audio_rate_ok"
+      ],
+      "modulatable": true,
+      "enum_values": null,
+      "source": "native/modules2/mixer/dsp.h:L9"
+    }
+  ],
+  "special_ui": "Twin faders (native/ui/qml/ModuleCard.qml:96)"
+},
