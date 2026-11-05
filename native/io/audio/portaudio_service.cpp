@@ -62,34 +62,83 @@ int callback(const void*,void*output,unsigned long frames,const PaStreamCallback
  if(flags&paOutputUnderflow)c.xruns.fetch_add(1,std::memory_order_relaxed);
  if(!out||frames>c.scratch.size()/2){c.faults.fetch_add(1,std::memory_order_relaxed);if(out)std::fill_n(out,frames*2,0.f);return paAbort;}
  float*rows[]={c.scratch.data(),c.scratch.data()+c.scratch.size()/2};
- if(app_engine_render_channels(c.engine.get(),rows,2,uint32_t(frames))!=WS_OK){std::fill_n(out,frames*2,0.f);c.faults.fetch_add(1,std::memory_order_relaxed);return paAbort;}
+ if (app_engine_render_live(c.engine.get(), rows, 2, uint32_t(frames), app_engine_clock_ns()) != WS_OK) {
+     std::fill_n(out, frames * 2, 0.f);
+     c.faults.fetch_add(1, std::memory_order_relaxed);
+     return paAbort;
+ }
  for(unsigned long i=0;i<frames;++i){out[2*i]=std::clamp(rows[0][i]*WS_OUTPUT_GAIN,-1.f,1.f);out[2*i+1]=std::clamp(rows[1][i]*WS_OUTPUT_GAIN,-1.f,1.f);}return paContinue;
 }
 }
 void list_devices(const std::string&directory){Backend b(directory);int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&d->maxOutputChannels>=2)std::cout<<i<<": "<<d->name<<" ("<<d->defaultSampleRate<<" Hz default)\n";}}
-void play(EngineOwner engine,const std::string&directory,const std::string&name,double rate,uint32_t block,const std::atomic<bool>&quit,std::function<void()> stop_producers){
- struct StopOnError {std::function<void()>&stop;~StopOnError(){if(stop)stop();}} cleanup{stop_producers};
- Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block);context->stop_producers=stop_producers;int device=b.default_device();
- if(!name.empty()){size_t consumed=0;try{device=std::stoi(name,&consumed);}catch(const std::exception&){consumed=0;}if(consumed!=name.size()){
-   device=paNoDevice;int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&name==d->name){device=i;break;}}
- }}
- const auto*info=device>=0?b.info(device):nullptr;if(!info||info->maxOutputChannels<2)throw std::runtime_error("No matching stereo output device");
- PaStreamParameters output{device,2,paFloat32,info->defaultLowOutputLatency,nullptr};PaStream*stream=nullptr;
- b.check(b.open(&stream,nullptr,&output,rate,block,paNoFlag,callback,context.get()));
- PaError start=b.start(stream),run_status=paNoError;
- if(start>=0){while(!quit.load(std::memory_order_relaxed)){
-   int active=b.active(stream);if(active<=0){run_status=active;break;}
-   std::cerr<<"cpu="<<b.load(stream)*100<<"% xruns="<<context->xruns.load()<<" faults="<<context->faults.load()<<'\n';
-   for(int tick=0;tick<10&&!quit.load(std::memory_order_relaxed);++tick)std::this_thread::sleep_for(std::chrono::milliseconds(100));
- }}
- if(stop_producers)stop_producers(); // producers join/drain while render still owns its engine.
- PaError stopped=b.stop(stream);if(stopped<0)stopped=b.abort(stream);PaError closed=b.close(stream);
- PaError terminated=b.terminate();b.initialized=false;
- if(terminated<0&&(stopped<0||closed<0)){
-   // Keep callback state and its engine alive if the backend cannot prove stop.
-   [[maybe_unused]] auto* quarantined=context.release();throw std::runtime_error("Audio shutdown failed; engine quarantined until process exit");
- }
- if(start<0)b.check(start);b.check(run_status);if(context->faults.load())throw std::runtime_error("Audio callback stopped after a render fault");
- b.check(terminated);
+void play(EngineOwner engine, const std::string &directory, double rate, const std::string &name, uint32_t block,
+          const std::atomic<bool> &quit, std::function<void()> stop_producers,
+          const std::function<void()> &control_tick) {
+    struct StopOnError {
+        std::function<void()> &stop;
+        ~StopOnError() {
+            if (stop) stop();
+        }
+    } cleanup{stop_producers};
+    Backend b(directory);
+    auto context = std::make_unique<Context>(std::move(engine), block);
+    context->stop_producers = stop_producers;
+    int device = b.default_device();
+    if (!name.empty()) {
+        size_t consumed = 0;
+        try {
+            device = std::stoi(name, &consumed);
+        } catch (const std::exception &) {
+            consumed = 0;
+        }
+        if (consumed != name.size()) {
+            device = paNoDevice;
+            int count = b.count();
+            b.check(count);
+            for (int i = 0; i < count; ++i) {
+                const auto *d = b.info(i);
+                if (d && name == d->name) {
+                    device = i;
+                    break;
+                }
+            }
+        }
+    }
+    const auto *info = device >= 0 ? b.info(device) : nullptr;
+    if (!info || info->maxOutputChannels < 2) throw std::runtime_error("No matching stereo output device");
+    PaStreamParameters output{device, 2, paFloat32, info->defaultLowOutputLatency, nullptr};
+    PaStream *stream = nullptr;
+    b.check(b.open(&stream, nullptr, &output, rate, block, paNoFlag, callback, context.get()));
+    PaError start = b.start(stream), run_status = paNoError;
+    if (start >= 0) {
+        while (!quit.load(std::memory_order_relaxed)) {
+            int active = b.active(stream);
+            if (active <= 0) {
+                run_status = active;
+                break;
+            }
+            std::cerr << "cpu=" << b.load(stream) * 100 << "% xruns=" << context->xruns.load()
+                      << " faults=" << context->faults.load() << '\n';
+            for (int tick = 0; tick < 10 && !quit.load(std::memory_order_relaxed); ++tick) {
+                if (control_tick) control_tick();
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+        }
+    }
+    if (stop_producers) stop_producers(); // producers join/drain while render still owns its engine.
+    PaError stopped = b.stop(stream);
+    if (stopped < 0) stopped = b.abort(stream);
+    PaError closed = b.close(stream);
+    PaError terminated = b.terminate();
+    b.initialized = false;
+    if (terminated < 0 && (stopped < 0 || closed < 0)) {
+        // Keep callback state and its engine alive if the backend cannot prove stop.
+        [[maybe_unused]] auto *quarantined = context.release();
+        throw std::runtime_error("Audio shutdown failed; engine quarantined until process exit");
+    }
+    if (start < 0) b.check(start);
+    b.check(run_status);
+    if (context->faults.load()) throw std::runtime_error("Audio callback stopped after a render fault");
+    b.check(terminated);
 }
 }

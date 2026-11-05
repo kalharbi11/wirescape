@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "app_engine.h"
+#include "../modules2/monitor/tap.h"
 #include "module_catalog.h"
 #include <algorithm>
 #include <atomic>
@@ -14,6 +15,7 @@ struct AppEngine {
   const ws2_descriptor* native=nullptr;ws_module_descriptor metadata{};
   std::vector<ws_port_descriptor> inputs,outputs;std::vector<ws_parameter_descriptor> params;
  };
+ std::vector<AppMonitorTap> monitor_taps;
  std::shared_ptr<ws_engine> legacy{nullptr,ws_engine_destroy};
  std::vector<std::shared_ptr<ws_engine>> library_owners;
  std::deque<Entry> entries;std::map<uint32_t,const Entry*> nodes;
@@ -21,15 +23,43 @@ struct AppEngine {
  wirescape::engine2::Engine engine;
  std::atomic<float> peak{0};std::atomic<uint64_t> blocks{0};
  std::string error;
+ uint32_t egress_budget = 2048;
  explicit AppEngine(const ws_engine_config& c,const wirescape::engine2::Config* override=nullptr):legacy(ws_engine_create(&c),ws_engine_destroy),engine(override?*override:config(c)){
-  engine.register_producer();engine.register_producer(); // producer 0 host keys, 1 MIDI service
-  for(auto* d:wirescape::app::builtin_modules()){
-   entries.emplace_back();auto& e=entries.back();e.native=d;
-   for(uint32_t i=0;i<d->input_count;++i)e.inputs.push_back({d->inputs[i].id,d->inputs[i].name,static_cast<uint32_t>(d->inputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL)});
-   for(uint32_t i=0;i<d->output_count;++i)e.outputs.push_back({d->outputs[i].id,d->outputs[i].name,static_cast<uint32_t>(d->outputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL)});
-   for(uint32_t i=0;i<d->param_count;++i){auto& p=d->params[i];e.params.push_back({p.legacy_index,p.name,p.minimum,p.maximum,p.initial,p.unit});}
-   e.metadata={sizeof(ws_module_descriptor),WS_ABI_VERSION,d->id,d->name,d->input_count,d->output_count,d->param_count,e.inputs.data(),e.outputs.data(),e.params.data(),nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
-  }
+     egress_budget = override ? override->event_budget : c.max_events;
+     engine.register_producer();
+     engine.register_producer();
+     engine.register_producer(); // host keys, MIDI, OSC
+     for (auto *d : wirescape::app::builtin_modules()) {
+         entries.emplace_back();
+         auto &e = entries.back();
+         e.native = d;
+         for (uint32_t i = 0; i < d->input_count; ++i)
+             e.inputs.push_back({d->inputs[i].id, d->inputs[i].name,
+                                 static_cast<uint32_t>(d->inputs[i].hint == WS2_AUDIO ? WS_AUDIO : WS_CONTROL)});
+         for (uint32_t i = 0; i < d->output_count; ++i)
+             e.outputs.push_back({d->outputs[i].id, d->outputs[i].name,
+                                  static_cast<uint32_t>(d->outputs[i].hint == WS2_AUDIO ? WS_AUDIO : WS_CONTROL)});
+         for (uint32_t i = 0; i < d->param_count; ++i) {
+             auto &p = d->params[i];
+             e.params.push_back({p.legacy_index, p.name, p.minimum, p.maximum, p.initial, p.unit});
+         }
+         e.metadata = {sizeof(ws_module_descriptor),
+                       WS_ABI_VERSION,
+                       d->id,
+                       d->name,
+                       d->input_count,
+                       d->output_count,
+                       d->param_count,
+                       e.inputs.data(),
+                       e.outputs.data(),
+                       e.params.data(),
+                       nullptr,
+                       nullptr,
+                       nullptr,
+                       nullptr,
+                       nullptr,
+                       nullptr};
+     }
  }
  static wirescape::engine2::Config config(const ws_engine_config& c){wirescape::engine2::Config r;r.sample_rate=c.sample_rate;r.max_block=c.max_block_frames;r.max_nodes=c.max_nodes;r.event_budget=c.max_events;return r;}
  const Entry* find(const char* id)const{for(auto& e:entries)if(std::strcmp(e.metadata.id,id)==0)return &e;return nullptr;}
@@ -65,7 +95,26 @@ const ws2_descriptor *app_engine_native_descriptor(const AppEngine *e, const cha
     return entry ? entry->native : nullptr;
 }
 int app_engine_add_node(AppEngine*e,uint32_t id,const char*type){return app_engine_add_node_config(e,id,type,{});}
-int app_engine_add_node_config(AppEngine*e,uint32_t id,const char*type,const std::vector<uint8_t>&config){auto*d=e->find(type);if(!d)return WS_NOT_FOUND;bool ok=d->native?e->engine.add_node(id,d->native,config):(config.empty()&&e->engine.add_abi1(id,&d->metadata));if(ok)e->nodes[id]=d;return ok?WS_OK:WS_GRAPH;}
+int app_engine_add_node_config(AppEngine *e, uint32_t id, const char *type, const std::vector<uint8_t> &config) {
+    auto *d = e->find(type);
+    if (!d) return WS_NOT_FOUND;
+    auto encoded = config;
+    std::shared_ptr<wirescape::monitor::Tap> tap;
+    if (std::strcmp(type, "monitor") == 0) {
+        tap = std::make_shared<wirescape::monitor::Tap>();
+        wirescape::monitor::Configuration binding;
+        binding.tap = tap.get();
+        encoded.resize(sizeof(binding));
+        std::memcpy(encoded.data(), &binding, sizeof(binding));
+    }
+    bool ok = d->native ? e->engine.add_node(id, d->native, encoded)
+                        : (encoded.empty() && e->engine.add_abi1(id, &d->metadata));
+    if (ok) {
+        e->nodes[id] = d;
+        if (tap) e->monitor_taps.push_back({id, "", std::move(tap)});
+    }
+    return ok ? WS_OK : WS_GRAPH;
+}
 int app_engine_connect(AppEngine*e,uint32_t a,uint32_t ap,uint32_t b,uint32_t bp){return e->engine.connect(a,ap,b,bp)?WS_OK:WS_GRAPH;}
 int app_engine_prepare(AppEngine*e,uint32_t n,uint32_t p){return e->engine.output(n,p,0)&&e->engine.prepare()?WS_OK:WS_GRAPH;}
 int app_engine_initialize_parameter(AppEngine*e,uint32_t n,uint32_t p,float v){auto it=e->nodes.find(n);if(it==e->nodes.end())return WS_NOT_FOUND;auto*d=it->second;for(uint32_t i=0;i<d->metadata.parameter_count;++i)if(d->metadata.parameters[i].id==p)return e->engine.set_parameter(n,i,v)?WS_OK:WS_INVALID;return WS_INVALID;}
@@ -90,6 +139,11 @@ int app_engine_enqueue(AppEngine*e,const ws_event*v){
 }
 int app_engine_render_live(AppEngine *e, float *const *out, uint32_t channels, uint32_t n, uint64_t callback_time_ns) {
     int r = e->engine.render(out, channels, n, callback_time_ns);
+    // J has no external MIDI/OSC output dispatcher. Drain its bounded tap queue so
+    // unconsumed note releases cannot fill egress and force an emergency reset.
+    wirescape::engine2::Outgoing ignored;
+    for (uint32_t i = 0; i < e->egress_budget && e->engine.pop_egress(ignored); ++i) {
+    }
     if (r != WS2_OK) return WS_CAPACITY;
     float p = 0;
     for (uint32_t c = 0; c < channels; ++c)
@@ -116,3 +170,11 @@ int app_engine_get_meter(const AppEngine*e,ws_meter*m){auto x=e->engine.meter();
 int app_engine_build_essentials(AppEngine*e,const char*){return app_engine_add_node(e,1,"essentials.vco")||app_engine_add_node(e,2,"essentials.adsr")||app_engine_add_node(e,3,"essentials.vca")||app_engine_add_node(e,4,"essentials.output")||app_engine_connect(e,1,0,3,0)||app_engine_connect(e,2,0,3,1)||app_engine_connect(e,3,0,4,0)||app_engine_prepare(e,4,0)?WS_GRAPH:WS_OK;}
 
 const char* app_engine_parameter_id(const AppEngine*e,const char*type,uint32_t index){for(auto*d:wirescape::app::builtin_modules())if(!std::strcmp(d->id,type))return index<d->param_count?d->params[index].id:"";auto*d=e->find(type);if(!d||index>=d->metadata.parameter_count)return "";thread_local std::string numeric;numeric=std::to_string(d->metadata.parameters[index].id);return numeric.c_str();}
+
+std::vector<AppMonitorTap> app_engine_monitor_taps(AppEngine *e) {
+    return e ? e->monitor_taps : std::vector<AppMonitorTap>{};
+}
+void app_engine_monitor_prefix(AppEngine *e, uint32_t node, const std::string &prefix) {
+    for (auto &t : e->monitor_taps)
+        if (t.node == node) t.prefix = prefix;
+}

@@ -1,5 +1,6 @@
 #include "studio_controller.h"
 #include "document_reader.h"
+#include "monitor_log.h"
 #include "wirescape/output_policy.h"
 #include <QCoreApplication>
 #include <QDataStream>
@@ -51,9 +52,9 @@ QString display(double value, const QString& unit) {
 
 StudioController::StudioController(QString directory, QObject *parent, PatchWriter writer, bool confirmMidi,
                                    MidiPreference midiPreference, std::unique_ptr<wirescape::midi::Backend> fakeMidi,
-                                   const QString &midiSettingsPath)
+                                   const QString &midiSettingsPath, bool confirmLan)
     : QObject(parent), directory_(std::move(directory)), patchWriter_(std::move(writer)),
-      midi_(confirmMidi, std::move(fakeMidi)) {
+      midi_(confirmMidi, std::move(fakeMidi)), osc_(confirmLan) {
     if (midiPreference == MidiPreference::Interactive) {
         midiPreferences_ = midiSettingsPath.isEmpty()
                                ? std::make_unique<QSettings>()
@@ -92,23 +93,31 @@ StudioController::StudioController(QString directory, QObject *parent, PatchWrit
     timer_.setInterval(50);
     connect(&timer_, &QTimer::timeout, this, [this] {
         if (audio_.poll()) {
-            if(!audio_.running())midi_.stop();
+            if (!audio_.running()) {
+                osc_.stop();
+                midi_.stop();
+            }
             if (!audio_.running() && !audio_.engineInUse() && engine_) { lastSessionMeter_.struct_size = sizeof(lastSessionMeter_); app_engine_get_meter(engine_.get(), &lastSessionMeter_); app_engine_reset(engine_.get()); lastFrame_ = 0; peak_ = 0; }
             setError(audio_.error());
         }
         if (engine_) { ws_meter meter{}; meter.struct_size = sizeof(meter); app_engine_get_meter(engine_.get(), &meter); peak_ = running() ? meter.peak * WS_OUTPUT_GAIN : 0; }
+        drainMonitor();
         emit metersChanged();
 
     });
     timer_.start();
 }
 
-StudioController::~StudioController() { midi_.stop(); if (!audio_.stop()) {
-    // A backend that cannot establish quiescence still owns the engine. Its
-    // detached callback context is retained by AudioDevice; retain descriptors too.
-    [[maybe_unused]] auto* quarantinedEngine = engine_.release();
-    [[maybe_unused]] auto* quarantinedCatalog = catalog_.release();
-} }
+StudioController::~StudioController() {
+    osc_.stop();
+    midi_.stop();
+    if (!audio_.stop()) {
+        // A backend that cannot establish quiescence still owns the engine. Its
+        // detached callback context is retained by AudioDevice; retain descriptors too.
+        [[maybe_unused]] auto *quarantinedEngine = engine_.release();
+        [[maybe_unused]] auto *quarantinedCatalog = catalog_.release();
+    }
+}
 
 static QString portKind(const AppEngine *catalog, const ws_module_descriptor *module, uint32_t index, bool output) {
     const auto *native = app_engine_native_descriptor(catalog, module->id);
@@ -287,6 +296,7 @@ bool StudioController::applyParameters(AppEngine* e, const QJsonObject& doc) con
 }
 
 bool StudioController::compileDocument() {
+    osc_.stop();
     midi_.stop();
     if (audio_.engineInUse()) { setError("Audio cleanup is pending. Stop audio again before preparing a patch."); return false; }
     QString error;
@@ -382,6 +392,11 @@ void StudioController::startAudio() {
     if (running()) return;
     if (audio_.hasStream()) { setError("Device cleanup is pending. Stop audio again before restarting."); return; }
     if (!compileDocument()) return;
+    const auto sessionDocument = QJsonDocument(document_).toJson().toStdString();
+    if (wirescape::osc::Host::needs_lan(sessionDocument) && !osc_.authorized()) {
+        emit lanConfirmationNeeded();
+        return;
+    }
     if (!audio_.initialize(directory_) || !audio_.startRender(
                                               engine_.get(),
                                               [](void *e, float *out, uint32_t n) {
@@ -395,10 +410,31 @@ void StudioController::startAudio() {
     }
     std::string midiError;
     if(!midi_.start(engine_.get(),QJsonDocument(document_).toJson().toStdString(),midiError)){stopAudio();setError(QString::fromStdString(midiError));return;}
+    if (!osc_.start(engine_.get(), sessionDocument, 0, midiError)) {
+        stopAudio();
+        setError(QString::fromStdString(midiError));
+        return;
+    }
     lastSessionMeter_ = {}; setError({}); emit statusChanged();
 }
 
-void StudioController::stopAudio() { midi_.stop(); if (!audio_.stop()) { setError(audio_.error()); return; } if (engine_) { lastSessionMeter_.struct_size = sizeof(lastSessionMeter_); app_engine_get_meter(engine_.get(), &lastSessionMeter_); app_engine_reset(engine_.get()); } lastFrame_ = 0; peak_ = 0; setError(audio_.error()); emit metersChanged(); }
+void StudioController::stopAudio() {
+    osc_.stop();
+    midi_.stop();
+    if (!audio_.stop()) {
+        setError(audio_.error());
+        return;
+    }
+    if (engine_) {
+        lastSessionMeter_.struct_size = sizeof(lastSessionMeter_);
+        app_engine_get_meter(engine_.get(), &lastSessionMeter_);
+        app_engine_reset(engine_.get());
+    }
+    lastFrame_ = 0;
+    peak_ = 0;
+    setError(audio_.error());
+    emit metersChanged();
+}
 void StudioController::setGate(bool on) { if (!running()) return; for (const auto& item : document_.value("modules").toArray()) if (!send(item.toObject().value("id").toInt(), WS_GATE, on ? 1.f : 0.f)) break; }
 void StudioController::note(int pitch, bool on) {
     if (!engine_ || pitch < 0 || pitch > 127) return;
@@ -625,3 +661,42 @@ void StudioController::setMidiEndpoint(const QString&name,const QString&system,b
 }
 
 QVariantMap StudioController::midiCounters()const{return QJsonDocument::fromJson(QByteArray::fromStdString(midi_.diagnostics())).object().toVariantMap();}
+
+void StudioController::drainMonitor() {
+    if (monitorPaused_ || !engine_) return;
+    auto taps = app_engine_monitor_taps(engine_.get());
+    if (taps.empty()) return;
+    size_t budget = 256;
+    bool changed = false;
+    for (size_t i = 0; i < taps.size() && budget; ++i) {
+        auto &t = taps[(monitorCursor_ + i) % taps.size()];
+        wirescape::monitor::Entry e;
+        while (budget && t.tap->pop(e)) {
+            --budget;
+            monitorLines_.append(QString::fromStdString(format_monitor_entry(t, e)));
+            changed = true;
+        }
+    }
+    monitorCursor_ = (monitorCursor_ + 1) % taps.size();
+    if (monitorLines_.size() > 10000) monitorLines_.remove(0, monitorLines_.size() - 10000);
+    if (changed) emit monitorChanged();
+}
+void StudioController::clearMonitor() {
+    for (auto &t : app_engine_monitor_taps(engine_.get())) t.tap->clear();
+    monitorLines_.clear();
+    emit monitorChanged();
+}
+qulonglong StudioController::monitorDropped() const {
+    qulonglong dropped = 0;
+    for (auto &t : app_engine_monitor_taps(engine_.get())) dropped += t.tap->dropped.load();
+    return dropped;
+}
+QVariantMap StudioController::oscCounters() const {
+    return QJsonDocument::fromJson(QByteArray::fromStdString(osc_.diagnostics())).object().toVariantMap();
+}
+
+qulonglong StudioController::monitorSuppressed() const {
+    qulonglong count = 0;
+    for (auto &t : app_engine_monitor_taps(engine_.get())) count += t.tap->rate_limited.load();
+    return count;
+}
