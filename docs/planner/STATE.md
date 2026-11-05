@@ -12,6 +12,13 @@ Follow `docs/planner/CHECKIN.md`: routine Sonnet every 4 h, Opus for escalations
 (Sonnet adds `- #N sha7: question (since date time)`; Opus empties this list.)
 - #206 `2706ce1`: approvals v3. Needs an independent ChatGPT T2 line, then the **owner's** Claude line (Claude wrote it).
 
+## PAUSED + direction change (2026-11-05)
+Project paused (#29, comment 6542524177); all Claude scheduled tasks are disabled. **The UI moves to the web:**
+`kalharbi11/wirescape-ui` (Vite + TS, fake engine behind `EngineClient`, new design system); its `docs/PLAN.md`
+is the plan. The Qt UI is frozen: no new Qt UI work. This repo resumes at UI-plan phase 7: a headless C++ host
+plus `RealEngine` behind `EngineClient`, then the app moves in as `apps/studio`. Open Qt UI PRs (#192, #204,
+#194, #200) wait for triage at resume.
+
 ## Goal
 Owner Jam report #182 drives priorities until the owner retests and closes it. J9 #45 is the owner's session.
 
