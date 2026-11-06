@@ -88,7 +88,7 @@ esac
         self.assertLess(checkout, build)
         self.assertLess(build, npm)
         self.assertIn("tools/dev.py build --headless --config Release", calls[build])
-        self.assertEqual(sum("npm ci" in line for line in calls), 2)
+        self.assertEqual(sum(line.startswith("npm ") and line.endswith(" : ci") for line in calls), 2)
         self.assertEqual(sum("run build" in line for line in calls), 2)
         self.assertIn(SHA, done.stdout)
         self.assertIn("--confirm-audio --confirm-midi", done.stdout)
