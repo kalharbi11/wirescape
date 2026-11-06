@@ -61,6 +61,7 @@ function handleEngineLine(raw: string, owner: ChildProcessWithoutNullStreams): v
     engineReady = true;
     lastHello = raw;
   } else if (!engineReady) return;
+  if (typeof obj.type === 'string' && obj.type.startsWith('app.')) return;
   if (typeof obj.re === 'string') pending.delete(obj.re);
   notify(raw); // Preserve the child's wire line; only app.* is main-owned.
 }
@@ -150,6 +151,11 @@ function startEngine(): void {
   const state = { process: child, expected: false };
   active = state;
   drainLines(child);
+  child.stdin.on('error', () => {
+    if (active !== state) return;
+    for (const id of pending) refusal(id, 'unavailable', 'Engine pipe failed');
+    pending.clear();
+  });
   child.stderr.on('data', (data: Buffer) => console.error('wirescape-engine:', data.toString('utf8').slice(0, 2048)));
   child.on('error', err => console.error('wirescape-engine spawn:', err.message));
   child.once('close', (code, signal) => {
