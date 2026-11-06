@@ -39,11 +39,13 @@ Each command is `{"v":0,"id":"r1","type":"loadGraph", ...}`; top-level `id` is *
 
 `{"v":0,"id":"a1","type":"app.restartEngine"}` is intercepted by **main**, never sent to the engine. Main replies `{"v":0,"re":"a1","ok":true,"gen":"0"}` when restart is initiated, sends EOF/terminates the old child with bounded cleanup, and starts a new one with the same authorized startup flags. Main announces any child exit with `{"v":0,"type":"app.engineExited","exitCode":null|integer,"signal":null|string,"expected":boolean}` (its own push; no engine session). A failed restart returns an app-owned `unavailable` reply instead. An unexpected child exit does not imply a successful restart; the UI may request one. Main never forwards `app.*` to engine stdin.
 
+Native File menu commands are **main-owned intent notifications**, not engine messages: `{"v":0,"type":"app.menuOpenPatch"}`, `{"v":0,"type":"app.menuSavePatch","saveAs":false}` and `{"v":0,"type":"app.menuSavePatch","saveAs":true}`. They arrive through `onMessage` without `id`, `re`, `session` or `gen`; they never enter engine stdin. On Open, the renderer invokes `openPatch()` and replaces its editable document **only on success**. On Save, the renderer serializes its current lossless document text and calls `savePatch(text,{saveAs})`; `null` means the user cancelled. Renderer-initiated toolbar commands call those same bridge methods directly. Main never invents or edits the document text.
+
 On every new engine `hello`, the UI invalidates old-session pending edits/replies, calls `loadGraph` using its **own current editable document**, then resumes incremental commands only after that load is acknowledged. Engine settings survive restarts separately; the engine does not store or overwrite the UI patch. The app must show an engine-disconnected state between exit and successful `hello`/`loadGraph`. The first `hello` precedes other engine pushes.
 
 ### Electron preload bridge (P1F, non-engine IPC)
 
-The **entire** exposed `contextBridge` object is the following five-member API. The renderer never receives Node primitives or an arbitrary filesystem path. File menu actions invoke these same methods in main; file operations are **not** v0 engine commands or `app.*` messages.
+The **entire** exposed `contextBridge` object is the following five-member API. The renderer never receives Node primitives or an arbitrary filesystem path. Native File menu actions emit app-owned intents to the renderer (defined below), which invokes these bridge methods. File operations are **not** v0 engine commands; only menu **intents** use `app.*` notifications.
 
 ```ts
 interface WirescapeBridge {
