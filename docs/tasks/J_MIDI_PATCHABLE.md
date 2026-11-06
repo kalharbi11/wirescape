@@ -72,7 +72,7 @@ behavior that triggers the AGENTS design Stop:
   control operation and failure handling. This is a proposed integration, not an
   existing state/UI contract. No concurrent inspection or new service is implied.
 
-## Verification and missing soak fixture
+## Verification and synthetic MIDI soak fixture
 
 Extend the existing executable suites rather than adding prose test aliases:
 `abi2_midi_service_tests` supplies fake acquisition, `abi2_midi_to_cv_tests`
@@ -89,15 +89,36 @@ Use relevant document/Studio tests for the actual persistence path, not just a
 module state-blob roundtrip. Qt-backed tests must be present when that path changes.
 
 The current `wirescape_soak --graph poly8` constructs VCO/VCF/ADSR/VCA without MIDI;
-it is not coordinator evidence. No #163 MIDI poly 60-second fixture/command exists
-at this base. Implementation must add bounded synthetic/fake MIDI stimulation of
-`midi.in -> midi.to_cv -> poly voice` and ordinary CC wiring, then record its exact
-executable 60-second command and runner invocation here before claiming acceptance.
-Keep the Pi requirement pending until the private runner publishes exact-head ABI2
-and 60-second coordinator-poly soak evidence. Never open devices or SSH to the Pi.
+it is not coordinator evidence. `abi2_midi_to_cv_tests` now contains a one-second
+accelerated regression using synthetic immutable source IDs through
+`midi.in -> midi.to_cv -> VCO/ADSR/VCA -> Output`, with eight voices. A second
+`midi.in -> midi.cc_to_cv -> VCA gain_cv` cable controls the poly audio. Each cycle
+starts eight notes, chokes one source, and releases the other; the final block
+chokes all sources. Assertions check held-gate counts, CC values, finite/nonzero
+audio, paired attacks/releases, zero ingress/render allocations, faults and drops.
+The same fixture runs paced for 60 seconds with:
 
-Build first using the existing headless command below; add a Qt-enabled build and
-focused existing Studio/document suite when required for writeback. Run
+```sh
+build/native/abi2_midi_to_cv_tests --soak
+```
+
+Request it through the private runner using the `pi-run:` acceptance entry below
+and `ci/pi` + `ci/pi-accept` on draft #210; inspect `pi5/accept` on the exact head.
+The fixture covers the existing coordinator and ordinary CC routing, not the
+unimplemented last-note/range/Learn features. It uses synthetic events, not a
+physical or fake acquisition backend; existing service tests cover fake acquisition.
+Keep the Pi requirement pending until the private runner publishes exact-head ABI2
+and 60-second coordinator-poly evidence. Never open devices or SSH to the Pi.
+
+Implementation contract ruling is requested in
+[#290 comment 6694184134](https://github.com/kalharbi11/wirescape/issues/290#issuecomment-6694184134).
+The current PLAN D3/D11 replace the old Qt Studio integration assumptions: the UI
+owns the editable document and Qt stays frozen. Do not implement Learn writeback
+until Keel names the approved control-side reconciliation operation. The remaining
+semantic questions above also remain pending; this fixture does not settle them.
+
+Build first using the existing headless command below. Qt remains frozen under
+PLAN D11; resolve writeback ownership before selecting its integration tests. Run
 `python tools/dev.py accept 163` after implementation; external entries need their
 linked evidence even when the local report succeeds. No source checks were run
 merely to create this task file.
@@ -111,5 +132,6 @@ must_pass:
   - ctest --test-dir build/native -C Release -R "^abi2_midi_(to_cv|cc_to_cv|service)_tests$" --no-tests=error --output-on-failure
   - ci: windows-x64, linux-arm64, sanitizers green on the exact head
   - pi: ABI2 tests and a 60 s soak with midi.to_cv coordinator in a poly patch; executable fixture and exact command required before acceptance
+  - pi-run: build/native/abi2_midi_to_cv_tests --soak
 stops: [ABI header edit, new dependency, ID change, real device access, unspecified design choice, size budget exceeded]
 ```
