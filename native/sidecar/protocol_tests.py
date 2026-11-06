@@ -241,7 +241,28 @@ with tempfile.TemporaryDirectory() as directory:
     # Successful loadGraph resets the incremental ID namespace.
     engine.call('loadGraph', patch=minimal())
     engine.call('addModule', moduleId=10, moduleType='essentials.lfo')
+    # Exercise the D7 sidecar seam with the fake MIDI worker running. No device opens.
+    fake_midi = engine.call('listMidiDevices')['result']['devices'][0]
+    engine.call('setMidiEnabled', deviceId=fake_midi['id'], on=True)
     old_session = engine.session
+    live_edge = edge('event', 20, 'midi', 21, 'midi')
+    for method, payload in [
+        ('addModule', dict(moduleId=20, moduleType='midi.in')),
+        ('addModule', dict(moduleId=21, moduleType='midi.to_cv')),
+        ('connect', dict(connection=live_edge)),
+        ('disconnect', dict(connection=live_edge)),
+        ('connect', dict(connection=live_edge)),
+        ('removeModule', dict(moduleId=20)),
+        ('removeModule', dict(moduleId=21)),
+    ]:
+        prior = int(engine.last_gen)
+        assert int(engine.call(method, **payload)['gen']) == prior + 1
+        assert engine.session == old_session and engine.process.poll() is None
+    # A refused live edit must not advance gen or tear down the running session.
+    prior = engine.last_gen
+    assert engine.call('addModule', False, moduleId=20, moduleType='midi.in')['gen'] == prior
+    assert 'stop' not in engine.stderr().lower(), engine.stderr()
+    engine.call('setMidiEnabled', deviceId=fake_midi['id'], on=False)
     engine.close(b'{"unfinished":')
     restarted = Engine(settings)
     assert restarted.session != old_session
