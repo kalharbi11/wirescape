@@ -148,8 +148,9 @@ struct Stream::Impl {
         }
     }
 };
-Stream::Stream(EngineOwner &e, StreamSelection selection, double rate, uint32_t block, std::function<void()> producers)
-    : impl_(std::make_unique<Impl>(e, std::move(selection), rate, block, std::move(producers))) {}
+Stream::Stream(EngineOwner &e, const StreamSelection &selection, double rate, uint32_t block,
+               std::function<void()> producers)
+    : impl_(std::make_unique<Impl>(e, selection, rate, block, std::move(producers))) {}
 Stream::~Stream() = default;
 EngineOwner Stream::stop() { return impl_->retire(); }
 bool Stream::running() const { return impl_->stream && impl_->backend->active(impl_->stream) > 0; }

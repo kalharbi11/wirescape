@@ -29,7 +29,7 @@ class Stream {
     std::unique_ptr<Impl> impl_;
 
   public:
-    Stream(EngineOwner &, StreamSelection selection, double rate, uint32_t block,
+    Stream(EngineOwner &, const StreamSelection &selection, double rate, uint32_t block,
            std::function<void()> stop_producers = {});
     ~Stream();
     EngineOwner stop();
