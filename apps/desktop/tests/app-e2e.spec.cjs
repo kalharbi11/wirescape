@@ -19,19 +19,7 @@ test.beforeAll(() => {
   if (process.env.WIRESCAPE_REAL_ENGINE) {
     executable = path.resolve(process.env.WIRESCAPE_REAL_ENGINE);
   } else {
-    let source = root;
-    if (!fs.existsSync(path.join(source, 'native/sidecar/main.cpp'))) {
-      // Until #247 lands, compile its PR head rather than a test stub.
-      source = path.join(scratch, 'sidecar-source');
-      execFileSync('git', ['init', '-q', source], { stdio: 'inherit' });
-      execFileSync('git', ['-C', source, 'remote', 'add', 'origin',
-        'https://github.com/kalharbi11/wirescape.git'], { stdio: 'inherit' });
-      execFileSync('git', ['-C', source, 'fetch', '--depth=1', 'origin', 'refs/pull/247/head'],
-        { stdio: 'inherit', timeout: 120000 });
-      execFileSync('git', ['-C', source, 'checkout', '-q', '--detach', 'FETCH_HEAD'], { stdio: 'inherit' });
-      console.log('Real sidecar source #247:', execFileSync('git',
-        ['-C', source, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim());
-    }
+    const source = root; // #247 is on main: build the sidecar from this checkout.
     const build = path.join(scratch, 'build/native');
     execFileSync('cmake', ['-S', path.join(source, 'native'), '-B', build,
       '-DCMAKE_BUILD_TYPE=Release', '-DWIRESCAPE_BUILD_UI=OFF',
