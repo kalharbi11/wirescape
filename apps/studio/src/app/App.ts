@@ -9,6 +9,7 @@ import { FakeEngine } from '../engine/FakeEngine';
 import { EngineRefusal, type SystemStatus, type EngineClient } from '../engine/EngineClient';
 import { Ticker } from '../runtime/Ticker';
 import { PatchCanvas, type Selection } from '../canvas/PatchCanvas';
+import { CanvasPane } from '../panels/widgets/canvasBase';
 import type { PortDirection } from '../modules/types';
 import { Library } from './Library';
 import { QuickAdd } from './QuickAdd';
@@ -100,6 +101,8 @@ export class App {
       overrides: this.overrides,
       commitParam: (m, p, v, c) => this.commitParam(m, p, v, c),
       commitModAmount: (c, a, commit) => this.commitModAmount(c, a, commit),
+      listMidiDevices: () => this.engine.listMidiDevices(),
+      setModuleEndpoint: (id, endpoint, sys) => this.setMidiEndpoint(id, endpoint, sys),
       describeSource: c => this.describeSource(c),
       cableColor: c => `var(--cable-${this.doc.cableColor(connKey(c)) ?? 'ink'})`,
       toast: (m, tone) => this.toasts.show(m, tone),
@@ -516,6 +519,16 @@ export class App {
     if (commit && paramId === 'bpm' && this.lastStatus) this.statusBar.update(this.lastStatus);
   }
 
+  private setMidiEndpoint(moduleId: number, endpoint: string, systemName?: string): void {
+    const previous = this.doc.toJSON();
+    this.doc.setModuleEndpoint(moduleId, endpoint, systemName);
+    void this.engine.loadGraph(this.doc.toJSON()).catch(err => {
+      this.doc.replace(previous);
+      void this.engine.loadGraph(previous);
+      this.toasts.show(err instanceof Error ? err.message : 'MIDI endpoint change was refused.', 'error');
+    });
+  }
+
   private commitModAmount(c: Connection, amount: number, _commit: boolean): void {
     this.doc.setModAmount(c, amount);
     this.engine.setModAmount(c, amount);
@@ -789,9 +802,34 @@ export class App {
     });
 
     b.append(el('h3', 'settings-group', 'MIDI'));
-    for (const d of this.lastStatus?.midi.devices ?? []) {
-      b.append(field(d.name, switchButton(d.enabled !== false, on => engine.setMidiEnabled(d.id, on))));
-    }
+    const midiFields = el('div', 'settings-midi');
+    b.append(midiFields);
+    void engine.listMidiDevices().then(devices => {
+      if (!b.contains(midiFields)) return;
+      if (!devices.length) {
+        const empty = el('div', 'muted', 'No MIDI devices available.');
+        empty.dataset.testid = 'midi-no-devices';
+        midiFields.append(empty);
+        return;
+      }
+      const selected = select(devices.map(d => ({ value: d.id, label: d.name })),
+        devices[0]!.id, () => refreshToggle());
+      selected.dataset.testid = 'midi-device';
+      const toggleSlot = el('div', 'settings-midi-toggle');
+      const refreshToggle = () => {
+        const d = devices.find(device => device.id === selected.value)!;
+        const enabled = switchButton(d.enabled !== false, on => {
+          engine.setMidiEnabled(d.id, on);
+          d.enabled = on;
+        });
+        enabled.dataset.testid = 'midi-enabled';
+        toggleSlot.replaceChildren(enabled);
+      };
+      midiFields.append(field('Input device', selected), field('Enabled', toggleSlot));
+      refreshToggle();
+    }).catch(() => {
+      if (b.contains(midiFields)) midiFields.textContent = 'MIDI devices could not be listed.';
+    });
 
     const osc = this.lastStatus?.osc;
     if (osc && engine.setOsc) {
@@ -880,6 +918,7 @@ export class App {
     this.prefs = { ...this.prefs, ...patch };
     applyPrefs(this.prefs);
     savePrefs(this.prefs);
+    CanvasPane.setZoom(this.canvas.viewport.view.s, true);
     this.ticker.throttleHz = this.prefs.profile === 'pi' ? 30 : 0;
     // Hit areas change the geometry the layout is derived from, so every
     // card has to be rebuilt rather than just re-measured.

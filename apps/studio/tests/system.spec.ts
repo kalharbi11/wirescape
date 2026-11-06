@@ -20,10 +20,10 @@ test.describe('system', () => {
     await boot(page);
     await debug(page, 'extraMidiDevice', true);
     await expect(page.locator('.toast', { hasText: 'Keystation 49 connected' })).toBeVisible();
-    await expect(page.getByTestId('midi-midi:2')).toBeVisible();
+    await expect(page.getByTestId('midi-Keystation 49|midi:2')).toBeVisible();
     await debug(page, 'extraMidiDevice', false);
     await expect(page.locator('.toast', { hasText: 'Keystation 49 disconnected' })).toBeVisible();
-    await expect(page.getByTestId('midi-midi:2')).toHaveCount(0);
+    await expect(page.getByTestId('midi-Keystation 49|midi:2')).toHaveCount(0);
   });
 
   test('losing the audio device is announced, and so is its return', async ({ page }) => {

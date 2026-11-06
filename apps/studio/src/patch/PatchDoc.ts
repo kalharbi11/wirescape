@@ -9,6 +9,7 @@ export type PatchEvent =
   | { t: 'connection-added'; c: Connection }
   | { t: 'connection-removed'; c: Connection }
   | { t: 'param'; id: number; paramId: string; value: number }
+  | { t: 'config'; id: number }
   | { t: 'mod-amount'; c: Connection; amount: number }
   | { t: 'position'; id: number }
   | { t: 'label'; id: number }
@@ -147,6 +148,19 @@ export class PatchDoc {
     if (!m) return;
     (m.parameters ??= {})[paramId] = value;
     this.emit({ t: 'param', id, paramId, value });
+  }
+
+  /** Preserve unrelated native module config keys when selecting MIDI input. */
+  setModuleEndpoint(id: number, endpoint: string, systemName?: string): void {
+    const m = this.modules.get(id);
+    if (!m || m.module !== 'midi.in') return;
+    const current = m.config;
+    const config = current && typeof current === 'object' && !Array.isArray(current)
+      ? current as Record<string, unknown> : {};
+    const { system_name: _drop, ...rest } = config;
+    m.config = systemName === undefined ? { ...rest, endpoint }
+      : { ...rest, endpoint, system_name: systemName };
+    this.emit({ t: 'config', id });
   }
 
   // ---- connections ------------------------------------------------------

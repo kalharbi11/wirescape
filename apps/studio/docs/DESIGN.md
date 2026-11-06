@@ -22,6 +22,7 @@ Source: [`ui/tokens.css`](../ui/tokens.css). The kit sets these on `:root` at st
 | token | value | use |
 |---|---|---|
 | `--paper` | `#ffffff` | page |
+| `--canvas-ground` | `#f5f5f3` | patch viewport only (P1G Pi feedback) |
 | `--card` | `#ffffff` | module cards, popovers |
 | `--card2` | `#f4f4f2` | rare fills (tape mask, XY pad) |
 | `--ink` | `#161616` | text, value arcs, meters, curves |
@@ -136,7 +137,7 @@ Parameter-to-control rule set (it can be inferred from the module data):
 ## 6. Displays
 
 - No background box and no border.
-- Waveforms (VCO, LFO): a fading dot grid (1 px dots every 8 px, alpha falling to 0 at the edges, pre-rendered once per size), a 1.1 px ink line with round joins, and **3–4 px horizontal inset** so strokes never clip at the canvas edge. The LFO adds a rust phase dot and `φ 116° +0.90`; **no phase line** (owner, 3.5 review).
+- Waveforms (VCO, LFO): a fading dot grid (1 px dots every 8 px, alpha falling to 0 at the edges, cached per size/density), a 1.1 px ink line with round joins, and **3–4 px horizontal inset**. The LFO uses a phase-driven scrolling two-cycle output trace, newest at right, with `φ 116° +0.90` when phase is reported; without telemetry it remains static (P1G Pi correction).
 - Filter curve: frequency grid (100 / 1 k / 10 k darker), dashed 0 dB line, dashed set-cutoff line, rust live-cutoff line, a light rust fill under the live curve; in graph mode, a hollow peak handle and `fc · Q` in rust.
 - Envelope: baseline axis with segment ticks, 1 px curve, 3.2 px hollow handles, dotted sustain guide, A D S R letters (the active one in rust), rust voice dot. Number boxes below.
 
