@@ -10,13 +10,13 @@ The sections below this one document the **older Qt packaging flow**. For
 Phase 1's Electron app, first ensure #247 (sidecar) and #253 (desktop shell)
 are included in the selected revision. Install Node.js LTS, npm, Python 3,
 CMake, Ninja, a C++17-capable Windows compiler and the existing compatible
-PortAudio runtime DLL (\`libportaudio64bit.dll\`). Keep the same validated DLL
+PortAudio runtime DLL (`libportaudio64bit.dll`). Keep the same validated DLL
 deployment/PATH procedure used for the engine; do not invent a new DLL source.
 
 Run PowerShell at the repository root. Replace the placeholder with the full
 SHA accepted for this session:
 
-\`\`\`powershell
+```powershell
 $AcceptedSha = '<full accepted commit SHA>'
 if (git status --porcelain) { throw 'Clean or save checkout changes first.' }
 git fetch --prune origin
@@ -42,15 +42,15 @@ Pop-Location
 
 # Owner only: the launcher forwards the device-confirmation flags.
 .\tools\windows\Wirescape.cmd
-\`\`\`
+```
 
-\`Wirescape.cmd\` locates \`build/native/Release/wirescape-engine.exe\`
-(with \`build/native/wirescape-engine.exe\` as fallback) and starts the
+`Wirescape.cmd` locates `build/native/Release/wirescape-engine.exe`
+(with `build/native/wirescape-engine.exe` as fallback) and starts the
 Electron build. Windows rebuilds are incremental; no Qt UI SDK is needed for
 this headless engine + Electron path. Device settings live in
-\`user_data/settings.json\` or the explicit \`--settings\` path; app diagnostics
+`user_data/settings.json` or the explicit `--settings` path; app diagnostics
 are emitted to the terminal/process log, not the old Qt package directory.
-Automated tests never add \`--confirm-audio\` or \`--confirm-midi\`.
+Automated tests never add `--confirm-audio` or `--confirm-midi`.
 
 ## What is in the recorded source
 
