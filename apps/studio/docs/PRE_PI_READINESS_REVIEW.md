@@ -14,7 +14,7 @@
 ### 1. Merge and test the exact revision that will run (phases 3.5–6)
 
 - At the time of review the phase stack was open: [#3](https://github.com/kalharbi11/Wirescape-UI/pull/3) → [#4](https://github.com/kalharbi11/Wirescape-UI/pull/4) → [#5](https://github.com/kalharbi11/Wirescape-UI/pull/5) → [#6](https://github.com/kalharbi11/Wirescape-UI/pull/6). At review time `main` still held the design kit; **current follow-up**: PR #3 merged into main and the others merged into intermediate bases. Bring cumulative implementation to main before formal acceptance.
-- [`.github/workflows/pi-ui.yml`](../.github/workflows/pi-ui.yml) is intentionally **manual, owner-only, and `main`-only**. It cannot produce an accepted run on the unmerged phase branch without changing that policy. Do not bypass the guard to create a premature green result.
+- [historical Pi UI workflow](../tools/ci-reference/workflows/pi-ui.yml) is intentionally **manual, owner-only, and `main`-only**. It cannot produce an accepted run on the unmerged phase branch without changing that policy. Do not bypass the guard to create a premature green result.
 - **Action:** Owner reviews/merges in order, resolves any retarget/conflicts, confirms hosted build/typecheck/Playwright on the **final merged SHA**, then manually dispatches the Pi workflow when the physical setup is available. Record that same exact SHA in the evidence.
 
 ### 2. Resolve runner/desktop availability before debugging UI code
