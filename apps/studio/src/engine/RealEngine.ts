@@ -209,7 +209,11 @@ export class RealEngine implements EngineClient {
     if (message.ok !== true) {
       const err = refusal(message.code, message.message);
       if (p.kind === 'load') {
-        if (p.revision === this.revision) { this.ready = false; this.load?.reject(err); this.load = undefined; }
+        if (p.revision === this.revision) {
+          this.ready = false;
+          this.queue = []; this.active = undefined;
+          this.load?.reject(err); this.load = undefined;
+        }
       } else if (p.kind === 'edit' && p.edit) this.failEdit(p.edit, err);
       else p.reject?.(err);
       return;
@@ -262,6 +266,15 @@ export class RealEngine implements EngineClient {
   }
 
   private enqueue(type: string, payload: Wire): void {
+    // A blank/unavailable patch may have failed its initial load. Once an
+    // editable change makes it runnable, resubmit the full document instead
+    // of sending an edit against an unknown native generation.
+    if (!this.ready && !this.load && this.session) {
+      void this.loadGraph(this.currentDocument()).catch(e => {
+        for (const cb of this.graphErrorCbs) cb(e as EngineRefusal);
+      });
+      return;
+    }
     const mutation = { type, payload };
     const projected = this.projection();
     const inverse = projected ? copy(projected) : null;
