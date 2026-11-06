@@ -2,12 +2,12 @@
 #include "app_engine.h"
 #include "runtime_module_config.h"
 #include "wirescape_sdk.h"
-#include <nlohmann/json.hpp>
 #include <array>
 #include <cmath>
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <vector>
 using Json = nlohmann::json;
@@ -17,14 +17,13 @@ static void check(bool ok, const char *message) {
 }
 // Test-only observation of the existing DSP callback surface. Every original
 // lifecycle callback and the original DSP run unchanged. No work allocates here.
-static int (WS2_CALL *original_process)(void *, ws2_process *);
+static int(WS2_CALL *original_process)(void *, ws2_process *);
 static uint32_t observed_index;
 static bool observe_input;
 static double observed;
 static bool observed_once;
 static int WS2_CALL observe(void *instance, ws2_process *context) {
-    const auto & signal = observe_input ? context->inputs[observed_index]
-                                       : context->params[observed_index];
+    const auto &signal = observe_input ? context->inputs[observed_index] : context->params[observed_index];
     if (signal.channels && context->frames) {
         observed = signal.data[0][signal.flags & WS2_CONSTANT ? 0 : context->frames - 1];
         observed_once = true;
@@ -45,7 +44,7 @@ struct Endpoint {
 };
 static Endpoint render(const Json &patch, unsigned controller, unsigned value, AppEngine *catalog) {
     const Json *route = nullptr;
-    for (const auto & cable : patch.at("connections"))
+    for (const auto &cable : patch.at("connections"))
         if (cable.at("from").at("module") == 9 &&
             cable.at("from").at("port") == "cc" + std::to_string(controller - 20)) {
             check(!route, "CC row must have exactly one target");
@@ -62,10 +61,10 @@ static Endpoint render(const Json &patch, unsigned controller, unsigned value, A
     // Descriptors outlive the graph; only the selected process entry is wrapped.
     std::map<uint32_t, ws2_descriptor> descriptors;
     Engine engine(config);
-    for (const auto & module : patch.at("modules")) {
+    for (const auto &module : patch.at("modules")) {
         const uint32_t node = module.at("id");
         const auto type = module.at("module").get<std::string>();
-        const auto * descriptor = app_engine_native_descriptor(catalog, type.c_str());
+        const auto *descriptor = app_engine_native_descriptor(catalog, type.c_str());
         check(descriptor, "missing native module");
         auto &copy = descriptors[node];
         copy = *descriptor;
@@ -75,26 +74,28 @@ static Endpoint render(const Json &patch, unsigned controller, unsigned value, A
             original_process = copy.process;
             copy.process = observe;
         }
-        check(engine.add_node(node, &copy, wirescape::document::runtime_module_config(
-            type, module.value("config", Json::object()))), "add node");
+        check(engine.add_node(node, &copy,
+                              wirescape::document::runtime_module_config(type, module.value("config", Json::object()))),
+              "add node");
     }
-    for (const auto & cable : patch.at("connections")) {
+    for (const auto &cable : patch.at("connections")) {
         uint32_t from = cable.at("from").at("module"), to = cable.at("to").at("module");
         const auto output = slot(&descriptors.at(from), cable.at("from").at("port"), 1);
         const bool modulation = cable.at("kind") == "modulation";
         const auto input = slot(&descriptors.at(to), cable.at("to").at("port"), modulation ? 2 : 0);
         check(modulation ? engine.modulate(from, output, to, input, cable.at("amount"))
-                         : engine.connect(from, output, to, input), "connect");
+                         : engine.connect(from, output, to, input),
+              "connect");
     }
-    for (const auto & output : patch.at("outputs")) {
+    for (const auto &output : patch.at("outputs")) {
         uint32_t node = output.at("module");
-        check(engine.output(node, slot(&descriptors.at(node), output.at("port"), 1),
-                            output.at("bus_channel")), "output");
+        check(engine.output(node, slot(&descriptors.at(node), output.at("port"), 1), output.at("bus_channel")),
+              "output");
     }
     const auto producer = engine.register_producer();
     check(producer >= 0, "producer");
     check(engine.prepare(), "prepare");
-    for (const auto & module : patch.at("modules")) {
+    for (const auto &module : patch.at("modules")) {
         uint32_t node = module.at("id");
         for (auto it = module.at("parameters").begin(); it != module.at("parameters").end(); ++it)
             check(engine.set_parameter(node, slot(&descriptors.at(node), it.key(), 2), it.value()), "base parameter");
@@ -106,8 +107,8 @@ static Endpoint render(const Json &patch, unsigned controller, unsigned value, A
         event.source_id = 1;
         event.ump_words = 1;
         event.ump[0] = 0x20000000u | uint32_t(status) << 16 | uint32_t(a) << 8 | b;
-        check(engine.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, event,
-                             engine.meter().frame) == WS2_OK, "normal MIDI ingress");
+        check(engine.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, event, engine.meter().frame) == WS2_OK,
+              "normal MIDI ingress");
     };
     float left[256], right[256];
     float *rows[]{left, right};
@@ -130,8 +131,8 @@ static Endpoint render(const Json &patch, unsigned controller, unsigned value, A
     audio(24000, true); // Exactly 0.5 s held note per endpoint.
     check(observed_once, "target callback not observed");
     result.plain = observed;
-    result.normalized = observe_input ? observed
-        : ws::to_normal(descriptors.at(target).params[observed_index], observed);
+    result.normalized =
+        observe_input ? observed : ws::to_normal(descriptors.at(target).params[observed_index], observed);
     // Release controls affect sound after note-off, not during the held note.
     midi(0x80, 36, 0);
     audio(24000, true);
@@ -143,7 +144,7 @@ int main(int argc, char **argv) {
         check(argc == 2, "examples directory required");
         ws_engine_config config{sizeof(config), 48000, 256, 64, 2048};
         std::unique_ptr<AppEngine, decltype(&app_engine_destroy)> catalog(app_engine_create(&config),
-                                                                       app_engine_destroy);
+                                                                          app_engine_destroy);
         check(bool(catalog), "catalog");
         const std::array<const char *, 3> names{
             {"class_demo_1_chaos.json", "class_demo_2_subtractive.json", "class_demo_3_macro.json"}};
