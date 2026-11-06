@@ -92,7 +92,7 @@ void Transport::write() {
         output_ << bytes << '\n'; output_.flush();
         if(!output_)throw std::runtime_error("Protocol output unavailable");
         {std::lock_guard<std::mutex>lock(mutex_);writing_=false;if(initial_hello)hello_written_=true;writable_.notify_all();}
-    }}catch(const std::exception&e){std::cerr<<e.what()<<'\n';std::_Exit(3);}
+    }}catch(const std::exception&e){std::cerr<<e.what()<<'\n';std::cerr.flush();std::_Exit(3);}
 }
 void Transport::monitor(){
     std::unique_lock<std::mutex>lock(mutex_);
@@ -102,7 +102,7 @@ void Transport::monitor(){
         if(closing_)deadline=std::min(deadline,close_deadline_);
         if(writable_.wait_until(lock,deadline)==std::cv_status::timeout&&
            ((writing_&&std::chrono::steady_clock::now()>=write_deadline_)||(closing_&&std::chrono::steady_clock::now()>=close_deadline_))){
-            std::cerr<<"Protocol pipe unavailable or shutdown timed out"<<'\n';std::_Exit(3);
+            std::cerr<<"Protocol pipe unavailable or shutdown timed out"<<'\n';std::cerr.flush();std::_Exit(3);
         }
     }
 }

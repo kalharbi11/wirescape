@@ -241,7 +241,7 @@ Json Session::reply(const Request&request){
         need(!result["re"].is_null());
         need(request.value.at("v").is_number_integer()&&request.value.at("v")==0&&request.value.at("type").is_string());
         auto data=apply(request.value);result["ok"]=true;if(!data.is_null())result["result"]=std::move(data);
-    }catch(const audio::ShutdownFailure&e){std::cerr<<e.what()<<'\n';std::_Exit(2);}
+    }catch(const audio::ShutdownFailure&e){std::cerr<<e.what()<<'\n';std::cerr.flush();std::_Exit(2);}
     catch(const Refusal&e){result["code"]=e.code;result["message"]=e.what();}
     catch(const Json::exception&){result["code"]="invalid";result["message"]="Invalid command field";}
     catch(const std::exception&){result["code"]="unavailable";result["message"]="Engine operation unavailable";}
