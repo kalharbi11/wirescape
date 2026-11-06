@@ -117,6 +117,23 @@ execute_process(COMMAND git rev-parse --short=12 HEAD WORKING_DIRECTORY ${PROJEC
   OUTPUT_VARIABLE engine_sha OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 add_executable(wirescape_engine_sidecar sidecar/main.cpp sidecar/protocol.cpp sidecar/session.cpp sidecar/devices.cpp)
 set_target_properties(wirescape_engine_sidecar PROPERTIES OUTPUT_NAME wirescape-engine)
+# Compile native catalogue categories from the same presentation source as
+# tools/gen_ui_catalogue.py. No source-tree lookup is needed at runtime.
+set(_sidecar_presentation "${CMAKE_CURRENT_SOURCE_DIR}/../apps/studio/public/catalogue-presentation.json")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_sidecar_presentation}")
+file(READ "${_sidecar_presentation}" _sidecar_presentation_json)
+string(JSON _sidecar_count LENGTH "${_sidecar_presentation_json}" modules)
+math(EXPR _sidecar_last "${_sidecar_count} - 1")
+set(_sidecar_category_header "// SPDX-License-Identifier: GPL-3.0-only\\n#pragma once\\n#include <string>\\ninline const char *wirescape_sidecar_category(const std::string &id) {\\n")
+foreach(_i RANGE 0 ${_sidecar_last})
+  string(JSON _id GET "${_sidecar_presentation_json}" modules ${_i} id)
+  string(JSON _category GET "${_sidecar_presentation_json}" modules ${_i} category)
+  string(APPEND _sidecar_category_header "  if (id == \\"${_id}\\") return \\"${_category}\\";\\n")
+endforeach()
+string(APPEND _sidecar_category_header "  return \\"Native\\";\\n}\\n")
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/wirescape_sidecar_categories.h"
+  CONTENT "${_sidecar_category_header}")
+target_include_directories(wirescape_engine_sidecar PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(wirescape_engine_sidecar PRIVATE WIRESCAPE_ENGINE_SHA="${engine_sha}")
 target_link_libraries(wirescape_engine_sidecar PRIVATE wirescape_runtime_document wirescape_audio_service
   wirescape_midi_host nlohmann_json::nlohmann_json Threads::Threads)
