@@ -50,8 +50,8 @@ AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws
   for(const auto&m:modules){need(m.is_object(),"Invalid module");const uint32_t node=id(m.at("id"));need(!nodes.count(node),"Duplicate module ID");
    std::string type=m.at(version==1?"type":"module").get<std::string>();need(!m.value("inactive",false),"Inactive module; saved data preserved");
    const ws_module_descriptor *descriptor = nullptr;
-   for (uint32_t i = 0; i < app_engine_module_count(catalog); ++i) {
-       auto *candidate = app_engine_module(catalog, i);
+   for (uint32_t i = 0; i < app_engine_module_count(engine.get()); ++i) {
+       auto *candidate = app_engine_module(engine.get(), i);
        if (type == candidate->id) descriptor = candidate;
    }
    need(descriptor != nullptr, "unknown-module");
