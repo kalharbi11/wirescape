@@ -55,10 +55,11 @@ Session::Session(Options options):options_(std::move(options)),config_{sizeof(co
     patch_={{"format","wirescape.native.patch"},{"version",2},{"modules",Json::array({{{"id",1},{"module","essentials.output"}}})},{"connections",Json::array()}};
     patch_=execution(patch_);std::string error;engine_.reset(document::load_runtime_patch(patch_.dump(),catalogue_.get(),config_,error));need(bool(engine_),"unavailable","Cannot create startup graph");
     active_=engine_.get();refresh_devices();device_=options_.device.empty()?preferences_.value("audioDeviceId",std::string{}):options_.device;
-    if(options_.audio){auto found=std::count_if(audio_devices_.begin(),audio_devices_.end(),[&](const Json&d){return d["id"]==device_;});if(!device_.empty()&&found==0){device_.clear();audio_state_="starting";}if(device_.empty()){for(const auto&d:audio::devices(options_.directory))if(d.is_default)device_=d.name;}}
-    try{start_audio();start_midi();}catch(...){stop_audio();throw;}
+    if(options_.audio){auto found=std::count_if(audio_devices_.begin(),audio_devices_.end(),[&](const Json&d){return d["id"]==device_;});if(!device_.empty()&&found==0){fallback_=device_;device_.clear();audio_state_="starting";}if(device_.empty()){for(const auto&d:audio::devices(options_.directory))if(d.is_default)device_=d.name;}}
+    try{start_audio();start_midi();if(stream_)persist();}catch(...){stop_audio();throw;}
 }
-Session::~Session(){midi_->stop();try{stop_audio();}catch(const std::exception&e){std::cerr<<e.what()<<std::endl;std::_Exit(2);}}
+Session::~Session(){try{shutdown();}catch(const std::exception&e){std::cerr<<e.what()<<std::endl;}}
+void Session::shutdown(){midi_->stop();stop_audio();}
 void Session::start_audio(){
     stop_sink_.store(false);
     if(options_.audio){
@@ -170,8 +171,9 @@ Json Session::apply(const Json&command){
     if(type=="setParam"){
         auto id=integer(command.at("moduleId"));auto&m=node(patch_,id);auto*d=app_engine_native_descriptor(catalogue_.get(),m.at("module").get<std::string>().c_str());auto param=command.at("paramId").get<std::string>();auto*p=parameter(d,param);
         need(command.at("value").is_number());double plain=command.at("value").get<double>();need(std::isfinite(plain));need(plain>=p->minimum&&plain<=p->maximum,"refused","Parameter outside range");float value=float(plain);
-        ws_event event{};event.struct_size=sizeof(event);event.type=WS_PARAMETER;event.node_id=id;event.parameter_id=p->legacy_index;event.value=value;event.generation=app_engine_generation(active_);
-        auto result=app_engine_enqueue(active_,&event);need(result==WS_OK,"busy","Event queue full");
+        ws2_event native{};native.struct_size=sizeof(native);native.type=WS2_PARAM;native.index=uint32_t(p-d->params);native.value=value;
+        auto result=app_engine_native(active_).enqueue(0,id,WS2_DIRECT_PORT,native,0,engine2::Timing::Immediate);
+        need(result==WS2_OK,"busy","Event queue full");
         m["parameters"][param]=value;return nullptr;
     }
     Json candidate=patch_;
@@ -206,7 +208,7 @@ Json Session::reply(const Request&request){
             auto id=request.value["id"].get<std::string>();bool valid=!id.empty()&&id.size()<=64&&std::all_of(id.begin(),id.end(),[](unsigned char c){return c>=32&&c<=126;});if(valid)result["re"]=id;
         }
         if(!request.error.empty())throw Refusal(request.error,"Input refused");
-        need(!result["re"].is_null());need(requests_.insert(result["re"].get<std::string>()).second,"duplicate","Request ID was already used");
+        need(!result["re"].is_null());
         need(request.value.at("v").is_number_integer()&&request.value.at("v")==0&&request.value.at("type").is_string());
         auto data=apply(request.value);result["ok"]=true;if(!data.is_null())result["result"]=std::move(data);
     }catch(const audio::ShutdownFailure&e){std::cerr<<e.what()<<std::endl;std::_Exit(2);}
@@ -217,11 +219,12 @@ Json Session::reply(const Request&request){
 }
 Json Session::audio_status()const{
     auto selected=stream_&&stream_->running();
-    return {{"state",audio_state_},{"deviceId",selected?Json(device_):Json(nullptr)},{"deviceName",selected?Json(device_):Json(nullptr)},
+    Json result={{"state",audio_state_},{"deviceId",selected?Json(device_):Json(nullptr)},{"deviceName",selected?Json(device_):Json(nullptr)},
             {"sampleRate",options_.rate},{"bufferFrames",options_.block},{"latencyMs",2.*options_.block/options_.rate*1000},
             {"cpuPercent",selected?stream_->cpu_percent():0},{"dropouts",dropouts_.load()+(stream_?stream_->dropouts():0)}};
+    if(!fallback_.empty())result["fallbackFrom"]=fallback_;return result;
 }
-Json Session::midi_status()const{return {{"devices",midi_devices_},{"activity",Json::object()}};}
+Json Session::midi_status()const{return {{"devices",midi_devices_},{"activity",observer_->activity()}};}
 Json Session::hello()const{
     return {{"v",0},{"session",token_},{"type","hello"},{"protocol",0},{"engine",{{"version","0.1.0"},{"sha",WIRESCAPE_ENGINE_SHA}}},{"capabilities",Json::array()},
             {"catalogue",catalogue(catalogue_.get())},{"audio",audio_status()},{"midi",midi_status()}};
@@ -243,7 +246,7 @@ Json Session::telemetry(){
 }
 Json Session::devices(){auto value=base();value["type"]="devices";value["audioDevices"]=audio_devices_;value["midiDevices"]=midi_devices_;return value;}
 bool Session::poll(){
-    auto old_audio=audio_devices_,old_midi=midi_devices_;refresh_devices();
+    auto old_audio=audio_devices_,old_midi=midi_devices_;if(midi_->enabled().empty())observer_->endpoints();refresh_devices();
     if(options_.audio&&stream_&&!stream_->running()){midi_->stop();stop_audio();audio_state_="device-lost";}
     else if(options_.audio&&!stream_){audio_state_="reconnecting";start_audio();if(stream_)start_midi();}
     return old_audio!=audio_devices_||old_midi!=midi_devices_;

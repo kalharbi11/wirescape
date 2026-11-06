@@ -33,6 +33,7 @@ void ObservedMidi::ump(void* context,const uint32_t* words,size_t n,uint64_t tim
     if(s.downstream.ump)s.downstream.ump(s.downstream.context,words,n,time);
 }
 bool ObservedMidi::open(const midi::Endpoint&e,midi::Callback cb){
+    std::lock_guard<std::mutex>lock(mutex_);
     for(auto&s:slots_)if(s.endpoint.name.empty()){
         s.endpoint=e;s.downstream=cb;
         if(fake_)return true;
@@ -42,6 +43,7 @@ bool ObservedMidi::open(const midi::Endpoint&e,midi::Callback cb){
     return false;
 }
 void ObservedMidi::close(const midi::Endpoint&e){
+    std::lock_guard<std::mutex>lock(mutex_);
     for(auto&s:slots_)if(s.endpoint.name==e.name&&s.endpoint.system_name==e.system_name){
         if(backend_)backend_->close(e);
         for(auto&key:s.notes)key.store(0);s.activity.store(0);s.endpoint={};s.downstream={};
@@ -50,6 +52,12 @@ void ObservedMidi::close(const midi::Endpoint&e){
 void ObservedMidi::clear_notes(){for(auto&s:slots_)for(auto&key:s.notes)key.store(0);}
 bool ObservedMidi::inject(const midi::Endpoint&e,const uint8_t*data,size_t size,uint64_t time){
     if(!fake_)return false;for(auto&s:slots_)if(s.endpoint.name==e.name&&s.endpoint.system_name==e.system_name){message(&s,data,size,time);return true;}return false;
+}
+Json ObservedMidi::activity(){
+    Json result=Json::object();auto now=app_engine_clock_ns();std::lock_guard<std::mutex>lock(mutex_);
+    for(const auto&s:slots_){auto stamp=s.activity.load();if(!stamp||s.endpoint.name.empty())continue;
+        double age=now>stamp?double(now-stamp)/1e9:0.;if(age<0.25)result[s.endpoint.name+"|"+s.endpoint.system_name]=1.-age/0.25;
+    }return result;
 }
 Json ObservedMidi::held()const{
     auto held=Json::array();for(size_t key=0;key<128;++key){bool on=false;for(const auto&s:slots_)on=on||s.notes[key].load()!=0;if(on)held.push_back(key);}return held;

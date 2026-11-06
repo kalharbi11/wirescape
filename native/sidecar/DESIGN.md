@@ -14,7 +14,9 @@ without growing its 2 MiB buffer. Strict parsing rejects duplicate object keys,
 BOMs, invalid UTF-8 and nesting deeper than 64. Saturated commands become ordered
 `busy` markers; the reader waits for marker capacity, so overload cannot grow an
 unbounded second queue or reorder terminal replies. The writer alone serializes
-stdout. Replies have priority over single coalesced status/telemetry slots, with
+stdout. A non-realtime watchdog fails closed (exit 3) when a pipe write or
+shutdown cannot finish within five seconds. This is an unavailable transport,
+not successful EOF teardown. Replies have priority over single coalesced status/telemetry slots, with
 at most 256 pending reliable messages. Slow output can block control but never
 audio/MIDI callbacks. Diagnostic output uses stderr only. EOF discards a final
 partial line, drains complete commands/replies, joins ingress then audio, exits 0.
@@ -49,7 +51,8 @@ is awaiting Keel on #230; this draft does not claim D5 acceptance until resolved
 Successful loadGraph starts a new document ID namespace. Incremental removal
 retires an ID until another successful loadGraph. Refused loads reset nothing.
 Every terminal reply/push carries the process token and current decimal-string
-generation. Parameter events update the execution copy only after queue insertion
+generation. Outstanding correlation IDs are bounded by the command queue;
+nonreuse after completion is the protocol client's session-wide obligation. Parameter events update the execution copy only after queue insertion
 so the next topology candidate retains accepted knob values. Top-level
 setModAmount amount takes precedence; cable identity excludes amount/unknown
 metadata. The UI remains the editable-document owner.
@@ -72,7 +75,8 @@ is identically routed to stereo buses 0 and 1, with no other routes; both levels
 then equal that measured mono peak. Multiple/unequal output routes remain
 unavailable. CPU/driver xruns come from the running stream; no stream reports
 CPU 0. Latency is the specified calculated estimate. No scope/effective/phase or
-MIDI activity values are invented. Tests exercise pipes, refused graph preservation,
+MIDI activity values are invented. MIDI activity decays from actual packet
+timestamps; idle sources have no activity entry. Tests exercise pipes, refused graph preservation,
 1000 queued parameters, allocation-free rendering, backend note observation,
 backpressure and EOF/restart with devices off. CTest names include abi2_ so the
 existing ASan/UBSan/TSan jobs select them, and sidecar_ for task acceptance.

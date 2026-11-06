@@ -27,6 +27,7 @@ public:
     bool open(const midi::Endpoint&, midi::Callback) override;
     void close(const midi::Endpoint&) override;
     Json held() const;
+    Json activity();
     void clear_notes();
     bool inject(const midi::Endpoint&,const uint8_t*,size_t,uint64_t);
 };

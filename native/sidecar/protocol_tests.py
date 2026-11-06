@@ -121,18 +121,20 @@ with tempfile.TemporaryDirectory() as directory:
     assert engine.call('addModule', moduleId=9, moduleType='essentials.vco', params={'frequency': 220})['gen'] == '2'
     cable = edge('signal', 9, 'audio', 7, 'audio')
     assert engine.call('connect', connection=cable)['gen'] == '3'
-    assert engine.call('connect', False, connection=cable)['code'] == 'duplicate'
+    assert engine.call('connect', False, connection={**cable, 'opaque': 'ignored'})['code'] == 'duplicate'
+    engine.call('disconnect', connection={**cable, 'amount': 0.9, 'opaque': 'ignored'})
+    engine.call('connect', connection=cable)
     invalid = engine.call('connect', False, connection=edge('event', 9, 'audio', 7, 'audio'))
-    assert invalid['code'] == 'kind-mismatch' and invalid['gen'] == '3'
-    assert engine.call('setParam', moduleId=9, paramId='frequency', value=440)['gen'] == '3'
+    assert invalid['code'] == 'kind-mismatch' and invalid['gen'] == '5'
+    assert engine.call('setParam', moduleId=9, paramId='frequency', value=440)['gen'] == '5'
     assert engine.call('setParam', False, moduleId=9, paramId='absent', value=440)['code'] == 'not-found'
     engine.call('noteOn', note=60, velocity=0.8)
     engine.call('noteOff', note=60)
-    assert engine.call('panic')['gen'] == '3'
+    assert engine.call('panic')['gen'] == '5'
     engine.call('addModule', moduleId=10, moduleType='essentials.lfo')
     modulation = edge('modulation', 10, 'control', 9, 'frequency', amount=0.2)
     engine.call('connect', connection=modulation)
-    assert engine.call('setModAmount', connection={**modulation, 'amount': 'ignored'}, amount=-0.5)['gen'] == '6'
+    assert engine.call('setModAmount', connection={**modulation, 'amount': 'ignored'}, amount=-0.5)['gen'] == '8'
     engine.call('addModule', moduleId=12, moduleType='midi.cc_to_cv')
     engine.call('ccMap.set', moduleId=12, row=0, mapping=dict(channel=0, controller=21, fourteen_bit=False, bipolar=False, smoothing_ms=10))
     assert engine.call('ccMap.set', False, moduleId=12, row=8, mapping={})['code'] == 'limit'

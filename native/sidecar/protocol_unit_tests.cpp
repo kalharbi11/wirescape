@@ -2,6 +2,7 @@
 #include "devices.h"
 #include "runtime_patch.h"
 #include "../io/audio/callback_render.h"
+#include "../io/audio/portaudio_service.h"
 #include "../tests2/allocation_watch.h"
 #include <sstream>
 #include <stdexcept>
@@ -11,6 +12,9 @@ int main(){
     for(const auto&bad:{"{\"x\":1,\"x\":2}","{\"x\":{\"y\":1,\"y\":2}}","[]"}){
         bool refused=false;try{strict_json(bad);}catch(...){refused=true;}check(refused);
     }
+    std::string boundary="{\"x\":"+std::string(63,'[')+"0"+std::string(63,']')+"}";
+    check(strict_json(boundary).is_object());
+    bool too_deep=false;try{strict_json("{\"x\":"+std::string(64,'[')+"0"+std::string(64,']')+"}");}catch(...){too_deep=true;}check(too_deep);
     std::ostringstream source;
     for(int i=0;i<257;++i)source<<"{\"v\":0,\"id\":\"q"<<i<<"\",\"type\":\"panic\"}\n";
     std::istringstream input(source.str());std::ostringstream output;Transport transport(input,output);transport.start();

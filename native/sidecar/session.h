@@ -18,9 +18,9 @@ class Session {
     ObservedMidi* observer_=nullptr;
     std::unique_ptr<midi::Host> midi_;
     Json patch_,preferences_=Json::object(),audio_devices_,midi_devices_;
-    std::string token_,device_,audio_state_="no-device";
+    std::string token_,device_,fallback_,audio_state_="no-device";
     uint64_t generation_=0,tick_=0;
-    std::set<uint32_t> used_ids_;std::set<std::string> requests_;
+    std::set<uint32_t> used_ids_;
     std::array<bool,128> keyboard_{};
     std::mutex sink_mutex_;std::condition_variable sink_wake_;
     std::thread sink_;std::atomic<bool> stop_sink_{false};
@@ -33,6 +33,7 @@ class Session {
     Json base()const;
 public:
     explicit Session(Options); ~Session();
+    void shutdown();
     Json hello()const;
     Json reply(const Request&);
     Json status()const; Json telemetry();
