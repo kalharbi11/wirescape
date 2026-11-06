@@ -11,7 +11,7 @@ Any agent (Claude, ChatGPT, Codex or another) can pick up any open item. Nothing
 Never read `legacy/`, `docs/history/`, `build/`, `build_reports/`, third-party sources or generated files unless the task asks. Search narrowly.
 
 ## Project in brief
-Wirescape is an open-source modular patching environment for music. It has a native C++17 realtime engine and a web UI (TypeScript, served by a local C++ host, shown in Chromium). The Raspberry Pi 5 (Linux ARM64) is the first platform and the performance target. Windows follows. Module DSP stays portable to plugins and Daisy-class hardware. Contract: `docs/specs/ABI2_PLAN.md`. Built today: `docs/ARCHITECTURE.md`. Evidence: `docs/STATUS.md`. The Qt Quick UI under `native/ui/` is frozen and is removed in Phase 4.
+Wirescape is an open-source modular patching environment for music. It has a native C++17 realtime engine (run as a separate process, `wirescape-engine`) and a standalone desktop app: an Electron window around the web UI (TypeScript). The Raspberry Pi 5 (Linux ARM64) is the first platform and the performance target. Windows follows. Module DSP stays portable to plugins and Daisy-class hardware. Contract: `docs/specs/ABI2_PLAN.md`. Built today: `docs/ARCHITECTURE.md`. Evidence: `docs/STATUS.md`. The Qt Quick UI under `native/ui/` is frozen and is removed in Phase 4.
 
 ## The loop: claim → work → sign → hand off
 1. **Claim:** comment `Claimed: <agent + model>, <date>` on the issue and set `status/in-progress`. If an item has had a claim for 24 h with no push or handoff, anyone may take it over by saying so in a comment.
@@ -37,11 +37,11 @@ ABI header edit · design choice not in the spec or plan decisions that changes 
 ## Engineering rules (non-negotiable)
 - **Realtime:** no allocation, locks, I/O, exceptions, logging or JSON in process, event or reset. Bounded work. Create/prepare/destroy run off the audio thread (quiescent or via the live-replan path).
 - **Devices off:** tests, CI, agents and the Pi runner never open audio/MIDI devices or LAN sockets (localhost is fine). Real-device paths only behind `--confirm-*`, run by the owner (their launcher/autostart counts).
-- **Host network:** `wirescape-host` binds 127.0.0.1 only, checks a per-launch token and the Origin header, and bounds message sizes. LAN access only via an explicit, off-by-default toggle.
-- **Contract:** follow `docs/specs/ABI2_PLAN.md` and, from Phase 1, `docs/specs/HOST_PROTOCOL` (`.md`, written in P1.0). ABI soft freeze: additive SDK changes only, otherwise a migration note.
-- **Compatibility:** module, port and parameter IDs never change; patch migration is lossless; unknown data is preserved by both the UI and the host.
-- **Tests:** every change ships tests. UI changes keep Playwright green with `FakeEngine`; host changes add protocol tests with null devices.
-- **Licences:** SPDX header on every new file. MIT for `native/sdk/`, `native/include/wirescape/module2.h`, `native/voice/`; GPL-3.0 elsewhere (including `apps/studio/` and `native/host/`). Third-party sources, pinned revisions and licences go in that component's `DESIGN.md`.
+- **App ↔ engine:** the app talks to `wirescape-engine` only over its stdin/stdout (no network sockets). The renderer reaches it only through the preload bridge (`contextIsolation` on, `nodeIntegration` off). Message sizes are bounded. LAN features (OSC) stay behind an explicit, off-by-default toggle.
+- **Contract:** follow `docs/specs/ABI2_PLAN.md` and, from Phase 1, the engine protocol in `docs/specs/` (written in P1.0). ABI soft freeze: additive SDK changes only, otherwise a migration note.
+- **Compatibility:** module, port and parameter IDs never change; patch migration is lossless; unknown data is preserved by both the UI and the engine.
+- **Tests:** every change ships tests. UI changes keep Playwright green with `FakeEngine`; engine-sidecar changes add protocol tests with a null sink and fake MIDI.
+- **Licences:** SPDX header on every new file. MIT for `native/sdk/`, `native/include/wirescape/module2.h`, `native/voice/`; GPL-3.0 elsewhere (including `apps/` and `native/sidecar/`). Third-party sources, pinned revisions and licences go in that component's `DESIGN.md`.
 
 ## Labels
 Status `status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · Tier `tier/T0|T1|T2` · Size `size/s|m|l` · Phase `phase/0..5` · `checkpoint` · overrides `allow-protected`, `allow-test-removal` (owner or planner only). The old `agent/*` labels are informational only; no one is required to set them.
@@ -58,13 +58,13 @@ Signed: <agent + model>, <date>
 ```
 
 ## Commands (all keep audio off)
-`python tools/dev.py doctor | build [--headless] | test | check --package | launch`. UI (after 1A): `cd apps/studio && npm ci && npm test`.
+`python tools/dev.py doctor | build [--headless] | test | check --package | launch`. UI (after 1A): `cd apps/studio && npm ci && npm test`. App (after 1F): `cd apps/desktop && npm ci && npm test`.
 **Cloud containers:** if `cmake` or `ninja` is missing, run the repo's setup script first (`tools/ci/codex_cloud_setup.sh`, or `tools/cloud/setup.sh` once it exists) and use the PATH it prints. Fix setup problems in that script, never by asking the owner to change environment settings. Agents without a build (for example ChatGPT): CI on your branch is your build; read its summary and fix.
 
 ## Pi evidence
 - No agent reaches the Pi or the laptop, by SSH or any other way. Pi work goes through the `pi5` runner on the private repo `kalharbi11/wirescape-pi` (`docs/PI_RUNNER.md`); this repo's workflows never target it.
 - Add `ci/pi` to a draft PR whose acceptance has `pi:` lines; use `ci/pi-soak` for soaks and `ci/pi-retry` for one rerun after an infrastructure fix. Link the private run; queued runs are not evidence. Never run fork PRs on the Pi.
-- Pi evidence only for engine, DSP, host, audio-path or build changes. Real sound, MIDI devices and the display are checked by the owner.
+- Pi evidence only for engine, DSP, sidecar, audio-path or build changes. Real sound, MIDI devices and the display are checked by the owner.
 
 ## Docs upkeep
 `docs/PLAN.md` belongs to the planner (others may tick checkboxes). Update `docs/ARCHITECTURE.md` in the PR that changes the architecture, and `docs/STATUS.md` when a phase completes. Tasks go in `docs/tasks/`, reviews in `docs/reviews/`.

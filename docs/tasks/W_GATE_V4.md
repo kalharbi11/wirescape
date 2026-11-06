@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# W gate v4: agent-neutral approval lines (workflow v3)
+# W gate v4 (#236): agent-neutral approval lines (workflow v3)
 
 Make `tools/merge_gate.py` match workflow v3 (`AGENTS.md`, `docs/WORKFLOW.md` §4): any agent may approve, every approval is signed, and nothing is reserved for one agent.
 
