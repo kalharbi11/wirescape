@@ -84,6 +84,9 @@ async function goldenBridge(page: Page): Promise<void> {
       delete a.id; delete b.id; // RealEngine allocates its own correlation IDs.
       // PatchDoc may fill display-only UI fields, never alter the execution view.
       if (a.type === 'loadGraph' && b.patch?.ui === undefined) delete a.patch.ui;
+      // addModule.params is optional in v0; RealEngine sends {} by default.
+      if (a.type === 'addModule' && b.params === undefined &&
+          a.params && Object.keys(a.params).length === 0) delete a.params;
       return JSON.stringify(a) === JSON.stringify(b);
     };
     const send = (cmd: Message) => {
