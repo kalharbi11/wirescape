@@ -155,6 +155,7 @@ with tempfile.TemporaryDirectory() as directory:
     patch = minimal()
     original = json.dumps(patch)
     assert engine.call('loadGraph', patch=patch)['gen'] == '1'
+    expected_commits = [('d5', '1')]
     assert json.dumps(patch) == original
     refused = engine.call('addModule', False, moduleId=8, moduleType='absent.vco')
     assert refused['code'] == 'unknown-module' and refused['gen'] == '1'
@@ -239,7 +240,8 @@ with tempfile.TemporaryDirectory() as directory:
         engine.call('loadGraph', patch=json.loads(path.read_text()))
         engine.call('noteOn', note=60, velocity=0.8)
     # Successful loadGraph resets the incremental ID namespace.
-    engine.call('loadGraph', patch=minimal())
+    loaded = engine.call('loadGraph', patch=minimal())
+    expected_commits.append(('d5', loaded['gen']))
     engine.call('addModule', moduleId=10, moduleType='essentials.lfo')
     # Exercise the D7 sidecar seam with the fake MIDI worker running. No device opens.
     fake_midi = engine.call('listMidiDevices')['result']['devices'][0]
@@ -256,7 +258,9 @@ with tempfile.TemporaryDirectory() as directory:
         ('removeModule', dict(moduleId=21)),
     ]:
         prior = int(engine.last_gen)
-        assert int(engine.call(method, **payload)['gen']) == prior + 1
+        result = engine.call(method, **payload)
+        assert int(result['gen']) == prior + 1
+        expected_commits.append(('live', result['gen']))
         assert engine.session == old_session and engine.process.poll() is None
     # A refused live edit must not advance gen or tear down the running session.
     prior = engine.last_gen
@@ -264,6 +268,12 @@ with tempfile.TemporaryDirectory() as directory:
     assert 'stop' not in engine.stderr().lower(), engine.stderr()
     engine.call('setMidiEnabled', deviceId=fake_midi['id'], on=False)
     engine.close(b'{"unfinished":')
+    # After EOF the stderr drainer has joined: assert one path per accepted gen.
+    # This fails if an incremental edit silently takes D5, or a refusal logs a commit.
+    commits = [line for line in engine.stderr().splitlines() if line.startswith('commit path=')]
+    for path, gen in expected_commits:
+        assert [line for line in commits if line.endswith(f' gen={gen}')] == [
+            f'commit path={path} gen={gen}'], engine.stderr()
     restarted = Engine(settings)
     assert restarted.session != old_session
     assert restarted.call('loadGraph', patch=minimal())['gen'] == '1'

@@ -385,6 +385,7 @@ void Session::commit(Json patch, bool new_namespace) {
                 patch_.swap(patch);
                 used_ids_.swap(ids);
                 ++generation_;
+                std::cerr << "commit path=live gen=" << generation_ << '\n';
                 return;
             }
             if (error != "MIDI worker busy") break;
@@ -451,6 +452,7 @@ void Session::commit(Json patch, bool new_namespace) {
     ++generation_;
     keyboard_.fill(false);
     used_ids_.swap(ids);
+    std::cerr << "commit path=d5 gen=" << generation_ << '\n';
 }
 Json Session::apply(const Json &command) {
     auto type = command.at("type").get<std::string>();

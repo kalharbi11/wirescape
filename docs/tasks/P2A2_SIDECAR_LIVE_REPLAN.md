@@ -21,6 +21,10 @@ D5–D7, `native/sidecar/session.{h,cpp}`, `native/control/midi_host.*`,
 - Exercise add/connect/disconnect/remove and refusal through the real stdio
   protocol with the paced null sink and fake MIDI only. Retain the existing
   fake Host MIDI-note/held-release tests and the 256-frame gap bound.
+- Follow-up (Low, Keel review #273): add a nonbusy replan-refusal → D5
+  process vector when a catalogue graph can trigger that seam without a
+  production test hook. Successful commits log their path and generation on
+  the control thread; process tests assert live cable edits versus D5 loadGraph.
 - No physical audio/MIDI device access in CI, no ABI/protocol change, and no
   new dependencies. T2 cross-family review by Keel.
 
