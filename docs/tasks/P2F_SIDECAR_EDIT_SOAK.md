@@ -15,9 +15,8 @@ python tools/sidecar_edit_soak.py --seconds 2 --seed 278
 
 A later dedicated runner may use `--seconds 3600` with its built executable.
 Each cycle creates a fresh module ID, changes VCO frequency twice, connects and
-disconnects signal audio, removes the module, sends synthetic note on/off, then panics.
-Replies must match
-request ID, session, protocol and exact expected generation. Per-reply deadlines,
+disconnects signal audio, removes the module, sends synthetic note on/off, then
+panics. Replies must match request ID, session, protocol and exact expected generation. Per-reply deadlines,
 stdout size/queue bounds, concurrent stderr draining, and EOF shutdown are
 fail-closed. Errors include seed, step and retained stderr tail. Duration measures
 active iterations; a final in-flight cycle and shutdown may exceed the requested
