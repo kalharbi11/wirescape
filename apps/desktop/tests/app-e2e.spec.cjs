@@ -91,6 +91,7 @@ test('real sidecar: hello, devices, native patch, live knob, cable D5 and crash 
     expect(await page.evaluate(() => window.__e2e.find(m => m.type === 'status').status.audio.state))
       .toBe('no-device');
     const originalGen = await page.evaluate(() => window.__e2e.filter(m => m.ok === true).at(-1)?.gen ?? '0');
+    await page.evaluate(gen => { window.__e2eBeforeGen = gen; }, originalGen);
 
     await app.evaluate(({ dialog }, file) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
