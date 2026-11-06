@@ -24,6 +24,17 @@ void u32(std::ofstream&out,uint32_t v){u16(out,uint16_t(v));u16(out,uint16_t(v>>
 uint32_t integer(const std::string&text,uint32_t maximum){size_t used=0;auto n=std::stoul(text,&used);if(used!=text.size()||!n||n>maximum)throw std::runtime_error("Option outside range");return uint32_t(n);}
 }
 int wirescape_play(int argc,char**argv){
+    const auto has = [&](const char *flag) {
+        return std::any_of(argv + 2, argv + argc, [&](const char *arg) { return std::string(arg) == flag; });
+    };
+    if (has("--list-midi")) {
+        // Enumerates endpoints only; no port is opened. Refused before the backend exists.
+        if (!has("--confirm-midi"))
+            throw std::runtime_error("--list-midi requires explicit confirmation with --confirm-midi");
+        wirescape::midi::Host midi(true);
+        for (const auto &endpoint : midi.endpoints()) std::cout << endpoint.name << "|" << endpoint.system_name << '\n';
+        return 0;
+    }
  std::string midiName;bool confirmMidi=false;
  std::string patch,device,output="build/play-offline.wav",directory=std::filesystem::absolute(argv[0]).parent_path().string();
  uint32_t rate=48000,block=128,seconds=10;bool confirm=false,list=false,pace=false;
