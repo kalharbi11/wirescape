@@ -397,10 +397,14 @@ void Session::commit(Json patch, bool new_namespace) {
     const auto begun = std::chrono::steady_clock::now();
     // D5 budgets (see kMuteBudget/kGapBudget); they stretch only when a block period is longer.
     const auto period = std::chrono::microseconds(int64_t(1e6 * double(options_.block) / double(options_.rate)));
-    if (rendering) {
+    if ((stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire)) {
         app_engine_begin_master_fade_out(active_);
         const auto deadline = begun + std::max<std::chrono::microseconds>(kMuteBudget, 2 * period);
         while (!app_engine_master_fade_silent(active_)) {
+            // D6 may lose the stream during a refused replan or the D5 fade.
+            // A callback that no longer renders cannot acknowledge a mute.
+            if ((stream_ && !stream_->running()) || (!stream_ && !sink_rendering_.load(std::memory_order_acquire)))
+                break;
             if (std::chrono::steady_clock::now() >= deadline) {
                 app_engine_resume_master_fade(active_);
                 throw Refusal("unavailable", "Audio mute did not complete");
