@@ -244,7 +244,10 @@ struct Audio {
                       in_render = false;
                   }
                   next += std::chrono::nanoseconds(uint64_t(frames) * 1000000000 / 48000);
-                  std::this_thread::sleep_until(next);
+                  // A coarse timed sleep (notably on Windows) can miss several
+                  // 5.333ms callbacks and consume the real three-block park bound.
+                  // Keep the same wall-clock cadence without a timer-quantum wakeup.
+                  while (run.load() && Clock::now() < next) std::this_thread::yield();
               }
           }) {}
     ~Audio() {
@@ -421,7 +424,13 @@ static double live_edits() {
     auto edit = [&](Topology topology) {
         auto next = graph(topology);
         const auto before = audio.blocks.load();
-        CHECK(e.replan(*next, uint64_t(frames) * 3 * 1000000000 / 48000));
+        const auto started = now_ns();
+        const bool replanned = e.replan(*next, uint64_t(frames) * 3 * 1000000000 / 48000);
+        if (!replanned)
+            std::fprintf(stderr, "replan failed after %.3f ms, %llu callbacks: %s\n",
+                         double(now_ns() - started) / 1000000.,
+                         static_cast<unsigned long long>(audio.blocks.load() - before), e.error().c_str());
+        CHECK(replanned);
         next.reset(); // No render callback may retain a staging owner/context.
         const auto deadline = Clock::now() + std::chrono::seconds(2);
         while (audio.blocks.load() < before + 3 && Clock::now() < deadline) std::this_thread::yield();
