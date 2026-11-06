@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import type { PatchV2, PatchModule, PatchUi, Connection, Endpoint } from './types';
 import { EMPTY_PATCH, connKey } from './types';
+import catalogue from '../../public/wirescape_modules.json' with { type: 'json' };
+
+const descriptors = new Map(catalogue.modules.map(m => [m.id, m]));
+const outputRoutes = (module: number) => [0, 1].map(bus_channel => ({ module, port: 'audio', bus_channel }));
 
 export type PatchEvent =
   | { t: 'reset' }
@@ -53,6 +57,9 @@ export class PatchDoc {
   }
 
   replace(patch: PatchV2): void {
+    // Mirror the native document's v1 migration, preserving the original envelope.
+    if ((patch as { version: number }).version === 1) patch = migrateV1(patch);
+    patch = structuredClone(patch);
     const { format: _f, version: _v, modules, connections, ui, ...rest } = patch as PatchV2 & Record<string, unknown>;
     this.extras = rest;
     this.modules.clear();
@@ -75,7 +82,14 @@ export class PatchDoc {
       format: 'wirescape.native.patch',
       version: 2,
       ...this.extras,
-      modules: [...this.modules.values()].map(m => ({ ...m })),
+      settings: 'settings' in this.extras ? this.extras.settings : {
+        sample_rate: 48000, max_block_frames: 256, max_channels: 16, feedback_block: 1,
+      },
+      outputs: 'outputs' in this.extras ? this.extras.outputs : this.defaultOutputs(),
+      modules: [...this.modules.values()].map(m => {
+        const version = descriptors.get(m.module)?.version;
+        return { ...(!('version' in m) && version !== undefined ? { version } : {}), ...m };
+      }),
       connections: this.connections.map(c => ({ ...c })),
       ui: {
         ...this.ui,
@@ -84,6 +98,11 @@ export class PatchDoc {
         view: { ...this.ui.view! },
       },
     } as PatchV2;
+  }
+
+  private defaultOutputs(): NonNullable<PatchV2['outputs']> {
+    // UI defaults route every Output; native's absent-outputs fallback selects only the lowest ID.
+    return [...this.modules.values()].filter(m => m.module === 'essentials.output').flatMap(m => outputRoutes(m.id));
   }
 
   // ---- modules ----------------------------------------------------------
@@ -96,6 +115,10 @@ export class PatchDoc {
 
   addModule(type: string, params: Record<string, number>, x: number, y: number, id = this.nextId()): number {
     this.modules.set(id, { id, module: type, parameters: { ...params } });
+    if (type === 'essentials.output') {
+      if (!('outputs' in this.extras)) this.extras.outputs = this.defaultOutputs();
+      else if (Array.isArray(this.extras.outputs)) this.extras.outputs.push(...outputRoutes(id));
+    }
     this.ui.positions![String(id)] = [Math.round(x), Math.round(y)];
     this.emit({ t: 'module-added', id });
     return id;
@@ -107,6 +130,7 @@ export class PatchDoc {
       this.disconnect(c);
     }
     this.modules.delete(id);
+    if (Array.isArray(this.extras.outputs)) this.extras.outputs = this.extras.outputs.filter(o => o.module !== id);
     delete this.ui.positions![String(id)];
     delete this.ui.labels![String(id)];
     this.emit({ t: 'module-removed', id });
@@ -133,7 +157,7 @@ export class PatchDoc {
   }
 
   setView(x: number, y: number, zoom: number): void {
-    this.ui.view = { x, y, zoom };
+    this.ui.view = { ...this.ui.view, x, y, zoom };
     this.emit({ t: 'view' });
   }
 
@@ -248,3 +272,32 @@ function stripKnownUi(ui: PatchUi | undefined): Record<string, unknown> {
 }
 
 export const EMPTY = EMPTY_PATCH;
+
+function migrateV1(source: PatchV2): PatchV2 {
+  const original = structuredClone(source);
+  const modules = source.modules.map(m => {
+    const type = String(m.type);
+    const descriptor = descriptors.get(type);
+    const mapping = (descriptor?.legacy_parameters ?? {}) as Record<string, number>;
+    const values = (m.values ?? {}) as Record<string, number>;
+    const parameters = Object.fromEntries(Object.entries(mapping)
+      .filter(([, legacy]) => String(legacy) in values).map(([id, legacy]) => [id, values[String(legacy)]]));
+    // Preserve colliding v1 fields in the same envelope as native patch_document.
+    const { type: _t, values: _v, state: _s, inactive: _i, channel_seed: _c, ...rest } = m;
+    return { ...rest, module: type, ...(descriptor ? { version: descriptor.version } : {}),
+      config: {}, parameters, preserved: structuredClone(m), ...(!descriptor ? { inactive: true } : {}) };
+  });
+  const connections = source.connections.map(c => {
+    const { fromNode, fromPort, toNode, toPort, ...rest } = c;
+    const kind = (c.kind as string) === 'audio' || (c.kind as string) === 'control' ? 'signal' : c.kind;
+    if (kind === 'signal' && kind !== c.kind) {
+      delete rest.amount; delete rest.feedback; delete rest.stereo_pair;
+    }
+    return { ...rest, kind, from: { module: Number(fromNode), port: String(fromPort) },
+      to: { module: Number(toNode), port: String(toPort) } };
+  });
+  return { ...source, version: 2, modules, connections, preserved: original,
+    // The native migration selects output port zero (audio for the existing examples).
+    outputs: modules.filter(m => m.id === source.outputNode).flatMap(m => outputRoutes(m.id)),
+    host_mappings: [], devices: [] };
+}
