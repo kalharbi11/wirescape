@@ -262,8 +262,17 @@ class Engine:
         burst = [dict(v=0, id=f'golden-fill-{i}', type='selectAudioDevice',
                       deviceId='USB Stereo') for i in range(640)]
         burst.append(command)
-        self.send(b''.join(json.dumps(item, separators=(',', ':')).encode() + b'\n'
-                           for item in burst))
+        # Drain replies while the burst is still being written. A full stdin
+        # pipe plus a full stdout pipe must never deadlock the test itself.
+        write_errors = []
+        def write_burst():
+            try:
+                self.send(b''.join(json.dumps(item, separators=(',', ':')).encode() + b'\n'
+                                   for item in burst))
+            except OSError as error:
+                write_errors.append(str(error))
+        sender = threading.Thread(target=write_burst, daemon=True)
+        sender.start()
         answer = None
         busy_count = 0
         for item in burst:
@@ -275,6 +284,9 @@ class Engine:
                 busy_count += 1
             if item is command:
                 answer = reply
+        sender.join(timeout=12)
+        self.audit.check(not sender.is_alive() and not write_errors, 'saturation',
+                         f'burst writer stalled or failed: {write_errors}')
         self.audit.check(busy_count > 0, 'saturation', 'no full-queue busy was observed')
         return answer
 
