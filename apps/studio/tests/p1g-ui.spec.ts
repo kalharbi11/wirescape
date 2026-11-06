@@ -101,22 +101,45 @@ test('MIDI In endpoint choices persist, including disconnected selections', asyn
   await page.evaluate(() => window.__wirescapeTest.load({
     format: 'wirescape.native.patch', version: 2,
     modules: [{ id: 1, module: 'midi.in', parameters: {},
-      config: { endpoint: 'midi:disconnected', opaque: 'preserve' } }],
+      config: { endpoint: 'midi:disconnected', system_name: 'gone', opaque: 'preserve' } }],
     connections: [],
     ui: { positions: { 1: [130, 130] }, labels: {},
       view: { x: 0, y: 0, zoom: 1 } },
   }, 'MIDI input'));
   await settle(page);
   const input = page.getByTestId('midi-endpoint-1');
-  await expect(input).toHaveValue('midi:disconnected');
+  await expect(input.locator('option:checked')).toHaveText('midi:disconnected (not connected)');
   await expect(input.locator('option:checked')).toContainText('(not connected)');
-  await input.selectOption('midi:1');
-  await expect(input).toHaveValue('midi:1');
+  await input.selectOption('Launchpad Mini|midi:1');
+  await expect(input).toHaveValue('Launchpad Mini|midi:1');
   const saved = await page.evaluate(() => window.__wirescapeTest.save());
-  expect(saved.modules[0].config).toEqual({ endpoint: 'midi:1', opaque: 'preserve' });
+  expect(saved.modules[0].config).toEqual(
+    { endpoint: 'Launchpad Mini', system_name: 'midi:1', opaque: 'preserve' });
   await page.evaluate(p => window.__wirescapeTest.load(p), saved);
   await settle(page);
-  await expect(page.getByTestId('midi-endpoint-1')).toHaveValue('midi:1');
+  await expect(page.getByTestId('midi-endpoint-1')).toHaveValue('Launchpad Mini|midi:1');
+  await input.selectOption('all_enabled');
+  const all = await page.evaluate(() => window.__wirescapeTest.save());
+  expect(all.modules[0].config).toEqual({ endpoint: 'all_enabled', opaque: 'preserve' });
+});
+
+test('opening a MIDI In patch with empty config does not rewrite it', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => window.__wirescapeTest.load({
+    format: 'wirescape.native.patch', version: 2,
+    modules: [{ id: 1, module: 'midi.in', parameters: {}, config: {} }],
+    connections: [],
+    ui: { positions: { 1: [130, 130] }, labels: {},
+      view: { x: 0, y: 0, zoom: 1 } },
+  }, 'MIDI input'));
+  await settle(page);
+  await expect(page.getByTestId('midi-endpoint-1').locator('option:checked'))
+    .toHaveText('All enabled devices');
+  const saved = await page.evaluate(() => window.__wirescapeTest.save());
+  expect(saved.modules[0].config).toEqual({});
+  await page.evaluate(p => window.__wirescapeTest.load(p), saved);
+  await settle(page);
+  expect((await page.evaluate(() => window.__wirescapeTest.save())).modules[0].config).toEqual({});
 });
 
 test('Settings MIDI menu toggles enablement of the selected engine device', async ({ page }) => {
@@ -129,10 +152,10 @@ test('Settings MIDI menu toggles enablement of the selected engine device', asyn
   await enabled.click();
   await expect(enabled).toHaveAttribute('aria-pressed', 'false');
   expect((await page.evaluate(() => window.__wirescapeTest.engine.listMidiDevices()))
-    .find((d: { id: string }) => d.id === 'midi:0').enabled).toBe(false);
-  await device.selectOption('midi:1');
+    .find((d: { id: string }) => d.id === 'Arturia KeyStep|midi:0').enabled).toBe(false);
+  await device.selectOption('Launchpad Mini|midi:1');
   await expect(enabled).toHaveAttribute('aria-pressed', 'true');
-  await device.selectOption('midi:0');
+  await device.selectOption('Arturia KeyStep|midi:0');
   await expect(enabled).toHaveAttribute('aria-pressed', 'false');
   await enabled.click();
   await expect(enabled).toHaveAttribute('aria-pressed', 'true');

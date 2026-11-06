@@ -11,6 +11,8 @@ import type { PatchV2, Connection } from '../patch/types';
 export interface Device {
   id: string;
   name: string;
+  /** MIDI: OS endpoint name; id is `name|system_name`. */
+  system_name?: string;
   /** Present for audio devices. */
   sampleRates?: number[];
   enabled?: boolean;

@@ -24,7 +24,7 @@ export interface PanelHost {
   commitParam(moduleId: number, paramId: string, value: number, commit: boolean): void;
   commitModAmount(c: Connection, amount: number, commit: boolean): void;
   listMidiDevices(): Promise<Device[]>;
-  setModuleEndpoint(moduleId: number, endpoint: string): void;
+  setModuleEndpoint(moduleId: number, endpoint: string, systemName?: string): void;
   describeSource(c: Connection): string;
   /** The cable's user-picked colour, as a CSS colour. */
   cableColor(c: Connection): string;
@@ -89,29 +89,44 @@ export class Panel {
       const sel = el('select', 'input-select') as HTMLSelectElement;
       sel.dataset.testid = `midi-endpoint-${moduleId}`;
       sel.setAttribute('aria-label', 'MIDI input device');
-      const current = () => {
-        const cfg = host.doc.modules.get(moduleId)?.config;
-        return cfg && typeof cfg === 'object' && 'endpoint' in cfg
-          && typeof cfg.endpoint === 'string' ? cfg.endpoint : 'all_enabled';
+      const sysOf = (d: Device) => d.system_name ?? (d.id.includes('|') ? d.id.slice(d.id.indexOf('|') + 1) : '');
+      const ALL = 'all_enabled';
+      const SAVED = '\u0000saved';
+      let devices: Device[] = [];
+      const saved = () => {
+        const cfg = host.doc.modules.get(moduleId)?.config as Record<string, unknown> | undefined;
+        const endpoint = cfg && typeof cfg.endpoint === 'string' ? cfg.endpoint : ALL;
+        const systemName = cfg && typeof cfg.system_name === 'string' ? cfg.system_name : '';
+        return { endpoint, systemName };
       };
       const refresh = async () => {
-        let devices: Device[] = [];
         try { devices = await host.listMidiDevices(); } catch { /* keep saved choice */ }
         if (!sel.isConnected) return;
-        const endpoint = current();
-        const items = [{ id: 'all_enabled', name: 'All enabled devices' },
-          ...devices.map(d => ({ id: d.id, name: d.name }))];
-        if (!items.some(d => d.id === endpoint)) {
-          items.push({ id: endpoint, name: `${endpoint} (not connected)` });
+        const { endpoint, systemName } = saved();
+        const items = [{ value: ALL, label: 'All enabled devices' },
+          ...devices.map(d => ({ value: d.id, label: d.name }))];
+        let selected = ALL;
+        if (endpoint !== ALL) {
+          const match = devices.find(d => d.name === endpoint && sysOf(d) === systemName);
+          if (match) selected = match.id;
+          else {
+            selected = SAVED;
+            items.push({ value: SAVED, label: `${endpoint} (not connected)` });
+          }
         }
         sel.replaceChildren(...items.map(item => {
           const option = document.createElement('option');
-          option.value = item.id; option.textContent = item.name;
+          option.value = item.value; option.textContent = item.label;
           return option;
         }));
-        sel.value = endpoint;
+        sel.value = selected;
       };
-      sel.addEventListener('change', () => host.setModuleEndpoint(moduleId, sel.value));
+      sel.addEventListener('change', () => {
+        if (sel.value === SAVED) return;
+        if (sel.value === ALL) { host.setModuleEndpoint(moduleId, ALL); return; }
+        const d = devices.find(x => x.id === sel.value);
+        if (d) host.setModuleEndpoint(moduleId, d.name, sysOf(d));
+      });
       row.append(el('div', 'control-caption', 'MIDI input'), sel);
       controls.append(row);
       void refresh();

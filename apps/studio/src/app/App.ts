@@ -102,7 +102,7 @@ export class App {
       commitParam: (m, p, v, c) => this.commitParam(m, p, v, c),
       commitModAmount: (c, a, commit) => this.commitModAmount(c, a, commit),
       listMidiDevices: () => this.engine.listMidiDevices(),
-      setModuleEndpoint: (id, endpoint) => this.setMidiEndpoint(id, endpoint),
+      setModuleEndpoint: (id, endpoint, sys) => this.setMidiEndpoint(id, endpoint, sys),
       describeSource: c => this.describeSource(c),
       cableColor: c => `var(--cable-${this.doc.cableColor(connKey(c)) ?? 'ink'})`,
       toast: (m, tone) => this.toasts.show(m, tone),
@@ -519,9 +519,9 @@ export class App {
     if (commit && paramId === 'bpm' && this.lastStatus) this.statusBar.update(this.lastStatus);
   }
 
-  private setMidiEndpoint(moduleId: number, endpoint: string): void {
+  private setMidiEndpoint(moduleId: number, endpoint: string, systemName?: string): void {
     const previous = this.doc.toJSON();
-    this.doc.setModuleEndpoint(moduleId, endpoint);
+    this.doc.setModuleEndpoint(moduleId, endpoint, systemName);
     void this.engine.loadGraph(this.doc.toJSON()).catch(err => {
       this.doc.replace(previous);
       void this.engine.loadGraph(previous);

@@ -67,8 +67,8 @@ export class FakeEngine implements EngineClient {
     { id: 'usb:1', name: 'Scarlett 2i2 USB', kind: 'audio', sampleRates: [44100, 48000, 96000] },
   ];
   private midiDevices: Device[] = [
-    { id: 'midi:0', name: 'Arturia KeyStep', kind: 'midi', enabled: true },
-    { id: 'midi:1', name: 'Launchpad Mini', kind: 'midi', enabled: true },
+    { id: 'Arturia KeyStep|midi:0', name: 'Arturia KeyStep', system_name: 'midi:0', kind: 'midi', enabled: true },
+    { id: 'Launchpad Mini|midi:1', name: 'Launchpad Mini', system_name: 'midi:1', kind: 'midi', enabled: true },
   ];
 
   constructor(private readonly registry: ModuleRegistry) {
@@ -646,10 +646,10 @@ export class FakeEngine implements EngineClient {
     a.cpuPercent = Math.round((a.cpuPercent + (target - a.cpuPercent) * 0.25) * 10) / 10;
 
     const wantExtra = this.debug.extraMidiDevice;
-    const hasExtra = this.midiDevices.some(d => d.id === 'midi:2');
+    const hasExtra = this.midiDevices.some(d => d.id === 'Keystation 49|midi:2');
     if (wantExtra !== hasExtra) {
-      if (wantExtra) this.midiDevices.push({ id: 'midi:2', name: 'Keystation 49', kind: 'midi', enabled: true });
-      else this.midiDevices = this.midiDevices.filter(d => d.id !== 'midi:2');
+      if (wantExtra) this.midiDevices.push({ id: 'Keystation 49|midi:2', name: 'Keystation 49', system_name: 'midi:2', kind: 'midi', enabled: true });
+      else this.midiDevices = this.midiDevices.filter(d => d.id !== 'Keystation 49|midi:2');
       this.pushStatus();
     }
   }

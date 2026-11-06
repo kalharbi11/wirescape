@@ -151,13 +151,15 @@ export class PatchDoc {
   }
 
   /** Preserve unrelated native module config keys when selecting MIDI input. */
-  setModuleEndpoint(id: number, endpoint: string): void {
+  setModuleEndpoint(id: number, endpoint: string, systemName?: string): void {
     const m = this.modules.get(id);
     if (!m || m.module !== 'midi.in') return;
     const current = m.config;
     const config = current && typeof current === 'object' && !Array.isArray(current)
       ? current as Record<string, unknown> : {};
-    m.config = { ...config, endpoint };
+    const { system_name: _drop, ...rest } = config;
+    m.config = systemName === undefined ? { ...rest, endpoint }
+      : { ...rest, endpoint, system_name: systemName };
     this.emit({ t: 'config', id });
   }
 
