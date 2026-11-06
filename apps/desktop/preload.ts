@@ -7,6 +7,22 @@ const listeners = new Set<(message: Wire) => void>();
 
 function checkedCommand(value: Wire): string {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid command');
+  const seen = new WeakSet<object>();
+  function validate(v: unknown, depth = 0): void {
+    if (depth > 64) throw new RangeError('Command nesting too deep');
+    if (typeof v === 'number' && !Number.isFinite(v)) throw new TypeError('Non-finite number');
+    if (typeof v === 'undefined' || typeof v === 'function' || typeof v === 'symbol' ||
+        typeof v === 'bigint') throw new TypeError('Unserializable command');
+    if (v && typeof v === 'object') {
+      if (seen.has(v)) throw new TypeError('Cyclic command');
+      seen.add(v);
+      if (!Array.isArray(v) && Object.getPrototypeOf(v) !== Object.prototype &&
+          Object.getPrototypeOf(v) !== null) throw new TypeError('Invalid command object');
+      for (const child of Object.values(v)) validate(child, depth + 1);
+      seen.delete(v);
+    }
+  }
+  validate(value);
   let raw: string;
   try { raw = JSON.stringify(value); } catch { throw new TypeError('Unserializable command'); }
   if (!raw || new TextEncoder().encode(raw).length > LIMIT) throw new RangeError('Command too large');
@@ -15,13 +31,6 @@ function checkedCommand(value: Wire): string {
       typeof obj.id !== 'string' || !/^[\x21-\x7e]{1,64}$/.test(obj.id)) {
     throw new TypeError('Invalid protocol envelope');
   }
-  function depth(v: unknown, level = 0): void {
-    if (level > 64) throw new RangeError('Command nesting too deep');
-    if (v && typeof v === 'object') {
-      for (const child of Object.values(v)) depth(child, level + 1);
-    }
-  }
-  depth(obj);
   return raw;
 }
 
