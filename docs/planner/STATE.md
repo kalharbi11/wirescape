@@ -3,18 +3,20 @@
 
 Keep this under 60 lines. Rewrite it at the end of each lead session; history lives in git.
 
-**Updated:** 2026-11-06 ~10:40 UTC by Keel (fourth pass). **Owner priority: get the Pi working fully. Windows waits.**
+**Updated:** 2026-11-06 ~11:00 UTC by Keel (fifth pass). **Owner priority: get the Pi working fully. Windows waits.**
 
 ## Where things stand
-- **Merged:** P0D, P1A, P1.0, P0E, P1G, P1D, P1C (#249), **P1F shell (#253)**. #257 (P1E part 1) is auto-merging on green.
-- **#247 P1B sidecar:** Pi/Linux first (D13); Windows protocol test skips under `WIN32` only, see **#266 (1B-2)**. GPT review of Keel's delta done; its Medium (1 s deadlines everywhere) fixed in `473d52e`: release builds keep 100/150 ms, only ASan/TSan get 1 s. Head `9390fa8`. **Merge when** hosted CI is green and the Pi `sidecar_` result is posted on that head.
-- **#209 (2A live edits):** Keel T2 review posted, no High (two Mediums for the integration). Green incl. TSan and Pi (10.68 ms). Claim released; a ChatGPT agent takes it. After #247 merges: merge `main` in, re-green, Keel merges. **Sidecar integration is a separate issue, #267 (2A-2)**; #209 is at its size budget.
-- **#264 Pi appliance:** Keel T1-approved `3c770c6`, ready-to-merge. **#265 e2e smoke:** green against #247; waits for #247 to merge. **#263 modules:** red, waiting for a builder to apply Keel's `legacy_index` ruling. **#256 (1H, T2):** Studio half done; native checker after #247.
+- **Merged:** P0D, P1A, P1.0, P0E, P1G, P1D, P1C (#249), P1F shell (#253), P1E part 1 (#257), **P1B sidecar (#247, `5756f4f`)**: hosted green on `9390fa8`, Pi `pi5` full CTest green on `473d52e` (last commit is a const-ref only).
+- **#265 e2e smoke:** out of draft; main merged in; `ce8dd8c` builds the sidecar from the checkout (the #247 fetch is removed). Keel approved; auto-merges on green.
+- **#264 Pi appliance:** Windows red was the Linux-only XDG installer test; it's now skipped on `nt` only (Keel ruling, platform scope). Main merged in; approved `5715004`; auto-merges on green.
+- **#209 (2A live edits):** main merged in as `7076cc5` (docs conflict only; `app_engine.cpp` auto-merged with #247's D5 fade, so CI is the real check). Merge when hosted (incl. TSan) and `pi5` are green on that head. Then #267 (2A-2).
+- **#266 (1B-2 Windows stall):** Keel ruling posted: replace the iostream transport with raw handles (`ReadFile`/`WriteFile`, `read`/`write`), chunked reads, drop the win32 skip. T2.
+- **#263 modules:** red, waiting for a builder to apply Keel's `legacy_index` ruling. **#256 (1H, T2):** Studio half done; native checker can start now (#247 merged).
 - Known non-required red: `cortex-m7` / portability probe (#159). `static` is informational.
 
 ## Pi-first order (critical path to Test Session 1)
-1. #247 merge, 2. #265 e2e smoke green (sidecar x Electron, null sink), 3. private PR15 bench gate on the Pi runner, 4. Keel posts Test Session 1 commands.
-In parallel: #264 autostart, #263 modules, #209 then #267, #256. Windows (#266) only after Test Session 1.
+1. ~~#247 merge~~ done. 2. #265 green and merged. 3. Private PR15 bench gate on the Pi runner. 4. Keel posts the Test Session 1 commands on a Phase 1 tracking issue (DEMO_CLASS §5b, then the app §6 per the P1E guides).
+In parallel: #264, #263, #209 then #267, #256. Windows (#266) after Test Session 1.
 
 ## Compass decisions (2026-11-06 check-in)
 - Agreed: P0F is folded into Test Session 1; PLAN "Now" and 0F updated. 0E, 1D, 1G ticked; #250 is plan item **1H**.
@@ -33,13 +35,13 @@ In parallel: #264 autostart, #263 modules, #209 then #267, #256. Windows (#266) 
 - **Benchmark source:** null-sink histogram + `--bench-summary` stderr line (#258); no protocol change.
 
 ## Test Session 1 is ready when
-#247, #249 and #253 are merged; P1E part 1 is merged; the P1E e2e smoke is green; the Pi runner `ctest -R sidecar_` is green. Keel then posts the exact copy-paste commands on a Phase 1 tracking issue.
+Done: #247, #249, #253, P1E part 1, Pi `sidecar_` (on `473d52e`). Left: #265 e2e smoke merged. Keel then posts the exact copy-paste commands on a Phase 1 tracking issue.
 
 ## Waiting on the owner
 - Nothing until Test Session 1 is ready. (If the owner has 15 minutes on the Pi before then, §5b alone is still useful.)
 
 ## Next lead sessions
-- Keel: merge #247 when its three items are in; merge #209 once it's up to date and green; T2-review #256, #258, #267; post Test Session 1 commands.
+- Keel: confirm #265 and #264 merged (fix if red); merge #209 when `7076cc5`+ is green incl. TSan/pi5; T2-review #256, #258, #267, #266; post Test Session 1 commands once #265 is in.
 - Compass: Checkpoint A agenda after Test Session 1; triage the owner's results.
 
 ## Standing rules from the owner
