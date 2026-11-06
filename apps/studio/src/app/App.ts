@@ -802,9 +802,34 @@ export class App {
     });
 
     b.append(el('h3', 'settings-group', 'MIDI'));
-    for (const d of this.lastStatus?.midi.devices ?? []) {
-      b.append(field(d.name, switchButton(d.enabled !== false, on => engine.setMidiEnabled(d.id, on))));
-    }
+    const midiFields = el('div', 'settings-midi');
+    b.append(midiFields);
+    void engine.listMidiDevices().then(devices => {
+      if (!b.contains(midiFields)) return;
+      if (!devices.length) {
+        const empty = el('div', 'muted', 'No MIDI devices available.');
+        empty.dataset.testid = 'midi-no-devices';
+        midiFields.append(empty);
+        return;
+      }
+      const selected = select(devices.map(d => ({ value: d.id, label: d.name })),
+        devices[0]!.id, () => refreshToggle());
+      selected.dataset.testid = 'midi-device';
+      const toggleSlot = el('div', 'settings-midi-toggle');
+      const refreshToggle = () => {
+        const d = devices.find(device => device.id === selected.value)!;
+        const enabled = switchButton(d.enabled !== false, on => {
+          engine.setMidiEnabled(d.id, on);
+          d.enabled = on;
+        });
+        enabled.dataset.testid = 'midi-enabled';
+        toggleSlot.replaceChildren(enabled);
+      };
+      midiFields.append(field('Input device', selected), field('Enabled', toggleSlot));
+      refreshToggle();
+    }).catch(() => {
+      if (b.contains(midiFields)) midiFields.textContent = 'MIDI devices could not be listed.';
+    });
 
     const osc = this.lastStatus?.osc;
     if (osc && engine.setOsc) {
