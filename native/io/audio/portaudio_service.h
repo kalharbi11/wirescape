@@ -4,21 +4,32 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
-#include <stdexcept>
 namespace wirescape::audio {
 using EngineOwner=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
-class ShutdownFailure : public std::runtime_error { public: using std::runtime_error::runtime_error; };
-struct Device { std::string name; int index; bool is_default; };
-struct StreamSelection { std::string directory, name; };
-std::vector<Device> devices(const std::string& directory);
+class ShutdownFailure : public std::runtime_error {
+  public:
+    using std::runtime_error::runtime_error;
+};
+struct Device {
+    std::string name;
+    int index = -1;
+    bool is_default = false;
+};
+struct StreamSelection {
+    std::string directory, name;
+};
+std::vector<Device> devices(const std::string &directory);
 // Control-owned stream. Context exclusively owns the engine until stop proves
 // callbacks quiescent. A failed backend shutdown quarantines context and engine.
 class Stream {
-    struct Impl; std::unique_ptr<Impl> impl_;
-public:
-    Stream(EngineOwner&, StreamSelection selection, double rate, uint32_t block,
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+
+  public:
+    Stream(EngineOwner &, StreamSelection selection, double rate, uint32_t block,
            std::function<void()> stop_producers = {});
     ~Stream();
     EngineOwner stop();

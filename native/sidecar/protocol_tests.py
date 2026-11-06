@@ -223,9 +223,15 @@ with tempfile.TemporaryDirectory() as directory:
     assert restarted.session != old_session
     assert restarted.call('loadGraph', patch=minimal())['gen'] == '1'
     restarted.close()
-    # Long block periods cannot delay EOF teardown.
-    slow = Engine(Path(directory) / 'slow.json', '--rate', '1', '--block', '4096')
+    # Long block periods cannot delay hello or EOF teardown. 8 kHz x 4096 frames is the
+    # longest supported period (~512 ms); the engine refuses rates below 8 kHz.
+    started = time.monotonic()
+    slow = Engine(Path(directory) / 'slow.json', '--rate', '8000', '--block', '4096')
+    assert time.monotonic() - started < 2.0, 'hello waited on block-paced work'
+    slow.call('loadGraph', patch=minimal())
+    closing = time.monotonic()
     slow.close()
+    assert time.monotonic() - closing < 2.0, 'EOF teardown waited on block-paced work'
     for flags in [('--unknown',), ('--rate', '0'), ('--block', '4097'), ('--device',)]:
         result = subprocess.run([BINARY, *flags], input=b'', capture_output=True, timeout=10)
         assert result.returncode != 0 and not result.stdout
