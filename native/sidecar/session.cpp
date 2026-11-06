@@ -2,6 +2,7 @@
 #include "session.h"
 #include "runtime_patch.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -12,8 +13,24 @@
 #define NOMINMAX
 #include <windows.h>
 #endif
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
+#define WIRESCAPE_SIDECAR_SANITIZED 1
+#endif
+#endif
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+#define WIRESCAPE_SIDECAR_SANITIZED 1
+#endif
 namespace wirescape::sidecar {
 namespace {
+// D5 budgets: 100 ms mute, 150 ms gap (stretched only when one block period is longer).
+// Sanitizer builds run several times slower, so they get a liveness allowance instead;
+// release builds (Linux, Pi, Windows) keep the D5 budget as a hard refusal.
+#ifdef WIRESCAPE_SIDECAR_SANITIZED
+constexpr std::chrono::milliseconds kMuteBudget{1000}, kGapBudget{1000};
+#else
+constexpr std::chrono::milliseconds kMuteBudget{100}, kGapBudget{150};
+#endif
 struct Refusal : std::runtime_error {
     std::string code;
     Refusal(std::string c, const char *m) : std::runtime_error(m), code(std::move(c)) {}
@@ -355,12 +372,11 @@ void Session::commit(Json patch, bool new_namespace) {
     // D5 fallback: old graph keeps rendering through the linear fade-out.
     // The candidate was fully prepared above, so validation refusal is untouched.
     const auto begun = std::chrono::steady_clock::now();
-    // Liveness timeouts only (a stuck callback), not the D5 budget: the <=150 ms gap is
-    // proven deterministically in protocol_unit_tests; slow hosts (sanitizers) must still swap.
+    // D5 budgets (see kMuteBudget/kGapBudget); they stretch only when a block period is longer.
     const auto period = std::chrono::microseconds(int64_t(1e6 * double(options_.block) / double(options_.rate)));
     if (stream_ || sink_.joinable()) {
         app_engine_begin_master_fade_out(active_);
-        const auto deadline = begun + std::max<std::chrono::microseconds>(std::chrono::milliseconds(1000), 2 * period);
+        const auto deadline = begun + std::max<std::chrono::microseconds>(kMuteBudget, 2 * period);
         while (!app_engine_master_fade_silent(active_)) {
             if (std::chrono::steady_clock::now() >= deadline) {
                 app_engine_resume_master_fade(active_);
@@ -387,11 +403,10 @@ void Session::commit(Json patch, bool new_namespace) {
         start_audio();
         start_midi();
         if (stream_ || sink_.joinable()) {
-            const auto deadline =
-                begun + std::max<std::chrono::microseconds>(std::chrono::milliseconds(1000), 3 * period);
+            const auto deadline = begun + std::max<std::chrono::microseconds>(kGapBudget, 3 * period);
             while (!app_engine_master_fade_in_started(active_)) {
                 if (std::chrono::steady_clock::now() >= deadline)
-                    throw Refusal("unavailable", "Audio swap did not complete");
+                    throw Refusal("unavailable", "Audio swap exceeded gap budget");
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
         }
