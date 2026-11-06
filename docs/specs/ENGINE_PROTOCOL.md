@@ -97,7 +97,7 @@ Engine persists selected audio `id`, enabled MIDI `(name,system_name)` pairs and
 
 `devices` is an unthrottled push `{v:0,session,type:"devices",gen,audioDevices:Device[],midiDevices:Device[]}` after any enumeration/selection/hotplug change. The list replies use exactly the corresponding arrays. The first `hello` carries current device state; `devices` need not repeat it unless something changes.
 
-`status` at **at most 10 Hz**, and on discrete state transitions, has `{v:0,session,type:"status",gen,status:SystemStatus}`. `SystemStatus` keys match `EngineClient.ts` exactly:
+`status` at **at most 10 Hz**, coalescing discrete state transitions into the next sample, has `{v:0,session,type:"status",gen,status:SystemStatus}`. `SystemStatus` keys match `EngineClient.ts` exactly:
 - `audio`: `{state,deviceId,deviceName,sampleRate,bufferFrames,latencyMs,cpuPercent,dropouts}`. `deviceId`/`deviceName` are `null` without an active output. `sampleRate` and `bufferFrames` are configured actual values; `latencyMs` is the UI's **calculated round-trip estimate** `2*bufferFrames/sampleRate*1000` (not a measured driver round trip). `cpuPercent` is measured callback wall-time / block duration ×100; `dropouts` is the real cumulative xrun/dropout count. When no callback is running, CPU is 0 (no callback work) and the UI displays **“not available”** for CPU/latency instead of interpreting that as measured device performance. Never invent a device, CPU sample or dropout.
 - `midi`: `{devices:Device[],activity:{[deviceId]:number}}`, only observed input activity with 0..1 decaying amplitude. No events means `{}`. Omit optional `clock` unless a running Clock source has a real observed BPM/run state. Omit `osc` in v0 and hide OSC settings.
 
@@ -121,11 +121,11 @@ Because control processing is serialized, `gen` tracks committed topology and ca
 
 ## 10. Normative example exchanges (P1B + P1C fixtures)
 
-Each line below is a standalone JSON wire line. `>` denotes renderer→engine stdin, `<` denotes engine stdout; `@` denotes a main-process-owned IPC message (not sent to child). Use a fresh `s1` session with `gen:"0"` unless the example shows another state; IDs and devices in examples are illustrative. Fixtures must also assert **no other stdout text**, exact reply ID matching, a bounded line, and unchanged generation on refusal.
+Each line below is a standalone JSON wire line. `>` denotes renderer→engine stdin, `<` denotes engine stdout; `@` denotes a main-process-owned IPC message (not sent to child). Use a fresh `s1` session with `gen:"0"` unless the example shows another state; fixture catalogue contains only Output and VCO, while T07/T12 have their own stated setup. IDs and devices in examples are illustrative. Fixtures must also assert **no other stdout text**, exact reply ID matching, a bounded line, and unchanged generation on refusal.
 
 **T01 — first `hello`, catalogue and capabilities.**
 ```text
-< {"v":0,"session":"s1","type":"hello","protocol":0,"engine":{"version":"0.1","sha":"abc1234"},"capabilities":[],"catalogue":{"modules":[]},"audio":{"state":"no-device","deviceId":null,"deviceName":null,"sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":0,"dropouts":0},"midi":{"devices":[],"activity":{}}}
+< {"v":0,"session":"s1","type":"hello","protocol":0,"engine":{"version":"0.1","sha":"abc1234"},"capabilities":[],"catalogue":{"modules":[{"id":"essentials.output","name":"Output","category":"I/O","ports":[{"id":"audio","name":"Audio","direction":"input","kind":"signal","hint":"audio","poly":"sum","stereo_pair":null},{"id":"audio","name":"Audio","direction":"output","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null}],"parameters":[]},{"id":"essentials.vco","name":"VCO","category":"Oscillator","ports":[{"id":"pitch","name":"Pitch","direction":"input","kind":"signal","hint":"pitch","poly":"poly","stereo_pair":null},{"id":"fm","name":"FM Hz","direction":"input","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null},{"id":"notes","name":"Notes","direction":"input","kind":"event","hint":"ev_notes","poly":"poly","stereo_pair":null},{"id":"audio","name":"Audio","direction":"output","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null}],"parameters":[{"id":"frequency","name":"Frequency","minimum":0.01,"maximum":20000,"default":220,"unit":"Hz","taper":"linear","step":0,"decimals":3,"modulatable":true}]}]},"audio":{"state":"no-device","deviceId":null,"deviceName":null,"sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":0,"dropouts":0},"midi":{"devices":[],"activity":{}}}
 ```
 
 **T02 — load a minimal execution view; missing settings, per-module version and outputs are filled ONLY in engine copy.**
@@ -162,7 +162,7 @@ Each line below is a standalone JSON wire line. `>` denotes renderer→engine st
 
 **T07 — modulation amount change uses D5 swap (precondition: the named modulation cable exists).**
 ```text
-> {"v":0,"id":"r7","type":"setModAmount","connection":{"kind":"modulation","from":{"module":10,"port":"lfo"},"to":{"module":9,"port":"frequency"},"amount":0.2},"amount":-0.5}
+> {"v":0,"id":"r7","type":"setModAmount","connection":{"kind":"modulation","from":{"module":10,"port":"control"},"to":{"module":9,"port":"frequency"},"amount":0.2},"amount":-0.5}
 < {"v":0,"session":"s1","re":"r7","ok":true,"gen":"4"}
 ```
 
@@ -201,7 +201,7 @@ Each line below is a standalone JSON wire line. `>` denotes renderer→engine st
 < {"v":0,"session":"s1","re":"r12","ok":true,"gen":"5"}
 ```
 
-**T13 — status and measured-only telemetry (empty unsupported fields, never fake scope).**
+**T13 — status and measured-only telemetry (empty unsupported fields, never fake scope; precondition: a fake-backend MIDI note 60 is currently held).**
 ```text
 < {"v":0,"session":"s1","type":"status","gen":"5","status":{"audio":{"state":"running","deviceId":"USB Stereo","deviceName":"USB Stereo","sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":2.1,"dropouts":0},"midi":{"devices":[],"activity":{}}}}
 < {"v":0,"session":"s1","type":"telemetry","gen":"5","telemetry":{"tick":12,"time":0.4,"effective":{},"phase":{},"envelope":{},"meters":{"7":[0.1,0.1]},"scope":{},"eventActivity":{},"heldNotes":[60]}}
@@ -211,7 +211,7 @@ Each line below is a standalone JSON wire line. `>` denotes renderer→engine st
 ```text
 > {"v":0,"id":"r14",BROKEN
 < {"v":0,"session":"s1","re":null,"ok":false,"code":"invalid","message":"Malformed JSON","gen":"5"}
-> {"v":0,"id":"r14b","type":"panic"}
+> {"v":0,"id":"r14b","type":"setParam","moduleId":9,"paramId":"frequency","value":440}
 < {"v":0,"session":"s1","re":"r14b","ok":false,"code":"busy","message":"Command queue full","gen":"5"}
 ```
 
@@ -220,7 +220,7 @@ Each line below is a standalone JSON wire line. `>` denotes renderer→engine st
 @ {"v":0,"id":"a15","type":"app.restartEngine"}
 @ {"v":0,"re":"a15","ok":true,"gen":"0"}
 @ {"v":0,"type":"app.engineExited","exitCode":0,"signal":null,"expected":true}
-< {"v":0,"session":"s2","type":"hello","protocol":0,"engine":{"version":"0.1","sha":"abc1234"},"capabilities":[],"catalogue":{"modules":[]},"audio":{"state":"no-device","deviceId":null,"deviceName":null,"sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":0,"dropouts":0},"midi":{"devices":[],"activity":{}}}
+< {"v":0,"session":"s2","type":"hello","protocol":0,"engine":{"version":"0.1","sha":"abc1234"},"capabilities":[],"catalogue":{"modules":[{"id":"essentials.output","name":"Output","category":"I/O","ports":[{"id":"audio","name":"Audio","direction":"input","kind":"signal","hint":"audio","poly":"sum","stereo_pair":null},{"id":"audio","name":"Audio","direction":"output","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null}],"parameters":[]},{"id":"essentials.vco","name":"VCO","category":"Oscillator","ports":[{"id":"pitch","name":"Pitch","direction":"input","kind":"signal","hint":"pitch","poly":"poly","stereo_pair":null},{"id":"fm","name":"FM Hz","direction":"input","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null},{"id":"notes","name":"Notes","direction":"input","kind":"event","hint":"ev_notes","poly":"poly","stereo_pair":null},{"id":"audio","name":"Audio","direction":"output","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null}],"parameters":[{"id":"frequency","name":"Frequency","minimum":0.01,"maximum":20000,"default":220,"unit":"Hz","taper":"linear","step":0,"decimals":3,"modulatable":true}]}]},"audio":{"state":"no-device","deviceId":null,"deviceName":null,"sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":0,"dropouts":0},"midi":{"devices":[],"activity":{}}}
 > {"v":0,"id":"r15","type":"loadGraph","patch":{"format":"wirescape.native.patch","version":2,"modules":[{"id":7,"module":"essentials.output"}],"connections":[]}}
 < {"v":0,"session":"s2","re":"r15","ok":true,"gen":"1"}
 ```
