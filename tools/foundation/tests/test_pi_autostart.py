@@ -8,6 +8,9 @@ import unittest
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / 'tools/pi/install-autostart.sh'
 
+# The installer writes an XDG autostart entry for the Pi/Linux desktop; it has no Windows
+# counterpart (Windows uses the Start-menu shortcut from P1F). Linux CI and the Pi run it.
+@unittest.skipIf(os.name == 'nt', 'Pi/Linux XDG autostart installer; covered on Linux and the Pi')
 class PiAutostartTest(unittest.TestCase):
     def test_install_is_idempotent_and_remove_keeps_shared_launcher(self):
         with tempfile.TemporaryDirectory(prefix='wirescape home ') as temp:
