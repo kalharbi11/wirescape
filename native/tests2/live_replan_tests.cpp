@@ -97,7 +97,7 @@ static std::unique_ptr<Engine> graph(Topology topology) {
     CHECK(e->prepare());
     return e;
 }
-static ws2_event note(uint32_t type = WS2_NOTE_ON, float value = .75f) {
+static ws2_event note(ws2_event_type type = WS2_NOTE_ON, float value = .75f) {
     ws2_event e{};
     e.struct_size = sizeof(e);
     e.type = type;

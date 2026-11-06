@@ -34,11 +34,26 @@ coverage; existing allocation Scope semantics and every prior assertion remain.
 Standing-v2 line allowance:900→1200 (+33.4%) covers changed-range clang-format
 and explicit state/lifetime regressions. No protected paths or extra feature scope.
 
+D7 follow-through (Keel ruling, PR #209 comment 6678798572): stage MIDI
+subscriptions on the control thread and publish them with the accepted replan.
+The MIDI worker dispatch lock is never acquired by audio or backend callbacks;
+control tries once and refuses a busy worker without changing graph or routes.
+Keyboard conversion is part of each subscription, not a separately mutable list.
+No endpoint close/reopen or producer replacement. Invalid input or graph timeout
+preserves the accepted routes. This internal Host seam is covered with real
+AppEngine/Service and fake MIDI; Qt stays frozen. Current-app/sidecar integration
+and its end-to-end coverage wait for #247 to merge, and are not claimed here.
+
+Size allowance under AGENTS' 50% rule: 1200→1500 lines (+25%), 15→21 files
+(+40%) for D7 Host/Service implementation and fake-MIDI regression tests. Prior
+held-note, state, feedback, stale-ingress and allocation assertions remain.
+
 ```acceptance
 tier: T2
-size: <= 1200 changed lines, <= 15 files
+size: <= 1500 changed lines, <= 21 files
 must_pass:
   - ctest --test-dir build/native -R "^abi2_live_replan_tests$" --output-on-failure --no-tests=error
+  - ctest --test-dir build/native -R "^abi2_midi_live_host_tests$" --output-on-failure --no-tests=error
   - ci: windows-x64, linux-arm64, sanitizers including threaded live-replan regression
   - ci: Studio controller/UI live-edit and rollback regressions with devices disabled
   - pi-run: build/native/abi2_live_replan_tests --max-gap-ms 20

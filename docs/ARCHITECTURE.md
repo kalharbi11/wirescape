@@ -255,3 +255,10 @@ Shutdown joins
 MIDI producers and drains source chokes before stopping render or destroying its
 engine. Raw MIDI releases use the same reserved queue classification as note
 releases; MIDI 2 zero-velocity Note On remains a Note On.
+
+The MIDI Host's internal live-replan seam stages subscriptions before committing
+a candidate. A control-thread try-lock excludes only MIDI worker dispatch during
+replan; backend callbacks keep their rings and audio never takes this lock. A busy
+worker or refused candidate preserves both graph and routes. Keyboard conversion
+is carried in the route table so new/removed sources cannot race a separate list.
+This seam is not yet connected to the sidecar (waiting for #247).
