@@ -1035,6 +1035,7 @@ export class App {
       save: () => this.doc.toJSON(),
       doc: this.doc,
       engine: this.engine,
+      commitParam: (m: number, p: string, v: number, commit = true) => this.commitParam(m, p, v, commit),
       ticker: this.ticker,
       canvas: this.canvas,
       registry: this.registry,
