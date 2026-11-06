@@ -61,6 +61,42 @@ test('NDJSON replies, unexpected crash notification and bounded automatic restar
     expect(new Set(hellos.map(h => h.session)).size).toBe(hellos.length);
   } finally { await app.close(); }
 });
+test('four crashes within 30s stop at the failure dialog, even after renderer restart', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wirescape-crash-loop-'));
+  const countFile = path.join(dir, 'spawns');
+  const app = await launch({ STUB_CRASH_COUNT_FILE: countFile });
+  try {
+    const page = await app.firstWindow();
+    await app.evaluate(({ dialog }) => {
+      globalThis.__failureDialogCount = 0;
+      dialog.showMessageBox = async () => {
+        globalThis.__failureDialogCount++;
+        return new Promise(() => {}); // Hold the dialog: no user-requested reset.
+      };
+    });
+    await page.evaluate(() => {
+      window.__unexpectedExits = 0;
+      window.__rendererRestartSent = false;
+      window.wirescape.onMessage(message => {
+        if (message.type !== 'app.engineExited' || message.expected !== false) return;
+        window.__unexpectedExits++;
+        if (!window.__rendererRestartSent) {
+          window.__rendererRestartSent = true;
+          window.wirescape.send({ v: 0, id: 'renderer-restart', type: 'app.restartEngine' });
+        }
+      });
+    });
+    await expect.poll(() => page.evaluate(() => window.__rendererRestartSent)).toBe(true);
+    await expect.poll(() => app.evaluate(() => globalThis.__failureDialogCount), { timeout: 15000 }).toBe(1);
+    expect(await page.evaluate(() => window.__unexpectedExits)).toBe(4);
+    expect(Number(fs.readFileSync(countFile, 'utf8'))).toBe(4);
+    await page.waitForTimeout(650); // A fifth spawn would have appeared by now.
+    expect(Number(fs.readFileSync(countFile, 'utf8'))).toBe(4);
+  } finally {
+    await app.close().catch(() => {});
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 test('native File intents and open/save round-trip never expose a filesystem path', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wirescape-shell-'));
   const file = path.join(dir, 'patch.json');
