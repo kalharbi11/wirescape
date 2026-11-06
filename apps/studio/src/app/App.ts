@@ -22,6 +22,14 @@ import { STARTERS, DEFAULT_STARTER } from './starters';
 import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } from '../theme/theme';
 import { el } from './dom';
 
+type DesktopFiles = {
+  onMessage(cb: (message: Record<string, unknown>) => void): () => void;
+  openPatch(): Promise<{ text: string; name: string } | null>;
+  savePatch(text: string, options?: { saveAs?: boolean }): Promise<{ name: string } | null>;
+};
+const desktopFiles = (): DesktopFiles | undefined =>
+  (window as unknown as { wirescape?: DesktopFiles }).wirescape;
+
 const AUTOSAVE_KEY = 'wirescape.autosave.v2';
 /** Copied modules survive a reload and a patch change, so paste works between patches. */
 const CLIPBOARD_KEY = 'wirescape.clipboard.v1';
@@ -208,8 +216,8 @@ export class App {
     history.append(this.undoBtn, this.redoBtn);
     tools.append(
       this.action('NEW', () => this.newPatch(), 'new-patch'),
-      this.action('OPEN', () => this.fileInput.click(), 'open-patch'),
-      this.action('SAVE', () => this.exportPatch(), 'save-patch'),
+      this.action('OPEN', () => void this.openFile(), 'open-patch'),
+      this.action('SAVE', () => void this.saveFile(), 'save-patch'),
       this.action('?', () => this.shortcuts.open('Keyboard shortcuts'), 'shortcuts-btn'),
     );
 
@@ -246,6 +254,10 @@ export class App {
     window.addEventListener('resize', () => this.canvas.updateVisibility());
     setInterval(() => this.autosave(), 4000);
     this.doc.on(() => this.refreshDirty());
+    desktopFiles()?.onMessage(message => {
+      if (message.type === 'app.menuOpenPatch') void this.openFile();
+      if (message.type === 'app.menuSavePatch') void this.saveFile(message.saveAs === true);
+    });
   }
 
   private restoreAutosave(): boolean {
@@ -456,6 +468,36 @@ export class App {
       ui: { positions: {}, labels: {}, view: { x: 0, y: 0, zoom: 1 } },
     }, 'Untitled');
     this.toasts.show('New patch.');
+  }
+
+  private async openFile(): Promise<void> {
+    const bridge = desktopFiles();
+    if (!bridge) { this.fileInput.click(); return; }
+    try {
+      const opened = await bridge.openPatch();
+      if (!opened) return;
+      const patch = JSON.parse(opened.text) as PatchV2;
+      if (!Array.isArray(patch.modules) || !Array.isArray(patch.connections))
+        throw new Error('That file is not a Wirescape patch.');
+      this.loadPatch(patch, opened.name.replace(/\.(wirescape\.)?json$/i, ''));
+      this.toasts.show('Patch opened.');
+    } catch (err) {
+      this.toasts.show(err instanceof Error ? err.message : 'Could not open patch.', 'error');
+    }
+  }
+
+  private async saveFile(saveAs = false): Promise<void> {
+    const bridge = desktopFiles();
+    if (!bridge) { this.exportPatch(); return; }
+    try {
+      const saved = await bridge.savePatch(JSON.stringify(this.doc.toJSON(), null, 2), { saveAs });
+      if (!saved) return;
+      this.doc.markClean();
+      this.refreshDirty();
+      this.toasts.show('Patch saved.');
+    } catch (err) {
+      this.toasts.show(err instanceof Error ? err.message : 'Could not save patch.', 'error');
+    }
   }
 
   private exportPatch(): void {
@@ -682,8 +724,8 @@ export class App {
     window.addEventListener('keydown', e => {
       if (isTyping() || this.settings.isOpen || this.shortcuts.isOpen) return;
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); this.exportPatch(); return; }
-      if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); this.fileInput.click(); return; }
+      if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); void this.saveFile(e.shiftKey); return; }
+      if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); void this.openFile(); return; }
       if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); this.canvas.selectAll(); return; }
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) this.redo(); else this.undo(); return; }
       if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); this.redo(); return; }
