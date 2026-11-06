@@ -20,7 +20,7 @@ Repository workflow: [root AGENTS.md](../../AGENTS.md). These rules cover the UI
 | `ui/tokens.css` | design tokens as CSS variables |
 | `src/` | the app: catalogue, patch, engine client + `FakeEngine`, canvas, panels and widgets, ticker (layout in DESIGN §15) |
 | `tests/` | Playwright: `session.spec.ts` (23), `kit-controls.spec.ts` (12) |
-| `public/` | `wirescape_modules.json` (the 21 real modules) and `panels/<id>.json` overrides |
+| `public/` | `wirescape_modules.json` (generated from native manifests; never hand-edit: run `python tools/gen_ui_catalogue.py` and commit the result. CTest `ui_catalogue_sync` fails on drift) and `panels/<id>.json` overrides |
 | `reference/` | the prototype brief and the first visual sketch |
 | `index.html` | app entry (Vite) |
 | `docs/*.md` | spec, performance, decisions, archive, references |
