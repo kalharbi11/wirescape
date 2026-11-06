@@ -19,6 +19,8 @@
 #include "../modules2/vca/dsp.h"
 #include "../modules2/vcf/dsp.h"
 #include "../modules2/vco/dsp.h"
+#include "../sdk/examples/random_source/dsp.h"
+#include "../sdk/examples/step_sequencer/dsp.h"
 #include <vector>
 namespace wirescape::app {
 inline const std::vector<const ws2_descriptor *> &builtin_modules() {

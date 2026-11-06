@@ -11,7 +11,7 @@ description: Build or change a Wirescape ABI 2 module (a sequencer, random sourc
    - source (random, LFO, S&H) → `native/sdk/examples/random_source/`
    - notes / sequencer → `native/sdk/examples/step_sequencer/`
 3. Before writing code, write down in `README.md`: module ID, every port and parameter ID with units and ranges, poly behaviour (who sets the channel count), and state contents. IDs are final once merged.
-4. Implement `dsp.h`. Check it against the guide's §8 realtime checklist line by line.
+4. Implement `dsp.h`. Check it against the guide's §8 realtime checklist line by line. Porting a prototype (Web Audio, offline renderer)? Apply the guide's §15 table first.
 5. Adapt the example's `tests.cpp`: keep the frame/rate/channel matrix, reset, state round trip, CONSTANT, extremes and no-allocation tests; add behaviour tests with independent reference math.
 6. Wire the CMake target and test in `native/engine2/CMakeLists.txt` like the examples; add the catalogue line (see `docs/ARCHITECTURE.md`).
 7. Run `python tools/dev.py build --headless` and `python tools/dev.py test`. Both must pass.
