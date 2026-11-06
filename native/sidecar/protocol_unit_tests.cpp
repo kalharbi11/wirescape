@@ -19,7 +19,7 @@ void midi_hotplug_observation() {
     check(backend.set_fake_endpoints({m8, pad}));
     std::vector<ws2_event> events;
     events.reserve(16);
-    Sink sink{&events, [](void* context, uint32_t, const ws2_event& event, uint64_t) noexcept {
+    Sink sink{&events, [](void* context, uint32_t, const ws2_event& event, uint64_t) noexcept -> int {
         static_cast<std::vector<ws2_event>*>(context)->push_back(event);
         return WS2_OK;
     }};
