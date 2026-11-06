@@ -6,11 +6,11 @@
   "settings": {"sample_rate":48000,"max_block_frames":256,"max_channels":16,"feedback_block":32,"seed":42,"timing_mode":"immediate"},
   "modules": [
     {"id":1,"module":"midi.in","version":1,"parameters":{},"config":{"endpoint":"all_enabled"}},
-    {"id":2,"module":"essentials.chaos_lite","version":1,"parameters":{"level":0.15}},
-    {"id":3,"module":"essentials.chaos_lite","version":1,"parameters":{"level":0.15,"octave_b":1}},
+    {"id":2,"module":"essentials.chaos_lite","version":1,"parameters":{"level":0.15,"shape_a":0.1,"body_mix":0.1,"lfo_depth":0.05,"detune":-30}},
+    {"id":3,"module":"essentials.chaos_lite","version":1,"parameters":{"level":0.15,"octave_b":1,"shape_b":1.8,"roughness":0.05,"cutoff":13000}},
     {"id":4,"module":"essentials.mixer","version":2,"parameters":{}},
     {"id":5,"module":"essentials.mixer","version":2,"parameters":{}},
-    {"id":6,"module":"essentials.mixer","version":2,"parameters":{}},
+    {"id":6,"module":"essentials.mixer","version":2,"parameters":{"level_a":1.2}},
     {"id":7,"module":"essentials.output","version":2,"parameters":{}},
     {"id":8,"module":"midi.to_cv","version":1,"parameters":{"voice_count":4}},
     {"id":9,"module":"midi.cc_to_cv","version":1,"parameters":{},"config":{"rows":[{"channel":0,"controller":21,"smoothing_ms":10},{"channel":0,"controller":22,"smoothing_ms":10},{"channel":0,"controller":23,"smoothing_ms":10},{"channel":0,"controller":24,"smoothing_ms":10},{"channel":0,"controller":25,"smoothing_ms":10},{"channel":0,"controller":26,"smoothing_ms":10},{"channel":0,"controller":27,"smoothing_ms":10},{"channel":0,"controller":28,"smoothing_ms":10}]}}
@@ -31,14 +31,14 @@
     {"kind":"signal","from":{"module":8,"port":"velocity"},"to":{"module":3,"port":"velocity"}},
     {"kind":"event","from":{"module":1,"port":"midi"},"to":{"module":8,"port":"midi"}},
     {"kind":"event","from":{"module":1,"port":"midi"},"to":{"module":9,"port":"midi"}},
-    {"kind":"modulation","from":{"module":9,"port":"cc1"},"to":{"module":2,"port":"shape_a"},"amount":0.35},
-    {"kind":"modulation","from":{"module":9,"port":"cc2"},"to":{"module":3,"port":"shape_b"},"amount":-0.35},
-    {"kind":"modulation","from":{"module":9,"port":"cc3"},"to":{"module":2,"port":"body_mix"},"amount":0.45},
-    {"kind":"modulation","from":{"module":9,"port":"cc4"},"to":{"module":3,"port":"roughness"},"amount":0.3},
-    {"kind":"modulation","from":{"module":9,"port":"cc5"},"to":{"module":2,"port":"lfo_depth"},"amount":0.35},
-    {"kind":"modulation","from":{"module":9,"port":"cc6"},"to":{"module":3,"port":"cutoff"},"amount":-0.3},
-    {"kind":"modulation","from":{"module":9,"port":"cc7"},"to":{"module":2,"port":"detune"},"amount":0.25},
-    {"kind":"modulation","from":{"module":9,"port":"cc8"},"to":{"module":6,"port":"level_a"},"amount":-0.35}
+    {"kind":"modulation","from":{"module":9,"port":"cc1"},"to":{"module":2,"port":"shape_a"},"amount":0.8},
+    {"kind":"modulation","from":{"module":9,"port":"cc2"},"to":{"module":3,"port":"shape_b"},"amount":-0.8},
+    {"kind":"modulation","from":{"module":9,"port":"cc3"},"to":{"module":2,"port":"body_mix"},"amount":0.8},
+    {"kind":"modulation","from":{"module":9,"port":"cc4"},"to":{"module":3,"port":"roughness"},"amount":0.8},
+    {"kind":"modulation","from":{"module":9,"port":"cc5"},"to":{"module":2,"port":"lfo_depth"},"amount":0.7},
+    {"kind":"modulation","from":{"module":9,"port":"cc6"},"to":{"module":3,"port":"cutoff"},"amount":-0.6},
+    {"kind":"modulation","from":{"module":9,"port":"cc7"},"to":{"module":2,"port":"detune"},"amount":0.5},
+    {"kind":"modulation","from":{"module":9,"port":"cc8"},"to":{"module":6,"port":"level_a"},"amount":-0.45}
   ],
   "outputs": [
     {"module":7,"port":"audio","bus_channel":0},

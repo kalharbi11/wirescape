@@ -13,6 +13,17 @@ Never read `legacy/`, `docs/history/`, `build/`, `build_reports/`, third-party s
 ## Project in brief
 Wirescape is an open-source modular patching environment for music. It has a native C++17 realtime engine (run as a separate process, `wirescape-engine`) and a standalone desktop app: an Electron window around the web UI (TypeScript). The Raspberry Pi 5 (Linux ARM64) is the first platform and the performance target. Windows follows. Module DSP stays portable to plugins and Daisy-class hardware. Contract: `docs/specs/ABI2_PLAN.md`. Built today: `docs/ARCHITECTURE.md`. Evidence: `docs/STATUS.md`. The Qt Quick UI under `native/ui/` is frozen and is removed in Phase 4.
 
+## Who's who (names agents use to identify themselves)
+| Name | Who | Role |
+|---|---|---|
+| **Compass** | Claude | Project lead: vision, product, UX and visual direction, roadmap and phases, checkpoints, final say on plan decisions. Owns `docs/PLAN.md`. |
+| **Keel** | Claude | Technical lead: architecture, engine/realtime/protocol/format decisions, code-quality bar, CI health. Unblocks builders, rules on technical stops, does T2 reviews. |
+| **Codex Lead** | Codex | Coordinates the Codex builders and the build queue; first stop for Codex questions before escalating to Keel. |
+
+Everyone else signs as `Codex` or `ChatGPT` (or another agent name) plus a **temporary role in their own words**, e.g. `Signed: Codex (UI builder), 2026-11-08`. These roles aren't assigned or fixed. Address a lead by name in an issue or PR comment (`Keel: …`); the leads read their names.
+
+**Lead authority:** Compass and Keel act with the owner's authority. They may approve, label, merge directly (including merge commits the gate can't do), retarget, close or reopen PRs and issues, change protected planner/spec docs, and decide which owner-only runs (real audio, MIDI, Pi hardware) are actually worth the owner's time. They report what they did. Keel and Compass don't need each other's sign-off; for a T2 change one of them wrote, the other model family still reviews it. Codex Lead may post `Codex:` approval lines for T1 and route work, but escalates T2 decisions to Keel.
+
 ## The loop: claim → work → sign → hand off
 1. **Claim:** comment `Claimed: <agent + model>, <date>` on the issue and set `status/in-progress`. If an item has had a claim for 24 h with no push or handoff, anyone may take it over by saying so in a comment.
 2. **Work:** use one branch `task/<issue#>-<slug>` and one PR with `Closes #<issue#>` (draft until green). Push small commits; WIP commits may use `[skip ci]`, the final push never does. Work only on your issue; ideas go under "Follow-ups".
@@ -22,16 +33,16 @@ Wirescape is an open-source modular patching environment for music. It has a nat
 ## Done, review and merge
 - **Done** is decided by the acceptance block: run its `must_pass` lines (`python tools/dev.py accept <issue#>`) and post the report. `pi:` lines run on the Pi runner.
 - **Review:** every PR except T0 gets one review comment from a **different session than the author**. For T2 (engine threading/realtime, patch format, ABI, SDK, merge control/CI), the reviewer is also a **different model family** than the author (for example, Claude reviews GPT/Codex work and the other way round). Reviews are `COMMENT` only, with severity and file:line. A High plus `status/blocked` stops the PR.
-- **Merge:** set `status/ready-to-merge` on a green head, then post the approval line on its own line: `Approved for merge <sha7>` followed by your `Signed:` line. The merge gate enables auto-merge. Nobody clicks merge, formally approves, dismisses reviews or changes branch protection. *Until gate v4 (`docs/tasks/W_GATE_V4.md`) merges:* use the old line with **your own** name (`Claude:`, `ChatGPT:` or `Codex: approved for auto-merge <sha7>`). Protected paths still need a `Claude:` line until then.
+- **Merge:** set `status/ready-to-merge` on a green head, then post the approval line on its own line: `Approved for merge <sha7>` followed by your `Signed:` line. The merge gate enables auto-merge. Only Compass and Keel merge directly (when the gate can't, e.g. a history-preserving merge commit, or is stuck). Nobody formally approves, dismisses reviews or changes branch protection. *Until gate v4 (`docs/tasks/W_GATE_V4.md`) merges:* use the old line with **your own** name (`Claude:`, `ChatGPT:` or `Codex: approved for auto-merge <sha7>`). Protected paths still need a `Claude:` line until then.
 - **Tiers** (in each acceptance block): **T0** docs, tests, formatting and CI fixes (merge on green). **T1** features, modules, UI, tools (one review). **T2** as above (one cross-family review).
 - **Checkpoints** (A, B, C in the plan) are reviews of a whole phase. They don't pause other work.
 
 ## Stops: post a handoff, label `status/blocked`, take the next item
-ABI header edit · design choice not in the spec or plan decisions that changes IDs, formats, ABI or realtime behaviour · test removal or loosening a tolerance or threshold · new dependency not named in the task or plan D12 · diff more than 50% past the task's size budget · two failed attempts at the same failure. When unsure, ask in the issue. The planner (or the owner) rules on stops in the issue.
+ABI header edit · design choice not in the spec or plan decisions that changes IDs, formats, ABI or realtime behaviour · test removal or loosening a tolerance or threshold · new dependency not named in the task or plan D12 · diff more than 50% past the task's size budget · two failed attempts at the same failure. When unsure, ask in the issue. Keel rules on technical stops, Compass on plan/product stops (or the owner).
 
 ## Safety rails
 - **Protected paths** need either a linked issue (`Closes #N`) with a line starting `Protected path named:` followed by the path or glob in backticks (only the planner or owner writes those lines), or the `allow-protected` label (owner or planner). Always label-only: `AGENTS.md`, `CLAUDE.md`, `tools/ci/**`, `.github/workflows/guard.yml`, `.github/CODEOWNERS`, ABI headers, licences, `docs/history/**`, `legacy/**`. Protected: `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`, `LICENSE*`, `LICENSES/**`, `.github/**`, `native/include/wirescape/*.h`.
-- Never make CI pass by weakening it. Never force-push, rewrite published history, commit to `main` or merge.
+- Never make CI pass by weakening it. Never force-push, rewrite published history or commit directly to `main`. Only Compass and Keel merge directly.
 - Never commit generated or binary files, fonts, `user_data/`, `local_backups/`, `.tools/`, `node_modules/`, `dist/`, credentials or machine-specific absolute paths.
 
 ## Engineering rules (non-negotiable)
@@ -69,5 +80,5 @@ Signed: <agent + model>, <date>
 ## Docs upkeep
 `docs/PLAN.md` belongs to the planner (others may tick checkboxes). Update `docs/ARCHITECTURE.md` in the PR that changes the architecture, and `docs/STATUS.md` when a phase completes. Tasks go in `docs/tasks/`, reviews in `docs/reviews/`.
 
-## If you are the planner
-Usually Claude, but the role isn't tied to one agent. Keep `docs/PLAN.md` and the task files current, rule on stops, and run checkpoints. Don't assign agents; the owner and their managers do that. After a review or planning session, end with "Next steps for you": the owner's steps in order, plus which sections can run in parallel.
+## If you are Compass or Keel
+Your session prompt says which one you are; full brief in `docs/planner/LEADS.md`. Start from `docs/planner/STATE.md`, then "Now" in `docs/PLAN.md`. Don't assign agents; the owner and their managers do that. End each session with "Next steps for you": the owner's steps in order, plus which sections can run in parallel, and update `docs/planner/STATE.md`.
