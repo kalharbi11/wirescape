@@ -107,7 +107,7 @@ test('real sidecar: hello, devices, native patch, live knob, cable D5 and crash 
     // The load ack precedes the next 10 Hz status push. Do not compare the
     // live knob ack with a stale, pre-load graph generation.
     await expect.poll(() => page.evaluate(() => {
-      const loaded = window.__e2e.filter(m => m.ok === true && /^ui\\d+$/.test(m.re ?? '') &&
+      const loaded = window.__e2e.filter(m => m.ok === true && /^ui\d+$/.test(m.re ?? '') &&
         Number(m.gen) > Number(window.__e2eBeforeGen ?? 0)).at(-1);
       const status = window.__e2e.filter(m => m.type === 'status').at(-1);
       return !!loaded && status?.gen === loaded.gen;
