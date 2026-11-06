@@ -163,14 +163,20 @@ export const DEFAULT_STARTER = STARTERS[0]!;
 /**
  * Faithful imports of the Qt starter library (#187 / wirescape PR #192,
  * 96cad1cd7eeef673db6b5cbdcf09d4dc9008ab9d). Bundled JSON works offline.
- * Keep native x/y, settings, outputs, config and licence fields intact;
- * only ui.positions adapts spacing to the larger browser cards.
+ * Keep native x/y, settings, config and licence fields intact; bundled presets
+ * route audio to both speakers, and ui.positions adapts spacing to browser cards.
  */
 function qtStarter(id: string, name: string, note: string, source: unknown): Starter {
   return {
     id, name, note,
     patch: () => {
       const patch = structuredClone(source) as PatchV2;
+      // Author bundled presets in stereo without changing generic patch imports.
+      for (const route of patch.outputs ?? []) {
+        if (route.bus_channel !== 0 || patch.outputs!.some(r => r.module === route.module
+          && r.port === route.port && r.bus_channel === 1)) continue;
+        patch.outputs!.push({ ...route, bus_channel: 1 });
+      }
       patch.ui = {
         ...patch.ui,
         positions: Object.fromEntries(patch.modules.map(m => [String(m.id), [
@@ -197,4 +203,3 @@ STARTERS.push(
   qtStarter('qt-macro', 'Qt · Macro Oscillator',
     'Keyboard pitch, gate and velocity → Macro Oscillator → Output. Play notes with the computer keyboard; fake-engine visual preview only.', qtMacro),
 );
-
