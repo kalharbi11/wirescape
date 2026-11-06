@@ -9,6 +9,7 @@ import { FakeEngine } from '../engine/FakeEngine';
 import { EngineRefusal, type SystemStatus, type EngineClient } from '../engine/EngineClient';
 import { Ticker } from '../runtime/Ticker';
 import { PatchCanvas, type Selection } from '../canvas/PatchCanvas';
+import { CanvasPane } from '../panels/widgets/canvasBase';
 import type { PortDirection } from '../modules/types';
 import { Library } from './Library';
 import { QuickAdd } from './QuickAdd';
@@ -880,6 +881,7 @@ export class App {
     this.prefs = { ...this.prefs, ...patch };
     applyPrefs(this.prefs);
     savePrefs(this.prefs);
+    CanvasPane.setZoom(this.canvas.viewport.view.s, true);
     this.ticker.throttleHz = this.prefs.profile === 'pi' ? 30 : 0;
     // Hit areas change the geometry the layout is derived from, so every
     // card has to be rebuilt rather than just re-measured.
