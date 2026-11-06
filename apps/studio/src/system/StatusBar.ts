@@ -19,6 +19,7 @@ const AUDIO_TEXT: Record<SystemStatus['audio']['state'], string> = {
 export class StatusBar {
   readonly root: HTMLElement;
   private audio: HTMLElement;
+  private engineMode: HTMLElement;
   private audioDetail: HTMLElement;
   private cpu: HTMLElement;
   private drop: HTMLElement;
@@ -33,6 +34,8 @@ export class StatusBar {
     this.root.dataset.testid = 'statusbar';
 
     const left = el('div', 'status-left');
+    this.engineMode = el('span', 'status-chip', 'engine: simulated');
+    this.engineMode.dataset.testid = 'status-engine';
     this.audio = el('span', 'status-chip');
     this.audio.dataset.testid = 'status-audio';
     this.audioDetail = el('span', 'status-detail');
@@ -41,7 +44,7 @@ export class StatusBar {
     this.cpu.dataset.testid = 'status-cpu';
     this.drop = el('span', 'status-detail');
     this.drop.dataset.testid = 'status-dropouts';
-    left.append(this.audio, this.audioDetail, this.cpu, this.drop);
+    left.append(this.engineMode, this.audio, this.audioDetail, this.cpu, this.drop);
 
     const right = el('div', 'status-right');
     this.osc = el('span', 'status-detail status-osc');
@@ -72,15 +75,20 @@ export class StatusBar {
     this.root.append(left, right);
   }
 
+  setEngineState(state: 'real' | 'simulated' | 'restarting'): void {
+    this.engineMode.textContent = 'engine: ' + state;
+    this.engineMode.dataset.state = state;
+  }
+
   update(s: SystemStatus): void {
     this.last = s;
     const a = s.audio;
     this.audio.textContent = AUDIO_TEXT[a.state];
     this.audio.dataset.state = a.state;
     this.audioDetail.textContent = a.state === 'running' || a.state === 'reconnecting'
-      ? `${a.deviceName} · ${(a.sampleRate / 1000).toFixed(1)} kHz · ${a.bufferFrames} frames · ${a.latencyMs} ms`
+      ? `${a.deviceName} · ${(a.sampleRate / 1000).toFixed(1)} kHz · ${a.bufferFrames} frames · ${a.state === 'running' ? a.latencyMs + ' ms est.' : 'latency not available'}`
       : 'no output';
-    this.cpu.textContent = `CPU ${a.cpuPercent.toFixed(0)}%`;
+    this.cpu.textContent = a.state === 'running' ? `CPU ${a.cpuPercent.toFixed(0)}%` : 'CPU not available';
     this.cpu.classList.toggle('warn', a.cpuPercent > 80);
     this.drop.textContent = `${a.dropouts} dropouts`;
     this.drop.classList.toggle('warn', a.dropouts > 0);
