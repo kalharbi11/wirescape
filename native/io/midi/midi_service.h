@@ -39,8 +39,7 @@ public:
     bool subscribe(Route);
     // Try once: a busy worker or refused commit leaves subscriptions unchanged.
     // The commit may park render; callbacks keep admitting to their existing rings.
-    // Reports only lock contention as busy; a refused commit is a distinct failure.
-    bool replace_routes(std::vector<Route>, const std::function<bool()> &commit = {}, bool *busy = nullptr);
+    bool replace_routes(std::vector<Route>, const std::function<bool()> &commit = {});
     bool start();
     void stop();
     void poll(); // deterministic fake-backend tests; never call while start() is active
