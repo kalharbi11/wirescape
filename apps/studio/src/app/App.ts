@@ -6,6 +6,7 @@ import { PatchDoc } from '../patch/PatchDoc';
 import { History } from '../patch/History';
 import type { Connection, PatchV2 } from '../patch/types';
 import { FakeEngine } from '../engine/FakeEngine';
+import { RealEngine } from '../engine/RealEngine';
 import { EngineRefusal, type SystemStatus, type EngineClient } from '../engine/EngineClient';
 import { Ticker } from '../runtime/Ticker';
 import { PatchCanvas, type Selection } from '../canvas/PatchCanvas';
@@ -33,7 +34,8 @@ export class App {
   readonly root: HTMLElement;
   private doc = new PatchDoc();
   private ticker = new Ticker();
-  private engine: FakeEngine;
+  private engine: FakeEngine | RealEngine;
+  private maxModuleId = 0;
   private canvas!: PatchCanvas;
   private library!: Library;
   private quick!: QuickAdd;
@@ -64,7 +66,9 @@ export class App {
     this.prefs = loadPrefs();
     if (detectSlowDevice() && this.prefs.profile === 'normal') this.prefs.profile = 'pi';
     applyPrefs(this.prefs);
-    this.engine = new FakeEngine(registry);
+    this.engine = window.wirescape
+      ? new RealEngine(window.wirescape, () => this.doc.toJSON(), registry)
+      : new FakeEngine(registry);
     this.root = el('div', 'app');
     this.root.dataset.testid = 'app';
   }
@@ -110,8 +114,14 @@ export class App {
       confirmStereo: msg => this.confirmStereo(msg),
       onSelectionChange: s => this.onSelectionChange(s),
       rename: id => this.renameModule(id),
-      engineConnect: c => this.engine.connect(c),
-      engineDisconnect: c => this.engine.disconnect(c),
+      engineConnect: c => {
+        this.engine.connect(c);
+        this.trackRollback(() => { this.doc.disconnect(c); this.canvas.shake(c.to.module); });
+      },
+      engineDisconnect: c => {
+        this.engine.disconnect(c);
+        this.trackRollback(() => { if (!this.doc.has(c)) this.doc.connect(c); });
+      },
     });
     this.canvas.bindActivity();
 
@@ -208,8 +218,8 @@ export class App {
     history.append(this.undoBtn, this.redoBtn);
     tools.append(
       this.action('NEW', () => this.newPatch(), 'new-patch'),
-      this.action('OPEN', () => this.fileInput.click(), 'open-patch'),
-      this.action('SAVE', () => this.exportPatch(), 'save-patch'),
+      this.action('OPEN', () => void this.openPatchFile(), 'open-patch'),
+      this.action('SAVE', () => void this.savePatchFile(), 'save-patch'),
       this.action('?', () => this.shortcuts.open('Keyboard shortcuts'), 'shortcuts-btn'),
     );
 
@@ -235,6 +245,19 @@ export class App {
     this.ticker.start();
     this.engine.onTelemetry(t => this.ticker.push(t));
     this.engine.onStatus(s => { this.announceStatus(this.lastStatus, s); this.lastStatus = s; this.statusBar.update(s); });
+    this.engine.onRefusal?.(r => this.toasts.show(r.detail.message, 'error'));
+    if (this.engine instanceof RealEngine) {
+      this.engine.onConnection(state => {
+        this.statusBar.setEngineState(state);
+        if (state === 'restarting') { this.ticker.resetTelemetry(); this.lastStatus = null; }
+      });
+      this.engine.onGraphError(e => this.toasts.show(e.message, 'error'));
+      this.engine.onCatalogue(() => { this.library.refresh(); this.canvas.rebuild(); });
+      window.wirescape?.onMessage(m => {
+        if (m.type === 'app.menuOpenPatch') void this.openPatchFile();
+        if (m.type === 'app.menuSavePatch') void this.savePatchFile(m.saveAs === true);
+      });
+    } else this.statusBar.setEngineState('simulated');
     this.startFrameWatchdog();
     this.engine.start();
     this.keyboard.attach();
@@ -269,12 +292,13 @@ export class App {
 
   // ---- patch lifecycle --------------------------------------------------
 
-  loadPatch(patch: PatchV2, name = 'Untitled'): void {
+  async loadPatch(patch: PatchV2, name = 'Untitled'): Promise<void> {
     this.ticker.resetTelemetry();
     this.doc.replace(patch);
     this.patchName = name;
     this.nameEl.textContent = name;
-    void this.engine.loadGraph(this.doc.toJSON());
+    this.maxModuleId = Math.max(0, ...patch.modules.map(m => m.id));
+    const running = this.engine.loadGraph(this.doc.toJSON());
     const v = patch.ui?.view;
     if (v && v.zoom) this.canvas.viewport.setView(v.x, v.y, v.zoom);
     else requestAnimationFrame(() => this.canvas.fit());
@@ -283,6 +307,8 @@ export class App {
     this.refreshDirty();
     this.history?.reset();
     this.pasteCount = 0;
+    try { await running; }
+    catch (e) { this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error'); }
   }
 
   // ---- system (phase 5) ---------------------------------------------------
@@ -347,7 +373,8 @@ export class App {
     this.canvas.select({ kind: 'none' });
     this.ticker.resetTelemetry();
     this.doc.replace({ ...p, ui: { ...(p.ui ?? {}), view } });
-    void this.engine.loadGraph(this.doc.toJSON());
+    void this.engine.loadGraph(this.doc.toJSON()).catch(e =>
+      this.toasts.show(e instanceof Error ? e.message : 'The snapshot could not run.', 'error'));
     requestAnimationFrame(() => this.canvas.invalidateAnchors());
     this.refreshDirty();
   }
@@ -423,10 +450,11 @@ export class App {
     const map = new Map<number, number>();
     const skipped: string[] = [];
     for (const m of clip.modules) {
-      const id = this.doc.nextId();
+      const id = this.allocateId();
       try { this.engine.addModule(id, m.module, m.parameters); }
       catch { skipped.push(m.module); continue; }
       this.doc.addModule(m.module, m.parameters, m.pos[0] + dx, m.pos[1] + dy, id);
+      this.trackRollback(() => this.doc.removeModule(id));
       const added = this.doc.modules.get(id);
       if (added) Object.assign(added, m.extra);
       if (m.label) this.doc.setLabel(id, m.label);
@@ -438,7 +466,8 @@ export class App {
       const nc: Connection = { ...c, from: { ...c.from, module: from }, to: { ...c.to, module: to } };
       if (this.doc.has(nc)) continue;
       this.doc.connect(nc);
-      try { this.engine.connect(nc); } catch { this.doc.disconnect(nc); continue; }
+      try { this.engine.connect(nc); this.trackRollback(() => this.doc.disconnect(nc)); }
+      catch { this.doc.disconnect(nc); continue; }
       const col = clip.colors[connKey(c)];
       if (col) this.doc.setCableColor(connKey(nc), col);
     }
@@ -506,6 +535,12 @@ export class App {
     this.doc.setParam(moduleId, paramId, value);
     try {
       this.engine.setParam(moduleId, paramId, value);
+      this.trackRollback(() => {
+        const m = this.doc.modules.get(moduleId);
+        if (before === undefined && m?.parameters) delete m.parameters[paramId];
+        else if (before !== undefined) this.doc.setParam(moduleId, paramId, before);
+        this.canvas.cardFor(moduleId)?.panel?.refreshParam(paramId);
+      });
     } catch (err) {
       if (before === undefined) {
         const m = this.doc.modules.get(moduleId);
@@ -530,8 +565,10 @@ export class App {
   }
 
   private commitModAmount(c: Connection, amount: number, _commit: boolean): void {
+    const previous = this.doc.connections.find(x => connKey(x) === connKey(c))?.amount;
     this.doc.setModAmount(c, amount);
     this.engine.setModAmount(c, amount);
+    this.trackRollback(() => this.doc.setModAmount(c, previous ?? 0));
   }
 
   private describeSource(c: Connection): string {
@@ -556,7 +593,7 @@ export class App {
     const params: Record<string, number> = {};
     for (const p of d.parameters) params[p.id] = p.default;
 
-    const id = this.doc.nextId();
+    const id = this.allocateId();
     try {
       this.engine.addModule(id, type, params);
     } catch (err) {
@@ -567,6 +604,7 @@ export class App {
     const x = centre ? world.x - 300 : world.x - 40;
     const y = centre ? world.y - 180 : world.y - 30;
     this.doc.addModule(type, params, x, y, id);
+    this.trackRollback(() => this.doc.removeModule(id));
     if (centre) {
       const card = this.canvas.cardFor(id);
       if (card) this.doc.setPosition(id, world.x - card.width / 2, world.y - card.height / 2);
@@ -644,11 +682,26 @@ export class App {
     const s = this.canvas.currentSelection;
     if (s.kind === 'cable') {
       this.doc.disconnect(s.c);
-      try { this.engine.disconnect(s.c); } catch { /* ignore */ }
+      try { this.engine.disconnect(s.c); this.trackRollback(() => this.doc.connect(s.c)); }
+      catch { /* ignore */ }
       this.canvas.select({ kind: 'none' });
       this.toasts.show('Cable removed.');
     } else if (s.kind === 'modules') {
-      for (const id of s.ids) { this.doc.removeModule(id); this.engine.removeModule(id); }
+      for (const id of s.ids) {
+        const m = this.doc.modules.get(id);
+        if (!m) continue;
+        const original = structuredClone(m);
+        const pos = this.doc.position(id), label = this.doc.label(id);
+        const cables = this.doc.connections.filter(c => c.from.module === id || c.to.module === id).map(c => structuredClone(c));
+        this.doc.removeModule(id);
+        this.engine.removeModule(id);
+        this.trackRollback(() => {
+          this.doc.addModule(original.module, original.parameters ?? {}, pos[0], pos[1], id);
+          Object.assign(this.doc.modules.get(id)!, original);
+          if (label) this.doc.setLabel(id, label);
+          for (const c of cables) this.doc.connect(c);
+        });
+      }
       this.canvas.select({ kind: 'none' });
       this.toasts.show(`${s.ids.length} module${s.ids.length > 1 ? 's' : ''} deleted.`);
     }
@@ -682,8 +735,8 @@ export class App {
     window.addEventListener('keydown', e => {
       if (isTyping() || this.settings.isOpen || this.shortcuts.isOpen) return;
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); this.exportPatch(); return; }
-      if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); this.fileInput.click(); return; }
+      if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); void this.savePatchFile(); return; }
+      if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); void this.openPatchFile(); return; }
       if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); this.canvas.selectAll(); return; }
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) this.redo(); else this.undo(); return; }
       if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); this.redo(); return; }
@@ -899,7 +952,8 @@ export class App {
     about.append(
       el('div', '', `Wirescape Studio prototype · ${__APP_VERSION__}`),
       el('div', 'muted', `Build ${__BUILD__} · ${navigator.hardwareConcurrency ?? '?'} cores · profile ${this.prefs.profile}`),
-      el('div', 'muted', 'Visual prototype. No audio engine, no DSP, no MIDI.'),
+      el('div', 'muted', this.engine instanceof RealEngine
+        ? 'Native engine via the isolated preload bridge.' : 'Simulated engine. No audio or hardware MIDI.'),
       upd, updOut,
     );
     b.append(about);
@@ -926,6 +980,47 @@ export class App {
     requestAnimationFrame(() => this.canvas.invalidateAnchors());
   }
 
+
+  /** Native dialogs belong to Electron main; browser-only use keeps file input/export. */
+  private async openPatchFile(): Promise<void> {
+    if (!window.wirescape) { this.fileInput.click(); return; }
+    try {
+      const file = await window.wirescape.openPatch();
+      if (!file) return;
+      const parsed = JSON.parse(file.text) as PatchV2;
+      if (!Array.isArray(parsed.modules) || !Array.isArray(parsed.connections)) throw new Error('Invalid patch.');
+      await this.loadPatch(parsed, file.name);
+    } catch (e) {
+      this.toasts.show(e instanceof Error ? e.message : 'Could not open patch.', 'error');
+    }
+  }
+
+  private async savePatchFile(saveAs = false): Promise<void> {
+    if (!window.wirescape) { this.exportPatch(); return; }
+    try {
+      const result = await window.wirescape.savePatch(JSON.stringify(this.doc.toJSON(), null, 2), { saveAs });
+      if (!result) return;
+      this.patchName = result.name;
+      this.nameEl.textContent = result.name;
+      this.doc.markClean();
+      this.refreshDirty();
+      this.toasts.show('Patch saved.');
+    } catch (e) {
+      this.toasts.show(e instanceof Error ? e.message : 'Could not save patch.', 'error');
+    }
+  }
+
+  /** Never recycle numeric IDs within a loaded document on the real sidecar. */
+  private allocateId(): number {
+    if (!(this.engine instanceof RealEngine)) return this.doc.nextId();
+    this.maxModuleId = Math.max(this.maxModuleId, ...this.doc.modules.keys(), 0) + 1;
+    return this.maxModuleId;
+  }
+
+  private trackRollback(undo: () => void): void {
+    if (this.engine instanceof RealEngine) this.engine.registerRollback(undo);
+  }
+
   // ---- test hooks -------------------------------------------------------
 
   testApi() {
@@ -940,6 +1035,7 @@ export class App {
       save: () => this.doc.toJSON(),
       doc: this.doc,
       engine: this.engine,
+      commitParam: (m: number, p: string, v: number, commit = true) => this.commitParam(m, p, v, commit),
       ticker: this.ticker,
       canvas: this.canvas,
       registry: this.registry,
@@ -950,7 +1046,8 @@ export class App {
       addModule: (type: string) => this.addModuleCentred(type),
       connect: (c: Connection) => {
         this.doc.connect(c);
-        try { this.engine.connect(c); } catch (e) { this.doc.disconnect(c); throw e; }
+        try { this.engine.connect(c); this.trackRollback(() => this.doc.disconnect(c)); }
+        catch (e) { this.doc.disconnect(c); throw e; }
       },
       deleteSelection: () => this.deleteSelection(),
       undo: () => this.undo(),

@@ -20,6 +20,13 @@ export class ModuleRegistry {
     return new ModuleRegistry(data.modules);
   }
 
+  /** Replace the palette with the exact list of modules advertised by hello. */
+  replace(modules: ModuleDescriptor[]): void {
+    this.all.splice(0, this.all.length, ...modules);
+    this.byId.clear();
+    for (const m of modules) this.byId.set(m.id, m);
+  }
+
   get(type: string): ModuleDescriptor | undefined { return this.byId.get(type); }
   has(type: string): boolean { return this.byId.has(type); }
 

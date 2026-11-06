@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import type { FakeEngine } from '../engine/FakeEngine';
+import { FakeEngine } from '../engine/FakeEngine';
+import type { RealEngine } from '../engine/RealEngine';
 import type { Ticker } from '../runtime/Ticker';
 import { el } from './dom';
 
@@ -13,7 +14,7 @@ export class DevPanel {
   /** Read by the frame watchdog in App: pretend the device is slow. */
   simulateSlow = false;
 
-  constructor(private readonly engine: FakeEngine, private readonly ticker: Ticker) {
+  constructor(engine: FakeEngine | RealEngine, private readonly ticker: Ticker) {
     this.root = el('div', 'dev-panel');
     this.root.dataset.testid = 'dev-panel';
     this.root.style.display = 'none';
@@ -31,22 +32,26 @@ export class DevPanel {
     this.frame.dataset.testid = 'dev-frame';
 
     const switches = el('div', 'dev-switches');
+    const fake = engine instanceof FakeEngine ? engine : null;
     const add = (key: keyof FakeEngine['debug'], label: string) => {
       const b = el('button', 'dev-switch', label) as HTMLButtonElement;
       b.type = 'button';
       b.dataset.testid = `debug-${String(key)}`;
       b.addEventListener('click', () => {
-        this.engine.debug[key] = !this.engine.debug[key];
-        b.classList.toggle('on', this.engine.debug[key]);
+        if (!fake) return;
+        fake.debug[key] = !fake.debug[key];
+        b.classList.toggle('on', fake.debug[key]);
       });
       switches.append(b);
     };
+    if (fake) {
     add('unplugAudio', 'Unplug audio device');
     add('extraMidiDevice', 'Plug in a MIDI device');
     add('cpuSpike', 'CPU spike');
     add('dropouts', 'Dropouts');
     add('refuseEdits', 'Refuse edits');
     add('oscTraffic', 'OSC traffic (while OSC is on)');
+    }
     const slow = el('button', 'dev-switch', 'Simulate slow frames') as HTMLButtonElement;
     slow.type = 'button';
     slow.dataset.testid = 'debug-slowFrames';
