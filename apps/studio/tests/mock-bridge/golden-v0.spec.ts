@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// @ts-ignore Node builtin is available in Playwright's worker without @types/node.
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { boot } from '../helpers';
@@ -34,7 +35,7 @@ for (const raw of fixture.split(/\r?\n/)) {
       else if (!hello) hello = wire;
     } else if (wire.re !== undefined && previous?.id === wire.re) {
       if (cases[wire.re]) throw new Error('Duplicate golden request: ' + wire.re);
-      cases[wire.re] = { command: previous, reply: wire };
+      cases[wire.re] = { command: previous!, reply: wire };
       previous = null;
     } else {
       (pushes[current] ??= []).push(wire);
@@ -70,7 +71,7 @@ async function goldenBridge(page: Page): Promise<void> {
       if (result.telemetry?.time === '*') result.telemetry.time = 0.4;
       return result;
     };
-    const sayHello = () => emit(materialize(startup));
+    const sayHello = () => emit(materialize(startup!));
     const answer = (cmd: Message, sample: Message, name: string) => {
       if (sample.gen === '+1') generation++;
       const reply = materialize({ ...sample, re: cmd.id, gen: sample.gen === '+1'
@@ -130,7 +131,7 @@ async function goldenBridge(page: Page): Promise<void> {
         emit({ v: 0, type: 'app.engineExited', exitCode: null, signal: 'SIGTERM', expected: false });
         sessionNumber++;
         generation = 0;
-        setTimeout(() => emit(materialize(restart)), 0);
+        setTimeout(() => emit(materialize(restart!)), 0);
       },
       generation: () => String(generation),
       session,
