@@ -1,0 +1,115 @@
+/* Reskinned controls (design system §4.2). Overrides app.css. */
+
+/* ---- shared label / row ------------------------------------------------ */
+.control-row { padding: 3px 0; min-height: 0; gap: 10px; }
+.control-row > .control-caption,
+.control-number .nb-label,
+.control-fader .fader-label {
+  font: 500 8.5px var(--mono); letter-spacing: .09em; text-transform: uppercase;
+  color: var(--mute); max-width: none;
+}
+
+/* ---- segmented: round fill -------------------------------------------- */
+.segmented {
+  position: relative; display: inline-grid; flex-wrap: nowrap; gap: 0;
+  grid-template-columns: repeat(var(--n, 1), 1fr); align-items: stretch;
+  border: .5px solid var(--ink); border-radius: 999px; background: var(--card);
+  overflow: hidden; --i: 0; width: max-content; flex: none;
+}
+.segmented .seg {
+  position: relative; z-index: 1; height: auto; min-width: 28px; padding: 3px 9px;
+  font: 500 9px var(--mono); letter-spacing: .05em; white-space: nowrap;
+  background: none; border: 0; border-radius: 0; color: var(--graph); cursor: pointer;
+  transition: color .15s;
+}
+.segmented .seg:hover:not(.on) { border: 0; color: var(--ink); }
+.segmented .seg.on { background: none; border: 0; color: var(--card); font-weight: 500; }
+.segmented .seg:focus-visible { outline: 1px solid var(--graph); outline-offset: -2px; border-radius: 999px; }
+.seg-ind {
+  position: absolute; left: 0; top: 0; bottom: 0; width: calc(100% / var(--n, 1));
+  background: var(--ink); border-radius: 999px; pointer-events: none;
+  transform: translateX(calc(var(--i, 0) * 100%));
+  transition: transform 340ms var(--bounce);
+}
+.segmented.noanim .seg-ind, .segmented.noanim .seg { transition: none; }
+
+/* ---- toggle: LED latch ------------------------------------------------- */
+.toggle {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; width: auto; height: auto;
+  padding: 3px 8px 3px 6px; border: .5px solid var(--hair); border-radius: 2px;
+  background: var(--card); color: var(--graph); cursor: pointer;
+  font: 500 9px var(--mono); letter-spacing: .06em; text-transform: uppercase;
+}
+.toggle:focus-visible { border-color: var(--ink); outline: none; }
+.toggle .led {
+  width: 7px; height: 7px; border-radius: 50%; border: .5px solid var(--graph);
+  background: transparent; transition: background .12s, border-color .12s;
+}
+.toggle.on .led { background: var(--rust); border-color: var(--rust); }
+.toggle .toggle-state {
+  display: block; width: auto; height: auto; background: none; border-radius: 0;
+  transform: none; transition: none;
+}
+.toggle.on .toggle-state { transform: none; background: none; }
+
+/* ---- selector ---------------------------------------------------------- */
+.control-row.select-row { flex-direction: column; align-items: flex-start; gap: 3px; }
+.input-select {
+  height: auto; padding: 3px 6px; font: 10px var(--mono); color: var(--ink);
+  border: .5px solid var(--hair); border-radius: 2px; background: var(--card);
+}
+.input-select:focus-visible { border-color: var(--ink); outline: none; }
+
+/* ---- number: plain dotted --------------------------------------------- */
+.control-number {
+  display: inline-flex; gap: 8px; align-items: baseline; justify-content: flex-start;
+  cursor: ew-resize; user-select: none; touch-action: none; outline: none; padding: 0 0 3px;
+}
+.control-number:focus-visible .control-readout { border-bottom-color: var(--ink); }
+.control-number .control-readout {
+  display: inline-block; margin: 0; padding: 0; background: none; border: 0;
+  border-bottom: 1px dotted var(--graph); border-radius: 0;
+  font: 11px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink);
+  cursor: ew-resize;
+}
+.control-number .control-readout:hover { border-color: transparent; border-bottom: 1px dotted var(--graph); }
+.control-number .readout-input {
+  width: 64px; margin: 0; padding: 0; text-align: left; background: none;
+  font: 11px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink);
+  border: 0; border-bottom: 1px solid var(--ink); border-radius: 0; outline: none;
+}
+.control-number.dragging .control-readout { border-bottom-color: var(--rust); }
+
+/* ---- fader ------------------------------------------------------------- */
+.control-fader {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  user-select: none; touch-action: none;
+}
+.fader-track { position: relative; width: 18px; margin-top: 5px; cursor: ns-resize; }
+.fader-track::before {
+  content: ''; position: absolute; left: 8.5px; top: 0; bottom: 0; width: 1px; background: var(--hair);
+}
+.fader-fill {
+  position: absolute; left: 8.25px; bottom: 0; width: 1.5px; height: 100%;
+  background: var(--mute); transform-origin: 50% 100%;
+}
+.fader-thumb, .fader-live { position: absolute; left: 0; top: 0; will-change: transform; }
+.fader-thumb {
+  left: 1px; margin-top: -4px; width: 16px; height: 8px; box-sizing: border-box;
+  background: var(--card); border: .5px solid var(--ink); border-radius: 1px; outline: none;
+}
+.fader-thumb::after {
+  content: ''; position: absolute; left: 2px; right: 2px; top: 3.25px; height: .5px; background: var(--mute);
+}
+.fader-thumb:focus-visible { border-color: var(--rust); }
+.fader-live {
+  left: -3px; margin-top: -.5px; width: 24px; height: 1px; background: var(--rust);
+  opacity: 0; pointer-events: none;
+}
+.control-fader.modded .fader-live { opacity: 1; }
+.fader-value { font: 11px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); cursor: text; border-bottom: 1px dotted transparent; }
+.fader-value:hover { border-bottom-color: var(--graph); }
+
+/* Hero-role number (tempo): large mono value, same dotted underline. */
+.control-number.big { flex-direction: column; align-items: flex-start; gap: 2px; }
+.control-number.big .control-readout { font-size: 20px; letter-spacing: -.01em; padding-bottom: 2px; }

@@ -1,0 +1,13 @@
+.model-bank { width: 100%; min-width: 260px; }
+.model-bank > .control-label { margin-bottom: 10px; }
+.model-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; }
+.model-button {
+  appearance: none; min-width: 28px; min-height: 28px; padding: 4px;
+  border: 1px solid var(--hair); border-radius: 999px; background: transparent;
+  color: var(--ink); font: 10px var(--mono); cursor: pointer;
+}
+.model-button[aria-checked="true"] { background: var(--ink); border-color: var(--ink); color: var(--card); }
+.model-button:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+[data-hit="touch"] .model-button { min-width: 44px; min-height: 44px; }
+
+[data-hit="touch"] .model-grid { grid-template-columns: repeat(4, 1fr); }

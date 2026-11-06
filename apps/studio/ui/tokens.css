@@ -1,0 +1,27 @@
+/* Wirescape UI design tokens. Spec: docs/DESIGN.md §2. Mirrors the values the kit sets at startup. */
+:root{
+  /* surface */
+  --paper:#ffffff; --card:#ffffff; --card2:#f4f4f2;
+  /* ink */
+  --ink:#161616; --graph:#2e2e2d; --mute:#8c8c88;
+  /* lines */
+  --hair:#c6c6c2; --hair2:#e2e2df;
+  /* accent: live values, modulation, events only */
+  --rust:#c2501f; --rust2:rgba(194,80,31,.14);
+  /* port hints (jack rings) */
+  --hint-audio:#161616; --hint-pitch:#2e5f80; --hint-cv:#6d7a35; --hint-gate:#c2501f; --hint-events:#7b4a8c;
+  /* user cable palette (no meaning) */
+  --cable-ink:#161616; --cable-rust:#c2501f; --cable-blue:#2e5f80; --cable-olive:#6d7a35; --cable-ochre:#c99a2e; --cable-slate:#5d6a73;
+  /* knobs */
+  --knob-cap:#4a4a48; --knob-pointer:#ffffff;
+  /* page texture */
+  --dot:rgba(0,0,0,.06);
+  /* shape */
+  --card-radius:14px; --card-border:.5px solid var(--graph);
+  /* type */
+  --sans:'IBM Plex Sans',system-ui,sans-serif; --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  /* motion */
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --bounce:linear(0,.18 5%,.6 13%,1.02 21%,1.13 27%,1.1 33%,1.01 43%,.97 52%,1.005 68%,1);
+  --t-pop:120ms; --t-event:240ms; --t-pulse:380ms; --t-slide:340ms;
+}

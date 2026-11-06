@@ -1,0 +1,20 @@
+/* Signature sequencer: shared dotted numbers, neutral gate states, rust playhead. */
+.signature-sequence .steps-grid { gap: 6px; }
+.signature-sequence .step-cell { position: relative; gap: 12px; padding: 6px 0 10px; }
+.signature-sequence .control-number { width: 100%; min-width: 0; flex-direction: column; align-items: center; gap: 4px; }
+.signature-sequence .nb-value { white-space: nowrap; }
+.signature-sequence .step-gate {
+  position: relative; height: 28px; border-radius: 16px;
+  border: .5px solid var(--ink); color: var(--ink); background: var(--card);
+}
+.signature-sequence .step-gate[data-state='note'] { background: var(--ink); color: var(--card); }
+.signature-sequence .step-gate[data-state='rest'] { border-color: var(--hair); color: var(--mute); }
+.signature-sequence .step-gate[data-state='tie'] { color: var(--ink); }
+.signature-sequence .tied .step-gate::before {
+  content: ''; position: absolute; width: 8px; height: 1px; background: var(--ink);
+  right: 100%; top: 50%;
+}
+.signature-sequence .outside-length { opacity: .35; }
+.signature-sequence .step-gate:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+[data-hit='touch'] .signature-sequence .step-gate { min-height: 44px; }
+[data-hit='touch'] .signature-sequence .control-number { min-height: 44px; justify-content: center; }

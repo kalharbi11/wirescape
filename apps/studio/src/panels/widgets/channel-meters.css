@@ -1,0 +1,3 @@
+.channel-bank { width: 100%; min-width: 200px; }
+.channel-faders { display: flex; justify-content: space-evenly; gap: 30px; padding: 6px 0 14px; }
+.channel-meter-label { margin-bottom: 8px; }

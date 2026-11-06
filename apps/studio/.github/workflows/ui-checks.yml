@@ -1,0 +1,33 @@
+name: UI checks
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+concurrency:
+  group: hosted-ui-checks-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Browser regression suite
+        run: |
+          export WIRESCAPE_CHROMIUM="$(node --input-type=module -e 'import { chromium } from "@playwright/test"; console.log(chromium.executablePath())')"
+          npm test -- --max-failures=5
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-review-and-traces
+          path: test-results/
