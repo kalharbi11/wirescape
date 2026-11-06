@@ -78,6 +78,19 @@ export class StatusBar {
   setEngineState(state: 'real' | 'simulated' | 'restarting'): void {
     this.engineMode.textContent = 'engine: ' + state;
     this.engineMode.dataset.state = state;
+    if (state === 'restarting') {
+      // Stale callback metrics must not survive a sidecar exit.
+      this.last = null;
+      this.audio.textContent = 'DISCONNECTED';
+      this.audio.dataset.state = 'no-device';
+      this.audioDetail.textContent = 'no output';
+      this.cpu.textContent = 'CPU not available';
+      this.drop.textContent = 'dropouts not available';
+      this.midi.replaceChildren();
+      this.clock.textContent = '';
+      this.clockBtn.style.display = 'none';
+      this.osc.style.display = 'none';
+    }
   }
 
   update(s: SystemStatus): void {
