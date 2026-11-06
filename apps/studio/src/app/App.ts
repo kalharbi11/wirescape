@@ -101,6 +101,8 @@ export class App {
       overrides: this.overrides,
       commitParam: (m, p, v, c) => this.commitParam(m, p, v, c),
       commitModAmount: (c, a, commit) => this.commitModAmount(c, a, commit),
+      listMidiDevices: () => this.engine.listMidiDevices(),
+      setModuleEndpoint: (id, endpoint) => this.setMidiEndpoint(id, endpoint),
       describeSource: c => this.describeSource(c),
       cableColor: c => `var(--cable-${this.doc.cableColor(connKey(c)) ?? 'ink'})`,
       toast: (m, tone) => this.toasts.show(m, tone),
@@ -515,6 +517,16 @@ export class App {
       this.toasts.show(err instanceof EngineRefusal ? err.message : 'The engine refused that change.', 'error');
     }
     if (commit && paramId === 'bpm' && this.lastStatus) this.statusBar.update(this.lastStatus);
+  }
+
+  private setMidiEndpoint(moduleId: number, endpoint: string): void {
+    const previous = this.doc.toJSON();
+    this.doc.setModuleEndpoint(moduleId, endpoint);
+    void this.engine.loadGraph(this.doc.toJSON()).catch(err => {
+      this.doc.replace(previous);
+      void this.engine.loadGraph(previous);
+      this.toasts.show(err instanceof Error ? err.message : 'MIDI endpoint change was refused.', 'error');
+    });
   }
 
   private commitModAmount(c: Connection, amount: number, _commit: boolean): void {
