@@ -99,6 +99,7 @@ test('T15: exit → restart → hello restores the editable patch and rejects ol
   });
   const previous = await page.evaluate(() => (window as any).__mockBridge.getSession());
   await page.evaluate(() => (window as any).__mockBridge.exit(true));
+  await expect(page.getByTestId('status-engine')).toHaveText('engine: restarting');
   await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
   await expect.poll(async () =>
     (await page.evaluate(() => (window as any).__mockBridge.getGraph())).modules.length).toBe(1);
@@ -106,6 +107,35 @@ test('T15: exit → restart → hello restores the editable patch and rejects ol
   await page.evaluate(() => (window as any).__mockBridge.releaseHeld());
   expect((await state(page)).modules.length).toBe(1);
   await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
+});
+
+
+test('MIDI In dropdown uses enumerated endpoints without normalizing original config', async ({ page }) => {
+  await page.evaluate(() => window.__wirescapeTest.load({
+    format: 'wirescape.native.patch', version: 2,
+    modules: [{ id: 7, module: 'essentials.output' },
+      { id: 10, module: 'midi.in', parameters: {}, config: { opaque: 'kept' } }],
+    connections: [],
+  }));
+  const choice = page.getByTestId('midi-endpoint-10');
+  await expect(choice.locator('option:checked')).toHaveText('All enabled devices');
+  await expect(choice.locator('option[value="M8 MIDI 1|M8:M8 MIDI 1"]')).toHaveCount(1);
+  let patch = await state(page);
+  expect(patch.modules.find((m: any) => m.id === 10).config).toEqual({ opaque: 'kept' });
+  await choice.selectOption('M8 MIDI 1|M8:M8 MIDI 1');
+  await expect.poll(async () => (await state(page)).modules.find((m: any) => m.id === 10).config)
+    .toEqual({ endpoint: 'M8 MIDI 1', system_name: 'M8:M8 MIDI 1', opaque: 'kept' });
+  patch = await state(page);
+  expect(patch.modules.find((m: any) => m.id === 10).config.opaque).toBe('kept');
+});
+
+test('scripted delayed acknowledgement never means early success', async ({ page }) => {
+  await page.evaluate(() => (window as any).__mockBridge.setDelay(150));
+  await page.evaluate(() => window.__wirescapeTest.addModule('essentials.output'));
+  expect((await state(page)).modules.length).toBe(1); // optimistic document
+  await expect.poll(async () =>
+    (await page.evaluate(() => (window as any).__mockBridge.getGraph())).modules.length).toBe(1);
+  expect((await state(page)).modules.length).toBe(1);
 });
 
 test('native open/save keeps the renderer-owned document and exact JSON text', async ({ page }) => {
