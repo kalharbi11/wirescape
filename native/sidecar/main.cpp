@@ -13,6 +13,9 @@ int main(int argc, char **argv) {
 #else
     std::signal(SIGPIPE, SIG_IGN);
 #endif
+    // cin is tied to cout by default: every read on the reader thread would flush cout,
+    // racing the writer thread on the same stream (undefined; it stalls on MSVC).
+    std::cin.tie(nullptr);
     try {
         auto options = wirescape::sidecar::parse_options(argc, argv);
         wirescape::sidecar::Session session(std::move(options));
