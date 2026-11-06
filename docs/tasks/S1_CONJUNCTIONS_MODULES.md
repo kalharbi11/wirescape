@@ -20,6 +20,8 @@
 
 **Licence and provenance.** The owner wrote Conjunctions; the ports are GPL-3.0 under `native/modules2/`. It names CDP processes as inspiration: don't copy CDP code (LGPL). Record the prototype, what changed and why, and a listening note in each module's `DESIGN.md`.
 
+**Conventions (Compass, #302):** two-source modules use ports `a`, `b` (SUM, unpatched = silence) and `audio` (one voice); stereo outputs `left`/`right` as a stereo pair; category "Two-source"; render-length motions become CV inputs; the prototype is the concept, not the spec. Parity with the prototype is a local offline check recorded in `DESIGN.md`, not a CI test.
+
 **IDs.** The IDs above are proposals: confirm them in the issue before the first PR merges; after that they never change. Each module also adds a starter patch in `apps/studio` only if the task's issue says so (default: no).
 
 **Stops (in addition to `AGENTS.md`):** any change to `native/include/wirescape/*.h` or `native/sdk/` outside a new example; a new dependency (an FFT library included); file I/O in a module; a module that needs more than 32 params or ports.
@@ -27,7 +29,7 @@
 **Per-module acceptance** (copy into each issue, filling `<name>`; `pi-run:` only for #1 and #6):
 ```acceptance
 tier: T1
-size: <= 900 changed lines, <= 8 files   # sound.spectral: <= 1400 lines, <= 10 files
+size: <= 900 changed lines, <= 10 files in the module folder   # sound.spectral: <= 1400 lines per PR. Standard wiring (catalogue .h/.inc, CMake, presentation sidecar, panel override) and generated files (wirescape_modules.json) don't count toward either limit; tools/module_cpu_probe.py + its C++ probe may ride in the first PR outside the limit
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_<name>_tests" --output-on-failure

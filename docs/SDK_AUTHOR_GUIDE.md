@@ -221,6 +221,8 @@ Many modules start as a working prototype (a JS AudioWorklet, an offline "render
 | Block-based work aligned to the call (FFT frames, control-rate updates every 128 samples) | Align to an **absolute sample counter** kept in the module, not to call boundaries, or the frame-matrix test (§12.1) fails. |
 | Two sources picked from menus | Two signal inputs (`A`, `B`); an unpatched input reads silence. Mode menus become stepped parameters; continuous controls become modulatable parameters with CV. |
 | A stereo result `[L, R]` | Two outputs declared as a stereo pair (`stereo_pair`); channels stay voices (§5). |
+| Large audio history (STFT rings, delay lines, grain buffers) | Not saved in state. Save settings, positions, RNG and phase; on load the module restarts its analysis deterministically. The §12 state test then checks save → load → run equals a fresh instance on the same schedule (Keel, #302). |
+| Latency that depends on a parameter (FFT size) | Return the current value from `latency_frames()` (a relaxed atomic written in `process`); the engine reads it at plan build, so document that it updates on the next replan. |
 | Display data (spectrograms, provenance tints, waveforms) | Not part of the module. Telemetry is Phase 3A; leave a note in `DESIGN.md`. |
 | Uses a helper the SDK lacks (an FFT, a resampler) | Write it inside the module folder as original code, or stop and ask (a new dependency is a stop, `AGENTS.md`). Promote to `native/sdk/` later only with a Keel ruling. |
 | Loads files (samples, impulse responses) | Not yet: modules can't do I/O. That waits for the sample buffer service (PLAN Track S3). Capture from a live input instead. |
