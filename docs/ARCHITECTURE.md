@@ -243,3 +243,12 @@ Shutdown joins
 MIDI producers and drains source chokes before stopping render or destroying its
 engine. Raw MIDI releases use the same reserved queue classification as note
 releases; MIDI 2 zero-velocity Note On remains a Note On.
+
+## Stdio engine sidecar (P1B)
+
+`native/sidecar` builds the Qt-free `wirescape-engine` process. Its reader and
+writer isolate bounded NDJSON transport from the single control executor; audio
+uses the existing AppEngine/PortAudio callback and MIDI host. Null mode runs a
+paced discard sink and fake endpoints without device access. The UI owns saved
+documents; sidecar candidates are disposable execution copies. Details and
+shutdown ownership are in `native/sidecar/DESIGN.md`.
