@@ -8,6 +8,7 @@
 #include <memory>
 
 namespace {
+using wirescape::audio::render_callback_block;
 void check(bool ok, const char *expression, int line) {
     if (ok) return;
     std::fprintf(stderr, "%d: %s\n", line, expression);
@@ -65,7 +66,7 @@ void live_notes(uint32_t offset) {
         {
             allocation_watch::Scope watch;
             const auto now = epoch + frame * 1000000000ULL / rate;
-            ok = wirescape::audio::render_callback_block(app.get(), scratch.data(), block, out.data(), block, now, faults);
+            ok = render_callback_block(app.get(), scratch.data(), block, out.data(), block, now, faults);
             allocations = watch.allocations();
         }
         CHECK(ok && allocations == 0 && faults.load() == 0);
@@ -98,10 +99,9 @@ void live_notes(uint32_t offset) {
     std::array<float, 514> oversized;
     static_assert(oversized.size() == (size_t{block} + 1) * 2);
     oversized.fill(1);
-    CHECK(!wirescape::audio::render_callback_block(app.get(), scratch.data(), block, oversized.data(), block + 1, epoch,
-                                                 faults));
+    CHECK(!render_callback_block(app.get(), scratch.data(), block, oversized.data(), block + 1, epoch, faults));
     for (float value : oversized) CHECK(value == 0);
-    CHECK(!wirescape::audio::render_callback_block(app.get(), scratch.data(), block, nullptr, block, epoch, faults));
+    CHECK(!render_callback_block(app.get(), scratch.data(), block, nullptr, block, epoch, faults));
     CHECK(faults.load() == 2);
 }
 } // namespace

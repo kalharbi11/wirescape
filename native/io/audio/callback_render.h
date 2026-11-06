@@ -8,8 +8,8 @@
 namespace wirescape::audio {
 // Internal callback seam: scratch has two preallocated capacity-frame rows.
 // now_ns is the same steady-clock domain as MIDI SystemMonotonic timestamps.
-inline bool render_callback_block(AppEngine *engine, float *scratch, uint32_t capacity, float *out, unsigned long frames,
-                                  uint64_t now_ns, std::atomic<uint64_t> &faults) noexcept {
+inline bool render_callback_block(AppEngine *engine, float *scratch, uint32_t capacity, float *out,
+                                  unsigned long frames, uint64_t now_ns, std::atomic<uint64_t> &faults) noexcept {
     if (!out || frames > capacity) {
         faults.fetch_add(1, std::memory_order_relaxed);
         if (out) std::fill_n(out, frames * 2, 0.f);

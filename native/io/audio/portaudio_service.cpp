@@ -58,15 +58,17 @@ struct Context {
  EngineOwner engine;std::vector<float> scratch;std::atomic<uint64_t> xruns{0},faults{0};
  Context(EngineOwner e,uint32_t block):engine(std::move(e)),scratch(size_t{block}*2){}
 };
-int callback(const void*,void*output,unsigned long frames,const PaStreamCallbackTimeInfo*,PaStreamCallbackFlags flags,void*data){
- auto&c=*static_cast<Context*>(data);auto*out=static_cast<float*>(output);
- if(flags&paOutputUnderflow)c.xruns.fetch_add(1,std::memory_order_relaxed);
+int callback(const void *, void *output, unsigned long frames, const PaStreamCallbackTimeInfo *,
+             PaStreamCallbackFlags flags, void *data) {
+    auto &c = *static_cast<Context *>(data);
+    auto *out = static_cast<float *>(output);
+    if (flags & paOutputUnderflow) c.xruns.fetch_add(1, std::memory_order_relaxed);
     const auto size = uint32_t(c.scratch.size() / 2);
     const auto now = app_engine_clock_ns();
     if (render_callback_block(c.engine.get(), c.scratch.data(), size, out, frames, now, c.faults)) return paContinue;
     return paAbort;
 }
-}
+} // namespace
 void list_devices(const std::string&directory){Backend b(directory);int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&d->maxOutputChannels>=2)std::cout<<i<<": "<<d->name<<" ("<<d->defaultSampleRate<<" Hz default)\n";}}
 void play(EngineOwner engine,const std::string&directory,const std::string&name,double rate,uint32_t block,const std::atomic<bool>&quit,std::function<void()> stop_producers){
  struct StopOnError {std::function<void()>&stop;~StopOnError(){if(stop)stop();}} cleanup{stop_producers};
