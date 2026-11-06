@@ -23,6 +23,9 @@ add_test(NAME ui_catalogue_sync COMMAND ${Python3_EXECUTABLE}
   "${PROJECT_SOURCE_DIR}/../tools/gen_ui_catalogue.py" --check)
 add_test(NAME abi2_offline_play COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/cli/play_tests.py $<TARGET_FILE:wirescape_cli> "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
 set_tests_properties(abi2_offline_play PROPERTIES TIMEOUT 45)
+add_test(NAME class_demo_patches COMMAND ${Python3_EXECUTABLE}
+  ${PROJECT_SOURCE_DIR}/../tools/foundation/tests/test_class_demo_patches.py $<TARGET_FILE:wirescape_cli>)
+set_tests_properties(class_demo_patches PROPERTIES TIMEOUT 190)
 
 # Optional QtCore document tooling; the engine remains independent of Qt.
 add_executable(runtime_module_config_tests runtime_module_config_tests.cpp)
