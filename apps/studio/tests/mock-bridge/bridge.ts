@@ -107,7 +107,7 @@ export async function mockBridge(page: Page): Promise<void> {
         signal: null, expected });
       sessionNo++; gen = 0;
       graph = { modules: [], connections: [] };
-      setTimeout(() => void hello(), 8);
+      setTimeout(() => void hello(), 250);
     };
     (window as any).wirescape = {
       send,
