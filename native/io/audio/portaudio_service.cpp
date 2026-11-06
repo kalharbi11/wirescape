@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "portaudio_service.h"
-#include "callback_render.h"
 #include "../../ui/third_party/portaudio.h"
+#include "callback_render.h"
 #include "wirescape/output_policy.h"
 #include <algorithm>
 #include <chrono>
@@ -61,8 +61,10 @@ struct Context {
 int callback(const void*,void*output,unsigned long frames,const PaStreamCallbackTimeInfo*,PaStreamCallbackFlags flags,void*data){
  auto&c=*static_cast<Context*>(data);auto*out=static_cast<float*>(output);
  if(flags&paOutputUnderflow)c.xruns.fetch_add(1,std::memory_order_relaxed);
- return render_callback_block(c.engine.get(),c.scratch.data(),uint32_t(c.scratch.size()/2),
-                              out,frames,app_engine_clock_ns(),c.faults)?paContinue:paAbort;
+    const auto size = uint32_t(c.scratch.size() / 2);
+    const auto now = app_engine_clock_ns();
+    if (render_callback_block(c.engine.get(), c.scratch.data(), size, out, frames, now, c.faults)) return paContinue;
+    return paAbort;
 }
 }
 void list_devices(const std::string&directory){Backend b(directory);int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&d->maxOutputChannels>=2)std::cout<<i<<": "<<d->name<<" ("<<d->defaultSampleRate<<" Hz default)\n";}}
