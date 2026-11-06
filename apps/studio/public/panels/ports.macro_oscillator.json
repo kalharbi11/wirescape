@@ -1,0 +1,69 @@
+{
+  "code": "MAC",
+  "sections": [
+    {
+      "label": "VOICE",
+      "params": [
+        "harmonics",
+        "timbre",
+        "morph"
+      ]
+    },
+    {
+      "label": "PITCH / MODULATION",
+      "params": [
+        "coarse",
+        "fm_amount",
+        "timbre_amount",
+        "morph_amount"
+      ]
+    },
+    {
+      "label": "LOW-PASS GATE",
+      "params": [
+        "decay",
+        "lpg_colour"
+      ]
+    }
+  ],
+  "short": {
+    "fm_amount": "FM",
+    "timbre_amount": "TIMBRE",
+    "morph_amount": "MORPH",
+    "lpg_colour": "COLOUR"
+  },
+  "modPorts": [],
+  "ports": {
+    "input": {
+      "shown": 4,
+      "priority": [
+        "pitch",
+        "trigger",
+        "harmonics_cv",
+        "timbre_cv"
+      ]
+    }
+  },
+  "panes": [
+    "models"
+  ],
+  "paneOptions": {
+    "models": {
+      "parameter": "model"
+    }
+  },
+  "hidden": [
+    "model"
+  ],
+  "roles": {
+    "harmonics": "hero",
+    "timbre": "primary",
+    "morph": "primary",
+    "coarse": "trim",
+    "fm_amount": "trim",
+    "timbre_amount": "trim",
+    "morph_amount": "trim",
+    "decay": "secondary",
+    "lpg_colour": "secondary"
+  }
+}

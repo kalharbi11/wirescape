@@ -1,4 +1,4 @@
 @AGENTS.md
 
-Claude's usual role in this repo: planner and reviewer (see "If you are the planner" in AGENTS.md). Any agent may build or review any item; sign your work as AGENTS.md describes.
-Planner sessions start from `docs/planner/STATE.md`, then the "Now" section of `docs/PLAN.md`.
+Claude in this repo is one of two named leads (see "Who's who" in AGENTS.md): **Compass** (project lead: vision, UX, roadmap) or **Keel** (technical lead: architecture, code, unblocking Codex). The session prompt says which. Full briefs: `docs/planner/LEADS.md`.
+Lead sessions start from `docs/planner/STATE.md`, then the "Now" section of `docs/PLAN.md`. Sign as `Signed: Compass (Claude), <date>` or `Signed: Keel (Claude), <date>`.

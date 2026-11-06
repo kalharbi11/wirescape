@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-3.0-only
+name: Pi UI checks
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pi-ui:
+    # Paused: no automatic PR/push runs. Owner manually resumes on main.
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.actor == github.repository_owner && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, ARM64, pi, ui, pi5]
+    timeout-minutes: 20
+    concurrency:
+      group: wirescape-physical-pi-ui
+      cancel-in-progress: false
+    env:
+      WIRESCAPE_HEADED: '1'
+      WIRESCAPE_PI_RUN: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Capture host health before setup and browser session
+        run: bash tools/pi-ui-health.sh before
+      - name: Check physical runner and desktop
+        env:
+          PI_UI_DISPLAY: ${{ vars.PI_UI_DISPLAY }}
+          PI_UI_WAYLAND_DISPLAY: ${{ vars.PI_UI_WAYLAND_DISPLAY }}
+          PI_UI_XDG_RUNTIME_DIR: ${{ vars.PI_UI_XDG_RUNTIME_DIR }}
+        run: bash tools/pi-ui-preflight.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install ffmpeg
+      - name: Headed Chromium regression and performance session
+        run: npm test -- --max-failures=5
+      - name: Capture host health after browser session
+        if: always()
+        run: bash tools/pi-ui-health.sh after
+      - name: Upload Pi evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-ui-${{ github.sha }}
+          path: |
+            test-results/
+            build_reports/pi-ui/

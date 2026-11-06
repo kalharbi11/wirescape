@@ -1,0 +1,95 @@
+{
+  "code": "CHAOS",
+  "sections": [
+    {
+      "label": "01 / OSCILLATORS",
+      "params": [
+        "shape_a",
+        "shape_b",
+        "detune"
+      ]
+    },
+    {
+      "label": "02 / BALANCE",
+      "columns": 6,
+      "params": [
+        "level_a",
+        "level_b",
+        "pan_a",
+        "pan_b",
+        "octave_a",
+        "octave_b"
+      ]
+    },
+    {
+      "label": "03 / BODY",
+      "columns": 6,
+      "params": [
+        "body_tune",
+        "feedback",
+        "damping",
+        "body_mix",
+        "depth"
+      ]
+    },
+    {
+      "label": "04 / CHARACTER",
+      "columns": 6,
+      "params": [
+        "roughness",
+        "rough_rate",
+        "drift",
+        "jitter",
+        "fall"
+      ]
+    },
+    {
+      "label": "05 / INTERNAL LFO + OUT",
+      "columns": 6,
+      "params": [
+        "lfo_rate",
+        "lfo_depth",
+        "lfo_self",
+        "cutoff",
+        "level"
+      ]
+    },
+    {
+      "label": "06 / ROUTING",
+      "columns": 1,
+      "params": [
+        "route",
+        "lfo_target"
+      ]
+    }
+  ],
+  "short": {
+    "shape_a": "A SHAPE",
+    "shape_b": "B SHAPE",
+    "detune": "B DETUNE",
+    "level_a": "A LEVEL",
+    "level_b": "B LEVEL",
+    "pan_a": "A PAN",
+    "pan_b": "B PAN",
+    "octave_a": "A OCT",
+    "octave_b": "B OCT",
+    "body_tune": "TUNE",
+    "feedback": "FEEDBACK",
+    "damping": "DAMPING",
+    "body_mix": "MIX",
+    "depth": "COUPLING",
+    "rough_rate": "ROUGH RATE",
+    "lfo_rate": "LFO RATE",
+    "lfo_depth": "LFO DEPTH",
+    "lfo_self": "LFO SELF",
+    "level": "OUT LEVEL"
+  },
+  "roles": {
+    "rough_rate": "secondary"
+  },
+  "modPorts": [
+    "cutoff",
+    "body_tune",
+    "lfo_rate"
+  ]
+}
