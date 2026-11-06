@@ -143,3 +143,10 @@ Fix reproduced history gesture boundaries, stuck keyboard note releases after oc
 The owner authorized **Phase 7** as a separate Raspberry Pi *UI-only* pretest in Wirescape-UI, using the dedicated self-hosted `pi-ui` runner, headed Chromium and `FakeEngine`. **Phase 8** is the real native engine integration primarily in `kalharbi11/wirescape` ([PHASE8_HANDOFF.md](PHASE8_HANDOFF.md)).
 
 This does not reopen the approved design system. No Pi run was started, no native code was changed, and performance OPEN-5 remains unmeasured on physical hardware. Q-B (ordinary-drop replace vs Shift-add, while the plan favors sum/add), touch access, physical readability and signature panels are Phase 7 owner acceptance items. Preserve previous rejected designs unless a specific Pi UI defect warrants revisiting them.
+
+## P1G (#234): owner Pi feedback — first UI corrections (2026-11-05)
+
+- Patch viewport alone uses a slightly grey `--canvas-ground: #f5f5f3`; page, rails, cards and cable palette stay as approved. The dark theme continues to inherit its dark paper.
+- Canvas display backing stores follow DPR × patch zoom (normal cap 4×; Pi cap 2×), with one 90 ms debounced refresh for viewport scaling. Cached static layers invalidate on density change.
+- The LFO's old dot mapped `phase / 2` across a two-cycle waveform, so one phase revolution reached only half the pane. Replace it with a recent two-cycle scrolling waveform whose right edge matches the real phase/output; if telemetry has no phase, keep a static shape rather than inventing motion. This supersedes the earlier phase-dot choice solely for the P1G Pi fix.
+- The remaining MIDI In/Settings menu work and required screenshot/Pi acceptance are still outstanding in this draft; no other control restyling is authorized.
