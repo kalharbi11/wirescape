@@ -7,10 +7,16 @@ ObservedMidi::ObservedMidi(bool fake, bool authorized)
     : backend_(midi::real_backend(!fake && authorized)), fake_(fake) {}
 std::vector<midi::Endpoint> ObservedMidi::endpoints() {
     auto found = backend_ ? backend_->endpoints() : std::vector<midi::Endpoint>{};
-    if (fake_) found = {{"M8 MIDI 1", "M8:M8 MIDI 1"}};
     std::lock_guard<std::mutex> lock(mutex_);
+    if (fake_) found = fake_endpoints_;
     observed_ = found;
     return found;
+}
+bool ObservedMidi::set_fake_endpoints(std::vector<midi::Endpoint> endpoints) {
+    if (!fake_) return false;
+    std::lock_guard<std::mutex> lock(mutex_);
+    fake_endpoints_ = std::move(endpoints);
+    return true;
 }
 std::vector<midi::Endpoint> ObservedMidi::observed() {
     std::lock_guard<std::mutex> lock(mutex_);
