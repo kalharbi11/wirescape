@@ -9,6 +9,7 @@ import type { PanelHost } from '../panels/PanelBuilder';
 import type { Ticker } from '../runtime/Ticker';
 import type { PortDirection } from '../modules/types';
 import { Viewport, boxesOverlap, type Box } from './Viewport';
+import { CanvasPane } from '../panels/widgets/canvasBase';
 import { CableLayer, type Point, type Resolved } from './CableLayer';
 import { ModuleCard } from './ModuleCard';
 import { el, motionOff } from '../app/dom';
@@ -86,7 +87,7 @@ export class PatchCanvas {
 
     this.attachViewportGestures();
     this.s.doc.on(e => this.onDocEvent(e));
-    this.viewport.on(() => { this.updateVisibility(); this.syncZoomLabel(); });
+    this.viewport.on(v => { CanvasPane.setZoom(v.s); this.updateVisibility(); this.syncZoomLabel(); });
     this.rebuild();
   }
 
