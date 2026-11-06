@@ -94,8 +94,9 @@ bool Host::replan(AppEngine *candidate, const std::string &document, uint64_t ti
     try {
         auto routes = subscriptions(document); // Parse/allocate before attempting any live change.
         auto commit = [&] { return engine_ && app_engine_replan(engine_, candidate, timeout_ns) == WS_OK; };
-        if (!(service_ ? service_->replace_routes(std::move(routes), commit) : commit())) {
-            error = "MIDI worker busy or live graph refused; graph and subscriptions unchanged";
+        bool busy = false;
+        if (!(service_ ? service_->replace_routes(std::move(routes), commit, &busy) : commit())) {
+            error = busy ? "MIDI worker busy" : "Live graph refused";
             return false;
         }
         error.clear();
