@@ -6,9 +6,10 @@
 #include "../tests2/allocation_watch.h"
 #include <sstream>
 #include <stdexcept>
+#include <iostream>
 using namespace wirescape::sidecar;
 void check(bool ok){if(!ok)throw std::runtime_error("sidecar unit assertion failed");}
-int main(){
+int run_tests(){
     for(const auto&bad:{"{\"x\":1,\"x\":2}","{\"x\":{\"y\":1,\"y\":2}}","[]"}){
         bool refused=false;try{strict_json(bad);}catch(...){refused=true;}check(refused);
     }
@@ -105,4 +106,10 @@ int main(){
     // Null-sink deterministic clock bounds the complete mute/swap/unmute
     // envelope well below 150 ms at 48 kHz, independent of device timing.
     check((blocks+6)*128.0/48000.0<0.150);
+    return 0;
+}
+int main() noexcept {
+    try{return run_tests();}
+    catch(const std::exception& error){std::cerr<<"sidecar unit: "<<error.what()<<'\n';return 1;}
+    catch(...){std::cerr<<"sidecar unit: unknown exception\n";return 1;}
 }

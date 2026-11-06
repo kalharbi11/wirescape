@@ -79,10 +79,11 @@ struct Stream::Impl {
  std::unique_ptr<Backend> backend;
  std::unique_ptr<Context> context;
  PaStream* stream=nullptr;
- Impl(EngineOwner& engine,const std::string& directory,const std::string& name,double rate,uint32_t block,std::function<void()> producers) {
-  backend=std::make_unique<Backend>(directory);auto&b=*backend;
+ Impl(EngineOwner& engine,StreamSelection selection,double rate,uint32_t block,std::function<void()> producers)
+  :backend(std::make_unique<Backend>(selection.directory)) {
+  auto&b=*backend;
   int device=b.default_device();
-  if(!name.empty()) {device=paNoDevice;int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&name==d->name){if(device!=paNoDevice)throw std::runtime_error("Ambiguous audio device name");device=i;}}}
+  if(!selection.name.empty()) {device=paNoDevice;int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&selection.name==d->name){if(device!=paNoDevice)throw std::runtime_error("Ambiguous audio device name");device=i;}}}
   const auto*info=device>=0?b.info(device):nullptr;
   if(!info||info->maxOutputChannels<2)throw std::runtime_error("No matching stereo output device");
   context=std::make_unique<Context>(EngineOwner(nullptr,app_engine_destroy),block);context->stop_producers=std::move(producers);context->engine=std::move(engine);
@@ -109,8 +110,8 @@ struct Stream::Impl {
  }
  ~Impl(){try{retire();}catch(const std::exception&e){std::cerr<<e.what()<<'\n';}}
 };
-Stream::Stream(EngineOwner&e,const std::string&directory,const std::string&name,double rate,uint32_t block,std::function<void()> producers)
- :impl_(std::make_unique<Impl>(e,directory,name,rate,block,std::move(producers))){}
+Stream::Stream(EngineOwner&e,StreamSelection selection,double rate,uint32_t block,std::function<void()> producers)
+ :impl_(std::make_unique<Impl>(e,std::move(selection),rate,block,std::move(producers))){}
 Stream::~Stream()=default;
 EngineOwner Stream::stop(){return impl_->retire();}
 bool Stream::running()const{return impl_->stream&&impl_->backend->active(impl_->stream)>0;}

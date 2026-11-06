@@ -33,5 +33,6 @@ public:
     bool inject_ump(const midi::Endpoint&,const uint32_t*,size_t,uint64_t);
 };
 Json audio_devices(const std::string& directory, bool fake);
-Json midi_devices(const std::vector<midi::Endpoint>&, const std::vector<midi::Endpoint>&, bool authorized);
+struct MidiDeviceListing { std::vector<midi::Endpoint> available, enabled; };
+Json midi_devices(const MidiDeviceListing&, bool authorized);
 }

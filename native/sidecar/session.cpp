@@ -64,7 +64,7 @@ void Session::shutdown(){midi_->stop();stop_audio();}
 void Session::start_audio(){
     stop_sink_.store(false);
     if(options_.audio){
-        try{stream_=std::make_unique<audio::Stream>(engine_,options_.directory,device_,options_.rate,options_.block,[this]{midi_->stop();});audio_state_="running";}
+        try{stream_=std::make_unique<audio::Stream>(engine_,audio::StreamSelection{options_.directory,device_},options_.rate,options_.block,[this]{midi_->stop();});audio_state_="running";}
         catch(const audio::ShutdownFailure&){throw;}
         catch(const std::exception&){audio_state_="no-device";if(!engine_)throw;}
     }else{
@@ -85,7 +85,7 @@ void Session::stop_audio(){
 void Session::start_midi(){std::string error;need(midi_->start(active_,patch_.dump(),error),"unavailable","Cannot start MIDI subscriptions");}
 void Session::refresh_devices(){
     try{audio_devices_=audio_devices(options_.directory,options_.null_audio);}catch(...){audio_devices_=Json::array();}
-    midi_devices_=midi_devices(observer_->observed(),midi_->enabled(),options_.midi||options_.null_audio);
+    midi_devices_=midi_devices({observer_->observed(),midi_->enabled()},options_.midi||options_.null_audio);
 }
 void Session::persist(){
     auto preferences=preferences_;preferences["audioDeviceId"]=device_;preferences["devices"]=Json::array();
@@ -144,7 +144,8 @@ void Session::commit(Json patch,bool new_namespace){
         }
     }
     app_engine_prepare_master_fade_in(candidate.get());
-    midi_->stop();app_engine_panic(active_);stop_audio();
+    try{midi_->stop();app_engine_panic(active_);stop_audio();}
+    catch(...){app_engine_resume_master_fade(active_);throw;}
     auto previous=std::move(engine_);auto old_patch=patch_;engine_=std::move(candidate);active_=engine_.get();patch_=patch;
     try{
         start_audio();start_midi();

@@ -44,9 +44,14 @@ interrupt sound and release held notes; no sample-continuity guarantee is made
 for failed hardware. Settings writes use a same-directory temporary file plus
 atomic replacement; a failed selection/persistence attempts the prior selection.
 
-**Pending technical ruling:** D5 requires a short fade. No gain/fade seam exists
-in the unchanged callback. The requested internal AppEngine gain-ramp exception
-is awaiting Keel on #230; this draft does not claim D5 acceptance until resolved.
+**D5 fallback (Keel ruling, #247):** AppEngine's internal master-output ramp
+attenuates the final mixed audio linearly over at most 10 ms. The callback
+retains sole ownership of current gain; a single atomic phase provides the
+control request and full-silent-block acknowledgment. On a validated swap
+the control executor waits for a zero block, stops/join sources, activates
+the prepared candidate at zero gain and waits for fade-in to begin. A
+150 ms deadline bounds the device-free swap path; service failure rolls
+back to the old graph. The PortAudio callback body remains unchanged.
 
 Successful loadGraph starts a new document ID namespace. Incremental removal
 retires an ID until another successful loadGraph. Refused loads reset nothing.

@@ -70,8 +70,8 @@ Json audio_devices(const std::string&directory,bool fake){
     for(const auto&d:audio::devices(directory))result.push_back({{"id",d.name},{"name",d.name},{"kind","audio"},{"index",d.index}});
     return result;
 }
-Json midi_devices(const std::vector<midi::Endpoint>&endpoints,const std::vector<midi::Endpoint>&enabled,bool authorized){
-    auto result=Json::array();for(const auto&e:endpoints){bool on=authorized&&std::any_of(enabled.begin(),enabled.end(),[&](const auto&s){return s.name==e.name&&s.system_name==e.system_name;});
+Json midi_devices(const MidiDeviceListing& listing,bool authorized){
+    auto result=Json::array();for(const auto&e:listing.available){bool on=authorized&&std::any_of(listing.enabled.begin(),listing.enabled.end(),[&](const auto&s){return s.name==e.name&&s.system_name==e.system_name;});
         result.push_back({{"id",e.name+"|"+e.system_name},{"name",e.name},{"system_name",e.system_name},{"kind","midi"},{"enabled",on}});}
     return result;
 }
