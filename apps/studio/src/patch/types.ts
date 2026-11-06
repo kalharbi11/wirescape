@@ -27,6 +27,7 @@ export interface Connection {
 export interface PatchModule {
   id: number;
   module: string;
+  version?: number;
   parameters?: Record<string, number>;
   [extra: string]: unknown;
 }
@@ -46,6 +47,8 @@ export interface PatchV2 {
   version: 2;
   modules: PatchModule[];
   connections: Connection[];
+  settings?: Record<string, unknown>;
+  outputs?: { module: number; port: string; bus_channel: number; [extra: string]: unknown }[];
   ui?: PatchUi;
   [extra: string]: unknown;
 }
