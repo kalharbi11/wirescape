@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P0A: class demo patches (Phase 0, due 2026-11-07 morning, New York)
+# P0A (#219): class demo patches (Phase 0, due 2026-11-07 morning, New York)
 
 Three native v2 patches for the Pi class demo (`docs/DEMO_CLASS.md`). Data only: no engine, module or UI code.
 
