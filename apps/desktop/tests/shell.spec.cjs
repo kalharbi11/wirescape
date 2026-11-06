@@ -10,7 +10,7 @@ const stub = path.resolve(__dirname, 'stub-engine.cjs');
 async function launch(extraEnv = {}) {
   return electron.launch({
     executablePath: electronExecutable,
-    args: [appMain, '--engine', stub, '--null-audio'],
+    args: ['--no-sandbox', appMain, '--engine', stub, '--null-audio'],
     env: { ...process.env, WIRESCAPE_TEST_STUB: '1', ...extraEnv }
   });
 }
@@ -23,12 +23,11 @@ test('native window loads the real built UI with the isolated five-member bridge
       .toEqual(['onMessage', 'openPatch', 'platform', 'savePatch', 'send']);
     const flags = await app.evaluate(({ BrowserWindow }) => {
       const w = BrowserWindow.getAllWindows()[0];
-      return [w.isMinimizable(), w.isClosable(), w.webContents.getLastWebPreferences()];
+      return [w.isMinimizable(), w.isClosable()];
     });
-    expect(flags[0]).toBe(true);
-    expect(flags[1]).toBe(true);
-    expect(flags[2].nodeIntegration).toBe(false);
-    expect(flags[2].contextIsolation).toBe(true);
+    expect(flags).toEqual([true, true]);
+    expect(await page.evaluate(() => typeof require)).toBe('undefined');
+    expect(await page.evaluate(() => typeof process)).toBe('undefined');
   } finally { await app.close(); }
 });
 test('NDJSON replies, unexpected crash notification and bounded automatic restart', async () => {
