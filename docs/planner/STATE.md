@@ -11,14 +11,15 @@ Keep this under 60 lines. Rewrite it at the end of each lead session; history li
 - Closed done issues #260, #233, #231, #227.
 - Known non-required red: `cortex-m7` / portability probe (#159). `static` is informational.
 
-## Open lanes (existing builders retained; new briefs await owner dispatch)
+## Open lanes (existing builders retained; independent owner-dispatched work active)
 1. **#274** (#258 bench summary): Keel T2 done, no High; needs the line format in `native/sidecar/DESIGN.md`, green + `pi5`, then Keel merges.
 2. **#273** (#267 live replan in sidecar): Keel T2 done, no High; Medium = stderr `commit path=live|d5 gen=N` + process-test asserts. Then merge (unlocks #271 F).
 3. **#256** (#250 1H): Keel ruled the 4 fixture/engine conflicts (category is an engine bug; fake M8, null-device status are engine-correct; T11/T13 fixture fixes, protected-path line on #250); budget 11 files.
 4. **#263** (#259 modules): merged at `305d660`; Step Sequencer + Random Source available.
 5. **#266** 1B-2 Windows raw-handle transport: not started; after Test Session 1.
-6. **#276 / #279** patch-folder defaults: implemented, draft; Studio build + desktop TS + local acceptance PASS; Electron CI and independent T1 review pending.
-7. **#277** clean-switch/immediate-reload autosave fix; **#278** fake-device edit-soak harness: exact independent build briefs ready, unclaimed. Owner requested Phase 2D/2F work during test deferral; goals unchanged.
+6. **#276 / #279** patch-folder defaults: independent T1 review no findings; exact-head Web/CI/static/CodeQL PASS; submitted to merge gate at `3b5470a` (only known non-required Cortex red).
+7. **#277** session recovery and **#278** fake-device edit soak: both claimed by the owner's dispatched agents; keep their paths separate.
+8. **#281 / #283** on-screen keyboard: implemented by Codex Lead (`29a5ed2`); focused tests/typecheck PASS, 112 browser tests PASS; local recording test lacks ffmpeg. Hosted full Web and separate-session T1 review pending.
 
 ## Phase 1 sign-off needs
 #271 owner results (A, B, C), 1H green, contention benchmark (#271 D3 or the Pi runner; zero overruns, p99 < 50% period). Then Compass runs Checkpoint A.
@@ -38,7 +39,7 @@ Keep this under 60 lines. Rewrite it at the end of each lead session; history li
 - **Benchmark source:** null-sink histogram + `--bench-summary` stderr line (#258); no protocol change.
 
 ## Waiting on the owner
-- **#271 Test Session 1** deferred by owner; keep building. Conditional H (patch folder, #276) and I (session recovery, #277) are in a signed comment; skip until merged. No hardware action requested now.
+- **#271 Test Session 1** deferred by owner; keep building. Conditional H (patch folder, #276), I (session recovery, #277), J (on-screen keyboard, #281) are in signed comments; skip until merged. No hardware action requested now.
 
 ## Next lead sessions
 - Keel: triage #271 results (engine faults → issue per failure); T2-review #258, #267, #256 native, #266; merge when green.
