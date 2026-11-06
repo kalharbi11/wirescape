@@ -36,7 +36,7 @@ tier: T2
 size: <= 500 changed lines, <= 5 files
 must_pass:
   - cd apps/studio && npm test -- --grep "golden v0"
-  - ctest --test-dir build/native -R sidecar_golden --output-on-failure
+  - ctest --test-dir build/native -R sidecar_golden --output-on-failure --no-tests=error
   - pi: ctest -R sidecar_golden (null audio, fake MIDI)
 stops: [protocol change, new dependency, device access, weakening checks, oversized diff]
 ```
