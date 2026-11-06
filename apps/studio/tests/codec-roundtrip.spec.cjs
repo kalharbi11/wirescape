@@ -37,13 +37,16 @@ test('only absent metadata is defaulted; output edits preserve other routes and 
   expect(doc.toJSON().modules[0]).toMatchObject(source.modules[0]);
   expect(doc.toJSON().modules[1].version).toBe(catalogue.modules.find(m => m.id === 'essentials.output').version);
   doc.addModule('essentials.output', {}, 0, 0, 3);
-  expect(doc.toJSON().outputs).toEqual([...source.outputs, { module: 3, port: 'audio', bus_channel: 0 }]);
+  const stereo = [0, 1].map(bus_channel => ({ module: 3, port: 'audio', bus_channel }));
+  expect(doc.toJSON().outputs).toEqual([...source.outputs, ...stereo]);
   doc.removeModule(1);
-  expect(doc.toJSON().outputs).toEqual([source.outputs[1], { module: 3, port: 'audio', bus_channel: 0 }]);
+  expect(doc.toJSON().outputs).toEqual([source.outputs[1], ...stereo]);
+  doc.removeModule(3);
+  expect(doc.toJSON().outputs).toEqual([source.outputs[1]]);
   expect(source).toEqual(original);
   const missing = PatchDoc.from({ ...EMPTY_PATCH(), modules: [{ id: 1, module: 'essentials.output' }] });
   expect(missing.toJSON().settings).toEqual({ sample_rate: 48000, max_block_frames: 256, max_channels: 16, feedback_block: 1 });
-  expect(missing.toJSON().outputs).toEqual([{ module: 1, port: 'audio', bus_channel: 0 }]);
+  expect(missing.toJSON().outputs).toEqual([0, 1].map(bus_channel => ({ module: 1, port: 'audio', bus_channel })));
   missing.removeModule(1);
   expect(missing.toJSON().outputs).toEqual([]);
   const empty = PatchDoc.from({ ...EMPTY_PATCH(), settings: {}, outputs: [] });
@@ -74,6 +77,7 @@ for (const filename of readdirSync(resolve(root, 'native/examples')).filter(p =>
     expect(saved.ui.future).toEqual(source.ui.future);
     expect(saved.ui.view.future).toEqual(source.ui.view.future);
     if (source.version === 1) {
+      expect(saved.outputs).toEqual([0, 1].map(bus_channel => ({ module: source.outputNode, port: 'audio', bus_channel })));
       expect(saved.preserved).toEqual(source);
       source.modules.forEach((m, i) => expect(saved.modules[i].preserved).toEqual(m));
       expect(saved.modules.every((m) => typeof m.module === 'string')).toBe(true);

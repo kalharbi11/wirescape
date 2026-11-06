@@ -60,6 +60,16 @@ int main(int argc, char **argv) {
                 ++refused;
             } else {
                 require(bool(engine), name + ": " + error);
+                for (const auto &module : patch.at("modules")) {
+                    if (module.at("module") != "essentials.output") continue;
+                    for (int bus = 0; bus < 2; ++bus) {
+                        bool routed = false;
+                        for (const auto &route : patch.at("outputs"))
+                            routed |= route.at("module") == module.at("id") && route.at("port") == "audio" &&
+                                      route.at("bus_channel") == bus;
+                        require(routed, name + ": Output missing bus " + std::to_string(bus));
+                    }
+                }
                 float samples[256]{};
                 require(app_engine_render(engine.get(), samples, 256) == WS_OK, name + ": render failed");
                 for (float sample : samples) require(std::isfinite(sample), name + ": non-finite sample");

@@ -4,7 +4,7 @@ import { EMPTY_PATCH, connKey } from './types';
 import catalogue from '../../public/wirescape_modules.json' with { type: 'json' };
 
 const descriptors = new Map(catalogue.modules.map(m => [m.id, m]));
-const outputRoute = (module: number) => ({ module, port: 'audio', bus_channel: 0 });
+const outputRoutes = (module: number) => [0, 1].map(bus_channel => ({ module, port: 'audio', bus_channel }));
 
 export type PatchEvent =
   | { t: 'reset' }
@@ -100,7 +100,8 @@ export class PatchDoc {
   }
 
   private defaultOutputs(): NonNullable<PatchV2['outputs']> {
-    return [...this.modules.values()].filter(m => m.module === 'essentials.output').map(m => outputRoute(m.id));
+    // UI defaults route every Output; native's absent-outputs fallback selects only the lowest ID.
+    return [...this.modules.values()].filter(m => m.module === 'essentials.output').flatMap(m => outputRoutes(m.id));
   }
 
   // ---- modules ----------------------------------------------------------
@@ -115,7 +116,7 @@ export class PatchDoc {
     this.modules.set(id, { id, module: type, parameters: { ...params } });
     if (type === 'essentials.output') {
       if (!('outputs' in this.extras)) this.extras.outputs = this.defaultOutputs();
-      else if (Array.isArray(this.extras.outputs)) this.extras.outputs.push(outputRoute(id));
+      else if (Array.isArray(this.extras.outputs)) this.extras.outputs.push(...outputRoutes(id));
     }
     this.ui.positions![String(id)] = [Math.round(x), Math.round(y)];
     this.emit({ t: 'module-added', id });
@@ -283,6 +284,6 @@ function migrateV1(source: PatchV2): PatchV2 {
   });
   return { ...source, version: 2, modules, connections, preserved: original,
     // The native migration selects output port zero (audio for the existing examples).
-    outputs: modules.filter(m => m.id === source.outputNode).map(m => outputRoute(m.id)),
+    outputs: modules.filter(m => m.id === source.outputNode).flatMap(m => outputRoutes(m.id)),
     host_mappings: [], devices: [] };
 }
