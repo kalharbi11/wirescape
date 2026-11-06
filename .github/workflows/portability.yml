@@ -39,6 +39,15 @@ jobs:
           echo "$bin" >> "$GITHUB_PATH"
           "$bin/arm-none-eabi-g++" --version | head -1 | tee -a "$GITHUB_STEP_SUMMARY"
           echo "Toolchain 14.2.rel1 cache hit: ${{ steps.toolchain-cache.outputs.cache-hit }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Prepare existing pinned Macro dependency context
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Reuse the production FetchContent pins, hashes and authorized patches.
+          # Configure only: no host binaries, devices or upstream source edits.
+          cmake -S native -B .tools/portability-context -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_BUILD_TYPE=Release
+          test -f .tools/portability-context/_deps/macro_eurorack-src/plaits/dsp/voice.h
+          test -f .tools/portability-context/engine2/macro_oscillator/upstream/stmlib/stmlib.h
       - name: Compile each module.cpp (fail on any error)
         shell: bash
         run: |
@@ -53,11 +62,17 @@ jobs:
           for source in native/modules2/*/module.cpp; do
             module=$(basename "$(dirname "$source")")
             row="| $module |"
+            module_flags=()
+            if [[ "$module" == macro_oscillator ]]; then
+              module_flags=(-I .tools/portability-context/_deps/macro_eurorack-src
+                            -I .tools/portability-context/engine2/macro_oscillator/upstream
+                            -DTEST -include native/modules2/macro_oscillator/rng_scope.hpp)
+            fi
             for extra in "" "-fno-exceptions -fno-rtti"; do
               log=$(mktemp)
               started=$(date +%s%3N)
               # shellcheck disable=SC2086
-              if arm-none-eabi-g++ "${flags[@]}" $extra -c "$source" -o /dev/null 2>"$log"; then
+              if arm-none-eabi-g++ "${flags[@]}" "${module_flags[@]}" $extra -c "$source" -o /dev/null 2>"$log"; then
                 elapsed=$(( $(date +%s%3N) - started ))
                 row="$row pass (${elapsed}ms) |"
               else
