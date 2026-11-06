@@ -189,12 +189,12 @@ async function stopEngine(): Promise<void> {
     child.once('close', () => { clearTimeout(timeout); resolve(); });
   });
 }
-async function restartEngine(): Promise<void> {
+async function restartEngine(resetFailures = false): Promise<void> {
   if (shuttingDown || restartInProgress) throw new Error('Restart unavailable');
   restartInProgress = true;
   try {
     await stopEngine();
-    failures.length = 0;
+    if (resetFailures) failures.length = 0;
     startEngine();
   } finally { restartInProgress = false; }
 }
@@ -296,7 +296,7 @@ function configureMenu(): void {
       { label: 'Reload UI', accelerator: 'CmdOrCtrl+R', click: () => window?.reload() }
     ] },
     { label: 'Engine', submenu: [
-      { label: 'Restart engine', click: () => { void restartEngine().catch(() => showEngineFailure()); } },
+      { label: 'Restart engine', click: () => { void restartEngine(true).catch(() => showEngineFailure()); } },
       { label: 'Panic', click: () => command(JSON.stringify({ v: 0, id: 'menu-' + (++menuId), type: 'panic' })) }
     ] }
   ]);
