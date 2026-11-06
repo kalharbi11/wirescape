@@ -38,7 +38,84 @@ class Audit:
         if not condition:
             self.errors.append(f'{where}: {reason}')
 
+    def compare_devices(self, actual, kind, where):
+        self.check(isinstance(actual, list), where, f'{kind} devices must be an array')
+        if not isinstance(actual, list):
+            return
+        ids = set()
+        for index, entry in enumerate(actual):
+            location = f'{where}[{index}]'
+            self.check(isinstance(entry, dict), location, 'device must be an object')
+            if not isinstance(entry, dict):
+                continue
+            required = {'id', 'name', 'kind'} | (
+                {'system_name', 'enabled'} if kind == 'midi' else set())
+            self.check(required <= entry.keys(), location, f'missing {required - entry.keys()}')
+            self.check(entry.get('kind') == kind, location, 'wrong device kind')
+            for key in required - {'kind', 'enabled'}:
+                self.check(isinstance(entry.get(key), str) and bool(entry.get(key)),
+                           location, f'bad {key}')
+            if kind == 'midi':
+                self.check(type(entry.get('enabled')) is bool, location, 'bad enabled flag')
+                self.check(entry.get('id') == str(entry.get('name')) + '|' +
+                           str(entry.get('system_name')), location, 'bad stable MIDI ID')
+                if where.startswith(('T01', 'T15', 'T11')):
+                    self.check(entry.get('enabled') is False, location,
+                               'fake MIDI must be disabled after startup/off')
+                if where.startswith('T10'):
+                    self.check(entry.get('enabled') is True, location,
+                               'pre-enabled fake MIDI disappeared')
+            else:
+                self.check(entry.get('id') == entry.get('name'), location,
+                           'audio ID must equal device name')
+                if 'index' in entry:
+                    self.check(type(entry['index']) is int, location, 'bad audio index')
+                if 'sampleRates' in entry:
+                    self.check(isinstance(entry['sampleRates'], list) and
+                               all(type(n) is int and n > 0 for n in entry['sampleRates']),
+                               location, 'bad sample rates')
+            self.check(entry.get('id') not in ids, location, 'duplicate device ID')
+            ids.add(entry.get('id'))
+
+    def check_audio(self, audio, where):
+        self.check(audio.get('state') in ('starting', 'running', 'no-device',
+                   'device-lost', 'reconnecting'), where, 'bad audio state')
+        self.check((audio.get('deviceId') is None) == (audio.get('deviceName') is None),
+                   where, 'deviceId/deviceName nullability differs')
+        self.check(audio.get('state') == 'no-device' and audio.get('deviceId') is None,
+                   where, 'null sink invented an active hardware output')
+        rate, frames = audio.get('sampleRate'), audio.get('bufferFrames')
+        self.check(type(rate) is int and rate > 0, where, 'bad sample rate')
+        self.check(type(frames) is int and 0 < frames <= 4096, where, 'bad buffer frames')
+        latency = audio.get('latencyMs')
+        self.check(type(latency) in (float, int) and math.isfinite(latency) and
+                   type(rate) is int and rate > 0 and type(frames) is int and
+                   abs(latency - 2000 * frames / rate) <= 0.001,
+                   where, f'latency {latency!r} is not 2*buffer/rate')
+        cpu = audio.get('cpuPercent')
+        self.check(type(cpu) in (int, float) and math.isfinite(cpu) and cpu >= 0,
+                   where, 'invalid measured CPU')
+        self.check(type(audio.get('dropouts')) is int and audio['dropouts'] >= 0,
+                   where, 'invalid dropout count')
+
     def compare(self, expected, actual, where):
+        if isinstance(expected, list) and (where.endswith(('.midi.devices', '.midiDevices',
+                                                          '.audioDevices', '.result.devices'))):
+            kind = 'midi' if ('.midi' in where or '.midiDevices' in where or
+                              where.startswith('T10')) else 'audio'
+            self.compare_devices(actual, kind, where)
+            return
+        if isinstance(expected, dict) and where.endswith('.audio'):
+            self.check(isinstance(actual, dict), where, 'audio status must be object')
+            if not isinstance(actual, dict):
+                return
+            self.check_audio(actual, where)
+            for key, item in expected.items():
+                self.check(key in actual, where, 'missing field ' + key)
+                if key in actual and key not in ('state', 'deviceId', 'deviceName',
+                                                 'latencyMs', 'cpuPercent', 'dropouts'):
+                    self.compare(item, actual[key], where + '.' + key)
+            return
         # The catalogue example describes required stable IDs, not the entire installed
         # catalogue. Every expected descriptor must match; extra installed IDs are legal.
         if where.endswith('.catalogue.modules') and isinstance(actual, list):
@@ -308,12 +385,15 @@ class Engine:
 def replay(binary, fixture):
     audit = Audit()
     steps = read_fixture(fixture)
+    midi_id = next(v['deviceId'] for s, d, v, *_ in steps
+                   if s == 'T10' and d == '>' and v and v.get('type') == 'setMidiEnabled')
     with tempfile.TemporaryDirectory(prefix='wirescape-golden-') as root:
         engine = Engine(binary, Path(root) / 'preferences.json', audit)
         generation = 0
         last_command = None
         fresh_session = None
         push_start = 0
+        midi_inventory = None
         try:
             for section, direction, value, raw, number in steps:
                 where = f'{section}:{number}'
@@ -327,6 +407,17 @@ def replay(binary, fixture):
                         generation = 0
                     continue
                 if direction == '>':
+                    if section == 'T10' and value and value.get('id') == 'r10a':
+                        # The illustrative T10 vector assumes M8 was enabled.
+                        # The null sink starts fake endpoints disabled; establish
+                        # that precondition without altering the shared fixture.
+                        setup = {'v': 0, 'id': 'golden-pre10', 'type': 'setMidiEnabled',
+                                 'deviceId': midi_id, 'on': True}
+                        engine.send(json.dumps(setup).encode('utf-8') + b'\n')
+                        ready = engine.reply('golden-pre10')
+                        audit.check(ready.get('ok') is True and
+                                    ready.get('gen') == str(generation), where,
+                                    f'cannot enable fake MIDI: {ready}')
                     last_command = value
                     if section == 'T14' and value and value.get('id') == 'r14b':
                         last_reply = engine.saturate(value, generation)
@@ -353,6 +444,9 @@ def replay(binary, fixture):
                         raise AssertionError(f'bad golden generation relation at {where}')
                     expected = dict(value, gen=str(generation))
                     audit.compare(expected, actual, where)
+                    if section == 'T10' and value.get('re') == 'r10a':
+                        midi_inventory = {d['id'] for d in
+                                          actual.get('result', {}).get('devices', [])}
                     last_reply = None
                     last_command = None
                     push_start = engine.sequence
@@ -371,6 +465,10 @@ def replay(binary, fixture):
                 assert value.get('type') in ('devices', 'status', 'telemetry'), where
                 actual = engine.push(value['type'], push_start, generation)
                 audit.compare(dict(value, gen=str(generation)), actual, where)
+                if section == 'T11' and midi_inventory is not None:
+                    audit.check({d['id'] for d in actual.get('midiDevices', [])} ==
+                                midi_inventory, where,
+                                'disabling MIDI removed an enumerated endpoint')
             engine.close()
         finally:
             if engine.process.poll() is None:
