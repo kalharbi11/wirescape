@@ -258,7 +258,7 @@ with tempfile.TemporaryDirectory() as directory:
              if line.startswith('bench ')]
     assert len(lines) == 1, lines
     match = re.fullmatch(
-        r'bench blocks=(\\d+) p50=(\\d+) p99=(\\d+) max=(\\d+(?:\\.\\d+)?(?:e[+-]?\\d+)?) overruns=(\\d+)',
+        r'bench blocks=(\d+) p50=(\d+) p99=(\d+) max=(\d+(?:\.\d+)?(?:e[+-]?\d+)?) overruns=(\d+)',
         lines[0])
     assert match, lines[0]
     blocks, p50, p99, maximum, overruns = map(float, match.groups())
