@@ -20,6 +20,11 @@ add_test(NAME class_demo_patches COMMAND ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/../tools/foundation/tests/test_class_demo_patches.py $<TARGET_FILE:wirescape_cli>)
 set_tests_properties(class_demo_patches PROPERTIES TIMEOUT 190)
 
+add_executable(class_demo_cc_depth_tests class_demo_cc_depth_tests.cpp)
+target_link_libraries(class_demo_cc_depth_tests PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
+add_test(NAME class_demo_cc_depth COMMAND class_demo_cc_depth_tests "${PROJECT_SOURCE_DIR}/examples")
+set_tests_properties(class_demo_cc_depth PROPERTIES TIMEOUT 120)
+
 # Optional QtCore document tooling; the engine remains independent of Qt.
 add_executable(runtime_module_config_tests runtime_module_config_tests.cpp)
 target_link_libraries(runtime_module_config_tests PRIVATE nlohmann_json::nlohmann_json)
