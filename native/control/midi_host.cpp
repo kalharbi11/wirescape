@@ -93,10 +93,17 @@ bool Host::start(AppEngine*engine,const std::string&document,std::string&error){
 bool Host::replan(AppEngine *candidate, const std::string &document, uint64_t timeout_ns, std::string &error) {
     try {
         auto routes = subscriptions(document); // Parse/allocate before attempting any live change.
-        auto commit = [&] { return engine_ && app_engine_replan(engine_, candidate, timeout_ns) == WS_OK; };
-        bool busy = false;
-        if (!(service_ ? service_->replace_routes(std::move(routes), commit, &busy) : commit())) {
-            error = busy ? "MIDI worker busy" : "Live graph refused";
+        if (std::any_of(routes.begin(), routes.end(), [](const Route &r) { return !r.node; }))
+            throw std::runtime_error("Invalid MIDI route");
+        // replace_routes calls commit only after acquiring its try-lock. A valid
+        // route table with no commit invocation therefore means MIDI contention.
+        bool commit_entered = false;
+        auto commit = [&] {
+            commit_entered = true;
+            return engine_ && app_engine_replan(engine_, candidate, timeout_ns) == WS_OK;
+        };
+        if (!(service_ ? service_->replace_routes(std::move(routes), commit) : commit())) {
+            error = service_ && !commit_entered ? "MIDI worker busy" : "Live graph refused";
             return false;
         }
         error.clear();
