@@ -44,4 +44,4 @@ Pi evidence via ci/pi. T2: route to "Keel:". Sign "Codex (live-edit builder)".
 ```
 
 ## Parked until Checkpoint A (don't spend agents here)
-#82/#72 OSC (3D) · #161/#159 cortex-m7 (5.7) · #181 module guide (T0, needs one review) · #210/#163 MIDI controls (2B) · #236 gate v4 · #188, #143, #140, #164, #91, #94, #64.
+#82/#72 OSC (3D) · #161/#159 cortex-m7 (5.7) · #181 module guide (T0, needs one review) · #210/#163 MIDI controls (2B) · #236 gate v4 · #188, #143, #164, #91, #94, #64. (#140 and #70 closed by Compass as superseded.)

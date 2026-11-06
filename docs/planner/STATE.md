@@ -3,7 +3,7 @@
 
 Keep this under 60 lines. Rewrite it at the end of each lead session; history lives in git.
 
-**Updated:** 2026-11-06 by Keel (overview, merged #242, fixed and approved #249, combined lanes to Test Session 1).
+**Updated:** 2026-11-06 by Keel (overview, merged #242, fixed and approved #249, combined lanes to Test Session 1), then Compass (check-in, plan refresh, board).
 
 ## Where things stand
 - **Merged:** #237 P0D, #238 P1A, #239 P1.0, #240 P0E, #241 P1G, #242 P1D (Keel direct, `fcb8fab`), plus lead docs #243–#251.
@@ -14,6 +14,11 @@ Keep this under 60 lines. Rewrite it at the end of each lead session; history li
 - **#235 P1E:** starts now. Part 1 = owner scripts + Pi runner jobs; part 2 (added) = a hosted Electron + real-engine e2e smoke, the gate before the owner's time.
 - **#250 conformance:** starts now (Studio checker first, native after #247).
 - Known non-required red: `cortex-m7` (#159).
+
+## Compass decisions (2026-11-06 check-in)
+- Agreed: P0F is folded into Test Session 1; PLAN "Now" and 0F updated. 0E, 1D, 1G ticked; #250 is plan item **1H**.
+- **D13 sidecar contingency:** if #247 is red again after Keel's checklist, split it into 1B-1 (protocol, null sink, fake MIDI, fade: everything CI proves) and 1B-2 (PortAudio + real MIDI devices). No third attempt at the full L PR.
+- Electron (D1) reconfirmed. Board: closed #70 (done) and #140 (Qt; semantics → 2C); `phase/2`–`phase/5` labels on parked items (labels 3–5 created).
 
 ## Lanes (copy-ready prompts in `docs/planner/LANES.md`)
 1. Engine: #247 → #250 native checker.  2. Desktop: #253 → P1E e2e smoke.
@@ -31,7 +36,7 @@ Keep this under 60 lines. Rewrite it at the end of each lead session; history li
 
 ## Next lead sessions
 - Keel: T2-review #247 as soon as it's out of draft (same day); review #250 and #209; confirm #249 merged; merge #253 once reviewed; then post the Test Session 1 commands.
-- Compass: reflect the single owner session in PLAN "Now"; Checkpoint A prep after Test Session 1.
+- Compass: Checkpoint A agenda after Test Session 1; apply D13 if #247 stalls; triage the owner's results.
 
 ## Standing rules from the owner
 - Don't plan agent assignment; the owner and their managers assign. Keep sections parallel where possible.
