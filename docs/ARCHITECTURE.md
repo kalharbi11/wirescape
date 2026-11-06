@@ -261,7 +261,12 @@ a candidate. A control-thread try-lock excludes only MIDI worker dispatch during
 replan; backend callbacks keep their rings and audio never takes this lock. A busy
 worker or refused candidate preserves both graph and routes. Keyboard conversion
 is carried in the route table so new/removed sources cannot race a separate list.
-This seam is not yet connected to the sidecar (#267, 2A-2).
+The sidecar now calls this seam for incremental edits while audio renders.
+A busy worker is retried three times at approximately 2 ms intervals, then
+refused without changing the accepted graph. Non-busy replan refusal and
+`loadGraph` retain the D5 fade/stop/swap/start path; stopped, not-yet-rendering
+and device-loss streams enter D5 directly. The null sink publishes render
+liveness to control. Only accepted swaps advance the protocol generation.
 
 ## Stdio engine sidecar (P1B)
 
