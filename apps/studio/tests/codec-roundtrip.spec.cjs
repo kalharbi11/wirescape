@@ -62,7 +62,8 @@ for (const filename of readdirSync(resolve(root, 'native/examples')).filter(p =>
       source.connections[0].from.future = structuredClone(source.future);
       source.outputs[0].future = structuredClone(source.future);
     }
-    source.ui = { ...source.ui, future: structuredClone(source.future) };
+    source.ui = { ...source.ui, future: structuredClone(source.future),
+      view: { x: 0, y: 0, zoom: 1, future: structuredClone(source.future) } };
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await boot(page);
@@ -71,6 +72,7 @@ for (const filename of readdirSync(resolve(root, 'native/examples')).filter(p =>
     const saved = await page.evaluate(() => window.__wirescapeTest.save());
     expect(saved.future).toEqual(source.future);
     expect(saved.ui.future).toEqual(source.ui.future);
+    expect(saved.ui.view.future).toEqual(source.ui.view.future);
     if (source.version === 1) {
       expect(saved.preserved).toEqual(source);
       source.modules.forEach((m, i) => expect(saved.modules[i].preserved).toEqual(m));

@@ -155,7 +155,7 @@ export class PatchDoc {
   }
 
   setView(x: number, y: number, zoom: number): void {
-    this.ui.view = { x, y, zoom };
+    this.ui.view = { ...this.ui.view, x, y, zoom };
     this.emit({ t: 'view' });
   }
 

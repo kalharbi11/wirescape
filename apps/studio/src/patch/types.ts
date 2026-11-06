@@ -34,7 +34,7 @@ export interface PatchModule {
 
 export interface PatchUi {
   positions?: Record<string, [number, number]>;
-  view?: { x: number; y: number; zoom: number };
+  view?: { x: number; y: number; zoom: number; [extra: string]: unknown };
   /** Per-instance display name ("Bass VCO"), keyed by instance id. */
   labels?: Record<string, string>;
   /** User-picked cable colour per connection key, a palette name (DESIGN §9). No meaning. */
