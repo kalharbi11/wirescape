@@ -25,8 +25,9 @@ The P1F Electron shell in `apps/desktop/` owns the native window, local-only
 `wirescape-engine` process. Its renderer interface is the isolated five-member
 `window.wirescape` preload object; commands and notifications use bounded NDJSON
 over the engine child's stdin/stdout with no socket or HTTP server. The built UI
-continues to use `FakeEngine` until P1C's `RealEngine` bridge merges. Native
-File-menu intents use that bridge without exposing file paths to the renderer.
+selects P1C's `RealEngine` when the native bridge is present and retains
+`FakeEngine` for browser tests. Native File-menu intents use that bridge without
+exposing file paths to the renderer.
 A protocol stub with null audio/fake MIDI is used by desktop Playwright tests.
 The Qt UI remains buildable.
 
