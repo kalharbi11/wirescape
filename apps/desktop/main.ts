@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import { app, BrowserWindow, dialog, ipcMain, Menu, screen } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, screen } from 'electron';
 import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true }
+}]);
 const LIMIT = 2 * 1024 * 1024;
 const MAX_PENDING = 256;
 const MAX_STDIN_BUFFER = 4 * LIMIT;
@@ -22,6 +26,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (ENGINE_FLAGS_WITH_VALUE.has(a)) engineArgs.push(a, argv[++i]);
 }
 let window: BrowserWindow | null = null;
+const UI_DIR = path.resolve(__dirname, '../../studio/dist');
 let active: { process: ChildProcessWithoutNullStreams; expected: boolean } | null = null;
 let shuttingDown = false;
 let restartInProgress = false;
@@ -311,11 +316,25 @@ function createWindow(): void {
   window.on('close', saveBounds);
   window.on('closed', () => { window = null; });
   if (initialFullscreen) window.setFullScreen(true);
-  void window.loadFile(path.resolve(__dirname, '../../studio/dist/index.html')).catch(() => {
+  void window.loadURL('app://wirescape/index.html').catch(() => {
     void dialog.showMessageBox({ type: 'error', message: 'Build the Studio UI before launching Wirescape.' });
   });
 }
 app.whenReady().then(() => {
+  // Same-origin, local-only assets: unlike file://, fetch() can load catalogue JSON.
+  // Reject path traversal and foreign hosts; never dispatch HTTP/network requests.
+  protocol.handle('app', request => {
+    try {
+      const url = new URL(request.url);
+      if (url.hostname !== 'wirescape' || (request.method !== 'GET' && request.method !== 'HEAD'))
+        return new Response('Not found', { status: 404 });
+      const pathname = decodeURIComponent(url.pathname);
+      const filename = path.resolve(UI_DIR, '.' + pathname);
+      if (!filename.startsWith(UI_DIR + path.sep) || !fs.existsSync(filename))
+        return new Response('Not found', { status: 404 });
+      return net.fetch(pathToFileURL(filename).toString());
+    } catch { return new Response('Invalid path', { status: 400 }); }
+  });
   ipcMain.on('wirescape:ready', event => { if (senderAllowed(event) && lastHello) notify(lastHello); });
   ipcMain.on('wirescape:send', (event, raw: unknown) => {
     if (senderAllowed(event) && typeof raw === 'string') command(raw);
