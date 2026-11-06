@@ -1,124 +1,145 @@
-# Wirescape plan
+# Wirescape plan (v3: web UI integration)
 
-Owner: the planner (Claude). Other agents may only tick checkboxes. Last updated: 2026-10-28 (Jam checkpoint adopted from the fresh-eyes review).
+Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-06.
+How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) live in git history; their results are summarised under "Where we are".
 
-## Now (≤30 lines; checked 2026-10-29 ~05:00 UTC)
-- **Focus:** Jam checkpoint (J). Autonomous mode is the default (`docs/WORKFLOW.md` §3c): agents never idle, auto-merge green work, and Claude reviews T2 once a day (~10:30 New York).
-- **Merged since 10-28 17:00:** #99, #107, #112, #110, #111, #109, #108, #104, #117, #115, #105, #106, #118 (W backlog nearly done); wirescape-pi #3, #5.
-- **Pi:** the runner works (token OK, cmake/ctest fixed). wirescape-pi#7 turns the throttled cron into a 5-minute daemon plus `ci/pi-accept` task commands; wirescape-pi#6 adds the Windows laptop as a runner.
-- **J stack:** #78 J1 (T2) needs fresh `pi5` + `pi5/soak` (the `ci/pi-retry` label is set), then Claude's review → #79 J2 → #80 J3 → #81 J4, #82 J5 (stale, Windows red; refresh after #80).
-- **#77 J6 (T1):** all desktop CI green; needs `pi5/accept` (benchmark) and ChatGPT's pre-review → auto-merge.
-- **Open W:** #98 (Pi docs; label-only, needs Claude's ok), #114 (acceptance "not verified" case), #91, #92 after J1, #94 after J5.
-- **User-only:** merge wirescape-pi #6 and #7, start the daemon once, register the laptop runner; later J9 (#45).
-- **Deferred until after J9:** #64 / Windows 1.05×, M3 full UI, Learn/Mappings, MIDI Out/Clock, OSC Out, UDP Send, MPE, Quantizer + Basic Sequencer, X-4, long soaks, the formal ABI freeze.
+## Now
+- **Direction:** the new web UI (`kalharbi11/wirescape-ui`, finished with a fake engine and checked by the owner on the Pi) replaces the Qt Quick UI. The C++ engine stays. The Qt UI is frozen and is removed in Phase 4.
+- **Priority order:** the Pi first, then Windows. On the Pi, these four matter most: **MIDI, CC, audio that starts without a button, and patch changes while audio keeps running.**
+- **Phase 0 (today → class demo 2026-11-07):** a Pi demo built from what already works. No engine changes. Runbook: `docs/DEMO_CLASS.md`.
+- **Phase 1 starts right after the demo**, or tonight in parallel if someone is free. It doesn't depend on Phase 0.
+- **The pause on #29 is lifted** once this plan merges. The old queue comment (6540585199) and the scheduled check-in routines stay retired; this plan replaces them.
 
-## Vision
-Wirescape is a raw, expandable modular environment for music. Its aims:
-- Modules are easy for people and AI agents to build, from one clear contract and SDK.
-- Complex instruments (reverbs, synth voices, a rebuilt CHAOS) work as well as simple utilities.
-- Module DSP moves unchanged into CLAP/VST3 plugins and Daisy-class hardware through thin adapters.
-- MIDI, OSC, UDP and later DMX, serial/Arduino and scripting plug in as services without rebuilding the core.
+## Where we are (2026-11-06)
+- **Engine (this repo, `main`):** ABI 2 `engine2` is the app engine. 19 modules in the app catalogue: VCO, LFO, VCF, ADSR, VCA, Clock, Function Envelope, Ladder, Mixer, Noise, Output, Scale/Offset, Slew, Host Keyboard, CHAOS-lite, MIDI In, MIDI→CV, CC→CV, Macro Oscillator (Plaits-derived). Polyphony, feedback loops and modulation in normalized space all work. The headless `wirescape play` starts real audio and MIDI as soon as it launches (behind `--confirm-audio` / `--confirm-midi`). Qt Studio runs fullscreen on the Pi (#174).
+- **UI (`wirescape-ui`, `main` at `8cafdea`):** Vite + TypeScript, no framework. 21 catalogue modules, catalogue-driven panels, editing, undo, patch v2 save/load with unknown fields kept, system panels, 12 starters, Pi profile. Everything talks through `EngineClient` (`src/engine/EngineClient.ts`); `FakeEngine` is the only implementation.
+- **Missing:** nothing connects the two. There's no browser-facing host, no `RealEngine`, and no real telemetry. Live graph edits exist only in draft #209, and `main` still refuses topology edits while audio runs. The UI's Step Sequencer and Random Source are SDK examples the app catalogue doesn't load yet.
+- **Reference research (draft PRs, not decisions):** #217 engine protocol, #216 web stack, #213 open-work triage, #215 module panels, #214 DSP libraries, #212 launch-test findings. UI repo: [PHASE8_HANDOFF.md](https://github.com/kalharbi11/Wirescape-UI/blob/main/docs/PHASE8_HANDOFF.md) (integration gaps).
 
-It's fully open source. The app and Essentials are GPL-3.0. The module SDK is MIT, so module authors can choose their own licence. The name is in `TRADEMARKS.md`.
+## Target architecture
+```
+Chromium (Pi kiosk) / browser app window (Windows)
+        │  http + WebSocket on 127.0.0.1 only, per-launch token
+wirescape-host  (C++17, Qt-free, one process)
+  ├─ serves the built UI (apps/studio/dist) as static files
+  ├─ protocol: commands → acks/refusals; status + telemetry pushed ≤30 Hz
+  ├─ AppEngine + runtime_patch loader (existing) ── realtime audio thread (PortAudio)
+  ├─ MIDI service (existing midi_host), later OSC (#82)
+  └─ settings + patch folder (user_data/)
+```
 
-## Principles
-1. Contract first: decisions that touch every module are settled before many modules exist.
-2. Realtime safety: bounded, allocation-free processing, explicit lifecycle and deterministic offline renders.
-3. Creative freedom: no type-gated cables, audio-rate modulation, feedback loops and polyphony everywhere.
-4. Efficiency through architecture: constant-signal fast paths, SIMD across voices, float32 and measured optimizations. The Pi 5 is the CPU target.
-5. Evidence over claims: CI on Windows x64 and Linux ARM64, with honest docs (`docs/STATUS.md`).
-6. Usage-conscious agents: narrow reads, bounded issues, handoff comments and review at milestones.
+### Decisions (planner, 2026-11-06)
+| # | Decision | Why |
+|---|---|---|
+| D1 | One C++ host process serves both the UI files and the protocol. No Tauri, Electron or Rust before Phase 4, and only then if a browser app window isn't good enough on Windows. | Fewest moving parts. The Pi uses system Chromium anyway. |
+| D2 | The UI moves into this repo as `apps/studio/` (git subtree, history kept) at the start of Phase 1. After that `wirescape-ui` is read-only. | One PR can change both sides of the protocol; one CI; the Pi runner already serves this repo. |
+| D3 | The UI owns the editable patch document (it's already lossless). The host owns the running graph: it validates, executes and refuses. Conformance tests in both directions guard the format. The host never rewrites the document; if a patch is missing `version` or `outputs`, it fills them only in its execution copy. | Avoids building a second document editor in C++ before Qt goes. |
+| D4 | Protocol: JSON text messages over one WebSocket. Every command has an `id`; the host answers `ack` or `refuse` with the engine generation. Status and telemetry are pushed. Binary frames come later, for scope data only. | Simple to debug, and both the C++ and TS test clients are easy to write. |
+| D5 | Parameter changes go through the engine's event queue (already live). Topology changes, modulation amounts and patch switches build a candidate graph that is swapped in by live replan (#209), so audio keeps running. Until #209 lands, the fallback is stop → swap → start with a short fade, target gap ≤150 ms. | You get patch changes on the fly in Phase 1 and a seamless version in Phase 2. |
+| D6 | Audio and MIDI start when the host starts. The owner's launcher or autostart passes `--confirm-audio --confirm-midi`, and that is the device consent. The host remembers the last device; if it's lost, the host retries and the UI shows the state. Tests, CI and the Pi runner use null or fake devices only. | Gives "audio without a button" without breaking the devices-off rule. |
+| D7 | Ruling for the #209 stop: when a live edit adds or removes a `midi.in` or `host.keyboard` module, the host refreshes the MIDI service subscriptions on the control thread right after the replan, and audio keeps running. Notes held on a removed source are released. Module IDs are never reused within a session: the UI allocates them monotonically and the engine already rejects stale reuse. | Unblocks #209 with a bounded, testable seam. |
+| D8 | CC mapping writes `midi.cc_to_cv` config rows, the layer the DSP reads, through a host command. `ui.ccMap` stays only as a display hint. A `cc_to_cv` module holds up to 8 rows (existing limit); MIDI Learn adds another module when one is full. | Matches the native layer that already works. |
+| D9 | The host sends its module catalogue on connect. The UI palette shows only modules the engine can run. Unknown modules in a patch stay visible and preserved, and are marked "not available". `public/wirescape_modules.json` is generated from native manifests, and a CI check catches drift. | IDs stay in sync automatically. |
+| D10 | Pi first. Every Phase 1–2 item that touches compiled code needs a Pi runner build plus tests with fake devices. Each checkpoint includes one owner listening check on the Pi. | Matches the owner's priority. |
+| D11 | Qt stays buildable and untouched until Phase 4. The only exception is a fix needed for the Phase 0 fallback. | No double work. |
+| D12 | New dependencies named here (allowed without a separate stop): **civetweb** (MIT; HTTP, static files and WebSocket server/client in C++, pinned and vendored as one source pair, or FetchContent with a hash), **`ws`** (MIT, devDependency, mock host for UI tests). Anything else is still a stop. | Keeps the host small; avoids hand-writing WebSocket framing and SHA-1. |
 
-## Settled decisions (details: `docs/specs/ABI2_PLAN.md`, sections 2 and 9)
+## Phases
+
+Each phase lists **sections** (the letter blocks). Sections inside a phase can run in parallel unless they say "after". A section is one issue, one branch and one PR (big ones may split). Task files with acceptance blocks: `docs/tasks/P<phase><letter>_*.md`.
+
+### Phase 0: Class demo (2026-11-06 → 11-07). Runbook: `docs/DEMO_CLASS.md`
+Goal: a smooth Pi demo. Sound starts when the demo starts, MIDI keys play, CC knobs move the sound, and the new web UI is on screen.
+- [ ] **0A Demo patches** (`docs/tasks/P0A_DEMO_PATCHES.md`): `native/examples/class_demo_*.json`, three patches (CHAOS + MIDI, VCO/VCF/ADSR + LFO, Macro). Each has MIDI In → MIDI→CV and a `cc_to_cv` with 8 rows on CC numbers the owner gives, cabled to musically useful parameters. Validated by offline `wirescape play` renders.
+- [ ] **0B Pi demo launcher** (`docs/tasks/P0B_PI_DEMO_LAUNCHER.md`): `tools/pi/demo.sh`. It starts `wirescape play <patch> --confirm-audio --confirm-midi`, serves the UI build on localhost and opens Chromium in kiosk mode. `demo.sh 1|2|3` switches patches (about a 1 s gap; seamless switching is Phase 2). `demo.sh stop` stops everything. Ships with a dry-run test that opens no devices.
+- [ ] **0C Owner rehearsal tonight**, using the checklist in the runbook. The fallback is Qt Studio fullscreen with the same patches.
+- Not in Phase 0: the web UI driving the real engine. In the demo, say it plainly: "engine and sound today; this interface connects to it next."
+
+### Phase 1: Bridge. The web UI plays the real engine on the Pi
+Start with **1.0**. It's small, and the parallel sections code against it.
+- [ ] **1.0 Protocol v0** (`docs/tasks/P1_0_PROTOCOL.md`) → `docs/specs/HOST_PROTOCOL` (`.md`, written in P1.0). Maps every `EngineClient` call to a message. Defines `ack`/`refuse`, generation, telemetry v0 fields (output meters, CPU, dropouts, held notes, audio/MIDI state), auth (token + Origin check, 127.0.0.1 only), size limits and versioning. Also defines the additive `EngineClient` change for async refusal: an `onRefusal` callback plus pending-edit reconcile.
+- [ ] **1A UI import + web CI** (`P1A_UI_IMPORT.md`): subtree-import `wirescape-ui` `main` into `apps/studio/`; add a hosted `web` CI job (typecheck, build, Playwright with FakeEngine); point the UI repo's README here.
+- [ ] **1B `wirescape-host`** (`P1B_HOST.md`, after 1.0): `native/host/`, a civetweb server with static files, the WebSocket protocol, the token, AppEngine from `runtime_patch`, `loadGraph`, `setParam`, notes, panic, status, output meter, the D5 fallback swap, audio and MIDI at launch (D6), and the catalogue on connect (D9). CTest `host_protocol_tests` uses civetweb's client against a null audio device.
+- [ ] **1C `RealEngine.ts`** (`P1C_REAL_ENGINE.md`, after 1.0): implements `EngineClient` over the protocol, with engine selection (`?engine=real|fake`, default real when served by the host), async refusal and rollback, reconnect that restores the patch, and a mock host (`ws`) for Playwright tests covering refusal, stale replies, disconnect and reconnect.
+- [ ] **1D Patch codec + catalogue sync** (`P1D_PATCH_CODEC.md`): UI export fills module `version` from the catalogue, keeps `settings`, and keeps `outputs` routes correct when Output modules are added or removed. A native test loads every UI starter and fixture through `runtime_patch`; a UI test round-trips the native examples; unknown fields survive both directions. A script generates `wirescape_modules.json` from native manifests and CI checks for drift.
+- [ ] **1E Pi bring-up** (`P1E_PI_BRINGUP.md`, after 1B): `tools/pi/studio.sh` (host + Chromium kiosk). A Pi runner job builds host + UI and runs the protocol tests with null audio. A contention benchmark runs 10 min of headed Chromium (stress patch) beside the host with null audio, and must show zero render overruns at 256 frames.
+- **Phase 1 is done when:** on the Pi, one script gives sound with no button press. The web UI loads all starters, plays from the MIDI keyboard, changes sound live with knobs, applies cable and module edits (fallback gap ≤150 ms), moves the meters, and panic works. Pi runner and hosted CI are green, and the owner has listened.
+
+### ◆ Checkpoint A: after Phase 1
+Owner + planner (or any agent in the planner role), about 30 minutes, on the Pi. Review: does the architecture hold, which protocol v0 → v1 changes are needed, and the order of Phase 2. Phase 2 sections that don't depend on the outcome (2C, 2D, 2E) keep going during the review.
+
+### Phase 2: A live instrument on the Pi
+- [ ] **2A Seamless live edits:** finish #209 with ruling D7 and wire it into the host. Add, remove, connect and disconnect, change modulation amounts, and switch whole patches while playing, all with no stop. Acceptance: Pi gap ≤20 ms at 256 frames (#209's existing bound), held notes survive edits that don't touch their path, and a TSan/ASan run passes.
+- [ ] **2B MIDI and CC:** device list and enable/disable in Settings, hot-plug safe. MIDI Learn → `cc_to_cv` rows (D8), saved in the patch. The global MIDI keyboard default (#184 semantics). The on-screen keyboard plays through the host. Patchable MIDI controls from #210/#163 are additive, with IDs unchanged.
+- [ ] **2C Audio robustness:** choose and remember the device; reconnect after device loss; real dropout counter; CPU = callback load. Port #200's semantics (mono devices, stale-route refusal) into the Qt-free audio service. Sample-rate and buffer settings are optional (the UI hides them if missing).
+- [ ] **2D Patches on the Pi:** the host lists and saves patches in `user_data/patches/`. Starters are bundled read-only. Autosave and crash recovery go through the host. A patch browser in the UI switches patches live (uses 2A when merged, the fallback swap before that).
+- [ ] **2E Pi appliance:** autostart at login (systemd user service for the host + labwc/Chromium kiosk), restart on crash, audio thread realtime priority (setup doc for the owner), hidden cursor, and measured boot-to-sound time.
+- [ ] **2F Soak:** a 60-minute Pi runner soak with fake devices: host + Chromium + a scripted edit every few seconds, with zero crashes and overruns. It reuses #164's idle-loop infrastructure.
+
+### ◆ Checkpoint B: "the Pi is an instrument" (replaces the Pi half of J9 #45)
+The owner jams for 30 minutes on the Pi with an external MIDI keyboard and CC controller: live patching, patch switching, no stuck notes, no dropouts, no crashes. Fold #182's open items in here and close it if they pass.
+
+### Phase 3: Real telemetry and module parity
+- [ ] **3A Telemetry v1** (#143): a bounded, render-owned snapshot published to the host thread. It carries effective parameter values, LFO phase, envelope position, per-module meters, event activity, held notes and connected-output values. Scope taps arrive as binary frames, throttled by visibility. There is no serialisation on the audio thread.
+- [ ] **3B Modulation parity:** cross-engine vectors (FakeEngine vs native) for log cutoff, linear, negative amounts, multiple sources, bounds and stepped parameters. Differences are fixed or recorded.
+- [ ] **3C Module parity:** register the SDK examples Step Sequencer and Random Source in the app catalogue (additive). A per-module smoke test through the host loads each module, sets every parameter, renders offline and checks the output is finite. Every panel override is checked against the real engine.
+- [ ] **3D OSC:** finish #82 (codec, service, Monitor), with host settings (enable, port, LAN toggle, off by default) and the Monitor log in the UI. Fuzzing #94 follows.
+- [ ] **3E Stereo pairs:** port #178/#204's semantics. Native `stereo_pair` metadata goes in the catalogue, the UI gets a paired-cable gesture, and both cables are created in one transaction.
+
+### Phase 4: Windows, packaging, Qt retirement
+- [ ] **4A Windows host + launcher:** host build on Windows; a launcher that opens Edge/Chrome in `--app` mode; a desktop shortcut; an update check showing SHA/date (#188 semantics).
+- [ ] **4B Qt-free document library:** port the lossless v2 writer and v1→v2 migration off QtCore, so the host can import old v1 files.
+- [ ] **4C Remove the Qt UI:** remove `native/ui/`, the QML, and the Qt CI and static-analysis context; keep every engine and document test. The owner sets `allow-test-removal` for the Qt UI tests only. Update `ARCHITECTURE.md` and `STATUS.md`.
+- [ ] **4D Packaged shell (only if needed):** decided at Checkpoint C. Tauri/WebView2 per #216, or keep the browser app window.
+- [ ] **4E Laptop session** (the Windows half of J9 #45).
+
+### ◆ Checkpoint C: Qt is gone, both platforms work → Preview 0.7
+
+### Phase 5: Later (in plan, not priority; in this order)
+1. Touchscreen: real touch gestures on the Pi display, touch-friendly multi-cable add (UI Q-B), an on-screen keyboard.
+2. Macro Oscillator (Plaits) signature panel polish and checking all 24 models.
+3. A CHAOS-lite custom panel. It uses the generic panel until the owner redesigns it.
+4. Dark theme (UI Q-C).
+5. Beta 0.8 musical core: Quantizer, a native Basic Sequencer, MIDI Out/Clock, MPE (old M4–M6).
+6. Instruments (old M7): subpatches/macros, Channel Expander, CHAOS rebuild, a proper Plaits/Braids port (Track X).
+7. Portability and freeze: CLAP adapter, Daisy build, ABI freeze (#44, #161), Windows mono perf #64, benchmark gate #91.
+
+## Checkpoints: how they work
+- There are three (A, B, C), spaced a phase apart. Each one: tag `checkpoint-<X>` on `main`, run `python tools/review_pack.py` for the phase, then hold one session (owner + planner-role agent, about 30 minutes) whose decisions are recorded at the top of this file.
+- **They don't stop work.** Sections of the next phase that don't depend on the review keep going. Only a High finding blocks, and only the sections it touches.
+- An optional 10-minute debrief after the class: post what broke or confused people as one issue comment. It feeds Checkpoint A.
+
+## Open work at resume (apply once, then delete this table)
+| Item | Action |
+|---|---|
+| #209 / #186 live graph | Keep. It becomes 2A with ruling D7. |
+| #82 / #72 OSC | Keep. It becomes 3D (Qt presentation dropped). |
+| #210 / #163 MIDI controls | Keep. It becomes 2B. |
+| #200 / #140 audio output | Close the PR (Qt). Port its semantics and test ideas in 2C. |
+| #192 / #187 starters | Close. The UI already carries the six starters; the patch library is 2D. |
+| #204 / #178 stereo pairs | Close the PR. It becomes 3E. |
+| #181 / #180 module guide | Keep (T0 docs). Fix its link-scanner blocker. |
+| #161 / #159 portability | Park. It becomes Phase 5.7. |
+| #218 planner note | Close as superseded by this plan. |
+| Research #211–#217 | Close without merging; keep the branches. Phase 1 tasks link them. |
+| Issues #201 #198 #184 #183 #174 #167 #154 #152 #139 #136 #132 | Close: fixed on `main` or historical (#213 triage). |
+| #188 → 4A · #143 → 3A · #70 → 1E/2E · #164 → 2F · #45 → Checkpoints B + 4E · #182 → Checkpoint B | Relabel and link. Keep open. |
+
+## Settled engineering decisions (unchanged; detail in `docs/specs/ABI2_PLAN.md`)
 | Area | Decision |
 |---|---|
-| Cables | float32, audio rate, 1–16 channels, CONSTANT flag |
-| Polyphony | Channels on the cable (VCV model). The source sets the count. Broadcast / SUM / FIRST policies. One shared voice allocator |
-| Stereo | Two ports with a `stereo_pair` hint. Channels always mean voices |
-| Units | Audio ±1. Pitch 1.0/oct with 0 = C4. CV ±1 or 0..1. Gates 0/1 through a Schmitt trigger. Hints never block a connection |
-| CV → parameters | Host-side and non-destructive, with an amount on the cable, in normalized space, per voice when poly |
-| Events | Per-block sorted lists with sample offsets. Event outputs. UMP-style MIDI. Bounded messages. Overflow degrades and never drops note-offs |
-| Feedback | Loops allowed. Loop parts run in sub-blocks (default 32, down to 1) |
-| Memory | Host allocator with FAST/LARGE hints, and declared requirements |
-| Also | State blobs, latency, config-dependent ports, transport, ingress/egress rings, applied-generation ack |
-| SDK | Plain C++ class + header-only wrapper over a C ABI. C++17 for DSP. Own SIMD wrapper with a scalar fallback |
-| Licence | SDK MIT; app and Essentials GPL-3.0; Surge-derived modules GPL |
-| Network | Localhost by default; explicit LAN toggle per module |
-| CI | Linux ARM64 on every PR update and every push to `main`. Windows on PRs that are ready for review, or with the `ci/windows` label. The `guard` judges PRs with the base branch's rules. Sanitizers (ASan+UBSan, TSan) on ABI 2 suites. The Pi 5 is a self-hosted runner on the private repo `kalharbi11/wirescape-pi` only (PR checks on own branches, nightly tests/soaks/benchmarks/fuzzing/static analysis); this repo's workflows never target it |
+| Cables | float32, audio rate, 1–16 channels, CONSTANT flag. No type-gated cables, feedback allowed |
+| Polyphony | Channels on the cable; the source sets the count; one shared voice allocator |
+| Units | Audio ±1; pitch 1.0/oct, 0 = C4; gates 0/1 via Schmitt trigger; hints never block |
+| CV → parameters | Host-side, non-destructive, amount on the cable, normalized space, per voice |
+| Events | Per-block sorted lists with sample offsets; overflow never drops note-offs |
+| Compatibility | Module, port and parameter IDs never change; migration is lossless; unknown data is preserved |
+| Licence | SDK MIT; app and Essentials GPL-3.0 |
+| Network | Localhost by default; LAN only via an explicit toggle |
+| CI | Linux ARM64 on every PR; Windows on ready PRs or `ci/windows`; sanitizers; the Pi via `wirescape-pi` only |
 
-## Milestones
-- **M0 Migration** to `github.com/kalharbi11/wirescape`
-  - [x] M0-1 Local cleanup and clean tree (`docs/tasks/M0-1_LOCAL_CLEANUP.md`, Codex, local)
-  - [x] M0-2 First push, labels, milestones and issues (`docs/tasks/M0-2_GITHUB_PUSH.md`, Copilot, local)
-  - [x] M0-3 CI and repo hygiene (`docs/tasks/M0-3_CI_SETUP.md`, issue #1, PR #4). Reviewed 2026-10-27: safe to merge; then set branch protection (checks `linux-arm64`, `guard`, `windows-x64`; no approvals)
-  - [x] M0-4 Guard hardening and CI trigger cleanup (`docs/tasks/M0-4_GUARD_HARDENING.md`, issue #5, size/s). Findings from the PR #4 review: the guard must run the base branch's rules, use merge-base diffs and protect `tools/ci/`. **Merge before M1-3 touches `ci.yml`**
-- **M1 ABI 2 foundation**: contract, SDK, engine2, voice allocator, 5 modules ported. **Stops for review.**
-  - [x] M1-1 Foundation slice: built before the migration. Review package: `docs/reviews/M1_FOUNDATION_SLICE_REVIEW.md`. Functional tests A–M pass offline. **Known gate:** mono throughput is about 1.89× ABI 1 (target ≤ 1.05×). ARM64 is unverified until CI.
-  - [x] M1-R Claude review of the slice (issue #2; review: `docs/reviews/M1-R_PLANNER_REVIEW.md`). **No-go for M2 until M1-3.** The design stays. The gap is framework overhead (per-sample SDK accessors, two copies per cable, redundant finite scans), measured at 1.57× by instruction count. ARM64: all 24 suites pass in CI; ASan+UBSan and TSan clean locally.
-  - [x] M1-2 Audio capture and analysis harness (`docs/tasks/M1-2_AUDIO_CAPTURE_HARNESS.md`, PR #13 merged)
-  - [ ] M1-2b The user's one real-device capture run on Windows (issue #43). Not a gate; do it early
-  - [x] M1-3 Slice fixes and the performance gate (`docs/tasks/M1-3_SLICE_FIXES.md`, issue #6, PR #22, Codex, size/l). Gate for M2: mono ≤ 1.05× on both CI runners and by instruction count, poly ≤ 1.00×, sanitizer job green, adversarial concurrency and feedback tests. **Reviewed 2026-10-27 (`docs/reviews/M1-3_REVIEW.md`): conditional go.** Everything passes except Windows mono (1.097×), which moves to M1-3b and gates M2-6
-  - [x] M1-3b Windows (MSVC) mono gap and an Ir gate in CI (issue #32, PR #37). Accepted with the remaining gap moved to #64, which is now tracked, not a gate (2026-10-28)
-- **M2 Port and patch v2** (ABI2 plan B2 to B4): engine2 becomes the app engine; all Essentials on ABI 2; per-module CV; patch v2 with lossless v1 migration. Optional: self-hosted Pi 5 runner for benchmarks.
-  Task file: `docs/tasks/M2_PORT_AND_APP_ENGINE.md`. All Codex; M2-0 may start now, M2-1 to M2-5 after PR #22 merges, M2-6 after M1-3b and M2-1/2/3/5 merge. The M2 queue is superseded by the J queue; Pi work goes through the Pi runner (workflow v2).
-  - [x] M2-0 Benchmark tooling and Pi 5 realtime evidence (issue #23, PR #31)
-  - [ ] M2-0b Pi soak re-run on post-M1-3 `main` (issue #42)
-  - [x] M2-1 Per-bus latency and staged reconfigure (issue #24, PR #38)
-  - [x] M2-2 Port mixer, noise, output, scale_offset, slew (issue #25, PR #39)
-  - [x] M2-3 Port clock, function_envelope, ladder (issue #26, PR #40)
-  - [ ] M2-4 Behaviour regressions for the five ports, per-module CV (issue #27, PR #41: green, waiting for merge)
-  - [x] M2-5 Patch v2 and lossless v1 migration (issue #28, PR #48)
-  - [ ] M2-6 engine2 becomes the app engine (issue #29, size/l). Now **J1**
-  - [ ] M2-P Portability compile probe for a Daisy-class target (issue #44, PR #55, report only), then the fix (#56)
-  - [ ] M2-L The user's live session (issue #45). Replaced for now by **J9**, which covers it
-  - [ ] M2-R Claude milestone review. Folded into J-R1/J-R2
-- **J Jam checkpoint** (adopted 2026-10-28; `docs/tasks/J_JAM_CHECKPOINT.md`). A pause point where everything that exists works, on the laptop and the Pi, so the user can play and write their own modules. Decisions: CHAOS-lite as one native module now (decomposition stays M7); ABI soft freeze from J-R2 (additive changes only, migration note otherwise); headless Pi runner required, Pi UI a stretch; Windows 1.05× mono is tracked, not a gate.
-  Per-item task files with acceptance blocks: `docs/tasks/J2_POLY_APP.md` … `J8_AUTHOR_GUIDE.md`. Deferred until after J9: #64 / Windows 1.05× (tracked only), M3 full UI, Learn/Activity/Mappings, MIDI Out/Clock, UDP Send, OSC Out, MPE, Quantizer + Basic Sequencer, X-4, long soaks, formal ABI freeze.
-  - [ ] J0 Merge #40 (done), then #41 (user)
-  - [ ] J1 = M2-6 engine2 is the app engine (#29, PR #78, Codex, T2)
-  - [ ] J2 Polyphony in the app: `host.keyboard`, voice count, poly badge (#69, PR #79, Codex)
-  - [ ] J3 Pi audio: headless `wirescape play`, Linux audio, a Pi setup guide; Pi UI stretch as a Pi-runner job (#70, PR #80, Codex; first real audio run by the user)
-  - [ ] J4 MIDI In, MIDI→CV, CC→CV, one backend, hot-plug safe (#71, PR #81, Codex, T2)
-  - [ ] J5 OSC In over UDP (localhost default, LAN toggle) and Monitor log (#72, PR #82, Codex, T2)
-  - [ ] J6 Macro Oscillator spike = X-3, poly 8, 48 kHz (#73, PR #77, Codex)
-  - [ ] J7 CHAOS-lite, two instances on the Pi (#74, PR #76, Codex)
-  - [x] J8 Module author guide v2, two templates, `new-module` skill (Claude)
-  - [ ] J-R Claude gate review (T2 PRs + the milestone)
-  - [ ] J9 The user's checkpoint session, laptop + Pi (#45)
-- **W Workflow v2 automation** (adopted 2026-10-28; `docs/WORKFLOW.md`, task files `docs/tasks/W*.md`). Runs alongside J; order: W0 Codex cloud setup → W1 Pi runner → W-a accept → W-b review pack → W-c static analysis, W-d CodeQL, W-i pre-commit, W-j PR template → W-e benchmark gate, W-f golden hashes → W-k docs freshness. W-h fuzzing after J5.
-- **M3 UI for the contract** (B5): poly cables, modulation drag-to-knob with an amount on the cable, base and modulation rings, back-edge markers, stereo pairs. → **Preview 0.7** (a patching preview, not yet an instrument) when M3 is green and an M2-L-style live session passes on it.
-- **Beta 0.8: first playable instrument** (proposed 2026-10-27; the user may redefine it). Preview 0.7 plus **MIDI In and MIDI→CV** (pulled forward from M4) and **Quantizer and Basic Sequencer** (pulled forward from M6). It ships when a 60-minute live session with an external MIDI keyboard passes with no stuck notes, dropouts or crashes. Then file the US trademark, Class 9 (see `TRADEMARKS.md`). The rest of M4 and M6 follows the beta.
-- **M4 Communication I** (`docs/specs/COMMUNICATION_MODULES_PLAN.md`, C1 to C3): endpoint registry, Activity and Learn, Mappings, Monitor, MIDI In / MIDI→CV / CC Map / MIDI Out / MIDI Clock.
-- **M5 Communication II** (C4 to C6): UDP Receive/Send, OSC In/Out, hardening.
-- **M6 Musical core**: transport, Quantizer, Basic Sequencer, Chord Sequencer + Strum, VCA LPG mode, exponential Lag, Scope and Spectrum through bounded analysis taps. Module list: `docs/ROADMAP.md`.
-- **M7 Instruments**:
-  - subpatches and macros
-  - Channel Expander (unison/cluster)
-  - a CHAOS rebuild from modules, using sst-* library blocks (GPL) as a subpatch with a panel; the study-case table is in `ABI2_PLAN.md` section 3
-  - one Plaits or Braids port from pinned sources
-- **M8 Portability proofs** (B6): CLAP adapter (VST3 via clap-wrapper), Daisy static build, export bundle spec. Future: Python and Faust script modules, Serial, DMX (Art-Net/sACN).
-- **Track X: porting existing open-source instruments** (exploratory, never blocks M2; `docs/tasks/X_THIRD_PARTY_PORTS.md`). Studies now, by ChatGPT: X-1 Mutable Instruments Plaits (#51), X-2 CHAOS decomposed into Surge/sst-based modules (#52). Spikes (X-3 Plaits, X-4 the first Surge/sst primitive) come after the studies are reviewed and only when they don't compete with M2 for Codex time. Nothing merges before M2-R. **The ABI 2 header and SDK are not frozen until X-3 and X-4 (one Mutable instrument, one Surge/sst component) have shown that outside DSP fits the contract without engine changes, on desktop and the Pi.** The M7 instrument items build on what Track X learns. A whole-Surge-engine module (X-6) is an optional desktop feature for after Beta 0.8.
-
-## Current milestone: J (Jam checkpoint)
-See "Now" at the top and `docs/tasks/J_JAM_CHECKPOINT.md`. After J9, the plan resumes at M2-R leftovers and M3; Beta 0.8 then needs only the Quantizer and Basic Sequencer on top of J (MIDI In/MIDI→CV ship in J4), and M4/M5 shrink to what J left out.
-
-## How work flows
-- **The board is GitHub Issues** (labels and milestones in `AGENTS.md`). Each issue points to a `docs/tasks/` file.
-- **Roles, tiers, stops and usage rules:** `AGENTS.md` (short) and `docs/WORKFLOW.md` (detail). Codex cloud builds; ChatGPT does docs, self-contained modules and first-round reviews; Claude plans and does T2/gate reviews; the Pi runner produces all Pi numbers; Copilot gets nothing for now.
-- **Switching agents** at usage limits: the next agent reads the issue's latest handoff and continues on the same branch.
-- **Approvals:** branch protection requires no approvals; no agent approves, merges or enables auto-merge; the user's merge click is the approval. Every merge is reversible with "Revert".
-- **Override labels** (`allow-protected`, `allow-test-removal`): only the user, or the planner when the issue names the protected path.
-- Planner queue changes go in issue comments, not PRs.
-- **Planner check-in prompt** (a fresh session each time):
-  > Read AGENTS.md and the "Now" section of docs/PLAN.md, then the open issues and PRs, latest handoffs and CI summaries (REST API). Update "Now", the issues and task files (each with an acceptance block). Review only T2 PRs, from their review packs. Don't write code.
+## Vision (short)
+Wirescape is an open-source modular patching environment for music. Modules are easy for people and AI agents to build. Complex instruments work as well as simple utilities. Module DSP moves unchanged into plugins and Daisy-class hardware. MIDI, OSC and more plug in as services. The Pi 5 is the performance target.
 
 ## Document map
-- **Planner handoff** (the reasoning behind the decisions, and the M1 review checklist): `docs/PLANNER_HANDOFF.md`.
-- **Specs:** `docs/specs/` (ABI2_PLAN, ABI2_SPEC with the patch v2 drafts, COMMUNICATION_MODULES_PLAN, AUDIO_CAPTURE_HARNESS, EMBEDDED_PORTABILITY, PROVIDER_BRIDGE_CONTRACT).
-- **Module author guide:** `docs/SDK_AUTHOR_GUIDE.md`, with the minimal template in `native/sdk/template/` and worked examples in `native/sdk/examples/`. Claude Code skill: `.claude/skills/new-module/`.
-- **Tasks:** `docs/tasks/`.
-- **Reviews:** `docs/reviews/`.
-- **What exists:** `docs/ARCHITECTURE.md`. **Evidence:** `docs/STATUS.md`. **Modules:** `docs/ROADMAP.md`.
-- **UI reference:** `docs/design/`.
-- **Frozen history**, never read unless asked: `docs/history/`.
-- **The old Python/browser app**, reference only: `legacy/`.
+`AGENTS.md` (rules) · `docs/WORKFLOW.md` (claim/sign/hand-off detail) · `docs/DEMO_CLASS.md` (Phase 0) · `docs/specs/` (contract; `HOST_PROTOCOL.md` from 1.0) · `docs/ARCHITECTURE.md` (built today) · `docs/STATUS.md` (evidence) · `docs/tasks/` · `docs/reviews/` · `docs/SDK_AUTHOR_GUIDE.md` · `docs/history/` and `legacy/` (frozen; don't read unless asked).
