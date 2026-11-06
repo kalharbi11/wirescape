@@ -13,3 +13,11 @@ The runner owns the engine until stop/abort, close and termination complete. A
 broken backend that cannot prove shutdown leaves its engine/context quarantined
 until process exit; library code remains resident. No audio devices are opened
 by CTest. Enumeration code is compiled but agents do not invoke it.
+
+Live callbacks use `app_engine_render_live` with `app_engine_clock_ns()`, the
+same steady-clock nanoseconds as MIDI ingress and Qt Studio. This publishes the
+D13 clock anchor each block. PortAudio DAC timestamps are not used: no mapping
+from that backend clock to the MIDI steady clock is established here. Offline
+WAV rendering stays on `app_engine_render_channels` for deterministic frame time.
+The internal `callback_render.h` seam shares the exact live render, interleave,
+gain/clamp and fault path with device-free tests; its scratch is preallocated.

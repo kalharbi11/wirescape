@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "portaudio_service.h"
+#include "callback_render.h"
 #include "../../ui/third_party/portaudio.h"
 #include "wirescape/output_policy.h"
 #include <algorithm>
@@ -60,10 +61,8 @@ struct Context {
 int callback(const void*,void*output,unsigned long frames,const PaStreamCallbackTimeInfo*,PaStreamCallbackFlags flags,void*data){
  auto&c=*static_cast<Context*>(data);auto*out=static_cast<float*>(output);
  if(flags&paOutputUnderflow)c.xruns.fetch_add(1,std::memory_order_relaxed);
- if(!out||frames>c.scratch.size()/2){c.faults.fetch_add(1,std::memory_order_relaxed);if(out)std::fill_n(out,frames*2,0.f);return paAbort;}
- float*rows[]={c.scratch.data(),c.scratch.data()+c.scratch.size()/2};
- if(app_engine_render_channels(c.engine.get(),rows,2,uint32_t(frames))!=WS_OK){std::fill_n(out,frames*2,0.f);c.faults.fetch_add(1,std::memory_order_relaxed);return paAbort;}
- for(unsigned long i=0;i<frames;++i){out[2*i]=std::clamp(rows[0][i]*WS_OUTPUT_GAIN,-1.f,1.f);out[2*i+1]=std::clamp(rows[1][i]*WS_OUTPUT_GAIN,-1.f,1.f);}return paContinue;
+ return render_callback_block(c.engine.get(),c.scratch.data(),uint32_t(c.scratch.size()/2),
+                              out,frames,app_engine_clock_ns(),c.faults)?paContinue:paAbort;
 }
 }
 void list_devices(const std::string&directory){Backend b(directory);int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&d->maxOutputChannels>=2)std::cout<<i<<": "<<d->name<<" ("<<d->defaultSampleRate<<" Hz default)\n";}}
