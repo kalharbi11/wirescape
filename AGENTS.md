@@ -18,14 +18,14 @@ Wirescape is an open-source modular patching environment for music. It has a nat
 |---|---|---|
 | **Compass** | Claude | Project lead: vision, product, UX and visual direction, roadmap and phases, checkpoints, final say on plan decisions. Owns `docs/PLAN.md`. |
 | **Keel** | Claude | Technical lead: architecture, engine/realtime/protocol/format decisions, code-quality bar, CI health. Unblocks builders, rules on technical stops, does T2 reviews. |
-| **Codex Lead** | Codex | Coordinates the Codex builders and the build queue; first stop for Codex questions before escalating to Keel. |
+| **Codex Lead** | Codex | Build lead: coordinates the Codex/ChatGPT builders, keeps the queue full, takes over stale work, approves T0/T1. First stop for builder questions; escalates T2 to Keel and scope to Compass. |
 
 Everyone else signs as `Codex` or `ChatGPT` (or another agent name) plus a **temporary role in their own words**, e.g. `Signed: Codex (UI builder), 2026-11-08`. These roles aren't assigned or fixed. Address a lead by name in an issue or PR comment (`Keel: …`); the leads read their names.
 
-**Lead authority:** Compass and Keel act with the owner's authority. They may approve, label, merge directly (including merge commits the gate can't do), retarget, close or reopen PRs and issues, change protected planner/spec docs, and decide which owner-only runs (real audio, MIDI, Pi hardware) are actually worth the owner's time. They report what they did. Keel and Compass don't need each other's sign-off; for a T2 change one of them wrote, the other model family still reviews it. Codex Lead may post `Codex:` approval lines for T1 and route work, but escalates T2 decisions to Keel.
+**Lead authority:** Compass and Keel act with the owner's authority. They may approve, label, merge directly (including merge commits the gate can't do), retarget, close or reopen PRs and issues, change protected planner/spec docs, and decide which owner-only runs (real audio, MIDI, Pi hardware) are actually worth the owner's time. They report what they did. Keel and Compass don't need each other's sign-off; for a T2 change one of them wrote, the other model family still reviews it. Codex Lead may post `Codex:` approval lines for T0/T1 (not protected paths until gate v4), route and delegate work, re-plan within a phase when the goals stay the same, and start non-dependent later-phase work. It tells Compass in the issue and escalates T2 decisions to Keel. Full prompts for all three leads: `docs/planner/LEADS.md`.
 
 ## The loop: claim → work → sign → hand off
-1. **Claim:** comment `Claimed: <agent + model>, <date>` on the issue and set `status/in-progress`. If an item has had a claim for 24 h with no push or handoff, anyone may take it over by saying so in a comment.
+1. **Claim:** comment `Claimed: <agent + model>, <date>` on the issue and set `status/in-progress`. If an item has had a claim for 24 h with no push or handoff, anyone may take it over by saying so in a comment. Codex Lead may do so after 6 h for critical-path work named in `docs/planner/STATE.md`.
 2. **Work:** use one branch `task/<issue#>-<slug>` and one PR with `Closes #<issue#>` (draft until green). Push small commits; WIP commits may use `[skip ci]`, the final push never does. Work only on your issue; ideas go under "Follow-ups".
 3. **Sign:** every handoff or review comment ends with `Signed: <agent + model>, <date>`. This is how anyone can tell who did what.
 4. **Hand off:** before you stop (done, near a limit, blocked), post the handoff below and set the status label. The next agent starts from your handoff, not from scratch.
@@ -41,7 +41,7 @@ Everyone else signs as `Codex` or `ChatGPT` (or another agent name) plus a **tem
 ABI header edit · design choice not in the spec or plan decisions that changes IDs, formats, ABI or realtime behaviour · test removal or loosening a tolerance or threshold · new dependency not named in the task or plan D12 · diff more than 50% past the task's size budget · two failed attempts at the same failure. When unsure, ask in the issue. Keel rules on technical stops, Compass on plan/product stops (or the owner).
 
 ## Safety rails
-- **Protected paths** need either a linked issue (`Closes #N`) with a line starting `Protected path named:` followed by the path or glob in backticks (only the planner or owner writes those lines), or the `allow-protected` label (owner or planner). Always label-only: `AGENTS.md`, `CLAUDE.md`, `tools/ci/**`, `.github/workflows/guard.yml`, `.github/CODEOWNERS`, ABI headers, licences, `docs/history/**`, `legacy/**`. Protected: `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`, `LICENSE*`, `LICENSES/**`, `.github/**`, `native/include/wirescape/*.h`.
+- **Protected paths** need either a linked issue (`Closes #N`) with a line starting `Protected path named:` followed by the path or glob in backticks (only Compass, Keel or the owner writes those lines), or the `allow-protected` label (owner, Compass or Keel). Always label-only: `AGENTS.md`, `CLAUDE.md`, `tools/ci/**`, `.github/workflows/guard.yml`, `.github/CODEOWNERS`, ABI headers, licences, `docs/history/**`, `legacy/**`. Protected: `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`, `LICENSE*`, `LICENSES/**`, `.github/**`, `native/include/wirescape/*.h`.
 - Never make CI pass by weakening it. Never force-push, rewrite published history or commit directly to `main`. Only Compass and Keel merge directly.
 - Never commit generated or binary files, fonts, `user_data/`, `local_backups/`, `.tools/`, `node_modules/`, `dist/`, credentials or machine-specific absolute paths.
 
@@ -55,7 +55,7 @@ ABI header edit · design choice not in the spec or plan decisions that changes 
 - **Licences:** SPDX header on every new file. MIT for `native/sdk/`, `native/include/wirescape/module2.h`, `native/voice/`; GPL-3.0 elsewhere (including `apps/` and `native/sidecar/`). Third-party sources, pinned revisions and licences go in that component's `DESIGN.md`.
 
 ## Labels
-Status `status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · Tier `tier/T0|T1|T2` · Size `size/s|m|l` · Phase `phase/0..5` · `checkpoint` · overrides `allow-protected`, `allow-test-removal` (owner or planner only). The old `agent/*` labels are informational only; no one is required to set them.
+Status `status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · Tier `tier/T0|T1|T2` · Size `size/s|m|l` · Phase `phase/0..5` · `checkpoint` · overrides `allow-protected`, `allow-test-removal` (owner, Compass or Keel only). The old `agent/*` labels are informational only; no one is required to set them.
 
 ## Handoff comment template
 ```
@@ -78,7 +78,7 @@ Signed: <agent + model>, <date>
 - Pi evidence only for engine, DSP, sidecar, audio-path or build changes. Real sound, MIDI devices and the display are checked by the owner.
 
 ## Docs upkeep
-`docs/PLAN.md` belongs to the planner (others may tick checkboxes). Update `docs/ARCHITECTURE.md` in the PR that changes the architecture, and `docs/STATUS.md` when a phase completes. Tasks go in `docs/tasks/`, reviews in `docs/reviews/`.
+`docs/PLAN.md` belongs to Compass (others may tick checkboxes). Update `docs/ARCHITECTURE.md` in the PR that changes the architecture, and `docs/STATUS.md` when a phase completes. Tasks go in `docs/tasks/`, reviews in `docs/reviews/`.
 
-## If you are Compass or Keel
-Your session prompt says which one you are; full brief in `docs/planner/LEADS.md`. Start from `docs/planner/STATE.md`, then "Now" in `docs/PLAN.md`. Don't assign agents; the owner and their managers do that. End each session with "Next steps for you": the owner's steps in order, plus which sections can run in parallel, and update `docs/planner/STATE.md`.
+## If you are a lead (Compass, Keel or Codex Lead)
+Your session prompt says which one you are; full brief and the usage rules in `docs/planner/LEADS.md`. The leads delegate mechanical work to cheaper agents (ChatGPT chats, extra Codex chats, subagents) and never poll CI. Start from `docs/planner/STATE.md`, then "Now" in `docs/PLAN.md`. Don't assign agents; the owner and their managers do that. End each session with "Next steps for you" (0–3 owner steps, or "Nothing needed from you") and update `docs/planner/STATE.md`.

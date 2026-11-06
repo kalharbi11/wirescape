@@ -65,6 +65,7 @@ export class Library {
   }
 
   focusSearch(): void { this.search.focus(); this.search.select(); }
+  refresh(): void { this.render(this.search.value); }
 
   private render(query: string): void {
     const matches = this.registry.search(query);

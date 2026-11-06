@@ -27,13 +27,14 @@ export interface Connection {
 export interface PatchModule {
   id: number;
   module: string;
+  version?: number;
   parameters?: Record<string, number>;
   [extra: string]: unknown;
 }
 
 export interface PatchUi {
   positions?: Record<string, [number, number]>;
-  view?: { x: number; y: number; zoom: number };
+  view?: { x: number; y: number; zoom: number; [extra: string]: unknown };
   /** Per-instance display name ("Bass VCO"), keyed by instance id. */
   labels?: Record<string, string>;
   /** User-picked cable colour per connection key, a palette name (DESIGN §9). No meaning. */
@@ -46,6 +47,8 @@ export interface PatchV2 {
   version: 2;
   modules: PatchModule[];
   connections: Connection[];
+  settings?: Record<string, unknown>;
+  outputs?: { module: number; port: string; bus_channel: number; [extra: string]: unknown }[];
   ui?: PatchUi;
   [extra: string]: unknown;
 }
