@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P0B: Pi demo launcher + `play --list-midi` (Phase 0, due 2026-11-07 morning, New York)
+# P0B (#220): Pi demo launcher + `play --list-midi` (Phase 0, due 2026-11-07 morning, New York)
 
 One command for the owner to start the class demo: sound on, MIDI on, web UI fullscreen. Switching patches is also one command. Runbook: `docs/DEMO_CLASS.md`.
 
