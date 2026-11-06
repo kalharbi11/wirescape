@@ -104,3 +104,20 @@ patches with a short stop/start gap. `status` shows owned PIDs/log; `stop` stops
 only the launcher's recorded processes. The web UI uses FakeEngine in Phase 0;
 it does not control the audible native patch yet. The env file is trusted shell
 configuration: keep it private. No autostart or service is installed.
+
+## Realtime audio priority (owner)
+
+The desktop launcher passes the device-confirmation flags, but the owner must grant realtime scheduling permission separately. On distributions that use the audio group with PAM limits, add the user to that group, then create /etc/security/limits.d/99-wirescape-audio.conf with:
+
+    @audio - rtprio 90
+    @audio - memlock unlimited
+
+For example, an owner can run `sudo usermod -aG audio "$USER"`, create the limits file with the two lines above, and log out and back in so the group and PAM limits apply. These are manual owner setup steps; Wirescape scripts never edit system files. Follow the distribution policy if it manages audio permissions through another group or session service.
+
+To verify scheduling policy and priority, find the running engine PID and inspect it with `chrt -p`:
+
+    pid=$(pgrep -fo '(^|/)wirescape-engine( |$)')
+    chrt -p "$pid"
+    grep '^VmLck:' "/proc/$pid/status"
+
+A realtime policy such as SCHED_FIFO with a nonzero priority confirms realtime scheduling. VmLck reports locked memory; a zero value can be normal when the engine has not locked memory pages.
