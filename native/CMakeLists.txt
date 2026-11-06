@@ -110,3 +110,6 @@ add_subdirectory(engine2)
 
 # Offline analysis tests only; real endpoint capture is always a manual command.
 add_subdirectory(tools/capture)
+
+# Qt-free stdio engine process; no devices without explicit confirmation.
+add_subdirectory(sidecar)

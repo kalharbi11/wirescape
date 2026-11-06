@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: GPL-3.0-only
+#pragma once
+#include "protocol.h"
+#include "midi_backend.h"
+#include <array>
+#include <atomic>
+namespace wirescape::sidecar {
+// Decorates the existing backend; callbacks update bounded atomics before
+// forwarding unchanged packets to the existing MIDI service.
+class ObservedMidi final : public midi::Backend {
+    struct Slot {
+        midi::Endpoint endpoint; midi::Callback downstream;
+        std::array<std::atomic<uint16_t>,128> notes{};
+        std::atomic<uint64_t> activity{0};
+    };
+    std::unique_ptr<midi::Backend> backend_;
+    std::array<Slot,16> slots_{};
+    bool fake_;
+    std::mutex mutex_; std::vector<midi::Endpoint> observed_;
+    static void message(void*, const uint8_t*, size_t, uint64_t);
+    static void ump(void*, const uint32_t*, size_t, uint64_t);
+    static void note(Slot&, unsigned, unsigned, bool);
+public:
+    explicit ObservedMidi(bool fake, bool authorized);
+    std::vector<midi::Endpoint> endpoints() override;
+    std::vector<midi::Endpoint> observed();
+    bool open(const midi::Endpoint&, midi::Callback) override;
+    void close(const midi::Endpoint&) override;
+    Json held() const;
+    void clear_notes();
+    bool inject(const midi::Endpoint&,const uint8_t*,size_t,uint64_t);
+};
+Json audio_devices(const std::string& directory, bool fake);
+Json midi_devices(const std::vector<midi::Endpoint>&, const std::vector<midi::Endpoint>&, bool authorized);
+}
