@@ -12,6 +12,7 @@
 #include <functional>
 #include <limits>
 #include <new>
+#include <string_view>
 #include <thread>
 #include <tuple>
 #include <utility>
@@ -862,9 +863,9 @@ bool Engine::reconfigure(uint32_t node,const std::vector<uint8_t>&config){
 
 bool Engine::rebind_abi1_descriptor(uint32_t node, const ws_module_descriptor *d) {
     auto *n = p_->find(node);
-    if (!n || !n->legacy || !d || !d->id || std::strcmp(n->legacy->id, d->id) || n->legacy->create != d->create ||
-        n->legacy->destroy != d->destroy || n->legacy->prepare != d->prepare || n->legacy->process != d->process ||
-        n->legacy->event != d->event || n->legacy->input_count != d->input_count ||
+    if (!n || !n->legacy || !d || !d->id || std::string_view(n->legacy->id) != d->id ||
+        n->legacy->create != d->create || n->legacy->destroy != d->destroy || n->legacy->prepare != d->prepare ||
+        n->legacy->process != d->process || n->legacy->event != d->event || n->legacy->input_count != d->input_count ||
         n->legacy->output_count != d->output_count || n->legacy->parameter_count != d->parameter_count)
         return false;
     n->legacy = d;

@@ -77,7 +77,11 @@ static Config config() {
     c.future_capacity = 2048;
     return c;
 }
-static std::unique_ptr<Engine> graph(bool pass, bool event_edge, bool fourth) {
+struct Topology {
+    bool pass, event_edge, fourth;
+};
+static std::unique_ptr<Engine> graph(Topology topology) {
+    const auto [pass, event_edge, fourth] = topology;
     auto e = std::make_unique<Engine>(config());
     CHECK(e->add_node(1, ws::Module<Voice>::descriptor()));
     CHECK(e->add_node(2, ws::Module<Voice>::descriptor()));
@@ -280,7 +284,7 @@ static void allocation_scope_is_thread_local() {
     control.join();
 }
 static void counted_target_rejection() {
-    auto e = graph(false, true, false);
+    auto e = graph({false, true, false});
     const auto before = e->meter();
     CHECK(e->enqueue(0, 99, 0, note(), 0, Timing::Immediate) == WS2_OK);
     CHECK(e->enqueue(0, 1, 9, note(), 0, Timing::Immediate) == WS2_OK);
@@ -346,8 +350,8 @@ static void feedback_delay_survives() {
     CHECK(live->feedback_edges() == 1);
 }
 static void ramp_survives() {
-    auto live = graph(false, true, false), reference = graph(false, true, false);
-    auto candidate = graph(true, true, false);
+    auto live = graph({false, true, false}), reference = graph({false, true, false});
+    auto candidate = graph({true, true, false});
     float a[1]{}, b[1]{}, x[1]{}, y[1]{};
     float *out[]{a, b}, *expected[]{x, y};
     auto render = [&] {
@@ -387,7 +391,7 @@ static void ramp_survives() {
     CHECK(b[0] == y[0]);
 }
 static double live_edits() {
-    auto live = graph(false, true, true);
+    auto live = graph({false, true, true});
     auto &e = *live;
     const auto generation = e.meter().generation;
     CHECK(e.enqueue(0, 1, 0, note(), 0, Timing::Immediate) == WS2_OK);
@@ -414,8 +418,8 @@ static double live_edits() {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     });
-    auto edit = [&](bool pass, bool edge, bool fourth) {
-        auto next = graph(pass, edge, fourth);
+    auto edit = [&](Topology topology) {
+        auto next = graph(topology);
         const auto before = audio.blocks.load();
         CHECK(e.replan(*next, uint64_t(frames) * 3 * 1000000000 / 48000));
         next.reset(); // No render callback may retain a staging owner/context.
@@ -424,27 +428,27 @@ static double live_edits() {
         CHECK(audio.blocks.load() >= before + 3);
         CHECK(e.meter().generation == generation);
     };
-    edit(true, true, true);
+    edit({true, true, true});
     audio.wait(.75f, .375f); // Add and connect without resetting held DSP/ramp state.
-    edit(false, true, true);
+    edit({false, true, true});
     audio.wait(.75f, .375f); // Disconnect and remove the signal pass.
-    const auto future = e.meter().frame + frames * 40;
+    const auto future = e.meter().frame + uint64_t(frames) * 40;
     CHECK(e.enqueue(0, 4, 0, note(WS2_NOTE_ON, .25f), future, Timing::Frames) == WS2_OK);
     const auto stale = e.meter().stale;
-    edit(false, true, false);
-    edit(false, true, true); // Numeric ID reuse cannot resurrect the removed node's future note.
+    edit({false, true, false});
+    edit({false, true, true}); // Numeric ID reuse cannot resurrect the removed node's future note.
     const auto deadline = Clock::now() + std::chrono::seconds(2);
-    while (e.meter().frame < future + frames * 2 && Clock::now() < deadline) std::this_thread::yield();
-    CHECK(e.meter().frame >= future + frames * 2);
+    while (e.meter().frame < future + uint64_t(frames) * 2 && Clock::now() < deadline) std::this_thread::yield();
+    CHECK(e.meter().frame >= future + uint64_t(frames) * 2);
     CHECK(audio.fourth.load() == 0);
     CHECK(e.meter().stale > stale);
-    edit(false, false, true);
+    edit({false, false, true});
     audio.wait(0, .375f); // Removed event edge chokes former destination, not unrelated source.
-    edit(false, true, true);
+    edit({false, true, true});
     CHECK(e.enqueue(0, 1, 0, note(), 0, Timing::Immediate) == WS2_OK);
     audio.wait(.75f, .375f);
     audio.pause();
-    auto next = graph(true, true, true);
+    auto next = graph({true, true, true});
     const auto before = e.meter();
     CHECK(!e.replan(*next, 1000000));
     CHECK(e.meter().generation == before.generation);
@@ -455,11 +459,11 @@ static double live_edits() {
     while (audio.blocks.load() == paused_blocks && Clock::now() < resumed_deadline) std::this_thread::yield();
     CHECK(audio.blocks.load() > paused_blocks);
     audio.wait(.75f, .375f); // Timeout retains the old graph and resumes it.
-    edit(true, true, true);
+    edit({true, true, true});
     audio.wait(.75f, .375f); // A cancelled request cannot poison a subsequent acknowledged edit.
     bool has_pass = true;
     for (unsigned attempt = 0; attempt < 8; ++attempt) {
-        auto racing = graph(!has_pass, true, true);
+        auto racing = graph({!has_pass, true, true});
         if (e.replan(*racing, 1)) has_pass = !has_pass; // Either CAS winner is valid; only an ack permits mutation.
         racing.reset();
         audio.pause();
