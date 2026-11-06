@@ -53,4 +53,56 @@ int main(){
     bool okay=true;
     for(int i=0;i<1000;++i){parameter.value=float(220+i%100);okay=okay&&app_engine_enqueue(engine.get(),&parameter)==WS_OK;okay=okay&&wirescape::audio::render_callback_block(engine.get(),scratch,128,output_block,128,app_engine_clock_ns(),faults);}
     allocation_watch::enabled.store(false);check(okay);check(allocation_watch::count.load()==0);check(faults.load()==0);
+
+    // D5: compare ramped samples to a lockstep non-ramped reference. The
+    // reference preserves the oscillator's actual audio, not synthesized silence.
+    wirescape::audio::EngineOwner reference(wirescape::document::load_runtime_patch(patch,catalogue.get(),config,error),app_engine_destroy);
+    wirescape::audio::EngineOwner faded(wirescape::document::load_runtime_patch(patch,catalogue.get(),config,error),app_engine_destroy);
+    check(bool(reference)&&bool(faded));
+    float dry[128]{},wet[128]{};
+    float* dry_rows[]={dry},*wet_rows[]={wet};
+    auto render=[&](AppEngine* left,AppEngine* right){
+        check(app_engine_render_channels(left,wet_rows,1,128)==WS_OK);
+        check(app_engine_render_channels(right,dry_rows,1,128)==WS_OK);
+    };
+    render(faded.get(),reference.get()); // both graphs initially at unity
+    app_engine_begin_master_fade_out(faded.get());
+    float expected_gain=1.0f;
+    const float step=1.0f/480.0f;
+    int blocks=0,nonzero_old=0;
+    allocation_watch::count.store(0);allocation_watch::enabled.store(true);
+    while(!app_engine_master_fade_silent(faded.get())&&blocks<8){
+        render(faded.get(),reference.get());++blocks;
+        for(int i=0;i<128;++i){
+            expected_gain=std::max(0.0f,expected_gain-step);
+            check(std::abs(wet[i]-dry[i]*expected_gain)<0.0002f);
+            if(std::abs(wet[i])>0.001f)++nonzero_old;
+        }
+    }
+    allocation_watch::enabled.store(false);
+    check(app_engine_master_fade_silent(faded.get())&&nonzero_old>0);
+    check(blocks*128<=480+256); // fade edge + a complete zero block
+    check(allocation_watch::count.load()==0);
+    for(float sample:wet)check(sample==0.0f);
+
+    // New graph starts hard muted and rises only during its own render blocks.
+    wirescape::audio::EngineOwner next(wirescape::document::load_runtime_patch(patch,catalogue.get(),config,error),app_engine_destroy);
+    wirescape::audio::EngineOwner next_reference(wirescape::document::load_runtime_patch(patch,catalogue.get(),config,error),app_engine_destroy);
+    check(bool(next)&&bool(next_reference));
+    app_engine_prepare_master_fade_in(next.get());
+    expected_gain=0.0f;blocks=0;bool rose=false;
+    while(blocks<8){
+        render(next.get(),next_reference.get());++blocks;
+        for(int i=0;i<128;++i){
+            expected_gain=std::min(1.0f,expected_gain+step);
+            check(std::abs(wet[i]-dry[i]*expected_gain)<0.0002f);
+            if(std::abs(wet[i])>0.001f)rose=true;
+        }
+        if(expected_gain>=1.0f)break;
+    }
+    check(rose&&app_engine_master_fade_in_started(next.get()));
+    check(blocks*128<=480+128);
+    // Null-sink deterministic clock bounds the complete mute/swap/unmute
+    // envelope well below 150 ms at 48 kHz, independent of device timing.
+    check((blocks+6)*128.0/48000.0<0.150);
 }

@@ -129,9 +129,37 @@ void Session::commit(Json patch,bool new_namespace){
     patch=execution(std::move(patch));std::string error;
     audio::EngineOwner candidate(document::load_runtime_patch(patch.dump(),catalogue_.get(),config_,error),app_engine_destroy);
     need(bool(candidate),"refused","Graph configuration or state refused");
+    // D5 fallback: old graph keeps rendering through the linear fade-out.
+    // The candidate was fully prepared above, so validation refusal is untouched.
+    const auto begun=std::chrono::steady_clock::now();
+    if(stream_||sink_.joinable()){
+        app_engine_begin_master_fade_out(active_);
+        const auto deadline=begun+std::chrono::milliseconds(100);
+        while(!app_engine_master_fade_silent(active_)){
+            if(std::chrono::steady_clock::now()>=deadline){
+                app_engine_resume_master_fade(active_);
+                throw Refusal("unavailable","Audio mute did not complete");
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
+    app_engine_prepare_master_fade_in(candidate.get());
     midi_->stop();app_engine_panic(active_);stop_audio();
     auto previous=std::move(engine_);auto old_patch=patch_;engine_=std::move(candidate);active_=engine_.get();patch_=patch;
-    try{start_audio();start_midi();}catch(...){midi_->stop();stop_audio();engine_=std::move(previous);active_=engine_.get();patch_=old_patch;start_audio();start_midi();throw;}
+    try{
+        start_audio();start_midi();
+        if(stream_||sink_.joinable()){
+            const auto deadline=begun+std::chrono::milliseconds(150);
+            while(!app_engine_master_fade_in_started(active_)){
+                if(std::chrono::steady_clock::now()>=deadline)
+                    throw Refusal("unavailable","Audio swap exceeded gap budget");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        }
+    }catch(...){
+        midi_->stop();stop_audio();engine_=std::move(previous);active_=engine_.get();patch_=old_patch;
+        app_engine_prepare_master_fade_in(active_);start_audio();start_midi();throw;
+    }
     ++generation_;keyboard_.fill(false);if(new_namespace)used_ids_.clear();for(auto&m:patch_["modules"])used_ids_.insert(integer(m["id"]));
 }
 Json Session::apply(const Json&command){
