@@ -235,6 +235,7 @@ void Session::start_audio() {
             [this, left = std::vector<float>(options_.block), right = std::vector<float>(options_.block)]() mutable {
                 float *rows[] = {left.data(), right.data()};
                 auto next = std::chrono::steady_clock::now();
+                sink_rendering_.store(true, std::memory_order_release);
                 while (!stop_sink_.load()) {
                     auto before = std::chrono::steady_clock::now();
                     if (app_engine_render_live(active_, rows, 2, options_.block, app_engine_clock_ns()) != WS_OK) break;
@@ -245,6 +246,7 @@ void Session::start_audio() {
                     std::unique_lock<std::mutex> lock(sink_mutex_);
                     sink_wake_.wait_until(lock, next, [this] { return stop_sink_.load(); });
                 }
+                sink_rendering_.store(false, std::memory_order_release);
             });
     }
 }
@@ -252,6 +254,7 @@ void Session::stop_audio() {
     stop_sink_.store(true);
     sink_wake_.notify_all();
     if (sink_.joinable()) sink_.join();
+    sink_rendering_.store(false, std::memory_order_release);
     if (stream_) {
         dropouts_.fetch_add(stream_->dropouts());
         engine_ = stream_->stop();
@@ -366,15 +369,35 @@ Json Session::execution(Json patch) {
 void Session::commit(Json patch, bool new_namespace) {
     patch = execution(std::move(patch));
     std::string error;
-    audio::EngineOwner candidate(document::load_runtime_patch(patch.dump(), catalogue_.get(), config_, error),
+    const auto patch_bytes = patch.dump();
+    audio::EngineOwner candidate(document::load_runtime_patch(patch_bytes, catalogue_.get(), config_, error),
                                  app_engine_destroy);
     need(bool(candidate), "refused", "Graph configuration or state refused");
-    // D5 fallback: old graph keeps rendering through the linear fade-out.
+    // Stage all potentially throwing document/ID work before accepting a live graph.
+    std::set<uint32_t> ids = new_namespace ? std::set<uint32_t>{} : used_ids_;
+    for (const auto &m : patch["modules"]) ids.insert(integer(m["id"]));
+    const bool rendering = (stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire);
+    if (!new_namespace && rendering) {
+        const uint64_t timeout_ns = 3ULL * options_.block * 1000000000ULL / options_.rate;
+        // A busy MIDI dispatch is transient; a graph refusal is not. Never stop for busy.
+        for (unsigned attempt = 0; attempt < 4; ++attempt) {
+            if (midi_->replan(candidate.get(), patch_bytes, timeout_ns, error)) {
+                patch_.swap(patch);
+                used_ids_.swap(ids);
+                ++generation_;
+                return;
+            }
+            if (error != "MIDI worker busy") break;
+            if (attempt == 3) throw Refusal("busy", "MIDI worker busy; graph unchanged");
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+    }
+    // D5 directly for loadGraph, stopped/lost streams and non-busy replan refusal.
     // The candidate was fully prepared above, so validation refusal is untouched.
     const auto begun = std::chrono::steady_clock::now();
     // D5 budgets (see kMuteBudget/kGapBudget); they stretch only when a block period is longer.
     const auto period = std::chrono::microseconds(int64_t(1e6 * double(options_.block) / double(options_.rate)));
-    if (stream_ || sink_.joinable()) {
+    if (rendering) {
         app_engine_begin_master_fade_out(active_);
         const auto deadline = begun + std::max<std::chrono::microseconds>(kMuteBudget, 2 * period);
         while (!app_engine_master_fade_silent(active_)) {
@@ -423,8 +446,7 @@ void Session::commit(Json patch, bool new_namespace) {
     }
     ++generation_;
     keyboard_.fill(false);
-    if (new_namespace) used_ids_.clear();
-    for (auto &m : patch_["modules"]) used_ids_.insert(integer(m["id"]));
+    used_ids_.swap(ids);
 }
 Json Session::apply(const Json &command) {
     auto type = command.at("type").get<std::string>();
