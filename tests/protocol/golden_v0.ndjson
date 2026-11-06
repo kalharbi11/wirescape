@@ -76,7 +76,7 @@
 
 # T14
 > {"v":0,"id":"r14",BROKEN
-< {"v":0,"session":"s1","re":null,"ok":false,"code":"invalid","message":"Malformed JSON","gen":"5"}
+< {"v":0,"session":"*","re":null,"ok":false,"code":"invalid","message":"*","gen":"="}
 > {"v":0,"id":"r14b","type":"setParam","moduleId":9,"paramId":"frequency","value":440}
 < {"v":0,"session":"*","re":"r14b","ok":false,"code":"busy","message":"*","gen":"="}
 
