@@ -77,11 +77,13 @@ test('a clean file import recovers its name and unknown native fields', async ({
     ui: { positions: { '1': [20, 30] }, labels: {},
       view: { x: 0, y: 0, zoom: 1 }, swatch: 'rust' },
   };
-  await page.getByTestId('file-input').setInputFiles({
-    name: 'preserved.wirescape.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from(JSON.stringify(original)),
-  });
+  await page.getByTestId('file-input').evaluate((element, patch) => {
+    const input = element as HTMLInputElement;
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([JSON.stringify(patch)], 'preserved.wirescape.json', { type: 'application/json' }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, original);
   await expect(page.getByTestId('patch-name')).toHaveText('preserved');
   await expect(page.getByTestId('dirty-dot')).not.toHaveClass(/on/);
   await reload(page);
@@ -95,7 +97,7 @@ test('a clean file import recovers its name and unknown native fields', async ({
 
 test('invalid stored recovery falls back to an editable starter', async ({ page }) => {
   await boot(page);
-  await page.evaluate(key => localStorage.setItem(key, '{"patch":{"modules":{}}}'), KEY);
+  await page.addInitScript(key => localStorage.setItem(key, '{"patch":{"modules":{}}}'), KEY);
   await reload(page);
   await expect(page.getByTestId('patch-name')).toHaveText(DEFAULT_STARTER.name);
   await page.getByTestId('new-patch').click();

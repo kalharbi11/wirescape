@@ -34,11 +34,16 @@ storage and quota-exceeded storage. All browser tests use FakeEngine; no
 hardware testing is claimed. A conditional case for deferred #271 belongs
 there only after merge.
 
+Full UI validation runs in the existing Web job, which provisions npm, Chromium,
+Playwright's recorder and Electron. The native task-acceptance job does not
+install that toolchain. Local equivalent: `cd apps/studio && npm run typecheck &&
+npm test`; missing recorder support is pending evidence, never a test pass.
+
 ```acceptance
 tier: T1
 size: <= 250 changed lines, <= 4 files
 must_pass:
-  - cd apps/studio && npm run typecheck
-  - cd apps/studio && npm test
+  - bash -c "git diff --check"
+  - ci: web job typecheck, production build, full Playwright and desktop Electron suites green
 stops: [PatchDoc semantics change, format change, new dependency, test removal, device access]
 ```
