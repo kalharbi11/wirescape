@@ -19,7 +19,7 @@ if len(sys.argv) != 4 or sys.argv[1] != '--null-audio' or sys.argv[2] != '--sett
     sys.exit(31)
 mode = os.environ['SOAK_STUB_MODE']
 print(json.dumps(dict(v=0, type='hello', protocol=0, session='stub-session',
-                      catalogue={'modules': [{'id': 'essentials.output'}, {'id': 'essentials.vco'}]})), flush=True)
+                      catalogue={'modules': [{'id': [] if mode == 'bad-catalogue' else 'essentials.output'}, {'id': 'essentials.vco'}]})), flush=True)
 gen = 0
 for line in sys.stdin:
     command = json.loads(line)
@@ -63,7 +63,8 @@ class EditSoakTests(unittest.TestCase):
             self.assertEqual(len(argv), 4)
             self.assertTrue(str(argv[3]).endswith('settings.json'))
             kwargs['env'] = {**os.environ, 'SOAK_STUB_MODE': mode}
-            return REAL_POPEN([sys.executable, str(self.stub), *argv[1:]], **kwargs)
+            self.process = REAL_POPEN([sys.executable, str(self.stub), *argv[1:]], **kwargs)
+            return self.process
         with patch.object(soak.subprocess, 'Popen', side_effect=spawn):
             yield
 
@@ -97,6 +98,10 @@ class EditSoakTests(unittest.TestCase):
 
     def test_wrong_session_fails(self):
         self.assert_failed('wrong-session', 'session mismatch')
+
+    def test_malformed_catalogue_fails_and_stops_child(self):
+        self.assert_failed('bad-catalogue', 'missing required module catalogue')
+        self.assertEqual(self.process.poll(), 0)
 
     def test_large_stderr_is_bounded_and_drained(self):
         with self.engine('logs'):

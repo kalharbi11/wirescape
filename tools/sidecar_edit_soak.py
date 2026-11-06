@@ -56,7 +56,7 @@ class Sidecar:
                 if not isinstance(msg, dict):
                     raise ValueError('non-object stdout line')
                 self.inbox.put_nowait(msg)
-            except (ValueError, UnicodeError, queue.Full) as exc:
+            except (ValueError, UnicodeError, RecursionError, queue.Full) as exc:
                 if not self.errors:
                     self.errors.append(f'{exc}: {line[:120]!r}')
 
@@ -87,7 +87,7 @@ class Sidecar:
             raise SoakFailure(f'invalid first hello: {str(msg)[:180]}')
         modules = msg['catalogue'].get('modules')
         if not isinstance(modules, list) or not {'essentials.output', 'essentials.vco'} <= {
-                m.get('id') for m in modules if isinstance(m, dict)}:
+                m['id'] for m in modules if isinstance(m, dict) and isinstance(m.get('id'), str)}:
             raise SoakFailure('hello missing required module catalogue')
         self.session = msg['session']
 
