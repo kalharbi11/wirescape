@@ -36,6 +36,7 @@ export class WavePreview {
   private phase: number | null = null;
   private output: number | null = null;
   private drawnPhase: number | null = null;
+  private drawnOutput: number | null = null;
   private layer: HTMLCanvasElement | null = null;
   private layerKey = '';
   private lastText = 0;
@@ -68,8 +69,9 @@ export class WavePreview {
       this.root.title = s.rateLabel;
     }
     const ph = this.phase;
-    if (!changed && this.layer && ph === this.drawnPhase) return;
+    if (!changed && this.layer && ph === this.drawnPhase && this.output === this.drawnOutput) return;
     this.drawnPhase = ph;
+    this.drawnOutput = this.output;
 
     const w = pane.width, h = pane.height, ctx = pane.ctx, pal = pane.palette();
     const x0 = INSET, x1 = w - INSET, cy = h / 2, A = h * 0.34;
