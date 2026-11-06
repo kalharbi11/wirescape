@@ -167,6 +167,13 @@ class Audit:
             self.check(type(actual) in (int, float) and math.isfinite(actual) and actual >= 0,
                        where, f'bad observed meter {actual!r}')
             return
+        # Native descriptor scalars originate as float32; JSON 20000 and
+        # 20000.0 are the same number, and 0.01 is rounded at the ABI boundary.
+        if (type(expected) in (int, float) and type(actual) in (int, float) and
+                '.catalogue.modules[' in where):
+            self.check(math.isclose(actual, expected, rel_tol=1e-6, abs_tol=1e-8),
+                       where, f'catalogue number {expected!r} != {actual!r}')
+            return
         self.check(type(actual) is type(expected) and actual == expected,
                    where, f'expected {expected!r}, got {actual!r}')
 
