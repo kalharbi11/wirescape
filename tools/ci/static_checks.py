@@ -77,7 +77,7 @@ def run_checks(root, diff, tidy_diff):
             project.parent.mkdir(parents=True, exist_ok=True)
             project.write_text(json.dumps(units), encoding="utf-8")
             jobs.append(("cppcheck changed files", ["cppcheck", "--enable=warning,performance",
-                         "--error-exitcode=1", "--suppress=missingIncludeSystem", "--template=gcc",
+                         "--error-exitcode=1", "--suppress=missingIncludeSystem", "--inline-suppr", "--template=gcc",
                          "--library=qt", "--project=" + str(project)], None))
         for name, ranges in files.items():
             if ranges:

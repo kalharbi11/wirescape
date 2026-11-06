@@ -1,0 +1,12 @@
+{
+  "code": "LAD",
+  "panes": [
+    "filter"
+  ],
+  "paneOptions": {
+    "filter": {
+      "cutoff": "cutoff",
+      "resonance": "resonance"
+    }
+  }
+}

@@ -74,6 +74,8 @@ class StaticChecksTests(unittest.TestCase):
         commands = [c.args[0] for c in run.call_args_list if c.args[0][0] == "cppcheck"]
         self.assertEqual(len(commands), 1)
         self.assertIn("--library=qt", commands[0])
+        # Honour vendor annotations such as nlohmann/json_fwd.hpp's "cppcheck-suppress syntaxError".
+        self.assertIn("--inline-suppr", commands[0])
         project = next(arg.split("=", 1)[1] for arg in commands[0] if arg.startswith("--project="))
         entries = json.loads(Path(project).read_text())
         self.assertEqual({Path(e["file"]).name for e in entries}, {"rng.hpp", "driver.c"})

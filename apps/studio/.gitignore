@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-only
+node_modules
+dist
+test-results
+playwright-report
+.DS_Store
+*.local
+docs/shots/
+docs/recordings/
+build_reports/pi-ui/

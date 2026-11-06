@@ -1,0 +1,25 @@
+{
+  "code": "LFO",
+  "panes": [
+    "wave"
+  ],
+  "sections": [
+    {
+      "params": [
+        "rate"
+      ]
+    },
+    {
+      "params": [
+        "depth",
+        "beats",
+        "offset"
+      ]
+    },
+    {
+      "params": [
+        "sync"
+      ]
+    }
+  ]
+}

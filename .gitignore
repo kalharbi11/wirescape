@@ -50,3 +50,8 @@ legacy/modules/chaos/surgepy_bin/
 *.suo
 .DS_Store
 Thumbs.db
+
+# Web UI
+apps/studio/node_modules/
+apps/studio/dist/
+apps/studio/test-results/
