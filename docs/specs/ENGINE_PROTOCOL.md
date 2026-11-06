@@ -17,12 +17,12 @@ renderer ← window.wirescape.onMessage(cb) ← preload ← Electron main
 - **Hard cap:** 2,097,152 UTF-8 bytes *per line*, excluding LF, including JSON framing and escaping. This is also the native patch-byte limit; a patch that cannot fit inside the wire envelope is refused with `limit`, not fragmented or truncated. Count bytes, not JavaScript characters. Discard an overlong line through its next LF with bounded memory. JSON nesting depth ≤64. Reject malformed lines with one `invalid` reply and keep processing the next line.
 - A single engine control executor processes accepted commands in receive order. No more than **256** accepted commands may await execution; when full, parse bounded subsequent lines and reply `busy` without enqueuing. Device and telemetry notifications cannot block replies. Never read, parse or serialize JSON on an audio/MIDI callback; no allocation, mutex, logging or file access there.
 - On **stdin EOF** (including an unfinished final line), discard the unfinished line, stop MIDI ingress then audio, join callbacks and exit **0** after clean teardown. `SIGTERM`/crash is not an EOF success. Main drains complete stdout lines, observes process exit and emits `app.engineExited`.
-- Main enables `contextIsolation: true`, `nodeIntegration: false`; the preload exposes **only** `window.wirescape = { send(obj): void, onMessage(cb): () => void }` via `contextBridge`. Preload validates an object, serializability, size and protocol version before sending over Electron IPC. Main is the sole owner of child process, serializes one line per command, and forwards accepted engine lines **unchanged** to the renderer (no reparsing/reformatting), except its own `app.*` messages. It does not expose filesystem, shell, Node or raw child streams.
+- Main enables `contextIsolation: true`, `nodeIntegration: false`; the preload exposes **only** the five members of `window.wirescape` specified in §3 (`send`, `onMessage`, `openPatch`, `savePatch`, `platform`) via `contextBridge`. Preload validates protocol objects, serializability, size and protocol version before sending over Electron IPC. Main is the sole owner of the child process, serializes one line per command, and forwards accepted engine lines **unchanged** to the renderer (no reparsing/reformatting), except its own `app.*` messages. The dialog methods are app-owned IPC calls, not stdin commands. No filesystem, shell, Node or raw child streams are exposed.
 - Main bounds stdin/IPC pending writes and forwards `busy` when the 256-command pending limit is reached. Main drops/coalesces only superseded status/telemetry; it never drops command replies, `hello`, `devices` or `app.engineExited`. On a broken pipe, pending calls are refused as `unavailable`. No LAN/local HTTP listener is introduced.
 
 ## 2. Envelope, sessions, errors
 
-Each command is `{"v":0,"id":"r1","type":"loadGraph", ...}`; `id` is a nonempty printable ASCII string of at most 64 bytes, unique among outstanding commands and not reused within the engine session. Engine replies, with the **same request id**, have exactly one of:
+Each command is `{"v":0,"id":"r1","type":"loadGraph", ...}`; top-level `id` is **reserved exclusively for request correlation**, never for a target device/module. It is a nonempty printable ASCII string of at most 64 bytes, unique among outstanding commands and not reused within the engine session. Device selection commands use `deviceId` as their payload key, while `Device.id` inside nested catalogue/status/result objects remains unchanged. Duplicate keys are invalid at every JSON object nesting level. Engine replies, with the **same request id**, have exactly one of:
 
 ```json
 {"v":0,"session":"s1","re":"r1","ok":true,"gen":"1"}
@@ -40,6 +40,25 @@ Each command is `{"v":0,"id":"r1","type":"loadGraph", ...}`; `id` is a nonempty 
 `{"v":0,"id":"a1","type":"app.restartEngine"}` is intercepted by **main**, never sent to the engine. Main replies `{"v":0,"re":"a1","ok":true,"gen":"0"}` when restart is initiated, sends EOF/terminates the old child with bounded cleanup, and starts a new one with the same authorized startup flags. Main announces any child exit with `{"v":0,"type":"app.engineExited","exitCode":null|integer,"signal":null|string,"expected":boolean}` (its own push; no engine session). A failed restart returns an app-owned `unavailable` reply instead. An unexpected child exit does not imply a successful restart; the UI may request one. Main never forwards `app.*` to engine stdin.
 
 On every new engine `hello`, the UI invalidates old-session pending edits/replies, calls `loadGraph` using its **own current editable document**, then resumes incremental commands only after that load is acknowledged. Engine settings survive restarts separately; the engine does not store or overwrite the UI patch. The app must show an engine-disconnected state between exit and successful `hello`/`loadGraph`. The first `hello` precedes other engine pushes.
+
+### Electron preload bridge (P1F, non-engine IPC)
+
+The **entire** exposed `contextBridge` object is the following five-member API. The renderer never receives Node primitives or an arbitrary filesystem path. File menu actions invoke these same methods in main; file operations are **not** v0 engine commands or `app.*` messages.
+
+```ts
+interface WirescapeBridge {
+  send(obj: Record<string, unknown>): void;
+  onMessage(cb: (message: Record<string, unknown>) => void): () => void;
+  openPatch(): Promise<{ text: string; name: string } | null>;
+  savePatch(text: string, options?: { saveAs?: boolean }): Promise<{ name: string } | null>;
+  readonly platform: 'linux' | 'win32' | 'darwin';
+}
+```
+
+- `send` submits one v0 command (including `app.restartEngine`) through bounded, validated IPC; it never opens a file or returns a reply Promise. `onMessage` registers a callback for decoded protocol replies/pushes and app-owned messages, returning an idempotent unsubscribe function. Subscription is removed on window teardown. The renderer must not invent a `Device.id` as the top-level request `id`.
+- `openPatch()` shows Electron's native **Open patch** file dialog, reads the chosen UTF-8 patch **whole**, and resolves `{text, name}`, where `name` is the display basename only. Cancellation resolves `null`, with no document change. Main retains the dialog-selected absolute path privately for subsequent **Save**; it never returns the path to the renderer. The UI remains the sole editable-document owner.
+- `savePatch(text, {saveAs:false})` writes the supplied exact UTF-8 document text to the last path selected by Open/Save in **this window**. If no such path exists, or `saveAs:true`, main shows a native **Save patch** dialog and remembers the chosen path after success. `saveAs` defaults to `false`. Success resolves `{name}` (display basename), cancellation resolves `null` and leaves the existing document/path unchanged. Write via same-directory temporary file plus atomic replacement; do not rewrite the document, strip unknown keys or pass it through the engine.
+- Both file methods enforce the existing 2 MiB UTF-8 limit on file bytes, reject non-UTF-8 input, invalid arguments and I/O failures with a rejected Promise carrying a sanitized error string, and do not silently convert failure into cancellation. No renderer-supplied path or generic read/write API exists. The platform property is the immutable Electron main-process OS identifier, for UI presentation/shortcut conventions only; it does **not** grant access to `process`.
 
 ## 4. Commands (one terminal reply per request)
 
@@ -60,9 +79,9 @@ Wire `type` is the `EngineClient` method name, except `ccMap.set`. Numbers are f
 | `noteOff` | `note:integer` 0..127 (never silently drop) | live, priority | block |
 | `panic` | `{}` | live, priority release-all | block |
 | `listAudioDevices` | `{}`; result `{devices: Device[]}` | query | immediate |
-| `selectAudioDevice` | `id:string` (exact audio name) | control / audio reopen | device |
+| `selectAudioDevice` | `deviceId:string` (exact audio name; not the request `id`) | control / audio reopen | device |
 | `listMidiDevices` | `{}`; result `{devices: Device[]}` | query | immediate |
-| `setMidiEnabled` | `id:string`, `on:boolean` | control / MIDI subscriptions | device |
+| `setMidiEnabled` | `deviceId:string` (from `Device.id`), `on:boolean` | control / MIDI subscriptions | device |
 | `setSampleRate` *(optional)* | `hz:integer` >0, supported by device | control / audio reopen, reprepare | device |
 | `setBufferFrames` *(optional)* | `frames:integer` 1..4096 | control / audio reopen, reprepare | device |
 | `setOsc` *(optional, **unavailable in v0**)* | `cfg:{enabled?,port?,allowNetwork?}` | refused `unavailable`; no socket | immediate |
@@ -180,13 +199,15 @@ Each line below is a standalone JSON wire line. `>` denotes renderer→engine st
 ```text
 > {"v":0,"id":"r9","type":"listAudioDevices"}
 < {"v":0,"session":"s1","re":"r9","ok":true,"gen":"4","result":{"devices":[{"id":"USB Stereo","name":"USB Stereo","kind":"audio","index":3}]}}
+> {"v":0,"id":"r9b","type":"selectAudioDevice","deviceId":"USB Stereo"}
+< {"v":0,"session":"s1","re":"r9b","ok":true,"gen":"4"}
 ```
 
 **T10 — MIDI endpoints carry `name` and `system_name`, and changing enabled state is control-side.**
 ```text
 > {"v":0,"id":"r10a","type":"listMidiDevices"}
 < {"v":0,"session":"s1","re":"r10a","ok":true,"gen":"4","result":{"devices":[{"id":"M8 MIDI 1|M8:M8 MIDI 1","name":"M8 MIDI 1","system_name":"M8:M8 MIDI 1","kind":"midi","enabled":true}]}}
-> {"v":0,"id":"r10b","type":"setMidiEnabled","id":"M8 MIDI 1|M8:M8 MIDI 1","on":false}
+> {"v":0,"id":"r10b","type":"setMidiEnabled","deviceId":"M8 MIDI 1|M8:M8 MIDI 1","on":false}
 < {"v":0,"session":"s1","re":"r10b","ok":true,"gen":"4"}
 ```
 
@@ -225,4 +246,4 @@ Each line below is a standalone JSON wire line. `>` denotes renderer→engine st
 < {"v":0,"session":"s2","re":"r15","ok":true,"gen":"1"}
 ```
 
-**Fixture invariants:** Test T01 before the first engine reply; T02 must leave UI `ui.labels` and original missing fields unchanged; T05/T14 keep gen unchanged; T06/T08 never increment gen; T07/T12 increment only on commit; T09/T10 use real/fake enumerators, never hardware; T13 `meters` reflects a rendered null-sink patch, not arbitrary fixed numbers; T15 ignores any late `s1` reply. Separately test an over-2-MiB line (`limit`/drain to LF), exactly 256 queued commands (257th `busy`), an unsupported optional `setOsc` (`unavailable`), and stdin EOF with audio/MIDI teardown and process exit code 0. All tests use a fake backend and `--null-audio`; no real device, LAN, or microphone is opened.
+**Fixture invariants:** Strictly parse **every valid JSON line** in T01–T15 with duplicate-key detection (including nested objects), rejecting the deliberately malformed input in T14. Verify in particular that T09 selection and T10b carry **both** the request `id` and distinct `deviceId`, and that the file bridge can open/save/cancel using stubbed dialogs with no path exposed. Test T01 before the first engine reply; T02 must leave UI `ui.labels` and original missing fields unchanged; T05/T14 keep gen unchanged; T06/T08 never increment gen; T07/T12 increment only on commit; T09/T10 use real/fake enumerators, never hardware; T13 `meters` reflects a rendered null-sink patch, not arbitrary fixed numbers; T15 ignores any late `s1` reply. Separately test an over-2-MiB line (`limit`/drain to LF), exactly 256 queued commands (257th `busy`), an unsupported optional `setOsc` (`unavailable`), and stdin EOF with audio/MIDI teardown and process exit code 0. All tests use a fake backend and `--null-audio`; no real device, LAN, or microphone is opened.
