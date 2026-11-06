@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
                     found |= type == app_engine_module(catalogue.get(), i)->id;
                 if (!found) {
                     require(type == "example.step_sequencer" || type == "example.random_source",
-                            name + ": unexpected unavailable module " + type);
+                            (name + ": unexpected unavailable module ").append(type));
                     unknown = true;
                 }
             }
@@ -56,10 +56,10 @@ int main(int argc, char **argv) {
                          app_engine_destroy);
             require(patch.dump() == before, name + ": execution mutated editable data");
             if (unknown) {
-                require(!engine && error == "unknown-module", name + ": expected unknown-module, got " + error);
+                require(!engine && error == "unknown-module", (name + ": expected unknown-module, got ").append(error));
                 ++refused;
             } else {
-                require(bool(engine), name + ": " + error);
+                require(bool(engine), (name + ": ").append(error));
                 for (const auto &module : patch.at("modules")) {
                     if (module.at("module") != "essentials.output") continue;
                     for (int bus = 0; bus < 2; ++bus) {
