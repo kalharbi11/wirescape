@@ -34,6 +34,7 @@ class Session {
 public:
     explicit Session(Options); ~Session();
     void shutdown();
+    void start(); // begin rendering only after the hello handshake is flushed
     Json hello()const;
     Json reply(const Request&);
     Json status()const; Json telemetry();

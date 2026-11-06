@@ -56,9 +56,10 @@ Session::Session(Options options):options_(std::move(options)),config_{sizeof(co
     patch_=execution(patch_);std::string error;engine_.reset(document::load_runtime_patch(patch_.dump(),catalogue_.get(),config_,error));need(bool(engine_),"unavailable","Cannot create startup graph");
     active_=engine_.get();refresh_devices();device_=options_.device.empty()?preferences_.value("audioDeviceId",std::string{}):options_.device;
     if(options_.audio){auto found=std::count_if(audio_devices_.begin(),audio_devices_.end(),[&](const Json&d){return d["id"]==device_;});if(!device_.empty()&&found==0){fallback_=device_;device_.clear();audio_state_="starting";}if(device_.empty()){for(const auto&d:audio::devices(options_.directory))if(d.is_default)device_=d.name;}}
-    try{start_audio();start_midi();if(stream_)persist();}catch(...){stop_audio();throw;}
+    if(options_.audio)audio_state_="starting";
 }
-Session::~Session(){try{shutdown();}catch(const std::exception&e){std::cerr<<e.what()<<std::endl;}}
+void Session::start(){try{start_audio();start_midi();if(stream_)persist();}catch(...){stop_audio();throw;}}
+Session::~Session(){try{shutdown();}catch(const std::exception&e){std::cerr<<e.what()<<'\n';}}
 void Session::shutdown(){midi_->stop();stop_audio();}
 void Session::start_audio(){
     stop_sink_.store(false);
@@ -211,7 +212,7 @@ Json Session::reply(const Request&request){
         need(!result["re"].is_null());
         need(request.value.at("v").is_number_integer()&&request.value.at("v")==0&&request.value.at("type").is_string());
         auto data=apply(request.value);result["ok"]=true;if(!data.is_null())result["result"]=std::move(data);
-    }catch(const audio::ShutdownFailure&e){std::cerr<<e.what()<<std::endl;std::_Exit(2);}
+    }catch(const audio::ShutdownFailure&e){std::cerr<<e.what()<<'\n';std::_Exit(2);}
     catch(const Refusal&e){result["code"]=e.code;result["message"]=e.what();}
     catch(const Json::exception&){result["code"]="invalid";result["message"]="Invalid command field";}
     catch(const std::exception&){result["code"]="unavailable";result["message"]="Engine operation unavailable";}

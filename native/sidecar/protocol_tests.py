@@ -43,7 +43,14 @@ class Engine:
         atexit.register(lambda: self.process.kill() if self.process.poll() is None else None)
         self.reader = threading.Thread(target=read, daemon=True)
         self.reader.start()
-        self.hello = self.messages.get(timeout=10)
+        try:
+            self.hello = self.messages.get(timeout=10)
+        except queue.Empty as error:
+            exit_code = self.process.poll()
+            if exit_code is None:
+                raise AssertionError('engine is still running but emitted no hello within 10s') from error
+            stderr = self.process.stderr.read().decode(errors='replace')[-4096:]
+            raise AssertionError(f'engine exited {exit_code} without hello; stderr: {stderr}') from error
         assert self.hello['type'] == 'hello' and self.hello['protocol'] == 0
         self.session = self.hello['session']
         assert self.session and self.hello['v'] == 0
@@ -56,7 +63,14 @@ class Engine:
                 assert {'id', 'name', 'direction', 'kind', 'hint', 'poly', 'stereo_pair'} <= port.keys()
 
     def receive(self):
-        message = self.messages.get(timeout=10)
+        try:
+            message = self.messages.get(timeout=10)
+        except queue.Empty as error:
+            exit_code = self.process.poll()
+            if exit_code is None:
+                raise AssertionError('engine is still running but emitted no reply within 10s') from error
+            stderr = self.process.stderr.read().decode(errors='replace')[-4096:]
+            raise AssertionError(f'engine exited {exit_code} before reply; stderr: {stderr}') from error
         assert message['session'] == self.session and message['v'] == 0
         if message.get('type') != 'hello':
             assert isinstance(message['gen'], str) and message['gen'].isdigit()
@@ -158,6 +172,10 @@ with tempfile.TemporaryDirectory() as directory:
     assert midi[0]['id'] == midi[0]['name'] + '|' + midi[0]['system_name']
     engine.call('setMidiEnabled', deviceId=midi[0]['id'], on=True)
     engine.call('setMidiEnabled', deviceId=midi[0]['id'], on=False)
+    # Windows on→off→on regression: teardown must always return a terminal reply.
+    engine.call('setMidiEnabled', deviceId=midi[0]['id'], on=True)
+    engine.call('setMidiEnabled', deviceId=midi[0]['id'], on=False)
+    assert engine.call('listMidiDevices')['result']['devices'][0]['enabled'] is False
     assert json.loads(settings.read_text())['audioDeviceId'] == 'USB Stereo'
     for data in [b'{"v":0,"id":"bad",BROKEN\n', b'{"v":0,"v":0,"id":"duplicate","type":"panic"}\n',
                  b'{"v":0,"id":"nested","type":"loadGraph","patch":{"a":1,"a":2}}\n',

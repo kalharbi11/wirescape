@@ -21,7 +21,7 @@ class Transport {
     std::deque<Request> commands_;
     std::set<std::string> outstanding_; std::deque<Json> replies_;
     Json status_, telemetry_;
-    bool eof_ = false, finished_ = false, writing_ = false, closing_ = false, joined_ = false;
+    bool eof_ = false, finished_ = false, writing_ = false, closing_ = false, joined_ = false, hello_written_ = false;
     std::chrono::steady_clock::time_point write_deadline_,close_deadline_;
     std::thread reader_, writer_, watchdog_;
     void read(); void write(); void monitor();
@@ -29,6 +29,7 @@ public:
     Transport(std::istream&, std::ostream&);
     ~Transport();
     void start();
+    void wait_hello();
     bool next(Request&, std::chrono::milliseconds);
     bool eof();
     void complete(const Request&);

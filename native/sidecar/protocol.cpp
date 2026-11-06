@@ -25,6 +25,10 @@ Json strict_json(const std::string& bytes) {
 Transport::Transport(std::istream& in, std::ostream& out) : input_(in), output_(out) {}
 Transport::~Transport() { finish(); }
 void Transport::start() { watchdog_=std::thread([this]{monitor();});writer_ = std::thread([this]{write();}); reader_ = std::thread([this]{read();}); }
+void Transport::wait_hello() {
+    std::unique_lock<std::mutex> lock(mutex_);
+    writable_.wait(lock, [this]{return hello_written_;});
+}
 void Transport::read() {
     std::string bytes; bytes.reserve(4096); bool oversized = false; char c;
     while (input_.get(c)) {
@@ -82,12 +86,13 @@ void Transport::write() {
             writable_.notify_all();
         }
         {std::lock_guard<std::mutex>lock(mutex_);writing_=true;write_deadline_=std::chrono::steady_clock::now()+std::chrono::seconds(5);writable_.notify_all();}
+        const bool initial_hello = value.is_object() && value.value("type", std::string{}) == "hello";
         auto bytes = value.dump();
         if (bytes.size() > LineLimit) throw std::runtime_error("Reply exceeds protocol limit");
         output_ << bytes << '\n'; output_.flush();
         if(!output_)throw std::runtime_error("Protocol output unavailable");
-        {std::lock_guard<std::mutex>lock(mutex_);writing_=false;writable_.notify_all();}
-    }}catch(const std::exception&e){std::cerr<<e.what()<<std::endl;std::_Exit(3);}
+        {std::lock_guard<std::mutex>lock(mutex_);writing_=false;if(initial_hello)hello_written_=true;writable_.notify_all();}
+    }}catch(const std::exception&e){std::cerr<<e.what()<<'\n';std::_Exit(3);}
 }
 void Transport::monitor(){
     std::unique_lock<std::mutex>lock(mutex_);
@@ -97,7 +102,7 @@ void Transport::monitor(){
         if(closing_)deadline=std::min(deadline,close_deadline_);
         if(writable_.wait_until(lock,deadline)==std::cv_status::timeout&&
            ((writing_&&std::chrono::steady_clock::now()>=write_deadline_)||(closing_&&std::chrono::steady_clock::now()>=close_deadline_))){
-            std::cerr<<"Protocol pipe unavailable or shutdown timed out"<<std::endl;std::_Exit(3);
+            std::cerr<<"Protocol pipe unavailable or shutdown timed out"<<'\n';std::_Exit(3);
         }
     }
 }

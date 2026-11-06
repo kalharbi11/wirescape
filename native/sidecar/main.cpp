@@ -17,6 +17,8 @@ int main(int argc,char**argv){
         wirescape::sidecar::Session session(std::move(options));
         wirescape::sidecar::Transport transport(std::cin,std::cout);
         transport.send(session.hello());transport.start();
+        transport.wait_hello(); // strictly before render/pacing and device startup
+        session.start();
         auto status=std::chrono::steady_clock::now(),telemetry=status,devices=status;
         for(;;){
             wirescape::sidecar::Request request;
