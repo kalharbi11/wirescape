@@ -123,9 +123,12 @@ target_link_libraries(wirescape_engine_sidecar PRIVATE wirescape_runtime_documen
 add_test(NAME abi2_sidecar_protocol_tests COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/sidecar/protocol_tests.py
   $<TARGET_FILE:wirescape_engine_sidecar> ${PROJECT_SOURCE_DIR}/examples)
 set_tests_properties(abi2_sidecar_protocol_tests PROPERTIES TIMEOUT 90)
+add_test(NAME sidecar_golden COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/sidecar/golden_tests.py
+  $<TARGET_FILE:wirescape_engine_sidecar> ${PROJECT_SOURCE_DIR}/tests/protocol/golden_v0.ndjson)
+set_tests_properties(sidecar_golden PROPERTIES TIMEOUT 180)
 if(WIN32)
   # Windows-only skip for #266 (1B-2); Linux and the Pi treat exit 77 as a failure.
-  set_tests_properties(abi2_sidecar_protocol_tests PROPERTIES SKIP_RETURN_CODE 77)
+  set_tests_properties(abi2_sidecar_protocol_tests sidecar_golden PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 add_executable(sidecar_protocol_unit_tests sidecar/protocol_unit_tests.cpp sidecar/protocol.cpp sidecar/devices.cpp tests2/allocation_watch.cpp)
 target_link_libraries(sidecar_protocol_unit_tests PRIVATE wirescape_runtime_document wirescape_audio_service
