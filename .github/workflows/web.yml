@@ -37,6 +37,8 @@ jobs:
           cache: npm
           cache-dependency-path: apps/studio/package-lock.json
       - run: npm ci
+      - name: Install Playwright video recorder
+        run: npx playwright install ffmpeg
       - run: npm run typecheck
       - run: npm run build
       - name: Locate runner Chromium
