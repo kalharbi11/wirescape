@@ -8,9 +8,9 @@
 // must never change once published (patches and automation refer to them by ID).
 // gate: 0 = rest, 1 = note, 2 = tie (previous note keeps sounding, no new note).
 #define WS_STEP(n) \
-    ws::param("pitch" #n, "Pitch " #n, -2, 2, 0, "oct"), \
-    ws::param("gate" #n, "Gate " #n, 0, 2, 1, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1), \
-    ws::param("vel" #n, "Velocity " #n, 0, 1, 0.8f)
+    ws::param("pitch" #n, "Pitch " #n, -2, 2, 0, "oct", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 3 * (n) - 1), \
+    ws::param("gate" #n, "Gate " #n, 0, 2, 1, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 3 * (n), 4, 1), \
+    ws::param("vel" #n, "Velocity " #n, 0, 1, 0.8f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 3 * (n) + 1)
 
 struct StepSequencer {
     static constexpr ws::Info info{"example.step_sequencer", "Step Sequencer", 1};
@@ -29,7 +29,7 @@ struct StepSequencer {
     // 2 + 8*3 = 26 parameters (host limit is 32). Step s (0-based) lives at 2 + 3*s + {0,1,2}.
     static constexpr std::array params{
         ws::param("run", "Run", 0, 1, 1, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
-        ws::param("length", "Length", 1, 8, 8, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
+        ws::param("length", "Length", 1, 8, 8, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 1),
         WS_STEP(1), WS_STEP(2), WS_STEP(3), WS_STEP(4), WS_STEP(5), WS_STEP(6), WS_STEP(7), WS_STEP(8)};
     static constexpr uint32_t kRun = 0, kLength = 1;
     static constexpr uint32_t pitch_param(uint32_t s) { return 2 + 3 * s; }
