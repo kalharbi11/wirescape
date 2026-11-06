@@ -8,10 +8,10 @@
   "modules": [
     {"id":1,"module":"midi.in","version":1,"parameters":{},"config":{"endpoint":"all_enabled"}},
     {"id":2,"module":"midi.to_cv","version":1,"parameters":{"voice_count":4}},
-    {"id":3,"module":"ports.macro_oscillator","version":1,"parameters":{"model":0,"harmonics":0.4,"timbre":0.4,"morph":0.4}},
-    {"id":4,"module":"essentials.vcf","version":2,"parameters":{"cutoff":3500,"resonance":0.15}},
-    {"id":5,"module":"essentials.vca","version":2,"parameters":{"gain":0.15}},
-    {"id":6,"module":"essentials.adsr","version":2,"parameters":{"attack":0.01,"decay":0.15,"sustain":0.7,"release":0.3}},
+    {"id":3,"module":"ports.macro_oscillator","version":1,"parameters":{"model":0,"harmonics":0.1,"timbre":0.1,"morph":0.1}},
+    {"id":4,"module":"essentials.vcf","version":2,"parameters":{"cutoff":20,"resonance":0.3}},
+    {"id":5,"module":"essentials.vca","version":2,"parameters":{"gain":0.1}},
+    {"id":6,"module":"essentials.adsr","version":2,"parameters":{"attack":0.01,"decay":0.15,"sustain":0.7,"release":0.1}},
     {"id":8,"module":"essentials.output","version":2,"parameters":{}},
     {"id":9,"module":"midi.cc_to_cv","version":1,"parameters":{},"config":{"rows":[{"channel":0,"controller":21,"smoothing_ms":10},{"channel":0,"controller":22,"smoothing_ms":10},{"channel":0,"controller":23,"smoothing_ms":10},{"channel":0,"controller":24,"smoothing_ms":10},{"channel":0,"controller":25,"smoothing_ms":10},{"channel":0,"controller":26,"smoothing_ms":10},{"channel":0,"controller":27,"smoothing_ms":10},{"channel":0,"controller":28,"smoothing_ms":10}]}}
   ],
@@ -27,13 +27,13 @@
     {"kind":"signal","from":{"module":6,"port":"envelope"},"to":{"module":5,"port":"gain_cv"}},
     {"kind":"signal","from":{"module":5,"port":"audio"},"to":{"module":8,"port":"audio"}},
     {"kind":"signal","from":{"module":9,"port":"cc1"},"to":{"module":3,"port":"model_cv"}},
-    {"kind":"modulation","from":{"module":9,"port":"cc2"},"to":{"module":3,"port":"harmonics"},"amount":0.5},
-    {"kind":"modulation","from":{"module":9,"port":"cc3"},"to":{"module":3,"port":"timbre"},"amount":0.5},
-    {"kind":"modulation","from":{"module":9,"port":"cc4"},"to":{"module":3,"port":"morph"},"amount":0.5},
-    {"kind":"modulation","from":{"module":9,"port":"cc5"},"to":{"module":4,"port":"cutoff"},"amount":0.2},
-    {"kind":"modulation","from":{"module":9,"port":"cc6"},"to":{"module":4,"port":"resonance"},"amount":0.3},
-    {"kind":"modulation","from":{"module":9,"port":"cc7"},"to":{"module":6,"port":"release"},"amount":0.06},
-    {"kind":"modulation","from":{"module":9,"port":"cc8"},"to":{"module":5,"port":"gain"},"amount":0.2}
+    {"kind":"modulation","from":{"module":9,"port":"cc2"},"to":{"module":3,"port":"harmonics"},"amount":0.8},
+    {"kind":"modulation","from":{"module":9,"port":"cc3"},"to":{"module":3,"port":"timbre"},"amount":0.8},
+    {"kind":"modulation","from":{"module":9,"port":"cc4"},"to":{"module":3,"port":"morph"},"amount":0.8},
+    {"kind":"modulation","from":{"module":9,"port":"cc5"},"to":{"module":4,"port":"cutoff"},"amount":0.7},
+    {"kind":"modulation","from":{"module":9,"port":"cc6"},"to":{"module":4,"port":"resonance"},"amount":0.6},
+    {"kind":"modulation","from":{"module":9,"port":"cc7"},"to":{"module":6,"port":"release"},"amount":0.1},
+    {"kind":"modulation","from":{"module":9,"port":"cc8"},"to":{"module":5,"port":"gain"},"amount":0.45}
   ],
   "outputs": [
     {"module":8,"port":"audio","bus_channel":0},

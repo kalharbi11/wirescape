@@ -206,6 +206,11 @@ export class FakeEngine implements EngineClient {
     this.statusCbs.add(cb); cb(this.snapshotStatus()); return () => this.statusCbs.delete(cb);
   }
 
+  /** FakeEngine reports edit refusals synchronously; there are no pending edits. */
+  onRefusal(_cb: (r: { requestId: string; type: string; detail: EngineError; gen: string }) => void): () => void {
+    return () => undefined;
+  }
+
   // ---- EngineClient: devices -------------------------------------------
 
   async listAudioDevices(): Promise<Device[]> { return this.audioDevices.map(d => ({ ...d })); }

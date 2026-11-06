@@ -13,7 +13,9 @@ test('six Qt starters retain native data and use valid catalogue endpoints', () 
     const patch = starter.patch();
     expect(patch['SPDX-License-Identifier']).toBe('GPL-3.0-only');
     expect(patch.settings).toHaveProperty('seed', 42);
-    expect(patch.outputs).toHaveLength(1);
+    expect(patch.outputs).toHaveLength(2);
+    const output = patch.modules.find(m => m.module === 'essentials.output')!;
+    expect(patch.outputs).toEqual([0, 1].map(bus_channel => ({ module: output.id, port: 'audio', bus_channel })));
     const types = new Map(patch.modules.map(m => [m.id, catalogue.modules.find(d => d.id === m.module)!]));
     for (const module of patch.modules) {
       const descriptor = types.get(module.id);

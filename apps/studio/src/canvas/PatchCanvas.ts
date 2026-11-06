@@ -934,7 +934,7 @@ export class PatchCanvas {
   }
 
   private syncZoomLabel(): void {
-    this.s.doc.ui.view = { x: this.viewport.view.x, y: this.viewport.view.y, zoom: this.viewport.view.s };
+    this.s.doc.ui.view = { ...this.s.doc.ui.view, x: this.viewport.view.x, y: this.viewport.view.y, zoom: this.viewport.view.s };
   }
 
   fit(): void {

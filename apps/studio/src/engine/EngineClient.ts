@@ -89,7 +89,7 @@ export interface Telemetry {
 }
 
 export interface EngineError {
-  code: 'unknown-module' | 'kind-mismatch' | 'duplicate' | 'not-found' | 'refused';
+  code: 'unknown-module' | 'kind-mismatch' | 'duplicate' | 'not-found' | 'refused' | 'invalid' | 'busy' | 'limit' | 'unavailable';
   message: string;
 }
 
@@ -119,6 +119,8 @@ export interface EngineClient {
   // ---- live values -----------------------------------------------------
   onTelemetry(cb: (t: Telemetry) => void): () => void;
   onStatus(cb: (s: SystemStatus) => void): () => void;
+  /** Async refusals of optimistic real-engine edits (FakeEngine remains synchronous). */
+  onRefusal?(cb: (r: { requestId: string; type: string; detail: EngineError; gen: string }) => void): () => void;
 
   // ---- devices ---------------------------------------------------------
   listAudioDevices(): Promise<Device[]>;
