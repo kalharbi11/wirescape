@@ -4,9 +4,39 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <vector>
 namespace wirescape::audio {
 using EngineOwner=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
+class ShutdownFailure : public std::runtime_error {
+  public:
+    using std::runtime_error::runtime_error;
+};
+struct Device {
+    std::string name;
+    int index = -1;
+    bool is_default = false;
+};
+struct StreamSelection {
+    std::string directory, name;
+};
+std::vector<Device> devices(const std::string &directory);
+// Control-owned stream. Context exclusively owns the engine until stop proves
+// callbacks quiescent. A failed backend shutdown quarantines context and engine.
+class Stream {
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+
+  public:
+    Stream(EngineOwner &, const StreamSelection &selection, double rate, uint32_t block,
+           std::function<void()> stop_producers = {});
+    ~Stream();
+    EngineOwner stop();
+    bool running() const;
+    double cpu_percent() const;
+    uint64_t dropouts() const;
+};
 // Enumeration never starts a stream. Only CLI --confirm-audio calls play().
 void list_devices(const std::string& directory);
 void play(EngineOwner engine,const std::string& directory,const std::string& device,

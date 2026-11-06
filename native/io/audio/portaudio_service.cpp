@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "portaudio_service.h"
 #include "../../ui/third_party/portaudio.h"
+#include "callback_render.h"
 #include "wirescape/output_policy.h"
 #include <algorithm>
 #include <chrono>
@@ -57,16 +58,104 @@ struct Context {
  EngineOwner engine;std::vector<float> scratch;std::atomic<uint64_t> xruns{0},faults{0};
  Context(EngineOwner e,uint32_t block):engine(std::move(e)),scratch(size_t{block}*2){}
 };
-int callback(const void*,void*output,unsigned long frames,const PaStreamCallbackTimeInfo*,PaStreamCallbackFlags flags,void*data){
- auto&c=*static_cast<Context*>(data);auto*out=static_cast<float*>(output);
- if(flags&paOutputUnderflow)c.xruns.fetch_add(1,std::memory_order_relaxed);
- if(!out||frames>c.scratch.size()/2){c.faults.fetch_add(1,std::memory_order_relaxed);if(out)std::fill_n(out,frames*2,0.f);return paAbort;}
- float*rows[]={c.scratch.data(),c.scratch.data()+c.scratch.size()/2};
- if(app_engine_render_channels(c.engine.get(),rows,2,uint32_t(frames))!=WS_OK){std::fill_n(out,frames*2,0.f);c.faults.fetch_add(1,std::memory_order_relaxed);return paAbort;}
- for(unsigned long i=0;i<frames;++i){out[2*i]=std::clamp(rows[0][i]*WS_OUTPUT_GAIN,-1.f,1.f);out[2*i+1]=std::clamp(rows[1][i]*WS_OUTPUT_GAIN,-1.f,1.f);}return paContinue;
+int callback(const void *, void *output, unsigned long frames, const PaStreamCallbackTimeInfo *,
+             PaStreamCallbackFlags flags, void *data) {
+    auto &c = *static_cast<Context *>(data);
+    auto *out = static_cast<float *>(output);
+    if (flags & paOutputUnderflow) c.xruns.fetch_add(1, std::memory_order_relaxed);
+    const auto size = uint32_t(c.scratch.size() / 2);
+    const auto now = app_engine_clock_ns();
+    if (render_callback_block(c.engine.get(), c.scratch.data(), size, out, frames, now, c.faults)) return paContinue;
+    return paAbort;
 }
-}
+} // namespace
 void list_devices(const std::string&directory){Backend b(directory);int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&d->maxOutputChannels>=2)std::cout<<i<<": "<<d->name<<" ("<<d->defaultSampleRate<<" Hz default)\n";}}
+std::vector<Device> devices(const std::string &directory) {
+    Backend b(directory);
+    std::vector<Device> result;
+    int count = b.count();
+    b.check(count);
+    for (int i = 0; i < count; ++i) {
+        const auto *d = b.info(i);
+        if (d && d->maxOutputChannels >= 2) result.push_back({d->name, i, i == b.default_device()});
+    }
+    return result;
+}
+struct Stream::Impl {
+    std::unique_ptr<Backend> backend;
+    std::unique_ptr<Context> context;
+    PaStream *stream = nullptr;
+    Impl(EngineOwner &engine, const StreamSelection &selection, double rate, uint32_t block,
+         std::function<void()> producers)
+        : backend(std::make_unique<Backend>(selection.directory)) {
+        auto &b = *backend;
+        int device = b.default_device();
+        if (!selection.name.empty()) {
+            device = paNoDevice;
+            int count = b.count();
+            b.check(count);
+            for (int i = 0; i < count; ++i) {
+                const auto *d = b.info(i);
+                if (d && selection.name == d->name) {
+                    if (device != paNoDevice) throw std::runtime_error("Ambiguous audio device name");
+                    device = i;
+                }
+            }
+        }
+        const auto *info = device >= 0 ? b.info(device) : nullptr;
+        if (!info || info->maxOutputChannels < 2) throw std::runtime_error("No matching stereo output device");
+        context = std::make_unique<Context>(EngineOwner(nullptr, app_engine_destroy), block);
+        context->stop_producers = std::move(producers);
+        context->engine = std::move(engine);
+        PaStreamParameters output{device, 2, paFloat32, info->defaultLowOutputLatency, nullptr};
+        auto opened = b.open(&stream, nullptr, &output, rate, block, paNoFlag, callback, context.get());
+        if (opened < 0) {
+            engine = std::move(context->engine);
+            context.reset();
+            b.check(opened);
+        }
+        auto started = b.start(stream);
+        if (started < 0) {
+            engine = retire();
+            b.check(started);
+        }
+    }
+    EngineOwner retire() {
+        if (!context) return EngineOwner(nullptr, app_engine_destroy);
+        if (context->stop_producers) context->stop_producers();
+        auto &b = *backend;
+        auto stopped = b.stop(stream);
+        if (stopped < 0) stopped = b.abort(stream);
+        auto closed = b.close(stream);
+        stream = nullptr;
+        auto terminated = b.terminate();
+        b.initialized = false;
+        if (terminated < 0 && (stopped < 0 || closed < 0)) {
+            [[maybe_unused]] auto *quarantined = context.release();
+            throw ShutdownFailure("Audio shutdown failed; engine quarantined until process exit");
+        }
+        if (terminated < 0) std::cerr << "PortAudio termination reported failure after stream closed\n";
+        if (context->faults.load()) std::cerr << "Audio callback stopped after render fault\n";
+        auto owner = std::move(context->engine);
+        context.reset();
+        return owner;
+    }
+    ~Impl() {
+        try {
+            retire();
+        } catch (const std::exception &e) {
+            std::cerr << e.what() << '\n';
+        }
+    }
+};
+Stream::Stream(EngineOwner &e, const StreamSelection &selection, double rate, uint32_t block,
+               std::function<void()> producers)
+    : impl_(std::make_unique<Impl>(e, selection, rate, block, std::move(producers))) {}
+Stream::~Stream() = default;
+EngineOwner Stream::stop() { return impl_->retire(); }
+bool Stream::running() const { return impl_->stream && impl_->backend->active(impl_->stream) > 0; }
+double Stream::cpu_percent() const { return impl_->stream ? impl_->backend->load(impl_->stream) * 100 : 0; }
+uint64_t Stream::dropouts() const { return impl_->context ? impl_->context->xruns.load() : 0; }
 void play(EngineOwner engine,const std::string&directory,const std::string&name,double rate,uint32_t block,const std::atomic<bool>&quit,std::function<void()> stop_producers){
  struct StopOnError {std::function<void()>&stop;~StopOnError(){if(stop)stop();}} cleanup{stop_producers};
  Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block);context->stop_producers=stop_producers;int device=b.default_device();
@@ -87,7 +176,8 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  PaError terminated=b.terminate();b.initialized=false;
  if(terminated<0&&(stopped<0||closed<0)){
    // Keep callback state and its engine alive if the backend cannot prove stop.
-   [[maybe_unused]] auto* quarantined=context.release();throw std::runtime_error("Audio shutdown failed; engine quarantined until process exit");
+   [[maybe_unused]] auto *quarantined = context.release();
+   throw ShutdownFailure("Audio shutdown failed; engine quarantined until process exit");
  }
  if(start<0)b.check(start);b.check(run_status);if(context->faults.load())throw std::runtime_error("Audio callback stopped after a render fault");
  b.check(terminated);

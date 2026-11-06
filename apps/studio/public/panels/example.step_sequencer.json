@@ -1,0 +1,48 @@
+{
+  "code": "SEQ",
+  "panes": [
+    "steps"
+  ],
+  "sections": [
+    {
+      "label": "01 / TRANSPORT",
+      "columns": 2,
+      "params": [
+        "run",
+        "length"
+      ]
+    }
+  ],
+  "hidden": [
+    "pitch1",
+    "gate1",
+    "vel1",
+    "pitch2",
+    "gate2",
+    "vel2",
+    "pitch3",
+    "gate3",
+    "vel3",
+    "pitch4",
+    "gate4",
+    "vel4",
+    "pitch5",
+    "gate5",
+    "vel5",
+    "pitch6",
+    "gate6",
+    "vel6",
+    "pitch7",
+    "gate7",
+    "vel7",
+    "pitch8",
+    "gate8",
+    "vel8"
+  ],
+  "modPorts": [],
+  "width": 800,
+  "roles": {
+    "run": "toggle",
+    "length": "number"
+  }
+}

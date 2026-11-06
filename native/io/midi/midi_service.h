@@ -4,10 +4,17 @@
 #include "wirescape/module2.h"
 #include <array>
 #include <atomic>
+#include <functional>
+#include <mutex>
 #include <thread>
 namespace wirescape::midi {
 struct Selection { std::string name, system_name; }; // both saved, never enumeration indices
-struct Route { uint32_t node = 0; Selection endpoint; bool all_enabled = true; };
+struct Route {
+    uint32_t node = 0;
+    Selection endpoint;
+    bool all_enabled = true;
+    bool keyboard = false;
+};
 struct Sink {
     void* context = nullptr;
     // Timestamp is SystemMonotonic nanoseconds. The host maps it through engine D13.
@@ -20,8 +27,8 @@ struct EndpointState {
     bool online = false;
     uint64_t received = 0;
 };
-// All configuration is quiescent. Worker owns enumeration/pump; callbacks only push
-// their own SPSC ring. Stop joins producers and drains releases before host teardown.
+// Endpoint configuration is quiescent; route replacement runs on the control thread. Worker owns enumeration/pump;
+// callbacks only push their own SPSC ring. Stop joins producers and drains releases before host teardown.
 class Service {
 public:
     Service(Backend&, Sink);
@@ -30,6 +37,9 @@ public:
     Service& operator=(const Service&) = delete;
     bool enable(Selection);
     bool subscribe(Route);
+    // Try once: a busy worker or refused commit leaves subscriptions unchanged.
+    // The commit may park render; callbacks keep admitting to their existing rings.
+    bool replace_routes(std::vector<Route>, const std::function<bool()> &commit = {});
     bool start();
     void stop();
     void poll(); // deterministic fake-backend tests; never call while start() is active
@@ -57,6 +67,7 @@ private:
     Sink sink_;
     std::array<std::unique_ptr<Slot>, 16> slots_{};
     std::array<Route, 64> routes_{};
+    std::mutex routes_mutex_; // Never acquired by backend callbacks or audio render.
     size_t count_ = 0, route_count_ = 0;
     std::atomic<bool> running_{false}; std::thread worker_;
     std::atomic<uint64_t> received_{0}, dropped_{0}, malformed_{0}, oversize_{0}, ring_full_{0}, disconnects_{0}, send_fail_{0}, ignored_rpn_{0};

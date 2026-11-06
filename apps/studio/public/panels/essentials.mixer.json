@@ -1,0 +1,8 @@
+{
+  "code": "MIX",
+  "panes": ["channels"],
+  "paneOptions": { "channels": { "parameters": ["level_a", "level_b"], "labels": ["A", "B"] } },
+  "hidden": ["level_a", "level_b"],
+  "modPorts": ["level_a", "level_b"],
+  "short": { "level_a": "A", "level_b": "B" }
+}

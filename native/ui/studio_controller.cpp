@@ -296,14 +296,33 @@ bool StudioController::compileDocument() {
 }
 
 bool StudioController::commitTopology(QJsonObject candidate) {
-    if (running() || audio_.engineInUse()) { setError("Stop audio and complete device cleanup before changing modules or cables."); return false; }
+    if (!running() && audio_.engineInUse()) {
+        setError("Complete device cleanup before changing modules or cables.");
+        return false;
+    }
     QString error;
     if (!validateDocument(candidate, error)) { setError(error); return false; }
     const auto incomplete = incompleteReason(candidate);
+    if (running() && !incomplete.isEmpty()) {
+        setError(incomplete);
+        return false;
+    }
     auto next = incomplete.isEmpty() ? makeEngine(candidate, error) : Engine(nullptr, app_engine_destroy);
     if (!next && incomplete.isEmpty()) { setError(error); return false; }
     if (!incomplete.isEmpty()) error = incomplete;
-    engine_ = std::move(next); document_ = std::move(candidate); ready_ = bool(engine_); dirty_ = true; lastFrame_ = 0;
+    if (running()) {
+        const auto timeout = uint64_t(3.e9 * blockSize() / sampleRate());
+        if (!engine_ || app_engine_replan(engine_.get(), next.get(), timeout) != WS_OK) {
+            setError(engine_ ? text(app_engine_error(engine_.get())) : QStringLiteral("Live engine is unavailable."));
+            return false;
+        }
+    } else {
+        engine_ = std::move(next);
+        lastFrame_ = 0;
+    }
+    document_ = std::move(candidate);
+    ready_ = bool(engine_);
+    dirty_ = true;
     setError(error); emit documentChanged(); return true;
 }
 

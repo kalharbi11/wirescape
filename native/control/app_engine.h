@@ -21,6 +21,8 @@ int app_engine_add_node(AppEngine*,uint32_t,const char*);
 int app_engine_add_node_config(AppEngine*,uint32_t,const char*,const std::vector<uint8_t>&);
 int app_engine_connect(AppEngine*,uint32_t,uint32_t,uint32_t,uint32_t);
 int app_engine_prepare(AppEngine*,uint32_t,uint32_t);
+// Control thread only; candidate is prepared, live rendering stays on its owner.
+int app_engine_replan(AppEngine *live, AppEngine *candidate, uint64_t timeout_ns);
 int app_engine_initialize_parameter(AppEngine*,uint32_t,uint32_t,float);
 int app_engine_enqueue(AppEngine*,const ws_event*);
 int app_engine_render(AppEngine*,float*,uint32_t);
@@ -29,6 +31,12 @@ int app_engine_render_channels(AppEngine*,float*const*,uint32_t,uint32_t);
 // Timestamped ingress (MIDI SystemMonotonic, service chokes) maps onto the timeline.
 uint64_t app_engine_clock_ns();
 int app_engine_render_live(AppEngine *, float *const *, uint32_t, uint32_t, uint64_t callback_time_ns);
+// Internal D5 mute-gap controls; only the callback owns the current gain.
+void app_engine_begin_master_fade_out(AppEngine *) noexcept;
+bool app_engine_master_fade_silent(const AppEngine *) noexcept;
+void app_engine_prepare_master_fade_in(AppEngine *) noexcept; // only on a quiescent engine
+void app_engine_resume_master_fade(AppEngine *) noexcept;
+bool app_engine_master_fade_in_started(const AppEngine *) noexcept;
 int app_engine_reset(AppEngine*);
 int app_engine_activate(AppEngine*);
 int app_engine_deactivate(AppEngine*);

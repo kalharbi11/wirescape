@@ -1,0 +1,18 @@
+{
+  "code": "ENV",
+  "panes": [
+    "envelope"
+  ],
+  "roles": {
+    "attack": "number",
+    "decay": "number",
+    "sustain": "number",
+    "release": "number"
+  },
+  "short": {
+    "attack": "A",
+    "decay": "D",
+    "sustain": "S",
+    "release": "R"
+  }
+}

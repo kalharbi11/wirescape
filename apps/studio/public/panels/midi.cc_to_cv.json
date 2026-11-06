@@ -1,0 +1,9 @@
+{
+  "code": "CTC",
+  "ports": {
+    "output": {
+      "shown": 4,
+      "assign": "cc"
+    }
+  }
+}

@@ -7,10 +7,35 @@ The app is alpha. Experimental offline ABI2 proofs are distinct from the live AB
 
 ## Product boundaries
 
-Wirescape is a standalone Qt Quick application, with a C++17 headless engine.
-Qt, Python build tools and device APIs stay outside DSP processing. No browser hosts the GUI.
+The existing native application uses Qt Quick with a C++17 headless engine.
+The imported web UI below is the renderer for the planned standalone Electron app.
+Qt, Python build tools and device APIs stay outside DSP processing.
 The original Python/browser prototype lives in `legacy/` as reference only, is not built or maintained,
 and has no bundled Surge binaries. It preserves earlier musical/design ideas, not the current runtime.
+
+## Web UI
+
+`apps/studio/` contains the TypeScript/Vite UI imported from Wirescape-UI at
+`da600d852d09415aa39e6d48106e3e58f0dd8aa9`, with complete Git history
+(see [import record](../apps/studio/IMPORT.md)). Its patch document, catalogue,
+canvas, panels and shared animation ticker currently run against `FakeEngine`.
+The existing Playwright tests cover the UI without opening audio/MIDI devices.
+The P1F Electron shell in `apps/desktop/` owns the native window, local-only
+`app://wirescape` renderer resources, native file dialogs, and supervised
+`wirescape-engine` process. Its renderer interface is the isolated five-member
+`window.wirescape` preload object; commands and notifications use bounded NDJSON
+over the engine child's stdin/stdout with no socket or HTTP server. The built UI
+selects P1C's `RealEngine` when the native bridge is present and retains
+`FakeEngine` for browser tests. Native File-menu intents use that bridge without
+exposing file paths to the renderer.
+A protocol stub with null audio/fake MIDI is used by desktop Playwright tests.
+The Qt UI remains buildable.
+
+The root `web` workflow uses hosted Ubuntu and pinned Node 22 for `npm ci`,
+typecheck, build and Playwright with the runner's Chromium. Failures retain
+screenshots and traces as artifacts. The old UI-repository workflows live under
+`apps/studio/tools/ci-reference/` as inactive reference, including its Pi job;
+no public-repository workflow targets the Pi.
 
 ## Active application: ABI1
 
@@ -146,6 +171,18 @@ Clock, function envelope and ladder have isolated ABI2 ports with per-voice stat
 
 Engine2 reports forward signal latency per output bus and feedback delay separately per SCC. Quiescent reconfiguration stages only the changed processor; untouched instances and compatible loop delay lines retain their state, with port-ID remapping committed after validation.
 
+Live topology edits stage a complete candidate before a bounded render-park
+handshake. Commit swaps prepared graph layouts into the existing Impl, retaining
+surviving Nodes/DSP, producer rings, queued events and unchanged feedback delays.
+Render fades out/in within one block and advances its clock while parked silent;
+it never waits on control. Ack versus timeout has one atomic winner. Target
+validation runs on render drain, with packet revisions rejecting removed/reused
+node targets. Removed event edges receive a resume choke. Replan discards
+counted stale future events routed through removed edges while retaining
+external future events for surviving targets. The control facade
+retains its catalogue and rebinds staged ABI1 descriptors before retirement.
+Device and input-selection controls remain stop-only.
+
 ## J1 app integration candidate
 
 `native/control/app_engine.*` adapts app control and metadata to engine2; built-in
@@ -167,7 +204,9 @@ documents; they are never silently converted to native patches.
 
 The ABI2 built-in catalogue has one registration list,
 `native/control/module_catalog.inc`: add `WS_APP_MODULE(Class)` and include the
-module DSP header in `module_catalog.h`. Modules with external link dependencies
+module DSP header in `module_catalog.h`. Step Sequencer and Random Source share the
+MIT SDK-example DSP headers and keep their stable `example.step_sequencer` and
+`example.random_source` identities. Modules with external link dependencies
 attach those dependencies to the `wirescape_catalog_dependencies` interface target
 in their own CMake registration. The app engine links that target.
 
@@ -218,3 +257,19 @@ Shutdown joins
 MIDI producers and drains source chokes before stopping render or destroying its
 engine. Raw MIDI releases use the same reserved queue classification as note
 releases; MIDI 2 zero-velocity Note On remains a Note On.
+
+The MIDI Host's internal live-replan seam stages subscriptions before committing
+a candidate. A control-thread try-lock excludes only MIDI worker dispatch during
+replan; backend callbacks keep their rings and audio never takes this lock. A busy
+worker or refused candidate preserves both graph and routes. Keyboard conversion
+is carried in the route table so new/removed sources cannot race a separate list.
+This seam is not yet connected to the sidecar (#267, 2A-2).
+
+## Stdio engine sidecar (P1B)
+
+`native/sidecar` builds the Qt-free `wirescape-engine` process. Its reader and
+writer isolate bounded NDJSON transport from the single control executor; audio
+uses the existing AppEngine/PortAudio callback and MIDI host. Null mode runs a
+paced discard sink and fake endpoints without device access. The UI owns saved
+documents; sidecar candidates are disposable execution copies. Details and
+shutdown ownership are in `native/sidecar/DESIGN.md`.

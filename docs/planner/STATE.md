@@ -1,59 +1,51 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Planner state (Claude reads this first at every check-in)
+# Planner state (the leads read this first)
 
-Keep this under 80 lines. Rewrite it at the end of each check-in; history lives in git.
+Keep this under 60 lines. Rewrite it at the end of each lead session; history lives in git.
 
-**Updated:** 2026-10-31 afternoon, New York.
+**Updated:** 2026-11-06 ~12:50 UTC by Keel (seventh pass). **Owner priority: get the Pi working fully. Windows waits.**
 
-## Check-in recipe
-Follow `docs/planner/CHECKIN.md`: routine Sonnet every 4 h, Opus for escalations and daily at 17:30.
+## Where things stand
+- **Merged today:** P1B sidecar (#247), Pi appliance (#264), e2e smoke (#265), **2A live edits (#209, `6e92eed`)**. Phase 1 code is complete except 1H (#250/#256) and the 1E benchmark.
+- **Test Session 1 = #271**, expanded (owner can't test yet): builds `origin/main`; ★ A M8 patches, B app (+save round trip), C robustness (engine kill, M8/audio unplug, panic), D1 chrt/top; ☆ D2 block 128/64, D3 owner-run contention benchmark (Phase 1 perf gate; needs #274), D4 30-min MIDI soak, E boot-to-sound (#264), F seamless edits (needs #273), G new modules (needs #263). **Keel keeps the PR table at the top of #271 current.**
+- Closed done issues #260, #233, #231, #227.
+- Known non-required red: `cortex-m7` / portability probe (#159). `static` is informational.
 
-## Deferred for Opus
-(Sonnet adds `- #N sha7: question (since date time)`; Opus empties this list.)
-- #206 `2706ce1`: approvals v3. Needs an independent ChatGPT T2 line, then the **owner's** Claude line (Claude wrote it).
+## Open lanes (all have active builders as of 12:40)
+1. **#274** (#258 bench summary): Keel T2 done, no High; needs the line format in `native/sidecar/DESIGN.md`, green + `pi5`, then Keel merges.
+2. **#273** (#267 live replan in sidecar): Keel T2 done, no High; Medium = stderr `commit path=live|d5 gen=N` + process-test asserts. Then merge (unlocks #271 F).
+3. **#256** (#250 1H): Keel ruled the 4 fixture/engine conflicts (category is an engine bug; fake M8, null-device status are engine-correct; T11/T13 fixture fixes, protected-path line on #250); budget 11 files.
+4. **#263** (#259 modules): Keel T1-approved `dcefcf2`, auto-merging.
+5. **#266** 1B-2 Windows raw-handle transport: not started; after Test Session 1.
 
-## Goal
-Owner Jam report #182 drives priorities until the owner retests and closes it. J9 #45 is the owner's session.
+## Phase 1 sign-off needs
+#271 owner results (A, B, C), 1H green, contention benchmark (#271 D3 or the Pi runner; zero overruns, p99 < 50% period). Then Compass runs Checkpoint A.
 
-## Merged
-J1, J2 poly, J4 MIDI #81, J6 Macro, J7 CHAOS #124, Clock, fullscreen, layout #145, controls #147, kiosk docs #169,
-author guide #170, Macro catalogue #171, goldens #138, M2 dossier #191, tooltips #189, cable editing #190,
-MIDI routing #193, M3-1 design #197 (#177 closed), event cable identity #199, M3-3 feedback design #202.
+## Compass decisions (2026-11-06 check-in)
+- Agreed: P0F is folded into Test Session 1; PLAN "Now" and 0F updated. 0E, 1D, 1G ticked; #250 is plan item **1H**.
+- **D13 sidecar contingency:** if #247 is red again after Keel's checklist, split it into 1B-1 (protocol, null sink, fake MIDI, fade: everything CI proves) and 1B-2 (PortAudio + real MIDI devices). No third attempt at the full L PR.
+- Electron (D1) reconfirmed. Board: closed #70 (done) and #140 (Qt; semantics → 2C); `phase/2`–`phase/5` labels on parked items (labels 3–5 created).
 
-## Open work (queue comment 6540585199 on #29)
-| PR | Issue | Owner | State |
-|---|---|---|---|
-| #203 | #201 transport focus | Codex | T1 reviewed; acceptance + ready label |
-| #194 | #186 live editing | Codex | draft; part 2 park/edit/resume, T2 + Claude review |
-| #195 | #188 launcher/update | Codex | Medium: `updates` vs stale GUI `current`; fake test, fresh T1 |
-| #200 | #140 audio output | Codex | T2 (no Claude path); two ChatGPT passes |
-| #82 | #72 OSC | Codex | draft; merge main + real-timestamp regression |
-| #192 | #187 starter patches | UI | merge main, rerun studio_ui_tests, fresh T1 |
-| #204 | #178 stereo pairs | UI | base branch merged via #199: retarget to main |
-| #181 | #180 module guide | docs | draft; T1, link #170 |
-| #175 | #173 gate fix | **owner** | clean T2 line at `f69bdba`; Claude co-authored, owner posts the Claude line or merges |
-| #161 | #159 portability | parked | Cortex is non-required (authorization v2 item 4) |
+## Rulings this session
+- **Crash restarts:** Electron main is the only automatic restarter; a renderer request never resets the crash-loop budget.
+- **#247 slow fixture:** supported rates only (8 kHz floor kept); D5 deadlines scale with the block period, and 150 ms holds at normal blocks.
+- **T02 / D3:** imported documents round-trip unchanged; only UI-authored content carries synthesized fields.
+- **Test Session 1 vs benchmark:** the owner sitting doesn't wait for the benchmark; the owner's D3 run counts as the contention evidence (runner has no display).
+- **#256 golden transcript:** illustrative device values; checker asserts shapes/order/gen/§7 invariants, literal only for session-independent values.
+- **#209 scope:** sidecar wiring is #267; it retries a busy MIDI try-lock (bounded) and uses D5 directly when audio isn't rendering.
+- **Benchmark source:** null-sink histogram + `--bench-summary` stderr line (#258); no protocol change.
 
-## Next phase (below #182)
-- #163 MIDI: extend `midi.to_cv` / `midi.cc_to_cv`. Codex, after #82.
-- M3-1 implementation issue: write after #182 items land (design approved on #177).
-- Later: #80 J3, #143 telemetry, `<details>` gate Low (from #175 review).
+## Waiting on the owner
+- **#271 Test Session 1** on the Pi (one sitting). Then post results in #271.
 
-## Standing authorization v2 (#29, comment 6534860663)
-Valid until revoked. Formatting never stops; +50% size; offscreen/fake evidence stands in for devices;
-inherited non-required checks don't block; ChatGPT reviewer posts T1/T2 gate lines. Still stops: ABI,
-patch-format/ID changes, new deps, test removal, looser thresholds, protected paths, real devices, force-push.
-
-## Agents
-- Lean roster (`docs/planner/CHATGPT_AGENTS.md`): Codex per issue (owner starts it; reads #29); one ChatGPT
-  reviewer + light steward every 4 h; UI and docs builders on demand. Claude: `CHECKIN.md`.
-- Merge gate: `tools/merge_gate.py` + `.github/workflows/merge_gate.yml` auto-merge on `status/ready-to-merge`
-  plus a standalone gate line for the current head.
-
-## Runners
-- Pi `pi5` via `kalharbi11/wirescape-pi` (poll daemon, nightly). Laptop results on #122; Pi/steward summaries on #101.
+## Next lead sessions
+- Keel: triage #271 results (engine faults → issue per failure); T2-review #258, #267, #256 native, #266; merge when green.
+- Compass: Checkpoint A agenda after Test Session 1; triage the owner's results.
 
 ## Standing rules from the owner
-- Minimal owner involvement; agents keep moving. Never @mention Codex.
-- Claude usage is scarce: REST only, tail logs, delegate searches, one #29 comment per session.
-- Real-device tests are the owner's; Pi and laptop run offline tests only.
+- Don't plan agent assignment; the owner and their managers assign. Keep sections parallel where possible.
+- Pi first (Windows allowed for faster smoke tests); touchscreen, Plaits polish and a CHAOS custom panel go to Phase 5.
+- No browser/kiosk stage: the product is a standalone app window with the web UI inside.
+- Real-device tests are the owner's; the Pi runner and the laptop run offline tests only.
+- Checkpoints are spread out and don't stop work.
+- Leads save usage: delegate mechanics (Codex or a subagent), don't poll, ask the owner only for approvals and hardware checks.

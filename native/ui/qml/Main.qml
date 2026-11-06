@@ -101,7 +101,7 @@ ApplicationWindow {
     }
     function selectNode(id) { selectedNode = id; selectedCable = -1; }
     function chooseOutput(id, port, kind) {
-        if (studio.running) { localHint = "Stop audio to edit connections."; return; }
+        if (studio.cleanupPending) { localHint = "Complete audio cleanup before editing connections."; return; }
         pendingNode = id; pendingPort = port; pendingKind = kind;
         localHint = "Choose a " + kind + " input to complete the cable. Esc cancels.";
     }
@@ -112,7 +112,7 @@ ApplicationWindow {
         pendingNode = -1; localHint = "";
     }
     function completeCableDrag(position) {
-        if (pendingNode < 0 || studio.running) return;
+        if (pendingNode < 0 || studio.cleanupPending) return;
         for (let i = cards.count - 1; i >= 0; --i) {
             let card = cards.itemAt(i);
             let input = card ? card.inputAt(position) : null;
@@ -259,7 +259,7 @@ ApplicationWindow {
                                 objectName: "paletteEntry_" + index
                                 required property var modelData
                                 required property int index
-                                width: parent.width; height: root.height < 750 ? 50 : 62; enabled: !studio.running
+                                width: parent.width; height: root.height < 750 ? 50 : 62; enabled: !studio.cleanupPending
                                 activeFocusOnTab: true; hoverEnabled: true
                                 // Keep tabbed-to entries visible within the reserved library viewport.
                                 onActiveFocusChanged: {
@@ -302,7 +302,7 @@ ApplicationWindow {
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#d9d8d2" }
             Column { x: 25; width: Math.max(0, toolbar.width - toolbarActions.width - 65); anchors.verticalCenter: parent.verticalCenter; spacing: 7
                 Text { width: parent.width; elide: Text.ElideRight; text: "WORKSPACE  /  " + studio.patchName + (studio.dirty ? " •" : ""); color: "#393b39"; font.pixelSize: 11; font.letterSpacing: 0.5 }
-                Text { width: parent.width; elide: Text.ElideRight; text: studio.running ? "Live signal · stop audio to edit the patch" : "A small system. An open signal path."; color: "#858681"; font.pixelSize: 10 }
+                Text { width: parent.width; elide: Text.ElideRight; text: studio.running ? "Live signal · patch while you play" : "A small system. An open signal path."; color: "#858681"; font.pixelSize: 10 }
             }
             Row { id: toolbarActions; objectName: "toolbarActions"; anchors.right: parent.right; anchors.rightMargin: 22; anchors.verticalCenter: parent.verticalCenter; spacing: 5
                 StudioButton { text: "MIDI"; onClicked: midiDialog.open() }
@@ -422,7 +422,7 @@ ApplicationWindow {
             Row {
                 visible: root.selectedCable >= 0 && root.selectedCable < studio.connections.length
                 x: 20; anchors.bottom: parent.bottom; anchors.bottomMargin: 18; spacing: 5
-                StudioButton { objectName: "disconnectCableButton"; text: "Disconnect cable"; enabled: !studio.running; onClicked: { studio.disconnectCable(root.selectedCable); root.selectedCable = -1; } }
+                StudioButton { objectName: "disconnectCableButton"; text: "Disconnect cable"; enabled: !studio.cleanupPending; onClicked: { studio.disconnectCable(root.selectedCable); root.selectedCable = -1; } }
                 StudioButton { text: "×"; quiet: true; onClicked: root.selectedCable = -1 }
             }
         }
