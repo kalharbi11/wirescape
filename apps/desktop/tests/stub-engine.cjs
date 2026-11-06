@@ -18,6 +18,14 @@ send({
     sampleRate: 48000, bufferFrames: 256, latencyMs: 0, cpuPercent: 0, dropouts: 0 },
   midi: { devices: [], activity: {} }
 });
+// Device-free crash-loop fixture: records every spawn, then exits unexpectedly.
+if (process.env.STUB_CRASH_COUNT_FILE) {
+  const file = process.env.STUB_CRASH_COUNT_FILE;
+  let previous = 0;
+  try { previous = Number(fs.readFileSync(file, 'utf8')) || 0; } catch {}
+  fs.writeFileSync(file, String(previous + 1));
+  setTimeout(() => process.exit(9), previous === 0 ? 1500 : 300);
+}
 const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
 input.on('line', line => {
   let request;
