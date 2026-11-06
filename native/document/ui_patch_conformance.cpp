@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
                     require(slots.insert(param.legacy_index).second, id + ": duplicate legacy_index");
                     require(param.legacy_index == legacy.at(param.id).get<uint32_t>(),
                             id + ": legacy_index differs from UI catalogue");
-                    require(descriptor->params[p].id == param.legacy_index,
+                    require(descriptor->parameters[p].id == param.legacy_index,
                             id + ": facade numeric slot differs from native descriptor");
                 }
                 found = true;
