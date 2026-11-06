@@ -421,7 +421,7 @@ void Session::commit(Json patch, bool new_namespace) {
     auto old_patch = patch_;
     engine_ = std::move(candidate);
     active_ = engine_.get();
-    patch_ = patch;
+    patch_.swap(patch); // No allocation after the quiescent graph replacement.
     try {
         start_audio();
         start_midi();
