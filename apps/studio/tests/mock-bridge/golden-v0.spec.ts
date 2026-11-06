@@ -10,6 +10,7 @@ type GoldenCase = { command: Wire; reply: Wire };
 const cases: Record<string, GoldenCase> = {};
 const pushes: Record<string, Wire[]> = {};
 let hello: Wire | undefined;
+let restartHello: Wire | undefined;
 let current = '';
 let previous: Wire | null = null;
 const fixture = readFileSync(new URL('../../../../tests/protocol/golden_v0.ndjson', import.meta.url), 'utf8');
@@ -29,7 +30,8 @@ for (const raw of fixture.split(/\r?\n/)) {
     previous = wire;
   } else if (line[0] === '<') {
     if (wire.type === 'hello') {
-      if (!hello) hello = wire;
+      if (current === 'T15') restartHello = wire;
+      else if (!hello) hello = wire;
     } else if (wire.re !== undefined && previous?.id === wire.re) {
       if (cases[wire.re]) throw new Error('Duplicate golden request: ' + wire.re);
       cases[wire.re] = { command: previous, reply: wire };
@@ -39,13 +41,13 @@ for (const raw of fixture.split(/\r?\n/)) {
     }
   }
 }
-if (!hello || !cases.r2 || !cases.r14b || !pushes.T13) {
+if (!hello || !restartHello || !cases.r2 || !cases.r14b || !pushes.T13) {
   throw new Error('Golden v0 fixture is incomplete');
 }
 
 /** The mock replies for covered commands come exclusively from golden_v0.ndjson. */
 async function goldenBridge(page: Page): Promise<void> {
-  await page.addInitScript(({ examples, events, startup }) => {
+  await page.addInitScript(({ examples, events, startup, restart }) => {
     type Message = Record<string, any>;
     const listeners = new Set<(m: Message) => void>();
     const completed: string[] = [];
@@ -128,12 +130,12 @@ async function goldenBridge(page: Page): Promise<void> {
         emit({ v: 0, type: 'app.engineExited', exitCode: null, signal: 'SIGTERM', expected: false });
         sessionNumber++;
         generation = 0;
-        setTimeout(sayHello, 0);
+        setTimeout(() => emit(materialize(restart)), 0);
       },
       generation: () => String(generation),
       session,
     };
-  }, { examples: cases, events: pushes, startup: hello });
+  }, { examples: cases, events: pushes, startup: hello, restart: restartHello });
 }
 
 test('golden v0: RealEngine maps commands, replies, refusals and pushes through the shared transcript', async ({ page }) => {
