@@ -3,13 +3,13 @@
 
 Keep this under 60 lines. Rewrite it at the end of each lead session; history lives in git.
 
-**Updated:** 2026-11-06 ~10:00 UTC by Keel (third pass). **Owner priority: get the Pi working fully. Windows waits.**
+**Updated:** 2026-11-06 ~10:40 UTC by Keel (fourth pass). **Owner priority: get the Pi working fully. Windows waits.**
 
 ## Where things stand
 - **Merged:** P0D, P1A, P1.0, P0E, P1G, P1D, P1C (#249), **P1F shell (#253)**. #257 (P1E part 1) is auto-merging on green.
-- **#247 P1B sidecar: D13 applied as "Pi/Linux first".** Windows protocol test skips (exit 77) and moves to **#266 (1B-2)**. Head `46d5464`: windows, linux-arm64, acceptance green; sanitizers running. **Merge when:** sanitizers green + Pi `sidecar_` run posted on the PR + a GPT COMMENT review of Keel's delta `19bb2f2..46d5464` (~60 lines). Any lead merges then.
+- **#247 P1B sidecar:** Pi/Linux first (D13); Windows protocol test skips under `WIN32` only, see **#266 (1B-2)**. GPT review of Keel's delta done; its Medium (1 s deadlines everywhere) fixed in `473d52e`: release builds keep 100/150 ms, only ASan/TSan get 1 s. Head `9390fa8`. **Merge when** hosted CI is green and the Pi `sidecar_` result is posted on that head.
 - **#209 (2A live edits):** Keel T2 review posted, no High (two Mediums for the integration). Green incl. TSan and Pi (10.68 ms). Claim released; a ChatGPT agent takes it. After #247 merges: merge `main` in, re-green, Keel merges. **Sidecar integration is a separate issue, #267 (2A-2)**; #209 is at its size budget.
-- **#264 Pi appliance (#260), #265 P1E e2e smoke, #263 modules (#259, unblocked by Keel), #256 (1H, T2):** drafts in progress.
+- **#264 Pi appliance:** Keel T1-approved `3c770c6`, ready-to-merge. **#265 e2e smoke:** green against #247; waits for #247 to merge. **#263 modules:** red, waiting for a builder to apply Keel's `legacy_index` ruling. **#256 (1H, T2):** Studio half done; native checker after #247.
 - Known non-required red: `cortex-m7` / portability probe (#159). `static` is informational.
 
 ## Pi-first order (critical path to Test Session 1)
