@@ -1,12 +1,13 @@
 # Wirescape plan (v3: standalone app with the web UI)
 
-Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-07.
+Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-06 (Compass).
 How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) live in git history; their results are summarised under "Where we are".
 
 ## Now
 - **Updated 2026-11-07 after the Pi test (owner notes + test report).** The browser/kiosk demo is **stopped and deferred, not passed**: the web UI ran on its simulated engine, so it showed fake audio and MIDI devices, and kiosk mode had no way to leave. **New direction:** go straight to the **standalone Wirescape app**, a real window with title bar, minimize, close and menus, containing the web UI (which the owner likes) wired to the real C++ engine. No browser, kiosk, HTTP server or LAN step.
 - **Pi hardware test 2026-11-07 (owner): PARTIAL PASS.** Real audio through the CM477 (`--device pulse`), M8 notes play the native subtractive synth, and CC21 drives VCA gain. MIDI notes only worked after a local one-line fix (the headless audio callback rendered without the live MIDI clock), which is now **P0D**, the first thing to build. CC21 → filter wasn't audible (**P0E**). CHAOS, Macro and the full CC21–28 set are still unverified.
-- **Priority order:** (1) P0D live MIDI clock fix; (2) the standalone app (Phase 1) with real audio and MIDI device menus, Pi first; (3) P0E audible CC mappings; (4) the owner's UI fixes (P1G, in parallel); (5) live editing (Phase 2); then everything else.
+- **Progress 2026-11-06 (Compass):** P0D, P1.0 and P1A are merged. P1B sidecar, P1C RealEngine and P1F shell are unblocked and run in parallel. P0E (#240), P1D (#242) and P1G (#241) are in final review/fix. **Owner Pi re-test is batched:** one session after #240 merges (P0F), not one per fix.
+- **Priority order:** (1) ~~P0D live MIDI clock fix~~ done; (2) the standalone app (Phase 1) with real audio and MIDI device menus, Pi first; (3) P0E audible CC mappings; (4) the owner's UI fixes (P1G, in parallel); (5) live editing (Phase 2); then everything else.
 - **Windows can speed up testing:** the app and engine are cross-platform from day one, so a section can be smoke-tested on the laptop when that's quicker. The Pi stays the acceptance target, and Pi-only problems (like the USB adapter) are tested on the Pi.
 - **The pause on #29 is lifted** once this plan merges. The old queue comment and scheduled check-ins stay retired.
 
@@ -48,7 +49,7 @@ Wirescape app (Electron: native window, title bar, minimize/close, menus, F11 fu
 | D4 | Protocol: one JSON object per line over the engine's stdin/stdout. Commands carry an `id`; the engine answers `ack` or `refuse` with the graph generation. Status (≤10 Hz) and telemetry (≤30 Hz) are pushed. Logs go to stderr. The preload exposes exactly one bridge object to the renderer (`contextIsolation` on, `nodeIntegration` off). | Simplest possible transport, nothing to secure on the network, easy to test. |
 | D5 | Parameter changes go through the engine's event queue (already live). Topology changes, modulation amounts and patch switches build a candidate graph; it's swapped in by live replan (#209) once that lands. Until then: stop → swap → start with a short fade, gap ≤150 ms. | Patch changes on the fly in Phase 1, seamless in Phase 2. |
 | D6 | Audio and MIDI start when the app starts. The owner's launcher (desktop entry or shortcut) passes `--confirm-audio --confirm-midi` to the app, which forwards them to the engine; that is the device consent. The last audio device and the enabled MIDI devices are remembered in `user_data/settings.json`. If a device is lost, the engine retries. Tests and CI start the engine with a null sink and fake MIDI. | "Audio without a button" without breaking the devices-off rule. |
-| D7 | Ruling for #209's stop: after a live edit that adds or removes a `midi.in`/`host.keyboard` module, the engine refreshes the MIDI subscriptions on its control thread while audio keeps running. Held notes on a removed source are released. Module IDs are never reused within a session. | Unblocks #209 with a bounded seam. |
+| D7 | Ruling for #209's stop: after a live edit that adds or removes a `midi.in`/`host.keyboard` module, the engine refreshes the MIDI subscriptions on its control thread while audio keeps running. Held notes on a removed source are released. Module IDs are never reused within a loaded document; a successful `loadGraph` starts a fresh ID namespace (Keel, 2026-11-06, `ENGINE_PROTOCOL.md` §5). | Unblocks #209 with a bounded seam. |
 | D8 | CC mapping writes `midi.cc_to_cv` config rows (up to 8 per module; MIDI Learn adds a module when one is full). `ui.ccMap` stays only as a display hint. | The DSP already reads this layer. |
 | D9 | The engine sends its module catalogue and real device lists on start. The UI palette shows only modules the engine can run; unknown modules in a patch stay preserved and marked "not available". `public/wirescape_modules.json` is generated from native manifests, and CI checks for drift. | IDs stay in sync automatically. |
 | D10 | Pi first for acceptance; Windows allowed for faster smoke tests. Compiled-code sections need Pi runner evidence with fake devices. Each checkpoint includes one owner hardware check on the Pi. | Matches the owner's priority. |
@@ -63,14 +64,14 @@ Each phase lists sections (letter blocks). Sections in a phase run in parallel u
 - [x] 0A Demo patches (#221): keep and merge after review. They are the Phase 1 test patches.
 - [x] 0B Pi demo launcher + `play --list-midi` (#222): merge the `play --list-midi` part and the player start. The browser/kiosk part of `demo.sh` stays as is but is deferred; don't extend it.
 - [x] 0C Owner hardware check (2026-11-07): partial pass (record: `docs/DEMO_CLASS.md` §1).
-- [ ] **0D Live MIDI clock fix** (`docs/tasks/P0D_LIVE_MIDI_CLOCK.md`, T2, small): the headless audio callback renders with the live clock, plus a regression test. **Do first.** Phase 1's engine sidecar inherits it.
+- [x] **0D Live MIDI clock fix** (#237, merged 2026-11-06) (`docs/tasks/P0D_LIVE_MIDI_CLOCK.md`, T2, small): the headless audio callback renders with the live clock, plus a regression test. **Do first.** Phase 1's engine sidecar inherits it.
 - [ ] **0E Audible demo CC mappings** (`docs/tasks/P0E_DEMO_CC_DEPTH.md`): CC21–28 sweep obvious ranges in all 3 patches, with an offline test that proves it. Parallel with Phase 1.
 - [ ] 0F Owner, after 0D/0E merge: rebuild from a clean checkout and verify all 3 patches × CC21–28 with the M8 (`docs/DEMO_CLASS.md` §5b). Hardware acceptance of Phase 0 needs all 24 combinations.
 
 ### Phase 1: The standalone app with the real engine (Pi first, Windows works too)
 **1.0 comes first** (small, about half a day). 1A, 1D and 1G can start right away; 1B, 1C and 1F follow 1.0 and run in parallel.
-- [ ] **1.0 Protocol v0** (`docs/tasks/P1_0_PROTOCOL.md`): the stdio protocol (D4), mapping every `EngineClient` call, `ack`/`refuse`/generation, the real device lists, status and telemetry v0, limits and the additive async-refusal extension.
-- [ ] **1A UI import** (`P1A_UI_IMPORT.md`): `apps/studio/` + a hosted `web` CI job.
+- [x] **1.0 Protocol v0** (#239, merged 2026-11-06) (`docs/tasks/P1_0_PROTOCOL.md`): the stdio protocol (D4), mapping every `EngineClient` call, `ack`/`refuse`/generation, the real device lists, status and telemetry v0, limits and the additive async-refusal extension.
+- [x] **1A UI import** (#238, merged) (`P1A_UI_IMPORT.md`): `apps/studio/` + a hosted `web` CI job.
 - [ ] **1B `wirescape-engine` sidecar** (`P1B_ENGINE_SIDECAR.md`, after 1.0): reuses `play`'s engine/MIDI/PortAudio code with the stdio protocol, **real audio and MIDI device lists and selection**, start at launch (D6), the D5 fallback swap and the catalogue (D9).
 - [ ] **1C `RealEngine.ts`** (`P1C_REAL_ENGINE.md`, after 1.0): `EngineClient` over the preload bridge, async refusal and rollback, restart and restore, and a mock bridge for Playwright.
 - [ ] **1D Patch codec + catalogue sync** (`P1D_PATCH_CODEC.md`).
