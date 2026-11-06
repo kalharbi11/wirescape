@@ -110,14 +110,15 @@ private slots:
         property bool midiAuthorized: false; property bool midiSettingsAvailable: false
         property var midiEndpoints: []; property var midiCounters: ({received: 0, dropped: 0, malformed: 0, ports: []})
         property int noteOnCount: 0; property int noteOffCount: 0; property int lastPitch: -1
+        property int addCount: 0; property int connectCount: 0
         signal statusChanged()
         function startAudio() { running = true; statusChanged() }
         function stopAudio() { running = false; statusChanged() }
         function note(pitch, on) { lastPitch = pitch; if (on) ++noteOnCount; else ++noteOffCount }
         function setGate(v) {} function panic() {}
         function savePatch(url) { return true } function resetPatch() {} function loadPatch(url) {}
-        function renderDemo(url) {} function connectPorts(a,b,c,d) {} function disconnectCable(a) {}
-        function addModule(id) {} function refreshDevices() {} function setDevice(id) {}
+        function renderDemo(url) {} function connectPorts(a,b,c,d) { ++connectCount } function disconnectCable(a) {}
+        function addModule(id) { ++addCount } function refreshDevices() {} function setDevice(id) {}
         function refreshMidi() {} function setMidiAuthorized(v) {} function setMidiEndpoint(a,b,c) {}
     }
     )QML",
@@ -126,6 +127,8 @@ private slots:
         QVERIFY2(fakeComponent.isReady(), qPrintable(fakeComponent.errorString()));
         QScopedPointer<QObject> fakeStudio(fakeComponent.create());
         QVERIFY2(fakeStudio, qPrintable(fakeComponent.errorString()));
+        fakeStudio->setProperty(
+            "palette", QVariantList{QVariantMap{{"id", "fake.module"}, {"name", "Fake"}, {"description", "Fake"}}});
         engine.rootContext()->setContextProperty("studio", fakeStudio.data());
 
         QQmlComponent mainComponent(&engine, QUrl("qrc:/qml/Main.qml"));
@@ -152,6 +155,18 @@ private slots:
         QTest::keyRelease(window, Qt::Key_A);
         QTRY_COMPARE(fakeStudio->property("noteOffCount").toInt(), 1);
         QCOMPARE(fakeStudio->property("lastPitch").toInt(), 60);
+
+        auto *palette = qobject_cast<QQuickItem *>(findNamed(window, "paletteEntry_0"));
+        QVERIFY(palette && palette->isEnabled());
+        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, center(palette));
+        QTRY_COMPARE(fakeStudio->property("addCount").toInt(), 1);
+        QTRY_COMPARE(window->activeFocusItem(), keyboard);
+        QVERIFY(QMetaObject::invokeMethod(window, "chooseOutput", Q_ARG(QVariant, QVariant(1)),
+                                          Q_ARG(QVariant, QVariant("out")), Q_ARG(QVariant, QVariant("control"))));
+        QVERIFY(QMetaObject::invokeMethod(window, "chooseInput", Q_ARG(QVariant, QVariant(2)),
+                                          Q_ARG(QVariant, QVariant("in")), Q_ARG(QVariant, QVariant("control"))));
+        QCOMPARE(fakeStudio->property("connectCount").toInt(), 1);
+        QVERIFY(fakeStudio->property("running").toBool());
 
         audio->forceActiveFocus();
         QTRY_COMPARE(window->activeFocusItem(), audio);

@@ -3,42 +3,43 @@
 
 Keep this under 60 lines. Rewrite it at the end of each lead session; history lives in git.
 
-**Updated:** 2026-11-06 by Keel (second pass: took over #247, approved #253, rulings for #256/#257, new tasks #258–#260), after Compass's check-in.
+**Updated:** 2026-11-06 ~11:30 UTC by Keel (sixth pass). **Owner priority: get the Pi working fully. Windows waits.**
 
 ## Where things stand
-- **Merged:** P0D, P1A, P1.0, P0E, P1G, P1D (#242), **P1C (#249)**, plus lead docs.
-- **#247 P1B sidecar: Keel took it over.** Pushed `19bb2f2`: the 1 Hz fixture was invalid (engine minimum 8 kHz), so it was replaced by a stricter 8 kHz × 4096 case. That exposed a real D5 bug (fixed 100/150 ms swap deadlines → every swap refused once a block period is longer than that), now `max(budget, N periods)`. Also clang-format plus the clang-tidy/cppcheck fixes. Local native ctest 68/68. Keel's T2 review of the GPT part: no High or Medium. Out of draft. **Needs:** green CI on `19bb2f2`, the Pi `sidecar_` run, and a GPT review of `19bb2f2` only; then Keel merges. If Windows `:160` (fake MIDI off) is still red, the engine lane takes that one item. D13 split not needed unless that sticks.
-- **#253 P1F shell:** Keel T1 review done, approved `87a2016`, `ready-to-merge`; auto-merge on green.
-- **#256 (1H, Studio half):** Keel ruled spec T02 wins. PatchDoc must not add defaults to imported docs; authored content (addModule, new patch, starters) may. Fix goes in #256 (+4 files/+150 lines authorized); now T2.
-- **#257 (P1E part 1):** Keel ruled the benchmark reads a new stderr `bench …` line (#258), not `cpuPercent`. Merge part 1 when green; the runner PR follows.
-- **#209 (2A):** green on its last head incl. Pi (10.7 ms gap); only static clang-tidy items left (lane 4).
-- Known non-required red: `cortex-m7` (#159).
+- **Merged today:** P1B sidecar (#247), Pi appliance (#264), e2e smoke (#265), **2A live edits (#209, `6e92eed`)**. Phase 1 code is complete except 1H (#250/#256) and the 1E benchmark.
+- **Test Session 1 is posted: #271** (owner, Pi, pinned `b7001b2`: §5b M8 x 3 patches, then the app checklist). Keel ruling: the contention benchmark doesn't gate the owner's sitting; it gates Phase 1 sign-off.
+- Closed done issues #260, #233, #231, #227.
+- Known non-required red: `cortex-m7` / portability probe (#159). `static` is informational.
+
+## Open lanes (prompts were given to the owner on 2026-11-06; each names its issue)
+1. **#258** null-sink render histogram + `--bench-summary` (T2, s). Then the wirescape-pi runner contention benchmark (P1E `pi:` line 2).
+2. **#267** 2A-2: wire live replan into the sidecar (T2, m). Keel's two #209 Mediums are in scope.
+3. **#256/#250** 1H: native sidecar side of the golden transcript (T2). Must be green before 1E signs off.
+4. **#266** 1B-2: Windows raw-handle transport (T2); ruling is in the issue. After Test Session 1.
+5. **#263/#259** modules: apply Keel's `legacy_index` ruling (T1).
+
+## Phase 1 sign-off needs
+#271 owner results (A + B), 1H green, Pi contention benchmark (zero overruns, p99 < 50% period, or BLOCKED with reason). Then Compass runs Checkpoint A.
 
 ## Compass decisions (2026-11-06 check-in)
 - Agreed: P0F is folded into Test Session 1; PLAN "Now" and 0F updated. 0E, 1D, 1G ticked; #250 is plan item **1H**.
 - **D13 sidecar contingency:** if #247 is red again after Keel's checklist, split it into 1B-1 (protocol, null sink, fake MIDI, fade: everything CI proves) and 1B-2 (PortAudio + real MIDI devices). No third attempt at the full L PR.
 - Electron (D1) reconfirmed. Board: closed #70 (done) and #140 (Qt; semantics → 2C); `phase/2`–`phase/5` labels on parked items (labels 3–5 created).
 
-## Lanes (copy-ready prompts in `docs/planner/LANES.md`)
-1. Engine: #247 last items → #258 bench summary → #250 native checker.  2. Desktop: P1E part 2 e2e smoke (after #247).
-3. Integration: #256 PatchDoc fix → #257 merge + runner PR.  4. Live edits: #209 static → wire live replan into the sidecar.
-5. **New:** modules #259 (Step Sequencer + Random Source into the catalogue).  6. **New:** Pi appliance #260 (after #253).
-
 ## Rulings this session
 - **Crash restarts:** Electron main is the only automatic restarter; a renderer request never resets the crash-loop budget.
 - **#247 slow fixture:** supported rates only (8 kHz floor kept); D5 deadlines scale with the block period, and 150 ms holds at normal blocks.
 - **T02 / D3:** imported documents round-trip unchanged; only UI-authored content carries synthesized fields.
+- **Test Session 1 vs benchmark:** the owner sitting doesn't wait for the benchmark.
+- **#209 scope:** sidecar wiring is #267; it retries a busy MIDI try-lock (bounded) and uses D5 directly when audio isn't rendering.
 - **Benchmark source:** null-sink histogram + `--bench-summary` stderr line (#258); no protocol change.
 
-## Test Session 1 is ready when
-#247, #249 and #253 are merged; P1E part 1 is merged; the P1E e2e smoke is green; the Pi runner `ctest -R sidecar_` is green. Keel then posts the exact copy-paste commands on a Phase 1 tracking issue.
-
 ## Waiting on the owner
-- Nothing until Test Session 1 is ready. (If the owner has 15 minutes on the Pi before then, §5b alone is still useful.)
+- **#271 Test Session 1** on the Pi (one sitting). Then post results in #271.
 
 ## Next lead sessions
-- Keel: merge #247 once CI, the Pi run and the GPT review of `19bb2f2` are in; T2-review #256, #258 and #209; then post the Test Session 1 commands.
-- Compass: Checkpoint A agenda after Test Session 1; apply D13 if #247 stalls; triage the owner's results.
+- Keel: triage #271 results (engine faults → issue per failure); T2-review #258, #267, #256 native, #266; merge when green.
+- Compass: Checkpoint A agenda after Test Session 1; triage the owner's results.
 
 ## Standing rules from the owner
 - Don't plan agent assignment; the owner and their managers assign. Keep sections parallel where possible.

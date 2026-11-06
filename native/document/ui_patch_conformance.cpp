@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 
@@ -30,6 +31,19 @@ int main(int argc, char **argv) {
             for (const auto &module : ui.at("modules")) {
                 if (module.at("id") != descriptor->id) continue;
                 require(module.at("version") == native->version, "catalogue module version drift");
+                const auto &legacy = module.at("legacy_parameters");
+                const std::string id = descriptor->id;
+                require(legacy.size() == native->param_count, id + ": parameter slot count drift");
+                std::set<uint32_t> slots;
+                for (uint32_t p = 0; p < native->param_count; ++p) {
+                    const auto &param = native->params[p];
+                    require(legacy.contains(param.id), id + ": parameter missing from UI legacy map");
+                    require(slots.insert(param.legacy_index).second, id + ": duplicate legacy_index");
+                    require(param.legacy_index == legacy.at(param.id).get<uint32_t>(),
+                            id + ": legacy_index differs from UI catalogue");
+                    require(descriptor->params[p].id == param.legacy_index,
+                            id + ": facade numeric slot differs from native descriptor");
+                }
                 found = true;
             }
             require(found, "native module missing in UI catalogue");

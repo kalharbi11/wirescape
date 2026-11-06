@@ -10,14 +10,18 @@ if (!flags.includes('--null-audio') ||
 }
 const session = 'stub-' + process.pid;
 const send = object => process.stdout.write(JSON.stringify(object) + '\n');
-send({
-  v: 0, session, type: 'hello', protocol: 0,
-  engine: { version: 'test', sha: 'stub' }, capabilities: [],
-  catalogue: { modules: [] },
-  audio: { state: 'no-device', deviceId: null, deviceName: null,
-    sampleRate: 48000, bufferFrames: 256, latencyMs: 0, cpuPercent: 0, dropouts: 0 },
-  midi: { devices: [], activity: {} }
-});
+const audio = { state: process.env.STUB_AUDIO_RUNNING === '1' ? 'running' : 'no-device',
+  deviceId: null, deviceName: null, sampleRate: 48000, bufferFrames: 256,
+  latencyMs: 0, cpuPercent: 0, dropouts: 0 };
+function announce() {
+  send({ v: 0, session, type: 'hello', protocol: 0,
+    engine: { version: 'test', sha: 'stub' }, capabilities: [],
+    catalogue: { modules: [] }, audio, midi: { devices: [], activity: {} } });
+  if (process.env.STUB_AUDIO_RUNNING === '1') send({ v: 0, session, gen: '0', type: 'status', status: { audio } });
+}
+const startupDelay = Number(process.env.STUB_STARTUP_DELAY_MS) || 0;
+if (startupDelay > 0) setTimeout(announce, startupDelay);
+else announce();
 // Device-free crash-loop fixture: records every spawn, then exits unexpectedly.
 if (process.env.STUB_CRASH_COUNT_FILE) {
   const file = process.env.STUB_CRASH_COUNT_FILE;

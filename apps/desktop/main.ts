@@ -32,6 +32,9 @@ let shuttingDown = false;
 let restartInProgress = false;
 let lastHello: string | null = null;
 let engineReady = false;
+let readyAt: bigint | null = null;
+let loggedHelloTime = false;
+let loggedAudioTime = false;
 let patchPath: string | null = null;
 let menuId = 0;
 const pending = new Set<string>();
@@ -60,7 +63,17 @@ function handleEngineLine(raw: string, owner: ChildProcessWithoutNullStreams): v
     if (typeof obj.session !== 'string') return;
     engineReady = true;
     lastHello = raw;
+    if (!loggedHelloTime && readyAt !== null) {
+      loggedHelloTime = true;
+      console.error('boot-to-first-hello-ms=' + Number(process.hrtime.bigint() - readyAt) / 1e6);
+    }
   } else if (!engineReady) return;
+  const status = obj.status as { audio?: { state?: unknown } } | undefined;
+  if (obj.type === 'status' && !loggedAudioTime && readyAt !== null &&
+      status?.audio?.state === 'running') {
+    loggedAudioTime = true;
+    console.error('boot-to-audio-running-ms=' + Number(process.hrtime.bigint() - readyAt) / 1e6);
+  }
   if (typeof obj.type === 'string' && obj.type.startsWith('app.')) return;
   if (typeof obj.re === 'string') pending.delete(obj.re);
   notify(raw); // Preserve the child's wire line; only app.* is main-owned.
@@ -327,6 +340,7 @@ function createWindow(): void {
   });
 }
 app.whenReady().then(() => {
+  readyAt = process.hrtime.bigint();
   // Same-origin, local-only assets: unlike file://, fetch() can load catalogue JSON.
   // Reject path traversal and foreign hosts; never dispatch HTTP/network requests.
   protocol.handle('app', request => {

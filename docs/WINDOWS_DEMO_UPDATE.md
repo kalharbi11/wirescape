@@ -3,6 +3,55 @@
 
 This guide rebuilds and packages one exact source revision, checks that the packaged app reaches its normal window with audio off, and points the existing Wirescape shortcuts at that package. It does not install or publish the app. A package check is not evidence of deployment or clean-machine compatibility.
 
+
+## Standalone Electron app: Windows owner update (Phase 1)
+
+The sections below this one document the **older Qt packaging flow**. For
+Phase 1's Electron app, first ensure #247 (sidecar) and #253 (desktop shell)
+are included in the selected revision. Install Node.js LTS, npm, Python 3,
+CMake, Ninja, a C++17-capable Windows compiler and the existing compatible
+PortAudio runtime DLL (`libportaudio64bit.dll`). Keep the same validated DLL
+deployment/PATH procedure used for the engine; do not invent a new DLL source.
+
+Run PowerShell at the repository root. Replace the placeholder with the full
+SHA accepted for this session:
+
+```powershell
+$AcceptedSha = '<full accepted commit SHA>'
+if (git status --porcelain) { throw 'Clean or save checkout changes first.' }
+git fetch --prune origin
+if ($LASTEXITCODE -ne 0) { throw 'Fetch failed' }
+git switch --detach $AcceptedSha
+if ($LASTEXITCODE -ne 0) { throw 'Checkout failed' }
+if ((git rev-parse HEAD).Trim() -ne $AcceptedSha) { throw 'Wrong revision' }
+
+python tools/dev.py build --headless --config Release
+if ($LASTEXITCODE -ne 0) { throw 'Engine build failed' }
+Push-Location apps/studio
+npm ci
+if ($LASTEXITCODE -ne 0) { throw 'Studio install failed' }
+npm run build
+if ($LASTEXITCODE -ne 0) { throw 'Studio build failed' }
+Pop-Location
+Push-Location apps/desktop
+npm ci
+if ($LASTEXITCODE -ne 0) { throw 'Desktop install failed' }
+npm run build
+if ($LASTEXITCODE -ne 0) { throw 'Desktop build failed' }
+Pop-Location
+
+# Owner only: the launcher forwards the device-confirmation flags.
+.\tools\windows\Wirescape.cmd
+```
+
+`Wirescape.cmd` locates `build/native/Release/wirescape-engine.exe`
+(with `build/native/wirescape-engine.exe` as fallback) and starts the
+Electron build. Windows rebuilds are incremental; no Qt UI SDK is needed for
+this headless engine + Electron path. Device settings live in
+`user_data/settings.json` or the explicit `--settings` path; app diagnostics
+are emitted to the terminal/process log, not the old Qt package directory.
+Automated tests never add `--confirm-audio` or `--confirm-midi`.
+
 ## What is in the recorded source
 
 At the audit on 2026-10-30, `origin/main` resolved to `e71ea75da7826bce4f6a73317a53396291eb78af`. This is the merge commit for PR #149. Use the exact SHA accepted for the demo; the value below is a placeholder, not a recommendation to use a different or newer revision.

@@ -18,8 +18,8 @@ struct RandomSource {
     // "voices" is STEPPED (no host smoothing) and not MODULATABLE: it picks the output channel count.
     static constexpr std::array params{
         ws::param("voices", "Voices", 1, 16, 1, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
-        ws::param("smooth", "Smooth", 0, 1, 0.05f, "s"),
-        ws::param("range", "Range", 0, 1, 1)};
+        ws::param("smooth", "Smooth", 0, 1, 0.05f, "s", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 1),
+        ws::param("range", "Range", 0, 1, 1, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 2)};
 
     static constexpr uint32_t kMaxVoices = 16;
     // Below this distance the smoothed value snaps to the held value. It lets the output become

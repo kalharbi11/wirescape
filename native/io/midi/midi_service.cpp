@@ -30,6 +30,18 @@ bool Service::subscribe(Route route) {
     if (running_ || !route.node || route_count_ == routes_.size()) return false;
     routes_[route_count_++] = std::move(route); return true;
 }
+bool Service::replace_routes(std::vector<Route> routes, const std::function<bool()> &commit) {
+    if (routes.size() > routes_.size() ||
+        std::any_of(routes.begin(), routes.end(), [](const Route &r) { return !r.node; }))
+        return false;
+    std::array<Route, 64> staged{};
+    std::move(routes.begin(), routes.end(), staged.begin());
+    std::unique_lock<std::mutex> lock(routes_mutex_, std::try_to_lock);
+    if (!lock.owns_lock() || (commit && !commit())) return false;
+    routes_.swap(staged);
+    route_count_ = routes.size();
+    return true;
+}
 void Service::midi1(void* context, const uint8_t* bytes, size_t size, uint64_t timestamp) {
     auto& slot = *static_cast<Slot*>(context); auto& service = *slot.owner;
     if (!slot.accepting.load(std::memory_order_acquire)) return;
@@ -89,10 +101,28 @@ void Service::send(const Slot& slot, const Packet& packet) noexcept {
         const auto& route = routes_[i];
         const bool matching = route.all_enabled || (!route.endpoint.system_name.empty() ? route.endpoint.system_name == slot.actual.system_name : route.endpoint.name == slot.saved.name);
         if (!matching) continue;
-        if (!sink_.emit || sink_.emit(sink_.context, route.node, packet.event, packet.timestamp) != WS2_OK) ++send_fail_;
+        auto event = packet.event;
+        if (route.keyboard && event.type != WS2_NOTE_CHOKE) {
+            if (event.type != WS2_MIDI || !event.ump_words) continue;
+            const auto word = event.ump[0];
+            const auto type = word >> 28, status = (word >> 20) & 15;
+            if (((word >> 24) & 15) || (type != 2 && type != 4) || (type == 4 && event.ump_words != 2) ||
+                (status != 8 && status != 9))
+                continue;
+            const auto velocity = type == 2 ? word & 127 : event.ump[1] >> 16;
+            event.type = status == 8 || (type == 2 && !velocity) ? WS2_NOTE_OFF : WS2_NOTE_ON;
+            event.channel = int((word >> 16) & 15);
+            event.key = int((word >> 8) & 127);
+            event.note_id = -1;
+            event.value = float(velocity) / float(type == 2 ? 127 : 65535);
+            event.ump_words = event.bytes = 0;
+            event.data = nullptr;
+        }
+        if (!sink_.emit || sink_.emit(sink_.context, route.node, event, packet.timestamp) != WS2_OK) ++send_fail_;
     }
 }
 void Service::pump() {
+    std::lock_guard<std::mutex> lock(routes_mutex_);
     for (size_t i = 0; i < count_; ++i) {
         auto& slot = *slots_[i]; Packet packet;
         if (slot.emergency.exchange(false, std::memory_order_acq_rel)) {
