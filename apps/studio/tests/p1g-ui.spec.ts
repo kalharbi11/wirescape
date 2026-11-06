@@ -94,3 +94,46 @@ test('scope head spans a whole cycle at slow and fast LFO rates', () => {
     expect(lfoTraceValue(0.75, 1, 1, 0)).toBeCloseTo(-1, 8);
   }
 });
+
+
+test('MIDI In endpoint choices persist, including disconnected selections', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => window.__wirescapeTest.load({
+    format: 'wirescape.native.patch', version: 2,
+    modules: [{ id: 1, module: 'midi.in', parameters: {},
+      config: { endpoint: 'midi:disconnected', opaque: 'preserve' } }],
+    connections: [],
+    ui: { positions: { 1: [130, 130] }, labels: {},
+      view: { x: 0, y: 0, zoom: 1 } },
+  }, 'MIDI input'));
+  await settle(page);
+  const input = page.getByTestId('midi-endpoint-1');
+  await expect(input).toHaveValue('midi:disconnected');
+  await expect(input.locator('option:checked')).toContainText('(not connected)');
+  await input.selectOption('midi:1');
+  await expect(input).toHaveValue('midi:1');
+  const saved = await page.evaluate(() => window.__wirescapeTest.save());
+  expect(saved.modules[0].config).toEqual({ endpoint: 'midi:1', opaque: 'preserve' });
+  await page.evaluate(p => window.__wirescapeTest.load(p), saved);
+  await settle(page);
+  await expect(page.getByTestId('midi-endpoint-1')).toHaveValue('midi:1');
+});
+
+test('Settings MIDI menu toggles enablement of the selected engine device', async ({ page }) => {
+  await boot(page);
+  await page.getByTestId('open-settings').click();
+  const device = page.getByTestId('midi-device');
+  const enabled = page.getByTestId('midi-enabled');
+  await expect(device).toBeVisible();
+  await expect(enabled).toHaveAttribute('aria-pressed', 'true');
+  await enabled.click();
+  await expect(enabled).toHaveAttribute('aria-pressed', 'false');
+  expect((await page.evaluate(() => window.__wirescapeTest.engine.listMidiDevices()))
+    .find((d: { id: string }) => d.id === 'midi:0').enabled).toBe(false);
+  await device.selectOption('midi:1');
+  await expect(enabled).toHaveAttribute('aria-pressed', 'true');
+  await device.selectOption('midi:0');
+  await expect(enabled).toHaveAttribute('aria-pressed', 'false');
+  await enabled.click();
+  await expect(enabled).toHaveAttribute('aria-pressed', 'true');
+});
