@@ -261,4 +261,13 @@ a candidate. A control-thread try-lock excludes only MIDI worker dispatch during
 replan; backend callbacks keep their rings and audio never takes this lock. A busy
 worker or refused candidate preserves both graph and routes. Keyboard conversion
 is carried in the route table so new/removed sources cannot race a separate list.
-This seam is not yet connected to the sidecar (waiting for #247).
+This seam is not yet connected to the sidecar (#267, 2A-2).
+
+## Stdio engine sidecar (P1B)
+
+`native/sidecar` builds the Qt-free `wirescape-engine` process. Its reader and
+writer isolate bounded NDJSON transport from the single control executor; audio
+uses the existing AppEngine/PortAudio callback and MIDI host. Null mode runs a
+paced discard sink and fake endpoints without device access. The UI owns saved
+documents; sidecar candidates are disposable execution copies. Details and
+shutdown ownership are in `native/sidecar/DESIGN.md`.

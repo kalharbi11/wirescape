@@ -20,15 +20,46 @@ struct AppEngine {
  // Destroy the scheduler before the metadata and libraries its nodes borrow.
  wirescape::engine2::Engine engine;
  std::atomic<float> peak{0};std::atomic<uint64_t> blocks{0};
+ // Single atomic command/ack; the render callback exclusively owns master_gain.
+ // 0 unity, 1 fade-out, 2 full silent block completed, 3 fade-in requested, 4 begun.
+ std::atomic<uint32_t> master_fade{0};
+ float master_gain = 1.0f, master_step = 1.0f;
  std::string error;
  explicit AppEngine(const ws_engine_config& c,const wirescape::engine2::Config* override=nullptr):legacy(ws_engine_create(&c),ws_engine_destroy),engine(override?*override:config(c)){
-  engine.register_producer();engine.register_producer(); // producer 0 host keys, 1 MIDI service
-  for(auto* d:wirescape::app::builtin_modules()){
-   entries.emplace_back();auto& e=entries.back();e.native=d;
-   for(uint32_t i=0;i<d->input_count;++i)e.inputs.push_back({d->inputs[i].id,d->inputs[i].name,static_cast<uint32_t>(d->inputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL)});
-   for(uint32_t i=0;i<d->output_count;++i)e.outputs.push_back({d->outputs[i].id,d->outputs[i].name,static_cast<uint32_t>(d->outputs[i].hint==WS2_AUDIO?WS_AUDIO:WS_CONTROL)});
-   for(uint32_t i=0;i<d->param_count;++i){auto& p=d->params[i];e.params.push_back({p.legacy_index,p.name,p.minimum,p.maximum,p.initial,p.unit});}
-   e.metadata={sizeof(ws_module_descriptor),WS_ABI_VERSION,d->id,d->name,d->input_count,d->output_count,d->param_count,e.inputs.data(),e.outputs.data(),e.params.data(),nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
+     // A linear 1.0 -> 0.0 edge completes in no more than 10 ms of samples.
+     master_step = 1.0f / float(std::max(1.0, std::floor(c.sample_rate * 0.01)));
+     engine.register_producer();
+     engine.register_producer(); // producer 0 host keys, 1 MIDI service
+     for (auto *d : wirescape::app::builtin_modules()) {
+         entries.emplace_back();
+         auto &e = entries.back();
+         e.native = d;
+         for (uint32_t i = 0; i < d->input_count; ++i)
+             e.inputs.push_back({d->inputs[i].id, d->inputs[i].name,
+                                 static_cast<uint32_t>(d->inputs[i].hint == WS2_AUDIO ? WS_AUDIO : WS_CONTROL)});
+         for (uint32_t i = 0; i < d->output_count; ++i)
+             e.outputs.push_back({d->outputs[i].id, d->outputs[i].name,
+                                  static_cast<uint32_t>(d->outputs[i].hint == WS2_AUDIO ? WS_AUDIO : WS_CONTROL)});
+         for (uint32_t i = 0; i < d->param_count; ++i) {
+             auto &p = d->params[i];
+             e.params.push_back({p.legacy_index, p.name, p.minimum, p.maximum, p.initial, p.unit});
+         }
+         e.metadata = {sizeof(ws_module_descriptor),
+                       WS_ABI_VERSION,
+                       d->id,
+                       d->name,
+                       d->input_count,
+                       d->output_count,
+                       d->param_count,
+                       e.inputs.data(),
+                       e.outputs.data(),
+                       e.params.data(),
+                       nullptr,
+                       nullptr,
+                       nullptr,
+                       nullptr,
+                       nullptr,
+                       nullptr};
   }
  }
  static wirescape::engine2::Config config(const ws_engine_config& c){wirescape::engine2::Config r;r.sample_rate=c.sample_rate;r.max_block=c.max_block_frames;r.max_nodes=c.max_nodes;r.event_budget=c.max_events;return r;}
@@ -119,11 +150,53 @@ int app_engine_render_live(AppEngine *e, float *const *out, uint32_t channels, u
     int r = e->engine.render(out, channels, n, callback_time_ns);
     if (r != WS2_OK) return WS_CAPACITY;
     float p = 0;
-    for (uint32_t c = 0; c < channels; ++c)
-        for (uint32_t i = 0; i < n; ++i) p = std::max(p, std::abs(out[c][i]));
+    const auto fade = e->master_fade.load(std::memory_order_acquire);
+    if (fade == 0) {
+        // Unmodified unity path preserves the existing offline/sample results.
+        for (uint32_t c = 0; c < channels; ++c)
+            for (uint32_t i = 0; i < n; ++i) p = std::max(p, std::abs(out[c][i]));
+    } else {
+        const float initial_gain = e->master_gain;
+        float gain = initial_gain;
+        const float delta = fade == 1 ? -e->master_step : (fade == 3 || fade == 4 ? e->master_step : 0.0f);
+        for (uint32_t i = 0; i < n; ++i) {
+            gain = std::clamp(gain + delta, 0.0f, 1.0f);
+            for (uint32_t c = 0; c < channels; ++c) {
+                out[c][i] *= gain;
+                p = std::max(p, std::abs(out[c][i]));
+            }
+        }
+        e->master_gain = gain;
+        uint32_t expected = fade;
+        if (fade == 1 && initial_gain == 0.0f) {
+            // At least one *entire* rendered block was hard zero.
+            e->master_fade.compare_exchange_strong(expected, 2, std::memory_order_release);
+        } else if ((fade == 3 || fade == 4) && gain >= 1.0f) {
+            e->master_fade.compare_exchange_strong(expected, 0, std::memory_order_release);
+        } else if (fade == 3) {
+            e->master_fade.compare_exchange_strong(expected, 4, std::memory_order_release);
+        }
+    }
     e->peak.store(p);
     e->blocks.fetch_add(1);
     return WS_OK;
+}
+void app_engine_begin_master_fade_out(AppEngine *e) noexcept { e->master_fade.store(1, std::memory_order_release); }
+bool app_engine_master_fade_silent(const AppEngine *e) noexcept {
+    return e->master_fade.load(std::memory_order_acquire) == 2;
+}
+void app_engine_prepare_master_fade_in(AppEngine *e) noexcept {
+    // The candidate must not be rendered until after this setup.
+    e->master_gain = 0.0f;
+    e->master_fade.store(3, std::memory_order_release);
+}
+void app_engine_resume_master_fade(AppEngine *e) noexcept {
+    // Cancel an interrupted fade without writing the callback-owned gain.
+    e->master_fade.store(3, std::memory_order_release);
+}
+bool app_engine_master_fade_in_started(const AppEngine *e) noexcept {
+    const auto phase = e->master_fade.load(std::memory_order_acquire);
+    return phase == 4 || phase == 0;
 }
 uint64_t app_engine_clock_ns() {
     return uint64_t(
