@@ -61,7 +61,7 @@
 < {"v":0,"session":"*","re":"r10b","ok":true,"gen":"="}
 
 # T11
-< {"v":0,"session":"*","type":"devices","gen":"=","audioDevices":[{"id":"USB Stereo","name":"USB Stereo","kind":"audio","index":3}],"midiDevices":[]}
+< {"v":0,"session":"*","type":"devices","gen":"=","audioDevices":[{"id":"USB Stereo","name":"USB Stereo","kind":"audio","index":3}],"midiDevices":[{"id":"M8 MIDI 1|M8:M8 MIDI 1","name":"M8 MIDI 1","system_name":"M8:M8 MIDI 1","kind":"midi","enabled":false}]}
 
 # T12
 # Setup: CC row target must exist before ccMap.set.
@@ -72,7 +72,7 @@
 
 # T13
 < {"v":0,"session":"*","type":"status","gen":"=","status":{"audio":{"state":"running","deviceId":"USB Stereo","deviceName":"USB Stereo","sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":2.1,"dropouts":0},"midi":{"devices":[],"activity":{}}}}
-< {"v":0,"session":"*","type":"telemetry","gen":"=","telemetry":{"tick":12,"time":"*","effective":{},"phase":{},"envelope":{},"meters":{"7":[0.1,0.1]},"scope":{},"eventActivity":{},"heldNotes":[60]}}
+< {"v":0,"session":"*","type":"telemetry","gen":"=","telemetry":{"tick":12,"time":"*","effective":{},"phase":{},"envelope":{},"meters":{"7":[0.1,0.1]},"scope":{},"eventActivity":{},"heldNotes":[]}}
 
 # T14
 > {"v":0,"id":"r14",BROKEN
