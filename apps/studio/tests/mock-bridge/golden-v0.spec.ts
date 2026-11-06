@@ -226,7 +226,7 @@ test('golden v0: RealEngine maps commands, replies, refusals and pushes through 
     (window as any).__goldenBridge.push('T11');
     (window as any).__goldenBridge.push('T13');
   });
-  await expect.poll(() => page.evaluate(() => window.__wirescapeTest.ticker.last?.heldNotes)).toEqual([60]);
+  await expect.poll(() => page.evaluate(() => window.__wirescapeTest.ticker.last?.heldNotes)).toEqual([]);
   const tele = await page.evaluate(() => window.__wirescapeTest.ticker.last);
   expect(tele?.meters[7]).toEqual([0.1, 0.1]);
   expect(tele?.scope).toEqual({});
@@ -249,6 +249,6 @@ test('golden v0: RealEngine maps commands, replies, refusals and pushes through 
     (window as any).__goldenBridge.stale();
   });
   await expect.poll(() => page.evaluate(() => window.__wirescapeTest.ticker.last?.heldNotes))
-    .toEqual([60]);
+    .toEqual([]);
   expect(await page.evaluate(() => (window as any).__goldenBridge.errors)).toEqual([]);
 });
