@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import type { Ticker } from '../../runtime/Ticker';
 import { CanvasPane, dotGrid } from './canvasBase';
+import { lfoTraceValue } from './waveTrace';
 import { el } from '../../app/dom';
 
 export interface WaveOptions {
@@ -10,18 +11,7 @@ export interface WaveOptions {
   shape(): { depth: number; offset: number; rateLabel: string };
 }
 
-const CYCLES = 2;
 const INSET = 3;
-
-/**
- * The newest LFO sample is at u=1; earlier samples fill the preceding two
- * cycles. Unlike the previous phase-dot mapping (phase / CYCLES), the full
- * 0..1 phase traverses a complete cycle at the head for every rate.
- */
-export function lfoTraceValue(phase: number, u: number, depth: number, offset: number): number {
-  const amp = Math.max(-1, Math.min(1, depth));
-  return offset + amp * Math.sin((phase - (1 - u) * CYCLES) * Math.PI * 2);
-}
 
 /**
  * LFO scope: a two-cycle scrolling trace driven only by received engine
