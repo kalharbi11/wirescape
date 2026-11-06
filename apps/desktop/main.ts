@@ -342,6 +342,9 @@ app.whenReady().then(() => {
     } catch { return new Response('Invalid path', { status: 400 }); }
   });
   ipcMain.on('wirescape:ready', event => { if (senderAllowed(event) && lastHello) notify(lastHello); });
+  ipcMain.on('wirescape:escape', event => {
+    if (senderAllowed(event) && window?.isFullScreen()) window.setFullScreen(false);
+  });
   ipcMain.on('wirescape:send', (event, raw: unknown) => {
     if (senderAllowed(event) && typeof raw === 'string') command(raw);
   });
