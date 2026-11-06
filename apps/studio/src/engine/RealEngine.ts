@@ -72,6 +72,8 @@ export class RealEngine implements EngineClient {
   private stateCbs = new Set<(state: 'real' | 'restarting') => void>();
   private graphErrorCbs = new Set<(error: EngineRefusal) => void>();
   private catalogueCbs = new Set<() => void>();
+  setSampleRate?: (hz: number) => void;
+  setBufferFrames?: (frames: number) => void;
 
   constructor(
     private readonly bridge: WirescapeBridge,
@@ -145,13 +147,20 @@ export class RealEngine implements EngineClient {
     if (message.type === 'hello') {
       if (message.protocol !== 0 || typeof message.session !== 'string' || !message.session) return;
       if (this.session === message.session) return;
-      const wasRunning = this.loadedOnce;
-      this.rejectPending(refusal('unavailable', 'Engine session replaced.'));
+      const resumeLoad = this.load && !this.load.sent ? this.load : undefined;
+      const wasRunning = this.loadedOnce && !resumeLoad;
+      if (!resumeLoad) this.rejectPending(refusal('unavailable', 'Engine session replaced.'));
+      else { this.pending.clear(); this.active = undefined; this.queue = []; }
       this.session = message.session;
       this.gen = '0';
       this.ready = false;
       this.usedIds.clear();
       this.confirmed = null;
+      const capabilities = Array.isArray(message.capabilities) ? message.capabilities : [];
+      this.setSampleRate = capabilities.includes('setSampleRate')
+        ? hz => this.control('setSampleRate', { hz }) : undefined;
+      this.setBufferFrames = capabilities.includes('setBufferFrames')
+        ? frames => this.control('setBufferFrames', { frames }) : undefined;
       if (isRecord(message.catalogue) && Array.isArray(message.catalogue.modules)) {
         this.registry.replace(message.catalogue.modules as ModuleDescriptor[]);
         for (const cb of this.catalogueCbs) cb();
@@ -162,11 +171,12 @@ export class RealEngine implements EngineClient {
           midi: { devices: this.midiDevices, activity: isRecord(message.midi.activity)
             ? message.midi.activity as Record<string, number> : {} } });
       }
-      if (wasRunning) {
+      if (resumeLoad) this.dispatchLoad();
+      else if (wasRunning) {
         void this.loadGraph(this.currentDocument()).catch(e => {
           for (const cb of this.graphErrorCbs) cb(e as EngineRefusal);
         });
-      } else if (this.load) this.dispatchLoad();
+      }
       return;
     }
     if (message.type?.toString().startsWith('app.menu')) return; // App consumes menu intents.
@@ -205,8 +215,8 @@ export class RealEngine implements EngineClient {
       return;
     }
     if (p.kind === 'load') {
-      if (p.revision === this.revision) {
-        this.confirmed = copy(this.load!.patch);
+      if (p.revision === this.revision && this.load) {
+        this.confirmed = copy(this.load.patch);
         this.usedIds = new Set(this.confirmed.modules.map(m => m.id));
         this.ready = true;
         this.loadedOnce = true;
@@ -225,7 +235,7 @@ export class RealEngine implements EngineClient {
 
   private validGen(gen: unknown): boolean {
     const n = generation(gen);
-    return n !== null && n >= BigInt(this.gen);
+    return n !== null && n === BigInt(this.gen);
   }
 
   async loadGraph(patch: PatchV2): Promise<void> {
@@ -234,7 +244,7 @@ export class RealEngine implements EngineClient {
     this.active = undefined;
     this.queue = [];
     this.lastEdit = undefined;
-    if (this.load) this.load.resolve(); // superseded patch, never promote its ack
+    if (this.load) this.load.reject(refusal('unavailable', 'Patch load superseded.'));
     const revision = ++this.revision;
     return new Promise<void>((resolve, reject) => {
       this.load = { id: this.id(), patch: copy(patch), revision, resolve, reject, sent: false };
