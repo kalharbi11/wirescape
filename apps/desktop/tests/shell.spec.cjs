@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-const { test, expect, _electron: electron } = require('../../studio/node_modules/@playwright/test');
+const { test, expect } = require('../../studio/node_modules/@playwright/test');
+const { _electron: electron } = require('../../studio/node_modules/playwright');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
