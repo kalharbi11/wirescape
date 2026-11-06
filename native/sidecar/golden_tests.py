@@ -470,6 +470,14 @@ def replay(binary, fixture):
                             audit.check(response.get('code') == code and
                                         response.get('gen') == str(generation), 'raw stdin',
                                         f'expected {code} with stable gen; got {response}')
+                        # Unsupported optional capabilities refuse without mutating gen.
+                        osc = {'v': 0, 'id': 'golden-osc', 'type': 'setOsc', 'enabled': True}
+                        engine.send(json.dumps(osc).encode('utf-8') + b'\n')
+                        refusal = engine.reply('golden-osc')
+                        audit.check(refusal.get('ok') is False and
+                                    refusal.get('code') == 'unavailable' and
+                                    refusal.get('gen') == str(generation),
+                                    'unsupported setOsc', f'wrong refusal: {refusal}')
                     continue
                 assert value.get('type') in ('devices', 'status', 'telemetry'), where
                 actual = engine.push(value['type'], push_start, generation)
