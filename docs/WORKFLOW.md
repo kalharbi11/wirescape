@@ -12,7 +12,7 @@
 - **Devices:** no agent opens an audio/MIDI device or a LAN socket. Localhost is fine. Real devices only behind `--confirm-*`, run by the owner.
 
 ## 2. Picking up work
-1. Find an open issue in the current phase (`phase/<n>` label, or the plan's checkboxes) with `status/todo`, or one whose last claim is stale (24 h with no push or handoff).
+1. Find an open issue in the current phase (`phase/<n>` label, or the plan's checkboxes) with `status/todo`, or one whose last claim is stale (24 h with no push or handoff; 6 h for Codex Lead on critical-path work).
 2. Comment `Claimed: <agent + model>, <date>`, then set `status/in-progress`.
 3. Read the issue's latest handoff and the task file; then code.
 4. If you continue someone else's branch, say so in the claim (`Continuing from <sha7>`). Never force-push over their commits.
@@ -33,7 +33,7 @@ Every handoff, review and approval comment ends with `Signed: <agent + model>, <
 - **Approval line** (gate v4, `docs/tasks/W_GATE_V4.md`): a standalone line `Approved for merge <sha7>` followed by a `Signed:` line. A new push needs a new line. Until gate v4 merges, use the old `<Name>: approved for auto-merge <sha7>` line with your **own** name. Protected paths need a `Claude:` line until then.
 - **Self-review first:** before `status/ready-to-merge` the author runs `python tools/review_pack.py <PR#>`, checks it against the checklist (realtime, IDs, state/versioning, thresholds, licences, devices) and posts a `Self-review` comment. The reviewer starts from the same pack.
 - Any reviewer can stop a PR with a High + `status/blocked`. The gate never merges a blocked PR, and an author never approves over an open High.
-- Nobody clicks merge. The merge gate (`.github/workflows/merge_gate.yml` + `tools/merge_gate.py`) enables auto-merge; GitHub waits for the required checks. Stacked PRs wait for retargeting to `main`, then re-run their acceptance against `main`.
+- Builders don't click merge; only Compass and Keel merge directly (`AGENTS.md`). The merge gate (`.github/workflows/merge_gate.yml` + `tools/merge_gate.py`) enables auto-merge; GitHub waits for the required checks. Stacked PRs wait for retargeting to `main`, then re-run their acceptance against `main`.
 - Owner-only: licence changes, `legacy/**`, `docs/history/**`, branch protection, real-device results, `allow-test-removal`.
 
 ## 5. Decisions a builder may make alone
@@ -45,7 +45,7 @@ Record each under `Self-decisions` in the PR body and the handoff:
 - picking among options the task or plan already lists; small refactors inside touched files;
 - design choices the spec leaves open that change no IDs, formats, ABI, protocol or realtime behaviour.
 
-Everything else in `AGENTS.md` "Stops" goes to the planner via the issue. Only that item blocks; take another item meanwhile.
+Everything else in `AGENTS.md` "Stops" goes to a lead via the issue (Codex Lead first; Keel for technical stops, Compass for plan stops). Only that item blocks; take another item meanwhile.
 
 ## 6. Task files and acceptance blocks
 Every issue points to a `docs/tasks/` file ending in a fenced `acceptance` block that `tools/dev.py accept` parses:
@@ -62,13 +62,15 @@ stops: [ABI edit, new dependency, threshold change, unspecified design choice]
 `pi:` lines run on the Pi runner. Owner-only checks (real sound, MIDI devices, the display) are listed under `owner:` in the task text, not in `must_pass`; they're collected at checkpoints.
 
 ## 7. Checkpoints
-At the end of Phases 1, 2 and 4 (`docs/PLAN.md`): tag `checkpoint-<X>`, build the review pack for the phase, and hold one owner + planner-role session. Decisions go at the top of `docs/PLAN.md`. Work on the next phase continues during the review; a High blocks only the sections it touches.
+At the end of Phases 1, 2 and 4 (`docs/PLAN.md`): tag `checkpoint-<X>`, build the review pack for the phase, and hold one owner + Compass session. Decisions go at the top of `docs/PLAN.md`. Work on the next phase continues during the review; a High blocks only the sections it touches.
 
 ## 8. Usage hygiene
 - Start a fresh thread per issue. Read narrowly (the read map in `AGENTS.md`). Never paste whole logs; tail on failure.
 - Don't run the full suite locally when CI will. Run the tests for the files you touched, push, and read the CI summary.
 - Pi evidence only for compiled-code changes. No re-runs after a merge from `main` that touches no compiled code.
 - Use the cheaper model for mechanical edits and the stronger one for T2 work, reviews and architecture.
+- Delegate, don't wait: hand mechanical work to a cheaper agent (ChatGPT chat, another Codex chat, a subagent) with a self-contained brief, and keep working. Don't poll CI; the gate merges on green.
+- Near a usage limit: push, post handoffs, and leave paste-ready briefs for agents that still have budget (`docs/planner/LEADS.md`, wrap-up mode).
 
 ## 9. Not worth it
 Agent-orchestration dashboards, scheduled agent check-ins that run with nothing to do, and per-agent queues. The board (issues + this plan) is the queue.
