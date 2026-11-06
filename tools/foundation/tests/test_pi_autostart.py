@@ -25,10 +25,10 @@ class PiAutostartTest(unittest.TestCase):
             self.assertTrue(destination.is_file())
             content = destination.read_text()
             self.assertIn(f'Exec="{launcher}"', content)
+            first_stat = destination.stat().st_mtime_ns
             run()
             self.assertEqual(destination.read_text(), content)
-            self.assertEqual(destination.stat().st_mtime_ns,
-                             destination.stat().st_mtime_ns)
+            self.assertEqual(destination.stat().st_mtime_ns, first_stat)
             run('--remove')
             self.assertFalse(destination.exists())
             self.assertTrue(launcher.exists())
