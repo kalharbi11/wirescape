@@ -30,19 +30,14 @@ bool Service::subscribe(Route route) {
     if (running_ || !route.node || route_count_ == routes_.size()) return false;
     routes_[route_count_++] = std::move(route); return true;
 }
-bool Service::replace_routes(std::vector<Route> routes, const std::function<bool()> &commit, bool *busy) {
-    if (busy) *busy = false;
+bool Service::replace_routes(std::vector<Route> routes, const std::function<bool()> &commit) {
     if (routes.size() > routes_.size() ||
         std::any_of(routes.begin(), routes.end(), [](const Route &r) { return !r.node; }))
         return false;
     std::array<Route, 64> staged{};
     std::move(routes.begin(), routes.end(), staged.begin());
     std::unique_lock<std::mutex> lock(routes_mutex_, std::try_to_lock);
-    if (!lock.owns_lock()) {
-        if (busy) *busy = true;
-        return false;
-    }
-    if (commit && !commit()) return false;
+    if (!lock.owns_lock() || (commit && !commit())) return false;
     routes_.swap(staged);
     route_count_ = routes.size();
     return true;
