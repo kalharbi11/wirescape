@@ -134,7 +134,7 @@ button { cursor: pointer; }
   flex: 1; min-height: 0; position: relative; overflow: hidden;
   cursor: grab; touch-action: none;
   /* White paper with the dot texture (DESIGN §2). */
-  background-color: var(--paper);
+  background-color: var(--canvas-ground);
   background-image: radial-gradient(var(--dot) 0.6px, transparent 0.75px);
   background-size: 16px 16px;
 }
