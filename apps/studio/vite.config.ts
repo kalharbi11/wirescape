@@ -10,5 +10,6 @@ export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(`v${version}`), __BUILD__: JSON.stringify(build) },
   server: { port: 5173, host: '127.0.0.1' },
   preview: { port: 4173, host: '127.0.0.1' },
+  base: './', // Relative assets resolve from Electron's file:// renderer without a server.
   build: { target: 'es2022', sourcemap: true },
 });
