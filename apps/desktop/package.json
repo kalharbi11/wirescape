@@ -5,11 +5,12 @@
   "main": "build/main.js",
   "scripts": {
     "build-ui": "cd ../studio && npm run build",
-    "build": "npm run build-ui && ../studio/node_modules/.bin/tsc -p tsconfig.json",
+    "build": "npm run build-ui && node ../studio/node_modules/typescript/bin/tsc -p tsconfig.json",
     "start": "npm run build && electron .",
     "test": "node ../studio/node_modules/@playwright/test/cli.js test --config=playwright.config.cjs"
   },
   "devDependencies": {
     "electron": "36.9.5"
-  }
+  },
+  "license": "GPL-3.0-only"
 }
