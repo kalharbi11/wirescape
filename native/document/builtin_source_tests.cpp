@@ -56,22 +56,32 @@ static void render(AppEngine *engine, float *out, uint32_t frames) {
 }
 static void sequencer(AppEngine *catalogue) {
     auto engine = load(patch(true, 42), catalogue);
-    // At 300 BPM * 24 ticks/beat the clock advances every 400 samples.
     // Only the notes cable can set the VCO to C4 then C5; its default is A3.
-    std::array<float, 1200> audio{};
-    for (unsigned frame = 0; frame < audio.size(); frame += 200)
+    // Observe the rendered clock: its fractional phase can cross a tick one sample
+    // later than nominal, so integer frame/400 is not the actual trigger time.
+    std::array<float, 1200> audio{}, clock{};
+    for (unsigned frame = 0; frame < audio.size(); frame += 200) {
         render(engine.get(), audio.data() + frame, 200);
+        for (unsigned i = 0; i < 200; ++i)
+            clock[frame + i] = app_engine_native(engine.get()).output_sample(1, 0, 0, i);
+    }
     double phase = 0;
     double peak = 0;
+    unsigned edges = 0;
+    bool clock_high = false;
     constexpr double tau = 6.283185307179586476925286766559;
     for (unsigned frame = 0; frame < audio.size(); ++frame) {
+        const bool high = clock[frame] > 0.5f;
+        if (high && !clock_high) ++edges;
+        clock_high = high;
         require(std::isfinite(audio[frame]), "finite sequence audio");
         require(std::abs(audio[frame] - std::sin(phase)) < 1e-5, "clocked notes set the VCO pitch at each step");
         peak = std::max(peak, double(std::abs(audio[frame])));
-        const double hz = (frame / 400) % 2 ? 523.2511306011972 : 261.6255653005986;
+        const double hz = (edges % 2 == 0) ? 523.2511306011972 : 261.6255653005986;
         phase += tau * hz / 48000;
         if (phase >= tau) phase -= tau;
     }
+    require(edges == 3, "three clock rises drive step 1, step 2 and wrap");
     require(peak > 0.5, "sequencer notes render non-silent through VCO");
 }
 static std::vector<float> random_render(AppEngine *engine) {
