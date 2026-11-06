@@ -110,6 +110,21 @@ test('T15: exit → restart → hello restores the editable patch and rejects ol
 });
 
 
+test('unexpected engine exit waits for main to restart and never requests app.restartEngine', async ({ page }) => {
+  await page.evaluate(() => window.__wirescapeTest.addModule('essentials.output'));
+  await expect.poll(async () =>
+    (await page.evaluate(() => (window as any).__mockBridge.getGraph())).modules.length).toBe(1);
+  const previous = await page.evaluate(() => (window as any).__mockBridge.getSession());
+  await page.evaluate(() => (window as any).__mockBridge.exit(false));
+  await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
+  expect(await page.evaluate(() => (window as any).__mockBridge.getSession())).not.toBe(previous);
+  await expect.poll(async () =>
+    (await page.evaluate(() => (window as any).__mockBridge.getGraph())).modules.length).toBe(1);
+  const sent = await page.evaluate(() => (window as any).__mockBridge.sent as any[]);
+  expect(sent.some(m => m.type === 'app.restartEngine')).toBe(false);
+});
+
+
 test('MIDI In dropdown uses enumerated endpoints without normalizing original config', async ({ page }) => {
   await page.evaluate(() => window.__wirescapeTest.load({
     format: 'wirescape.native.patch', version: 2,

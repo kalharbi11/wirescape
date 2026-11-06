@@ -141,7 +141,7 @@ export class RealEngine implements EngineClient {
       this.confirmed = null;
       this.setState('restarting');
       this.rejectPending(refusal('unavailable', 'Engine disconnected.'));
-      if (message.expected !== true) this.send(this.id(), 'app.restartEngine');
+      // Main supervises crash restarts (bounded crash-loop budget); the renderer only waits for the next hello.
       return;
     }
     if (message.type === 'hello') {
