@@ -11,7 +11,8 @@
   color-scheme: light;
 
   /* ---- aliases onto the kit tokens ------------------------------------ */
-  --ground: #f5f5f3; /* canvas only; chrome stays white */
+  --ground: var(--paper);
+  --canvas-ground: #f5f5f3; /* patch viewport only */
   --rail: var(--paper);
   --surface: var(--card);
   --surface-2: var(--card2);
@@ -85,6 +86,7 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
   --paper: #161716; --card: #1f201f; --card2: #272827;
+  --canvas-ground: var(--paper);
   --ink: #ecebe6; --graph: #c9c8c2; --mute: #8d8d88;
   --hair: #3c3d3a; --hair2: #2d2e2c; --dot: rgba(255, 255, 255, 0.05);
   --knob-cap: #5a5a57; --sub-light: #6d6f69;
