@@ -58,6 +58,7 @@ test('NDJSON replies, unexpected crash notification and bounded automatic restar
     expect(messages.some(m => m.type === 'app.engineExited' && m.expected === false)).toBe(true);
     const hellos = messages.filter(m => m.type === 'hello');
     expect(hellos[0].session).not.toBe(hellos[1].session);
+    expect(new Set(hellos.map(h => h.session)).size).toBe(hellos.length);
   } finally { await app.close(); }
 });
 test('native File intents and open/save round-trip never expose a filesystem path', async () => {

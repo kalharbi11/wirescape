@@ -43,7 +43,11 @@ ipcRenderer.on('wirescape:message', (_event, raw: string) => {
     value = JSON.parse(raw);
     if (!value || Array.isArray(value) || typeof value !== 'object' || value.v !== 0) return;
   } catch { return; }
-  if (value.type === 'hello') lastHello = value;
+  if (value.type === 'hello') {
+    // One hello per engine session: main may push it at start and again on 'ready'.
+    if (lastHello && lastHello.session === value.session) return;
+    lastHello = value;
+  }
   if (value.type === 'app.engineExited') lastHello = null;
   for (const listener of [...listeners]) {
     try { listener(value); } catch (e) { console.error('Wirescape message listener failed', e); }
