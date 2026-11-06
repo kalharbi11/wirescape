@@ -9,7 +9,7 @@
     {"id":1,"module":"midi.in","version":1,"parameters":{},"config":{"endpoint":"all_enabled"}},
     {"id":2,"module":"midi.to_cv","version":1,"parameters":{"voice_count":4}},
     {"id":3,"module":"essentials.vco","version":2,"parameters":{}},
-    {"id":4,"module":"essentials.vcf","version":2,"parameters":{"cutoff":100,"resonance":0.3}},
+    {"id":4,"module":"essentials.vcf","version":2,"parameters":{"cutoff":20,"resonance":0.3}},
     {"id":5,"module":"essentials.vca","version":2,"parameters":{"gain":0.1}},
     {"id":6,"module":"essentials.adsr","version":2,"parameters":{"attack":0.01,"decay":0.15,"sustain":0.65,"release":0.1}},
     {"id":7,"module":"essentials.lfo","version":2,"parameters":{"rate":0.6,"depth":0.05}},

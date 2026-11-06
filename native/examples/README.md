@@ -37,13 +37,13 @@ CHAOS (`class_demo_1_chaos.json`):
 | CCE | 25 | First CHAOS pitch LFO depth | 0.05 → 0.75 |
 | CCF | 26 | Second CHAOS cutoff | 13000 → 1012 Hz |
 | CCG | 27 | First CHAOS B detune | −30 → +30 cents |
-| CCH | 28 | Mixer first instrument level | 1.2 → 0.4 |
+| CCH | 28 | Mixer first instrument level | 1.2 → 0.3 |
 
 Subtractive (`class_demo_2_subtractive.json`):
 
 | M8 | CC | Target | Range |
 |---|---|---|---|
-| CCA | 21 | VCF cutoff | 100 → 12589 Hz |
+| CCA | 21 | VCF cutoff | 20 → 2518 Hz |
 | CCB | 22 | VCF resonance | 0.3 → 0.87 |
 | CCC | 23 | LFO rate | 0.6 → 10.595 Hz |
 | CCD | 24 | LFO depth | 0.05 → 0.85 |
@@ -64,7 +64,7 @@ Macro (`class_demo_3_macro.json`):
 | CCB | 22 | Harmonics | 0.1 → 0.9 |
 | CCC | 23 | Timbre | 0.1 → 0.9 |
 | CCD | 24 | Morph | 0.1 → 0.9 |
-| CCE | 25 | VCF cutoff | 100 → 12589 Hz |
+| CCE | 25 | VCF cutoff | 20 → 2518 Hz |
 | CCF | 26 | VCF resonance | 0.3 → 0.87 |
 | CCG | 27 | ADSR release | 0.1 → 3.1 s |
 | CCH | 28 | VCA gain | 0.1 → 1.0 |
@@ -75,7 +75,8 @@ actual input for model CV). It requires at least 0.4 normalized travel. Musical
 exceptions, approved by the task lead: linear 30 s envelope and 20 kHz frequency
 ranges instead use the explicit endpoints above and a physical-value ratio ≥1.5;
 0.4 travel would mean 12 s envelopes or an 8 kHz pitch increase. The regression
-also renders 0.5 s after note-off and requires changed audio, catching unused
+also requires ≥1.5 held-note RMS ratio for the subtractive and Macro cutoff
+sweeps, renders 0.5 s after note-off, and requires changed audio, catching unused
 controls and release behavior. Release is heard when a note ends; attack is
 heard on a fresh note. Real M8 listening checks for all 24 mappings remain with
 the owner in `docs/DEMO_CLASS.md`.
