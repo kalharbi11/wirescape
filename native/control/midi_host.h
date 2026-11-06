@@ -16,7 +16,6 @@ class Host {
     bool authorized_ = false;
     std::string last_statistics_;
     std::vector<Endpoint> enabled_;
-    std::vector<uint32_t> keyboard_nodes_;
     static int deliver(void *, uint32_t, const ws2_event &, uint64_t) noexcept;
 
   public:
@@ -29,6 +28,9 @@ class Host {
     void select(Endpoint, bool);
     void restore(const std::string &document);
     bool start(AppEngine *, const std::string &document, std::string &error);
+    // Atomically accept a prepared graph and its subscriptions on the control thread.
+    // Refusal (including a busy MIDI worker) preserves graph and routes for retry.
+    bool replan(AppEngine *candidate, const std::string &document, uint64_t timeout_ns, std::string &error);
     void stop();
     Counters counters() const noexcept;
     std::string diagnostics() const;

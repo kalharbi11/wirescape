@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-only
+[Desktop Entry]
+Type=Application
+Name=Wirescape
+Comment=Standalone modular music patching
+Exec="@LAUNCHER@"
+Terminal=false
+Categories=Audio;AudioVideo;Music;
+Icon=applications-multimedia
+StartupNotify=true

@@ -6,6 +6,30 @@
 #include <algorithm>
 #include <stdexcept>
 namespace wirescape::midi {
+namespace {
+std::vector<Route> subscriptions(const std::string &document) {
+    const auto j = nlohmann::json::parse(document);
+    std::vector<Route> routes;
+    for (auto &m : j.at("modules")) {
+        const auto type = m.value("module", m.value("type", std::string{}));
+        if (type == "host.keyboard") {
+            const auto node = m.at("id").get<uint32_t>();
+            routes.push_back({node, {}, true, true});
+            continue;
+        }
+        if (type != "midi.in") continue;
+        auto c = m.value("config", nlohmann::json::object());
+        auto name = c.value("endpoint", std::string("all_enabled"));
+        Route r;
+        r.node = m.at("id").get<uint32_t>();
+        r.all_enabled = name == "all_enabled";
+        r.endpoint = {name, c.value("system_name", std::string{})};
+        routes.push_back(std::move(r));
+    }
+    if (routes.size() > 64) throw std::runtime_error("Too many MIDI routes");
+    return routes;
+}
+} // namespace
 Host::Host(bool authorized, std::unique_ptr<Backend> fake)
     : injected_backend_(bool(fake)), backend_(std::move(fake)), authorized_(authorized) {
     if (!backend_ && authorized_) backend_ = real_backend(true);
@@ -41,61 +65,46 @@ void Host::restore(const std::string&document){
 
 int Host::deliver(void *opaque, uint32_t node, const ws2_event &e, uint64_t ns) noexcept {
     auto &h = *static_cast<Host *>(opaque);
-    auto event = e;
-    if (std::find(h.keyboard_nodes_.begin(), h.keyboard_nodes_.end(), node) != h.keyboard_nodes_.end() &&
-        event.type != WS2_NOTE_CHOKE) {
-        if (event.type != WS2_MIDI || !event.ump_words) return WS2_OK;
-        const auto word = event.ump[0];
-        const auto type = word >> 28, status = (word >> 20) & 15;
-        // The global keyboard consumes notes; full controller routing stays in MIDI modules.
-        if (((word >> 24) & 15) || (type != 2 && type != 4) || (type == 4 && event.ump_words != 2) ||
-            (status != 8 && status != 9))
-            return WS2_OK;
-        const auto velocity = type == 2 ? word & 127 : event.ump[1] >> 16;
-        event.type = status == 8 || (type == 2 && !velocity) ? WS2_NOTE_OFF : WS2_NOTE_ON;
-        event.channel = int((word >> 16) & 15);
-        event.key = int((word >> 8) & 127);
-        event.note_id = -1;
-        event.value = float(velocity) / float(type == 2 ? 127 : 65535);
-        event.ump_words = event.bytes = 0;
-        event.data = nullptr;
-    }
     auto &engine = app_engine_native(h.engine_);
-    int result = engine.enqueue(1, node, WS2_DIRECT_PORT, event, ns, wirescape::engine2::Timing::Timestamped,
+    int result = engine.enqueue(1, node, WS2_DIRECT_PORT, e, ns, wirescape::engine2::Timing::Timestamped,
                                 engine.meter().generation);
-    if (result != WS2_OK &&
-        (event.type == WS2_NOTE_OFF || event.type == WS2_NOTE_CHOKE || wirescape::engine2::midi_release(event)))
+    if (result != WS2_OK && (e.type == WS2_NOTE_OFF || e.type == WS2_NOTE_CHOKE || wirescape::engine2::midi_release(e)))
         engine.panic();
     return result;
 }
 bool Host::start(AppEngine*engine,const std::string&document,std::string&error){stop();try{
-        if (enabled_.empty()) return true;
+        engine_ = engine;
+        if (enabled_.empty()) {
+            error.clear();
+            return true;
+        }
         if (!authorized_ || !backend_) throw std::runtime_error("Enable MIDI before opening selected endpoints");
         if (!engine) throw std::runtime_error("No MIDI render engine");
-        auto j = nlohmann::json::parse(document);
+        auto routes = subscriptions(document);
         engine_ = engine;
         service_ = std::make_unique<Service>(*backend_, Sink{this, deliver});
         for (auto &s : enabled_)
             if (!service_->enable({s.name, s.system_name})) throw std::runtime_error("Too many enabled MIDI endpoints");
-        for (auto &m : j.at("modules")) {
-            const auto type = m.value("module", m.value("type", std::string{}));
-            if (type == "host.keyboard") {
-                const auto node = m.at("id").get<uint32_t>();
-                if (!service_->subscribe({node, {}, true})) throw std::runtime_error("Too many MIDI routes");
-                keyboard_nodes_.push_back(node);
-                continue;
-            }
-            if (type != "midi.in") continue;
-            auto c = m.value("config", nlohmann::json::object());
-            auto name = c.value("endpoint", std::string("all_enabled"));
-            Route r;
-            r.node = m.at("id").get<uint32_t>();
-            r.all_enabled = name == "all_enabled";
-            r.endpoint = {name, c.value("system_name", std::string{})};
-            if (!service_->subscribe(r)) throw std::runtime_error("Too many MIDI routes");
-        }
- if(!service_->start())throw std::runtime_error("MIDI service did not start");error.clear();return true;
+        if (!service_->replace_routes(std::move(routes))) throw std::runtime_error("Invalid MIDI routes");
+        if (!service_->start()) throw std::runtime_error("MIDI service did not start");
+        error.clear();
+        return true;
  }catch(const std::exception&e){error=e.what();stop();return false;}}
+bool Host::replan(AppEngine *candidate, const std::string &document, uint64_t timeout_ns, std::string &error) {
+    try {
+        auto routes = subscriptions(document); // Parse/allocate before attempting any live change.
+        auto commit = [&] { return engine_ && app_engine_replan(engine_, candidate, timeout_ns) == WS_OK; };
+        if (!(service_ ? service_->replace_routes(std::move(routes), commit) : commit())) {
+            error = "MIDI worker busy or live graph refused; graph and subscriptions unchanged";
+            return false;
+        }
+        error.clear();
+        return true;
+    } catch (const std::exception &e) {
+        error = e.what();
+        return false;
+    }
+}
 void Host::stop() {
     if (service_) {
         service_->stop();
@@ -103,7 +112,6 @@ void Host::stop() {
         service_.reset();
     }
     engine_ = nullptr;
-    keyboard_nodes_.clear();
 }
 std::string Host::diagnostics() const {
     if (!service_ && !last_statistics_.empty()) return last_statistics_;

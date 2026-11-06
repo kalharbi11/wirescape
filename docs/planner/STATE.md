@@ -3,40 +3,43 @@
 
 Keep this under 60 lines. Rewrite it at the end of each lead session; history lives in git.
 
-**Updated:** 2026-11-06 by Keel (overview, merged #242, fixed and approved #249, combined lanes to Test Session 1), then Compass (check-in, plan refresh, board).
+**Updated:** 2026-11-06 ~11:30 UTC by Keel (sixth pass). **Owner priority: get the Pi working fully. Windows waits.**
 
 ## Where things stand
-- **Merged:** #237 P0D, #238 P1A, #239 P1.0, #240 P0E, #241 P1G, #242 P1D (Keel direct, `fcb8fab`), plus lead docs #243–#251.
-- **#249 P1C RealEngine:** Keel T1 review done. Keel pushed `1fa65c3` (main owns crash restarts: RealEngine no longer sends `app.restartEngine` on an unexpected exit, which would have reset main's crash-loop budget forever) and merged main (`706e333`). Approved; `status/ready-to-merge`; auto-merge on green.
-- **#247 P1B sidecar: the critical path.** Red for real: `hello` is gated behind render (`protocol_tests.py:209`) and Windows MIDI-off never replies (`:160`), plus static/format. The D5 fade is ruled (master gain ramp, linear ≤10 ms each side, gap ≤150 ms). One ordered 7-step checklist is on #247. Needs a builder now.
-- **#253 P1F shell:** draft, builder working. Keel note: don't reset `failures` on a renderer restart; rebase after #249 (App.ts conflict); launchers pass `--confirm-*`.
-- **#252 closed:** #242's `ui_catalogue_sync` CTest is already the required drift gate.
-- **#235 P1E:** starts now. Part 1 = owner scripts + Pi runner jobs; part 2 (added) = a hosted Electron + real-engine e2e smoke, the gate before the owner's time.
-- **#250 conformance:** starts now (Studio checker first, native after #247).
-- Known non-required red: `cortex-m7` (#159).
+- **Merged today:** P1B sidecar (#247), Pi appliance (#264), e2e smoke (#265), **2A live edits (#209, `6e92eed`)**. Phase 1 code is complete except 1H (#250/#256) and the 1E benchmark.
+- **Test Session 1 is posted: #271** (owner, Pi, pinned `b7001b2`: §5b M8 x 3 patches, then the app checklist). Keel ruling: the contention benchmark doesn't gate the owner's sitting; it gates Phase 1 sign-off.
+- Closed done issues #260, #233, #231, #227.
+- Known non-required red: `cortex-m7` / portability probe (#159). `static` is informational.
+
+## Open lanes (prompts were given to the owner on 2026-11-06; each names its issue)
+1. **#258** null-sink render histogram + `--bench-summary` (T2, s). Then the wirescape-pi runner contention benchmark (P1E `pi:` line 2).
+2. **#267** 2A-2: wire live replan into the sidecar (T2, m). Keel's two #209 Mediums are in scope.
+3. **#256/#250** 1H: native sidecar side of the golden transcript (T2). Must be green before 1E signs off.
+4. **#266** 1B-2: Windows raw-handle transport (T2); ruling is in the issue. After Test Session 1.
+5. **#263/#259** modules: apply Keel's `legacy_index` ruling (T1).
+
+## Phase 1 sign-off needs
+#271 owner results (A + B), 1H green, Pi contention benchmark (zero overruns, p99 < 50% period, or BLOCKED with reason). Then Compass runs Checkpoint A.
 
 ## Compass decisions (2026-11-06 check-in)
 - Agreed: P0F is folded into Test Session 1; PLAN "Now" and 0F updated. 0E, 1D, 1G ticked; #250 is plan item **1H**.
 - **D13 sidecar contingency:** if #247 is red again after Keel's checklist, split it into 1B-1 (protocol, null sink, fake MIDI, fade: everything CI proves) and 1B-2 (PortAudio + real MIDI devices). No third attempt at the full L PR.
 - Electron (D1) reconfirmed. Board: closed #70 (done) and #140 (Qt; semantics → 2C); `phase/2`–`phase/5` labels on parked items (labels 3–5 created).
 
-## Lanes (copy-ready prompts in `docs/planner/LANES.md`)
-1. Engine: #247 → #250 native checker.  2. Desktop: #253 → P1E e2e smoke.
-3. Integration: #250 → P1E scripts + Pi runner.  4. Live edits: #209 (2A) → replace the D5 swap with live replan.
-
 ## Rulings this session
-- **Crash restart ownership (Keel):** Electron main is the only automatic restarter. The renderer sends `app.restartEngine` only for an explicit user action. A renderer request never resets the crash-loop budget. Fits ENGINE_PROTOCOL §2 ("the UI may request one"); no spec edit needed.
-- **One owner Pi session (Keel, owner-time call):** P0F (`DEMO_CLASS.md` §5b, `play` only) is folded into Test Session 1 (§6), run first in the same sitting so engine and app failures stay separable. Compass: this replaces the separate P0F session in "Now". Tick 0F from that result.
-
-## Test Session 1 is ready when
-#247, #249 and #253 are merged; P1E part 1 is merged; the P1E e2e smoke is green; the Pi runner `ctest -R sidecar_` is green. Keel then posts the exact copy-paste commands on a Phase 1 tracking issue.
+- **Crash restarts:** Electron main is the only automatic restarter; a renderer request never resets the crash-loop budget.
+- **#247 slow fixture:** supported rates only (8 kHz floor kept); D5 deadlines scale with the block period, and 150 ms holds at normal blocks.
+- **T02 / D3:** imported documents round-trip unchanged; only UI-authored content carries synthesized fields.
+- **Test Session 1 vs benchmark:** the owner sitting doesn't wait for the benchmark.
+- **#209 scope:** sidecar wiring is #267; it retries a busy MIDI try-lock (bounded) and uses D5 directly when audio isn't rendering.
+- **Benchmark source:** null-sink histogram + `--bench-summary` stderr line (#258); no protocol change.
 
 ## Waiting on the owner
-- Nothing until Test Session 1 is ready. (If the owner has 15 minutes on the Pi before then, §5b alone is still useful.)
+- **#271 Test Session 1** on the Pi (one sitting). Then post results in #271.
 
 ## Next lead sessions
-- Keel: T2-review #247 as soon as it's out of draft (same day); review #250 and #209; confirm #249 merged; merge #253 once reviewed; then post the Test Session 1 commands.
-- Compass: Checkpoint A agenda after Test Session 1; apply D13 if #247 stalls; triage the owner's results.
+- Keel: triage #271 results (engine faults → issue per failure); T2-review #258, #267, #256 native, #266; merge when green.
+- Compass: Checkpoint A agenda after Test Session 1; triage the owner's results.
 
 ## Standing rules from the owner
 - Don't plan agent assignment; the owner and their managers assign. Keep sections parallel where possible.

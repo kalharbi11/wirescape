@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
     "typecheck": "tsc --noEmit",
-    "test": "playwright test",
+    "test": "playwright test && node -e \"if (process.env.CI && process.platform === 'linux') require('node:child_process').execFileSync('bash', ['-lc', 'npm --prefix ../desktop ci --no-audit --no-fund && npm --prefix ../desktop run build && xvfb-run -a npm --prefix ../desktop test'], {stdio: 'inherit'})\"",
     "test:headed": "playwright test --headed"
   },
   "devDependencies": {

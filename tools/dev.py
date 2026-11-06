@@ -292,9 +292,14 @@ def command_test(args: argparse.Namespace) -> int:
                 steps.append({"name": "ctest", **test_result})
                 import re
                 text = Path(test_result["log"]).read_text(encoding="utf-8", errors="replace")
+                failed_output = False
                 for line in text.splitlines():
                     if re.search(r"\bTest\s+#\d+:", line):
                         print(line.strip())
+                        failed_output = "***" in line
+                    elif failed_output and line.strip() and not line.startswith(("Total Test time", "The following tests")):
+                        # --output-on-failure text of a failed test, so CI logs show the real cause.
+                        print("    " + line.rstrip()[:500])
 
             else:
                 record.update(status="skipped", summary="Tests skipped: ctest was not found")

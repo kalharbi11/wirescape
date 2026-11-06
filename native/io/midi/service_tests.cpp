@@ -112,7 +112,51 @@ static void missing_and_shutdown() {
     REQUIRE(backend.callbacks.empty() && !out.items.empty() && out.items.back().event.type == WS2_NOTE_CHOKE);
     REQUIRE(!real_backend(false));
 }
+static void transactional_routes() {
+    Fake backend;
+    Output out;
+    Service service(backend, out.sink());
+    REQUIRE(service.enable({"A", "sys:A"}));
+    REQUIRE(service.subscribe({10, {}, true}));
+    service.poll();
+    unsigned commits = 0;
+    auto refuse = [&] {
+        ++commits;
+        return false;
+    };
+    REQUIRE(!service.replace_routes(std::vector<Route>(65, Route{20, {}, true}), refuse));
+    REQUIRE(commits == 0); // Capacity rejected before touching the graph.
+    REQUIRE(!service.replace_routes({{20, {}, true}}, refuse));
+    REQUIRE(commits == 1);
+    std::atomic<bool> locked{false}, release{false};
+    std::thread transaction([&] {
+        REQUIRE(service.replace_routes({{10, {}, true}}, [&] {
+            locked.store(true, std::memory_order_release);
+            while (!release.load(std::memory_order_acquire)) std::this_thread::yield();
+            return true;
+        }));
+    });
+    while (!locked.load(std::memory_order_acquire)) std::this_thread::yield();
+    REQUIRE(!service.replace_routes({{20, {}, true}}, refuse));
+    REQUIRE(commits == 1); // A busy dispatch never runs the graph commit.
+    release.store(true, std::memory_order_release);
+    transaction.join();
+    backend.bytes("sys:A", {0x90, 60, 100}, 1);
+    service.poll();
+    REQUIRE(out.items.back().node == 10);
+    // While the commit holds dispatch exclusion, callbacks still enqueue, without allocation.
+    REQUIRE(service.replace_routes({{20, {}, true, true}}, [&] {
+        backend.bytes("sys:A", {0x80, 60, 0}, 2);
+        return true;
+    }));
+    out.items.clear();
+    service.poll();
+    REQUIRE(out.items.size() == 1 && out.items[0].node == 20);
+    REQUIRE(out.items[0].event.type == WS2_NOTE_OFF && out.items[0].ns == 2);
+    REQUIRE(backend.opens == 1 && backend.closes == 0);
+}
 int main() {
+    transactional_routes();
     per_endpoint_counts();
     saturated_source_isolation();
     fanout_identity_disconnect();
