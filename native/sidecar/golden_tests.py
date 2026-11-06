@@ -256,22 +256,26 @@ class Engine:
         raise AssertionError(f'no {kind} push at generation {generation}')
 
     def saturate(self, command, generation):
-        # The executor and reader are independent. Flood it with valid live edits:
-        # no graph commit or generation adjustment is introduced by test setup.
-        burst = [dict(v=0, id=f'golden-fill-{i}', type='setParam',
-                      moduleId=9, paramId='frequency', value=220 + i % 100)
-                 for i in range(640)]
+        # No graph commits: deliberately slow ordered device control requests
+        # let the independent stdin reader reach its 256-command pending limit.
+        # --null-audio reopens only the fake paced sink, never an actual device.
+        burst = [dict(v=0, id=f'golden-fill-{i}', type='selectAudioDevice',
+                      deviceId='USB Stereo') for i in range(640)]
         burst.append(command)
         self.send(b''.join(json.dumps(item, separators=(',', ':')).encode() + b'\n'
                            for item in burst))
         answer = None
+        busy_count = 0
         for item in burst:
             reply = self.reply(item['id'])
-            self.audit.check(reply.get('gen') == str(generation), item['id'], 'live edit changed gen')
+            self.audit.check(reply.get('gen') == str(generation), item['id'], 'control request changed gen')
             self.audit.check(reply.get('ok') is True or reply.get('code') == 'busy',
                              item['id'], f'unexpected saturation reply {reply}')
+            if reply.get('code') == 'busy':
+                busy_count += 1
             if item is command:
                 answer = reply
+        self.audit.check(busy_count > 0, 'saturation', 'no full-queue busy was observed')
         return answer
 
     def close(self, unfinished=b''):
