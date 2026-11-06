@@ -4,6 +4,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 const LIMIT = 2 * 1024 * 1024;
 type Wire = Record<string, unknown>;
 const listeners = new Set<(message: Wire) => void>();
+let requestedInitialHello = false;
+let lastHello: Wire | null = null;
 
 function checkedCommand(value: Wire): string {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid command');
@@ -41,10 +43,18 @@ ipcRenderer.on('wirescape:message', (_event, raw: string) => {
     value = JSON.parse(raw);
     if (!value || Array.isArray(value) || typeof value !== 'object' || value.v !== 0) return;
   } catch { return; }
+  if (value.type === 'hello') lastHello = value;
+  if (value.type === 'app.engineExited') lastHello = null;
   for (const listener of [...listeners]) {
     try { listener(value); } catch (e) { console.error('Wirescape message listener failed', e); }
   }
 });
+
+// Keyboard delivery in synthetic tests and some WMs does not always trigger
+// webContents' before-input-event; main still checks the trusted sender.
+window.addEventListener('keydown', event => {
+  if (event.key === 'Escape') ipcRenderer.send('wirescape:escape');
+}, true);
 
 contextBridge.exposeInMainWorld('wirescape', Object.freeze({
   send(value: Wire): void {
@@ -53,7 +63,14 @@ contextBridge.exposeInMainWorld('wirescape', Object.freeze({
   onMessage(listener: (message: Wire) => void): () => void {
     if (typeof listener !== 'function') throw new TypeError('Expected callback');
     listeners.add(listener);
-    ipcRenderer.send('wirescape:ready');
+    // Replay only to this late subscriber, not to every existing listener.
+    if (lastHello) queueMicrotask(() => {
+      if (listeners.has(listener) && lastHello) listener(lastHello);
+    });
+    if (!requestedInitialHello) {
+      requestedInitialHello = true;
+      ipcRenderer.send('wirescape:ready');
+    }
     return () => { listeners.delete(listener); };
   },
   openPatch(): Promise<{ text: string; name: string } | null> {
