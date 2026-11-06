@@ -421,6 +421,16 @@ Phase-6 cloud frame samples (20 modules / 40 cables) and the recording procedure
 
 ## 19. Revision after phases 3.5–6
 
+Phase 2B-a (#281): the top-bar **KEYS** button reveals a chromatic input strip
+above the status bar, hidden by default. Its 18 keys match the computer-keyboard
+range and OCT setting; −/+ and Z/X share octave selection. Pointer press and
+focused-key Enter/Space send the existing engine note commands. Rust marks a
+locally held key, not received MIDI or synthesized telemetry. Overlapping local
+sources share pitch ownership. Release outside, cancellation, blur, hidden-page
+and Panic release notes; hiding the strip releases its sources only. Inputs and
+modal dialogs continue to block background computer notes. All updates are
+event-driven, with no timer or animation-loop subscription.
+
 Keyboard note releases remember their original pitch across octave changes. Modal dialogs contain Tab navigation, restore focus on close, and block background note/edit shortcuts. Keyboard edits pending in history commit before a new pointer gesture; click changes commit at the end of that gesture, while repeated keyboard edits still group over 350 ms. Window blur releases a held history gesture.
 
 The ticker accumulates sparse `effective` parameter deltas until replaced or deleted, including updates received while off screen or between draws. A density rebuild preserves this state; graph load/undo starts a fresh telemetry epoch. Other telemetry fields remain packet snapshots. Faders only draw a rust live marker when the effective value differs from the base and clear it when values agree.
