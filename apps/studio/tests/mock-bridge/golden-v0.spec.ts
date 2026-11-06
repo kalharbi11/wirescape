@@ -57,6 +57,7 @@ async function goldenBridge(page: Page): Promise<void> {
     const refusals: Message[] = [];
     let generation = 0;
     let sessionNumber = 1;
+    let oldSession = '';
     let selected = '';
     const session = () => 'golden-' + sessionNumber;
     const emit = (value: Message) => { for (const cb of listeners) cb(value); };
@@ -131,11 +132,16 @@ async function goldenBridge(page: Page): Promise<void> {
         for (const event of events[tag] ?? []) emit(materialize(event));
       },
       exit: () => {
+        oldSession = session();
         emit({ v: 0, type: 'app.engineExited', exitCode: null, signal: 'SIGTERM', expected: false });
         sessionNumber++;
         generation = 0;
         setTimeout(() => emit(materialize(restart!)), 0);
       },
+      stale: () => emit({ v: 0, session: oldSession, type: 'telemetry',
+        gen: String(generation), telemetry: { tick: 999, time: 999,
+          effective: {}, phase: {}, envelope: {}, meters: {}, scope: {},
+          eventActivity: {}, heldNotes: [127] } }),
       generation: () => String(generation),
       session,
     };
@@ -226,5 +232,11 @@ test('golden v0: RealEngine maps commands, replies, refusals and pushes through 
   await expect.poll(() => page.evaluate(() =>
     (window as any).__goldenBridge.completed.includes('r15'))).toBe(true);
   await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
+  await page.evaluate(() => {
+    (window as any).__goldenBridge.push('T13');
+    (window as any).__goldenBridge.stale();
+  });
+  await expect.poll(() => page.evaluate(() => window.__wirescapeTest.ticker.last?.heldNotes))
+    .toEqual([60]);
   expect(await page.evaluate(() => (window as any).__goldenBridge.errors)).toEqual([]);
 });
