@@ -105,7 +105,7 @@ def read_fixture(path):
     sections = set()
     for number, raw in enumerate(Path(path).read_text(encoding='utf-8').splitlines(), 1):
         line = raw.strip()
-        if line.startswith('# T'):
+        if len(line) == 5 and line[:3] == '# T' and line[3:].isdigit():
             section = line[2:].strip()
             sections.add(section)
         if not line or line.startswith('#'):
