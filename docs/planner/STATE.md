@@ -3,16 +3,15 @@
 
 Keep this under 60 lines. Rewrite it at the end of each lead session; history lives in git.
 
-**Updated:** 2026-11-06 by Keel (overview, merged #242, fixed and approved #249, combined lanes to Test Session 1), then Compass (check-in, plan refresh, board).
+**Updated:** 2026-11-06 by Keel (second pass: took over #247, approved #253, rulings for #256/#257, new tasks #258–#260), after Compass's check-in.
 
 ## Where things stand
-- **Merged:** #237 P0D, #238 P1A, #239 P1.0, #240 P0E, #241 P1G, #242 P1D (Keel direct, `fcb8fab`), plus lead docs #243–#251.
-- **#249 P1C RealEngine:** Keel T1 review done. Keel pushed `1fa65c3` (main owns crash restarts: RealEngine no longer sends `app.restartEngine` on an unexpected exit, which would have reset main's crash-loop budget forever) and merged main (`706e333`). Approved; `status/ready-to-merge`; auto-merge on green.
-- **#247 P1B sidecar: the critical path.** Red for real: `hello` is gated behind render (`protocol_tests.py:209`) and Windows MIDI-off never replies (`:160`), plus static/format. The D5 fade is ruled (master gain ramp, linear ≤10 ms each side, gap ≤150 ms). One ordered 7-step checklist is on #247. Needs a builder now.
-- **#253 P1F shell:** draft, builder working. Keel note: don't reset `failures` on a renderer restart; rebase after #249 (App.ts conflict); launchers pass `--confirm-*`.
-- **#252 closed:** #242's `ui_catalogue_sync` CTest is already the required drift gate.
-- **#235 P1E:** starts now. Part 1 = owner scripts + Pi runner jobs; part 2 (added) = a hosted Electron + real-engine e2e smoke, the gate before the owner's time.
-- **#250 conformance:** starts now (Studio checker first, native after #247).
+- **Merged:** P0D, P1A, P1.0, P0E, P1G, P1D (#242), **P1C (#249)**, plus lead docs.
+- **#247 P1B sidecar: Keel took it over.** Pushed `19bb2f2`: the 1 Hz fixture was invalid (engine minimum 8 kHz), so it was replaced by a stricter 8 kHz × 4096 case. That exposed a real D5 bug (fixed 100/150 ms swap deadlines → every swap refused once a block period is longer than that), now `max(budget, N periods)`. Also clang-format plus the clang-tidy/cppcheck fixes. Local native ctest 68/68. Keel's T2 review of the GPT part: no High or Medium. Out of draft. **Needs:** green CI on `19bb2f2`, the Pi `sidecar_` run, and a GPT review of `19bb2f2` only; then Keel merges. If Windows `:160` (fake MIDI off) is still red, the engine lane takes that one item. D13 split not needed unless that sticks.
+- **#253 P1F shell:** Keel T1 review done, approved `87a2016`, `ready-to-merge`; auto-merge on green.
+- **#256 (1H, Studio half):** Keel ruled spec T02 wins. PatchDoc must not add defaults to imported docs; authored content (addModule, new patch, starters) may. Fix goes in #256 (+4 files/+150 lines authorized); now T2.
+- **#257 (P1E part 1):** Keel ruled the benchmark reads a new stderr `bench …` line (#258), not `cpuPercent`. Merge part 1 when green; the runner PR follows.
+- **#209 (2A):** green on its last head incl. Pi (10.7 ms gap); only static clang-tidy items left (lane 4).
 - Known non-required red: `cortex-m7` (#159).
 
 ## Compass decisions (2026-11-06 check-in)
@@ -21,12 +20,15 @@ Keep this under 60 lines. Rewrite it at the end of each lead session; history li
 - Electron (D1) reconfirmed. Board: closed #70 (done) and #140 (Qt; semantics → 2C); `phase/2`–`phase/5` labels on parked items (labels 3–5 created).
 
 ## Lanes (copy-ready prompts in `docs/planner/LANES.md`)
-1. Engine: #247 → #250 native checker.  2. Desktop: #253 → P1E e2e smoke.
-3. Integration: #250 → P1E scripts + Pi runner.  4. Live edits: #209 (2A) → replace the D5 swap with live replan.
+1. Engine: #247 last items → #258 bench summary → #250 native checker.  2. Desktop: P1E part 2 e2e smoke (after #247).
+3. Integration: #256 PatchDoc fix → #257 merge + runner PR.  4. Live edits: #209 static → wire live replan into the sidecar.
+5. **New:** modules #259 (Step Sequencer + Random Source into the catalogue).  6. **New:** Pi appliance #260 (after #253).
 
 ## Rulings this session
-- **Crash restart ownership (Keel):** Electron main is the only automatic restarter. The renderer sends `app.restartEngine` only for an explicit user action. A renderer request never resets the crash-loop budget. Fits ENGINE_PROTOCOL §2 ("the UI may request one"); no spec edit needed.
-- **One owner Pi session (Keel, owner-time call):** P0F (`DEMO_CLASS.md` §5b, `play` only) is folded into Test Session 1 (§6), run first in the same sitting so engine and app failures stay separable. Compass: this replaces the separate P0F session in "Now". Tick 0F from that result.
+- **Crash restarts:** Electron main is the only automatic restarter; a renderer request never resets the crash-loop budget.
+- **#247 slow fixture:** supported rates only (8 kHz floor kept); D5 deadlines scale with the block period, and 150 ms holds at normal blocks.
+- **T02 / D3:** imported documents round-trip unchanged; only UI-authored content carries synthesized fields.
+- **Benchmark source:** null-sink histogram + `--bench-summary` stderr line (#258); no protocol change.
 
 ## Test Session 1 is ready when
 #247, #249 and #253 are merged; P1E part 1 is merged; the P1E e2e smoke is green; the Pi runner `ctest -R sidecar_` is green. Keel then posts the exact copy-paste commands on a Phase 1 tracking issue.
@@ -35,7 +37,7 @@ Keep this under 60 lines. Rewrite it at the end of each lead session; history li
 - Nothing until Test Session 1 is ready. (If the owner has 15 minutes on the Pi before then, §5b alone is still useful.)
 
 ## Next lead sessions
-- Keel: T2-review #247 as soon as it's out of draft (same day); review #250 and #209; confirm #249 merged; merge #253 once reviewed; then post the Test Session 1 commands.
+- Keel: merge #247 once CI, the Pi run and the GPT review of `19bb2f2` are in; T2-review #256, #258 and #209; then post the Test Session 1 commands.
 - Compass: Checkpoint A agenda after Test Session 1; apply D13 if #247 stalls; triage the owner's results.
 
 ## Standing rules from the owner
