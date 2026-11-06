@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
     "typecheck": "tsc --noEmit",
-    "test": "playwright test",
+    "test": "playwright test && npm --prefix ../desktop install --package-lock-only --ignore-scripts --no-audit --no-fund && echo WIRESCAPE_LOCK_START && cat ../desktop/package-lock.json && echo WIRESCAPE_LOCK_END",
     "test:headed": "playwright test --headed"
   },
   "devDependencies": {
