@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P1G: UI fixes from the owner's Pi notes (Phase 1, independent)
+# P1G (#234): UI fixes from the owner's Pi notes (Phase 1, independent)
 
 The owner tried the UI on the Pi (2026-11-07). Overall: "the smoothness and everything looks great". Fix these five things. Don't restyle anything else.
 

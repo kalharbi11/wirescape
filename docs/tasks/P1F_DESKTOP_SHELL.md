@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P1F: the desktop app shell (Electron) (Phase 1, after P1.0; parallel with P1B and P1C)
+# P1F (#233): the desktop app shell (Electron) (Phase 1, after P1.0; parallel with P1B and P1C)
 
 The standalone Wirescape window. It loads the built UI, starts and supervises `wirescape-engine`, and relays protocol lines. This is what the owner double-clicks on the Pi and on Windows.
 

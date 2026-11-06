@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P1C: `RealEngine.ts` + mock bridge (Phase 1, after P1.0; parallel with P1B and P1F)
+# P1C (#231): `RealEngine.ts` + mock bridge (Phase 1, after P1.0; parallel with P1B and P1F)
 
 Implement the UI's `EngineClient` over the preload bridge defined in the engine protocol spec (`docs/specs/`, from P1.0), without needing the C++ engine or the Electron shell to exist yet.
 

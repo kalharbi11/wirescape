@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P1A: import the web UI as `apps/studio/` + web CI (Phase 1, parallel with P1.0)
+# P1A (#229): import the web UI as `apps/studio/` + web CI (Phase 1, parallel with P1.0)
 
 Decision D2: the UI moves into this repo with its history.
 

@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P1E: Pi + Windows bring-up and evidence (Phase 1, after P1B + P1F)
+# P1E (#235): Pi + Windows bring-up and evidence (Phase 1, after P1B + P1F)
 
 The owner gets the app running on the Pi with one script, and the Pi runner shows the engine keeps its deadlines while the app UI animates.
 

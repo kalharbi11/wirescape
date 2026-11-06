@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P1B: `wirescape-engine`, the engine sidecar (Phase 1, after P1.0)
+# P1B (#230): `wirescape-engine`, the engine sidecar (Phase 1, after P1.0)
 
 A Qt-free C++17 executable that owns the engine, audio and MIDI and speaks the stdio protocol in `docs/specs/` (the engine protocol from P1.0). The app (P1F) starts it. It must build and run on the Pi (Linux ARM64) and Windows.
 

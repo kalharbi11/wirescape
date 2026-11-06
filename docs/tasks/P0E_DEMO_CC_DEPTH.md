@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P0E: make the demo patches' CC21–28 audibly obvious (Phase 0 follow-up, data + test)
+# P0E (#227): make the demo patches' CC21–28 audibly obvious (Phase 0 follow-up, data + test)
 
 **Finding (Pi, 2026-11-07):** M8 CC21 arrives (values 0, 64, 127), and a diagnostic copy with CC21 → VCA gain (amount 0.075, base gain 0) clearly works. But in `class_demo_2_subtractive.json`, the original CC21 → filter cutoff change wasn't audible. Likely causes: modulation depth/scaling, base cutoff, or oscillator/filter settings. CC28 also needs re-checking (the owner's M8 sent CC44 for CCH; the owner fixes that on the M8).
 

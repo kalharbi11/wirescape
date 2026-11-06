@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P0D: live MIDI clock in the headless audio callback (Phase 0 follow-up, do first)
+# P0D (#226): live MIDI clock in the headless audio callback (Phase 0 follow-up, do first)
 
 **Bug (found on the Pi, 2026-11-07):** `wirescape play --confirm-audio --confirm-midi` received M8 notes (visible in `aseqdump` and `aconnect`) but played nothing. `native/io/audio/portaudio_service.cpp:65` renders with `app_engine_render_channels()`, which passes `UINT64_MAX` (the offline anchor) to the engine. Timestamped live MIDI from `midi_host` then can't be placed in the block. Qt Studio already uses `app_engine_render_live(…, app_engine_clock_ns())` (`native/ui/studio_controller.cpp:389`). The owner's local one-line change to the same call made M8 notes audible on the Pi. This task makes that the production fix, with a regression test.
 

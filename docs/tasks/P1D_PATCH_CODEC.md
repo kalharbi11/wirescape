@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P1D: patch codec conformance + catalogue sync (Phase 1, parallel; best after P1A)
+# P1D (#232): patch codec conformance + catalogue sync (Phase 1, parallel; best after P1A)
 
 Make UI-saved patches load in the native engine, and native patches load in the UI, without losing anything (D3, D9).
 

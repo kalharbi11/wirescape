@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P1.0: engine protocol v0 spec (Phase 1, do first, about half a day)
+# P1.0 (#228): engine protocol v0 spec (Phase 1, do first, about half a day)
 
 Write `ENGINE_PROTOCOL.md` in `docs/specs/`: the contract between `wirescape-engine` (P1B), the Electron main process (P1F) and `RealEngine.ts` (P1C). It must be specific enough that those three can be built in parallel against it. It follows `docs/PLAN.md` decisions D1, D3–D9.
 
