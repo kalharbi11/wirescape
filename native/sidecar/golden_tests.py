@@ -345,7 +345,9 @@ class Engine:
         # --null-audio reopens only the fake paced sink, never an actual device.
         burst = [dict(v=0, id=f'golden-fill-{i}', type='selectAudioDevice',
                       deviceId='USB Stereo') for i in range(640)]
-        burst.append(command)
+        # Put the golden refusal while the queue is saturated, not after the
+        # trailing drain (where the same command can correctly succeed).
+        burst.insert(320, command)
         # Drain replies while the burst is still being written. A full stdin
         # pipe plus a full stdout pipe must never deadlock the test itself.
         write_errors = []
