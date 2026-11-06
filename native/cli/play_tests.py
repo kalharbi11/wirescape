@@ -25,6 +25,10 @@ with tempfile.TemporaryDirectory(prefix="play-", dir=Path.cwd()) as work:
     # Future service hooks fail before any endpoint is opened.
     refused = subprocess.run([runner, "play", patch, "--midi", "fake"], capture_output=True, timeout=10)
     assert refused.returncode != 0 and b"confirmation" in refused.stderr
+    # Parsing and refusal happen before constructing the real MIDI backend.
+    listed = subprocess.run([runner, "play", "--list-midi"], capture_output=True, timeout=10)
+    assert listed.returncode != 0 and b"--confirm-midi" in listed.stderr
+    assert b"Unknown play argument" not in listed.stderr
     if os.name != "nt":
         interrupted = Path(work) / "interrupted.wav"
         process = subprocess.Popen([runner, "play", patch, "--pace", "--output", str(interrupted)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)

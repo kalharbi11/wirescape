@@ -51,3 +51,17 @@ Troubleshooting:
 - **Library missing:** install `libportaudio2`; `libasound2-plugins` supplies common server routes.
 - **Silent patch:** inspect the offline peak/RMS, output bus and gate wiring before opening a device.
 - **Patch refused:** only native v1/v2 patches load. Unknown modules/state/config are reported; originals are never rewritten by `play`.
+
+## Class demo (owner only)
+
+Follow [the class rehearsal runbook](DEMO_CLASS.md). Build the accepted native
+revision and UI (`npm ci && npm run build` in the UI checkout), then copy
+`tools/pi/demo.env.example` to `~/.config/wirescape/demo.env` and edit its quoted
+paths and exact endpoint names. `play --list-midi --confirm-midi` lists input
+`name|system_name` pairs without opening ports; only the owner enumerates devices.
+`tools/pi/demo.sh --dry-run 1` prints the patch and argv without launching anything.
+`tools/pi/demo.sh 1` starts sound, MIDI and the local UI kiosk; `2` / `3` switch
+patches with a short stop/start gap. `status` shows owned PIDs/log; `stop` stops
+only the launcher's recorded processes. The web UI uses FakeEngine in Phase 0;
+it does not control the audible native patch yet. The env file is trusted shell
+configuration: keep it private. No autostart or service is installed.
