@@ -50,7 +50,9 @@ class Audit:
                     self.compare(item, by_id[item['id']], where + '[' + item['id'] + ']')
             return
         if expected == '*':
-            valid = isinstance(actual, str) and bool(actual) and all(32 <= ord(c) < 127 for c in actual)
+            valid = isinstance(actual, str) and bool(actual) and all(c.isprintable() for c in actual)
+            if where.endswith(('.session', '.engine.version', '.engine.sha')):
+                valid = valid and actual.isascii()
             if where.endswith('.telemetry.time'):
                 valid = type(actual) in (int, float) and math.isfinite(actual) and actual >= 0
             self.check(valid, where, f'expected nonempty token/observed time, got {actual!r}')
@@ -168,6 +170,7 @@ class Engine:
         where = f'wire[{self.sequence}]'
         self.audit.check(value.get('v') == 0, where, 'missing protocol v0')
         if value.get('type') == 'hello':
+            self.audit.check(self.session is None, where, 'unexpected second hello')
             self.audit.check('re' not in value and 'gen' not in value, where, 'hello envelope')
         else:
             self.audit.check(isinstance(value.get('gen'), str) and
