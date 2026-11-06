@@ -1,52 +1,71 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Class demo on the Pi (Phase 0, 2026-11-07)
+# Pi hardware checks: Phase 0 record and the owner's audio/MIDI steps
 
-**Goal:** a smooth demo with no new engine code. Sound starts the moment the demo starts, MIDI keys play, CC knobs move the sound, and the new web UI is on screen. Everything here uses what already works on `main`. The two helper pieces (demo patches, launcher) are tasks P0A and P0B. If they aren't merged in time, use the manual commands in section 3; they do the same thing by hand.
+## 1. Phase 0 record (2026-11-07): stopped and deferred, not passed
+The browser/kiosk class demo was stopped. The web UI ran on its simulated engine (fake audio and MIDI device lists), and kiosk mode had no way to leave the app. The plan moved to the standalone app (`docs/PLAN.md`, Phase 1).
 
-**What you can honestly say in class:** "This is the engine running live on a Raspberry Pi 5. MIDI and CC come from my controller. This is the new interface, running in Chromium on the same Pi. Next week the interface drives this engine directly, including live patching."
+| Item | Result |
+|---|---|
+| Pi Release headless build of `~/wirescape-demo`, branch `demo` (#222 + #221) | **Passed** |
+| PortAudio outputs seen | 0 HDMI, 1 M8 USB Audio, 2 CM477-30757 USB Audio, 3 PulseAudio |
+| `wirescape play` on device 2 | Process ran: CPU 13–19%, `xruns=1` (stable), `faults=0`. **Audible output not confirmed.** |
+| CM477 missing from PortAudio's list while playing; ALSA `Subdevices: 0/1` | Expected: our process holds the ALSA device exclusively. Not a bug by itself. |
+| M8 over USB MIDI, endpoint `M8 MIDI 1\|M8:M8 MIDI 1` | **Verified at Linux level** with `aseqdump`: notes 36/40/43/48, CC21 (96, 127), MIDI channel 1 |
+| M8 notes/CC changing Wirescape's sound | **Not verified** |
+| Web UI in Chromium on the Pi | Smooth (owner). Fake devices only, by design of the simulated engine |
 
-## 1. Tonight: rehearsal checklist (about 45 minutes)
-Do these in order on the Pi, with the USB audio adapter, the controller(s) and the HDMI display connected.
+## 2. Leaving a kiosk window (if one is still open)
+Press **Alt+F4**. If that doesn't work, open a terminal (Ctrl+Alt+T) and run `~/wirescape-demo/tools/pi/demo.sh stop`, or `pkill -f chromium`.
 
-1. **Update and build** (persistent checkout, as in `docs/PI_KIOSK.md`):
-   ```sh
-   cd ~/wirescape-demo && git fetch origin && git switch --detach origin/main
-   CMAKE_BUILD_PARALLEL_LEVEL=2 python3 tools/dev.py build --headless --config Release
-   CLI=$(find build -name wirescape_cli -type f | head -1); echo "$CLI"
-   ```
-   If P0A/P0B are merged, use their merge commit instead of `origin/main`.
-2. **Offline check, no devices:** `"$CLI" play native/examples/chaos_usb_midi.json`. It should print peak/RMS and write `build/play-offline.wav`.
-3. **Find the audio device:** `"$CLI" play --list-devices`. Note the USB adapter's index or exact name.
-4. **Find the MIDI ports:** `aconnect -l` (or `"$CLI" play --list-midi` once P0B is in). Note the controller's port name.
-5. **First sound, low volume:**
-   ```sh
-   "$CLI" play native/examples/chaos_usb_midi.json --confirm-audio --confirm-midi \
-     --midi "<controller port name>" --device "<USB adapter>" --rate 48000 --block 256
-   ```
-   Play keys. The terminal prints `cpu=… xruns=… faults=…` once a second. xruns should stay at 0. If they climb, close other apps and keep `--block 256`.
-6. **Find your CC numbers:** run `aseqdump -p "<controller port name>"` (Ctrl+C to stop), turn each knob you want to use, and note the controller numbers (`control change … param NN`). **Send these numbers to the agent doing P0A** (or post them on its issue). Up to 8 knobs.
-7. **Web UI on the same Pi:** in the `Wirescape-UI` checkout:
-   ```sh
-   npm ci && npm run build && (cd dist && python3 -m http.server 4173 --bind 127.0.0.1) &
-   chromium-browser --kiosk --app=http://127.0.0.1:4173   # or `chromium` on newer Pi OS
-   ```
-   Load a starter, move a knob and drag a cable. Check that the sound from step 5 doesn't glitch while the UI animates (watch xruns).
-8. **Rehearse the switch:** Ctrl+C the sound, start the next patch, and check how long the gap is. With P0B: `tools/pi/demo.sh 2`.
-9. **Fallback check (2 minutes):** Qt Studio fullscreen, as in `docs/CHAOS_USB_DEMO.md`. Confirm it still opens and plays, in case the headless path misbehaves tomorrow.
-10. Write down what worked, plus the exact device and port names, in a local note (not in the repo).
+## 3. One-time setup for the commands below
+```sh
+cd ~/wirescape-demo
+CLI=$(find build -name wirescape_cli -type f | head -1); echo "$CLI"
+tools/pi/demo.sh stop 2>/dev/null; pgrep -a wirescape_cli || echo "no player running"
+```
+No rebuild is needed: the `demo` branch build from 2026-11-07 is what these steps use.
 
-## 2. Tomorrow: running order (about 5–8 minutes)
-1. Before class: boot the Pi, connect everything, run `tools/pi/demo.sh 1` (or the manual commands). Sound is on, and the UI is fullscreen.
-2. **Sound first (2 min):** play the CHAOS patch from the keyboard and sweep the CC knobs (P0A maps them to CHAOS and filter parameters).
-3. **Patch switch (1 min):** `demo.sh 2` gives subtractive VCO → VCF → ADSR with an LFO; `demo.sh 3` gives Macro Oscillator.
-4. **New interface (2–3 min):** on the same screen, show the module library, patching cables, modulation amounts on cables, a signature panel (sequencer, mixer), undo, and save. Say clearly that it is running on a simulated engine today.
-5. **Close (1 min):** the architecture slide in one sentence: C++ realtime engine → local host → web UI in the browser, Pi first, Windows next, open source.
-6. If anything stalls: Ctrl+C the sound, restart `demo.sh 1`. If headless audio fails entirely, use Qt Studio fullscreen with the same patch (press Start).
+## 4. Is the USB adapter itself making sound? (no Wirescape involved)
+```sh
+aplay -l                         # note the CM477's card number, e.g. "card 3"
+alsamixer -c 3                   # raise PCM/Speaker, press M to unmute if it shows MM, Esc to exit
+speaker-test -D plughw:3,0 -c 2 -t sine -f 440 -l 2
+```
+- **You hear a tone:** the adapter, cable and speakers work. Go to §5.
+- **You hear nothing:** the problem is outside Wirescape (volume, mute, cable, headphones, adapter). Fix that first; Wirescape can't be louder than this.
 
-## 3. Manual commands (if P0A/P0B aren't merged)
-- Sound: step 5 above, with `native/examples/chaos_usb_midi.json`. It has MIDI notes, but no CC mapping.
-- UI: step 7 above.
-- Stop: Ctrl+C in the sound terminal; `pkill -f http.server; pkill chromium`.
+## 5. Wirescape sound, then the M8
+**5a. Sound without MIDI** (the Six Essentials demo plays by itself from its clock):
+```sh
+"$CLI" play --list-devices       # use the CM477's exact name, as printed
+"$CLI" play native/examples/Six_Essentials_Demo.json --confirm-audio \
+  --device "<CM477 name>" --rate 48000 --block 256
+```
+Ctrl+C stops it. **Pass:** audible sound, and `xruns` stays flat.
 
-## 4. Rules that still hold
-Only you run the `--confirm-*` commands. Start at a low volume. Don't commit device names, recordings or local patch copies. Afterwards, post a short debrief (what broke, what people asked) as one comment on the Phase 1 tracking issue; it feeds Checkpoint A.
+**5b. M8 notes and CC** (writes a local copy of the patch with the M8 enabled; it is never committed):
+```sh
+mkdir -p ~/.cache/wirescape
+for n in 1_chaos 2_subtractive 3_macro; do python3 -I -c "
+import json,sys; d=json.load(open(sys.argv[1]))
+d['devices']=[{'kind':'midi','name':'M8 MIDI 1','system_name':'M8:M8 MIDI 1','enabled':True}]
+json.dump(d,open(sys.argv[2],'w'),indent=1)" native/examples/class_demo_$n.json ~/.cache/wirescape/m8_$n.json; done
+"$CLI" play ~/.cache/wirescape/m8_2_subtractive.json --confirm-audio --confirm-midi \
+  --device "<CM477 name>" --rate 48000 --block 256
+```
+Play notes from the M8, then automate CC21–28. Repeat with `m8_1_chaos.json` and `m8_3_macro.json`.
+
+**Pass, per patch:** M8 notes play and stop cleanly (no stuck notes after the M8 stops); each of CC21–28 audibly changes something; no growing `xruns`; `faults=0`. If notes don't sound, run `"$CLI" play --list-midi --confirm-midi` and check that the printed name and system name match the two strings in the snippet exactly.
+
+Post the results (pass or fail per step, plus any error text) on the Phase 1 tracking issue. This is the first Phase 1 hardware fact.
+
+## 6. Phase 1 exit check (when P1B + P1F + P1E have merged)
+```sh
+cd ~/wirescape-demo && git fetch origin && git switch --detach origin/main
+tools/pi/update-and-build.sh            # from P1E; incremental after the first run
+tools/pi/install-desktop-entry.sh       # once; adds "Wirescape" to the menu with audio + MIDI consent
+```
+Open **Wirescape** from the menu. **Pass:** a normal window (minimize, close and Esc out of fullscreen work); sound running with no Start button; Settings lists the CM477 and the M8 (real names); each class demo patch plays from the M8 and CC21–28 move the sound; knobs are live; a cable edit applies with at most a short gap; meters move; Panic works. Record pass or fail per item on the Phase 1 tracking issue.
+
+## Rules
+Only you run `--confirm-*` commands. Start at a low volume. Never commit device names, recordings or the `~/.cache/wirescape` copies.
