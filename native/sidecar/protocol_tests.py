@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Process conformance: pipes, null sink and an explicitly fake device catalogue."""
+import atexit
 import json
 import queue
 import subprocess
@@ -39,7 +40,8 @@ class Engine:
                     self.messages.put(json.loads(line, object_pairs_hook=strict_object))
             except Exception as error:
                 self.errors.append(error)
-        self.reader = threading.Thread(target=read)
+        atexit.register(lambda: self.process.kill() if self.process.poll() is None else None)
+        self.reader = threading.Thread(target=read, daemon=True)
         self.reader.start()
         self.hello = self.messages.get(timeout=10)
         assert self.hello['type'] == 'hello' and self.hello['protocol'] == 0

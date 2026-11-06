@@ -112,4 +112,19 @@ add_subdirectory(engine2)
 add_subdirectory(tools/capture)
 
 # Qt-free stdio engine process; no devices without explicit confirmation.
-add_subdirectory(sidecar)
+find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+execute_process(COMMAND git rev-parse --short=12 HEAD WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  OUTPUT_VARIABLE engine_sha OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+add_executable(wirescape_engine_sidecar sidecar/main.cpp sidecar/protocol.cpp sidecar/session.cpp sidecar/devices.cpp)
+set_target_properties(wirescape_engine_sidecar PROPERTIES OUTPUT_NAME wirescape-engine)
+target_compile_definitions(wirescape_engine_sidecar PRIVATE WIRESCAPE_ENGINE_SHA="${engine_sha}")
+target_link_libraries(wirescape_engine_sidecar PRIVATE wirescape_runtime_document wirescape_audio_service
+  wirescape_midi_host nlohmann_json::nlohmann_json Threads::Threads)
+add_test(NAME abi2_sidecar_protocol_tests COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/sidecar/protocol_tests.py
+  $<TARGET_FILE:wirescape_engine_sidecar> ${PROJECT_SOURCE_DIR}/examples)
+set_tests_properties(abi2_sidecar_protocol_tests PROPERTIES TIMEOUT 90)
+add_executable(sidecar_protocol_unit_tests sidecar/protocol_unit_tests.cpp sidecar/protocol.cpp sidecar/devices.cpp tests2/allocation_watch.cpp)
+target_link_libraries(sidecar_protocol_unit_tests PRIVATE wirescape_runtime_document wirescape_audio_service
+  wirescape_midi_host nlohmann_json::nlohmann_json Threads::Threads)
+add_test(NAME abi2_sidecar_unit_tests COMMAND sidecar_protocol_unit_tests)
+set_tests_properties(abi2_sidecar_unit_tests PROPERTIES TIMEOUT 30)

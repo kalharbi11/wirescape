@@ -30,6 +30,7 @@ public:
     Json activity();
     void clear_notes();
     bool inject(const midi::Endpoint&,const uint8_t*,size_t,uint64_t);
+    bool inject_ump(const midi::Endpoint&,const uint32_t*,size_t,uint64_t);
 };
 Json audio_devices(const std::string& directory, bool fake);
 Json midi_devices(const std::vector<midi::Endpoint>&, const std::vector<midi::Endpoint>&, bool authorized);

@@ -53,6 +53,9 @@ void ObservedMidi::clear_notes(){for(auto&s:slots_)for(auto&key:s.notes)key.stor
 bool ObservedMidi::inject(const midi::Endpoint&e,const uint8_t*data,size_t size,uint64_t time){
     if(!fake_)return false;for(auto&s:slots_)if(s.endpoint.name==e.name&&s.endpoint.system_name==e.system_name){message(&s,data,size,time);return true;}return false;
 }
+bool ObservedMidi::inject_ump(const midi::Endpoint&e,const uint32_t*data,size_t size,uint64_t time){
+    if(!fake_)return false;for(auto&s:slots_)if(s.endpoint.name==e.name&&s.endpoint.system_name==e.system_name){ump(&s,data,size,time);return true;}return false;
+}
 Json ObservedMidi::activity(){
     Json result=Json::object();auto now=app_engine_clock_ns();std::lock_guard<std::mutex>lock(mutex_);
     for(const auto&s:slots_){auto stamp=s.activity.load();if(!stamp||s.endpoint.name.empty())continue;

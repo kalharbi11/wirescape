@@ -28,9 +28,15 @@ int main(){
     ObservedMidi fake(true,false);auto endpoints=fake.endpoints();check(endpoints.size()==1);
     int messages=0;
     wirescape::midi::Callback cb{&messages,[](void*context,const uint8_t*,size_t,uint64_t){++*static_cast<int*>(context);},nullptr};
-    check(fake.open(endpoints[0],cb));uint8_t on[]={0x90,60,100},off[]={0x90,60,0};
+    check(fake.open(endpoints[0],cb));
+    check(fake.activity().empty());uint8_t on[]={0x90,60,100},off[]={0x90,60,0};
     check(fake.inject(endpoints[0],on,3,100));check(fake.held()==Json::array({60}));
     check(fake.inject(endpoints[0],off,3,110));check(fake.held().empty());check(messages==2);
+    fake.inject(endpoints[0],on,3,app_engine_clock_ns());check(!fake.activity().empty());
+    fake.clear_notes();check(fake.held().empty());
+    uint32_t midi2_on[]={0x40903c00,0},midi2_off[]={0x40803c00,0};
+    check(fake.inject_ump(endpoints[0],midi2_on,2,app_engine_clock_ns()));check(fake.held()==Json::array({60}));
+    check(fake.inject_ump(endpoints[0],midi2_off,2,app_engine_clock_ns()));check(fake.held().empty());
     fake.inject(endpoints[0],on,3,120);fake.close(endpoints[0]);check(fake.held().empty());
     ws_engine_config config{sizeof(config),48000,128,64,2048};
     wirescape::audio::EngineOwner catalogue(app_engine_create(&config),app_engine_destroy);

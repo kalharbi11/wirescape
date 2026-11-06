@@ -68,7 +68,7 @@ void Session::start_audio(){
         catch(const std::exception&){audio_state_="no-device";if(!engine_)throw;}
     }else{
         active_=engine_.get();
-        sink_=std::thread([this]{std::vector<float>left(options_.block),right(options_.block);float*rows[]={left.data(),right.data()};auto next=std::chrono::steady_clock::now();
+        sink_=std::thread([this,left=std::vector<float>(options_.block),right=std::vector<float>(options_.block)]()mutable{float*rows[]={left.data(),right.data()};auto next=std::chrono::steady_clock::now();
             while(!stop_sink_.load()) {auto before=std::chrono::steady_clock::now();if(app_engine_render_live(active_,rows,2,options_.block,app_engine_clock_ns())!=WS_OK)break;
                 double elapsed=std::chrono::duration<double>(std::chrono::steady_clock::now()-before).count();cpu_.store(elapsed*options_.rate/options_.block*100);
                 next+=std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(double(options_.block)/options_.rate));std::unique_lock<std::mutex> lock(sink_mutex_);sink_wake_.wait_until(lock,next,[this]{return stop_sink_.load();});
