@@ -21,7 +21,7 @@ test('T01, T02, T09, T10: hello catalogue, correlated commands and real device l
   const midi = wire.find(m => m.type === 'listMidiDevices');
   expect(audio?.id).not.toBe(midi?.id);
   await page.getByTestId('audio-device').selectOption('USB Stereo');
-  const select = await page.evaluate(() => (window as any).__mockBridge.sent.findLast(
+  const select = await page.evaluate(() => [...(window as any).__mockBridge.sent].reverse().find(
     (m: any) => m.type === 'selectAudioDevice'));
   expect(select).toMatchObject({ type: 'selectAudioDevice', deviceId: 'USB Stereo' });
   expect(select.id).not.toBe(select.deviceId);
@@ -70,7 +70,7 @@ test('T07: setModAmount uses top-level amount, not nested amount', async ({ page
   await expect.poll(async () =>
     (await page.evaluate(() => (window as any).__mockBridge.getGraph())).connections[0].amount)
     .toBe(-0.5);
-  const cmd = await page.evaluate(() => (window as any).__mockBridge.sent.findLast(
+  const cmd = await page.evaluate(() => [...(window as any).__mockBridge.sent].reverse().find(
     (m: any) => m.type === 'setModAmount'));
   expect(cmd.amount).toBe(-0.5);
   expect(cmd.connection.amount).toBe(0.2);
