@@ -8,11 +8,19 @@ The browser/kiosk class demo was stopped. The web UI ran on its simulated engine
 |---|---|
 | Pi Release headless build of `~/wirescape-demo`, branch `demo` (#222 + #221) | **Passed** |
 | PortAudio outputs seen | 0 HDMI, 1 M8 USB Audio, 2 CM477-30757 USB Audio, 3 PulseAudio |
-| `wirescape play` on device 2 | Process ran: CPU 13–19%, `xruns=1` (stable), `faults=0`. **Audible output not confirmed.** |
+| `wirescape play` on device 2 (first try) | Process ran: CPU 13–19%, `xruns=1`, `faults=0`; no sound heard |
+| USB adapter alone (YouTube, adapter selected in Pi OS) | **Pass** |
+| `Six_Essentials_Demo.json`, `--device pulse`, 48k/256 | **Pass**: audible, CPU 1–2%, `xruns=0`, `faults=0` |
+| `m8_2_subtractive.json` + M8 notes 36/40/43/48 | **Pass after a local fix** (render with the live clock; production fix = P0D): pitch follows notes, CPU 5–6%, `xruns=0` |
+| CC21 values 0/64/127 received; CC21 → VCA gain (diagnostic copy, amount 0.075) | **Pass** |
+| CC21 → filter cutoff in the original subtractive patch | **Not audible** (P0E) |
+| CC22–28 (M8 CCH sent CC44; must be set to CC28 on the M8), CHAOS + M8, Macro + M8 | **Not verified** |
+| Note release, stuck notes, MIDI disconnect, long run | **Not verified** |
 | CM477 missing from PortAudio's list while playing; ALSA `Subdevices: 0/1` | Expected: our process holds the ALSA device exclusively. Not a bug by itself. |
 | M8 over USB MIDI, endpoint `M8 MIDI 1\|M8:M8 MIDI 1` | **Verified at Linux level** with `aseqdump`: notes 36/40/43/48, CC21 (96, 127), MIDI channel 1 |
-| M8 notes/CC changing Wirescape's sound | **Not verified** |
 | Web UI in Chromium on the Pi | Smooth (owner). Fake devices only, by design of the simulated engine |
+
+**Use `--device pulse`** (follows the output chosen in Pi OS audio settings) unless a test says otherwise. The simulated web UI's devices ("Built-in Audio", "Scarlett") and its meters are fake and make no sound.
 
 ## 2. Leaving a kiosk window (if one is still open)
 Press **Alt+F4**. If that doesn't work, open a terminal (Ctrl+Alt+T) and run `~/wirescape-demo/tools/pi/demo.sh stop`, or `pkill -f chromium`.
@@ -39,7 +47,7 @@ speaker-test -D plughw:3,0 -c 2 -t sine -f 440 -l 2
 ```sh
 "$CLI" play --list-devices       # use the CM477's exact name, as printed
 "$CLI" play native/examples/Six_Essentials_Demo.json --confirm-audio \
-  --device "<CM477 name>" --rate 48000 --block 256
+  --device pulse --rate 48000 --block 256
 ```
 Ctrl+C stops it. **Pass:** audible sound, and `xruns` stays flat.
 
@@ -51,7 +59,7 @@ import json,sys; d=json.load(open(sys.argv[1]))
 d['devices']=[{'kind':'midi','name':'M8 MIDI 1','system_name':'M8:M8 MIDI 1','enabled':True}]
 json.dump(d,open(sys.argv[2],'w'),indent=1)" native/examples/class_demo_$n.json ~/.cache/wirescape/m8_$n.json; done
 "$CLI" play ~/.cache/wirescape/m8_2_subtractive.json --confirm-audio --confirm-midi \
-  --device "<CM477 name>" --rate 48000 --block 256
+  --device pulse --rate 48000 --block 256
 ```
 Play notes from the M8, then automate CC21–28. Repeat with `m8_1_chaos.json` and `m8_3_macro.json`.
 

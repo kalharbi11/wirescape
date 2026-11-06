@@ -12,15 +12,17 @@ Keep this under 60 lines. Rewrite it at the end of each planner session; history
 - Workflow v3 in `AGENTS.md` + `docs/WORKFLOW.md`. The pause on #29 ends when the plan PR merges.
 - Phase 1 task files: P1_0, P1A, P1B (sidecar), P1C, P1D, P1E, P1F (Electron shell), P1G (owner UI fixes).
 
+## Hardware facts (Pi, 2026-11-07)
+Audio via `--device pulse` works; M8 notes play only with the live-clock fix (P0D, local edit on the Pi);
+CC21 → VCA works; CC21 → cutoff inaudible (P0E); CHAOS/Macro and CC22–28 unverified.
+
 ## Waiting on the owner
-- `docs/DEMO_CLASS.md` §4–5 results: adapter tone, Six Essentials sound, M8 notes + CC21–28 per patch.
-- Opening the plan PR (or asking the planner to) + `allow-protected`; re-enabling the Pi runner workflows.
+- Plan PR open + `allow-protected`; "Project resumed" on #29; Pi runner workflows re-enabled.
+- After P0D/P0E merge: the 3 patches × CC21–28 check (`docs/DEMO_CLASS.md` §5b).
 
 ## Next planner session
-- Read the owner's §5 results. If audio fails beyond the adapter (§4 passes, §5a fails), write a
-  diagnostic task for `play`/`portaudio_service` before P1B builds on it.
-- Open the Phase 1 issues (one per section, `phase/1`); apply "Open work at resume" in PLAN.md.
-- Review P1.0 (T2) as soon as it has a PR.
+- Review P0D (T2, cross-family if the author isn't Claude) and P1.0 (T2).
+- Open the Phase 0 follow-up and Phase 1 issues (one per section); apply "Open work at resume" in PLAN.md.
 
 ## Standing rules from the owner
 - Don't plan agent assignment; the owner and their managers assign. Keep sections parallel where possible.

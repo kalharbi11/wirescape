@@ -5,7 +5,8 @@ How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) liv
 
 ## Now
 - **Updated 2026-11-07 after the Pi test (owner notes + test report).** The browser/kiosk demo is **stopped and deferred, not passed**: the web UI ran on its simulated engine, so it showed fake audio and MIDI devices, and kiosk mode had no way to leave. **New direction:** go straight to the **standalone Wirescape app**, a real window with title bar, minimize, close and menus, containing the web UI (which the owner likes) wired to the real C++ engine. No browser, kiosk, HTTP server or LAN step.
-- **Priority order:** (1) real audible output on the Pi with the M8 as MIDI input; (2) the standalone app with real audio and MIDI device menus; (3) live MIDI, CC and patch editing; (4) the owner's UI fixes (P1G, runs in parallel); (5) everything else.
+- **Pi hardware test 2026-11-07 (owner): PARTIAL PASS.** Real audio through the CM477 (`--device pulse`), M8 notes play the native subtractive synth, and CC21 drives VCA gain. MIDI notes only worked after a local one-line fix (the headless audio callback rendered without the live MIDI clock), which is now **P0D**, the first thing to build. CC21 → filter wasn't audible (**P0E**). CHAOS, Macro and the full CC21–28 set are still unverified.
+- **Priority order:** (1) P0D live MIDI clock fix; (2) the standalone app (Phase 1) with real audio and MIDI device menus, Pi first; (3) P0E audible CC mappings; (4) the owner's UI fixes (P1G, in parallel); (5) live editing (Phase 2); then everything else.
 - **Windows can speed up testing:** the app and engine are cross-platform from day one, so a section can be smoke-tested on the laptop when that's quicker. The Pi stays the acceptance target, and Pi-only problems (like the USB adapter) are tested on the Pi.
 - **The pause on #29 is lifted** once this plan merges. The old queue comment and scheduled check-ins stay retired.
 
@@ -13,14 +14,17 @@ How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) liv
 **Works (verified):**
 - Native engine: ABI 2 `engine2` with 19 modules in the app catalogue: VCO, LFO, VCF, ADSR, VCA, Clock, Function Envelope, Ladder, Mixer, Noise, Output, Scale/Offset, Slew, Host Keyboard, CHAOS-lite, MIDI In, MIDI→CV, CC→CV, Macro Oscillator. Polyphony, feedback, normalized modulation.
 - Pi Release headless build of `~/wirescape-demo` (branch `demo` = #222 + #221) **passed** on 2026-11-07.
-- Headless `wirescape play` runs on the Pi with real PortAudio output: CPU 13–19%, `xruns=1` (stable), `faults=0`.
+- **Audible output on the Pi:** `Six_Essentials_Demo.json` via `--device pulse` (the CM477 selected in Pi OS), 48 kHz / 256: sound, CPU 1–2%, `xruns=0`, `faults=0`.
+- **M8 → engine:** with a local fix (P0D), `m8_2_subtractive.json` plays M8 notes 36/40/43/48 with correct pitch, CPU 5–6%, `xruns=0`. libremidi is connected to the M8 (`aconnect`: 24:0 → 129:0).
+- **CC → DSP:** CC21 (full 0–127) through `midi.cc_to_cv` drives VCA gain in a diagnostic patch copy.
 - Pi MIDI at the Linux level: Dirtywave M8 over USB (endpoint `M8 MIDI 1|M8:M8 MIDI 1`); `aseqdump` shows notes 36/40/43/48 and CC21 on MIDI channel 1.
 - Demo patches (#221): CHAOS, subtractive, Macro, with CC21–28 mapped. Launcher + `play --list-midi` (#222).
 - Web UI (`wirescape-ui` `main`): complete with `FakeEngine`; on the Pi it runs smoothly in Chromium (owner, 2026-11-07).
 
 **Unverified:**
-- Audible output on the Pi. The CM477 USB adapter dropping out of PortAudio's list while `play` runs is expected (our process holds the ALSA device exclusively, hence `Subdevices: 0/1`), but no one has heard sound yet. The owner checks this with `docs/DEMO_CLASS.md` §5.
-- M8 notes and CC actually changing the engine's sound.
+- The P0D fix on `main` (it exists only as the owner's local edit).
+- CC21 → filter cutoff audibility, the full CC21–28 set (CCH must be set to CC28 on the M8), and the CHAOS and Macro patches with the M8.
+- Note release and stuck notes under MIDI disconnect, and long-run stability with live MIDI.
 
 **Missing:** the app shell, the engine sidecar, `RealEngine`, and real device lists in the UI. Live graph edits exist only in draft #209. The UI's Step Sequencer and Random Source aren't in the app catalogue.
 
@@ -58,7 +62,10 @@ Each phase lists sections (letter blocks). Sections in a phase run in parallel u
 ### Phase 0: Class demo, stopped and deferred (not passed)
 - [x] 0A Demo patches (#221): keep and merge after review. They are the Phase 1 test patches.
 - [x] 0B Pi demo launcher + `play --list-midi` (#222): merge the `play --list-midi` part and the player start. The browser/kiosk part of `demo.sh` stays as is but is deferred; don't extend it.
-- [ ] 0C Owner: confirm audible output and M8 control with headless `play` (`docs/DEMO_CLASS.md` §5). This is the first Phase 1 hardware fact. It needs no new code.
+- [x] 0C Owner hardware check (2026-11-07): partial pass (record: `docs/DEMO_CLASS.md` §1).
+- [ ] **0D Live MIDI clock fix** (`docs/tasks/P0D_LIVE_MIDI_CLOCK.md`, T2, small): the headless audio callback renders with the live clock, plus a regression test. **Do first.** Phase 1's engine sidecar inherits it.
+- [ ] **0E Audible demo CC mappings** (`docs/tasks/P0E_DEMO_CC_DEPTH.md`): CC21–28 sweep obvious ranges in all 3 patches, with an offline test that proves it. Parallel with Phase 1.
+- [ ] 0F Owner, after 0D/0E merge: rebuild from a clean checkout and verify all 3 patches × CC21–28 with the M8 (`docs/DEMO_CLASS.md` §5b). Hardware acceptance of Phase 0 needs all 24 combinations.
 
 ### Phase 1: The standalone app with the real engine (Pi first, Windows works too)
 **1.0 comes first** (small, about half a day). 1A, 1D and 1G can start right away; 1B, 1C and 1F follow 1.0 and run in parallel.
