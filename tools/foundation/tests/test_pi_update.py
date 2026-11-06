@@ -92,7 +92,7 @@ esac
         self.assertEqual(sum("run build" in line for line in calls), 2)
         self.assertIn(SHA, done.stdout)
         self.assertIn("--confirm-audio --confirm-midi", done.stdout)
-        self.assertIn("'wirescape update space ", done.stdout)
+        self.assertIn(str(self.root), done.stdout)
         self.assertNotIn("--null-audio", done.stdout)
 
     def test_dirty_checkout_fails_before_fetch_or_build(self):
