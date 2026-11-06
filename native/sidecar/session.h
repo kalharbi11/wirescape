@@ -26,7 +26,7 @@ class Session {
     std::mutex sink_mutex_;
     std::condition_variable sink_wake_;
     std::thread sink_;
-    std::atomic<bool> stop_sink_{false};
+    std::atomic<bool> stop_sink_{false}, sink_rendering_{false};
     std::atomic<double> cpu_{0};
     std::atomic<uint64_t> dropouts_{0};
     std::chrono::steady_clock::time_point started_ = std::chrono::steady_clock::now();
