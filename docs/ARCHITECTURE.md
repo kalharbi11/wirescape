@@ -171,6 +171,18 @@ Clock, function envelope and ladder have isolated ABI2 ports with per-voice stat
 
 Engine2 reports forward signal latency per output bus and feedback delay separately per SCC. Quiescent reconfiguration stages only the changed processor; untouched instances and compatible loop delay lines retain their state, with port-ID remapping committed after validation.
 
+Live topology edits stage a complete candidate before a bounded render-park
+handshake. Commit swaps prepared graph layouts into the existing Impl, retaining
+surviving Nodes/DSP, producer rings, queued events and unchanged feedback delays.
+Render fades out/in within one block and advances its clock while parked silent;
+it never waits on control. Ack versus timeout has one atomic winner. Target
+validation runs on render drain, with packet revisions rejecting removed/reused
+node targets. Removed event edges receive a resume choke. Replan discards
+counted stale future events routed through removed edges while retaining
+external future events for surviving targets. The control facade
+retains its catalogue and rebinds staged ABI1 descriptors before retirement.
+Device and input-selection controls remain stop-only.
+
 ## J1 app integration candidate
 
 `native/control/app_engine.*` adapts app control and metadata to engine2; built-in
@@ -243,6 +255,13 @@ Shutdown joins
 MIDI producers and drains source chokes before stopping render or destroying its
 engine. Raw MIDI releases use the same reserved queue classification as note
 releases; MIDI 2 zero-velocity Note On remains a Note On.
+
+The MIDI Host's internal live-replan seam stages subscriptions before committing
+a candidate. A control-thread try-lock excludes only MIDI worker dispatch during
+replan; backend callbacks keep their rings and audio never takes this lock. A busy
+worker or refused candidate preserves both graph and routes. Keyboard conversion
+is carried in the route table so new/removed sources cannot race a separate list.
+This seam is not yet connected to the sidecar (#267, 2A-2).
 
 ## Stdio engine sidecar (P1B)
 
