@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { expect, test } from '@playwright/test';
 import { boot, settle } from './helpers';
-import { lfoTraceValue } from '../src/panels/widgets/WavePreview';
+import { lfoTraceValue } from '../src/panels/widgets/waveTrace';
 
 const loadDisplays = async (page: import('@playwright/test').Page) => {
   await page.evaluate(() => window.__wirescapeTest.load({
