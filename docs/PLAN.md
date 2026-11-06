@@ -104,7 +104,7 @@ The owner jams for 30 minutes on the Pi with the M8: live patching, patch switch
 
 ### Track S: Sound kit (parallel; original modules from the owner's prototypes)
 Runs beside Phases 2–3 and never blocks them. Every module follows `docs/SDK_AUTHOR_GUIDE.md` §15 (porting a prototype). New IDs only; no ABI change without a Keel ruling.
-- [ ] **S1 Conjunctions modules** (`docs/tasks/S1_CONJUNCTIONS_MODULES.md`): in order: Blend, Cross Mod, Waveset, Shaper, Spectral, Vocoder, Grains. Convolver waits for S3.
+- [ ] **S1 Conjunctions modules** (`docs/tasks/S1_CONJUNCTIONS_MODULES.md`): in order: Spectral (one FFT module, vocoder included), Blend, Cross Mod, Waveset, Shaper, Grains. Convolver waits for S3.
 - [ ] S2 Effects: EQ, compressor/limiter, delay, reverb (research in `docs/reviews/EFFECTS_OPTIONS.md`). Not started.
 - [ ] S3 Sample buffer service (SDK/engine, T2, Keel) and then the Sampler (start/loop CV, one-shot/gate/loop, reverse, 8 voices). Not started.
 - [ ] S4 GUTTUR throat voice. **On hold** (owner).
