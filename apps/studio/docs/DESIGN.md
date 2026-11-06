@@ -431,6 +431,13 @@ and Panic release notes; hiding the strip releases its sources only. Inputs and
 modal dialogs continue to block background computer notes. All updates are
 event-driven, with no timer or animation-loop subscription.
 
+Phase 2B-d (#289): Settings → MIDI has a remembered **Computer keyboard plays**
+switch, on by default (including older preferences without this field). Off
+releases only musical-key shortcut notes and disables their Z/X octave shortcuts.
+Explicit on-screen keys and enabled MIDI inputs remain separate. Both local key
+sources continue through the existing engine note commands; no device is opened
+by this preference.
+
 Keyboard note releases remember their original pitch across octave changes. Modal dialogs contain Tab navigation, restore focus on close, and block background note/edit shortcuts. Keyboard edits pending in history commit before a new pointer gesture; click changes commit at the end of that gesture, while repeated keyboard edits still group over 350 ms. Window blur releases a held history gesture.
 
 The ticker accumulates sparse `effective` parameter deltas until replaced or deleted, including updates received while off screen or between draws. A density rebuild preserves this state; graph load/undo starts a fresh telemetry epoch. Other telemetry fields remain packet snapshots. Faders only draw a rust live marker when the effective value differs from the base and clear it when values agree.
