@@ -34,50 +34,43 @@ int main(int argc, char **argv) {
             }
             require(found, "native module missing in UI catalogue");
         }
-        size_t accepted = 0, refused = 0;
+        size_t accepted = 0;
         for (const auto &fixture : fixtures) {
             const auto name = fixture.at("id").get<std::string>();
             const auto &patch = fixture.at("patch");
             const auto before = patch.dump();
-            bool unknown = false;
-            for (const auto &module : patch.at("modules")) {
-                const auto type = module.at("module").get<std::string>();
-                bool found = false;
-                for (uint32_t i = 0; i < app_engine_module_count(catalogue.get()); ++i)
-                    found |= type == app_engine_module(catalogue.get(), i)->id;
-                if (!found) {
-                    require(type == "example.step_sequencer" || type == "example.random_source",
-                            (name + ": unexpected unavailable module ").append(type));
-                    unknown = true;
-                }
-            }
             std::string error;
             Owner engine(wirescape::document::load_runtime_patch(before, catalogue.get(), config, error),
                          app_engine_destroy);
             require(patch.dump() == before, name + ": execution mutated editable data");
-            if (unknown) {
-                require(!engine && error == "unknown-module", (name + ": expected unknown-module, got ").append(error));
-                ++refused;
-            } else {
-                require(bool(engine), (name + ": ").append(error));
-                for (const auto &module : patch.at("modules")) {
-                    if (module.at("module") != "essentials.output") continue;
-                    for (int bus = 0; bus < 2; ++bus) {
-                        bool routed = false;
-                        for (const auto &route : patch.at("outputs"))
-                            routed |= route.at("module") == module.at("id") && route.at("port") == "audio" &&
-                                      route.at("bus_channel") == bus;
-                        require(routed, name + ": Output missing bus " + std::to_string(bus));
-                    }
+            require(bool(engine), (name + ": ").append(error));
+            for (const auto &module : patch.at("modules")) {
+                if (module.at("module") != "essentials.output") continue;
+                for (int bus = 0; bus < 2; ++bus) {
+                    bool routed = false;
+                    for (const auto &route : patch.at("outputs"))
+                        routed |= route.at("module") == module.at("id") && route.at("port") == "audio" &&
+                                  route.at("bus_channel") == bus;
+                    require(routed, name + ": Output missing bus " + std::to_string(bus));
                 }
-                float samples[256]{};
-                require(app_engine_render(engine.get(), samples, 256) == WS_OK, name + ": render failed");
-                for (float sample : samples) require(std::isfinite(sample), name + ": non-finite sample");
-                ++accepted;
             }
+            float samples[256]{};
+            require(app_engine_render(engine.get(), samples, 256) == WS_OK, name + ": render failed");
+            for (float sample : samples) require(std::isfinite(sample), name + ": non-finite sample");
+            ++accepted;
         }
-        require(accepted == 10 && refused == 2, "starter acceptance/refusal coverage");
-        std::cout << "UI starters: " << accepted << " loaded, " << refused << " unknown-module refusals\n";
+
+        require(accepted == 12, "all starters must load and render");
+        // Unknown identities still fail closed without changing editable data.
+        auto unknown = fixtures.at(0).at("patch");
+        unknown["modules"][0]["module"] = "test.unknown_module";
+        const auto before = unknown.dump();
+        std::string error;
+        Owner refused(wirescape::document::load_runtime_patch(before, catalogue.get(), config, error),
+                      app_engine_destroy);
+        require(!refused && error == "unknown-module", "genuinely unknown module must be refused");
+        require(unknown.dump() == before, "refusal mutated editable data");
+        std::cout << "UI starters: " << accepted << " loaded, 1 unknown-module refusal\n";
     } catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
         return 1;

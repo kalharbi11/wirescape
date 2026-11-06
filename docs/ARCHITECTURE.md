@@ -192,7 +192,9 @@ documents; they are never silently converted to native patches.
 
 The ABI2 built-in catalogue has one registration list,
 `native/control/module_catalog.inc`: add `WS_APP_MODULE(Class)` and include the
-module DSP header in `module_catalog.h`. Modules with external link dependencies
+module DSP header in `module_catalog.h`. The built-in Step Sequencer and Random Source
+include their MIT SDK-example DSP headers directly; their example libraries and stable
+`example.step_sequencer` / `example.random_source` identities are shared unchanged. Modules with external link dependencies
 attach those dependencies to the `wirescape_catalog_dependencies` interface target
 in their own CMake registration. The app engine links that target.
 
