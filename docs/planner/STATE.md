@@ -1,59 +1,32 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Planner state (Claude reads this first at every check-in)
+# Planner state (the planner reads this first)
 
-Keep this under 80 lines. Rewrite it at the end of each check-in; history lives in git.
+Keep this under 60 lines. Rewrite it at the end of each planner session; history lives in git.
 
-**Updated:** 2026-10-31 afternoon, New York.
+**Updated:** 2026-11-07 (plan v3 revised: standalone Electron app + engine sidecar; browser demo deferred).
 
-## Check-in recipe
-Follow `docs/planner/CHECKIN.md`: routine Sonnet every 4 h, Opus for escalations and daily at 17:30.
+## Where things stand
+- Plan: `docs/PLAN.md` (phases 0–5, checkpoints A/B/C, decisions D1–D12, revised 2026-11-07).
+- Phase 0 browser/kiosk demo: **stopped, deferred, not passed** (record: `docs/DEMO_CLASS.md` §1).
+  #221 (demo patches) and #222 (launcher, `play --list-midi`) are draft PRs: review, then merge.
+- Workflow v3 in `AGENTS.md` + `docs/WORKFLOW.md`. The pause on #29 ends when the plan PR merges.
+- Phase 1 task files: P1_0, P1A, P1B (sidecar), P1C, P1D, P1E, P1F (Electron shell), P1G (owner UI fixes).
 
-## Deferred for Opus
-(Sonnet adds `- #N sha7: question (since date time)`; Opus empties this list.)
-- #206 `2706ce1`: approvals v3. Needs an independent ChatGPT T2 line, then the **owner's** Claude line (Claude wrote it).
+## Hardware facts (Pi, 2026-11-07)
+Audio via `--device pulse` works; M8 notes play only with the live-clock fix (P0D, local edit on the Pi);
+CC21 → VCA works; CC21 → cutoff inaudible (P0E); CHAOS/Macro and CC22–28 unverified.
 
-## Goal
-Owner Jam report #182 drives priorities until the owner retests and closes it. J9 #45 is the owner's session.
+## Waiting on the owner
+- Plan PR open + `allow-protected`; "Project resumed" on #29; Pi runner workflows re-enabled.
+- After P0D/P0E merge: the 3 patches × CC21–28 check (`docs/DEMO_CLASS.md` §5b).
 
-## Merged
-J1, J2 poly, J4 MIDI #81, J6 Macro, J7 CHAOS #124, Clock, fullscreen, layout #145, controls #147, kiosk docs #169,
-author guide #170, Macro catalogue #171, goldens #138, M2 dossier #191, tooltips #189, cable editing #190,
-MIDI routing #193, M3-1 design #197 (#177 closed), event cable identity #199, M3-3 feedback design #202.
-
-## Open work (queue comment 6540585199 on #29)
-| PR | Issue | Owner | State |
-|---|---|---|---|
-| #203 | #201 transport focus | Codex | T1 reviewed; acceptance + ready label |
-| #194 | #186 live editing | Codex | draft; part 2 park/edit/resume, T2 + Claude review |
-| #195 | #188 launcher/update | Codex | Medium: `updates` vs stale GUI `current`; fake test, fresh T1 |
-| #200 | #140 audio output | Codex | T2 (no Claude path); two ChatGPT passes |
-| #82 | #72 OSC | Codex | draft; merge main + real-timestamp regression |
-| #192 | #187 starter patches | UI | merge main, rerun studio_ui_tests, fresh T1 |
-| #204 | #178 stereo pairs | UI | base branch merged via #199: retarget to main |
-| #181 | #180 module guide | docs | draft; T1, link #170 |
-| #175 | #173 gate fix | **owner** | clean T2 line at `f69bdba`; Claude co-authored, owner posts the Claude line or merges |
-| #161 | #159 portability | parked | Cortex is non-required (authorization v2 item 4) |
-
-## Next phase (below #182)
-- #163 MIDI: extend `midi.to_cv` / `midi.cc_to_cv`. Codex, after #82.
-- M3-1 implementation issue: write after #182 items land (design approved on #177).
-- Later: #80 J3, #143 telemetry, `<details>` gate Low (from #175 review).
-
-## Standing authorization v2 (#29, comment 6534860663)
-Valid until revoked. Formatting never stops; +50% size; offscreen/fake evidence stands in for devices;
-inherited non-required checks don't block; ChatGPT reviewer posts T1/T2 gate lines. Still stops: ABI,
-patch-format/ID changes, new deps, test removal, looser thresholds, protected paths, real devices, force-push.
-
-## Agents
-- Lean roster (`docs/planner/CHATGPT_AGENTS.md`): Codex per issue (owner starts it; reads #29); one ChatGPT
-  reviewer + light steward every 4 h; UI and docs builders on demand. Claude: `CHECKIN.md`.
-- Merge gate: `tools/merge_gate.py` + `.github/workflows/merge_gate.yml` auto-merge on `status/ready-to-merge`
-  plus a standalone gate line for the current head.
-
-## Runners
-- Pi `pi5` via `kalharbi11/wirescape-pi` (poll daemon, nightly). Laptop results on #122; Pi/steward summaries on #101.
+## Next planner session
+- Review P0D (T2, cross-family if the author isn't Claude) and P1.0 (T2).
+- Open the Phase 0 follow-up and Phase 1 issues (one per section); apply "Open work at resume" in PLAN.md.
 
 ## Standing rules from the owner
-- Minimal owner involvement; agents keep moving. Never @mention Codex.
-- Claude usage is scarce: REST only, tail logs, delegate searches, one #29 comment per session.
-- Real-device tests are the owner's; Pi and laptop run offline tests only.
+- Don't plan agent assignment; the owner and their managers assign. Keep sections parallel where possible.
+- Pi first (Windows allowed for faster smoke tests); touchscreen, Plaits polish and a CHAOS custom panel go to Phase 5.
+- No browser/kiosk stage: the product is a standalone app window with the web UI inside.
+- Real-device tests are the owner's; the Pi runner and the laptop run offline tests only.
+- Checkpoints are spread out and don't stop work.
