@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Phase 8 readiness handoff
 
 **Renumbering (2026-11-05):** the UI-only Pi pretest is Phase 7 in this repository; this native-engine integration audit and implementation are **Phase 8**, primarily in `kalharbi11/wirescape`. The rename does not imply a Pi pass or any native code changes.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { SystemStatus } from '../engine/EngineClient';
 import { el } from '../app/dom';
 

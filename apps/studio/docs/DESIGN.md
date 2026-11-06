@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Wirescape UI — design spec
 
 Status: **current** (after control jam rounds 1 and 2 and the phase 3.5 merge, 2026-11-05).

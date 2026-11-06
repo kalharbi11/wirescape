@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { test, expect } from '@playwright/test';
 import { Ticker } from '../src/runtime/Ticker';
 import type { Telemetry } from '../src/engine/EngineClient';

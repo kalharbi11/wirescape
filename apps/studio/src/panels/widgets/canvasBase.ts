@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { el } from '../../app/dom';
 
 /** Design tokens the displays read. Resolved once per pane, never per frame. */

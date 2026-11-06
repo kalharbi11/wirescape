@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { ModuleParam } from '../../modules/types';
 import { el } from '../../app/dom';
 

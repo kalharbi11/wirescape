@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { EngineClient } from '../engine/EngineClient';
 
 /** Two octaves on the computer keyboard; Z and X shift the octave. */

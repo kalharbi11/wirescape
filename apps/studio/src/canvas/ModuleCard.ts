@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { ModuleDescriptor, ModuleParam, ModulePort, PortDirection } from '../modules/types';
 import { inputs, outputs, hintColor, findPort, findParam, formatValue } from '../modules/registry';
 import { HEADER_H, portMinPitch } from '../panels/layouts';

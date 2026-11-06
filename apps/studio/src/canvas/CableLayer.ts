@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { Connection } from '../patch/types';
 import { connKey } from '../patch/types';
 import { svgEl } from '../app/dom';

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 .model-bank { width: 100%; min-width: 260px; }
 .model-bank > .control-label { margin-bottom: 10px; }
 .model-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; }

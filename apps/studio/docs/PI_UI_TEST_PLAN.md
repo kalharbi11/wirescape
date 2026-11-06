@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Phase 7 — Raspberry Pi UI pretest runbook
 
 **Purpose:** certify and fix UI/browser defects from Phases 3.5–6 **before** Phase 8 native-engine integration. Dedicated `pi-ui` runner + real Raspberry Pi monitor + **headed system Chromium**; `FakeEngine` supplies simulated values. No native bridge, DSP/audio, real MIDI/OSC, or user device access is necessary.

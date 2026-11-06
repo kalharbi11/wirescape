@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { Telemetry } from '../engine/EngineClient';
 
 export type Binding = (t: Telemetry) => void;

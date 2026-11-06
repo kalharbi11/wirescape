@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { ModuleRegistry } from '../modules/registry';
 import { inputs, outputs } from '../modules/registry';
 import type { PortDirection } from '../modules/types';

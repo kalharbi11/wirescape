@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Archive: ideas kept for later
 
 These are **not part of the current UI**; don't build them unless asked. Each one has a working version in a sketch:

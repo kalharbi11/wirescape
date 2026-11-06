@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { ModuleDescriptor, ModuleParam } from '../modules/types';
 import type { Connection } from '../patch/types';
 import type { PatchDoc } from '../patch/PatchDoc';

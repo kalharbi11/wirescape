@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Native engine handoff moved to Phase 8
 
 The earlier Phase 7 handoff was renumbered when the owner made **Phase 7** a dedicated Raspberry Pi UI-only pretest.

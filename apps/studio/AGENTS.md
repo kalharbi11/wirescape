@@ -1,13 +1,7 @@
-# Wirescape UI: start here
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+# Wirescape UI guidance
 
-Wirescape is a browser-based modular synth UI that targets a Raspberry Pi (Chromium) first and the laptop second. This repo holds the **design system and a working reference implementation** of its interface. The prototype brief (the app structure, fake engine, patch format, feature list) lives in the Claude Docs artifact "Wirescape UI prototype brief": https://claude.ai/artifact/XYQYjdRGwLHrUswEeSn5jx
-
-## Status and plan
-
-**Read [docs/PLAN.md](docs/PLAN.md) first.** Phase 3.5 merged to `main`; implemented phases 4–6 were merged via stacked PRs into intermediate phase branches, with their cumulative result on `phase/5-system`. `main` still needs that cumulative integration. A separate `phase/7-pi-validation` branch starts from the cumulative Phase 6 merge.
-
-**Next: Phase 7 — dedicated Pi UI-only pretest** in this repository with headed system Chromium, its own `pi-ui` runner and `FakeEngine`. See [Phase 7 test plan](docs/PI_UI_TEST_PLAN.md) and [runner instructions](docs/PI_UI_RUNNER.md). It is not native sound testing. **Phase 8 — real-engine integration** is in `kalharbi11/wirescape`; see [native handoff](docs/PHASE8_HANDOFF.md). Merge the cumulative UI and test harness into `main` before an accepted hardware run. Hardware OPEN-5 remains open until physical measurements exist.
-
+Repository workflow: [root AGENTS.md](../../AGENTS.md). These rules cover the UI design system only.
 
 ## Read in this order
 
@@ -92,26 +86,4 @@ Not built from the kit: `slider`, `detent`, `tape`, `xy` (no catalogue parameter
 - Rust is only for live values, modulation and events.
 - Use the controls; don't restyle them per module.
 - Record new design decisions in `docs/DECISIONS.md`, and update `docs/DESIGN.md` when the spec changes.
-
-## Running and checking the kit
-
-Open `ui/wirescape-ui-kit.html` directly in Chromium (it needs no server; fonts load from Google Fonts). For automated checks, Playwright:
-
-```js
-const {chromium}=require('playwright');
-(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1400,height:1000}});
-p.on('pageerror',e=>console.log('ERR',e.message));
-await p.goto('file://'+process.cwd()+'/ui/wirescape-ui-kit.html');await p.waitForTimeout(1500);
-await p.screenshot({path:'kit.png'});console.log(await p.textContent('#perf'));await b.close();})();
-```
-
-### Measuring
-
-Per-widget cost, all widgets forced visible (paste into `page.evaluate`):
-
-```js
-new Promise(res=>{const st=new Map();for(const t of tickers){const f=t.fn;t.fn=(...a)=>{const t0=performance.now();f(...a);
- const id=(t.el.closest('.item')||{}).id||'?';st.set(id,(st.get(id)||0)+performance.now()-t0);};t.vis=true;}
- let n=0;const c=()=>{if(++n<120)requestAnimationFrame(c);else res([...st].sort((a,b)=>b[1]-a[1]).map(([k,v])=>k+' '+(v/120).toFixed(3)+' ms'));};requestAnimationFrame(c);})
-```
 

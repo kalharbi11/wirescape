@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # References
 
 ✓ = page or search result checked during the design rounds (2026-11). ○ = pointer worth checking.

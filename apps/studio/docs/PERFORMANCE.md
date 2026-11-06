@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Performance: rules, measurements, costs
 
 Target (from the prototype brief): 60 fps on the laptop and **≥ 30 fps on the Pi** with 20 modules, 40 cables and modulation moving. On the Pi the UI shares the CPU with the audio engine.

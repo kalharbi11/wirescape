@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* Signature sequencer: shared dotted numbers, neutral gate states, rust playhead. */
 .signature-sequence .steps-grid { gap: 6px; }
 .signature-sequence .step-cell { position: relative; gap: 12px; padding: 6px 0 10px; }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 export const NS_SVG = 'http://www.w3.org/2000/svg';
 
 export function el<K extends keyof HTMLElementTagNameMap>(

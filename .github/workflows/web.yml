@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: GPL-3.0-only
+name: Web
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/studio/**'
+      - 'docs/specs/**'
+      - 'apps/desktop/**'
+      - '.github/workflows/web.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/studio/**'
+      - 'docs/specs/**'
+      - 'apps/desktop/**'
+      - '.github/workflows/web.yml'
+permissions:
+  contents: read
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/studio
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/studio/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Locate runner Chromium
+        run: |
+          browser="$(command -v chromium || command -v chromium-browser || command -v google-chrome)"
+          test -x "$browser"
+          echo "WIRESCAPE_CHROMIUM=$browser" >> "$GITHUB_ENV"
+      - run: npm test
+      - name: Upload failure screenshots and traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-failures-${{ github.sha }}
+          path: apps/studio/test-results/
+          if-no-files-found: ignore

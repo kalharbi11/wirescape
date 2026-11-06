@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Decision log
 
 What the user chose in each control-jam round, and why the spec looks the way it does. The current spec is [DESIGN.md](DESIGN.md).

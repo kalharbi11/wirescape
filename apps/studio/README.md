@@ -1,4 +1,7 @@
-# Wirescape-UI
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+# Wirescape Studio UI
+
+UI development now lives in [kalharbi11/wirescape, apps/studio](https://github.com/kalharbi11/wirescape/tree/main/apps/studio). See the [import record](IMPORT.md).
 
 Design system and reference implementation for the Wirescape modular synth interface (browser UI, Raspberry Pi first).
 
@@ -12,5 +15,5 @@ Design system and reference implementation for the Wirescape modular synth inter
   npm ci && npm run dev    # Vite dev server
   npm test                 # Playwright (Chromium at /opt/pw-browsers/chromium or $WIRESCAPE_CHROMIUM)
   ```
-  App source is in `src/`, tests in `tests/`; see [AGENTS.md](AGENTS.md#running-the-app).
+  App source is in `src/`, tests in `tests/`; see [IMPORT.md](IMPORT.md).
 - Exploration sketches (archived): [archive/sketches/](archive/sketches/)

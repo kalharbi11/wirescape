@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { ModuleParam } from '../../modules/types';
 import type { Ticker } from '../../runtime/Ticker';
 import { formatValue, normToValue, quantize, valueToNorm, parseTyped, displayValue } from '../../modules/registry';

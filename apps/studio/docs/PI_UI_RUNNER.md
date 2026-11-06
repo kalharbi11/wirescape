@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Phase 7 — dedicated Raspberry Pi UI pretest runner
 
 **Scope:** Headed Chromium/FakeEngine UI-only checks before Phase 8 native integration. This is the UI repository's dedicated runner, not the main `wirescape` native engine runner. No real sound/DSP/MIDI/OSC hardware validation is claimed.

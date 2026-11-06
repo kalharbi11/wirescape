@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* Parameter / module info boxes (DESIGN §5). Opacity/transform only. */
 :where(.knob-unit) { position: relative; }
 .ib {

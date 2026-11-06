@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * Contract 3 — the patch file (Wirescape patch v2).
  *

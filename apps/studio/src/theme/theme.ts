@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 export type PerformanceProfile = 'normal' | 'pi';
 export type HitProfile = 'mouse' | 'touch';
 export type ThemeName = 'light' | 'dark';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { defineConfig, devices } from '@playwright/test';
 
 /**
@@ -19,6 +20,7 @@ export default defineConfig({
     baseURL: 'http://localhost:4173',
     headless: process.env.WIRESCAPE_HEADED !== '1',
     trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
     launchOptions: { executablePath, args: ['--no-sandbox', ...(process.env.WIRESCAPE_PI_RUN === '1' ? ['--start-maximized'] : []), ...(process.env.WIRESCAPE_WAYLAND === '1' ? ['--ozone-platform=wayland'] : [])] },
   },
   projects: [

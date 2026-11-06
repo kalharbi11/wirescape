@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { connKey } from './../patch/types';
 import { ModuleRegistry, findParam, findPort } from '../modules/registry';
 import { PanelOverrides } from '../panels/layouts';

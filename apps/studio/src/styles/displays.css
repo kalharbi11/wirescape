@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
 /* Display panes: no box, no border, no grey behind any display. */
 .wave-pane, .scope-pane, .env-pane, .meter-pane, .filter-pane, .steps-pane {
   border: 0; background: none; border-radius: 0; padding: 0; margin: 0 0 8px; flex: none;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { FakeEngine } from '../engine/FakeEngine';
 import type { Ticker } from '../runtime/Ticker';
 import { el } from './dom';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { PatchV2, PatchModule, PatchUi, Connection, Endpoint } from './types';
 import { EMPTY_PATCH, connKey } from './types';
 

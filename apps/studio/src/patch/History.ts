@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { PatchDoc } from './PatchDoc';
 import type { PatchV2 } from './types';
 

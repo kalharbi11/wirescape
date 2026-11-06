@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { el } from '../../app/dom';
 import type { PaneContext } from '../panes';
 import { Fader } from './Fader';

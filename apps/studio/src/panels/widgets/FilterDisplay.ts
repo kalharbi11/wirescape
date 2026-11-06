@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { Ticker } from '../../runtime/Ticker';
 import { CanvasPane, makeLayer } from './canvasBase';
 import { el } from '../../app/dom';

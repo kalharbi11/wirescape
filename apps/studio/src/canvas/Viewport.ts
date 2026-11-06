@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 export interface View { x: number; y: number; s: number }
 export const ZOOM_MIN = 0.25;
 export const ZOOM_MAX = 1.85;

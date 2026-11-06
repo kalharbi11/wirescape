@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Wirescape UI prototype brief
 
 Nov 4, 2026 · @khalid

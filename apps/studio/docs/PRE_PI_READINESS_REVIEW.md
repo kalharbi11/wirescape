@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Historical pre-Pi review — phases 3.5–6
 
 **Reviewed:** 2026-11-05

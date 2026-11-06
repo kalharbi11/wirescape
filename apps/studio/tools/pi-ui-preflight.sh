@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
 set -euo pipefail
 mkdir -p build_reports/pi-ui
 report=build_reports/pi-ui/preflight.txt

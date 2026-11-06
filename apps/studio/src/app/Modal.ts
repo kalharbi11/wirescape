@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import { el } from './dom';
 
 /** A minimal centred dialog. Escape and the backdrop both close it. */

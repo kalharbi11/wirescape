@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { ModuleDescriptor, ModuleParam } from '../modules/types';
 import { inputs, outputs, isChoice, isToggle, hasChoices, SEGMENT_LIMIT } from '../modules/registry';
 

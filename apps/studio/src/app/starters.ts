@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 import type { PatchV2 } from '../patch/types';
 import qtMinimal from './qt-starters/qt-minimal.json' with { type: 'json' };
 import qtLfoFilter from './qt-starters/qt-lfo-filter.json' with { type: 'json' };
