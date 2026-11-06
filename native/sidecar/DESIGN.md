@@ -44,6 +44,14 @@ interrupt sound and release held notes; no sample-continuity guarantee is made
 for failed hardware. Settings writes use a same-directory temporary file plus
 atomic replacement; a failed selection/persistence attempts the prior selection.
 
+Audio loss polling runs on the control executor. An inactive stream or missing/
+ambiguous selected identity is safely retired and reports `no-device`. Reopen
+attempts target that same name with exponential delays from 100 ms to five
+seconds; a successful reopen resets the delay. No remembered identity is cleared
+on startup/loss, so a different system default cannot silently replace it. Only
+a startup with no preference can resolve the default into a remembered identity.
+Fake audio-boundary tests inject outputs and poll times without linking PortAudio.
+
 **D5 fallback (Keel ruling, #247):** AppEngine's internal master-output ramp
 attenuates the final mixed audio linearly over at most 10 ms. The callback
 retains sole ownership of current gain; a single atomic phase provides the
