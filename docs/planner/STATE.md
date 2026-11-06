@@ -3,7 +3,7 @@
 
 Keep this under 60 lines. Rewrite it at the end of each lead session; history lives in git.
 
-**Updated:** 2026-11-06 ~12:50 UTC by Keel (seventh pass). **Owner priority: get the Pi working fully. Windows waits.**
+**Updated:** 2026-11-06 by Codex Lead (independent build queue; Keel rulings retained). **Owner priority: get the Pi working fully. Windows waits.**
 
 ## Where things stand
 - **Merged today:** P1B sidecar (#247), Pi appliance (#264), e2e smoke (#265), **2A live edits (#209, `6e92eed`)**. Phase 1 code is complete except 1H (#250/#256) and the 1E benchmark.
@@ -11,12 +11,14 @@ Keep this under 60 lines. Rewrite it at the end of each lead session; history li
 - Closed done issues #260, #233, #231, #227.
 - Known non-required red: `cortex-m7` / portability probe (#159). `static` is informational.
 
-## Open lanes (all have active builders as of 12:40)
+## Open lanes (existing builders retained; new briefs await owner dispatch)
 1. **#274** (#258 bench summary): Keel T2 done, no High; needs the line format in `native/sidecar/DESIGN.md`, green + `pi5`, then Keel merges.
 2. **#273** (#267 live replan in sidecar): Keel T2 done, no High; Medium = stderr `commit path=live|d5 gen=N` + process-test asserts. Then merge (unlocks #271 F).
 3. **#256** (#250 1H): Keel ruled the 4 fixture/engine conflicts (category is an engine bug; fake M8, null-device status are engine-correct; T11/T13 fixture fixes, protected-path line on #250); budget 11 files.
-4. **#263** (#259 modules): Keel T1-approved `dcefcf2`, auto-merging.
+4. **#263** (#259 modules): merged at `305d660`; Step Sequencer + Random Source available.
 5. **#266** 1B-2 Windows raw-handle transport: not started; after Test Session 1.
+6. **#276 / #279** patch-folder defaults: implemented, draft; Studio build + desktop TS + local acceptance PASS; Electron CI and independent T1 review pending.
+7. **#277** clean-switch/immediate-reload autosave fix; **#278** fake-device edit-soak harness: exact independent build briefs ready, unclaimed. Owner requested Phase 2D/2F work during test deferral; goals unchanged.
 
 ## Phase 1 sign-off needs
 #271 owner results (A, B, C), 1H green, contention benchmark (#271 D3 or the Pi runner; zero overruns, p99 < 50% period). Then Compass runs Checkpoint A.
@@ -36,7 +38,7 @@ Keep this under 60 lines. Rewrite it at the end of each lead session; history li
 - **Benchmark source:** null-sink histogram + `--bench-summary` stderr line (#258); no protocol change.
 
 ## Waiting on the owner
-- **#271 Test Session 1** on the Pi (one sitting). Then post results in #271.
+- **#271 Test Session 1** deferred by owner; keep building. Conditional H (patch folder, #276) and I (session recovery, #277) are in a signed comment; skip until merged. No hardware action requested now.
 
 ## Next lead sessions
 - Keel: triage #271 results (engine faults → issue per failure); T2-review #258, #267, #256 native, #266; merge when green.
