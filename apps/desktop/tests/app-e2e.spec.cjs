@@ -34,7 +34,8 @@ test.beforeAll(() => {
     }
     const build = path.join(scratch, 'build/native');
     execFileSync('cmake', ['-S', path.join(source, 'native'), '-B', build,
-      '-DCMAKE_BUILD_TYPE=Release', '-DWIRESCAPE_BUILD_UI=OFF'],
+      '-DCMAKE_BUILD_TYPE=Release', '-DWIRESCAPE_BUILD_UI=OFF',
+      '-DCMAKE_SKIP_INSTALL_RULES=ON'],
     { stdio: 'inherit', timeout: 600000 });
     execFileSync('cmake', ['--build', build, '--target', 'wirescape_engine_sidecar',
       '--parallel', '2'], { stdio: 'inherit', timeout: 600000 });
