@@ -355,12 +355,12 @@ void Session::commit(Json patch, bool new_namespace) {
     // D5 fallback: old graph keeps rendering through the linear fade-out.
     // The candidate was fully prepared above, so validation refusal is untouched.
     const auto begun = std::chrono::steady_clock::now();
-    // The fade needs rendered blocks: the D5 budgets (100 ms mute, 150 ms gap) hold for
-    // normal blocks and stretch only when a block period itself is longer.
+    // Liveness timeouts only (a stuck callback), not the D5 budget: the <=150 ms gap is
+    // proven deterministically in protocol_unit_tests; slow hosts (sanitizers) must still swap.
     const auto period = std::chrono::microseconds(int64_t(1e6 * double(options_.block) / double(options_.rate)));
     if (stream_ || sink_.joinable()) {
         app_engine_begin_master_fade_out(active_);
-        const auto deadline = begun + std::max<std::chrono::microseconds>(std::chrono::milliseconds(100), 2 * period);
+        const auto deadline = begun + std::max<std::chrono::microseconds>(std::chrono::milliseconds(1000), 2 * period);
         while (!app_engine_master_fade_silent(active_)) {
             if (std::chrono::steady_clock::now() >= deadline) {
                 app_engine_resume_master_fade(active_);
@@ -388,10 +388,10 @@ void Session::commit(Json patch, bool new_namespace) {
         start_midi();
         if (stream_ || sink_.joinable()) {
             const auto deadline =
-                begun + std::max<std::chrono::microseconds>(std::chrono::milliseconds(150), 3 * period);
+                begun + std::max<std::chrono::microseconds>(std::chrono::milliseconds(1000), 3 * period);
             while (!app_engine_master_fade_in_started(active_)) {
                 if (std::chrono::steady_clock::now() >= deadline)
-                    throw Refusal("unavailable", "Audio swap exceeded gap budget");
+                    throw Refusal("unavailable", "Audio swap did not complete");
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
         }
