@@ -17,6 +17,7 @@ import { QuickAdd } from './QuickAdd';
 import { Toasts } from '../system/Toasts';
 import { StatusBar } from '../system/StatusBar';
 import { ComputerKeyboard, isTyping } from './Keyboard';
+import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
 import { STARTERS, DEFAULT_STARTER } from './starters';
@@ -42,6 +43,7 @@ export class App {
   private toasts = new Toasts();
   private statusBar!: StatusBar;
   private keyboard!: ComputerKeyboard;
+  private piano!: OnScreenKeyboard;
   private devPanel!: DevPanel;
   private settings = new Modal('settings-modal');
   private shortcuts = new Modal('shortcuts-modal');
@@ -126,17 +128,18 @@ export class App {
     this.canvas.bindActivity();
 
     this.statusBar = new StatusBar({
-      onPanic: () => { this.engine.panic(); this.toasts.show('All notes stopped.'); },
+      onPanic: () => { this.keyboard.releaseAll(); this.engine.panic(); this.toasts.show('All notes stopped.'); },
       onOpenSettings: () => this.openSettings(),
       onClockToggle: running => this.toggleClock(running),
     });
 
     this.keyboard = new ComputerKeyboard(this.engine);
-    this.keyboard.onOctaveChange = o => { this.octaveEl.textContent = `OCT ${o}`; };
+    this.piano = new OnScreenKeyboard(this.keyboard);
+    this.keyboard.onOctaveChange = o => { this.octaveEl.textContent = `OCT ${o}`; this.piano.refresh(); };
     this.devPanel = new DevPanel(this.engine, this.ticker);
 
     const main = el('div', 'main');
-    main.append(this.buildTopBar(), this.canvas.root, this.statusBar.root);
+    main.append(this.buildTopBar(), this.canvas.root, this.piano.root, this.statusBar.root);
 
     this.fileInput = el('input') as HTMLInputElement;
     this.fileInput.type = 'file';
@@ -210,6 +213,13 @@ export class App {
     this.canvas.viewport.on(v => { this.zoomLabel.textContent = `${Math.round(v.s * 100)}%`; });
 
     const tools = el('div', 'toolbar');
+    const keys = this.action('KEYS', () => {
+      keys.setAttribute('aria-expanded', String(this.piano.toggle()));
+      this.canvas.updateVisibility();
+    }, 'toggle-keyboard');
+    keys.setAttribute('aria-expanded', 'false');
+    keys.setAttribute('aria-controls', this.piano.root.id);
+    keys.title = 'Show or hide the playable keyboard';
     this.undoBtn = this.action('↶', () => this.undo(), 'undo');
     this.redoBtn = this.action('↷', () => this.redo(), 'redo');
     this.undoBtn.title = 'Undo (Ctrl/Cmd + Z)';
@@ -217,6 +227,7 @@ export class App {
     const history = el('div', 'zoom-group history-group');
     history.append(this.undoBtn, this.redoBtn);
     tools.append(
+      keys,
       this.action('NEW', () => this.newPatch(), 'new-patch'),
       this.action('OPEN', () => void this.openPatchFile(), 'open-patch'),
       this.action('SAVE', () => void this.savePatchFile(), 'save-patch'),
