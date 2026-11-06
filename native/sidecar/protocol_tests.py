@@ -33,23 +33,35 @@ class Engine:
         self.pushes = []
 
         def read():
-            try:
-                for line in self.process.stdout:
+            # Record a bad line and keep draining: a dead reader would block the engine's
+            # stdout and hide the real problem behind its write watchdog.
+            for line in self.process.stdout:
+                try:
                     assert len(line.rstrip(b'\n')) <= 2097152
                     assert line.endswith(b'\n')
                     self.messages.put(json.loads(line, object_pairs_hook=strict_object))
-            except Exception as error:
-                self.errors.append(error)
+                except Exception as error:
+                    self.errors.append(f'{type(error).__name__}: {error}; line: {line[:300]!r}')
+        # Drain stderr continuously: an undrained pipe (about 4 KiB on Windows) blocks the
+        # engine's diagnostics and with them the whole process.
+        self.stderr_tail = bytearray()
+
+        def drain():
+            for chunk in iter(lambda: self.process.stderr.read1(4096), b''):
+                self.stderr_tail.extend(chunk)
+                del self.stderr_tail[:-8192]
         atexit.register(lambda: self.process.kill() if self.process.poll() is None else None)
         self.reader = threading.Thread(target=read, daemon=True)
         self.reader.start()
+        self.drainer = threading.Thread(target=drain, daemon=True)
+        self.drainer.start()
         try:
             self.hello = self.messages.get(timeout=10)
         except queue.Empty as error:
             exit_code = self.process.poll()
             if exit_code is None:
-                raise AssertionError('engine is still running but emitted no hello within 10s') from error
-            stderr = self.process.stderr.read().decode(errors='replace')[-4096:]
+                raise AssertionError(f'engine is still running but emitted no hello within 10s; stderr: {self.stderr()}') from error
+            stderr = self.stderr()
             raise AssertionError(f'engine exited {exit_code} without hello; stderr: {stderr}') from error
         assert self.hello['type'] == 'hello' and self.hello['protocol'] == 0
         self.session = self.hello['session']
@@ -62,14 +74,19 @@ class Engine:
             for port in module['ports']:
                 assert {'id', 'name', 'direction', 'kind', 'hint', 'poly', 'stereo_pair'} <= port.keys()
 
+    def stderr(self):
+        self.drainer.join(timeout=1) if self.process.poll() is not None else None
+        tail = bytes(self.stderr_tail).decode(errors='replace')[-4096:]
+        return f'{tail}; reader errors: {self.errors[:3]}'
+
     def receive(self):
         try:
             message = self.messages.get(timeout=10)
         except queue.Empty as error:
             exit_code = self.process.poll()
             if exit_code is None:
-                raise AssertionError('engine is still running but emitted no reply within 10s') from error
-            stderr = self.process.stderr.read().decode(errors='replace')[-4096:]
+                raise AssertionError(f'engine is still running but emitted no reply within 10s; stderr: {self.stderr()}') from error
+            stderr = self.stderr()
             raise AssertionError(f'engine exited {exit_code} before reply; stderr: {stderr}') from error
         assert message['session'] == self.session and message['v'] == 0
         if message.get('type') != 'hello':
@@ -106,7 +123,7 @@ class Engine:
         self.process.stdin.write(unfinished)
         self.process.stdin.close()
         try:
-            assert self.process.wait(timeout=10) == 0, self.process.stderr.read().decode()
+            assert self.process.wait(timeout=10) == 0, self.stderr()
         finally:
             if self.process.poll() is None:
                 self.process.kill()
