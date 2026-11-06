@@ -129,6 +129,7 @@ Options parse_options(int argc, char **argv) {
         if (arg == "--confirm-audio") o.audio = true;
         else if (arg == "--confirm-midi") o.midi = true;
         else if (arg == "--null-audio") o.null_audio = true;
+        else if (arg == "--bench-summary") o.bench_summary = true;
         else if (arg == "--device" || arg == "--settings" || arg == "--rate" || arg == "--block") {
             need(++i < argc);
             std::string v = argv[i];
@@ -144,6 +145,7 @@ Options parse_options(int argc, char **argv) {
             }
         } else throw Refusal("invalid", "Unknown startup flag");
     }
+    need(!o.bench_summary || o.null_audio, "invalid", "--bench-summary requires --null-audio");
     if (o.null_audio) o.audio = o.midi = false;
     return o;
 }
@@ -215,6 +217,12 @@ Session::~Session() {
 void Session::shutdown() {
     midi_->stop();
     stop_audio();
+    if (options_.bench_summary && !bench_reported_) {
+        bench_reported_ = true;
+        std::cerr << "bench blocks=" << bench_.blocks << " p50=" << bench_.percentile(50)
+                  << " p99=" << bench_.percentile(99) << " max=" << bench_.max_percent
+                  << " overruns=" << bench_.overruns << '\\n';
+    }
 }
 void Session::start_audio() {
     stop_sink_.store(false);
@@ -238,10 +246,13 @@ void Session::start_audio() {
                 while (!stop_sink_.load()) {
                     auto before = std::chrono::steady_clock::now();
                     if (app_engine_render_live(active_, rows, 2, options_.block, app_engine_clock_ns()) != WS_OK) break;
-                    double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - before).count();
-                    cpu_.store(elapsed * options_.rate / options_.block * 100);
+                    auto after = std::chrono::steady_clock::now();
+                    double percent = std::chrono::duration<double>(after - before).count() *
+                                     options_.rate / options_.block * 100;
+                    cpu_.store(percent);
                     next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                         std::chrono::duration<double>(double(options_.block) / options_.rate));
+                    if (options_.bench_summary) bench_.record(percent, after > next);
                     std::unique_lock<std::mutex> lock(sink_mutex_);
                     sink_wake_.wait_until(lock, next, [this] { return stop_sink_.load(); });
                 }
