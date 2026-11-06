@@ -30,26 +30,41 @@ export class CanvasPane {
   private h = 0;
   private _dpr = 1;
   private ro: ResizeObserver;
+  private static panes = new Set<CanvasPane>();
+  private static zoom = 1;
+  private static zoomTimer: number | undefined;
+
+  /** One debounced resize pass for a CSS-transformed patch world. */
+  static setZoom(zoom: number, force = false): void {
+    if (!force && zoom === this.zoom) return;
+    this.zoom = zoom;
+    clearTimeout(this.zoomTimer);
+    this.zoomTimer = window.setTimeout(() => {
+      for (const pane of this.panes) pane.resize();
+    }, 90);
+  }
   private pal: Palette | null = null;
 
-  constructor(cls: string, private readonly maxDpr = 2) {
+  constructor(cls: string, private readonly maxDpr = 4) {
     this.root = el('div', `cv-pane ${cls}`);
     this.canvas = el('canvas') as HTMLCanvasElement;
     this.root.append(this.canvas);
     this.ctx = this.canvas.getContext('2d', { alpha: true })!;
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(this.root);
+    CanvasPane.panes.add(this);
   }
 
   get width(): number { return this.w }
   get height(): number { return this.h }
   get dpr(): number { return this._dpr }
 
-  /** Re-read the layout size (not the zoomed client rect) and resize the backing store. */
+  /** Match the scaled screen pixels, with a 2x Pi budget cap. */
   resize(): void {
     const w = this.root.offsetWidth, h = this.root.offsetHeight;
     if (!w || !h) return;
-    const dpr = Math.min(this.maxDpr, window.devicePixelRatio || 1);
+    const cap = document.documentElement.dataset.profile === 'pi' ? 2 : this.maxDpr;
+    const dpr = Math.min(cap, (window.devicePixelRatio || 1) * CanvasPane.zoom);
     if (w === this.w && h === this.h && dpr === this._dpr) return;
     this.w = w; this.h = h; this._dpr = dpr;
     this.canvas.width = Math.round(w * dpr);
@@ -61,7 +76,7 @@ export class CanvasPane {
   }
 
   clear(): void { this.ctx.clearRect(0, 0, this.w, this.h); }
-  destroy(): void { this.ro.disconnect(); }
+  destroy(): void { this.ro.disconnect(); CanvasPane.panes.delete(this); }
 
   /** Token colours, read from CSS once the pane is attached, then cached. */
   palette(): Palette {
