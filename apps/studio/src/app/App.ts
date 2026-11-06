@@ -300,8 +300,18 @@ export class App {
     this.maxModuleId = Math.max(0, ...patch.modules.map(m => m.id));
     const running = this.engine.loadGraph(this.doc.toJSON());
     const v = patch.ui?.view;
-    if (v && v.zoom) this.canvas.viewport.setView(v.x, v.y, v.zoom);
-    else requestAnimationFrame(() => this.canvas.fit());
+    // Restoring/fitting the viewport is presentation, not a source-document edit.
+    const loadedUi = this.doc.ui;
+    const restoreView = () => {
+      if (this.doc.ui !== loadedUi) return;
+      const view = this.doc.ui.view;
+      if (v && v.zoom) this.canvas.viewport.setView(v.x, v.y, v.zoom);
+      else this.canvas.fit();
+      if (view === undefined) delete this.doc.ui.view;
+      else this.doc.ui.view = view;
+    };
+    if (v && v.zoom) restoreView();
+    else requestAnimationFrame(restoreView);
     requestAnimationFrame(() => this.canvas.invalidateAnchors());
     this.doc.markClean();
     this.refreshDirty();
@@ -1072,4 +1082,3 @@ export class App {
 
 declare const __APP_VERSION__: string;
 declare const __BUILD__: string;
-

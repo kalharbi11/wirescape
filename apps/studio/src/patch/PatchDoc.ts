@@ -34,9 +34,10 @@ export class PatchDoc {
   connections: Connection[] = [];
   ui: PatchUi = { positions: {}, view: { x: 0, y: 0, zoom: 1 }, labels: {} };
   /** Unrecognised top-level keys, replayed on save. */
-  private extras: Record<string, unknown> = {};
+  private extras: Record<string, unknown> = { outputs: [] };
   private listeners = new Set<Listener>();
   private _dirty = false;
+  private sourceHasUi = true;
 
   get dirty(): boolean { return this._dirty; }
   markClean(): void { this._dirty = false; }
@@ -65,44 +66,25 @@ export class PatchDoc {
     this.modules.clear();
     for (const m of modules ?? []) {
       if (typeof m?.id !== 'number' || typeof m?.module !== 'string') continue;
-      this.modules.set(m.id, { ...m, parameters: { ...(m.parameters ?? {}) } });
+      this.modules.set(m.id, m);
     }
     this.connections = (connections ?? []).filter(isConnection).map(c => ({ ...c }));
-    this.ui = {
-      positions: { ...(ui?.positions ?? {}) },
-      view: { ...(ui?.view ?? { x: 0, y: 0, zoom: 1 }) },
-      labels: { ...(ui?.labels ?? {}) },
-      ...stripKnownUi(ui),
-    };
+    this.sourceHasUi = 'ui' in patch;
+    this.ui = ui ?? {};
     this.emit({ t: 'reset' });
   }
 
   toJSON(): PatchV2 {
-    return {
+    // Defaults belong to the engine execution copy (protocol §5). A read/save
+    // must not author settings, routes, descriptor versions or UI metadata.
+    return structuredClone({
       format: 'wirescape.native.patch',
       version: 2,
       ...this.extras,
-      settings: 'settings' in this.extras ? this.extras.settings : {
-        sample_rate: 48000, max_block_frames: 256, max_channels: 16, feedback_block: 1,
-      },
-      outputs: 'outputs' in this.extras ? this.extras.outputs : this.defaultOutputs(),
-      modules: [...this.modules.values()].map(m => {
-        const version = descriptors.get(m.module)?.version;
-        return { ...(!('version' in m) && version !== undefined ? { version } : {}), ...m };
-      }),
-      connections: this.connections.map(c => ({ ...c })),
-      ui: {
-        ...this.ui,
-        positions: { ...this.ui.positions },
-        labels: { ...this.ui.labels },
-        view: { ...this.ui.view! },
-      },
-    } as PatchV2;
-  }
-
-  private defaultOutputs(): NonNullable<PatchV2['outputs']> {
-    // UI defaults route every Output; native's absent-outputs fallback selects only the lowest ID.
-    return [...this.modules.values()].filter(m => m.module === 'essentials.output').flatMap(m => outputRoutes(m.id));
+      modules: [...this.modules.values()],
+      connections: this.connections,
+      ...(this.sourceHasUi || Object.keys(this.ui).length ? { ui: this.ui } : {}),
+    }) as PatchV2;
   }
 
   // ---- modules ----------------------------------------------------------
@@ -114,12 +96,12 @@ export class PatchDoc {
   }
 
   addModule(type: string, params: Record<string, number>, x: number, y: number, id = this.nextId()): number {
-    this.modules.set(id, { id, module: type, parameters: { ...params } });
+    const version = descriptors.get(type)?.version;
+    this.modules.set(id, { id, module: type, ...(version !== undefined ? { version } : {}), parameters: { ...params } });
     if (type === 'essentials.output') {
-      if (!('outputs' in this.extras)) this.extras.outputs = this.defaultOutputs();
-      else if (Array.isArray(this.extras.outputs)) this.extras.outputs.push(...outputRoutes(id));
+      if (Array.isArray(this.extras.outputs)) this.extras.outputs.push(...outputRoutes(id));
     }
-    this.ui.positions![String(id)] = [Math.round(x), Math.round(y)];
+    (this.ui.positions ??= {})[String(id)] = [Math.round(x), Math.round(y)];
     this.emit({ t: 'module-added', id });
     return id;
   }
@@ -131,14 +113,14 @@ export class PatchDoc {
     }
     this.modules.delete(id);
     if (Array.isArray(this.extras.outputs)) this.extras.outputs = this.extras.outputs.filter(o => o.module !== id);
-    delete this.ui.positions![String(id)];
-    delete this.ui.labels![String(id)];
+    if (this.ui.positions) delete this.ui.positions[String(id)];
+    if (this.ui.labels) delete this.ui.labels[String(id)];
     this.emit({ t: 'module-removed', id });
   }
 
   position(id: number): [number, number] { return this.ui.positions?.[String(id)] ?? [0, 0]; }
   setPosition(id: number, x: number, y: number): void {
-    this.ui.positions![String(id)] = [Math.round(x), Math.round(y)];
+    (this.ui.positions ??= {})[String(id)] = [Math.round(x), Math.round(y)];
     this.emit({ t: 'position', id });
   }
 
@@ -152,7 +134,8 @@ export class PatchDoc {
   label(id: number): string | undefined { return this.ui.labels?.[String(id)]; }
   setLabel(id: number, text: string): void {
     const t = text.trim();
-    if (t) this.ui.labels![String(id)] = t; else delete this.ui.labels![String(id)];
+    if (t) (this.ui.labels ??= {})[String(id)] = t;
+    else if (this.ui.labels) delete this.ui.labels[String(id)];
     this.emit({ t: 'label', id });
   }
 
@@ -265,12 +248,6 @@ function isEndpoint(e: unknown): e is Endpoint {
   const x = e as Endpoint;
   return !!x && typeof x === 'object' && typeof x.module === 'number' && typeof x.port === 'string';
 }
-function stripKnownUi(ui: PatchUi | undefined): Record<string, unknown> {
-  if (!ui) return {};
-  const { positions: _p, view: _v, labels: _l, ...rest } = ui;
-  return rest;
-}
-
 export const EMPTY = EMPTY_PATCH;
 
 function migrateV1(source: PatchV2): PatchV2 {

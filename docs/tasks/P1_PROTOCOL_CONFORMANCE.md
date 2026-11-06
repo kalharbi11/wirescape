@@ -29,11 +29,17 @@ native and renderer expectations.
 4. For any specification/implementation disagreement, post `Keel:` on
    #250 with a minimal diff. The specification wins; do not loosen thresholds.
 
+Keel's T02 ruling on #256 (2026-11-06) adds source-preservation correction:
+imports never synthesize execution/UI defaults; explicitly author builtin defaults
+without changing the 12 native starter exports. Automatic viewport restore/fit
+does not author source metadata. The golden T02 vector stays unchanged.
+Budget below includes Keel's +150 lines / +4 files authorization.
+
 No network sockets or hardware devices. No new dependencies.
 
 ```acceptance
 tier: T2
-size: <= 500 changed lines, <= 5 files
+size: <= 650 changed lines, <= 9 files
 must_pass:
   - cd apps/studio && npm test -- --grep "golden v0"
   - ctest --test-dir build/native -R sidecar_golden --output-on-failure --no-tests=error
