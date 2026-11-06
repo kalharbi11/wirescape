@@ -20,8 +20,16 @@ and has no bundled Surge binaries. It preserves earlier musical/design ideas, no
 (see [import record](../apps/studio/IMPORT.md)). Its patch document, catalogue,
 canvas, panels and shared animation ticker currently run against `FakeEngine`.
 The existing Playwright tests cover the UI without opening audio/MIDI devices.
-The Electron shell and real C++ engine bridge remain Phase 1 work; importing the
-UI does not connect it to the native engine yet. The Qt UI remains buildable.
+The P1F Electron shell in `apps/desktop/` owns the native window, local-only
+`app://wirescape` renderer resources, native file dialogs, and supervised
+`wirescape-engine` process. Its renderer interface is the isolated five-member
+`window.wirescape` preload object; commands and notifications use bounded NDJSON
+over the engine child's stdin/stdout with no socket or HTTP server. The built UI
+selects P1C's `RealEngine` when the native bridge is present and retains
+`FakeEngine` for browser tests. Native File-menu intents use that bridge without
+exposing file paths to the renderer.
+A protocol stub with null audio/fake MIDI is used by desktop Playwright tests.
+The Qt UI remains buildable.
 
 The root `web` workflow uses hosted Ubuntu and pinned Node 22 for `npm ci`,
 typecheck, build and Playwright with the runner's Chromium. Failures retain
