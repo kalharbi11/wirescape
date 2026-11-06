@@ -87,3 +87,14 @@ Not built from the kit: `slider`, `detent`, `tape`, `xy` (no catalogue parameter
 - Use the controls; don't restyle them per module.
 - Record new design decisions in `docs/DECISIONS.md`, and update `docs/DESIGN.md` when the spec changes.
 
+
+### Measuring
+
+Per-widget cost, all widgets forced visible (paste into `page.evaluate`):
+
+```js
+new Promise(res=>{const st=new Map();for(const t of tickers){const f=t.fn;t.fn=(...a)=>{const t0=performance.now();f(...a);
+ const id=(t.el.closest('.item')||{}).id||'?';st.set(id,(st.get(id)||0)+performance.now()-t0);};t.vis=true;}
+ let n=0;const c=()=>{if(++n<120)requestAnimationFrame(c);else res([...st].sort((a,b)=>b[1]-a[1]).map(([k,v])=>k+' '+(v/120).toFixed(3)+' ms'));};requestAnimationFrame(c);})
+```
+
