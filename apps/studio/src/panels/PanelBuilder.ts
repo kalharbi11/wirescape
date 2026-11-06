@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import type { ModuleDescriptor, ModuleParam } from '../modules/types';
+import type { Device } from '../engine/EngineClient';
 import type { Connection } from '../patch/types';
 import type { PatchDoc } from '../patch/PatchDoc';
 import type { Ticker } from '../runtime/Ticker';
@@ -22,6 +23,8 @@ export interface PanelHost {
   /** Write a parameter through the engine; rolls back if it refuses. */
   commitParam(moduleId: number, paramId: string, value: number, commit: boolean): void;
   commitModAmount(c: Connection, amount: number, commit: boolean): void;
+  listMidiDevices(): Promise<Device[]>;
+  setModuleEndpoint(moduleId: number, endpoint: string): void;
   describeSource(c: Connection): string;
   /** The cable's user-picked colour, as a CSS colour. */
   cableColor(c: Connection): string;
@@ -80,6 +83,40 @@ export class Panel {
         if (w) { this.widgets.set(id, w); row.append(w.root); }
       }
       controls.append(row);
+    }
+    if (d.id === 'midi.in') {
+      const row = el('div', 'control-row select-row');
+      const sel = el('select', 'input-select') as HTMLSelectElement;
+      sel.dataset.testid = `midi-endpoint-${moduleId}`;
+      sel.setAttribute('aria-label', 'MIDI input device');
+      const current = () => {
+        const cfg = host.doc.modules.get(moduleId)?.config;
+        return cfg && typeof cfg === 'object' && 'endpoint' in cfg
+          && typeof cfg.endpoint === 'string' ? cfg.endpoint : 'all_enabled';
+      };
+      const refresh = async () => {
+        let devices: Device[] = [];
+        try { devices = await host.listMidiDevices(); } catch { /* keep saved choice */ }
+        if (!sel.isConnected) return;
+        const endpoint = current();
+        const items = [{ id: 'all_enabled', name: 'All enabled devices' },
+          ...devices.map(d => ({ id: d.id, name: d.name }))];
+        if (!items.some(d => d.id === endpoint)) {
+          items.push({ id: endpoint, name: `${endpoint} (not connected)` });
+        }
+        sel.replaceChildren(...items.map(item => {
+          const option = document.createElement('option');
+          option.value = item.id; option.textContent = item.name;
+          return option;
+        }));
+        sel.value = endpoint;
+      };
+      sel.addEventListener('change', () => host.setModuleEndpoint(moduleId, sel.value));
+      row.append(el('div', 'control-caption', 'MIDI input'), sel);
+      controls.append(row);
+      void refresh();
+      this.widgets.set('config.endpoint', { root: row, refresh: () => { void refresh(); },
+        destroy() { /* contained by the card */ } });
     }
     this.root.append(controls);
   }
