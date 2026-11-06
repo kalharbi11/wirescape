@@ -221,7 +221,7 @@ void Session::shutdown() {
         bench_reported_ = true;
         std::cerr << "bench blocks=" << bench_.blocks << " p50=" << bench_.percentile(50)
                   << " p99=" << bench_.percentile(99) << " max=" << bench_.max_percent
-                  << " overruns=" << bench_.overruns << '\\n';
+                  << " overruns=" << bench_.overruns << '\n';
     }
 }
 void Session::start_audio() {
