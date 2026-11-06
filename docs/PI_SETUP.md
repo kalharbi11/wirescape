@@ -77,7 +77,7 @@ For example, an owner can run `sudo usermod -aG audio "$USER"`, create the limit
 
 To verify scheduling policy and priority, find the running engine PID and inspect it with `chrt -p`:
 
-    pid=$(pgrep -xo wirescape-engine)
+    pid=$(pgrep -fo '(^|/)wirescape-engine( |$)')
     chrt -p "$pid"
     grep '^VmLck:' "/proc/$pid/status"
 

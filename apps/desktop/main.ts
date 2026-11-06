@@ -68,8 +68,9 @@ function handleEngineLine(raw: string, owner: ChildProcessWithoutNullStreams): v
       console.error('boot-to-first-hello-ms=' + Number(process.hrtime.bigint() - readyAt) / 1e6);
     }
   } else if (!engineReady) return;
+  const status = obj.status as { audio?: { state?: unknown } } | undefined;
   if (obj.type === 'status' && !loggedAudioTime && readyAt !== null &&
-      obj.audio && typeof obj.audio === 'object' && (obj.audio as Record<string, unknown>).state === 'running') {
+      status?.audio?.state === 'running') {
     loggedAudioTime = true;
     console.error('boot-to-audio-running-ms=' + Number(process.hrtime.bigint() - readyAt) / 1e6);
   }

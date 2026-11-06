@@ -17,7 +17,7 @@ function announce() {
   send({ v: 0, session, type: 'hello', protocol: 0,
     engine: { version: 'test', sha: 'stub' }, capabilities: [],
     catalogue: { modules: [] }, audio, midi: { devices: [], activity: {} } });
-  if (process.env.STUB_AUDIO_RUNNING === '1') send({ v: 0, type: 'status', audio });
+  if (process.env.STUB_AUDIO_RUNNING === '1') send({ v: 0, session, gen: '0', type: 'status', status: { audio } });
 }
 const startupDelay = Number(process.env.STUB_STARTUP_DELAY_MS) || 0;
 if (startupDelay > 0) setTimeout(announce, startupDelay);
