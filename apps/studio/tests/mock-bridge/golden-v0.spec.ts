@@ -83,8 +83,6 @@ async function goldenBridge(page: Page): Promise<void> {
     const same = (actual: Message, expected: Message) => {
       const a = copy(actual), b = copy(expected);
       delete a.id; delete b.id; // RealEngine allocates its own correlation IDs.
-      // PatchDoc may fill display-only UI fields, never alter the execution view.
-      if (a.type === 'loadGraph' && b.patch?.ui === undefined) delete a.patch.ui;
       // addModule.params is optional in v0; RealEngine sends {} by default.
       if (a.type === 'addModule' && b.params === undefined &&
           a.params && Object.keys(a.params).length === 0) delete a.params;
@@ -147,6 +145,20 @@ async function goldenBridge(page: Page): Promise<void> {
     };
   }, { examples: cases, events: pushes, startup: hello, restart: restartHello });
 }
+
+
+test('golden v0 T02: loading a patch does not synthesize editable document fields', async ({ page }) => {
+  await goldenBridge(page);
+  await boot(page);
+  const source = cases.r2!.command.patch;
+  const saved = await page.evaluate(async input => {
+    await window.__wirescapeTest.load(input, 'T02');
+    return window.__wirescapeTest.save();
+  }, source);
+  // D3 / protocol §5: settings, outputs and descriptor versions may be added
+  // only in the sidecar execution copy, never in the editable/saved patch.
+  expect(saved).toEqual(source);
+});
 
 test('golden v0: RealEngine maps commands, replies, refusals and pushes through the shared transcript', async ({ page }) => {
   await goldenBridge(page);
