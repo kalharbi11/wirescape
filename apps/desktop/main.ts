@@ -144,7 +144,7 @@ function startEngine(): void {
   // Only the explicit test harness may run a Node protocol stub.
   const stub = process.env.WIRESCAPE_TEST_STUB === '1';
   const child = spawn(stub ? process.execPath : executable, stub ? [executable, ...engineArgs] : engineArgs, {
-    stdio: ['pipe', 'pipe', 'pipe'],
+    // Node's default stdio is three pipes; no socket or shell is involved.
     windowsHide: true,
     env: stub ? { ...process.env, ELECTRON_RUN_AS_NODE: '1' } : process.env
   });
@@ -252,7 +252,7 @@ async function openPatch(): Promise<{ text: string; name: string } | null> {
       if (bytesRead > LIMIT) throw new Error('Patch exceeds 2 MiB limit');
       bytes = bytes.subarray(0, bytesRead);
     } finally { await handle.close(); }
-    const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     patchPath = filename;
     return { text, name: path.basename(filename) };
   } catch { throw new Error('Could not read UTF-8 patch (2 MiB maximum)'); }
