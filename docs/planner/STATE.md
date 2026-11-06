@@ -3,33 +3,40 @@
 
 Keep this under 60 lines. Rewrite it at the end of each lead session; history lives in git.
 
-**Updated:** 2026-11-06 by Compass (project check-in; plan refreshed; board tidied). Keel was mid-session on #247/#249/#253.
+**Updated:** 2026-11-06 by Keel (overview, merged #242, fixed and approved #249, combined lanes to Test Session 1), then Compass (check-in, plan refresh, board).
 
 ## Where things stand
-- **Phase 0:** code-complete. 0D #237 and 0E #240 merged. Only 0F (owner Pi re-test) is left; #227 stays open to collect it.
-- **Phase 1 merged:** 1.0 #239, 1A #238, 1D #242, 1G #241, plus the protocol ID-namespace ruling #244.
-- **#249 P1C RealEngine:** Keel T1-reviewed, fixed the crash-restart loop (main owns crash restarts) and armed auto-merge at `706e333`. It lands on green; nothing needed.
-- **#253 P1F shell (draft):** rebase on #249 once it merges (conflict in `apps/studio/src/app/App.ts`). Keel's notes: renderer-requested restart must not reset `failures`, and the launcher passes `--confirm-audio --confirm-midi`.
-- **#247 P1B sidecar (draft, T2, critical path):** red on real bugs. Keel's single checklist on #247: merge main, `hello` before render, the Windows fake-MIDI disable hang, static findings, and the D5 fade (ruled: ≤10 ms linear master-gain ramp each side, gap ≤150 ms).
-- **#250 conformance harness** is now plan item **1H**; it starts once 1B and 1C have their basic shapes and must be green before 1E signs off.
-- **#235 P1E** after 1B + 1F.
-- Known non-required red everywhere: `cortex-m7` (#159; fix parked in #161, Phase 5).
+- **Merged:** #237 P0D, #238 P1A, #239 P1.0, #240 P0E, #241 P1G, #242 P1D (Keel direct, `fcb8fab`), plus lead docs #243–#251.
+- **#249 P1C RealEngine:** Keel T1 review done. Keel pushed `1fa65c3` (main owns crash restarts: RealEngine no longer sends `app.restartEngine` on an unexpected exit, which would have reset main's crash-loop budget forever) and merged main (`706e333`). Approved; `status/ready-to-merge`; auto-merge on green.
+- **#247 P1B sidecar: the critical path.** Red for real: `hello` is gated behind render (`protocol_tests.py:209`) and Windows MIDI-off never replies (`:160`), plus static/format. The D5 fade is ruled (master gain ramp, linear ≤10 ms each side, gap ≤150 ms). One ordered 7-step checklist is on #247. Needs a builder now.
+- **#253 P1F shell:** draft, builder working. Keel note: don't reset `failures` on a renderer restart; rebase after #249 (App.ts conflict); launchers pass `--confirm-*`.
+- **#252 closed:** #242's `ui_catalogue_sync` CTest is already the required drift gate.
+- **#235 P1E:** starts now. Part 1 = owner scripts + Pi runner jobs; part 2 (added) = a hosted Electron + real-engine e2e smoke, the gate before the owner's time.
+- **#250 conformance:** starts now (Studio checker first, native after #247).
+- Known non-required red: `cortex-m7` (#159).
 
-## Decisions this session (Compass)
-- **D13 sidecar contingency:** if #247 is red again after Keel's checklist, split it into 1B-1 (protocol, null sink, fake MIDI, fade: everything CI can prove) and 1B-2 (PortAudio + real MIDI devices). No third attempt at the full L-size PR.
-- Plan "Now" rewritten; 0E, 1D and 1G ticked; 1H added.
-- Board: closed #70 (J3 done, superseded by 1E/2E) and #140 (Qt Studio silence; #200's semantics carry into 2C). Phase labels on parked items: #188 → 4A; #72/#94/#143/#178 → 3; #163/#164/#186/#209/#210 → 2; #64/#91/#159/#161 → 5. Created labels `phase/3`–`phase/5`.
-- Electron (D1) reconfirmed; no change.
+## Compass decisions (2026-11-06 check-in)
+- Agreed: P0F is folded into Test Session 1; PLAN "Now" and 0F updated. 0E, 1D, 1G ticked; #250 is plan item **1H**.
+- **D13 sidecar contingency:** if #247 is red again after Keel's checklist, split it into 1B-1 (protocol, null sink, fake MIDI, fade: everything CI proves) and 1B-2 (PortAudio + real MIDI devices). No third attempt at the full L PR.
+- Electron (D1) reconfirmed. Board: closed #70 (done) and #140 (Qt; semantics → 2C); `phase/2`–`phase/5` labels on parked items (labels 3–5 created).
+
+## Lanes (copy-ready prompts in `docs/planner/LANES.md`)
+1. Engine: #247 → #250 native checker.  2. Desktop: #253 → P1E e2e smoke.
+3. Integration: #250 → P1E scripts + Pi runner.  4. Live edits: #209 (2A) → replace the D5 swap with live replan.
+
+## Rulings this session
+- **Crash restart ownership (Keel):** Electron main is the only automatic restarter. The renderer sends `app.restartEngine` only for an explicit user action. A renderer request never resets the crash-loop budget. Fits ENGINE_PROTOCOL §2 ("the UI may request one"); no spec edit needed.
+- **One owner Pi session (Keel, owner-time call):** P0F (`DEMO_CLASS.md` §5b, `play` only) is folded into Test Session 1 (§6), run first in the same sitting so engine and app failures stay separable. Compass: this replaces the separate P0F session in "Now". Tick 0F from that result.
+
+## Test Session 1 is ready when
+#247, #249 and #253 are merged; P1E part 1 is merged; the P1E e2e smoke is green; the Pi runner `ctest -R sidecar_` is green. Keel then posts the exact copy-paste commands on a Phase 1 tracking issue.
 
 ## Waiting on the owner
-- **P0F Pi re-test, now unblocked.** Drop the old local edit, update to main, rebuild, then `docs/DEMO_CLASS.md` §3 + §5b for all 3 patches × CC21–28:
-  `cd ~/wirescape-demo && git checkout -- native/io/audio/portaudio_service.cpp && git fetch origin main && git checkout -B main origin/main && python3 tools/dev.py build --headless`
-  Post pass/fail per patch on #227.
+- Nothing until Test Session 1 is ready. (If the owner has 15 minutes on the Pi before then, §5b alone is still useful.)
 
 ## Next lead sessions
-- Keel: drive #247 through the checklist (or apply D13); T2-review #247 when green; review #253 after its rebase; review #250 when it opens.
-- Compass: triage the owner's P0F result on #227; write the Checkpoint A agenda once 1B + 1F are merged; decide whether 1E needs a Windows smoke test before the Pi.
-- Stale drafts parked (triage at Checkpoint A, not before): #82 (OSC, P3), #161 (#159, P5), #181 (docs T1, needs one review), #209 (→2A), #210 (P2).
+- Keel: T2-review #247 as soon as it's out of draft (same day); review #250 and #209; confirm #249 merged; merge #253 once reviewed; then post the Test Session 1 commands.
+- Compass: Checkpoint A agenda after Test Session 1; apply D13 if #247 stalls; triage the owner's results.
 
 ## Standing rules from the owner
 - Don't plan agent assignment; the owner and their managers assign. Keep sections parallel where possible.

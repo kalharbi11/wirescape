@@ -4,10 +4,10 @@ Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issu
 How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) live in git history; their results are summarised under "Where we are".
 
 ## Now
-- **Check-in 2026-11-06 (Compass).** Phase 0 is code-complete (0D #237, 0E #240 merged); only the owner's Pi re-test (0F) is left. Phase 1 is about half built: 1.0, 1A, 1D (#242) and 1G (#241) are merged, 1C RealEngine (#249) is approved and merging on green, 1F shell (#253) is a draft waiting to rebase on #249.
+- **Check-in 2026-11-06 (Compass).** Phase 0 is code-complete (0D #237, 0E #240 merged); only the owner's Pi re-test (0F) is left, and it is folded into Test Session 1 (Keel, owner-time call). Phase 1 is about half built: 1.0, 1A, 1D (#242) and 1G (#241) are merged, 1C RealEngine (#249) is approved and merging on green, 1F shell (#253) is a draft waiting to rebase on #249.
 - **Critical path: 1B sidecar (#247).** Everything after it (1E bring-up, the #250 conformance harness, Checkpoint A) waits on it. Keel's checklist on #247 lists the open bugs (`hello` before render, Windows MIDI disable hang, static findings, the D5 fade). **Contingency (D13):** if the next push still can't go green, split 1B instead of a third attempt.
 - **Background:** the owner tested on the Pi (partial pass: sound, M8 notes after the P0D fix, CC21 → VCA). The browser/kiosk demo is deferred; the product is the standalone app.
-- **Priority order:** (1) 1B sidecar; (2) 1F shell + 1C merged, then 1E bring-up and #250; (3) the owner's 0F Pi re-test, now unblocked; (4) Checkpoint A; then Phase 2 (2A live edits first).
+- **Priority order:** (1) 1B sidecar; (2) 1F shell + 1C merged, then 1E bring-up and #250; (3) **Test Session 1**: one owner sitting on the Pi, P0F (`DEMO_CLASS.md` §5b, `play` only) first, then the app (§6); (4) Checkpoint A; then Phase 2 (2A live edits first).
 - **Windows can speed up testing:** a section may be smoke-tested on the laptop. The Pi stays the acceptance target.
 
 ## Where we are (2026-11-07)
@@ -66,7 +66,7 @@ Each phase lists sections (letter blocks). Sections in a phase run in parallel u
 - [x] 0C Owner hardware check (2026-11-07): partial pass (record: `docs/DEMO_CLASS.md` §1).
 - [x] **0D Live MIDI clock fix** (#237, merged 2026-11-06) (`docs/tasks/P0D_LIVE_MIDI_CLOCK.md`, T2, small): the headless audio callback renders with the live clock, plus a regression test. **Do first.** Phase 1's engine sidecar inherits it.
 - [x] **0E Audible demo CC mappings** (#240, merged 2026-11-06) (`docs/tasks/P0E_DEMO_CC_DEPTH.md`): CC21–28 sweep obvious ranges in all 3 patches, with an offline test that proves it. Parallel with Phase 1.
-- [ ] 0F Owner, **now unblocked**: rebuild from a clean checkout and verify all 3 patches × CC21–28 with the M8 (`docs/DEMO_CLASS.md` §5b). Hardware acceptance of Phase 0 needs all 24 combinations.
+- [ ] 0F Owner, run first in **Test Session 1** (`docs/planner/LANES.md`): rebuild from a clean checkout and verify all 3 patches × CC21–28 with the M8 (`docs/DEMO_CLASS.md` §5b). Hardware acceptance of Phase 0 needs all 24 combinations.
 
 ### Phase 1: The standalone app with the real engine (Pi first, Windows works too)
 **1.0 comes first** (small, about half a day). 1A, 1D and 1G can start right away; 1B, 1C and 1F follow 1.0 and run in parallel.
