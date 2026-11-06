@@ -1,0 +1,37 @@
+{
+  "code": "CLK",
+  "short": {
+    "ticks_per_beat": "TICKS/BEAT"
+  },
+  "modPorts": [
+    "bpm"
+  ],
+  "roles": {
+    "bpm": "hero",
+    "ticks_per_beat": "number",
+    "duty": "primary",
+    "run": "toggle"
+  },
+  "widgets": {
+    "bpm": "number",
+    "ticks_per_beat": "number"
+  },
+  "sections": [
+    {
+      "params": [
+        "bpm"
+      ]
+    },
+    {
+      "params": [
+        "duty",
+        "ticks_per_beat"
+      ]
+    },
+    {
+      "params": [
+        "run"
+      ]
+    }
+  ]
+}

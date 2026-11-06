@@ -1,0 +1,96 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* =========================================================================
+   WIRESCAPE app tokens.
+   The design tokens come from ui/tokens.css (DESIGN §2), imported first in
+   main.ts. This file only maps the app's older token names onto them and
+   adds the app-only values (layout, hit areas, profiles). No component may
+   hard-code a colour.
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* ---- aliases onto the kit tokens ------------------------------------ */
+  --ground: var(--paper);
+  --rail: var(--paper);
+  --surface: var(--card);
+  --surface-2: var(--card2);
+  --surface-sunken: var(--card2);
+  --ink-strong: var(--ink);
+  --sub: var(--mute);
+  --sub-light: #b0b0ab;
+  --line: var(--hair);
+  --grid: var(--dot);
+  --accent: var(--rust);
+  --accent-soft: rgba(194, 80, 31, 0.35);
+  --accent-wash: var(--rust2);
+  --danger: var(--rust);
+  --good: var(--olive);
+  --plum: var(--hint-events);
+  --blue: var(--hint-pitch);
+  --olive: var(--hint-cv);
+
+  /* ---- port hints: jack rings only (cables carry no meaning, §9) ------ */
+  --hint-cv_uni: var(--hint-cv);
+  --hint-cv_bi: var(--hint-cv);
+  --hint-trigger: var(--hint-gate);
+  --hint-ev_notes: var(--hint-events);
+  --hint-ev_midi: var(--hint-events);
+
+  /* ---- geometry -------------------------------------------------------- */
+  --radius: var(--card-radius);
+  --radius-sm: 7px;
+  --radius-xs: 2px;
+  --module-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+
+  /* Hit-area scale. Mouse is the primary target; touch bumps this. */
+  --hit-scale: 1;
+  --hit-min: calc(30px * var(--hit-scale));
+  --port-jack: 12px;
+  --port-hit: calc(28px * var(--hit-scale));
+
+  /* ---- type ------------------------------------------------------------ */
+  --ui-scale: 1;
+  --font: var(--sans);
+  --fs-micro: calc(8.5px * var(--ui-scale));
+  --fs-small: calc(9.5px * var(--ui-scale));
+  --fs-body: calc(11px * var(--ui-scale));
+  --fs-label: calc(12px * var(--ui-scale));
+  --fs-title: calc(20px * var(--ui-scale));
+
+  /* ---- motion ---------------------------------------------------------- */
+  --t-fast: 100ms;
+  --t-base: 150ms;
+  --t-slow: 240ms;
+
+  /* ---- layout ---------------------------------------------------------- */
+  --rail-w: 232px;
+  --top-h: 52px;
+  --foot-h: 30px;
+}
+
+/* Touch profile: enlarged hit areas for a Pi touch panel (S knobs ≥ 44 px, §4.1). */
+:root[data-hit='touch'] {
+  --hit-scale: 1.6;
+  --port-jack: 14px;
+}
+
+/* Pi performance profile: no card shadows, fainter texture (PERFORMANCE rule 10). */
+:root[data-profile='pi'] {
+  --module-shadow: none;
+  --dot: rgba(0, 0, 0, 0.045);
+}
+
+/* Dark theme: wired, not designed (Q-C: later). A neutral inversion so the switch is never broken. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #161716; --card: #1f201f; --card2: #272827;
+  --ink: #ecebe6; --graph: #c9c8c2; --mute: #8d8d88;
+  --hair: #3c3d3a; --hair2: #2d2e2c; --dot: rgba(255, 255, 255, 0.05);
+  --knob-cap: #5a5a57; --sub-light: #6d6f69;
+  --module-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --t-fast: 0ms; --t-base: 0ms; --t-slow: 0ms; --t-pop: 0ms; --t-event: 0ms; --t-pulse: 0ms; --t-slide: 0ms; }
+}

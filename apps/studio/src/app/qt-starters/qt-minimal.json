@@ -1,0 +1,14 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "format": "wirescape.native.patch", "version": 2,
+  "name": "Starter: Minimal oscillator",
+  "settings": {"sample_rate":48000,"max_block_frames":128,"max_channels":16,"feedback_block":32,"seed":42,"timing_mode":"immediate"},
+  "modules": [
+    {"id":1,"module":"essentials.vco","version":2,"x":80,"y":110,"parameters":{}},
+    {"id":2,"module":"essentials.output","version":2,"x":435,"y":110,"parameters":{}}
+  ],
+  "connections": [
+    {"kind":"signal","from":{"module":1,"port":"audio"},"to":{"module":2,"port":"audio"}}
+  ],
+  "outputs": [{"module":2,"port":"audio","bus_channel":0}]
+}

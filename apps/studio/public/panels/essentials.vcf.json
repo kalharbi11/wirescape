@@ -1,0 +1,13 @@
+{
+  "code": "VCF",
+  "panes": [
+    "filter"
+  ],
+  "paneOptions": {
+    "filter": {
+      "cutoff": "cutoff",
+      "resonance": "resonance",
+      "graph": true
+    }
+  }
+}

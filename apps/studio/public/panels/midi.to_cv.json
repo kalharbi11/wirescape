@@ -1,0 +1,46 @@
+{
+  "code": "MCV",
+  "sections": [
+    {
+      "label": "01 / VOICING",
+      "params": [
+        "voice_count",
+        "pitch_bend_range_semitones"
+      ]
+    },
+    {
+      "label": "02 / ALLOCATION",
+      "columns": 1,
+      "params": [
+        "allocation_mode",
+        "mono_priority",
+        "channel_filter"
+      ]
+    },
+    {
+      "label": "03 / BEHAVIOUR",
+      "columns": 1,
+      "params": [
+        "legato",
+        "sustain",
+        "apply_bend",
+        "steal_policy"
+      ]
+    }
+  ],
+  "short": {
+    "pitch_bend_range_semitones": "BEND RANGE",
+    "voice_count": "VOICES"
+  },
+  "ports": {
+    "output": {
+      "shown": 4,
+      "priority": [
+        "pitch",
+        "gate",
+        "velocity",
+        "notes"
+      ]
+    }
+  }
+}

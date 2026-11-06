@@ -1,0 +1,10 @@
+{
+  "code": "FN",
+  "panes": [
+    "envelope"
+  ],
+  "roles": {
+    "rise": "number",
+    "fall": "number"
+  }
+}
