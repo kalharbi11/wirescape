@@ -224,7 +224,7 @@ test.describe('the catalogue', () => {
       return out;
     });
 
-    expect(report).toHaveLength(21);
+    expect(report).toHaveLength(22);
     for (const r of report) {
       expect(r.ports, `${r.id} should render its ports`).toBeGreaterThan(0);
       if (r.params > 0) {

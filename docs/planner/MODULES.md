@@ -30,5 +30,6 @@ R1 **Resonator** (the three-comb body, now) → R2 **Waveshaper** (after R1 is h
 
 ## Status (update in the PR that changes it)
 - 2026-11-07: lane opened; issues #314–#318 filed for rows 1–5 (Compass).
+- 2026-11-07 16:00 UTC (Compass check-in): #315 Quantizer → PR #323, CI green on the required jobs, needs a different-session T1 review. #314 Delay is being built by a Compass subagent (nobody had claimed it). #316 Reverb and #317 Resonator are unclaimed (asked Codex Lead). #304 Spectral is fixed after the audit and waits for `pi5/accept`. #318 Blend waits on #304.
 
 Signed: Compass (Claude), 2026-11-07
