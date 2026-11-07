@@ -18,14 +18,15 @@ struct Stereo {
     Samples l, r;
 };
 struct Arena {
-    std::unique_ptr<unsigned char[]> bytes = std::make_unique<unsigned char[]>(2 * 1024 * 1024);
+    std::unique_ptr<unsigned char[]> bytes = std::make_unique<unsigned char[]>(size_t(2) * 1024 * 1024);
     size_t used = 0;
 };
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- the host allocation ABI fixes this signature.
 void *WS2_CALL heap_alloc(void *ptr, size_t size, size_t align, uint32_t) {
     auto &arena = *static_cast<Arena *>(ptr);
     const auto start = reinterpret_cast<uintptr_t>(arena.bytes.get());
     const size_t offset = ((start + arena.used + align - 1) & ~(uintptr_t(align) - 1)) - start;
-    if (offset + size > 2 * 1024 * 1024) return nullptr;
+    if (offset + size > size_t(2) * 1024 * 1024) return nullptr;
     arena.used = offset + size;
     return arena.bytes.get() + offset;
 }
@@ -43,6 +44,7 @@ struct Rig {
     ws2_signal params[reverb::COUNT]{};
     ws2_signal_out outputs[2]{};
     ws2_process ctx{};
+    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- sample rate and voice count are distinct.
     explicit Rig(double rate = 48000, uint32_t channels = 1) {
         const ws2_config config{sizeof(config), rate, kFrames, kMaxChannels, 42, nullptr, 0};
         ws2_memory memory{sizeof(memory), 0, 0, 0};
@@ -115,6 +117,7 @@ struct Rig {
         return d->load_state(instance, &r);
     }
 };
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- sample count and amplitude are distinct.
 Samples noise(size_t n, float amplitude = .3f) {
     Samples x(n);
     uint32_t state = 0x52cau;
@@ -130,6 +133,7 @@ double rms(const Samples &s, size_t start, size_t end) {
     for (size_t i = start; i < end; ++i) energy += double(s[i]) * s[i];
     return std::sqrt(energy / double(end - start));
 }
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- symmetric source channels are intentional.
 double correlation(const Samples &a, const Samples &b, size_t start) {
     double aa = 0, bb = 0, ab = 0, ma = 0, mb = 0;
     const double n = double(a.size() - start);
@@ -202,7 +206,7 @@ void test_dry_and_width() {
 }
 double measured_rt60(float size) {
     constexpr uint32_t rate = 48000, window = 2400;
-    Samples impulse(rate * 3, 0);
+    Samples impulse(size_t(rate) * 3, 0);
     impulse[0] = 1;
     Rig rig;
     rig.set(reverb::SIZE, size)
@@ -217,8 +221,8 @@ double measured_rt60(float size) {
     const int begin = 4, end = 52;
     for (int k = begin; k < end; ++k) {
         const double t = (k + .5) * double(window) / rate;
-        const double energy = .5 * (std::pow(rms(result.l, k * window, (k + 1) * window), 2) +
-                                    std::pow(rms(result.r, k * window, (k + 1) * window), 2));
+        const double energy = .5 * (std::pow(rms(result.l, size_t(k) * window, size_t(k + 1) * window), 2) +
+                                    std::pow(rms(result.r, size_t(k) * window, size_t(k + 1) * window), 2));
         const double ln = std::log(std::sqrt(energy) + 1e-30);
         sx += t;
         sy += ln;
@@ -296,7 +300,7 @@ void test_state_extremes_and_sweep() {
     }
     Rig stable;
     stable.set(reverb::DECAY, 20).set(reverb::DAMPING, 0).set(reverb::MOTION, 0).set(reverb::MIX, 1);
-    const auto out = stable.run(noise(48000 * 30, 1), noise(48000 * 30, 1));
+    const auto out = stable.run(noise(size_t(48000) * 30, 1), noise(size_t(48000) * 30, 1));
     for (float v : out.l) REQUIRE(std::abs(v) <= 2);
     for (float v : out.r) REQUIRE(std::abs(v) <= 2);
 }
