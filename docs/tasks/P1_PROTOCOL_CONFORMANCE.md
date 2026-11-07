@@ -33,13 +33,15 @@ Keel's T02 ruling on #256 (2026-11-06) adds source-preservation correction:
 imports never synthesize execution/UI defaults; explicitly author builtin defaults
 without changing the 12 native starter exports. Automatic viewport restore/fit
 does not author source metadata. The golden T02 vector stays unchanged.
-Budget below includes Keel's +150 lines / +4 files authorization.
+Keel authorized 13 files / <= 1,150 changed lines for this exact ruling scope
+in the 2026-11-07 review on PR #256. The cap covers the native checker,
+category repair, approved protocol examples and Studio source preservation.
 
 No network sockets or hardware devices. No new dependencies.
 
 ```acceptance
 tier: T2
-size: <= 650 changed lines, <= 9 files
+size: <= 1150 changed lines, <= 13 files
 must_pass:
   - cd apps/studio && npm test -- --grep "golden v0"
   - ctest --test-dir build/native -R sidecar_golden --output-on-failure --no-tests=error
