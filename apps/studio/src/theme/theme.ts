@@ -12,6 +12,8 @@ export interface Preferences {
   showPortLabels: boolean;
   /** Switch to the Pi profile by itself when frames stay slow (phase 5). */
   autoProfile: boolean;
+  /** Global musical-key shortcuts; explicit screen keys and MIDI are independent. */
+  computerKeyboardPlays: boolean;
 }
 
 const KEY = 'wirescape.prefs.v1';
@@ -24,6 +26,7 @@ export const DEFAULT_PREFS: Preferences = {
   theme: 'light',
   showPortLabels: true,
   autoProfile: true,
+  computerKeyboardPlays: true,
 };
 
 export function loadPrefs(): Preferences {
