@@ -55,3 +55,6 @@ Thumbs.db
 apps/studio/node_modules/
 apps/studio/dist/
 apps/studio/test-results/
+
+# Web demo engine (built by .github/workflows/web-demo.yml)
+apps/studio/public/web/wirescape.wasm
