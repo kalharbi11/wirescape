@@ -201,6 +201,32 @@ double max_step(const std::vector<float> &y, Span span) {
     return s;
 }
 
+// The fast approximations stay within their stated bounds of <cmath>.
+void test_approximations() {
+    double log_err = 0, exp_err = 0, atan_err = 0, trig_err = 0;
+    for (int i = -4000; i <= 4000; ++i) {
+        const float x = std::pow(10.f, float(i) / 400.f); // 1e-10 .. 1e10
+        log_err = std::max(log_err, std::abs(double(spectral::approx::log2(x)) - std::log2(double(x))) /
+                                        std::max(1.0, std::abs(std::log2(double(x)))));
+        const float e = float(i) / 40.f; // -100 .. 100
+        exp_err = std::max(exp_err, std::abs(spectral::approx::exp2(e) / std::exp2(double(e)) - 1));
+        const float t = float(i) / 4000.f * 3.14159265f;
+        float sn, cs;
+        spectral::approx::sincos(t, sn, cs);
+        trig_err = std::max({trig_err, std::abs(sn - std::sin(double(t))), std::abs(cs - std::cos(double(t)))});
+        for (float r : {1e-6f, .3f, 1.f, 50.f}) {
+            const float y = r * std::sin(t), xx = r * std::cos(t);
+            const double want = std::atan2(double(y), double(xx));
+            double d = std::abs(spectral::approx::atan2(y, xx) - want);
+            d = std::min(d, std::abs(d - kTwoPi)); // +-pi are the same angle
+            atan_err = std::max(atan_err, d);
+        }
+    }
+    std::printf("approx: log2 %.2g, exp2 %.2g, atan2 %.2g rad, sincos %.2g\n", log_err, exp_err, atan_err, trig_err);
+    REQUIRE(log_err < 2e-5 && exp_err < 2e-5 && atan_err < 2e-5 && trig_err < 4e-6);
+    REQUIRE(spectral::approx::atan2(0, 0) == 0);
+}
+
 void test_fft_matches_dft() {
     for (uint32_t n : {16u, 64u, 512u, 4096u}) {
         std::vector<float> storage(spectral::RealFft::floats(8192)), x = noise(n, NoiseSpec{n, .3f}), re(n / 2 + 1),
@@ -464,6 +490,37 @@ void test_mode_switch_crossfades() {
     }
 }
 
+// Mean weights B by b_level on both sides of the dominance boundary (review on #304).
+void test_mean_b_level() {
+    const size_t n = 16000, from = 8000;
+    const auto silent = std::vector<float>(n, 0.f), b = sine(n, Tone{523.25, .4}, 48000);
+    for (float gb : {0.f, .5f, 1.f, 2.f}) { // A silent: mean = gb * B / 2
+        Rig r;
+        r.set(spectral::P_MODE, spectral::Mean).set(spectral::P_BLEVEL, gb);
+        const auto y = r.run(silent, b);
+        std::vector<float> want = b;
+        for (auto &v : want) v *= .5f * gb;
+        if (gb == 0) REQUIRE(rms(y, {from, n}) < 1e-6);
+        else REQUIRE(rel_error(y, want, r.latency(), {from, n}) < 1e-3);
+    }
+    // Same frequency, B a quarter period later: |A| = |B| = 0.4 in every bin, so the louder side
+    // flips at b_level 1 and the mean magnitude is (1 + gb) / 2 times the louder bin's phase.
+    const auto a = sine(n, Tone{300, .4}, 48000);
+    std::vector<float> bq(n);
+    for (size_t i = 0; i < n; ++i) bq[i] = float(.4 * std::cos(kTwoPi * 300 * double(i) / 48000));
+    for (float gb : {.5f, 2.f}) {
+        Rig r;
+        r.set(spectral::P_MODE, spectral::Mean).set(spectral::P_BLEVEL, gb);
+        const auto y = r.run(a, bq);
+        // Mean magnitude 0.4 (1 + gb) / 2 on the louder source's 0.4-amplitude phase.
+        std::vector<float> want = gb < 1 ? a : bq;
+        for (auto &v : want) v *= (1 + gb) / 2;
+        const double e = rel_error(y, want, r.latency(), {from, n});
+        std::printf("mean b_level %.1f across the boundary: error %.5f\n", gb, e);
+        REQUIRE(e < 1e-3);
+    }
+}
+
 // Changing the resolution drains the old frames, then the latency follows the new size.
 void test_size_change() {
     const size_t n = 30000, half = 10000;
@@ -486,6 +543,7 @@ void test_size_change() {
 } // namespace
 
 int main() {
+    test_approximations();
     test_fft_matches_dft();
     test_frame_matrix_every_mode();
     test_rates_identity_and_latency();
@@ -499,6 +557,7 @@ int main() {
     test_combine_math();
     test_mode_switch_crossfades();
     test_size_change();
+    test_mean_b_level();
     std::puts("abi2_spectral_tests passed");
     return 0;
 }

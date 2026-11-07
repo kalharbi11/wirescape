@@ -2,6 +2,7 @@
 // sound.spectral: one streaming STFT engine shared by several two-source spectral processes.
 // Concept from the owner's Conjunctions prototype; original code. See DESIGN.md.
 #pragma once
+#include "approx.h"
 #include "fft.h"
 #include "wirescape_sdk.h"
 #include <atomic>
@@ -279,12 +280,17 @@ struct Spectral {
             ub_i_[k] = vi;
             float rr, ri;
             if (c.pitch == 1) {
-                const float expected = kTau * .25f * float(k); // advance per hop at overlap 4
-                const float adv_a = expected + principal(std::atan2(ia, ra) - expected);
-                const float adv_b = expected + principal(std::atan2(ib, rb) - expected);
-                const float adv = adv_a * (1 - m) + adv_b * m;
-                rr = std::cos(adv);
-                ri = std::sin(adv);
+                // Blend the two frequency deviations from the bin centre. The centre advances by
+                // pi/2 * k per hop at overlap 4: an exact quarter-turn rotation (k mod 4).
+                const uint32_t quarter = k & 3u;
+                const float centre = approx::kHalfPi * float(quarter);
+                const float da = principal(approx::atan2(ia, ra) - centre);
+                const float db = principal(approx::atan2(ib, rb) - centre);
+                float sn, cs;
+                approx::sincos(da * (1 - m) + db * m, sn, cs);
+                const float turn_r[4] = {cs, -sn, -cs, sn}, turn_i[4] = {sn, cs, -sn, -cs};
+                rr = turn_r[quarter];
+                ri = turn_i[quarter];
             } else if ((1 - m) * x >= m * y) {
                 rr = ra;
                 ri = ia;
@@ -296,8 +302,9 @@ struct Spectral {
             const float norm = 1.f / std::max(magnitude(pr, pi), 1e-20f);
             p_r_[k] = pr * norm;
             p_i_[k] = pi * norm;
-            const float mag =
-                c.curve == 0 ? std::exp((1 - m) * std::log(x + 1e-7f) + m * std::log(y + 1e-7f)) : x * (1 - m) + y * m;
+            const float mag = c.curve == 0
+                                  ? approx::exp2((1 - m) * approx::log2(x + 1e-7f) + m * approx::log2(y + 1e-7f))
+                                  : x * (1 - m) + y * m;
             yr[k] = s * mag * p_r_[k];
             yi[k] = s * mag * p_i_[k];
         }
@@ -322,7 +329,8 @@ struct Spectral {
         smooth_row(ea_, width);
         smooth_row(eb_, width);
         for (uint32_t k = 0; k < bins_; ++k) {
-            const float ratio = std::min(std::exp(amount * std::log((ea_[k] + 1e-6f) / (eb_[k] + 1e-6f))), 1e3f);
+            const float ratio =
+                std::min(approx::exp2(amount * approx::log2((ea_[k] + 1e-6f) / (eb_[k] + 1e-6f))), 1e3f);
             yr[k] = s * br_[k] * ratio;
             yi[k] = s * bi_[k] * ratio;
         }
@@ -344,8 +352,9 @@ struct Spectral {
             } else if (mode == Mean) { // average magnitude, louder bin's phase
                 const float m = .5f * (x + y), loud = a_louder ? x : y;
                 const float g = loud > 0 ? m / loud : 0;
-                re = (a_louder ? ar_[k] : br_[k]) * g;
-                im = (a_louder ? ai_[k] : bi_[k]) * g;
+                const float gl = a_louder ? g : g * gb; // B's bin carries its weight too
+                re = (a_louder ? ar_[k] : br_[k]) * gl;
+                im = (a_louder ? ai_[k] : bi_[k]) * gl;
             } else { // Min / A - B keep A's phase
                 const float m = mode == Min ? std::min(x, y) : std::max(0.f, x - y);
                 const float g = x > 0 ? m / x : 0;

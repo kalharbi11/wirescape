@@ -45,6 +45,15 @@ class ModuleCpuProbeTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args([])
 
+    def test_worst_case_settings(self):
+        args = parse_args(['sound.spectral', '--param', 'size=3', '--param', 'pitch=1',
+                           '--alternate', 'mode=0:1:4'])
+        self.assertEqual(args.param, ['size=3', 'pitch=1'])
+        self.assertEqual(args.alternate, 'mode=0:1:4')
+        for bad in (['--param', 'size'], ['--param', '=3'], ['--alternate', 'mode=0:1'], ['--alternate', 'mode:0:1:2']):
+            with self.subTest(bad=bad), self.assertRaises(SystemExit):
+                parse_args(['sound.spectral', *bad])
+
 
 if __name__ == '__main__':
     unittest.main()
