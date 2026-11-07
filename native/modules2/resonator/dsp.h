@@ -42,15 +42,15 @@ struct Resonator {
         ws2_memory m{};
         m.struct_size = sizeof(m);
         m.alignment = 32;
-        m.large_bytes = size_t(std::min(c.max_channels, 8u)) * (3u * comb_length(c.sample_rate) * sizeof(float) + 32);
+        m.large_bytes = size_t(std::min<uint32_t>(c.max_channels, 8u)) * (3u * comb_length(c.sample_rate) * sizeof(float) + 32);
         return m;
     }
     bool prepare(const ws::Setup& s) {
         rate = static_cast<float>(s.sample_rate());
-        capacity = std::min(s.max_channels(), 8u);
+        capacity = std::min<uint32_t>(s.max_channels(), 8u);
         seed = s.config.seed ^ UINT64_C(0x9e3779b97f4a7c15);
         line_size = comb_length(rate);
-        burst = std::max(1u, static_cast<uint32_t>(std::ceil(rate * .005f)));
+        burst = std::max<uint32_t>(1u, static_cast<uint32_t>(std::ceil(rate * .005f)));
         glide = 1.f - std::exp(-1.f / (rate * .012f));
         for (uint32_t c = 0; c < capacity; ++c) {
             auto* memory = static_cast<float*>(s.alloc(3u * line_size * sizeof(float), 32, WS2_LARGE));
