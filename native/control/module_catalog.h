@@ -16,6 +16,7 @@
 #include "../modules2/output/dsp.h"
 #include "../modules2/scale_offset/dsp.h"
 #include "../modules2/slew/dsp.h"
+#include "../modules2/spectral/dsp.h"
 #include "../modules2/vca/dsp.h"
 #include "../modules2/vcf/dsp.h"
 #include "../modules2/vco/dsp.h"
