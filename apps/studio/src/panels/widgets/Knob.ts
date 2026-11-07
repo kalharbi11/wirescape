@@ -4,7 +4,7 @@ import type { Connection } from '../../patch/types';
 import type { Ticker } from '../../runtime/Ticker';
 import type { KnobTier } from '../layouts';
 import { formatValue, formatRange, normToValue, valueToNorm, parseTyped, displayValue, quantize } from '../../modules/registry';
-import { C0_HZ, G9_HZ, hzToMidi, noteAndCents, formatBaseHz, formatVcoTune, parseVcoTune } from '../../modules/musicalPitch';
+import { C0_HZ, G9_HZ, noteAndCents, formatBaseHz, formatVcoTune, parseVcoTune } from '../../modules/musicalPitch';
 import { el, svgEl } from '../../app/dom';
 import { attachParamInfo, type InfoSource } from './InfoBox';
 

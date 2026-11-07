@@ -21,7 +21,7 @@ export function formatHz(hz: number): string {
   if (!Number.isFinite(hz) || hz <= 0) return '—';
   const n = hz >= 1000 ? hz / 1000 : hz;
   const decimals = hz >= 1000 ? 2 : hz >= 100 ? 1 : 2;
-  const text = n.toFixed(decimals).replace(/\\.?0+$/, '');
+  const text = n.toFixed(decimals).replace(/\.?0+$/, '');
   return `${text} ${hz >= 1000 ? 'kHz' : 'Hz'}`;
 }
 
@@ -41,7 +41,7 @@ export function formatVcoTune(frequency: number): string {
 /** Active Tune readout accepts semitone + cents, and bare semitones. */
 export function parseVcoTune(text: string): number | null {
   const input = text.trim().replace(/[−–]/g, '-');
-  const match = /^([+-]?\\d+(?:\\.\\d+)?)\\s*(?:st)?(?:\\s+([+-]?\\d+(?:\\.\\d+)?)\\s*(?:ct|cent|cents))?$/i.exec(input);
+  const match = /^([+-]?\d+(?:\.\d+)?)\s*(?:st)?(?:\s+([+-]?\d+(?:\.\d+)?)\s*(?:ct|cent|cents))?$/i.exec(input);
   if (!match) return null;
   const semitones = Number(match[1]) + Number(match[2] ?? 0) / 100;
   const hz = 220 * 2 ** (semitones / 12);
