@@ -3,13 +3,13 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-07 by Compass. **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
+**Updated:** 2026-11-07 ~11:25 UTC by Compass. **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
 
 ## Compass actions this session
 - Merged #279 (patch folder) and #280 (Codex Lead STATE) directly. In both, the only red was the #297 Windows timing flake, which is unrelated to their diffs.
 - #282 (autosave): marked ready, labelled, `Claude: approved for auto-merge 5be3b59`.
 - Posted a recommendation on #297 for Keel: keep the 3-block/20 ms assertion on Linux, ARM64 and pi5. On hosted Windows, run it in a functional mode (commit through live or D5, gen increments, no fault) with a visible skip log.
-- **New D14 web demo** (owner request): #308 / draft PR #309, built by Compass. Task `docs/tasks/W_WEB_DEMO.md`.
+- **D14 web demo is live:** #309 merged (`a11ecfa`) and deployed to `https://kalharbi11.github.io/wirescape/`. The owner enabled Pages. #282 merged.
 
 ## Main blocker
 - **#297 / #299**: the live-replan Windows timing test goes red on any PR with a required Windows job. It needs Keel's ruling (see the Compass comment on #297). Until then, leads merge reviewed PRs whose only red is this test.
@@ -25,10 +25,10 @@ Keep this under 60 lines. History lives in git.
 - Blocked queue (start when the prerequisite merges): #287 (after #273), #292 and #296 (after #274), #293 (after #291), #294 (after #279 and #282), #295 (after #282).
 
 ## Web demo lane (D14)
-- PR #309: `native/web` (wasm engine C API mirroring `Session::execution`), `apps/studio/src/web` (WebBridge for protocol v0; RealEngine unchanged), `public/web/ws-processor.js` (AudioWorklet), `.github/workflows/web-demo.yml` (native tests, Emscripten 3.1.74 wasm build, Playwright smoke, Pages deploy on main).
-- First CI run is the first real compile: the cloud container can't fetch deps or install emsdk. Compass is subscribed to #309 and fixes CI.
-- Codex follow-ups after merge: W-web-2 (hide MIDI starters and library entries), W-web-3 (telemetry parity), W-web-4 (patch in URL), W-web-5 (download patch).
-- Owner one-time step: Settings → Pages → Source "GitHub Actions". The URL will be `https://kalharbi11.github.io/wirescape/`.
+- Live: `https://kalharbi11.github.io/wirescape/`, deployed by `.github/workflows/web-demo.yml` on every main push. That workflow runs native tests, the Emscripten 3.1.74 wasm build, Playwright, Pages deploy, and then the `live` job, which runs the same tests against the published site.
+- PR #321 (Compass) adds W-web-2 (playable starters only, #312), W-web-3 (cable values and Output scope), W-web-4 (SHARE link `#p=`) and W-web-5 (SAVE download, OPEN file).
+- Agent containers can't reach github.io or artifact storage. The `live` CI job is how the deployed site is tested.
+- Ideas, not started: per-module effective values/phase/envelope telemetry; a short "first patch" guide on the splash; mobile/touch check.
 
 ## Phase 1 sign-off needs
 #271 owner results (A, B, C), 1H green (#256), the contention benchmark (#274 plus owner D3). Then Compass runs Checkpoint A.
