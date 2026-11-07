@@ -249,10 +249,19 @@ function senderAllowed(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEven
   return !!window && !window.isDestroyed() && event.sender === window.webContents &&
     event.senderFrame === window.webContents.mainFrame;
 }
+async function patchDialogPath(save: boolean): Promise<string> {
+  if (patchPath) return patchPath;
+  const directory = path.join(app.getPath('userData'), 'patches');
+  try {
+    await fs.promises.mkdir(directory, { recursive: true, mode: 0o700 });
+  } catch { throw new Error('Could not create patch folder'); }
+  return save ? path.join(directory, 'Untitled.json') : directory;
+}
 async function openPatch(): Promise<{ text: string; name: string } | null> {
   if (!window) throw new Error('Window unavailable');
   const result = await dialog.showOpenDialog(window, {
-    title: 'Open patch', properties: ['openFile'], filters: [{ name: 'Wirescape patch', extensions: ['json'] }]
+    title: 'Open patch', defaultPath: await patchDialogPath(false),
+    properties: ['openFile'], filters: [{ name: 'Wirescape patch', extensions: ['json'] }]
   });
   if (result.canceled || !result.filePaths.length) return null;
   try {
@@ -278,7 +287,7 @@ async function savePatch(input: unknown): Promise<{ name: string } | null> {
   let filename = !saveAs ? patchPath : null;
   if (!filename) {
     const result = await dialog.showSaveDialog(window, {
-      title: 'Save patch', defaultPath: patchPath ?? undefined,
+      title: 'Save patch', defaultPath: await patchDialogPath(true),
       filters: [{ name: 'Wirescape patch', extensions: ['json'] }]
     });
     if (result.canceled || !result.filePath) return null;
