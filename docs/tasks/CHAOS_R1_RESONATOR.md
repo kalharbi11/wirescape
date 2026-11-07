@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# CHAOS-R1: `essentials.resonator`, the CHAOS body as a playable module (module lane row 4)
+# CHAOS-R1 #317: `essentials.resonator`, the CHAOS body as a playable module (module lane row 4)
 
 **What.** Step 1 of the CHAOS rebuild (`docs/planner/MODULES.md`, "CHAOS rebuild path"): CHAOS-lite's three-comb resonant body as its own polyphonic module. Strike it with the built-in exciter or feed it any audio, play its pitch from a keyboard: plucked strings, bars, metallic bodies, drones from noise. **Original code**: start from `native/modules2/chaos_lite/comb_body.h` (our own GPL code) by **copying and adapting into the new folder**. Don't edit `chaos_lite/`; its output must stay bit-identical (its tests pass unchanged). This is design A of `docs/design/ports/CHAOS_DECOMPOSITION.md` §3 "Comb Resonator", as a non-external module; there is no sst/Surge code and no `ports.` ID.
 
