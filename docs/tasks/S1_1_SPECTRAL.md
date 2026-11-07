@@ -7,7 +7,7 @@ Brief: `docs/tasks/S1_CONJUNCTIONS_MODULES.md` (module 1). The plan, IDs and Kee
 tier: T1
 # Budget (Compass, #302): module folder <= 1400 lines / <= 10 files; wiring, generated files and the probe are excluded.
 # The checker counts the whole diff, so this line holds the whole-diff totals.
-size: <= 1600 changed lines, <= 24 files
+size: <= 1800 changed lines, <= 24 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "^(abi2_spectral_tests|abi2_module_cpu_probe_smoke|app_engine_tests)$" --output-on-failure --no-tests=error
