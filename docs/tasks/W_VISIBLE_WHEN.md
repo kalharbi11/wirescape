@@ -21,7 +21,7 @@ size: <= 250 changed lines, <= 9 files
 must_pass:
   - python -m unittest tools.foundation.tests.test_ui_catalogue
   - python tools/gen_ui_catalogue.py --check
-  - npm --prefix apps/studio run typecheck
-  - npm --prefix apps/studio test -- conditional-controls.spec.ts
+  - bash -c "npm --prefix apps/studio run typecheck"
+  - bash -c "npm --prefix apps/studio test -- conditional-controls.spec.ts"
 stops: [new dependency, format change, threshold change]
 ```
