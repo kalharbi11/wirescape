@@ -29,7 +29,7 @@ showcase build and changes no engine, protocol, ABI or patch format.
 
 ```acceptance
 tier: T1
-size: <= 900 changed lines, <= 14 files
+size: <= 1300 changed lines, <= 20 files (includes STATE.md and PLAN.md planner updates)
 must_pass:
   - ci: web-demo engine job green (native web_engine_tests + wirescape.wasm build)
   - ci: web-demo site job green (tests-web smoke: start, starter loads, audible note, MIDI refused)
