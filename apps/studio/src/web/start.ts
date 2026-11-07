@@ -17,7 +17,7 @@ export function startWeb(): Promise<void> {
       <h1>Wirescape</h1>
       <p>A modular synth in your browser. Patch cables between modules, turn knobs, and play notes
         with your computer keyboard (A–K) or the on-screen keys.</p>
-      <p class="muted">Web demo: a subset of modules, built-in starter patches, no MIDI or files.
+      <p class="muted">Web demo: every non-MIDI module and the built-in starters. SHARE copies a link to your patch.
         Best in desktop Chrome or Edge. Use headphones or speakers.</p>
       <button type="button" data-testid="web-start">Start with sound</button>
       <p class="web-splash-error" data-testid="web-error" hidden></p>
@@ -31,8 +31,7 @@ export function startWeb(): Promise<void> {
     .web-splash-card p{line-height:1.5;margin:.5rem 0}.web-splash-card .muted{opacity:.7;font-size:.9rem}
     .web-splash-card button{margin-top:1rem;padding:.7rem 1.4rem;font:500 1rem "IBM Plex Sans",sans-serif;
       border-radius:6px;border:0;background:#e8b04a;color:#111;cursor:pointer}
-    .web-splash-error{color:#ff8a7a}
-    [data-testid="open-patch"],[data-testid="save-patch"]{display:none!important}`;
+    .web-splash-error{color:#ff8a7a}`;
   document.head.append(style);
   document.body.append(splash);
   const bridge = new WebBridge();
