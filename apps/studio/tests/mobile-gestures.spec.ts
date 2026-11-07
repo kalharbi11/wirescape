@@ -97,3 +97,33 @@ test('pinch beginning on a module header and knob zooms without editing either',
   await expect(page.getByTestId('module-1')).toHaveClass(/selected/);
   await visibleChrome(page);
 });
+
+test('phone UI keeps patch context, touch defaults and an easily dismissed library', async ({ page }, testInfo) => {
+  await boot(page);
+  await expect(page.getByTestId('patch-name')).toBeVisible();
+  await expect(page.getByTestId('patch-name')).toHaveText('Test');
+  await expect(page.locator('html')).toHaveAttribute('data-hit', 'touch');
+
+  const menu = page.getByTestId('menu-toggle');
+  await expect(menu).toHaveAttribute('aria-expanded', 'false');
+  await menu.click();
+  await expect(menu).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByTestId('library-backdrop')).toBeVisible();
+  await expect(page.getByTestId('library')).toBeInViewport();
+  await testInfo.attach('mobile-library-open.png', {
+    body: await page.screenshot({ animations: 'disabled' }), contentType: 'image/png',
+  });
+
+  // Tapping outside the 240px drawer must return to patching, not leave an
+  // invisible overlay that intercepts gestures or keyboard navigation.
+  await page.mouse.click(375, 240);
+  await expect(menu).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByTestId('library-backdrop')).toBeHidden();
+  await menu.click();
+  await page.getByTestId('library-item-essentials.vco').click();
+  await expect(menu).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByTestId('module-1')).toBeAttached();
+  await testInfo.attach('mobile-canvas.png', {
+    body: await page.screenshot({ animations: 'disabled' }), contentType: 'image/png',
+  });
+});
