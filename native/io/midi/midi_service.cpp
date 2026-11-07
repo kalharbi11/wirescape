@@ -77,18 +77,28 @@ void Service::ump(void* context, const uint32_t* words, size_t count, uint64_t t
 }
 void Service::refresh() {
     const auto available = backend_.endpoints();
+    std::array<const Endpoint*, 16> selected{};
     for (size_t i = 0; i < count_; ++i) {
         auto& slot = *slots_[i]; const Endpoint* found = nullptr; size_t matches = 0;
-        for (const auto& endpoint : available) if (endpoint.name == slot.saved.name) { found = &endpoint; ++matches; }
-        if (matches != 1) found = nullptr;
-        if (!found && !slot.saved.system_name.empty()) {
-            matches = 0;
-            for (const auto& endpoint : available) if (endpoint.system_name == slot.saved.system_name) { found = &endpoint; ++matches; }
-            if (matches != 1) found = nullptr;
+        // Saved system identity is authoritative: a remaining same-name port
+        // must never impersonate a disconnected input. Legacy name-only choices
+        // still resolve only when unambiguous.
+        for (const auto& endpoint : available) {
+            const bool match = slot.saved.system_name.empty()
+                ? endpoint.name == slot.saved.name : endpoint.system_name == slot.saved.system_name;
+            if (match) { found = &endpoint; ++matches; }
         }
+        if (matches != 1) found = nullptr;
+        selected[i] = found;
         if (slot.online && (!found || found->system_name != slot.actual.system_name)) {
             slot.accepting = false; backend_.close(slot.actual); slot.online = false; slot.emergency = true; ++disconnects_;
         }
+    }
+    // Drain old-source releases using the old identity before reopening. Some
+    // backends deliver their first packet synchronously inside open().
+    pump();
+    for (size_t i = 0; i < count_; ++i) {
+        auto& slot = *slots_[i]; const auto* found = selected[i];
         if (!slot.online && found) {
             slot.actual = *found; slot.accepting = true;
             const bool opened = backend_.open(*found, Callback{&slot, midi1, ump}); slot.online = opened;

@@ -3,35 +3,41 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-07 16:10 UTC by Codex Lead; Compass's lane split retained. **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
+**Updated:** 2026-11-07 by Codex Lead; Compass's platform/module lane split retained. **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
 
 ## Lead split (owner, 2026-11-07)
 - **Compass (platform):** everything except modules: Phases 1–5, the app, the engine lanes, the web demo, the board and STATE. Checks in every 4 h (owner-requested scheduled run).
 - **Compass (modules):** Track S and the module lane (#304/#310, #314–#318, #305/#306/#307). Leaves this file's module lines to that session.
 - Codex Lead runs every 150 min through 2026-11-09 06:00 UTC (owner-requested).
 
-## Compass actions this session
-- Board: closed #278, #281, #277 and #259 (their PRs had merged). Moved #294 (patch browser) and #295 (crash recovery) to `status/todo`, since their prerequisites are on main, and left a UX bar on #294.
-- Closed #313 (a Codex Lead STATE built on a stale base); folded its live facts in below.
+## Compass actions (16:12 check-in)
+- #320 (#297 fix): cross-family review of the GPT follow-up at `360ea3b` found nothing, so I approved it to auto-merge on green. Strict single-attempt mode keeps the pi5 `--max-gap-ms 20` evidence meaning what it did.
+- #256 (1H): merged main in (`01305a3`) and ruled that Keel's no-Pi review covers its `pi:` line. Approved for auto-merge on green; it closes 1H.
+- #321 (W-web-2..5): merged main in (`f8f203f`), two T1 reviews already done. Approved for auto-merge.
+- #325 (Codex Lead STATE): approved. This file is built on top of it.
+- Asked Keel (on #273) for the four stalled T2 reviews, in this order: #274 → #273 → #301 → #298.
 
 ## Main blocker
-- **#297**: Keel's #320 (test-only, +31/−5) replaces the #299 experiment. Every attempt keeps the full 3-block deadline, a bounded retry runs on hosted runners, and strict single-attempt mode is used for pi5 (`--max-gap-ms`). Codex addressed GPT review 5812013997 at 360ea3b: exact-timeout-only retry, main merged preserving STATE, discoverable #297 task. Local hosted/strict smoke pass; exact-head CI/Pi and Keel review pending. Until then, leads merge reviewed PRs whose only red is this test.
+- #273 and #274 are merged (verified). #301 still needs its audio-recovery follow-through.
+- #298 is closed but reports unmerged; inspect its replacement/closure before assuming hotplug shipped.
+- #297 is resolved by #320; retain strict Pi evidence requirements.
 
 ## In flight (who acts)
-- #273 live replan in sidecar `00a5b24`, #274 bench summary `c6ed064`, #298 MIDI hotplug, #301 audio-loss recovery: Keel T2 review plus pi5, then merge. #274 unblocks #292/#296; #273 unblocks #287; #301 unblocks #293.
-- #256 1H conformance: Keel rules on the 13-file budget and the guard red. Stale since 11-06 12:57. On the Phase 1 critical path.
-- #300 keyboard default merged (verified PR state; integrated head e4e0ae8).
-- #311 (#306) conditional controls merged at f81c7cf (verified main).
+- #292 load/dropouts and #296 fake-device Pi soak are now unblocked by #274; queue comments posted.
+- #287's topology prerequisite is done, but its raw-CC observation seam still needs the recorded ruling.
+- #301 audio recovery gates #293 device details; retain fake-device/Pi evidence rules.
+- #256 1H conformance: approved at `01305a3`, auto-merges on green. If web goes red on the merged head, fix it with a small change; don't re-scope.
+- #300 and #311 merged.
 - #210 / #290 MIDI controls: Keel/Compass contract ruling pending.
-- #295 crash recovery: draft #324 at 9b3e697; added expected-exit and pending-offer reload regressions (11 total).
-  be1bebc had green hosted CI/Web and independent review (no implementation defects); two Low tests addressed.
-  New-head hosted Web/Electron evidence pending; local npm/git remain blocked by proxy HTTP503.
-- **Free now (Codex Lead to queue):** #294 patch browser.
-- Still blocked: #287 (after #273), #292 and #296 (after #274), #293 (after #301).
+- #324 crash recovery merged (verified).
+- #294 patch browser: draft #331 at 06c52dc, 10 files/~270 lines; filesystem/syntax checks pass.
+  Four Web scenarios + Electron boundaries added; exact-head full Web/Electron and T1 review pending.
+  Local typecheck unavailable (tsc missing after proxy HTTP503). No physical-device evidence claimed.
 
 ## Web demo lane (D14)
-- #309 merged (wasm engine, WebBridge, AudioWorklet, Pages workflow). Follow-up #312 W-web-2 (catalogue-filtered starters) is briefed for Codex. W-web-3..5 (telemetry parity, patch in URL, download) are not filed yet; file them once #312 lands.
-- Owner one-time step, if not done: Settings → Pages → Source "GitHub Actions". URL `https://kalharbi11.github.io/wirescape/`.
+- Live at `https://kalharbi11.github.io/wirescape/` (Pages is on). #309 and #321 merged (`e766a27`): the demo has playable starters only, cable values and the Output scope, a SHARE link (`#p=`), and SAVE/OPEN files.
+- Every main push runs `web-demo.yml`: native tests, the wasm build, Playwright, deploy, then `live` (the same tests against the published site). Agent containers can't reach github.io, so `live` is the deployed-site evidence.
+- Ideas, not queued: per-module effective/phase/envelope telemetry, a short first-patch tip on the splash, a phone/touch pass.
 
 ## Phase 1 sign-off needs
 #271 owner results (A, B, C), 1H green (#256), and the contention benchmark (#274 plus owner D3). Then Compass runs Checkpoint A. The owner has deferred #271; nothing is asked of them until the 2A/2B/2C T2 lanes merge, so that one owner session covers Phase 1 and the first Phase 2 hardware checks.

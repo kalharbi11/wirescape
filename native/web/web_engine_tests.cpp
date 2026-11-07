@@ -67,6 +67,16 @@ int main(int argc, char **argv) {
     float peak = loudest(400);
     CHECK(peak > 0.0001f);
     CHECK(peak < 8.f);
+    {
+        auto live = Json::parse(wsw_telemetry());
+        CHECK(live["outputs"].is_object() && !live["outputs"].empty());
+        for (auto &[key, value] : live["outputs"].items()) {
+            CHECK(key.find(':') != std::string::npos);
+            CHECK(value.get<double>() >= -1 && value.get<double>() <= 1);
+        }
+        CHECK(live["scope"].size() == 1);
+        for (auto &[key, points] : live["scope"].items()) CHECK(points.size() == 64);
+    }
     command({{"type", "noteOff"}, {"note", 60}});
     CHECK(Json::parse(wsw_telemetry())["heldNotes"].empty());
 

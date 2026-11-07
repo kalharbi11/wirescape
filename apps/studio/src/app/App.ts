@@ -21,10 +21,12 @@ import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
 import { STARTERS, DEFAULT_STARTER } from './starters';
+import { playableStarters } from '../web/starters';
 import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } from '../theme/theme';
 import { el } from './dom';
 
 const AUTOSAVE_KEY = 'wirescape.autosave.v2';
+const ACTIVE_SESSION_KEY = 'wirescape.session.active.v1';
 /** Copied modules survive a reload and a patch change, so paste works between patches. */
 const CLIPBOARD_KEY = 'wirescape.clipboard.v1';
 
@@ -47,6 +49,8 @@ export class App {
   private devPanel!: DevPanel;
   private settings = new Modal('settings-modal');
   private shortcuts = new Modal('shortcuts-modal');
+  private recovery = new Modal('recovery-modal');
+  private recoveryPending = false;
   private prefs: Preferences;
   private patchName = 'Untitled';
   private zoomLabel!: HTMLElement;
@@ -59,6 +63,7 @@ export class App {
   private undoBtn!: HTMLButtonElement;
   private redoBtn!: HTMLButtonElement;
   private clip: Clip | null = null;
+  private starterSelect?: HTMLSelectElement;
   private pasteCount = 0;
 
   constructor(
@@ -151,7 +156,7 @@ export class App {
 
     this.root.append(
       this.library.root, main, this.toasts.root, this.quick.root,
-      this.devPanel.root, this.settings.root, this.shortcuts.root, this.fileInput,
+      this.devPanel.root, this.settings.root, this.shortcuts.root, this.recovery.root, this.fileInput,
     );
 
     this.attachDropTarget();
@@ -185,11 +190,8 @@ export class App {
     const blank = document.createElement('option');
     blank.value = ''; blank.textContent = 'Starter patches…';
     starters.append(blank);
-    for (const s of STARTERS) {
-      const o = document.createElement('option');
-      o.value = s.id; o.textContent = s.name; o.title = s.note;
-      starters.append(o);
-    }
+    this.starterSelect = starters;
+    this.fillStarters();
     starters.addEventListener('change', () => {
       const s = STARTERS.find(x => x.id === starters.value);
       if (s) { this.loadPatch(s.patch(), s.name); this.toasts.show(`${s.name} loaded.`); }
@@ -240,6 +242,19 @@ export class App {
     return bar;
   }
 
+  /** The web demo only lists starters its engine can play; desktop lists them all. */
+  private fillStarters(): void {
+    const select = this.starterSelect;
+    if (!select) return;
+    while (select.options.length > 1) select.remove(1);
+    const list = window.wirescape?.web ? playableStarters(STARTERS, this.registry) : STARTERS;
+    for (const s of list) {
+      const o = document.createElement('option');
+      o.value = s.id; o.textContent = s.name; o.title = s.note;
+      select.append(o);
+    }
+  }
+
   private action(label: string, fn: () => void, testid: string): HTMLButtonElement {
     const b = el('button', 'action', label) as HTMLButtonElement;
     b.type = 'button';
@@ -264,8 +279,9 @@ export class App {
         if (state === 'restarting') { this.ticker.resetTelemetry(); this.lastStatus = null; }
       });
       this.engine.onGraphError(e => this.toasts.show(e.message, 'error'));
-      this.engine.onCatalogue(() => { this.library.refresh(); this.canvas.rebuild(); });
+      this.engine.onCatalogue(() => { this.library.refresh(); this.canvas.rebuild(); this.fillStarters(); });
       window.wirescape?.onMessage(m => {
+        if (m.type === 'app.engineExited' && m.expected !== true) this.offerRecovery('engine');
         if (m.type === 'app.menuOpenPatch') void this.openPatchFile();
         if (m.type === 'app.menuSavePatch') void this.savePatchFile(m.saveAs === true);
       });
@@ -274,29 +290,75 @@ export class App {
     this.engine.start();
     this.keyboard.attach();
 
-    const restored = this.restoreAutosave();
+    let unclean = false;
+    try {
+      unclean = localStorage.getItem(ACTIVE_SESSION_KEY) === '1';
+      localStorage.setItem(ACTIVE_SESSION_KEY, '1');
+    } catch { /* storage unavailable: keep ordinary startup usable */ }
+    const saved = unclean ? this.readAutosave() : null;
+    this.recoveryPending = !!saved;
+    const restored = !saved && this.restoreAutosave();
     if (!restored) this.loadPatch(DEFAULT_STARTER.patch(), DEFAULT_STARTER.name);
+    if (saved) this.offerRecovery('app', saved);
 
     requestAnimationFrame(() => { this.canvas.fit(); this.canvas.invalidateAnchors(); });
     window.addEventListener('resize', () => this.canvas.updateVisibility());
     setInterval(() => this.autosave(), 4000);
-    window.addEventListener('pagehide', () => this.autosave(true));
+    window.addEventListener('pagehide', () => {
+      if (this.recoveryPending) return; // Keep the original snapshot across an unanswered offer.
+      this.autosave(true);
+      try { localStorage.removeItem(ACTIVE_SESSION_KEY); } catch { /* storage unavailable */ }
+    });
     this.doc.on(() => this.refreshDirty());
   }
 
-  private restoreAutosave(): boolean {
+  private readAutosave(): { name: string; patch: PatchV2 } | null {
     try {
       const raw = localStorage.getItem(AUTOSAVE_KEY);
-      if (!raw) return false;
+      if (!raw) return null;
       const saved = JSON.parse(raw) as { name?: string; patch: PatchV2 };
-      if (!saved?.patch || !Array.isArray(saved.patch.modules) || !Array.isArray(saved.patch.connections)) return false;
-      this.loadPatch(saved.patch, saved.name ?? 'Untitled');
-      this.toasts.show('Restored your last patch.');
-      return true;
-    } catch { return false; }
+      if (!saved?.patch || !Array.isArray(saved.patch.modules) || !Array.isArray(saved.patch.connections)) return null;
+      if (saved.patch.format !== 'wirescape.native.patch' || saved.patch.version !== 2) return null;
+      const check = PatchDoc.from(saved.patch);
+      if (check.modules.size !== saved.patch.modules.length || check.connections.length !== saved.patch.connections.length) return null;
+      return { patch: saved.patch, name: typeof saved.name === 'string' ? saved.name : 'Untitled' };
+    } catch { return null; }
+  }
+
+  private restoreAutosave(): boolean {
+    const saved = this.readAutosave();
+    if (!saved) return false;
+    void this.loadPatch(saved.patch, saved.name);
+    this.toasts.show('Restored your last patch.');
+    return true;
+  }
+
+  private offerRecovery(reason: 'app' | 'engine', saved = this.readAutosave()): void {
+    if (!saved || this.recovery.isOpen) return;
+    this.recoveryPending = true;
+    this.keyboard.releaseAll();
+    const b = this.recovery.body;
+    b.replaceChildren(el('p', '', `${reason === 'app' ? 'The previous session ended unexpectedly.' : 'The engine disconnected.'} Restore the last autosave of “${saved.name}”? Your saved patch file will not be changed.`));
+    const restore = el('button', 'btn', 'Restore autosave') as HTMLButtonElement;
+    const decline = el('button', 'btn', 'Keep current patch') as HTMLButtonElement;
+    restore.dataset.testid = 'recovery-restore';
+    decline.dataset.testid = 'recovery-decline';
+    let restoring = false;
+    restore.addEventListener('click', () => {
+      restoring = true;
+      this.recovery.close();
+      void this.loadPatch(saved.patch, saved.name);
+    });
+    decline.addEventListener('click', () => this.recovery.close());
+    b.append(restore, decline);
+    this.recovery.open('Recover patch', () => {
+      this.recoveryPending = false;
+      if (!restoring) this.autosave(true);
+    });
   }
 
   private autosave(force = false): void {
+    if (this.recoveryPending) return;
     // A newly selected clean patch still replaces the previous recovery snapshot.
     if (!force && !this.doc.dirty) return;
     try {
@@ -314,8 +376,18 @@ export class App {
     this.maxModuleId = Math.max(0, ...patch.modules.map(m => m.id));
     const running = this.engine.loadGraph(this.doc.toJSON());
     const v = patch.ui?.view;
-    if (v && v.zoom) this.canvas.viewport.setView(v.x, v.y, v.zoom);
-    else requestAnimationFrame(() => this.canvas.fit());
+    // Restoring/fitting the viewport is presentation, not a source-document edit.
+    const loadedUi = this.doc.ui;
+    const restoreView = () => {
+      if (this.doc.ui !== loadedUi) return;
+      const view = this.doc.ui.view;
+      if (v && v.zoom) this.canvas.viewport.setView(v.x, v.y, v.zoom);
+      else this.canvas.fit();
+      if (view === undefined) delete this.doc.ui.view;
+      else this.doc.ui.view = view;
+    };
+    if (v && v.zoom) restoreView();
+    else requestAnimationFrame(restoreView);
     requestAnimationFrame(() => this.canvas.invalidateAnchors());
     this.doc.markClean();
     this.refreshDirty();
@@ -466,9 +538,10 @@ export class App {
     const skipped: string[] = [];
     for (const m of clip.modules) {
       const id = this.allocateId();
-      try { this.engine.addModule(id, m.module, m.parameters); }
+      const params = m.parameters ?? {};
+      try { this.engine.addModule(id, m.module, params); }
       catch { skipped.push(m.module); continue; }
-      this.doc.addModule(m.module, m.parameters, m.pos[0] + dx, m.pos[1] + dy, id);
+      this.doc.addModule(m.module, params, m.pos[0] + dx, m.pos[1] + dy, id);
       this.trackRollback(() => this.doc.removeModule(id));
       const added = this.doc.modules.get(id);
       if (added) Object.assign(added, m.extra);
@@ -1094,4 +1167,3 @@ export class App {
 
 declare const __APP_VERSION__: string;
 declare const __BUILD__: string;
-

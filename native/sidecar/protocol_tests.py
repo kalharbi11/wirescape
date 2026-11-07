@@ -4,6 +4,7 @@ import atexit
 import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import tempfile
@@ -155,6 +156,7 @@ with tempfile.TemporaryDirectory() as directory:
     patch = minimal()
     original = json.dumps(patch)
     assert engine.call('loadGraph', patch=patch)['gen'] == '1'
+    expected_commits = [('d5', '1')]
     assert json.dumps(patch) == original
     refused = engine.call('addModule', False, moduleId=8, moduleType='absent.vco')
     assert refused['code'] == 'unknown-module' and refused['gen'] == '1'
@@ -239,14 +241,59 @@ with tempfile.TemporaryDirectory() as directory:
         engine.call('loadGraph', patch=json.loads(path.read_text()))
         engine.call('noteOn', note=60, velocity=0.8)
     # Successful loadGraph resets the incremental ID namespace.
-    engine.call('loadGraph', patch=minimal())
+    loaded = engine.call('loadGraph', patch=minimal())
+    expected_commits.append(('d5', loaded['gen']))
     engine.call('addModule', moduleId=10, moduleType='essentials.lfo')
+    # Exercise the D7 sidecar seam with the fake MIDI worker running. No device opens.
+    fake_midi = engine.call('listMidiDevices')['result']['devices'][0]
+    engine.call('setMidiEnabled', deviceId=fake_midi['id'], on=True)
     old_session = engine.session
+    live_edge = edge('event', 20, 'midi', 21, 'midi')
+    for method, payload in [
+        ('addModule', dict(moduleId=20, moduleType='midi.in')),
+        ('addModule', dict(moduleId=21, moduleType='midi.to_cv')),
+        ('connect', dict(connection=live_edge)),
+        ('disconnect', dict(connection=live_edge)),
+        ('connect', dict(connection=live_edge)),
+        ('removeModule', dict(moduleId=20)),
+        ('removeModule', dict(moduleId=21)),
+    ]:
+        prior = int(engine.last_gen)
+        result = engine.call(method, **payload)
+        assert int(result['gen']) == prior + 1
+        expected_commits.append(('live', result['gen']))
+        assert engine.session == old_session and engine.process.poll() is None
+    # A refused live edit must not advance gen or tear down the running session.
+    prior = engine.last_gen
+    assert engine.call('addModule', False, moduleId=20, moduleType='midi.in')['gen'] == prior
+    assert 'stop' not in engine.stderr().lower(), engine.stderr()
+    engine.call('setMidiEnabled', deviceId=fake_midi['id'], on=False)
     engine.close(b'{"unfinished":')
+    # After EOF the stderr drainer has joined: assert one path per accepted gen.
+    # This fails if an incremental edit silently takes D5, or a refusal logs a commit.
+    commits = [line for line in engine.stderr().splitlines() if line.startswith('commit path=')]
+    for path, gen in expected_commits:
+        assert [line for line in commits if line.endswith(f' gen={gen}')] == [
+            f'commit path={path} gen={gen}'], engine.stderr()
     restarted = Engine(settings)
     assert restarted.session != old_session
     assert restarted.call('loadGraph', patch=minimal())['gen'] == '1'
     restarted.close()
+    # sidecar_bench_summary: opt-in stderr only, once after clean EOF teardown.
+    bench = Engine(Path(directory) / 'bench.json', '--bench-summary')
+    bench.call('loadGraph', patch=minimal())
+    time.sleep(1.0)
+    bench.close()
+    bench.drainer.join(timeout=5)
+    lines = [line for line in bytes(bench.stderr_tail).decode(errors='replace').splitlines()
+             if line.startswith('bench ')]
+    assert len(lines) == 1, lines
+    match = re.fullmatch(
+        r'bench blocks=(\d+) p50=(\d+) p99=(\d+) max=(\d+(?:\.\d+)?(?:e[+-]?\d+)?) overruns=(\d+)',
+        lines[0])
+    assert match, lines[0]
+    blocks, p50, p99, maximum, overruns = map(float, match.groups())
+    assert blocks > 0 and 0 <= p50 <= p99 <= maximum and overruns >= 0
     # Long block periods cannot delay hello or EOF teardown. 8 kHz x 4096 frames is the
     # longest supported period (~512 ms); the engine refuses rates below 8 kHz.
     started = time.monotonic()
@@ -256,7 +303,7 @@ with tempfile.TemporaryDirectory() as directory:
     closing = time.monotonic()
     slow.close()
     assert time.monotonic() - closing < 2.0, 'EOF teardown waited on block-paced work'
-    for flags in [('--unknown',), ('--rate', '0'), ('--block', '4097'), ('--device',)]:
+    for flags in [('--unknown',), ('--rate', '0'), ('--block', '4097'), ('--device',), ('--bench-summary',)]:
         result = subprocess.run([BINARY, *flags], input=b'', capture_output=True, timeout=10)
         assert result.returncode != 0 and not result.stdout
 print('sidecar protocol process vectors passed (null audio, fake MIDI only)')
