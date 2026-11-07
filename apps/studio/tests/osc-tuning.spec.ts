@@ -28,10 +28,13 @@ async function vco(page: Page, frequency: number, connected: boolean): Promise<v
       { id: 1, module: 'essentials.vco', parameters: { frequency } },
       { id: 2, module: 'host.keyboard', parameters: {} },
     ],
-    connections: connected ? [{ from: { module: 2, port: 'pitch' }, to: { module: 1, port: 'pitch' } }] : [],
+    connections: connected ? [{ kind: 'signal', from: { module: 2, port: 'pitch' }, to: { module: 1, port: 'pitch' } }] : [],
     ui: { positions: { 1: [40, 40], 2: [480, 40] }, view: { x: 0, y: 0, zoom: 1 } },
   }), { frequency, connected });
   await settle(page);
+  const loaded = (await state(page)).connections;
+  expect(loaded.some((c: any) => c.kind === 'signal' && c.to.module === 1 && c.to.port === 'pitch'))
+    .toBe(connected);
 }
 
 test('VCO Hz note readout, musical endpoints and saved sub-audio range', async ({ page }) => {
