@@ -2789,7 +2789,7 @@
      "id": "mode",
      "name": "Mode",
      "minimum": 0,
-     "maximum": 5,
+     "maximum": 7,
      "default": 0,
      "unit": "",
      "taper": "linear",
@@ -2820,6 +2820,14 @@
       {
        "value": 5,
        "label": "A \u2212 B"
+      },
+      {
+       "value": 6,
+       "label": "Interleave"
+      },
+      {
+       "value": 7,
+       "label": "Vocoder"
       }
      ]
     },
@@ -2956,6 +2964,100 @@
      "step": 0,
      "decimals": 3,
      "modulatable": true
+    },
+    {
+     "id": "chunk_a",
+     "name": "Frames of A",
+     "minimum": 1,
+     "maximum": 64,
+     "default": 5,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "chunk_b",
+     "name": "Frames of B",
+     "minimum": 1,
+     "maximum": 64,
+     "default": 5,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "phase",
+     "name": "Interleave phase",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Phase vocoder"
+      },
+      {
+       "value": 1,
+       "label": "Source phase"
+      }
+     ]
+    },
+    {
+     "id": "bands",
+     "name": "Bands",
+     "minimum": 6,
+     "maximum": 64,
+     "default": 24,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "flatten",
+     "name": "Flatten carrier",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.85,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "release",
+     "name": "Release",
+     "minimum": 0.005,
+     "maximum": 0.4,
+     "default": 0.05,
+     "unit": "s",
+     "taper": "log",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "noise",
+     "name": "Noise",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.2,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
     }
    ],
    "version": 1,
@@ -2968,7 +3070,14 @@
     "amount": 5,
     "smooth": 6,
     "b_level": 7,
-    "level": 8
+    "level": 8,
+    "chunk_a": 9,
+    "chunk_b": 10,
+    "phase": 11,
+    "bands": 12,
+    "flatten": 13,
+    "release": 14,
+    "noise": 15
    }
   }
  ]
