@@ -97,3 +97,25 @@ test('a failed start followed by Try again starts the engine', async ({ page }) 
   await expect.poll(() => peak(page), { timeout: 15_000 }).toBeGreaterThan(0.001);
   await page.keyboard.up('a');
 });
+
+test('web demo lists only starters and modules its engine can play', async ({ page }) => {
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  const ids = await page.getByTestId('starter-select').locator('option').evaluateAll(
+    os => os.map(o => (o as HTMLOptionElement).value).filter(Boolean));
+  expect(ids).toContain('keyboard-voice');
+  const catalogue = await page.evaluate(() =>
+    (window as unknown as { __wirescapeTest: { registry: { all: { id: string }[] } } }).__wirescapeTest.registry.all.map(m => m.id));
+  expect(catalogue.some(id => id.startsWith('midi.'))).toBe(false);
+  const starters = await page.evaluate(() =>
+    (window as unknown as { __wirescapeTest: { starters: { id: string; patch(): { modules: { module: string }[] } }[] } })
+      .__wirescapeTest.starters.map(s => ({ id: s.id, modules: s.patch().modules.map(m => m.module) })));
+  for (const s of starters) {
+    const playable = s.modules.every(m => catalogue.includes(m));
+    expect(ids.includes(s.id), s.id).toBe(playable);
+  }
+  expect(starters.some(s => s.modules.some(m => m.startsWith('midi.')))).toBe(true);
+  await expect(page.getByTestId('library-item-midi.in')).toHaveCount(0);
+  await expect(page.getByTestId('library-item-essentials.vco')).toHaveCount(1);
+});

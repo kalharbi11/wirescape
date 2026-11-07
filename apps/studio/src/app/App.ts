@@ -21,6 +21,7 @@ import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
 import { STARTERS, DEFAULT_STARTER } from './starters';
+import { playableStarters } from '../web/starters';
 import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } from '../theme/theme';
 import { el } from './dom';
 
@@ -59,6 +60,7 @@ export class App {
   private undoBtn!: HTMLButtonElement;
   private redoBtn!: HTMLButtonElement;
   private clip: Clip | null = null;
+  private starterSelect?: HTMLSelectElement;
   private pasteCount = 0;
 
   constructor(
@@ -184,11 +186,8 @@ export class App {
     const blank = document.createElement('option');
     blank.value = ''; blank.textContent = 'Starter patches…';
     starters.append(blank);
-    for (const s of STARTERS) {
-      const o = document.createElement('option');
-      o.value = s.id; o.textContent = s.name; o.title = s.note;
-      starters.append(o);
-    }
+    this.starterSelect = starters;
+    this.fillStarters();
     starters.addEventListener('change', () => {
       const s = STARTERS.find(x => x.id === starters.value);
       if (s) { this.loadPatch(s.patch(), s.name); this.toasts.show(`${s.name} loaded.`); }
@@ -239,6 +238,19 @@ export class App {
     return bar;
   }
 
+  /** The web demo only lists starters its engine can play; desktop lists them all. */
+  private fillStarters(): void {
+    const select = this.starterSelect;
+    if (!select) return;
+    while (select.options.length > 1) select.remove(1);
+    const list = window.wirescape?.web ? playableStarters(STARTERS, this.registry) : STARTERS;
+    for (const s of list) {
+      const o = document.createElement('option');
+      o.value = s.id; o.textContent = s.name; o.title = s.note;
+      select.append(o);
+    }
+  }
+
   private action(label: string, fn: () => void, testid: string): HTMLButtonElement {
     const b = el('button', 'action', label) as HTMLButtonElement;
     b.type = 'button';
@@ -263,7 +275,7 @@ export class App {
         if (state === 'restarting') { this.ticker.resetTelemetry(); this.lastStatus = null; }
       });
       this.engine.onGraphError(e => this.toasts.show(e.message, 'error'));
-      this.engine.onCatalogue(() => { this.library.refresh(); this.canvas.rebuild(); });
+      this.engine.onCatalogue(() => { this.library.refresh(); this.canvas.rebuild(); this.fillStarters(); });
       window.wirescape?.onMessage(m => {
         if (m.type === 'app.menuOpenPatch') void this.openPatchFile();
         if (m.type === 'app.menuSavePatch') void this.savePatchFile(m.saveAs === true);
