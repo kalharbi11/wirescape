@@ -125,8 +125,11 @@ struct MacroOscillator {
                     const float trigger = std::clamp(b.in(6).value(c, i), 0.f, 1.f);
                     const float gate = gate_connected ? std::clamp(b.in(8).value(c, i), 0.f, 1.f) : 0.f;
                     ch.modulation.trigger = gate_connected ? std::max(trigger, gate) : trigger;
-                    ch.modulation.level = gate_connected && !level_connected
-                                              ? gate : std::clamp(b.in(7).value(c, i), 0.f, 1.f);
+                    if (gate_connected && !level_connected) {
+                        ch.modulation.level = gate;
+                    } else {
+                        ch.modulation.level = std::clamp(b.in(7).value(c, i), 0.f, 1.f);
+                    }
                     ch.modulation.frequency_patched = b.in(2).connected();
                     ch.modulation.timbre_patched = b.in(4).connected();
                     ch.modulation.morph_patched = b.in(5).connected();

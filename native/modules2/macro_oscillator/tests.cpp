@@ -188,8 +188,8 @@ static void trigger_only_golden() {
             reference.voice->Render(patch, mods, frames, 12);
         }
         for (uint32_t i = 0; i < 12; ++i) {
-            expected[first + i] = frames[i].out / 32768.f;
-            expected[1032 + first + i] = frames[i].aux / 32768.f;
+            expected[first + i] = static_cast<float>(frames[i].out) / 32768.f;
+            expected[1032 + first + i] = static_cast<float>(frames[i].aux) / 32768.f;
         }
     }
     REQUIRE(actual == expected);
@@ -209,9 +209,13 @@ static double gate_rms(Rig &r, uint32_t count) {
 static void gate_lifecycle() {
     // A held keyboard gate keeps the LPG open, then closes after key-up.
     Rig held;
+    // Plaits intentionally bleeds highs at nonzero LPG colour. With Colour=0
+    // the closed-LPG attenuation can be measured against the 40 dB target,
+    // while Decay stays at its unchanged default.
+    held.values[9] = 0.f;
     held.inputs[8].flags = WS2_CONNECTED;
     std::fill_n(held.buffer->input[8][0], 256, 1.f);
-    const double early = gate_rms(held, 2400);   // first 50 ms
+    const double early = gate_rms(held, 2400); // first 50 ms
     const double sustained = gate_rms(held, 24000); // through 550 ms
     REQUIRE(early > 0.001);
     REQUIRE(sustained > early * .5);
