@@ -58,20 +58,24 @@ test('computer keys and on-screen keys play through the wasm engine and release'
   await expect.poll(() => held(page)).toEqual([]);
 });
 
+// Worklet module fetches bypass page routing, so test processors are injected as blob URLs.
+const withProcessor = (page: Page, source: string, readyTimeoutMs = 10_000) => page.addInitScript(([src, ms]) => {
+  (window as unknown as { __wirescapeWebTest: unknown }).__wirescapeWebTest = {
+    readyTimeoutMs: ms, processorUrl: URL.createObjectURL(new Blob([src as string], { type: 'text/javascript' })) };
+}, [source, readyTimeoutMs] as const);
+
 test('a processor that throws reports an error and leaves Try again usable', async ({ page }) => {
-  await page.route('**/web/ws-processor.js', r => r.fulfill({ contentType: 'text/javascript',
-    body: "registerProcessor('wirescape-engine', class extends AudioWorkletProcessor { constructor() { super(); throw new Error('boom'); } process() { return true; } });" }));
+  await withProcessor(page, "registerProcessor('wirescape-engine', class extends AudioWorkletProcessor {" +
+    " constructor() { super(); throw new Error('boom'); } process() { return true; } });");
   await page.goto('./');
   await page.getByTestId('web-start').click();
-  await expect(page.getByTestId('web-error')).toBeVisible();
+  await expect(page.getByTestId('web-error')).toContainText('stopped while starting');
   await expect(page.getByTestId('web-start')).toBeEnabled();
   await expect(page.getByTestId('web-start')).toHaveText('Try again');
 });
 
 test('a silent processor times out instead of hanging on Starting', async ({ page }) => {
-  await page.addInitScript(() => { (window as unknown as { __wirescapeReadyTimeoutMs: number }).__wirescapeReadyTimeoutMs = 1500; });
-  await page.route('**/web/ws-processor.js', r => r.fulfill({ contentType: 'text/javascript',
-    body: "registerProcessor('wirescape-engine', class extends AudioWorkletProcessor { process() { return true; } });" }));
+  await withProcessor(page, "registerProcessor('wirescape-engine', class extends AudioWorkletProcessor { process() { return true; } });", 1500);
   await page.goto('./');
   await page.getByTestId('web-start').click();
   await expect(page.getByTestId('web-error')).toContainText('did not answer in time');

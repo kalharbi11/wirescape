@@ -44,7 +44,8 @@ export function startWeb(): Promise<void> {
     button.addEventListener('click', () => {
       button.disabled = true;
       button.textContent = 'Starting…';
-      bridge.start(base, (window as unknown as { __wirescapeReadyTimeoutMs?: number }).__wirescapeReadyTimeoutMs).then(() => { splash.remove(); resolve(); }, (e: unknown) => {
+      bridge.start(base, (window as unknown as { __wirescapeWebTest?: { readyTimeoutMs?: number; processorUrl?: string } })
+        .__wirescapeWebTest ?? {}).then(() => { splash.remove(); resolve(); }, (e: unknown) => {
         button.disabled = false;
         button.textContent = 'Try again';
         error.hidden = false;

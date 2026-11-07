@@ -27,22 +27,26 @@ export class WebBridge implements WirescapeBridge {
   peak = 0;
 
   /** Must run from a user gesture: browsers only start audio after a click or key. */
-  async start(base: string, readyTimeoutMs = 10_000): Promise<void> {
+  async start(base: string, options: { readyTimeoutMs?: number; processorUrl?: string } = {}): Promise<void> {
     const context = new AudioContext({ latencyHint: 'interactive' });
     let node: AudioWorkletNode | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let catalogue: unknown;
+    // One deadline covers the whole attempt: fetch, worklet load, resume and the ready handshake.
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('the engine did not answer in time')), options.readyTimeoutMs ?? 10_000);
+    });
+    const within = <T>(p: Promise<T>): Promise<T> => Promise.race([p, deadline]);
     try {
-      const [module] = await Promise.all([
+      const [module] = await within(Promise.all([
         WebAssembly.compileStreaming(fetch(base + 'web/wirescape.wasm')),
-        context.audioWorklet.addModule(base + 'web/ws-processor.js'),
-      ]);
+        context.audioWorklet.addModule(options.processorUrl ?? base + 'web/ws-processor.js'),
+      ]));
       const created = new AudioWorkletNode(context, 'wirescape-engine', {
         numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { module },
       });
       node = created;
       const ready = new Promise<Message>((resolve, reject) => {
-        timer = setTimeout(() => reject(new Error('the engine did not answer in time')), readyTimeoutMs);
         created.onprocessorerror = () => reject(new Error('the audio engine stopped while starting'));
         created.port.onmessage = e => {
           const m = e.data as Message;
@@ -51,8 +55,8 @@ export class WebBridge implements WirescapeBridge {
         };
       });
       created.connect(context.destination);
-      await context.resume();
-      ({ catalogue } = await ready);
+      await within(context.resume());
+      ({ catalogue } = await within(ready));
     } catch (error) {
       // A failed attempt leaves nothing running, so "Try again" starts clean.
       if (node) { node.port.onmessage = null; node.onprocessorerror = null; node.disconnect(); }
