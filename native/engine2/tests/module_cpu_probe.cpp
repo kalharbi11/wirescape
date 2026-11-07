@@ -2,8 +2,8 @@
 // Offline, device-free CPU probe for one built-in module: N instances, a saw into the first
 // signal input, seeded noise into the second, parameters at their defaults. Prints one line:
 //   module_cpu_probe {"module":..., "render_ns":{"max":..,"p99":..}, "allocations":.., ...}
-#include "module_catalog.h"
 #include "../../tests2/allocation_watch.h"
+#include "module_catalog.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -18,37 +18,40 @@ namespace {
 struct Arena {
     std::vector<unsigned char> bytes;
     size_t used = 0;
-    static void* WS2_CALL alloc(void* context, size_t size, size_t alignment, uint32_t) {
-        auto& a = *static_cast<Arena*>(context);
+    static void *WS2_CALL alloc(void *context, size_t size, size_t alignment, uint32_t) {
+        auto &a = *static_cast<Arena *>(context);
         const uintptr_t base = reinterpret_cast<uintptr_t>(a.bytes.data());
         const uintptr_t next = (base + a.used + alignment - 1) & ~(uintptr_t(alignment) - 1);
         if (next - base + size > a.bytes.size()) return nullptr;
         a.used = next - base + size;
-        return reinterpret_cast<void*>(next);
+        return a.bytes.data() + (next - base);
     }
 };
 
 struct Instance {
-    const ws2_descriptor* d = nullptr;
+    const ws2_descriptor *d = nullptr;
     Arena arena;
     ws2_host host{sizeof(ws2_host), &arena, Arena::alloc};
-    void* self = nullptr;
+    void *self = nullptr;
     std::vector<std::vector<float>> out_store;
-    std::vector<std::vector<float*>> out_rows;
+    std::vector<std::vector<float *>> out_rows;
     std::vector<ws2_signal_out> outputs;
-    std::vector<const float*> in_rows;
+    std::vector<const float *> in_rows;
     std::vector<ws2_signal> inputs;
     std::vector<float> values;
-    std::vector<const float*> value_rows;
+    std::vector<const float *> value_rows;
     std::vector<ws2_signal> params;
     std::vector<ws2_event_list> event_inputs;
     ws2_process ctx{};
 };
 
-int fail(const char* message) { std::fprintf(stderr, "module_cpu_probe: %s\n", message); return 2; }
+int fail(const char *message) {
+    std::fprintf(stderr, "module_cpu_probe: %s\n", message);
+    return 2;
+}
 } // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     std::string id;
     uint32_t instances = 2, block = 128;
     double rate = 48000, seconds = 60;
@@ -65,8 +68,9 @@ int main(int argc, char** argv) {
     }
     if (id.empty() || !instances || instances > 16 || !block || block > 4096 || !(rate >= 8000) || !(seconds > 0))
         return fail("usage: --module ID [--instances N] [--rate HZ] [--block FRAMES] [--seconds S] [--seed N]");
-    const ws2_descriptor* d = nullptr;
-    for (const ws2_descriptor* m : wirescape::app::builtin_modules()) if (id == m->id) d = m;
+    const ws2_descriptor *d = nullptr;
+    for (const ws2_descriptor *m : wirescape::app::builtin_modules())
+        if (id == m->id) d = m;
     if (!d) return fail("module is not a built-in");
 
     constexpr uint32_t channels = 16;
@@ -82,10 +86,11 @@ int main(int argc, char** argv) {
         x->arena.bytes.resize(memory.fast_bytes + memory.large_bytes + (1u << 20));
         x->self = d->create(&x->host);
         if (!x->self || d->prepare(x->self, &config, &x->host) != WS2_OK) return fail("create/prepare failed");
-        x->out_store.assign(d->output_count * channels, std::vector<float>(block));
+        x->out_store.assign(size_t(d->output_count) * channels, std::vector<float>(block));
         x->out_rows.resize(d->output_count);
         for (uint32_t o = 0; o < d->output_count; ++o) {
-            for (uint32_t c = 0; c < channels; ++c) x->out_rows[o].push_back(x->out_store[o * channels + c].data());
+            for (uint32_t c = 0; c < channels; ++c)
+                x->out_rows[o].push_back(x->out_store[size_t(o) * channels + c].data());
             x->outputs.push_back({sizeof(ws2_signal_out), x->out_rows[o].data(), 1, 0, channels});
         }
         x->in_rows.resize(d->input_count);
@@ -101,11 +106,19 @@ int main(int argc, char** argv) {
             x->value_rows[p] = &x->values[p];
             x->params.push_back({sizeof(ws2_signal), &x->value_rows[p], 1, WS2_CONSTANT});
         }
-        auto& c = x->ctx;
-        c.struct_size = sizeof(c); c.frames = block; c.sample_rate = rate; c.channels = 1;
-        c.input_count = d->input_count; c.output_count = d->output_count; c.param_count = d->param_count;
-        c.inputs = x->inputs.data(); c.outputs = x->outputs.data(); c.params = x->params.data();
-        c.event_inputs = x->event_inputs.data(); c.events = {sizeof(ws2_event_list), 0, nullptr};
+        auto &c = x->ctx;
+        c.struct_size = sizeof(c);
+        c.frames = block;
+        c.sample_rate = rate;
+        c.channels = 1;
+        c.input_count = d->input_count;
+        c.output_count = d->output_count;
+        c.param_count = d->param_count;
+        c.inputs = x->inputs.data();
+        c.outputs = x->outputs.data();
+        c.params = x->params.data();
+        c.event_inputs = x->event_inputs.data();
+        c.events = {sizeof(ws2_event_list), 0, nullptr};
         all.push_back(std::move(x));
     }
 
@@ -115,8 +128,9 @@ int main(int argc, char** argv) {
     uint32_t lcg = uint32_t(seed) * 2654435761u + 1u;
     size_t allocations = 0, faults = 0;
     for (size_t k = 0; k < blocks; ++k) {
-        for (uint32_t i = 0; i < block; ++i) {          // inputs are prepared outside the timed region
-            phase += 110.0 / rate; if (phase >= 1) phase -= 1;
+        for (uint32_t i = 0; i < block; ++i) { // inputs are prepared outside the timed region
+            phase += 110.0 / rate;
+            if (phase >= 1) phase -= 1;
             saw[i] = float(phase - .5);
             lcg = lcg * 1664525u + 1013904223u;
             noise[i] = .3f * (float(lcg >> 8) / 8388608.f - 1.f);
@@ -124,20 +138,20 @@ int main(int argc, char** argv) {
         const auto start = std::chrono::steady_clock::now();
         {
             allocation_watch::Scope watch;
-            for (auto& x : all) {
+            for (auto &x : all) {
                 if (d->process(x->self, &x->ctx) != WS2_OK) ++faults;
                 x->ctx.frame_position += block;
             }
             allocations += watch.allocations();
         }
         ns[k] = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
-        for (auto& x : all)
+        for (auto &x : all)
             for (uint32_t o = 0; o < d->output_count; ++o) {
                 const uint32_t frames = (x->outputs[o].flags & WS2_CONSTANT) ? 1 : block;
                 for (uint32_t i = 0; i < frames; ++i) peak = std::max(peak, double(std::abs(x->out_rows[o][0][i])));
             }
     }
-    for (auto& x : all) d->destroy(x->self);
+    for (auto &x : all) d->destroy(x->self);
     std::vector<int64_t> sorted = ns;
     std::sort(sorted.begin(), sorted.end());
     const int64_t worst = sorted.empty() ? 0 : sorted.back();
