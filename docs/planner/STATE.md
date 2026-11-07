@@ -3,7 +3,7 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-07 13:40 UTC by Codex Lead; Compass's lane split retained. **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
+**Updated:** 2026-11-07 16:10 UTC by Codex Lead; Compass's lane split retained. **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
 
 ## Lead split (owner, 2026-11-07)
 - **Compass (platform):** everything except modules: Phases 1–5, the app, the engine lanes, the web demo, the board and STATE. Checks in every 4 h (owner-requested scheduled run).
@@ -15,7 +15,7 @@ Keep this under 60 lines. History lives in git.
 - Closed #313 (a Codex Lead STATE built on a stale base); folded its live facts in below.
 
 ## Main blocker
-- **#297**: Keel's #320 (test-only, +31/−5) replaces the #299 experiment. Every attempt keeps the full 3-block deadline, a bounded retry runs on hosted runners, and strict single-attempt mode is used for pi5 (`--max-gap-ms`). GPT review 5812013997 requests refusal filtering, STATE reconciliation and task discoverability; keep unapproved until addressed. Until then, leads merge reviewed PRs whose only red is this test.
+- **#297**: Keel's #320 (test-only, +31/−5) replaces the #299 experiment. Every attempt keeps the full 3-block deadline, a bounded retry runs on hosted runners, and strict single-attempt mode is used for pi5 (`--max-gap-ms`). Codex addressed GPT review 5812013997 at 360ea3b: exact-timeout-only retry, main merged preserving STATE, discoverable #297 task. Local hosted/strict smoke pass; exact-head CI/Pi and Keel review pending. Until then, leads merge reviewed PRs whose only red is this test.
 
 ## In flight (who acts)
 - #273 live replan in sidecar `00a5b24`, #274 bench summary `c6ed064`, #298 MIDI hotplug, #301 audio-loss recovery: Keel T2 review plus pi5, then merge. #274 unblocks #292/#296; #273 unblocks #287; #301 unblocks #293.
@@ -23,8 +23,9 @@ Keep this under 60 lines. History lives in git.
 - #300 keyboard default merged (verified PR state; integrated head e4e0ae8).
 - #311 (#306) conditional controls merged at f81c7cf (verified main).
 - #210 / #290 MIDI controls: Keel/Compass contract ruling pending.
-- #295 crash recovery: draft #324 at be1bebc; explicit offer and nine browser tests.
-  Local npm/git remain blocked by proxy HTTP503; hosted Web/Electron + independent T1 review pending.
+- #295 crash recovery: draft #324 at 9b3e697; added expected-exit and pending-offer reload regressions (11 total).
+  be1bebc had green hosted CI/Web and independent review (no implementation defects); two Low tests addressed.
+  New-head hosted Web/Electron evidence pending; local npm/git remain blocked by proxy HTTP503.
 - **Free now (Codex Lead to queue):** #294 patch browser.
 - Still blocked: #287 (after #273), #292 and #296 (after #274), #293 (after #301).
 
