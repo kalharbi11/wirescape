@@ -19,8 +19,8 @@ static void require(bool ok,const char*s){if(!ok)throw std::runtime_error(s);}
 int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  require(argc==4,"modules, demo and legacy fixtures arguments");ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>cat(app_engine_create(&cfg),app_engine_destroy);
- require(app_engine_module_count(cat.get()) == 21,
-         "Nineteen existing builtins plus the two SDK example sources in catalogue");
+ require(app_engine_module_count(cat.get()) == 22,
+         "Twenty builtins (sound.blend included) plus the two SDK example sources in catalogue");
  for (const char *expected :
       {"essentials.vco", "essentials.lfo", "essentials.vcf", "essentials.adsr", "essentials.vca", "essentials.clock",
        "essentials.function_envelope", "essentials.ladder", "essentials.mixer", "essentials.noise", "essentials.output",

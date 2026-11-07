@@ -1,5 +1,5 @@
 {
- "note": "Real Wirescape ABI 2 module descriptors: 19 built-ins + 2 SDK examples, extracted from research PR #215. Use the ids exactly; they are stable and will match the real engine. kind 'signal' = audio-rate cable, 'event' = notes/MIDI messages. hint is advisory (audio, pitch, cv, gate...) and never blocks a connection.",
+ "note": "Real Wirescape ABI 2 module descriptors: 20 built-ins + 2 SDK examples, extracted from research PR #215. Use the ids exactly; they are stable and will match the real engine. kind 'signal' = audio-rate cable, 'event' = notes/MIDI messages. hint is advisory (audio, pitch, cv, gate...) and never blocks a connection.",
  "modules": [
   {
    "id": "essentials.adsr",
@@ -2749,6 +2749,142 @@
     "pitch8": 23,
     "gate8": 24,
     "vel8": 25
+   }
+  },
+  {
+   "id": "sound.blend",
+   "name": "Blend",
+   "category": "Two-source",
+   "ports": [
+    {
+     "id": "a",
+     "name": "A",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "sum",
+     "stereo_pair": null
+    },
+    {
+     "id": "b",
+     "name": "B",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "sum",
+     "stereo_pair": null
+    },
+    {
+     "id": "switch",
+     "name": "Switch",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "trigger",
+     "poly": "first",
+     "stereo_pair": null
+    },
+    {
+     "id": "audio",
+     "name": "Audio",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [
+    {
+     "id": "mode",
+     "name": "Mode",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": true,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Crossfade"
+      },
+      {
+       "value": 1,
+       "label": "Splice"
+      }
+     ]
+    },
+    {
+     "id": "balance",
+     "name": "Balance",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.5,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "seg_a",
+     "name": "A segment",
+     "minimum": 0.01,
+     "maximum": 2,
+     "default": 0.22,
+     "unit": "s",
+     "taper": "log",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "seg_b",
+     "name": "B segment",
+     "minimum": 0.01,
+     "maximum": 2,
+     "default": 0.22,
+     "unit": "s",
+     "taper": "log",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "fade",
+     "name": "Fade",
+     "minimum": 0.001,
+     "maximum": 0.2,
+     "default": 0.01,
+     "unit": "s",
+     "taper": "log",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "jitter",
+     "name": "Jitter",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.3,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    }
+   ],
+   "version": 1,
+   "legacy_parameters": {
+    "mode": 0,
+    "balance": 1,
+    "seg_a": 2,
+    "seg_b": 3,
+    "fade": 4,
+    "jitter": 5
    }
   }
  ]
