@@ -37,6 +37,12 @@ screenshots and traces as artifacts. The old UI-repository workflows live under
 `apps/studio/tools/ci-reference/` as inactive reference, including its Pi job;
 no public-repository workflow targets the Pi.
 
+The Qt-free MIDI service uses its existing acquisition worker to detect endpoint
+loss/return. Saved system identities keep same-name ports separate; source-only
+chokes precede reconnect callbacks. Sidecar device pushes reflect worker snapshots
+while enabled selections remain remembered. Fake hot-plug tests cover these paths
+without opening hardware; no audio-thread polling or new protocol command is used.
+
 ## Active application: ABI1
 
 - `native/include/wirescape/module.h`: experimental C module boundary; immutable descriptors,
