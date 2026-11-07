@@ -229,3 +229,54 @@ test('Escape exits F11 fullscreen and Quit closes engine stdin', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('patch library keeps paths private, bounds reads and detaches bundled save targets', async () => {
+  const app = await launch();
+  let root;
+  try {
+    root = await app.evaluate(({ app }) => {
+      const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'wirescape-library-'));
+      app.setPath('userData', root);
+      fs.mkdirSync(path.join(root, 'patches'));
+      fs.writeFileSync(path.join(root, 'patches', 'Song.json'), '{"future":42}');
+      fs.writeFileSync(path.join(root, 'patches', 'Huge.json'), 'x'.repeat(2097153));
+      fs.writeFileSync(path.join(root, 'patches', 'Bad.json'), Buffer.from([255]));
+      return root;
+    });
+    const page = await app.firstWindow();
+    await page.waitForFunction(() => document.body.dataset.ready === 'true');
+    const listed = await page.evaluate(() => window.wirescape.openPatch({ library: 'list' }));
+    expect(JSON.parse(listed.text)).toContain('Song.json');
+    expect(listed.text).not.toContain(root);
+    expect(await page.evaluate(() => window.wirescape.openPatch({ library: 'read', name: 'Song.json' })))
+      .toEqual({ name: 'Song.json', text: '{"future":42}' });
+    for (const name of ['../Song.json', 'Huge.json', 'Bad.json']) {
+      expect(await page.evaluate(async name => {
+        try { await window.wirescape.openPatch({ library: 'read', name }); return false; } catch { return true; }
+      }, name)).toBe(true);
+    }
+    if (process.platform !== 'win32') {
+      await app.evaluate(({ app }) => {
+        const fs = require('node:fs'), path = require('node:path');
+        const root = app.getPath('userData');
+        fs.writeFileSync(path.join(root, 'Outside.json'), '{}');
+        fs.symlinkSync(path.join(root, 'Outside.json'), path.join(root, 'patches', 'Escape.json'));
+      });
+      expect(await page.evaluate(async () => {
+        try { await window.wirescape.openPatch({ library: 'read', name: 'Escape.json' }); return false; } catch { return true; }
+      })).toBe(true);
+    }
+    await page.evaluate(() => window.wirescape.openPatch({ library: 'reset' }));
+    const output = path.join(root, 'patches', 'Copy.json');
+    await app.evaluate(({ dialog }, output) => {
+      dialog.showSaveDialog = async (_window, options) => {
+        if (!options.defaultPath.endsWith('patches' + require('node:path').sep + 'Untitled.json')) throw new Error('Wrong default folder');
+        return { canceled: false, filePath: output };
+      };
+    }, output);
+    await page.evaluate(() => window.wirescape.savePatch('{"copy":true}', { saveAs: true }));
+    expect(fs.readFileSync(output, 'utf8')).toBe('{"copy":true}');
+    expect(fs.readFileSync(path.join(root, 'patches', 'Song.json'), 'utf8')).toBe('{"future":42}');
+  } finally { await app.close(); if (root) fs.rmSync(root, { recursive: true, force: true }); }
+});

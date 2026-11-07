@@ -116,7 +116,9 @@ export async function mockBridge(page: Page): Promise<void> {
         setTimeout(() => void hello(), 0);
         return () => listeners.delete(cb);
       },
-      openPatch: async () => openText,
+      openPatch: async (request?: { library: string }) => request
+        ? request.library === 'list' ? { name: 'User patches', text: '[]' } : null
+        : openText,
       savePatch: async (text: string) => { saved = text; return { name: 'Saved.wirescape.json' }; },
       platform: 'linux',
     };

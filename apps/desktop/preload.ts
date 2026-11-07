@@ -77,8 +77,11 @@ contextBridge.exposeInMainWorld('wirescape', Object.freeze({
     }
     return () => { listeners.delete(listener); };
   },
-  openPatch(): Promise<{ text: string; name: string } | null> {
-    return ipcRenderer.invoke('wirescape:open');
+  openPatch(request?: { library: 'list' | 'read' | 'reset'; name?: string }): Promise<{ text: string; name: string } | null> {
+    if (request !== undefined && (!request || !['list', 'read', 'reset'].includes(request.library) ||
+        (request.library === 'read' && (typeof request.name !== 'string' || request.name.length > 240 ||
+          /[\\/\x00]/.test(request.name))))) return Promise.reject(new TypeError('Invalid patch token'));
+    return ipcRenderer.invoke('wirescape:open', request);
   },
   savePatch(text: string, options?: { saveAs?: boolean }): Promise<{ name: string } | null> {
     if (typeof text !== 'string' || new TextEncoder().encode(text).length > LIMIT) {

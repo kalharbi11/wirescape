@@ -471,3 +471,15 @@ the existing modal style. Autosave pauses until Restore or Keep current patch
 snapshot. Restore preserves the name and unknown patch fields. Clean sessions
 retain automatic last-session restoration. Recovery does not write a user file
 or request an engine restart; Electron main retains its crash-loop budget.
+
+### Patch browser (#294)
+
+PATCHES lists six bundled starters and three demos as read-only, plus bounded
+user patch basenames in the desktop app. Bundled choices follow the advertised
+catalogue in web-demo builds. Selection uses loadGraph; only dirty documents
+prompt before switching. A bundled selection detaches the native file target,
+and Save creates a user copy through Save As in the patch folder. User data
+and unknown fields use the normal lossless document path. Optional openPatch
+library list/read/reset requests retain the five-member preload surface and
+existing return shape; main owns containment, UTF-8 and 2 MiB bounds. Browser
+builds return an empty user list and keep normal file-picker Open unchanged.
