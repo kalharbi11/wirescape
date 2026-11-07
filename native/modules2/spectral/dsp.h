@@ -286,8 +286,8 @@ struct Spectral {
                 const float centre = approx::kHalfPi * float(quarter);
                 const float da = principal(approx::atan2(ia, ra) - centre);
                 const float db = principal(approx::atan2(ib, rb) - centre);
-                float sn, cs;
-                approx::sincos(da * (1 - m) + db * m, sn, cs);
+                const approx::SinCos turn = approx::sincos(da * (1 - m) + db * m);
+                const float sn = turn.sine, cs = turn.cosine;
                 const float turn_r[4] = {cs, -sn, -cs, sn}, turn_i[4] = {sn, cs, -sn, -cs};
                 rr = turn_r[quarter];
                 ri = turn_i[quarter];

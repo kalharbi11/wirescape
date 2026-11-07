@@ -6,10 +6,11 @@ Brief: `docs/tasks/S1_CONJUNCTIONS_MODULES.md` (module 1). The plan, IDs and Kee
 ```acceptance
 tier: T1
 # Budget (Compass, #302): module folder <= 1400 lines / <= 10 files; wiring, generated files and the probe are excluded.
-# The checker counts the whole diff, so this line holds the whole-diff totals.
+# The checker counts the whole diff, so this line holds the whole-diff totals (after review fixes:
+# module folder 1265 lines / 9 files; wiring, generated catalogue and probe about 630).
 # The pi-run lines cover the default, the heaviest steady case (Morph blend at 4096) and a mode CV
 # flipping every 4 blocks there (two renders per frame during every crossfade); review on #304.
-size: <= 1800 changed lines, <= 24 files
+size: <= 2000 changed lines, <= 24 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "^(abi2_spectral_tests|abi2_module_cpu_probe_smoke|app_engine_tests)$" --output-on-failure --no-tests=error

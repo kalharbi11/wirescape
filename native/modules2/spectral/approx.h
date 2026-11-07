@@ -53,7 +53,10 @@ inline float atan2(float y, float x) {
 }
 
 // sin and cos of t in [-pi, pi]: fold to [-pi/2, pi/2], then Taylor to degree 9 / 10.
-inline void sincos(float t, float &sine, float &cosine) {
+struct SinCos {
+    float sine, cosine;
+};
+inline SinCos sincos(float t) {
     float sign = 1.f;
     if (t > kHalfPi) {
         t = kPi - t;
@@ -63,10 +66,12 @@ inline void sincos(float t, float &sine, float &cosine) {
         sign = -1.f;
     }
     const float t2 = t * t;
-    sine = t * (1.f + t2 * (-1.f / 6.f + t2 * (1.f / 120.f + t2 * (-1.f / 5040.f + t2 * (1.f / 362880.f)))));
-    cosine =
+    const float sine =
+        t * (1.f + t2 * (-1.f / 6.f + t2 * (1.f / 120.f + t2 * (-1.f / 5040.f + t2 * (1.f / 362880.f)))));
+    const float cosine =
         sign *
         (1.f + t2 * (-.5f + t2 * (1.f / 24.f + t2 * (-1.f / 720.f + t2 * (1.f / 40320.f + t2 * (-1.f / 3628800.f))))));
+    return {sine, cosine};
 }
 
 } // namespace spectral::approx

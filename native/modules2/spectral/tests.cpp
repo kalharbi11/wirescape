@@ -211,8 +211,7 @@ void test_approximations() {
         const float e = float(i) / 40.f; // -100 .. 100
         exp_err = std::max(exp_err, std::abs(spectral::approx::exp2(e) / std::exp2(double(e)) - 1));
         const float t = float(i) / 4000.f * 3.14159265f;
-        float sn, cs;
-        spectral::approx::sincos(t, sn, cs);
+        const auto [sn, cs] = spectral::approx::sincos(t);
         trig_err = std::max({trig_err, std::abs(sn - std::sin(double(t))), std::abs(cs - std::cos(double(t)))});
         for (float r : {1e-6f, .3f, 1.f, 50.f}) {
             const float y = r * std::sin(t), xx = r * std::cos(t);
