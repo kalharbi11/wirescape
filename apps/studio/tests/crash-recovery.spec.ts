@@ -10,6 +10,8 @@ const snapshot = { name: 'Recovered song', patch: {
 } };
 async function seed(page: Page, raw: string | null, crashed = true) {
   await page.addInitScript(({ raw, crashed }) => {
+    if (sessionStorage.getItem('recovery-test-seeded')) return;
+    sessionStorage.setItem('recovery-test-seeded', '1');
     if (raw !== null) localStorage.setItem('wirescape.autosave.v2', raw);
     if (crashed) localStorage.setItem('wirescape.session.active.v1', '1');
   }, { raw, crashed });
@@ -80,3 +82,30 @@ for (const restore of [true, false]) {
     expect(await page.evaluate(() => (window as any).__mockBridge.getSaved())).toBe('');
   });
 }
+
+
+test('an unanswered recovery offer survives pagehide and reload without changing snapshot bytes', async ({ page }) => {
+  const raw = JSON.stringify(snapshot);
+  await seed(page, raw);
+  await expect(page.getByTestId('recovery-modal')).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
+  expect(await page.evaluate(() => localStorage.getItem('wirescape.autosave.v2'))).toBe(raw);
+  expect(await page.evaluate(() => localStorage.getItem('wirescape.session.active.v1'))).toBe('1');
+  await page.reload();
+  await page.waitForFunction(() => document.body.dataset.ready === 'true');
+  await expect(page.getByTestId('recovery-modal')).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('wirescape.autosave.v2'))).toBe(raw);
+  await page.getByTestId('recovery-restore').click();
+  expect((await state(page)).futureTop).toEqual(snapshot.patch.futureTop);
+});
+
+test('an intentional engine exit does not offer recovery', async ({ page }) => {
+  await mockBridge(page);
+  await seed(page, null, false);
+  const loads = () => page.evaluate(() => (window as any).__mockBridge.sent.filter((m: any) => m.type === 'loadGraph').length);
+  await expect.poll(loads).toBeGreaterThan(0);
+  const before = await loads();
+  await page.evaluate(() => (window as any).__mockBridge.exit(true));
+  await expect.poll(loads).toBeGreaterThan(before);
+  await expect(page.getByTestId('recovery-modal')).toBeHidden();
+});
