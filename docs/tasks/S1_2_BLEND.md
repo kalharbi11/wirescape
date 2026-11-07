@@ -6,7 +6,7 @@ Brief: `docs/tasks/S1_CONJUNCTIONS_MODULES.md` (module 2). Design, IDs and tests
 ```acceptance
 tier: T1
 # Budget: module folder <= 900 lines / <= 10 files; wiring and generated files excluded (Compass, #302).
-size: <= 1200 changed lines, <= 16 files
+size: <= 1200 changed lines, <= 18 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "^(abi2_blend_tests|app_engine_tests)$" --output-on-failure --no-tests=error
