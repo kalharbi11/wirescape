@@ -132,6 +132,84 @@ test('native File intents and open/save round-trip never expose a filesystem pat
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+test('patch dialogs create the user patch folder lazily and retain the selected path', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wirescape-patches-'));
+  const folder = path.join(dir, 'patches');
+  const selected = path.join(dir, 'selected.json');
+  const app = await launch();
+  try {
+    const page = await app.firstWindow();
+    await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+    await app.evaluate(({ app, dialog }, directory) => {
+      app.setPath('userData', directory);
+      globalThis.__patchDefaults = [];
+      dialog.showOpenDialog = async (_window, options) => {
+        globalThis.__patchDefaults.push(options.defaultPath);
+        return { canceled: true, filePaths: [] };
+      };
+      dialog.showSaveDialog = async (_window, options) => {
+        globalThis.__patchDefaults.push(options.defaultPath);
+        return { canceled: true };
+      };
+    }, dir);
+    expect(fs.existsSync(folder)).toBe(false);
+    expect(await page.evaluate(() => window.wirescape.openPatch())).toBeNull();
+    expect(fs.statSync(folder).isDirectory()).toBe(true);
+    const preserved = path.join(folder, 'existing.json');
+    fs.writeFileSync(preserved, '{"unknown":"keep me"}\n');
+    expect(await page.evaluate(() => window.wirescape.savePatch('{}', { saveAs: true }))).toBeNull();
+    expect(await app.evaluate(() => globalThis.__patchDefaults))
+      .toEqual([folder, path.join(folder, 'Untitled.json')]);
+    expect(fs.readdirSync(folder)).toEqual(['existing.json']);
+
+    await app.evaluate(({ dialog }, filename) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: filename });
+    }, selected);
+    expect(await page.evaluate(() => window.wirescape.savePatch('{"unknown":42}\n', { saveAs: true })))
+      .toEqual({ name: 'selected.json' });
+    expect(fs.readFileSync(selected, 'utf8')).toBe('{"unknown":42}\n');
+    await app.evaluate(({ dialog }) => {
+      dialog.showSaveDialog = async (_window, options) => {
+        globalThis.__patchDefaults.push(options.defaultPath);
+        return { canceled: true };
+      };
+    });
+    expect(await page.evaluate(() => window.wirescape.openPatch())).toBeNull();
+    expect(await page.evaluate(() => window.wirescape.savePatch('{}', { saveAs: true }))).toBeNull();
+    expect(await app.evaluate(() => globalThis.__patchDefaults.slice(-2))).toEqual([selected, selected]);
+    // Cancelled Open/Save As must not redirect a subsequent plain Save.
+    await page.evaluate(() => window.wirescape.savePatch('{"unknown":43}\n'));
+    expect(fs.readFileSync(selected, 'utf8')).toBe('{"unknown":43}\n');
+    expect(fs.readFileSync(preserved, 'utf8')).toBe('{"unknown":"keep me"}\n');
+  } finally {
+    await app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+test('an unavailable patch folder rejects file operations while the window remains usable', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wirescape-patch-error-'));
+  fs.writeFileSync(path.join(dir, 'patches'), 'existing file');
+  const app = await launch();
+  try {
+    const page = await app.firstWindow();
+    await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+    await app.evaluate(({ app, dialog }, directory) => {
+      app.setPath('userData', directory);
+      dialog.showOpenDialog = dialog.showSaveDialog = async () => {
+        throw new Error('Dialog must not open without a patch folder');
+      };
+    }, dir);
+    await expect(page.evaluate(() => window.wirescape.openPatch())).rejects.toThrow('Could not create patch folder');
+    await expect(page.evaluate(() => window.wirescape.savePatch('{}'))).rejects.toThrow('Could not create patch folder');
+    await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+    expect(await page.evaluate(() => Object.keys(window.wirescape).sort()))
+      .toEqual(['onMessage', 'openPatch', 'platform', 'savePatch', 'send']);
+    expect(fs.readFileSync(path.join(dir, 'patches'), 'utf8')).toBe('existing file');
+  } finally {
+    await app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 test('Escape exits F11 fullscreen and Quit closes engine stdin', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wirescape-eof-'));
   const marker = path.join(dir, 'shutdown');

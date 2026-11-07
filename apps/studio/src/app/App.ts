@@ -17,6 +17,7 @@ import { QuickAdd } from './QuickAdd';
 import { Toasts } from '../system/Toasts';
 import { StatusBar } from '../system/StatusBar';
 import { ComputerKeyboard, isTyping } from './Keyboard';
+import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
 import { STARTERS, DEFAULT_STARTER } from './starters';
@@ -42,6 +43,7 @@ export class App {
   private toasts = new Toasts();
   private statusBar!: StatusBar;
   private keyboard!: ComputerKeyboard;
+  private piano!: OnScreenKeyboard;
   private devPanel!: DevPanel;
   private settings = new Modal('settings-modal');
   private shortcuts = new Modal('shortcuts-modal');
@@ -126,17 +128,19 @@ export class App {
     this.canvas.bindActivity();
 
     this.statusBar = new StatusBar({
-      onPanic: () => { this.engine.panic(); this.toasts.show('All notes stopped.'); },
+      onPanic: () => { this.keyboard.releaseAll(); this.engine.panic(); this.toasts.show('All notes stopped.'); },
       onOpenSettings: () => this.openSettings(),
       onClockToggle: running => this.toggleClock(running),
     });
 
     this.keyboard = new ComputerKeyboard(this.engine);
-    this.keyboard.onOctaveChange = o => { this.octaveEl.textContent = `OCT ${o}`; };
+    this.keyboard.setEnabled(this.prefs.computerKeyboardPlays);
+    this.piano = new OnScreenKeyboard(this.keyboard);
+    this.keyboard.onOctaveChange = o => { this.octaveEl.textContent = `OCT ${o}`; this.piano.refresh(); };
     this.devPanel = new DevPanel(this.engine, this.ticker);
 
     const main = el('div', 'main');
-    main.append(this.buildTopBar(), this.canvas.root, this.statusBar.root);
+    main.append(this.buildTopBar(), this.canvas.root, this.piano.root, this.statusBar.root);
 
     this.fileInput = el('input') as HTMLInputElement;
     this.fileInput.type = 'file';
@@ -210,6 +214,13 @@ export class App {
     this.canvas.viewport.on(v => { this.zoomLabel.textContent = `${Math.round(v.s * 100)}%`; });
 
     const tools = el('div', 'toolbar');
+    const keys = this.action('KEYS', () => {
+      keys.setAttribute('aria-expanded', String(this.piano.toggle()));
+      this.canvas.updateVisibility();
+    }, 'toggle-keyboard');
+    keys.setAttribute('aria-expanded', 'false');
+    keys.setAttribute('aria-controls', this.piano.root.id);
+    keys.title = 'Show or hide the playable keyboard';
     this.undoBtn = this.action('↶', () => this.undo(), 'undo');
     this.redoBtn = this.action('↷', () => this.redo(), 'redo');
     this.undoBtn.title = 'Undo (Ctrl/Cmd + Z)';
@@ -217,6 +228,7 @@ export class App {
     const history = el('div', 'zoom-group history-group');
     history.append(this.undoBtn, this.redoBtn);
     tools.append(
+      keys,
       this.action('NEW', () => this.newPatch(), 'new-patch'),
       this.action('OPEN', () => void this.openPatchFile(), 'open-patch'),
       this.action('SAVE', () => void this.savePatchFile(), 'save-patch'),
@@ -268,6 +280,7 @@ export class App {
     requestAnimationFrame(() => { this.canvas.fit(); this.canvas.invalidateAnchors(); });
     window.addEventListener('resize', () => this.canvas.updateVisibility());
     setInterval(() => this.autosave(), 4000);
+    window.addEventListener('pagehide', () => this.autosave(true));
     this.doc.on(() => this.refreshDirty());
   }
 
@@ -276,15 +289,16 @@ export class App {
       const raw = localStorage.getItem(AUTOSAVE_KEY);
       if (!raw) return false;
       const saved = JSON.parse(raw) as { name?: string; patch: PatchV2 };
-      if (!saved?.patch?.modules) return false;
+      if (!saved?.patch || !Array.isArray(saved.patch.modules) || !Array.isArray(saved.patch.connections)) return false;
       this.loadPatch(saved.patch, saved.name ?? 'Untitled');
       this.toasts.show('Restored your last patch.');
       return true;
     } catch { return false; }
   }
 
-  private autosave(): void {
-    if (!this.doc.dirty) return;
+  private autosave(force = false): void {
+    // A newly selected clean patch still replaces the previous recovery snapshot.
+    if (!force && !this.doc.dirty) return;
     try {
       localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ name: this.patchName, patch: this.doc.toJSON() }));
     } catch { /* storage full or unavailable */ }
@@ -316,6 +330,7 @@ export class App {
     this.doc.markClean();
     this.refreshDirty();
     this.history?.reset();
+    this.autosave(true);
     this.pasteCount = 0;
     try { await running; }
     catch (e) { this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error'); }
@@ -509,6 +524,7 @@ export class App {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     this.doc.markClean();
     this.refreshDirty();
+    this.autosave(true);
     this.toasts.show('Patch saved.');
   }
 
@@ -730,6 +746,7 @@ export class App {
     if (next === null) return;
     this.patchName = next.trim() || 'Untitled';
     this.nameEl.textContent = this.patchName;
+    this.autosave(true);
   }
 
   private toggleClock(running: boolean): void {
@@ -868,6 +885,11 @@ export class App {
     b.append(el('h3', 'settings-group', 'MIDI'));
     const midiFields = el('div', 'settings-midi');
     b.append(midiFields);
+    const computerKeys = switchButton(this.prefs.computerKeyboardPlays,
+      on => this.setPref({ computerKeyboardPlays: on }));
+    computerKeys.dataset.testid = 'computer-keyboard-plays';
+    b.append(field('Computer keyboard plays', computerKeys,
+      'A/W/S… plays notes in patches with a Keyboard module. MIDI inputs use their own device switches.'));
     void engine.listMidiDevices().then(devices => {
       if (!b.contains(midiFields)) return;
       if (!devices.length) {
@@ -983,6 +1005,7 @@ export class App {
     this.prefs = { ...this.prefs, ...patch };
     applyPrefs(this.prefs);
     savePrefs(this.prefs);
+    this.keyboard.setEnabled(this.prefs.computerKeyboardPlays);
     CanvasPane.setZoom(this.canvas.viewport.view.s, true);
     this.ticker.throttleHz = this.prefs.profile === 'pi' ? 30 : 0;
     // Hit areas change the geometry the layout is derived from, so every
@@ -1015,6 +1038,7 @@ export class App {
       this.nameEl.textContent = result.name;
       this.doc.markClean();
       this.refreshDirty();
+      this.autosave(true);
       this.toasts.show('Patch saved.');
     } catch (e) {
       this.toasts.show(e instanceof Error ? e.message : 'Could not save patch.', 'error');
@@ -1037,9 +1061,7 @@ export class App {
   testApi() {
     return {
       state: () => this.doc.toJSON(),
-      autosaveNow: () => {
-        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ name: this.patchName, patch: this.doc.toJSON() }));
-      },
+      autosaveNow: () => this.autosave(true),
       clearAutosave: () => localStorage.removeItem(AUTOSAVE_KEY),
       patchName: () => this.patchName,
       load: (p: PatchV2, name?: string) => this.loadPatch(p, name),

@@ -3,6 +3,8 @@
 
 This guide is for people and AI agents. Follow it top to bottom for a new module. It replaces the terse v1 notes (their content is kept in §13 "Reference").
 
+Porting a prototype you already have (a Web Audio app, an offline renderer)? Read §15 first.
+
 **Start from a worked example, not a blank file:**
 
 | You are building | Copy | It shows |
@@ -204,3 +206,25 @@ The CHAOS two-instance reference is a 120-second offline CPU render on the Pi at
 - The contract and its reasons: `docs/specs/ABI2_PLAN.md` (D1–D16).
 - How the app and engine fit together: `docs/ARCHITECTURE.md`.
 - Example of a guide-only authoring exercise and its findings: `native/tests2/guide_ringmod/README.md`.
+
+## 15. Porting a prototype (Web Audio, an offline renderer, another language)
+Many modules start as a working prototype (a JS AudioWorklet, an offline "render the whole file" tool, a notebook). Keep its sound and its parameter meanings, and rebuild the code to the rules above. Things that always change:
+
+| In the prototype | In a Wirescape module |
+|---|---|
+| Renders a whole file at once, then plays it | Streams: `process` sees 1 to `max_block()` frames and never sees the future. Anything that needs look-ahead becomes a ring buffer plus `latency_frames()`. |
+| Output length differs from input (concatenation, time stretch) | Not possible in a live stream. Keep only the "keeps pace" variant, or bound the stretch by a buffer and drop/skip to stay in time. Say which in `README.md`. |
+| Normalises to the file's peak/RMS at the end | No end exists. Use a fixed calibrated gain, or a bounded smoothed AGC; never a gain that depends on the future. |
+| `new Float32Array` / arrays created lazily in the hot loop, `Map` caches, growing lists | Size everything in `prepare` from `max_block()`, `max_channels()` and the longest time you allow at the highest rate (96 kHz); allocate with `s.alloc` (`WS2_LARGE` for buffers). Fixed pools for voices/grains. |
+| `Math.random` or a seed per render | `ws::Random` seeded from `config.seed` + channel; results must be reproducible across block sizes. |
+| A fixed sample rate (44.1 or 48 kHz) | Read `s.sample_rate()`; every time constant, delay length and FFT hop is computed from it. |
+| Block-based work aligned to the call (FFT frames, control-rate updates every 128 samples) | Align to an **absolute sample counter** kept in the module, not to call boundaries, or the frame-matrix test (§12.1) fails. |
+| Two sources picked from menus | Two signal inputs (`A`, `B`); an unpatched input reads silence. Mode menus become stepped parameters; continuous controls become modulatable parameters with CV. |
+| A stereo result `[L, R]` | Two outputs declared as a stereo pair (`stereo_pair`); channels stay voices (§5). |
+| Large audio history (STFT rings, delay lines, grain buffers) | Not saved in state. Save settings, positions, RNG and phase; on load the module restarts its analysis deterministically. The §12 state test then checks save → load → run equals a fresh instance on the same schedule (Keel, #302). |
+| Latency that depends on a parameter (FFT size) | Return the current value from `latency_frames()` (a relaxed atomic written in `process`); the engine reads it at plan build, so document that it updates on the next replan. |
+| Display data (spectrograms, provenance tints, waveforms) | Not part of the module. Telemetry is Phase 3A; leave a note in `DESIGN.md`. |
+| Uses a helper the SDK lacks (an FFT, a resampler) | Write it inside the module folder as original code, or stop and ask (a new dependency is a stop, `AGENTS.md`). Promote to `native/sdk/` later only with a Keel ruling. |
+| Loads files (samples, impulse responses) | Not yet: modules can't do I/O. That waits for the sample buffer service (PLAN Track S3). Capture from a live input instead. |
+
+Also record in `DESIGN.md`: which prototype and revision you ported, what changed and why, and a listening note comparing both. Where the prototype can render offline (Node), add an **offline parity test**: render the same input through both and compare a feature (pitch, spectral centroid, RMS envelope) within a stated tolerance, not samples bit for bit. Heavy modules (FFT, convolution, many grains) need a `pi-run:` CPU line: worst block < 50% of the period at 48 kHz / 128 frames with two instances.
