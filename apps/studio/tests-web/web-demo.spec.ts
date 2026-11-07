@@ -140,6 +140,8 @@ test('SHARE puts the patch in a link that opens the same patch', async ({ page, 
   await other.getByTestId('web-start').click();
   await expect(other.locator('body')).toHaveAttribute('data-ready', 'true');
   await expect.poll(() => modules(other)).toEqual(expected);
+  await expect.poll(() => other.evaluate(() => location.hash)).toBe('');
+  await expect(other.getByTestId('share-patch')).toBeVisible();
   await other.keyboard.down('a');
   await expect.poll(() => peak(other), { timeout: 15_000 }).toBeGreaterThan(0.001);
   await other.keyboard.up('a');

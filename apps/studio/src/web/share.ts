@@ -9,9 +9,23 @@ const PREFIX = '#p=';
 /** Keeps links pasteable in chat and email; bigger patches still download as files. */
 export const MAX_LINK_CHARS = 16_000;
 
+/** Same 2 MiB ceiling as the engine's patch limit; stops reading past it (no gzip bombs). */
+const MAX_PATCH_BYTES = 2 * 1024 * 1024;
 async function pipe(bytes: Uint8Array, stream: CompressionStream | DecompressionStream): Promise<Uint8Array> {
-  const out = new Blob([bytes]).stream().pipeThrough(stream);
-  return new Uint8Array(await new Response(out).arrayBuffer());
+  const reader = new Blob([bytes]).stream().pipeThrough(stream).getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > MAX_PATCH_BYTES) { await reader.cancel(); throw new Error('Patch too large'); }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) { out.set(c, at); at += c.length; }
+  return out;
 }
 const toBase64Url = (bytes: Uint8Array): string => {
   let s = '';
@@ -47,8 +61,6 @@ export interface ShareHost {
 
 /** Adds the SHARE button and loads a shared patch from the URL, if there is one. */
 export async function installSharing(host: ShareHost): Promise<void> {
-  const shared = await decodePatch(location.hash);
-  if (shared) await host.loadPatch(shared, 'Shared patch');
   const save = document.querySelector('[data-testid="save-patch"]');
   if (!save?.parentElement) return;
   const button = document.createElement('button');
@@ -66,4 +78,10 @@ export async function installSharing(host: ShareHost): Promise<void> {
     setTimeout(() => { button.textContent = 'SHARE'; }, 1800);
   })());
   save.parentElement.insertBefore(button, save);
+  // Load a shared patch once, then drop the hash so a reload keeps later edits.
+  const shared = await decodePatch(location.hash);
+  if (location.hash.startsWith(PREFIX)) history.replaceState(null, '', location.pathname + location.search);
+  if (shared) {
+    try { await host.loadPatch(shared, 'Shared patch'); } catch { /* the engine refused it; keep the current patch */ }
+  }
 }
