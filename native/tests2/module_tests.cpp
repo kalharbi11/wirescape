@@ -128,7 +128,9 @@ static void equivalence(const char*directory,const char*report){
 static void noalloc(){for(auto*d:descriptors){auto f=std::make_unique<DspFixture>(d,48000,16);allocation_watch::Scope watch;for(int i=0;i<16;++i){f->run(17);f->reset();}VERIFY(watch.allocations()==0);}std::puts("PASS zero new/new[]/aligned-new in static SDK/DSP process/reset");}
 #endif
 int main(int argc, char **argv) {
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
     try {
+#endif
         matrix();
         vco_keyboard_tracking();
         vca_exact();
@@ -140,9 +142,11 @@ int main(int argc, char **argv) {
         (void)argc;
         (void)argv;
 #endif
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
     } catch (...) {
         std::fputs("Unexpected exception in module tests\n", stderr);
         return 1;
     }
+#endif
     return 0;
 }
