@@ -35,9 +35,10 @@
   "modPorts": [],
   "ports": {
     "input": {
-      "shown": 4,
+      "shown": 5,
       "priority": [
         "pitch",
+        "gate",
         "trigger",
         "harmonics_cv",
         "timbre_cv"

@@ -32,11 +32,11 @@ struct Rig {
     void *instance = nullptr;
     struct Buffers {
         float output[2][16][256]{};
-        float input[8][16][256]{};
+        float input[9][16][256]{};
     };
     std::unique_ptr<Buffers> buffer = std::make_unique<Buffers>();
-    const float *input_rows[8][16]{};
-    ws2_signal inputs[8]{};
+    const float *input_rows[9][16]{};
+    ws2_signal inputs[9]{};
     float values[10]{};
     const float *value_rows[10]{};
     ws2_signal params[10]{};
@@ -53,7 +53,7 @@ struct Rig {
             return;
         }
         REQUIRE(prepared == WS2_OK);
-        for (uint32_t p = 0; p < 8; ++p) {
+        for (uint32_t p = 0; p < 9; ++p) {
             for (uint32_t c = 0; c < 16; ++c) input_rows[p][c] = buffer->input[p][c];
             inputs[p] = {sizeof(ws2_signal), input_rows[p], count, 0};
         }
@@ -69,7 +69,7 @@ struct Rig {
         ctx.struct_size = sizeof(ctx);
         ctx.sample_rate = rate;
         ctx.channels = count;
-        ctx.input_count = 8;
+        ctx.input_count = 9;
         ctx.output_count = 2;
         ctx.param_count = 10;
         ctx.inputs = inputs;
@@ -165,6 +165,93 @@ static void direct_reference() {
         REQUIRE(actual == expected);
     }
 }
+// The pre-gate trigger path is compared sample-for-sample with Plaits itself.
+static void trigger_only_golden() {
+    Rig adapter;
+    adapter.values[0] = 2;
+    adapter.inputs[6].flags = WS2_CONNECTED;
+    std::fill_n(adapter.buffer->input[6][0], 256, 1.f);
+    const auto actual = render(adapter, 17, 1032);
+    Reference reference;
+    plaits::Patch patch{};
+    patch.note = 60;
+    patch.engine = 2;
+    patch.harmonics = patch.timbre = patch.morph = patch.decay = patch.lpg_colour = .5f;
+    plaits::Modulations mods{};
+    mods.trigger = 1.f;
+    mods.trigger_patched = true;
+    std::vector<float> expected(2064);
+    for (uint32_t first = 12; first < 1032; first += 12) {
+        plaits::Voice::Frame frames[12]{};
+        {
+            macro_oscillator::RngScope scope(reference.rng);
+            reference.voice->Render(patch, mods, frames, 12);
+        }
+        for (uint32_t i = 0; i < 12; ++i) {
+            expected[first + i] = frames[i].out / 32768.f;
+            expected[1032 + first + i] = frames[i].aux / 32768.f;
+        }
+    }
+    REQUIRE(actual == expected);
+}
+static double gate_rms(Rig &r, uint32_t count) {
+    double energy = 0;
+    for (uint32_t first = 0; first < count; first += 256) {
+        const auto frames = std::min(256u, count - first);
+        r.run(frames);
+        for (uint32_t i = 0; i < frames; ++i) {
+            const double sample = r.buffer->output[0][0][i];
+            energy += sample * sample;
+        }
+    }
+    return std::sqrt(energy / count);
+}
+static void gate_lifecycle() {
+    // A held keyboard gate keeps the LPG open, then closes after key-up.
+    Rig held;
+    held.inputs[8].flags = WS2_CONNECTED;
+    std::fill_n(held.buffer->input[8][0], 256, 1.f);
+    const double early = gate_rms(held, 2400);   // first 50 ms
+    const double sustained = gate_rms(held, 24000); // through 550 ms
+    REQUIRE(early > 0.001);
+    REQUIRE(sustained > early * .5);
+    std::fill_n(held.buffer->input[8][0], 256, 0.f);
+    gate_rms(held, 48000);
+    REQUIRE(gate_rms(held, 2400) < sustained * .01); // 40 dB in 1 s
+
+    // Gate-only is exactly the original trigger+level Plaits routing.
+    // Include key-up, repeated rising edges and two independent voices.
+    Rig gated(2), legacy(2);
+    gated.inputs[8].flags = WS2_CONNECTED;
+    legacy.inputs[6].flags = legacy.inputs[7].flags = WS2_CONNECTED;
+    for (uint32_t step = 0; step < 12; ++step) {
+        const float first = (step == 0 || step == 1 || step == 5 || step >= 8) ? 1.f : 0.f;
+        const float second = (step >= 3 && step <= 7) ? .8f : 0.f;
+        for (uint32_t c = 0; c < 2; ++c) {
+            const float v = c ? second : first;
+            std::fill_n(gated.buffer->input[8][c], 256, v);
+            std::fill_n(legacy.buffer->input[6][c], 256, v);
+            std::fill_n(legacy.buffer->input[7][c], 256, v);
+        }
+        gated.run(256);
+        legacy.run(256);
+        for (uint32_t p = 0; p < 2; ++p)
+            for (uint32_t c = 0; c < 2; ++c)
+                REQUIRE(std::equal(gated.buffer->output[p][c], gated.buffer->output[p][c] + 256,
+                                   legacy.buffer->output[p][c]));
+    }
+
+    // A patched Level wins; adding a simultaneous Trigger never double-strikes.
+    Rig with_gate, with_trigger;
+    with_gate.inputs[8].flags = with_gate.inputs[7].flags = with_gate.inputs[6].flags = WS2_CONNECTED;
+    with_trigger.inputs[7].flags = with_trigger.inputs[6].flags = WS2_CONNECTED;
+    std::fill_n(with_gate.buffer->input[8][0], 256, 1.f);
+    std::fill_n(with_gate.buffer->input[6][0], 256, 1.f);
+    std::fill_n(with_trigger.buffer->input[6][0], 256, 1.f);
+    std::fill_n(with_gate.buffer->input[7][0], 256, .25f);
+    std::fill_n(with_trigger.buffer->input[7][0], 256, .25f);
+    REQUIRE(render(with_gate, 17, 1032) == render(with_trigger, 17, 1032));
+}
 static void signed_shift_reference() {
 #if defined(__aarch64__) || defined(_M_ARM64)
     const char *family = "ARM64";
@@ -246,7 +333,7 @@ static void matrix_and_state() {
             r.values[p] = extreme ? macro_oscillator::MacroOscillator::params[p].maximum
                                   : macro_oscillator::MacroOscillator::params[p].minimum;
         for (auto &input : r.inputs) input.flags = WS2_CONNECTED;
-        for (uint32_t p = 0; p < 8; ++p)
+        for (uint32_t p = 0; p < 9; ++p)
             for (uint32_t c = 0; c < 16; ++c) std::fill_n(r.buffer->input[p][c], 256, p & 1 ? 1e6f : -1e6f);
         for (uint32_t i = 0; i < 32; ++i) r.run(256);
     }
@@ -386,6 +473,8 @@ int main(int argc, char **argv) {
     }
     checked_sizes();
     direct_reference();
+    trigger_only_golden();
+    gate_lifecycle();
     signed_shift_reference();
     matrix_and_state();
     controls_and_capacity();

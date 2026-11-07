@@ -14,7 +14,8 @@ struct MacroOscillator {
                                        ws::port("timbre_cv", "Timbre", WS2_CV_BI),
                                        ws::port("morph_cv", "Morph", WS2_CV_BI),
                                        ws::port("trigger", "Trigger", WS2_GATE),
-                                       ws::port("level", "Level", WS2_CV_UNI)};
+                                       ws::port("level", "Level", WS2_CV_UNI),
+                                       ws::port("gate", "Gate", WS2_GATE)};
     static constexpr std::array outputs{ws::port("main", "Main", WS2_AUDIO), ws::port("aux", "Aux", WS2_AUDIO)};
     static constexpr uint32_t flags = WS2_MODULATABLE | WS2_AUTOMATABLE | WS2_PER_VOICE;
     static constexpr std::array params{
@@ -117,13 +118,20 @@ struct MacroOscillator {
                     ch.modulation.harmonics = std::clamp(b.in(3).value(c, i), -1.f, 1.f);
                     ch.modulation.timbre = std::clamp(b.in(4).value(c, i), -1.f, 1.f);
                     ch.modulation.morph = std::clamp(b.in(5).value(c, i), -1.f, 1.f);
-                    ch.modulation.trigger = std::clamp(b.in(6).value(c, i), 0.f, 1.f);
-                    ch.modulation.level = std::clamp(b.in(7).value(c, i), 0.f, 1.f);
+                    // The additive gate feeds Plaits' existing strike and LPG paths.
+                    // With no gate cable, preserve the legacy values and flags exactly.
+                    const bool gate_connected = b.in(8).connected();
+                    const bool level_connected = b.in(7).connected();
+                    const float trigger = std::clamp(b.in(6).value(c, i), 0.f, 1.f);
+                    const float gate = gate_connected ? std::clamp(b.in(8).value(c, i), 0.f, 1.f) : 0.f;
+                    ch.modulation.trigger = gate_connected ? std::max(trigger, gate) : trigger;
+                    ch.modulation.level = gate_connected && !level_connected
+                                              ? gate : std::clamp(b.in(7).value(c, i), 0.f, 1.f);
                     ch.modulation.frequency_patched = b.in(2).connected();
                     ch.modulation.timbre_patched = b.in(4).connected();
                     ch.modulation.morph_patched = b.in(5).connected();
-                    ch.modulation.trigger_patched = b.in(6).connected();
-                    ch.modulation.level_patched = b.in(7).connected();
+                    ch.modulation.trigger_patched = b.in(6).connected() || gate_connected;
+                    ch.modulation.level_patched = level_connected || gate_connected;
                 }
                 if (++ch.fill == 12) {
                     RngScope scope(ch.rng);
