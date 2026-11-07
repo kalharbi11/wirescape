@@ -175,7 +175,7 @@ struct Web {
             float velocity = type == "noteOn" ? float(number(command.at("velocity"), 0, 1)) : 0.f;
             return keyboard(type == "noteOn", key, velocity);
         }
-        need(live, "unavailable", "No graph loaded");
+        need(bool(live), "unavailable", "No graph loaded");
         if (type == "setParam") {
             auto id = integer(command.at("moduleId"));
             auto &m = node(patch, id);
