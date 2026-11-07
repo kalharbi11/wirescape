@@ -32,8 +32,9 @@ Keep this under 60 lines. History lives in git.
 - Still blocked: #287 (after #273), #292 and #296 (after #274), #293 (after #301).
 
 ## Web demo lane (D14)
-- #309 merged. #321 (W-web-2..5: starters, telemetry, share link, save/open, live-site check) is approved at `f8f203f`. After it lands, the web lane has no open items.
-- Owner one-time step, if not done: Settings → Pages → Source "GitHub Actions". URL `https://kalharbi11.github.io/wirescape/`.
+- Live at `https://kalharbi11.github.io/wirescape/` (Pages is on). #309 and #321 merged (`e766a27`): the demo has playable starters only, cable values and the Output scope, a SHARE link (`#p=`), and SAVE/OPEN files.
+- Every main push runs `web-demo.yml`: native tests, the wasm build, Playwright, deploy, then `live` (the same tests against the published site). Agent containers can't reach github.io, so `live` is the deployed-site evidence.
+- Ideas, not queued: per-module effective/phase/envelope telemetry, a short first-patch tip on the splash, a phone/touch pass.
 
 ## Phase 1 sign-off needs
 #271 owner results (A, B, C), 1H green (#256), and the contention benchmark (#274 plus owner D3). Then Compass runs Checkpoint A. The owner has deferred #271; nothing is asked of them until the 2A/2B/2C T2 lanes merge, so that one owner session covers Phase 1 and the first Phase 2 hardware checks.
