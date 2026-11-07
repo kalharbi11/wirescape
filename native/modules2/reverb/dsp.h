@@ -211,7 +211,8 @@ struct Reverb {
             wet_l = mid + width * (wet_l - mid);
             wet_r = mid + width * (wet_r - mid);
             if (mix == 0.f) { lout.ch(0)[i] = l; rout.ch(0)[i] = r; continue; }
-            const float dry_gain = std::cos(mix * kHalfPi), wet_gain = std::sin(mix * kHalfPi);
+            const float dry_gain = mix == 1.f ? 0.f : std::cos(mix * kHalfPi);
+            const float wet_gain = mix == 1.f ? 1.f : std::sin(mix * kHalfPi);
             lout.ch(0)[i] = std::clamp(dry_gain * l + wet_gain * wet_l, -2.f, 2.f);
             rout.ch(0)[i] = std::clamp(dry_gain * r + wet_gain * wet_r, -2.f, 2.f);
         }
