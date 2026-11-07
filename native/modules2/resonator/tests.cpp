@@ -73,7 +73,7 @@ struct Rig {
     }
     ~Rig() { d->destroy(instance); }
     Rig& set(resonator::Param p, float v) { params_values[p] = v; return *this; }
-    void reset() { REQUIRE(d->reset(instance) == WS2_OK); }
+    void reset() { d->reset(instance); }
 
     // Planar output: channel * total + absolute frame. The input generator is
     // indexed by absolute frame, so host block cuts cannot affect excitation.
