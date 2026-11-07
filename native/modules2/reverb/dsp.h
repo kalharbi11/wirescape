@@ -64,6 +64,7 @@ struct Reverb {
     Diffuser diffusion[4]{};
     float delay[8]{}, target[8]{}, gain[8]{}, low[8]{};
     float pre_samples = 960, freeze_amount = 0, phase_a = 0, phase_b = 0;
+    float last_mix = -1.f, dry_gain = 1.f, wet_gain = 0.f;
     uint64_t sample_counter = 0;
 
     static uint32_t line_count(double sr) { return uint32_t(std::ceil(sr * .103)) + 8; }
@@ -124,6 +125,7 @@ struct Reverb {
         sample_counter = 0;
         freeze_amount = phase_a = phase_b = 0;
         pre_samples = .02f * rate;
+        last_mix = -1.f;
         for (uint32_t k = 0; k < 8; ++k) {
             if (lines[k]) std::fill_n(lines[k], line_capacity, 0.f);
             delay[k] = target[k] = float(scaled_length(k, .5f));
@@ -198,8 +200,8 @@ struct Reverb {
             if (phase_a >= 1) phase_a -= 1;
             phase_b += .23f / rate;
             if (phase_b >= 1) phase_b -= 1;
-            const float ma = motion * std::sin(2.f * kPi * phase_a);
-            const float mb = motion * std::sin(2.f * kPi * phase_b);
+            const float ma = motion == 0.f ? 0.f : motion * std::sin(2.f * kPi * phase_a);
+            const float mb = motion == 0.f ? 0.f : motion * std::sin(2.f * kPi * phase_b);
             float vector[8], wet_l = 0, wet_r = 0;
             for (uint32_t k = 0; k < 8; ++k) {
                 delay[k] += glide * (target[k] - delay[k]);
@@ -230,8 +232,12 @@ struct Reverb {
                 rout.ch(0)[i] = r;
                 continue;
             }
-            const float dry_gain = mix == 1.f ? 0.f : std::cos(mix * kHalfPi);
-            const float wet_gain = mix == 1.f ? 1.f : std::sin(mix * kHalfPi);
+            // Compute trigonometric gains only when the sample-accurate Mix value changes.
+            if (mix != last_mix) {
+                last_mix = mix;
+                dry_gain = mix == 1.f ? 0.f : std::cos(mix * kHalfPi);
+                wet_gain = mix == 1.f ? 1.f : std::sin(mix * kHalfPi);
+            }
             lout.ch(0)[i] = std::clamp(dry_gain * l + wet_gain * wet_l, -2.f, 2.f);
             rout.ch(0)[i] = std::clamp(dry_gain * r + wet_gain * wet_r, -2.f, 2.f);
         }
