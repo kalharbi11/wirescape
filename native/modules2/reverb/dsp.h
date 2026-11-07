@@ -42,14 +42,14 @@ struct Reverb {
     static constexpr std::array outputs{ws::port("left", "Out L", WS2_AUDIO, WS2_POLY, 0, "stereo"),
                                         ws::port("right", "Out R", WS2_AUDIO, WS2_POLY, 0, "stereo")};
     static constexpr std::array params{
-        ws::param("size", "Size", 0, 1, .5f, "", kMod),
-        ws::param("decay", "Decay", .2f, 20, 2.5f, "s", kMod, WS2_LOG),
-        ws::param("damping", "Damping", 0, 1, .4f, "", kMod),
-        ws::param("predelay", "Pre-delay", 0, .25f, .02f, "s", kMod),
-        ws::param("width", "Width", 0, 1, 1, "", kMod),
-        ws::param("motion", "Motion", 0, 1, .2f, "", kMod),
-        ws::param("freeze", "Freeze", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
-        ws::param("mix", "Mix", 0, 1, .3f, "", kMod)};
+        ws::param("size", "Size", 0, 1, .5f, "", kMod, WS2_LINEAR, SIZE),
+        ws::param("decay", "Decay", .2f, 20, 2.5f, "s", kMod, WS2_LOG, DECAY),
+        ws::param("damping", "Damping", 0, 1, .4f, "", kMod, WS2_LINEAR, DAMPING),
+        ws::param("predelay", "Pre-delay", 0, .25f, .02f, "s", kMod, WS2_LINEAR, PREDELAY),
+        ws::param("width", "Width", 0, 1, 1, "", kMod, WS2_LINEAR, WIDTH),
+        ws::param("motion", "Motion", 0, 1, .2f, "", kMod, WS2_LINEAR, MOTION),
+        ws::param("freeze", "Freeze", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, FREEZE, 4, 1),
+        ws::param("mix", "Mix", 0, 1, .3f, "", kMod, WS2_LINEAR, MIX)};
 
     static constexpr std::array<uint32_t, 8> base{{1499, 1741, 1999, 2281, 2617, 3011, 3469, 4789}};
     static constexpr std::array<uint32_t, 4> diffusion_base{{251, 397, 307, 449}};
