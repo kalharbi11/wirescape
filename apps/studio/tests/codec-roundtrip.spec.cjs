@@ -61,6 +61,28 @@ test('imports preserve absent metadata; output edits preserve other routes and o
   expect(authored.toJSON().outputs).toEqual([0, 1].map(bus_channel => ({ module: 7, port: 'audio', bus_channel })));
 });
 
+test('pasting an imported module without parameters sends an empty parameter map', async ({ page }) => {
+  await boot(page);
+  const result = await page.evaluate(() => {
+    const api = window.__wirescapeTest;
+    const before = new Set(api.save().modules.map(m => m.id));
+    localStorage.setItem('wirescape.clipboard.v1', JSON.stringify({
+      modules: [{ id: 91, module: 'essentials.vco', pos: [0, 0], extra: {} }],
+      connections: [], colors: {},
+    }));
+    const original = api.engine.addModule.bind(api.engine);
+    let passed;
+    api.engine.addModule = (id, type, params) => {
+      passed = params;
+      return original(id, type, params);
+    };
+    api.paste();
+    const added = api.save().modules.find(m => !before.has(m.id));
+    return { passed, params: added?.parameters, module: added?.module };
+  });
+  expect(result).toEqual({ passed: {}, params: {}, module: 'essentials.vco' });
+});
+
 test('opening and automatically fitting T02 does not edit the saved source', async ({ page }) => {
   await boot(page);
   const source = { format: 'wirescape.native.patch', version: 2,
