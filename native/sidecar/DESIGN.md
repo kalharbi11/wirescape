@@ -69,7 +69,14 @@ The existing real PortAudio enumeration is restricted to stereo outputs and
 selection uses exact unambiguous names. MIDI IDs are name|system_name. Its
 bounded observer decorator forwards original MIDI packets to the existing
 service while maintaining per-endpoint/channel held-note atomics. Source close
-clears its notes; renderer keys are tracked by control. MIDI 1 zero-velocity
+clears its notes; renderer keys are tracked by control. The existing MIDI worker
+refreshes endpoint observations every 500 ms; Session::poll compares these cached
+lists and emits the existing devices push without stopping render. Saved system
+identity is authoritative, so a same-name surviving port cannot replace a missing
+input; legacy name-only selections require an unambiguous name. Disconnect chokes
+are drained with the old identity before reopening, including backends delivering
+a first callback synchronously during open. Enable choices remain in the host's
+saved selection vector across absence and return. MIDI 1 zero-velocity
 NoteOn is a release; MIDI 2 zero-velocity NoteOn remains a NoteOn. No JSON,
 allocation or locks occur in MIDI packet callbacks. Fake injection is available
 only through the internal fake backend test surface, never a wire command.

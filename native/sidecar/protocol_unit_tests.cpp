@@ -3,6 +3,7 @@
 #include "../io/audio/portaudio_service.h"
 #include "../tests2/allocation_watch.h"
 #include "devices.h"
+#include "midi_service.h"
 #include "runtime_patch.h"
 #include <iostream>
 #include <sstream>
@@ -11,7 +12,46 @@ using namespace wirescape::sidecar;
 void check(bool ok) {
     if (!ok) throw std::runtime_error("sidecar unit assertion failed");
 }
+void midi_hotplug_observation() {
+    using namespace wirescape::midi;
+    ObservedMidi backend(true, false);
+    const Endpoint m8{"M8 MIDI 1", "M8:M8 MIDI 1"}, pad{"Pad", "pad"};
+    check(backend.set_fake_endpoints({m8, pad}));
+    std::vector<ws2_event> events;
+    events.reserve(16);
+    Sink sink{&events, [](void* context, uint32_t, const ws2_event& event, uint64_t) noexcept -> int {
+        static_cast<std::vector<ws2_event>*>(context)->push_back(event);
+        return WS2_OK;
+    }};
+    Service service(backend, sink);
+    check(service.enable({m8.name, m8.system_name}) && service.enable({pad.name, pad.system_name}));
+    check(service.subscribe({1, {}, true}));
+    const std::vector<Endpoint> remembered{m8, pad};
+    auto listing = [&] { return midi_devices({backend.observed(), remembered}, true); };
+    service.poll();
+    auto initial = listing();
+    check(initial.size() == 2 && initial[0]["enabled"] == true);
+    const uint8_t a[]{0x90, 60, 100}, b[]{0x90, 62, 100};
+    check(backend.inject(m8, a, 3, app_engine_clock_ns()));
+    check(backend.inject(pad, b, 3, app_engine_clock_ns()));
+    service.poll();
+    check(backend.held() == Json::array({60, 62}));
+    events.clear();
+    check(backend.set_fake_endpoints({pad})); service.poll();
+    check(listing() != initial && listing().size() == 1);
+    check(backend.held() == Json::array({62}));
+    check(events.size() == 1 && events[0].type == WS2_NOTE_CHOKE && events[0].source_id == 1);
+    check(service.endpoint_states()[0].saved.system_name == m8.system_name);
+    check(!backend.inject(m8, a, 3, app_engine_clock_ns()));
+    check(backend.set_fake_endpoints({m8, pad})); service.poll();
+    check(listing() == initial); // Same IDs and enabled choices return without a new selection.
+    check(backend.inject(m8, a, 3, app_engine_clock_ns())); service.poll();
+    check(backend.held() == Json::array({60, 62}) && events.back().source_id == 1);
+    service.stop();
+    check(backend.held().empty());
+}
 int run_tests() {
+    midi_hotplug_observation();
     for (const auto &bad : {"{\"x\":1,\"x\":2}", "{\"x\":{\"y\":1,\"y\":2}}", "[]"}) {
         bool refused = false;
         try {
