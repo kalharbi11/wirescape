@@ -43,7 +43,7 @@ No network sockets or hardware devices. No new dependencies.
 tier: T2
 size: <= 1150 changed lines, <= 13 files
 must_pass:
-  - cd apps/studio && npm test -- --grep "golden v0"
+  - cd apps/studio && npm ci --no-audit --no-fund && WIRESCAPE_CHROMIUM="$(command -v chromium || command -v chromium-browser || command -v google-chrome)" npx playwright test --grep "golden v0"
   - ctest --test-dir build/native -R sidecar_golden --output-on-failure --no-tests=error
   - pi: ctest -R sidecar_golden (null audio, fake MIDI)
 stops: [protocol change, new dependency, device access, weakening checks, oversized diff]
