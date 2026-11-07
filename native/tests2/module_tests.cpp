@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
         (void)argv;
 #endif
     } catch (...) {
-        std::fputs("Unexpected exception in module tests\\n", stderr);
+        std::fputs("Unexpected exception in module tests\n", stderr);
         return 1;
     }
     return 0;
