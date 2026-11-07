@@ -13,5 +13,7 @@ must_pass:
   - python tools/gen_ui_catalogue.py --check
   - python tools/dev.py test
   - pi-run: python tools/module_cpu_probe.py sound.spectral
+  - pi-run: python tools/module_cpu_probe.py sound.spectral --param mode=7 --param size=3 --alternate bands=6:64:1
+  - pi-run: python tools/module_cpu_probe.py sound.spectral --param size=3 --param pitch=1 --alternate mode=0:7:4
 stops: [ABI header edit, new dependency, file I/O in a module, test loosening]
 ```

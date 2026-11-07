@@ -468,13 +468,16 @@ void test_mode_switch_crossfades() {
     const size_t n = 24000, half = 12000;
     const auto a = sine(n, Tone{330, .5}, 48000), b = sine(n, Tone{550, .5}, 48000);
     double steady = 0;
-    for (uint32_t mode : {spectral::Max, spectral::Diff, spectral::Morph, spectral::Cross}) {
+    for (uint32_t mode = 0; mode < spectral::kModes; ++mode) {
         Rig r;
         r.set(spectral::P_MODE, float(mode));
         steady = std::max(steady, max_step(r.run(a, b), {6000, n}));
     }
-    for (auto [from, to] : {std::pair{spectral::Max, spectral::Diff}, std::pair{spectral::Diff, spectral::Morph},
-                            std::pair{spectral::Morph, spectral::Cross}}) {
+    for (auto [from, to] :
+         {std::pair{spectral::Max, spectral::Diff}, std::pair{spectral::Diff, spectral::Morph},
+          std::pair{spectral::Morph, spectral::Cross}, std::pair{spectral::Cross, spectral::Interleave},
+          std::pair{spectral::Interleave, spectral::Vocoder}, std::pair{spectral::Vocoder, spectral::Max},
+          std::pair{spectral::Morph, spectral::Vocoder}, std::pair{spectral::Vocoder, spectral::Interleave}}) {
         Rig r;
         r.set(spectral::P_MODE, float(from));
         const std::vector<float> a0(a.begin(), a.begin() + half), b0(b.begin(), b.begin() + half);
@@ -486,6 +489,88 @@ void test_mode_switch_crossfades() {
         const double step = max_step(y, {6000, n});
         std::printf("mode %u -> %u: worst step %.4f (steady %.4f)\n", from, to, step, steady);
         REQUIRE(step <= 1.25 * steady);
+    }
+}
+
+// Peak RMS over windows of `window` samples in y[span].
+double peak_rms(const std::vector<float> &y, Span span, size_t window) {
+    double peak = 0;
+    for (size_t t = span.from; t + window <= span.to; t += window / 2) peak = std::max(peak, rms(y, {t, t + window}));
+    return peak;
+}
+
+// Review on #310: a mode CV oscillating faster than the four-frame fade, silent-to-active onsets,
+// saving mid-fade and a size change while vocoding all stay bounded and deterministic.
+void test_transitions_under_stress() {
+    const size_t n = 30000, half = 12000;
+    const auto a = sine(n, Tone{330, .5}, 48000), b = add(sine(n, Tone{550, .5}, 48000), noise(n, NoiseSpec{51, .1f}));
+    double steady_step = 0, steady_rms = 0;
+    for (uint32_t mode : {spectral::Interleave, spectral::Vocoder}) {
+        Rig r;
+        r.set(spectral::P_MODE, float(mode));
+        const auto y = r.run(a, b);
+        steady_step = std::max(steady_step, max_step(y, {6000, n}));
+        steady_rms = std::max(steady_rms, peak_rms(y, {6000, n}, 256));
+    }
+    { // mode CV flips 6 <-> 7 every 64 frames, well inside one fade
+        Rig r;
+        r.set(spectral::P_MODE, spectral::Interleave);
+        std::vector<float> y;
+        for (size_t pos = 0; pos < n; pos += 64) {
+            r.set(spectral::P_MODE,
+                  pos >= half && (pos / 64) % 2 ? float(spectral::Vocoder) : float(spectral::Interleave));
+            const std::vector<float> a0(a.begin() + long(pos), a.begin() + long(pos + 64)),
+                b0(b.begin() + long(pos), b.begin() + long(pos + 64));
+            const auto part = r.run(a0, b0, 64);
+            y.insert(y.end(), part.begin(), part.end());
+        }
+        std::printf("rapid mode CV: step %.4f rms %.4f (steady %.4f / %.4f)\n", max_step(y, {half + 2048, n}),
+                    peak_rms(y, {half + 2048, n}, 256), steady_step, steady_rms);
+        REQUIRE(max_step(y, {half + 2048, n}) <= 1.25 * steady_step);
+        REQUIRE(peak_rms(y, {half + 2048, n}, 256) <= 1.5 * steady_rms);
+    }
+    for (uint32_t mode : {spectral::Interleave, spectral::Vocoder}) { // silence, then sound
+        std::vector<float> a0 = a, b0 = b;
+        std::fill(a0.begin(), a0.begin() + long(half), 0.f);
+        std::fill(b0.begin(), b0.begin() + long(half), 0.f);
+        Rig r;
+        r.set(spectral::P_MODE, float(mode));
+        const auto y = r.run(a0, b0);
+        REQUIRE(peak_rms(y, {0, n}, 256) <= 1.5 * steady_rms);
+    }
+    { // save in the middle of a Max -> Vocoder fade, load into two instances with different histories
+        Rig x;
+        x.set(spectral::P_MODE, spectral::Max);
+        const std::vector<float> a0(a.begin(), a.begin() + long(half)), b0(b.begin(), b.begin() + long(half));
+        x.run(a0, b0);
+        x.set(spectral::P_MODE, spectral::Vocoder);
+        const std::vector<float> a1(a.begin() + long(half), a.begin() + long(half + 600)),
+            b1(b.begin() + long(half), b.begin() + long(half + 600));
+        x.run(a1, b1);
+        const Bytes state = x.save();
+        REQUIRE(state[16] != 0); // the fade is still running (word 4)
+        Rig y, z;
+        z.run(b0, a0);
+        for (Rig *r : {&y, &z}) {
+            r->set(spectral::P_MODE, spectral::Vocoder);
+            REQUIRE(r->load(state) == WS2_OK);
+        }
+        const std::vector<float> a2(a.begin() + long(half), a.end()), b2(b.begin() + long(half), b.end());
+        const auto oy = y.run(a2, b2), oz = z.run(a2, b2);
+        for (size_t i = 0; i < oy.size(); ++i) REQUIRE(same_element(oy[i], oz[i]));
+    }
+    { // vocoding while the resolution drops from 4096 to 512
+        Rig r;
+        r.set(spectral::P_MODE, spectral::Vocoder).set(spectral::P_SIZE, 3);
+        const std::vector<float> a0(a.begin(), a.begin() + long(half)), b0(b.begin(), b.begin() + long(half));
+        auto y = r.run(a0, b0);
+        r.set(spectral::P_SIZE, 0);
+        const std::vector<float> a1(a.begin() + long(half), a.end()), b1(b.begin() + long(half), b.end());
+        const auto y1 = r.run(a1, b1);
+        y.insert(y.end(), y1.begin(), y1.end());
+        REQUIRE(r.latency() == 512);
+        REQUIRE(peak_rms(y, {9000, n}, 256) <=
+                1.5 * std::max(peak_rms(y, {9000, half}, 256), peak_rms(y, {half + 6000, n}, 256)));
     }
 }
 
@@ -725,6 +810,7 @@ int main() {
     test_mode_switch_crossfades();
     test_size_change();
     test_mean_b_level();
+    test_transitions_under_stress();
     test_interleave_identity();
     test_interleave_schedule();
     test_vocoder_follows_modulator();

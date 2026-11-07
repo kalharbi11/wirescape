@@ -37,10 +37,10 @@ constexpr float kTau = 6.28318530717958647692f;
 // FFT sizes double at 88.2/96 kHz (and again above 132 kHz), so resolution in Hz and time smear match.
 inline uint32_t rate_factor(double rate) { return rate > 132000 ? 4u : rate > 66000 ? 2u : 1u; }
 inline uint32_t max_size(double rate) { return kBaseSize[3] * rate_factor(rate); }
-// Floats: FFT tables + work, window, rings A/B, OLA, frame, then 27 bin rows (+1 for the prefix sum).
+// Floats: FFT tables + work, window, rings A/B, OLA, frame, then 28 bin rows (+1 for the prefix sum).
 inline size_t storage_floats(double rate) {
     const size_t n = max_size(rate), k = n / 2 + 1;
-    return RealFft::floats(uint32_t(n)) + 5 * n + 27 * k + 1;
+    return RealFft::floats(uint32_t(n)) + 5 * n + 28 * k + 1;
 }
 inline float principal(float x) { return x - kTau * std::floor(x / kTau + .5f); }
 inline float magnitude(float re, float im) { return std::sqrt(re * re + im * im); }
@@ -92,12 +92,20 @@ struct Spectral {
         p += nmax_;
         frame_ = p;
         p += nmax_;
-        float **rows[] = {&ar_,   &ai_,   &br_,   &bi_,   &yr_,  &yi_,  &zr_,  &zi_,   &ua_r_,
-                          &ua_i_, &ub_r_, &ub_i_, &p_r_,  &p_i_, &q_r_, &q_i_, &ma_,   &mb_,
-                          &ra_r_, &ra_i_, &rb_r_, &rb_i_, &ea_,  &eb_,  &pos_, &freq_, &prefix_};
+        float **rows[] = {&ar_,   &ai_,   &br_,  &bi_,  &yr_,  &yi_,   &zr_,   &zi_,    &ua_r_, &ua_i_,
+                          &ub_r_, &ub_i_, &p_r_, &p_i_, &q_r_, &q_i_,  &ma_,   &mb_,    &ra_r_, &ra_i_,
+                          &rb_r_, &rb_i_, &ea_,  &eb_,  &pos_, &freq_, &unit_, &prefix_};
         for (float **r : rows) {
             *r = p;
             p += k;
+        }
+        // Vocoder: each bin's place on the 70 Hz .. min(12 kHz, 0.45 fs) log axis, as 0..1, for the
+        // largest FFT; smaller sizes read it by stride, so a band-count change on the audio thread
+        // never takes a logarithm per bin.
+        voc_span_ = std::log(std::min(12000.0, .45 * rate_) / kVocoderLow);
+        for (uint32_t j = 0; j < k; ++j) {
+            const double f = std::max(kVocoderLow, j * rate_ / nmax_);
+            unit_[j] = float(std::clamp(std::log(f / kVocoderLow) / voc_span_, 0.0, 1.0));
         }
         seed_ = s.config.seed;
         reset();
@@ -421,11 +429,12 @@ struct Spectral {
         if (nb == layout_bands_ && n_ == layout_n_) return;
         layout_bands_ = nb;
         layout_n_ = n_;
-        const double lo = 70, hi = std::min(12000.0, .45 * rate_), span = std::log(hi / lo), hz = rate_ / n_;
+        const double lo = kVocoderLow, span = voc_span_, hz = rate_ / n_;
+        const size_t stride = nmax_ / n_;
+        const float top = float(nb - 1);
         for (uint32_t k = 0; k < bins_; ++k) {
             freq_[k] = float(k * hz);
-            const double f = std::max(lo, k * hz);
-            pos_[k] = float(std::clamp(std::log(f / lo) / span * (nb - 1), 0.0, double(nb - 1)));
+            pos_[k] = unit_[k * stride] * top;
         }
         for (uint32_t j = 0; j < nb; ++j) {
             const double centre = lo * std::exp(span * j / (nb - 1)) / hz; // in bins
@@ -540,7 +549,9 @@ struct Spectral {
     std::array<float, kMaxBands> env_a_{}, env_b_{}, gain_{}, width_{};
     std::array<uint32_t, kMaxBands> band_lo_{}, band_hi_{};
     uint32_t layout_bands_ = 0, layout_n_ = 0, chunk_pos_ = 0;
-    double rate_ = 48000;
+    static constexpr double kVocoderLow = 70;
+    double rate_ = 48000, voc_span_ = 1;
+    float *unit_ = nullptr;
     uint32_t factor_ = 1, nmax_ = 0, mask_ = 0, n_ = 0, hop_ = 1, bins_ = 0, size_idx_ = kDefaultSize,
              pending_ = kDefaultSize;
     uint32_t write_ = 0, hop_pos_ = 0, silent_a_ = 0, silent_b_ = 0, live_ = 0, drain_ = 0;
