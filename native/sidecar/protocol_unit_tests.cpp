@@ -2,12 +2,9 @@
 #include "../io/audio/callback_render.h"
 #include "../io/audio/portaudio_service.h"
 #include "../tests2/allocation_watch.h"
-<<<<<<< HEAD
-#include "session.h"
-=======
 #include "devices.h"
 #include "midi_service.h"
->>>>>>> origin/task/288-midi-hotplug
+#include "session.h"
 #include "runtime_patch.h"
 #include <iostream>
 #include <sstream>
@@ -55,7 +52,6 @@ void midi_hotplug_observation() {
     check(backend.held().empty());
 }
 int run_tests() {
-<<<<<<< HEAD
     RenderHistogram histogram;
     check(histogram.percentile(50) == 0);
     allocation_watch::count.store(0);
@@ -69,9 +65,7 @@ int run_tests() {
     check(histogram.percentile(50) == 50 && histogram.percentile(99) == 99);
     check(histogram.percentile(100) == 200 && histogram.max_percent == 255.25);
 
-=======
     midi_hotplug_observation();
->>>>>>> origin/task/288-midi-hotplug
     for (const auto &bad : {"{\"x\":1,\"x\":2}", "{\"x\":{\"y\":1,\"y\":2}}", "[]"}) {
         bool refused = false;
         try {
