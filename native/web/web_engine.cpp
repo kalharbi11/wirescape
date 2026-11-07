@@ -7,11 +7,11 @@
 #include "web_engine.h"
 #include "app_engine.h"
 #include "runtime_patch.h"
-#include <nlohmann/json.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <set>
 #include <string>
 #include <vector>
@@ -208,11 +208,10 @@ struct Web {
             modules.erase(std::remove_if(modules.begin(), modules.end(), [&](const Json &m) { return m["id"] == id; }),
                           modules.end());
             auto &cables = candidate["connections"];
-            cables.erase(std::remove_if(cables.begin(), cables.end(),
-                                        [&](const Json &c) {
-                                            return c["from"]["module"] == id || c["to"]["module"] == id;
-                                        }),
-                         cables.end());
+            cables.erase(
+                std::remove_if(cables.begin(), cables.end(),
+                               [&](const Json &c) { return c["from"]["module"] == id || c["to"]["module"] == id; }),
+                cables.end());
             if (patch.contains("outputs")) {
                 Json outputs = Json::array();
                 for (const auto &o : patch["outputs"])

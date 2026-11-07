@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Native tests for the browser demo engine's C surface (device-free).
 #include "web_engine.h"
-#include <nlohmann/json.hpp>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 
@@ -90,7 +90,8 @@ int main(int argc, char **argv) {
     reply = command({{"type", "addModule"}, {"moduleId", 900}, {"moduleType", "essentials.vco"}});
     CHECK(reply["ok"] == true);
     CHECK(reply["gen"] == "2");
-    Json cable = {{"from", {{"module", 900}, {"port", "saw"}}}, {"to", {{"module", output}, {"port", "left"}}},
+    Json cable = {{"from", {{"module", 900}, {"port", "saw"}}},
+                  {"to", {{"module", output}, {"port", "left"}}},
                   {"kind", "signal"}};
     reply = command({{"type", "connect"}, {"connection", cable}});
     if (reply["ok"] != true) std::printf("connect: %s\n", reply.dump().c_str());
