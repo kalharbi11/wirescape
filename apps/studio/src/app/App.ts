@@ -25,6 +25,7 @@ import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } 
 import { el } from './dom';
 
 const AUTOSAVE_KEY = 'wirescape.autosave.v2';
+const ACTIVE_SESSION_KEY = 'wirescape.session.active.v1';
 /** Copied modules survive a reload and a patch change, so paste works between patches. */
 const CLIPBOARD_KEY = 'wirescape.clipboard.v1';
 
@@ -47,6 +48,8 @@ export class App {
   private devPanel!: DevPanel;
   private settings = new Modal('settings-modal');
   private shortcuts = new Modal('shortcuts-modal');
+  private recovery = new Modal('recovery-modal');
+  private recoveryPending = false;
   private prefs: Preferences;
   private patchName = 'Untitled';
   private zoomLabel!: HTMLElement;
@@ -151,7 +154,7 @@ export class App {
 
     this.root.append(
       this.library.root, main, this.toasts.root, this.quick.root,
-      this.devPanel.root, this.settings.root, this.shortcuts.root, this.fileInput,
+      this.devPanel.root, this.settings.root, this.shortcuts.root, this.recovery.root, this.fileInput,
     );
 
     this.attachDropTarget();
@@ -266,6 +269,7 @@ export class App {
       this.engine.onGraphError(e => this.toasts.show(e.message, 'error'));
       this.engine.onCatalogue(() => { this.library.refresh(); this.canvas.rebuild(); });
       window.wirescape?.onMessage(m => {
+        if (m.type === 'app.engineExited' && m.expected !== true) this.offerRecovery('engine');
         if (m.type === 'app.menuOpenPatch') void this.openPatchFile();
         if (m.type === 'app.menuSavePatch') void this.savePatchFile(m.saveAs === true);
       });
@@ -274,29 +278,75 @@ export class App {
     this.engine.start();
     this.keyboard.attach();
 
-    const restored = this.restoreAutosave();
+    let unclean = false;
+    try {
+      unclean = localStorage.getItem(ACTIVE_SESSION_KEY) === '1';
+      localStorage.setItem(ACTIVE_SESSION_KEY, '1');
+    } catch { /* storage unavailable: keep ordinary startup usable */ }
+    const saved = unclean ? this.readAutosave() : null;
+    this.recoveryPending = !!saved;
+    const restored = !saved && this.restoreAutosave();
     if (!restored) this.loadPatch(DEFAULT_STARTER.patch(), DEFAULT_STARTER.name);
+    if (saved) this.offerRecovery('app', saved);
 
     requestAnimationFrame(() => { this.canvas.fit(); this.canvas.invalidateAnchors(); });
     window.addEventListener('resize', () => this.canvas.updateVisibility());
     setInterval(() => this.autosave(), 4000);
-    window.addEventListener('pagehide', () => this.autosave(true));
+    window.addEventListener('pagehide', () => {
+      if (this.recoveryPending) return; // Keep the original snapshot across an unanswered offer.
+      this.autosave(true);
+      try { localStorage.removeItem(ACTIVE_SESSION_KEY); } catch { /* storage unavailable */ }
+    });
     this.doc.on(() => this.refreshDirty());
   }
 
-  private restoreAutosave(): boolean {
+  private readAutosave(): { name: string; patch: PatchV2 } | null {
     try {
       const raw = localStorage.getItem(AUTOSAVE_KEY);
-      if (!raw) return false;
+      if (!raw) return null;
       const saved = JSON.parse(raw) as { name?: string; patch: PatchV2 };
-      if (!saved?.patch || !Array.isArray(saved.patch.modules) || !Array.isArray(saved.patch.connections)) return false;
-      this.loadPatch(saved.patch, saved.name ?? 'Untitled');
-      this.toasts.show('Restored your last patch.');
-      return true;
-    } catch { return false; }
+      if (!saved?.patch || !Array.isArray(saved.patch.modules) || !Array.isArray(saved.patch.connections)) return null;
+      if (saved.patch.format !== 'wirescape.native.patch' || saved.patch.version !== 2) return null;
+      const check = PatchDoc.from(saved.patch);
+      if (check.modules.size !== saved.patch.modules.length || check.connections.length !== saved.patch.connections.length) return null;
+      return { patch: saved.patch, name: typeof saved.name === 'string' ? saved.name : 'Untitled' };
+    } catch { return null; }
+  }
+
+  private restoreAutosave(): boolean {
+    const saved = this.readAutosave();
+    if (!saved) return false;
+    void this.loadPatch(saved.patch, saved.name);
+    this.toasts.show('Restored your last patch.');
+    return true;
+  }
+
+  private offerRecovery(reason: 'app' | 'engine', saved = this.readAutosave()): void {
+    if (!saved || this.recovery.isOpen) return;
+    this.recoveryPending = true;
+    this.keyboard.releaseAll();
+    const b = this.recovery.body;
+    b.replaceChildren(el('p', '', `${reason === 'app' ? 'The previous session ended unexpectedly.' : 'The engine disconnected.'} Restore the last autosave of “${saved.name}”? Your saved patch file will not be changed.`));
+    const restore = el('button', 'btn', 'Restore autosave') as HTMLButtonElement;
+    const decline = el('button', 'btn', 'Keep current patch') as HTMLButtonElement;
+    restore.dataset.testid = 'recovery-restore';
+    decline.dataset.testid = 'recovery-decline';
+    let restoring = false;
+    restore.addEventListener('click', () => {
+      restoring = true;
+      this.recovery.close();
+      void this.loadPatch(saved.patch, saved.name);
+    });
+    decline.addEventListener('click', () => this.recovery.close());
+    b.append(restore, decline);
+    this.recovery.open('Recover patch', () => {
+      this.recoveryPending = false;
+      if (!restoring) this.autosave(true);
+    });
   }
 
   private autosave(force = false): void {
+    if (this.recoveryPending) return;
     // A newly selected clean patch still replaces the previous recovery snapshot.
     if (!force && !this.doc.dirty) return;
     try {
