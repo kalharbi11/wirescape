@@ -81,7 +81,7 @@ struct Reverb {
         return true;
     }
     static uint32_t nearest_prime(uint32_t x) {
-        x = std::max(53u, x);
+        x = std::max<uint32_t>(53, x);
         for (uint32_t offset = 0;; ++offset) {
             if (x > offset && prime(x - offset)) return x - offset;
             if (prime(x + offset)) return x + offset;
