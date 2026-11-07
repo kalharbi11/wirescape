@@ -14,7 +14,8 @@ test('web demo starts the wasm engine, loads the starter and makes sound', async
   await expect(page.getByTestId('web-splash')).toHaveCount(0);
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await expect(page.getByTestId('boot-error')).toHaveCount(0);
-  await expect(page.getByTestId('open-patch')).toBeHidden();
+  await expect(page.getByTestId('open-patch')).toBeVisible();
+  await expect(page.getByTestId('share-patch')).toBeVisible();
   // The default starter is the keyboard voice: hold a note and the engine must be audible.
   await send(page, { v: 0, id: 'smoke-on', type: 'noteOn', note: 60, velocity: 1 });
   await expect.poll(() => peak(page), { timeout: 15_000 }).toBeGreaterThan(0.001);
@@ -118,4 +119,66 @@ test('web demo lists only starters and modules its engine can play', async ({ pa
   expect(starters.some(s => s.modules.some(m => m.startsWith('midi.')))).toBe(true);
   await expect(page.getByTestId('library-item-midi.in')).toHaveCount(0);
   await expect(page.getByTestId('library-item-essentials.vco')).toHaveCount(1);
+});
+
+const modules = (page: Page) => page.evaluate(() =>
+  (window as unknown as { __wirescapeTest: { save(): { modules: { id: number; module: string }[] } } })
+    .__wirescapeTest.save().modules.map(m => `${m.id}:${m.module}`).sort());
+
+test('SHARE puts the patch in a link that opens the same patch', async ({ page, context }) => {
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await page.getByTestId('starter-select').selectOption('drone');
+  await expect.poll(() => modules(page)).toContain('2:essentials.noise');
+  const expected = await modules(page);
+  await page.getByTestId('share-patch').click();
+  await expect.poll(() => page.evaluate(() => location.hash)).toMatch(/^#p=/);
+  const link = await page.evaluate(() => location.href);
+  const other = await context.newPage();
+  await other.goto(link);
+  await other.getByTestId('web-start').click();
+  await expect(other.locator('body')).toHaveAttribute('data-ready', 'true');
+  await expect.poll(() => modules(other)).toEqual(expected);
+  await other.keyboard.down('a');
+  await expect.poll(() => peak(other), { timeout: 15_000 }).toBeGreaterThan(0.001);
+  await other.keyboard.up('a');
+});
+
+test('a malformed shared link falls back to the normal start', async ({ page }) => {
+  await page.goto('./#p=not-a-patch');
+  await page.getByTestId('web-start').click();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await expect.poll(() => modules(page)).toContain('1:host.keyboard');
+});
+
+test('SAVE downloads the patch as JSON', async ({ page }) => {
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await page.evaluate(() => {
+    const w = window as unknown as { __saved?: Promise<string> };
+    const original = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = (o: Blob | MediaSource) => { if (o instanceof Blob) w.__saved = o.text(); return original(o); };
+  });
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('save-patch').click()]);
+  expect(download.suggestedFilename()).toBe('wirescape-patch.json');
+  const patch = JSON.parse(await page.evaluate(() => (window as unknown as { __saved: Promise<string> }).__saved));
+  expect(patch.format).toBe('wirescape.native.patch');
+  expect(patch.modules.length).toBeGreaterThan(0);
+});
+
+test('live telemetry reaches the UI: cable signal values and the output scope', async ({ page }) => {
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await page.keyboard.down('a');
+  const last = () => page.evaluate(() => {
+    const t = (window as unknown as { __wirescapeTest: { ticker: { last?: {
+      outputs?: Record<string, number>; scope: Record<string, ArrayLike<number>> } } } }).__wirescapeTest.ticker.last;
+    return { outputs: Object.keys(t?.outputs ?? {}).length, scope: Object.values(t?.scope ?? {}).map(s => s.length) };
+  });
+  await expect.poll(async () => (await last()).outputs).toBeGreaterThan(0);
+  await expect.poll(async () => (await last()).scope).toEqual([64]);
+  await page.keyboard.up('a');
 });

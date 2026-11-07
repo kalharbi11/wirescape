@@ -114,6 +114,44 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+  live:
+    # Post-deploy check: the same browser tests against the published site.
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/studio
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/studio/package-lock.json
+      - run: npm ci
+      - name: Locate runner Chromium
+        run: |
+          browser="$(command -v chromium || command -v chromium-browser || command -v google-chrome)"
+          test -x "$browser"
+          echo "WIRESCAPE_CHROMIUM=$browser" >> "$GITHUB_ENV"
+      - name: Wait for the deployed build
+        env:
+          SITE: ${{ needs.deploy.outputs.page_url }}
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS "${SITE}web/wirescape.wasm" -o /dev/null && exit 0
+            sleep 10
+          done
+          exit 1
+      - name: Browser tests against the live site
+        env:
+          WIRESCAPE_LIVE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: npx playwright test -c playwright.web.config.ts
