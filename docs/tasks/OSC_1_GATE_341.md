@@ -14,6 +14,6 @@ must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_macro_oscillator" --output-on-failure
   - python tools/dev.py test
-  - cd apps/studio && npm ci && npm test
+  - ci: Web job (npm ci && npm test) green on the exact PR head
 stops: [ABI header edit, existing trigger/level behaviour change without gate, upstream Plaits source edits]
 ```
