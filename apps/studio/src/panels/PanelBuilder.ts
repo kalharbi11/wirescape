@@ -45,12 +45,14 @@ export class Panel {
   readonly headerEls: HTMLElement[] = [];
   private widgets = new Map<string, Widget>();
   private panes: Pane[] = [];
+  private sections: { row: HTMLElement; label?: HTMLElement; params: string[] }[] = [];
 
   constructor(
     private readonly host: PanelHost,
     private readonly moduleId: number,
     private readonly d: ModuleDescriptor,
     ov: PanelOverride | undefined,
+    private readonly onLayoutChanged?: () => void,
   ) {
     this.layout = resolveLayout(d, ov);
     this.root = el('div', `panel-core shape-${this.layout.shape}`);
@@ -73,7 +75,8 @@ export class Panel {
 
     const controls = el('div', 'panel-controls');
     for (const s of this.layout.sections) {
-      if (s.label) controls.append(el('div', 'section-label', s.label));
+      const label = s.label ? el('div', 'section-label', s.label) : undefined;
+      if (label) controls.append(label);
       const row = el('div', 'panel-row');
       if (s.columns) row.style.maxWidth = `${s.columns * 92}px`;
       for (const id of s.params) {
@@ -83,6 +86,7 @@ export class Panel {
         if (w) { this.widgets.set(id, w); row.append(w.root); }
       }
       controls.append(row);
+      this.sections.push({ row, label, params: s.params });
     }
     if (d.id === 'midi.in') {
       const row = el('div', 'control-row select-row');
@@ -134,17 +138,47 @@ export class Panel {
         destroy() { /* contained by the card */ } });
     }
     this.root.append(controls);
+    this.refreshVisibility();
   }
 
   /** Re-read every value from the document (after undo, load, or refusal). */
   refresh(): void {
     for (const w of this.widgets.values()) w.refresh();
+    this.refreshVisibility();
     for (const p of this.panes) p.refresh?.();
   }
   /** Repaint one parameter's widget, if it has one. */
   refreshParam(id: string): void {
     this.widgets.get(id)?.refresh();
+    this.refreshVisibility();
     for (const p of this.panes) p.refresh?.();
+  }
+
+  /** Read base document values, never transient DSP modulation. Keep widgets and rails alive. */
+  private refreshVisibility(): void {
+    let changed = false;
+    const show = (node: HTMLElement, visible: boolean) => {
+      const display = visible ? '' : 'none';
+      if (node.style.display !== display) { node.style.display = display; changed = true; }
+    };
+    for (const p of this.d.parameters) {
+      const w = this.widgets.get(p.id);
+      if (!w) continue;
+      const gate = p.visibleWhen;
+      // Malformed/future metadata must not silently discard an otherwise usable control.
+      const valid = gate && typeof gate.param === 'string' && findParam(this.d, gate.param)
+        && Array.isArray(gate.values) && gate.values.every(v => typeof v === 'number' && Number.isFinite(v));
+      show(w.root, !valid || gate.values.includes(this.value(gate.param)));
+    }
+    for (const s of this.sections) {
+      const visible = s.params.some(id => {
+        const w = this.widgets.get(id);
+        return w && w.root.style.display !== 'none';
+      });
+      show(s.row, visible);
+      if (s.label) show(s.label, visible);
+    }
+    if (changed && this.root.isConnected) this.onLayoutChanged?.();
   }
 
   destroy(): void {
