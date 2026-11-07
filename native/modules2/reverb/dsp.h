@@ -64,7 +64,7 @@ struct Reverb {
     Diffuser diffusion[4]{};
     float delay[8]{}, target[8]{}, gain[8]{}, low[8]{};
     float pre_samples = 960, freeze_amount = 0, phase_a = 0, phase_b = 0;
-    float last_mix = -1.f, dry_gain = 1.f, wet_gain = 0.f;
+    float last_mix = -1.f, dry_gain = 1.f, wet_gain = 0.f, last_size = -1.f;
     uint64_t sample_counter = 0;
 
     static uint32_t line_count(double sr) { return uint32_t(std::ceil(sr * .103)) + 8; }
@@ -125,7 +125,7 @@ struct Reverb {
         sample_counter = 0;
         freeze_amount = phase_a = phase_b = 0;
         pre_samples = .02f * rate;
-        last_mix = -1.f;
+        last_mix = last_size = -1.f;
         for (uint32_t k = 0; k < 8; ++k) {
             if (lines[k]) std::fill_n(lines[k], line_capacity, 0.f);
             delay[k] = target[k] = float(scaled_length(k, .5f));
@@ -156,11 +156,13 @@ struct Reverb {
     }
     void refresh(const ws::Block &b, uint32_t i) {
         const float size = b.param(SIZE).value(0, i);
-        const float rt60 = std::clamp(b.param(DECAY).value(0, i), .2f, 20.f);
-        for (uint32_t k = 0; k < 8; ++k) {
-            target[k] = float(std::min(line_capacity - 3, scaled_length(k, size)));
-            gain[k] = std::exp(-kLn1000 * delay[k] / (rt60 * rate));
+        if (size != last_size) {
+            last_size = size;
+            for (uint32_t k = 0; k < 8; ++k)
+                target[k] = float(std::min(line_capacity - 3, scaled_length(k, size)));
         }
+        const float rt60 = std::clamp(b.param(DECAY).value(0, i), .2f, 20.f);
+        for (uint32_t k = 0; k < 8; ++k) gain[k] = std::exp(-kLn1000 * delay[k] / (rt60 * rate));
     }
     void process(ws::Block &b) {
         auto lout = b.out(0), rout = b.out(1);
