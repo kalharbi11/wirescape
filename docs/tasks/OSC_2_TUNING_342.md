@@ -13,6 +13,6 @@ size: <= 600 changed lines, <= 6 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
-  - cd apps/studio && npm ci && npm test
+  - ci: Web job (npm ci && npm test) green on the exact PR head
 stops: [DSP edits, module/parameter ID or default change, patch rewrite on load]
 ```
