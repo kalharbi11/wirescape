@@ -7,6 +7,13 @@ Quick Add already follow the catalogue, because RealEngine replaces the
 registry on hello. Desktop and FakeEngine keep the full list. An empty
 catalogue hides nothing, and saved browser patches are never modified.
 
+The same PR also carries W-web-3/4/5 from `docs/tasks/W_WEB_DEMO.md`:
+- **W-web-3:** cable signal values (`outputs`) and the Output scope come from the wasm engine.
+- **W-web-4:** SHARE puts the gzipped patch in `#p=`, and a link opens that patch. Malformed links fall back to the normal start.
+- **W-web-5:** SAVE downloads JSON, and OPEN uses the browser file picker.
+
+It also adds a post-deploy `live` CI job that runs `tests-web` against the published Pages URL.
+
 ```acceptance
 tier: T1
 size: <= 500 changed lines, <= 12 files
