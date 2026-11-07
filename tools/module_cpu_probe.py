@@ -4,6 +4,8 @@
 Runs build/native/abi2_module_cpu_probe (Qt-free, device-free, deterministic inputs: a saw into A,
 seeded noise into B) and passes when the worst block is under half the period with zero
 allocations and zero faults. Usage: python tools/module_cpu_probe.py sound.spectral [--seconds S]
+[--param id=value ...] [--alternate id=a:b:blocks]: settings select a worst case (a heavy mode,
+the largest FFT, a parameter flipped every K blocks); the pass rule is the same.
 """
 import argparse
 import json
@@ -45,9 +47,16 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('module', help='built-in module ID, e.g. sound.spectral')
     parser.add_argument('--seconds', type=float, default=60.0)
+    parser.add_argument('--param', action='append', default=[], help='id=value (repeatable)')
+    parser.add_argument('--alternate', help='id=a:b:blocks, flip a parameter every K blocks')
     args = parser.parse_args(argv)
     if not args.seconds > 0:
         parser.error('--seconds must be positive')
+    for setting in args.param:
+        if '=' not in setting or setting.startswith('='):
+            parser.error('--param needs id=value')
+    if args.alternate and (args.alternate.count(':') != 2 or '=' not in args.alternate):
+        parser.error('--alternate needs id=a:b:blocks')
     return args
 
 
@@ -57,6 +66,10 @@ def main(argv=None):
     binary = root / 'build/native' / ('abi2_module_cpu_probe.exe' if sys.platform == 'win32' else 'abi2_module_cpu_probe')
     command = [str(binary), '--module', args.module, '--instances', str(INSTANCES), '--rate', str(RATE),
                '--block', str(BLOCK), '--seconds', str(args.seconds)]
+    for setting in args.param:
+        command += ['--param', setting]
+    if args.alternate:
+        command += ['--alternate', args.alternate]
     run = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=args.seconds * 4 + 60)
     if run.returncode:
         raise RuntimeError(run.stderr[-4000:] or run.stdout[-4000:] or 'module CPU probe failed')

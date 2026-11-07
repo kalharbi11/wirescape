@@ -27,6 +27,8 @@
 | Vocoder gain in raw FFT units | Normalised units (see above) | The prototype's output level scaled with N^(1 − flatten), +7.2 dB at 1024; `finish()` hid it |
 | `Math.random` hiss with a random phase per bin | `ws::Random` (seeded per instance, saved), two bipolar draws per bin, no trig | Reproducible; frame-matrix bit identity includes the hiss |
 
+**Per-bin math:** Morph's geometric magnitude, Morph's blended pitch and Cross's ratio power use `approx.h` (original float log2/exp2/atan2/sincos, accuracy checked against `<cmath>` in the tests: log2 and exp2 within 2e-5 relative, atan2 within 2e-5 rad, sin/cos within 4e-6). Blend splits each bin's advance into the centre's exact quarter turn (pi/2 per bin per hop at overlap 4) plus a small deviation, so the trig never sees large angles. Together these took Morph from about 350 to 200 µs per 4096-point frame on x86.
+
 **Silent-frame rule:** when both analysis windows are exactly zero, the frame is skipped and the phase state resets, in every code path. This makes silence cheap and deterministic. The output is marked CONSTANT only when both inputs are constant and the whole block came out silent.
 
 **Size change:** frames of two sizes can't be crossfaded spectrally. The engine stops framing, the old frames' overlap-add tail fades the output out over 0.75 N, then the new size starts and fades in. With nothing sounding (`live_ == 0`), the switch is immediate.

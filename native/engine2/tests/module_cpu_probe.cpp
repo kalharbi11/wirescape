@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Offline, device-free CPU probe for one built-in module: N instances, a saw into the first
-// signal input, seeded noise into the second, parameters at their defaults. Prints one line:
+// signal input, seeded noise into the second, parameters at their defaults unless --param sets
+// them (--param id=value, repeatable) and --alternate id=a:b:K flips one between two values every
+// K blocks (forces mode crossfades, band-layout changes and so on). Prints one line:
 //   module_cpu_probe {"module":..., "render_ns":{"max":..,"p99":..}, "allocations":.., ...}
 #include "../../tests2/allocation_watch.h"
 #include "module_catalog.h"
@@ -56,6 +58,10 @@ int main(int argc, char **argv) {
     uint32_t instances = 2, block = 128;
     double rate = 48000, seconds = 60;
     uint64_t seed = 42;
+    std::vector<std::pair<std::string, float>> settings;
+    std::string alternate_id, settings_text;
+    float alternate_a = 0, alternate_b = 0;
+    uint32_t alternate_every = 0;
     for (int i = 1; i + 1 < argc; i += 2) {
         const std::string key = argv[i], value = argv[i + 1];
         if (key == "--module") id = value;
@@ -64,7 +70,21 @@ int main(int argc, char **argv) {
         else if (key == "--block") block = uint32_t(std::stoul(value));
         else if (key == "--seconds") seconds = std::stod(value);
         else if (key == "--seed") seed = std::stoull(value);
-        else return fail("unknown argument");
+        else if (key == "--param") {
+            const size_t eq = value.find('=');
+            if (eq == std::string::npos || !eq) return fail("--param needs id=value");
+            settings.emplace_back(value.substr(0, eq), std::stof(value.substr(eq + 1)));
+            settings_text += (settings_text.empty() ? "" : ",") + value;
+        } else if (key == "--alternate") {
+            const size_t eq = value.find('='), c1 = value.find(':', eq), c2 = value.find(':', c1 + 1);
+            if (eq == std::string::npos || !eq || c1 == std::string::npos || c2 == std::string::npos)
+                return fail("--alternate needs id=a:b:blocks");
+            alternate_id = value.substr(0, eq);
+            alternate_a = std::stof(value.substr(eq + 1, c1 - eq - 1));
+            alternate_b = std::stof(value.substr(c1 + 1, c2 - c1 - 1));
+            alternate_every = uint32_t(std::stoul(value.substr(c2 + 1)));
+            if (!alternate_every) return fail("--alternate needs blocks >= 1");
+        } else return fail("unknown argument");
     }
     if (id.empty() || !instances || instances > 16 || !block || block > 4096 || !(rate >= 8000) || !(seconds > 0))
         return fail("usage: --module ID [--instances N] [--rate HZ] [--block FRAMES] [--seconds S] [--seed N]");
@@ -72,6 +92,15 @@ int main(int argc, char **argv) {
     for (const ws2_descriptor *m : wirescape::app::builtin_modules())
         if (id == m->id) d = m;
     if (!d) return fail("module is not a built-in");
+    auto param_index = [&](const std::string &name) -> int {
+        for (uint32_t p = 0; p < d->param_count; ++p)
+            if (name == d->params[p].id) return int(p);
+        return -1;
+    };
+    for (const auto &[name, value] : settings)
+        if (param_index(name) < 0) return fail("--param names an unknown parameter");
+    const int alternate = alternate_id.empty() ? -1 : param_index(alternate_id);
+    if (!alternate_id.empty() && alternate < 0) return fail("--alternate names an unknown parameter");
 
     constexpr uint32_t channels = 16;
     const ws2_config config{sizeof(ws2_config), rate, block, channels, seed, nullptr, 0};
@@ -103,6 +132,8 @@ int main(int argc, char **argv) {
         x->value_rows.resize(d->param_count);
         for (uint32_t p = 0; p < d->param_count; ++p) {
             x->values[p] = d->params[p].initial;
+            for (const auto &[name, value] : settings)
+                if (name == d->params[p].id) x->values[p] = value;
             x->value_rows[p] = &x->values[p];
             x->params.push_back({sizeof(ws2_signal), &x->value_rows[p], 1, WS2_CONSTANT});
         }
@@ -135,6 +166,8 @@ int main(int argc, char **argv) {
             lcg = lcg * 1664525u + 1013904223u;
             noise[i] = .3f * (float(lcg >> 8) / 8388608.f - 1.f);
         }
+        if (alternate >= 0)
+            for (auto &x : all) x->values[size_t(alternate)] = (k / alternate_every) % 2 ? alternate_b : alternate_a;
         const auto start = std::chrono::steady_clock::now();
         {
             allocation_watch::Scope watch;
@@ -158,8 +191,12 @@ int main(int argc, char **argv) {
     const int64_t p99 = sorted.empty() ? 0 : sorted[std::min(sorted.size() - 1, size_t(double(sorted.size()) * .99))];
     std::printf("module_cpu_probe {\"module\":\"%s\",\"instances\":%u,\"sample_rate\":%.0f,\"block\":%u,\"seconds\":%g,"
                 "\"blocks\":%zu,\"render_ns\":{\"max\":%lld,\"p99\":%lld},\"period_ns\":%.0f,\"allocations\":%zu,"
-                "\"faults\":%zu,\"peak\":%.6g}\n",
+                "\"faults\":%zu,\"peak\":%.6g,\"params\":\"%s\",\"alternate\":\"%s\"}\n",
                 id.c_str(), instances, rate, block, seconds, blocks, (long long)worst, (long long)p99,
-                1e9 * block / rate, allocations, faults, peak);
+                1e9 * block / rate, allocations, faults, peak, settings_text.c_str(),
+                alternate_id.empty() ? ""
+                                     : (alternate_id + "=" + std::to_string(alternate_a) + ":" +
+                                        std::to_string(alternate_b) + ":" + std::to_string(alternate_every))
+                                           .c_str());
     return 0;
 }
