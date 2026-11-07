@@ -54,7 +54,7 @@ must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_resonator_tests|abi2_chaos_lite_tests" --output-on-failure
   - python tools/dev.py test
-  - bash -lc 'cd apps/studio && npm ci && npm test'
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && WIRESCAPE_CHROMIUM="$(command -v chromium || command -v chromium-browser || command -v google-chrome)" npm test'
   - pi-run: python tools/module_cpu_probe.py resonator   # after #304 adds the probe; two instances × 8 voices, 48 kHz / 128 frames, worst block < 50% of the period
 stops: [ABI header edit, new dependency, third-party code, edits to native/modules2/chaos_lite/, test loosening, ID change after merge]
 ```

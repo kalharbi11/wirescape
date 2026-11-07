@@ -20,7 +20,10 @@ The three structures interpolate delay targets, avoiding hard retunes.
 Each voice owns three independent histories, RNG, trigger Schmitt state and
 DC-block state. Comb storage is requested once in `prepare` via WS2_LARGE,
 sized for 20 Hz at 96 kHz; eight-voice memory is below 0.5 MiB. Reset and
-load discard DSP history. The full output uses a DC blocker (pole 0.995) and
+load discard DSP history. A three-pole radiation lowpass tracks 0.8 × fundamental pitch to make the
+fundamental dominant in Harmonic mode even with damping at zero. It acts only
+after the feedback loops, preserving the per-tap T60 law. The full output uses
+a DC blocker (pole 0.995) and
 a ±2 safety clamp; no CONSTANT flag is emitted for active comb processing.
 
 Background: textbook digital waveguide/feedback comb, fractional-delay linear

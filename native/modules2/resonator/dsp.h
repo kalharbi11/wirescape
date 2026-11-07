@@ -28,7 +28,7 @@ struct Resonator {
     struct Voice {
         CombBody body;
         ws::Random rng;
-        float delay[3]{}, dc_input = 0, dc_output = 0, noise = 0;
+        float delay[3]{}, colour[3]{}, dc_input = 0, dc_output = 0, noise = 0;
         uint32_t burst_left = 0;
         bool high = false, initialized = false;
     };
@@ -66,6 +66,7 @@ struct Resonator {
             v.body.reset();
             v.rng.seed(seed, c);
             std::fill_n(v.delay, 3, 0.f);
+            std::fill_n(v.colour, 3, 0.f);
             v.dc_input = v.dc_output = v.noise = 0;
             v.burst_left = 0;
             v.high = v.initialized = false;
@@ -116,9 +117,17 @@ struct Resonator {
                     feedback[tap] = std::exp(-6.907755279f * v.delay[tap] / (rate * seconds));
                 const float body = v.body.process(audio + strike, v.delay, feedback,
                                                   std::clamp(p(Damping), 0.f, 1.f));
+                // Three-pole pitch-tracking radiation filter suppresses higher
+                // comb harmonics without altering the delay-loop T60.
+                const float coefficient = std::min(1.f, 5.026548246f * hz / rate);
+                float wet = 16.f * body + .5f * strike;
+                for (float& stage : v.colour) {
+                    stage += coefficient * (wet - stage);
+                    wet = stage;
+                }
                 const float mix = std::clamp(p(Mix), 0.f, 1.f);
                 const float raw = std::clamp(p(Level), 0.f, 1.f) *
-                                  ((1.f - mix) * audio + mix * (16.f * body + .5f * strike));
+                                  ((1.f - mix) * audio + mix * wet);
                 // DC block the final signal. The hard ceiling is a safety net for hot exciters.
                 const float dc = raw - v.dc_input + .995f * v.dc_output;
                 v.dc_input = raw;
