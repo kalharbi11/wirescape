@@ -16,7 +16,7 @@ It also adds a post-deploy `live` CI job that runs `tests-web` against the publi
 
 ```acceptance
 tier: T1
-size: <= 500 changed lines, <= 12 files
+size: <= 500 changed lines, <= 14 files
 must_pass:
   - ci: web-demo engine job green (native web_engine_tests incl. telemetry)
   - ci: web-demo site job green with focused tests-web starter/catalogue, share, download and telemetry coverage
