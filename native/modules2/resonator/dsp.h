@@ -28,7 +28,7 @@ struct Resonator {
     struct Voice {
         CombBody body;
         ws::Random rng;
-        float delay[3]{}, colour[3]{}, dc_input = 0, dc_output = 0, noise = 0;
+        float delay[3]{}, colour[4]{}, dc_input = 0, dc_output = 0, noise = 0;
         uint32_t burst_left = 0;
         bool high = false, initialized = false;
     };
@@ -117,9 +117,9 @@ struct Resonator {
                     feedback[tap] = std::exp(-6.907755279f * v.delay[tap] / (rate * seconds));
                 const float body = v.body.process(audio + strike, v.delay, feedback,
                                                   std::clamp(p(Damping), 0.f, 1.f));
-                // Three-pole pitch-tracking radiation filter suppresses higher
+                // Four-pole pitch-tracking radiation filter suppresses higher
                 // comb harmonics without altering the delay-loop T60.
-                const float coefficient = std::min(1.f, 5.026548246f * hz / rate);
+                const float coefficient = std::min(1.f, 3.769911184f * hz / rate);
                 float wet = 16.f * body + .5f * strike;
                 for (float& stage : v.colour) {
                     stage += coefficient * (wet - stage);

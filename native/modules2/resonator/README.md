@@ -25,7 +25,7 @@ zero. The processor has one poly `audio` output, and no note gate is needed.
 | `mix` | 0…1 / 1 | Dry input to wet body |
 | `level` | 0…1 / 0.7 | Output linear level |
 
-A pitch-tracking three-pole wet lowpass favors the fundamental without
+A pitch-tracking four-pole wet lowpass favors the fundamental without
 attenuating the comb feedback itself. The four structures have tap frequency ratios Body (1, 1.4983, 2.003),
 Harmonic (1, 2, 3), Bar (1, 2.756, 5.404), Bell (1, 2.32, 4.25).
 Tuning clamps to 20 Hz at 96 kHz and to 0.45 times sample rate at the
