@@ -54,7 +54,10 @@ export class PatchCanvas {
   private cards = new Map<number, ModuleCard>();
   private selection: Selection = { kind: 'none' };
   private pending: Pending | null = null;
-  private gesture: 'none' | 'pan' | 'drag' | 'patch' | 'box' = 'none';
+  private gesture: 'none' | 'pan' | 'drag' | 'patch' | 'box' | 'pinch' = 'none';
+  private pinching = false;
+  /** Cancel a one-pointer canvas drag/pan when a second finger starts a pinch. */
+  private cancelSinglePointerGesture: (() => void) | null = null;
   private modAnchors = new Map<string, Point>();
   private marquee: HTMLElement;
   private emptyState: HTMLElement;
@@ -355,7 +358,7 @@ export class PatchCanvas {
   // ---- module dragging --------------------------------------------------
 
   private beginDrag(e: PointerEvent, id: number): void {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || (e.pointerType === 'touch' && this.pinching)) return;
     e.preventDefault(); e.stopPropagation();
     const card = this.cards.get(id);
     if (!card) return;
@@ -371,6 +374,7 @@ export class PatchCanvas {
     card.root.setPointerCapture(e.pointerId);
 
     const move = (ev: PointerEvent) => {
+      if (this.pinching) return;
       const dx = (ev.clientX - sx) / this.viewport.view.s;
       const dy = (ev.clientY - sy) / this.viewport.view.s;
       for (const [i, [ox, oy]] of start) this.s.doc.setPosition(i, ox + dx, oy + dy);
@@ -380,9 +384,11 @@ export class PatchCanvas {
       card.root.removeEventListener('pointerup', up);
       card.root.removeEventListener('pointercancel', up);
       this.gesture = 'none';
+      if (this.cancelSinglePointerGesture === up) this.cancelSinglePointerGesture = null;
       this.cables.springy = false;
       this.updateVisibility();
     };
+    this.cancelSinglePointerGesture = up;
     card.root.addEventListener('pointermove', move);
     card.root.addEventListener('pointerup', up);
     card.root.addEventListener('pointercancel', up);
@@ -825,9 +831,66 @@ export class PatchCanvas {
       this.s.quickAdd(world, null);
     });
 
+    // Track touches during capture: module headers and ports stop bubbling,
+    // so bubble-only listeners never saw a second finger over a card.
+    const touches = new Map<number, { x: number; y: number }>();
+    let pinch: { distance: number; scale: number; anchor: { x: number; y: number } } | null = null;
+    const pair = () => {
+      const [a, b] = [...touches.values()];
+      const x = (a!.x + b!.x) / 2, y = (a!.y + b!.y) / 2;
+      return { x, y, distance: Math.hypot(a!.x - b!.x, a!.y - b!.y) };
+    };
+
+    this.root.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'touch') return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 2) {
+        const p = pair();
+        pinch = { distance: Math.max(1, p.distance), scale: this.viewport.view.s,
+          anchor: this.viewport.toWorld(p.x, p.y) };
+        this.pinching = true;
+        this.cancelSinglePointerGesture?.();
+        if (this.pending) this.cancelPatch();
+        this.gesture = 'pinch';
+        // No second module drag / port patch / knob press should begin.
+        e.preventDefault();
+        e.stopPropagation();
+      } else if (touches.size > 2) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, { capture: true });
+
+    this.root.addEventListener('pointermove', e => {
+      if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (!pinch || touches.size !== 2) return;
+      const p = pair();
+      const scale = Math.max(0.15, Math.min(1.85, pinch.scale * p.distance / pinch.distance));
+      const r = this.viewport.rect();
+      this.viewport.setView(p.x - r.left - pinch.anchor.x * scale,
+        p.y - r.top - pinch.anchor.y * scale, scale);
+      // Consume both fingers' motion before a module/knob handler can act.
+      e.preventDefault();
+      e.stopPropagation();
+    }, { capture: true });
+
+    for (const event of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) {
+      this.root.addEventListener(event, e => {
+        if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return;
+        touches.delete(e.pointerId);
+        if (touches.size < 2 && this.pinching) {
+          pinch = null;
+          this.pinching = false;
+          this.gesture = 'none';
+        }
+      }, { capture: true });
+    }
+
     this.root.addEventListener('pointerdown', e => {
       if ((e.target as HTMLElement).closest('.module,.cable-hit,.navigator,.empty-state')) return;
       if (e.button !== 0 && e.button !== 1) return;
+      if (this.pinching || (e.pointerType === 'touch' && touches.size > 1)) return;
       if (this.pending) { this.cancelPatch(); return; }
 
       // Shift or middle button starts a box-select; a plain drag pans.
@@ -840,47 +903,23 @@ export class PatchCanvas {
       const start = { ...this.viewport.view };
       this.root.setPointerCapture(e.pointerId);
       const move = (ev: PointerEvent) => {
+        if (this.pinching) return;
         this.viewport.setView(start.x + ev.clientX - sx, start.y + ev.clientY - sy, start.s);
       };
       const up = () => {
         this.root.removeEventListener('pointermove', move);
         this.root.removeEventListener('pointerup', up);
         this.root.removeEventListener('pointercancel', up);
+        if (this.cancelSinglePointerGesture === up) this.cancelSinglePointerGesture = null;
         this.gesture = 'none';
         this.root.classList.remove('panning');
       };
+      this.cancelSinglePointerGesture = up;
       this.root.addEventListener('pointermove', move);
       this.root.addEventListener('pointerup', up);
       this.root.addEventListener('pointercancel', up);
     });
 
-    // Touch: two fingers pinch to zoom, one finger pans (handled above).
-    let pinch: { d: number; s: number } | null = null;
-    const touches = new Map<number, PointerEvent>();
-    this.root.addEventListener('pointerdown', e => {
-      if (e.pointerType !== 'touch') return;
-      touches.set(e.pointerId, e);
-      if (touches.size === 2) {
-        const [a, b] = [...touches.values()];
-        pinch = { d: Math.hypot(a!.clientX - b!.clientX, a!.clientY - b!.clientY), s: this.viewport.view.s };
-      }
-    });
-    this.root.addEventListener('pointermove', e => {
-      if (e.pointerType !== 'touch') return;
-      if (touches.has(e.pointerId)) touches.set(e.pointerId, e);
-      if (pinch && touches.size === 2) {
-        const [a, b] = [...touches.values()];
-        const d = Math.hypot(a!.clientX - b!.clientX, a!.clientY - b!.clientY);
-        const cx = (a!.clientX + b!.clientX) / 2, cy = (a!.clientY + b!.clientY) / 2;
-        this.viewport.zoomAt(pinch.s * (d / pinch.d), cx, cy);
-      }
-    });
-    for (const ev of ['pointerup', 'pointercancel'] as const) {
-      this.root.addEventListener(ev, e => {
-        touches.delete(e.pointerId);
-        if (touches.size < 2) pinch = null;
-      });
-    }
   }
 
   private beginBoxSelect(e: PointerEvent): void {
