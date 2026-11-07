@@ -461,3 +461,13 @@ visibility. Hidden controls retain their values and modulation cables; their
 rail nodes remain available. Empty rows and section labels disappear, and the
 card remeasures and reroutes cables only when visibility changes. Unknown or
 malformed conditions leave the control visible. Static panel `hidden` still wins.
+
+### Crash recovery (#295)
+
+An active-session marker distinguishes unexpected termination from orderly pagehide.
+A valid autosave from an unclean session or unexpected engine exit is offered in
+the existing modal style. Autosave pauses until Restore or Keep current patch
+(including Escape/close); pending choices survive reload without overwriting the
+snapshot. Restore preserves the name and unknown patch fields. Clean sessions
+retain automatic last-session restoration. Recovery does not write a user file
+or request an engine restart; Electron main retains its crash-loop budget.
