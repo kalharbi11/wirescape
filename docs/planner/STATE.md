@@ -20,7 +20,7 @@ Keep this under 60 lines. History lives in git.
 ## In flight (who acts)
 - #273 live replan in sidecar `00a5b24`, #274 bench summary `c6ed064`, #298 MIDI hotplug, #301 audio-loss recovery: Keel T2 review plus pi5, then merge. #274 unblocks #292/#296; #273 unblocks #287; #301 unblocks #293.
 - #256 1H conformance: Keel rules on the 13-file budget and the guard red. Stale since 11-06 12:57. On the Phase 1 critical path.
-- #300 keyboard default: retargeted to main and integrated at `e4e0ae8`, reviewed, ready-to-merge. Auto-merges on green.
+- #300 keyboard default merged (verified PR state; integrated head e4e0ae8).
 - #311 (#306) conditional controls merged at f81c7cf (verified main).
 - #210 / #290 MIDI controls: Keel/Compass contract ruling pending.
 - #295 crash recovery: draft #324 at be1bebc; explicit offer and nine browser tests.
