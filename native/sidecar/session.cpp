@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "session.h"
 #include "runtime_patch.h"
+#include "wirescape_sidecar_categories.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -116,7 +117,7 @@ Json catalogue(AppEngine *engine) {
             params.push_back(value);
         }
         result.push_back(
-            {{"id", d->id}, {"name", d->name}, {"category", "Native"}, {"ports", ports}, {"parameters", params}});
+            {{"id", d->id}, {"name", d->name}, {"category", wirescape_sidecar_category(d->id)}, {"ports", ports}, {"parameters", params}});
     }
     return {{"modules", result}};
 }

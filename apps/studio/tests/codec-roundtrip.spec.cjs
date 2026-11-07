@@ -25,7 +25,7 @@ test('native starter fixtures are actual UI exports; catalogue has no drift', ()
   }
 });
 
-test('only absent metadata is defaulted; output edits preserve other routes and opaque values', () => {
+test('imports preserve absent metadata; output edits preserve other routes and opaque values', () => {
   const source = { ...EMPTY_PATCH(), settings: { sample_rate: 96000, future: { opaque: [1, null] } },
     modules: [{ id: 1, module: 'essentials.output', version: 71, state: { opaque: true } },
       { id: 2, module: 'essentials.output' }],
@@ -35,7 +35,8 @@ test('only absent metadata is defaulted; output edits preserve other routes and 
   const doc = PatchDoc.from(source);
   expect(doc.toJSON().settings).toEqual(source.settings);
   expect(doc.toJSON().modules[0]).toMatchObject(source.modules[0]);
-  expect(doc.toJSON().modules[1].version).toBe(catalogue.modules.find(m => m.id === 'essentials.output').version);
+  expect(doc.toJSON()).toEqual(source);
+  expect(Object.hasOwn(doc.toJSON().modules[1], 'version')).toBe(false);
   doc.addModule('essentials.output', {}, 0, 0, 3);
   const stereo = [0, 1].map(bus_channel => ({ module: 3, port: 'audio', bus_channel }));
   expect(doc.toJSON().outputs).toEqual([...source.outputs, ...stereo]);
@@ -45,13 +46,84 @@ test('only absent metadata is defaulted; output edits preserve other routes and 
   expect(doc.toJSON().outputs).toEqual([source.outputs[1]]);
   expect(source).toEqual(original);
   const missing = PatchDoc.from({ ...EMPTY_PATCH(), modules: [{ id: 1, module: 'essentials.output' }] });
-  expect(missing.toJSON().settings).toEqual({ sample_rate: 48000, max_block_frames: 256, max_channels: 16, feedback_block: 1 });
-  expect(missing.toJSON().outputs).toEqual([0, 1].map(bus_channel => ({ module: 1, port: 'audio', bus_channel })));
+  expect(Object.hasOwn(missing.toJSON(), 'settings')).toBe(false);
+  expect(Object.hasOwn(missing.toJSON(), 'outputs')).toBe(false);
+  missing.addModule('essentials.output', {}, 0, 0, 2);
+  expect(Object.hasOwn(missing.toJSON(), 'outputs')).toBe(false);
   missing.removeModule(1);
-  expect(missing.toJSON().outputs).toEqual([]);
+  expect(Object.hasOwn(missing.toJSON(), 'outputs')).toBe(false);
   const empty = PatchDoc.from({ ...EMPTY_PATCH(), settings: {}, outputs: [] });
   expect(empty.toJSON().settings).toEqual({});
   expect(empty.toJSON().outputs).toEqual([]);
+  const authored = new PatchDoc();
+  authored.addModule('essentials.output', {}, 0, 0, 7);
+  expect(authored.toJSON().modules[0].version).toBe(catalogue.modules.find(m => m.id === 'essentials.output').version);
+  expect(authored.toJSON().outputs).toEqual([0, 1].map(bus_channel => ({ module: 7, port: 'audio', bus_channel })));
+});
+
+test('pasting an imported module without parameters sends an empty parameter map', async ({ page }) => {
+  await boot(page);
+  const result = await page.evaluate(() => {
+    const api = window.__wirescapeTest;
+    const before = new Set(api.save().modules.map(m => m.id));
+    localStorage.setItem('wirescape.clipboard.v1', JSON.stringify({
+      modules: [{ id: 91, module: 'essentials.vco', pos: [0, 0], extra: {} }],
+      connections: [], colors: {},
+    }));
+    const original = api.engine.addModule.bind(api.engine);
+    let passed;
+    api.engine.addModule = (id, type, params) => {
+      passed = params;
+      return original(id, type, params);
+    };
+    api.paste();
+    const added = api.save().modules.find(m => !before.has(m.id));
+    return { passed, params: added?.parameters, module: added?.module };
+  });
+  expect(result).toEqual({ passed: {}, params: {}, module: 'essentials.vco' });
+});
+
+test('opening and automatically fitting T02 does not edit the saved source', async ({ page }) => {
+  await boot(page);
+  const source = { format: 'wirescape.native.patch', version: 2,
+    modules: [{ id: 7, module: 'essentials.output' }], connections: [], ui: { labels: { 7: 'Out' } } };
+  await page.evaluate(p => window.__wirescapeTest.load(p, 'T02 source'), source);
+  await settle(page);
+  expect(await page.evaluate(() => window.__wirescapeTest.save())).toEqual(source);
+  await page.evaluate(() => window.__wirescapeTest.doc.setLabel(7, 'Renamed'));
+  expect(await page.evaluate(() => window.__wirescapeTest.save())).toEqual({ ...source, ui: { labels: { 7: 'Renamed' } } });
+});
+
+test('T02 source fields stay absent until authored; snapshots cannot mutate the document', () => {
+  const source = { format: 'wirescape.native.patch', version: 2,
+    modules: [{ id: 7, module: 'essentials.output', opaque: { bytes: ['λ', null] } }],
+    connections: [], ui: { labels: { 7: 'Out' }, opaque: { future: true } } };
+  const doc = PatchDoc.from(source);
+  expect(doc.toJSON()).toEqual(source);
+  const snapshot = doc.toJSON();
+  snapshot.modules[0].opaque.bytes.push('snapshot only');
+  snapshot.ui.opaque.future = false;
+  expect(doc.toJSON()).toEqual(source);
+  doc.setPosition(7, 11, 22);
+  doc.setParam(7, 'gain', 0.5);
+  expect(doc.toJSON()).toEqual({ ...source,
+    modules: [{ ...source.modules[0], parameters: { gain: 0.5 } }],
+    ui: { ...source.ui, positions: { 7: [11, 22] } } });
+  expect(source.modules[0]).not.toHaveProperty('parameters');
+});
+
+test('no-ui and explicit empty execution fields round trip without healing', () => {
+  const source = { format: 'wirescape.native.patch', version: 2,
+    modules: [{ id: 7, module: 'essentials.output' }], connections: [] };
+  const doc = PatchDoc.from(source);
+  expect(doc.toJSON()).toEqual(source);
+  doc.removeModule(7);
+  expect(doc.toJSON()).toEqual({ ...source, modules: [] });
+  for (const outputs of [[], [{ module: 99, port: 'missing', bus_channel: 3 }]]) {
+    const explicit = { ...source, settings: {}, outputs,
+      modules: [{ ...source.modules[0], version: 71, parameters: {} }], ui: {} };
+    expect(PatchDoc.from(explicit).toJSON()).toEqual(explicit);
+  }
 });
 
 for (const filename of readdirSync(resolve(root, 'native/examples')).filter(p => p.endsWith('.json'))) {

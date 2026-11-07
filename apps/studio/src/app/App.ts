@@ -314,8 +314,18 @@ export class App {
     this.maxModuleId = Math.max(0, ...patch.modules.map(m => m.id));
     const running = this.engine.loadGraph(this.doc.toJSON());
     const v = patch.ui?.view;
-    if (v && v.zoom) this.canvas.viewport.setView(v.x, v.y, v.zoom);
-    else requestAnimationFrame(() => this.canvas.fit());
+    // Restoring/fitting the viewport is presentation, not a source-document edit.
+    const loadedUi = this.doc.ui;
+    const restoreView = () => {
+      if (this.doc.ui !== loadedUi) return;
+      const view = this.doc.ui.view;
+      if (v && v.zoom) this.canvas.viewport.setView(v.x, v.y, v.zoom);
+      else this.canvas.fit();
+      if (view === undefined) delete this.doc.ui.view;
+      else this.doc.ui.view = view;
+    };
+    if (v && v.zoom) restoreView();
+    else requestAnimationFrame(restoreView);
     requestAnimationFrame(() => this.canvas.invalidateAnchors());
     this.doc.markClean();
     this.refreshDirty();
@@ -466,9 +476,10 @@ export class App {
     const skipped: string[] = [];
     for (const m of clip.modules) {
       const id = this.allocateId();
-      try { this.engine.addModule(id, m.module, m.parameters); }
+      const params = m.parameters ?? {};
+      try { this.engine.addModule(id, m.module, params); }
       catch { skipped.push(m.module); continue; }
-      this.doc.addModule(m.module, m.parameters, m.pos[0] + dx, m.pos[1] + dy, id);
+      this.doc.addModule(m.module, params, m.pos[0] + dx, m.pos[1] + dy, id);
       this.trackRollback(() => this.doc.removeModule(id));
       const added = this.doc.modules.get(id);
       if (added) Object.assign(added, m.extra);
@@ -1094,4 +1105,3 @@ export class App {
 
 declare const __APP_VERSION__: string;
 declare const __BUILD__: string;
-
