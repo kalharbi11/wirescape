@@ -1,9 +1,10 @@
 # Wirescape plan (v3: standalone app with the web UI)
 
-Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-06 evening (Compass).
+Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-07 (Compass).
 How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) live in git history; their results are summarised under "Where we are".
 
 ## Now
+- **Update 2026-11-07 (Compass): module lane.** Owner decision: a module-building lane runs now beside Phase 2 (Compass plans and reviews, Codex builds, Compass/subagents take small or stuck items). Board and queue: `docs/planner/MODULES.md`: Delay `fx.delay`, Quantizer `essentials.quantizer`, Reverb `fx.reverb`, Resonator `essentials.resonator` (CHAOS rebuild step R1), then Blend `sound.blend` after #304. It never preempts a #271 owner failure or a Phase 2 critical-path fix.
 - **Update 2026-11-06 evening (Compass).** Phase 1 code is complete: 1B sidecar (#247), 1C RealEngine (#249), 1F shell, the e2e smoke (#265) and 2E autostart (#264) are merged. Open: 1H conformance (#256), the 1E benchmark (#274), and the owner's **Test Session 1 (#271)**, which is waiting on the owner.
 - **Phase 2 runs now, in parallel with the owner's test** (owner decision, 2026-11-06). 2A-1 is merged (#209); 2A-2, 2B-a, 2D-a/b and 2F-a are in flight. The remaining sections are listed in `docs/tasks/P2_REMAINING.md`. Checkpoint A still comes after Test Session 1 and reviews Phase 2 as it stands.
 - **New parallel track S (Sound kit):** original modules ported from the owner's prototypes. **S1** = the Conjunctions two-source processes (`docs/tasks/S1_CONJUNCTIONS_MODULES.md`). GUTTUR is on hold (owner); the Sampler and the effects (EQ, compressor, delay, reverb) are listed but not started.
@@ -107,7 +108,8 @@ The owner jams for 30 minutes on the Pi with the M8: live patching, patch switch
 ### Track S: Sound kit (parallel; original modules from the owner's prototypes)
 Runs beside Phases 2–3 and never blocks them. Every module follows `docs/SDK_AUTHOR_GUIDE.md` §15 (porting a prototype). New IDs only; no ABI change without a Keel ruling.
 - [ ] **S1 Conjunctions modules** (`docs/tasks/S1_CONJUNCTIONS_MODULES.md`): in order: Spectral (one FFT module, vocoder included), Blend, Cross Mod, Waveset, Shaper, Grains. Convolver waits for S3.
-- [ ] S2 Effects: EQ, compressor/limiter, delay, reverb (research in `docs/reviews/EFFECTS_OPTIONS.md`). Not started.
+- [ ] S2 Effects: **S2-1 Delay** (`docs/tasks/S2_1_DELAY.md`) and **S2-2 Reverb** (`docs/tasks/S2_2_REVERB.md`, original FDN) queued 2026-11-07; EQ and compressor/limiter later (research in `docs/reviews/EFFECTS_OPTIONS.md`).
+- [ ] S6 CHAOS rebuild, component first (`docs/planner/MODULES.md`): **R1 Resonator** (`docs/tasks/CHAOS_R1_RESONATOR.md`) queued; R2 Waveshaper after the owner hears R1; R3 a CHAOS starter patch from Essentials; R4 a subpatch once Phase 5 subpatches exist.
 - [ ] S3 Sample buffer service (SDK/engine, T2, Keel) and then the Sampler (start/loop CV, one-shot/gate/loop, reverse, 8 voices). Not started.
 - [ ] S4 GUTTUR throat voice. **On hold** (owner).
 - [ ] S5 Multichannel output + Quad Panner (needs a 4-output interface). Not started.
@@ -126,7 +128,7 @@ Runs beside Phases 2–3 and never blocks them. Every module follows `docs/SDK_A
 2. Macro Oscillator (Plaits) signature panel polish and all 24 models checked.
 3. A CHAOS-lite custom panel (generic until the owner redesigns it).
 4. Dark theme (UI Q-C).
-5. Beta 0.8 musical core: Quantizer, a native Basic Sequencer, MIDI Out/Clock, MPE.
+5. Beta 0.8 musical core: Quantizer (pulled forward into the module lane, `docs/tasks/MOD_QUANTIZER.md`), a native Basic Sequencer, MIDI Out/Clock, MPE.
 6. Instruments: subpatches/macros, Channel Expander, CHAOS rebuild, a proper Plaits/Braids port.
 7. Portability and freeze: CLAP adapter, Daisy, ABI freeze (#44, #161), Windows mono perf #64, benchmark gate #91.
 8. A browser/LAN mode (open the UI from another device). Deferred; nothing in Phases 1–4 depends on it.
