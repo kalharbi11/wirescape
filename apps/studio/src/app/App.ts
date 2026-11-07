@@ -237,7 +237,8 @@ export class App {
       this.action('?', () => this.shortcuts.open('Keyboard shortcuts'), 'shortcuts-btn'),
     );
 
-    right.append(starters, this.octaveEl, history, zoomGroup, tools);
+    // Keep zoom at the start of the scrollable mobile toolbar, after patches.
+    right.append(starters, this.octaveEl, zoomGroup, history, tools);
     bar.append(left, right);
     return bar;
   }
