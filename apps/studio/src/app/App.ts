@@ -280,6 +280,7 @@ export class App {
     requestAnimationFrame(() => { this.canvas.fit(); this.canvas.invalidateAnchors(); });
     window.addEventListener('resize', () => this.canvas.updateVisibility());
     setInterval(() => this.autosave(), 4000);
+    window.addEventListener('pagehide', () => this.autosave(true));
     this.doc.on(() => this.refreshDirty());
   }
 
@@ -288,15 +289,16 @@ export class App {
       const raw = localStorage.getItem(AUTOSAVE_KEY);
       if (!raw) return false;
       const saved = JSON.parse(raw) as { name?: string; patch: PatchV2 };
-      if (!saved?.patch?.modules) return false;
+      if (!saved?.patch || !Array.isArray(saved.patch.modules) || !Array.isArray(saved.patch.connections)) return false;
       this.loadPatch(saved.patch, saved.name ?? 'Untitled');
       this.toasts.show('Restored your last patch.');
       return true;
     } catch { return false; }
   }
 
-  private autosave(): void {
-    if (!this.doc.dirty) return;
+  private autosave(force = false): void {
+    // A newly selected clean patch still replaces the previous recovery snapshot.
+    if (!force && !this.doc.dirty) return;
     try {
       localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ name: this.patchName, patch: this.doc.toJSON() }));
     } catch { /* storage full or unavailable */ }
@@ -318,6 +320,7 @@ export class App {
     this.doc.markClean();
     this.refreshDirty();
     this.history?.reset();
+    this.autosave(true);
     this.pasteCount = 0;
     try { await running; }
     catch (e) { this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error'); }
@@ -510,6 +513,7 @@ export class App {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     this.doc.markClean();
     this.refreshDirty();
+    this.autosave(true);
     this.toasts.show('Patch saved.');
   }
 
@@ -731,6 +735,7 @@ export class App {
     if (next === null) return;
     this.patchName = next.trim() || 'Untitled';
     this.nameEl.textContent = this.patchName;
+    this.autosave(true);
   }
 
   private toggleClock(running: boolean): void {
@@ -1022,6 +1027,7 @@ export class App {
       this.nameEl.textContent = result.name;
       this.doc.markClean();
       this.refreshDirty();
+      this.autosave(true);
       this.toasts.show('Patch saved.');
     } catch (e) {
       this.toasts.show(e instanceof Error ? e.message : 'Could not save patch.', 'error');
@@ -1044,9 +1050,7 @@ export class App {
   testApi() {
     return {
       state: () => this.doc.toJSON(),
-      autosaveNow: () => {
-        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ name: this.patchName, patch: this.doc.toJSON() }));
-      },
+      autosaveNow: () => this.autosave(true),
       clearAutosave: () => localStorage.removeItem(AUTOSAVE_KEY),
       patchName: () => this.patchName,
       load: (p: PatchV2, name?: string) => this.loadPatch(p, name),
