@@ -2,7 +2,6 @@
 #pragma once
 #include "../modules2/adsr/dsp.h"
 #include "../modules2/blend/dsp.h"
-#include "../modules2/reverb/dsp.h"
 #include "../modules2/chaos_lite/dsp.h"
 #include "../modules2/clock/dsp.h"
 #include "../modules2/function_envelope/dsp.h"
@@ -16,6 +15,7 @@
 #include "../modules2/mixer/dsp.h"
 #include "../modules2/noise/dsp.h"
 #include "../modules2/output/dsp.h"
+#include "../modules2/reverb/dsp.h"
 #include "../modules2/scale_offset/dsp.h"
 #include "../modules2/slew/dsp.h"
 #include "../modules2/vca/dsp.h"
