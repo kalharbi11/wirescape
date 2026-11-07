@@ -2,6 +2,7 @@
 #pragma once
 #include "../modules2/adsr/dsp.h"
 #include "../modules2/blend/dsp.h"
+#include "../modules2/reverb/dsp.h"
 #include "../modules2/chaos_lite/dsp.h"
 #include "../modules2/clock/dsp.h"
 #include "../modules2/function_envelope/dsp.h"
