@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# S2-2: `fx.reverb`, a stereo reverb (Track S2, module lane row 3)
+# S2-2 (#316): `fx.reverb`, a stereo reverb (Track S2, module lane row 3)
 
 **What.** A smooth stereo room-to-hall reverb with a live **freeze**, cheap enough that two run on the Pi beside a full patch. **Original code**: an 8-line feedback delay network (Jot/Stautner–Puckette style, Householder or Hadamard mixing), input diffusion by allpasses, per-line damping. Cite the textbook sources in `DESIGN.md`. The Clouds-reverb port in `docs/reviews/EFFECTS_OPTIONS.md` stays a later option only if the owner dislikes this one; don't copy third-party code here.
 
@@ -26,6 +26,8 @@
 - Motion uses fixed-seed `ws::Random` or fixed-rate sines, deterministic after reset.
 - Memory: all lines + predelay at 96 kHz and size 1.0, `WS2_LARGE`, in `prepare`. No state beyond params; lines clear on reset and load. CONSTANT never set while the tail is non-zero.
 
+**Acceptance budget clarification:** The module's own folder retains its original <= 10-file budget. The generic acceptance runner counts standard wiring and generated catalogue files globally; the workflow-v3 builder allowance increases its file-count ceiling to 15 (+50%) while keeping the 900-line ceiling unchanged. The accepted commands are identical in substance; the Studio command uses the runner's supported Bash invocation.
+
 ## Tests (guide §12 list, plus behaviour with independent math)
 1. Impulse at `decay`=2 s, `damping`=0, `motion`=0, `mix`=1: the energy envelope (RMS in 50 ms windows) falls 60 dB in 2 s ±20%.
 2. `decay` change does not depend on `size`: RT60 at size 0.2 and 1.0 within ±20% of each other.
@@ -37,12 +39,12 @@
 
 ```acceptance
 tier: T1
-size: <= 900 changed lines, <= 10 files in native/modules2/reverb/ (standard wiring and generated files don't count)
+size: <= 900 changed lines, <= 15 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_reverb_tests" --output-on-failure
   - python tools/dev.py test
-  - cd apps/studio && npm ci && npm test
+  - bash -c 'cd apps/studio && npm ci && npm test'
   - pi-run: python tools/module_cpu_probe.py reverb   # after #304 adds the probe; two instances, 48 kHz / 128 frames, worst block < 50% of the period
 stops: [ABI header edit, new dependency, third-party code, file I/O in a module, test loosening, ID change after merge]
 ```
