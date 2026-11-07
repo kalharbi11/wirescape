@@ -4,6 +4,7 @@ import atexit
 import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import tempfile
@@ -278,6 +279,21 @@ with tempfile.TemporaryDirectory() as directory:
     assert restarted.session != old_session
     assert restarted.call('loadGraph', patch=minimal())['gen'] == '1'
     restarted.close()
+    # sidecar_bench_summary: opt-in stderr only, once after clean EOF teardown.
+    bench = Engine(Path(directory) / 'bench.json', '--bench-summary')
+    bench.call('loadGraph', patch=minimal())
+    time.sleep(1.0)
+    bench.close()
+    bench.drainer.join(timeout=5)
+    lines = [line for line in bytes(bench.stderr_tail).decode(errors='replace').splitlines()
+             if line.startswith('bench ')]
+    assert len(lines) == 1, lines
+    match = re.fullmatch(
+        r'bench blocks=(\d+) p50=(\d+) p99=(\d+) max=(\d+(?:\.\d+)?(?:e[+-]?\d+)?) overruns=(\d+)',
+        lines[0])
+    assert match, lines[0]
+    blocks, p50, p99, maximum, overruns = map(float, match.groups())
+    assert blocks > 0 and 0 <= p50 <= p99 <= maximum and overruns >= 0
     # Long block periods cannot delay hello or EOF teardown. 8 kHz x 4096 frames is the
     # longest supported period (~512 ms); the engine refuses rates below 8 kHz.
     started = time.monotonic()
@@ -287,7 +303,7 @@ with tempfile.TemporaryDirectory() as directory:
     closing = time.monotonic()
     slow.close()
     assert time.monotonic() - closing < 2.0, 'EOF teardown waited on block-paced work'
-    for flags in [('--unknown',), ('--rate', '0'), ('--block', '4097'), ('--device',)]:
+    for flags in [('--unknown',), ('--rate', '0'), ('--block', '4097'), ('--device',), ('--bench-summary',)]:
         result = subprocess.run([BINARY, *flags], input=b'', capture_output=True, timeout=10)
         assert result.returncode != 0 and not result.stdout
 print('sidecar protocol process vectors passed (null audio, fake MIDI only)')

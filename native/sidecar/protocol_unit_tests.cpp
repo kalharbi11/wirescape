@@ -2,7 +2,7 @@
 #include "../io/audio/callback_render.h"
 #include "../io/audio/portaudio_service.h"
 #include "../tests2/allocation_watch.h"
-#include "devices.h"
+#include "session.h"
 #include "runtime_patch.h"
 #include <iostream>
 #include <sstream>
@@ -12,6 +12,19 @@ void check(bool ok) {
     if (!ok) throw std::runtime_error("sidecar unit assertion failed");
 }
 int run_tests() {
+    RenderHistogram histogram;
+    check(histogram.percentile(50) == 0);
+    allocation_watch::count.store(0);
+    allocation_watch::enabled.store(true);
+    for (int percent = 0; percent < 100; ++percent) histogram.record(percent + 0.5, false);
+    histogram.record(255.25, true);
+    allocation_watch::enabled.store(false);
+    check(allocation_watch::count.load() == 0);
+    check(histogram.blocks == 101 && histogram.overruns == 1);
+    check(histogram.bins[0] == 1 && histogram.bins[199] == 0 && histogram.bins[200] == 1);
+    check(histogram.percentile(50) == 50 && histogram.percentile(99) == 99);
+    check(histogram.percentile(100) == 200 && histogram.max_percent == 255.25);
+
     for (const auto &bad : {"{\"x\":1,\"x\":2}", "{\"x\":{\"y\":1,\"y\":2}}", "[]"}) {
         bool refused = false;
         try {

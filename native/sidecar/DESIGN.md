@@ -85,3 +85,16 @@ timestamps; idle sources have no activity entry. Tests exercise pipes, refused g
 1000 queued parameters, allocation-free rendering, backend note observation,
 backpressure and EOF/restart with devices off. CTest names include abi2_ so the
 existing ASan/UBSan/TSan jobs select them, and sidecar_ for task acceptance.
+
+`--bench-summary` requires `--null-audio`. On clean EOF shutdown, after joining
+the sink thread, it prints exactly one summary line to stderr (stdout is unchanged):
+```
+bench blocks=<u64> p50=<int %> p99=<int %> max=<float %> overruns=<u64>
+```
+Percentages measure render wall time only, as a percentage of the block period;
+they exclude the pacing wait. `p50` and `p99` are lower edges of 1% histogram
+bins (bin 200 includes all values >=200%); `max` retains the measured percentage.
+`blocks` counts rendered blocks. `overruns` counts blocks finished after their
+deadline: a stall followed by catch-up counts every late block. Deadlines keep
+advancing by one block period; a late block does not reanchor the pacing clock.
+The histogram spans the session, including sink restarts, and is read after join.
