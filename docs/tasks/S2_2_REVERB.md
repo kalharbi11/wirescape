@@ -26,7 +26,7 @@
 - Motion uses fixed-seed `ws::Random` or fixed-rate sines, deterministic after reset.
 - Memory: all lines + predelay at 96 kHz and size 1.0, `WS2_LARGE`, in `prepare`. No state beyond params; lines clear on reset and load. CONSTANT never set while the tail is non-zero.
 
-**Acceptance budget clarification:** The module's own folder retains its original <= 10-file budget. The generic acceptance runner counts standard wiring and generated catalogue files globally; the workflow-v3 builder allowance increases its file-count ceiling to 15 (+50%) while keeping the 900-line ceiling unchanged. The accepted commands are identical in substance; the Studio command uses the runner's supported Bash invocation.
+**Acceptance budget clarification:** The module's own folder retains its original <= 10-file budget. The generic acceptance runner counts standard wiring and generated catalogue files globally; the workflow-v3 builder allowance increases its file-count ceiling to 15 (+50%) while keeping the 900-line ceiling unchanged. The accepted test assertions are unchanged; the Studio command uses the runner's supported Bash invocation and mirrors the existing Web CI Playwright ffmpeg/Chromium bootstrap.
 
 ## Tests (guide §12 list, plus behaviour with independent math)
 1. Impulse at `decay`=2 s, `damping`=0, `motion`=0, `mix`=1: the energy envelope (RMS in 50 ms windows) falls 60 dB in 2 s ±20%.
@@ -44,7 +44,7 @@ must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_reverb_tests" --output-on-failure
   - python tools/dev.py test
-  - bash -c 'cd apps/studio && npm ci && npm test'
+  - bash -c 'cd apps/studio && npm ci && npx playwright install ffmpeg && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
   - pi-run: python tools/module_cpu_probe.py reverb   # after #304 adds the probe; two instances, 48 kHz / 128 frames, worst block < 50% of the period
 stops: [ABI header edit, new dependency, third-party code, file I/O in a module, test loosening, ID change after merge]
 ```
