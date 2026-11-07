@@ -208,3 +208,92 @@ test('audio-start splash fits or scrolls on a narrow, short phone viewport', asy
   expect(result.right).toBeLessThanOrEqual(320);
   expect(result.scrollable).toBe(true);
 });
+
+test('web audio resume is requested inside the Start tap, before async WASM loading', async ({ page }) => {
+  await page.addInitScript(() => {
+    const order: string[] = [];
+    (window as unknown as { __webStartOrder: string[] }).__webStartOrder = order;
+    const resume = AudioContext.prototype.resume;
+    AudioContext.prototype.resume = function () { order.push('resume'); return resume.call(this); };
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = (...args) => {
+      if (String(args[0]).includes('wirescape.wasm')) order.push('fetch-wasm');
+      return nativeFetch(...args);
+    };
+  });
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  const order = await page.evaluate(() =>
+    (window as unknown as { __webStartOrder: string[] }).__webStartOrder);
+  expect(order.indexOf('resume')).toBeGreaterThanOrEqual(0);
+  expect(order.indexOf('fetch-wasm')).toBeGreaterThanOrEqual(0);
+  expect(order.indexOf('resume')).toBeLessThan(order.indexOf('fetch-wasm'));
+});
+
+test('web bridge does not drop genuine engine animation telemetry when supplied', async ({ page }) => {
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  const telemetry = await page.evaluate(() => {
+    const bridge = (window as unknown as { __wirescapeWeb: {
+      onMessage(cb: (m: Record<string, any>) => void): () => void;
+      receive(m: Record<string, unknown>): void;
+    } }).__wirescapeWeb;
+    return new Promise<Record<string, any>>(resolve => {
+      const off = bridge.onMessage(m => {
+        if (m.type !== 'telemetry' || m.telemetry?.phase?.['9'] === undefined) return;
+        off();
+        resolve(m.telemetry);
+      });
+      bridge.receive({ kind: 'telemetry', telemetry: {
+        effective: { 9: { cutoff: 1234 } }, phase: { 9: 0.25 },
+        envelope: { 9: 0.5 }, eventActivity: { '9:gate': 0.8 },
+        meters: {}, scope: {}, outputs: {},
+      } });
+    });
+  });
+  expect(telemetry.effective['9'].cutoff).toBe(1234);
+  expect(telemetry.phase['9']).toBe(0.25);
+  expect(telemetry.envelope['9']).toBe(0.5);
+  expect(telemetry.eventActivity['9:gate']).toBe(0.8);
+});
+
+test.describe('iPhone-sized browser presentation', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 });
+
+  test('canvas, library, keyboard and chrome stay usable in portrait', async ({ page }, testInfo) => {
+    await page.goto('./');
+    await expect(page.getByTestId('web-splash')).toBeVisible();
+    await testInfo.attach('web-iphone-start.png', {
+      body: await page.screenshot({ animations: 'disabled' }), contentType: 'image/png',
+    });
+    await page.getByTestId('web-start').click();
+    await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+    await expect(page.getByTestId('patch-name')).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('data-hit', 'touch');
+    await page.getByTestId('menu-toggle').click();
+    await expect(page.getByTestId('library-backdrop')).toBeVisible();
+    await page.mouse.click(375, 280);
+    await expect(page.getByTestId('library-backdrop')).toBeHidden();
+
+    const toolbar = page.locator('.topbar-right');
+    await toolbar.evaluate(el => { el.scrollLeft = el.scrollWidth; });
+    await expect(page.getByTestId('save-patch')).toBeInViewport();
+    await page.getByTestId('toggle-keyboard').click();
+    await expect(page.getByTestId('on-screen-keyboard')).toBeVisible();
+
+    const bounds = await page.evaluate(() => ({
+      top: document.querySelector('.topbar')!.getBoundingClientRect().top,
+      foot: document.querySelector('.statusbar')!.getBoundingClientRect().bottom,
+      width: document.documentElement.scrollWidth,
+      height: window.innerHeight,
+    }));
+    expect(bounds.top).toBeGreaterThanOrEqual(-1);
+    expect(bounds.foot).toBeLessThanOrEqual(bounds.height + 1);
+    expect(bounds.width).toBeLessThanOrEqual(390);
+    await testInfo.attach('web-iphone-canvas-and-keys.png', {
+      body: await page.screenshot({ animations: 'disabled' }), contentType: 'image/png',
+    });
+  });
+});
