@@ -8,7 +8,7 @@ import type { PanelOverrides } from '../panels/layouts';
 import type { PanelHost } from '../panels/PanelBuilder';
 import type { Ticker } from '../runtime/Ticker';
 import type { PortDirection } from '../modules/types';
-import { Viewport, boxesOverlap, type Box } from './Viewport';
+import { Viewport, boxesOverlap, clampZoom, type Box } from './Viewport';
 import { CanvasPane } from '../panels/widgets/canvasBase';
 import { CableLayer, type Point, type Resolved } from './CableLayer';
 import { ModuleCard } from './ModuleCard';
@@ -825,6 +825,11 @@ export class PatchCanvas {
       this.viewport.zoomAt(this.viewport.view.s * factor, e.clientX, e.clientY);
     }, { passive: false });
 
+    // iOS Safari also emits non-standard gesture events for two-finger input.
+    // Do not let those zoom the whole page instead of the patch viewport.
+    for (const type of ['gesturestart', 'gesturechange'] as const)
+      this.root.addEventListener(type, e => e.preventDefault(), { passive: false });
+
     this.root.addEventListener('dblclick', e => {
       if ((e.target as HTMLElement).closest('.module')) return;
       const world = this.viewport.toWorld(e.clientX, e.clientY);
@@ -866,7 +871,7 @@ export class PatchCanvas {
       touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (!pinch || touches.size !== 2) return;
       const p = pair();
-      const scale = Math.max(0.15, Math.min(1.85, pinch.scale * p.distance / pinch.distance));
+      const scale = clampZoom(pinch.scale * p.distance / pinch.distance);
       const r = this.viewport.rect();
       this.viewport.setView(p.x - r.left - pinch.anchor.x * scale,
         p.y - r.top - pinch.anchor.y * scale, scale);
