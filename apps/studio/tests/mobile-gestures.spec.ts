@@ -122,7 +122,7 @@ test('phone UI keeps patch context, touch defaults and an easily dismissed libra
   await menu.click();
   await page.getByTestId('library-item-essentials.vco').click();
   await expect(menu).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.getByTestId('module-1')).toBeAttached();
+  await expect(page.locator('.module')).toHaveCount(1);
   await testInfo.attach('mobile-canvas.png', {
     body: await page.screenshot({ animations: 'disabled' }), contentType: 'image/png',
   });
