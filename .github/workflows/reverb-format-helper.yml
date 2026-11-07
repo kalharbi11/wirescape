@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Temporary one-shot formatting helper for task #316; remove before review.
+name: Reverb source formatting helper
+on:
+  push:
+    branches: [task/316-reverb]
+    paths: [.github/workflows/reverb-format-helper.yml]
+permissions:
+  contents: read
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Format changed C++ lines with repository configuration
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang-format-18
+          git clang-format-18 --binary clang-format-18 origin/main -- native/control/module_catalog.h native/document/app_patch_tests.cpp native/modules2/reverb/dsp.h native/modules2/reverb/tests.cpp
+          mkdir -p /tmp/reverb-format
+          cp --parents native/control/module_catalog.h native/document/app_patch_tests.cpp native/modules2/reverb/dsp.h native/modules2/reverb/tests.cpp /tmp/reverb-format/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reverb-formatted-src
+          path: /tmp/reverb-format/
+          if-no-files-found: error
