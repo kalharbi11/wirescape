@@ -54,9 +54,13 @@ test('clean reload keeps automatic restore and shows no crash offer', async ({ p
   await seed(page, JSON.stringify(snapshot), false);
   await expect(page.getByTestId('recovery-modal')).toBeHidden();
   expect((await state(page)).futureTop).toEqual(snapshot.patch.futureTop);
-  // Remove seed script by using its one-time storage effect only; pagehide must clear active marker.
+  // Orderly pagehide clears the marker; the next startup must not offer crash recovery.
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
   expect(await page.evaluate(() => localStorage.getItem('wirescape.session.active.v1'))).toBeNull();
+  await page.reload();
+  await page.waitForFunction(() => document.body.dataset.ready === 'true');
+  await expect(page.getByTestId('recovery-modal')).toBeHidden();
+  expect((await state(page)).futureTop).toEqual(snapshot.patch.futureTop);
 });
 
 for (const restore of [true, false]) {
