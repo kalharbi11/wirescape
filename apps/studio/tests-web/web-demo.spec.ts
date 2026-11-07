@@ -37,3 +37,59 @@ test('web demo refuses MIDI modules without breaking the live patch', async ({ p
   await send(page, { v: 0, id: 'on2', type: 'noteOn', note: 64, velocity: 1 });
   await expect.poll(() => peak(page), { timeout: 15_000 }).toBeGreaterThan(0.001);
 });
+
+const held = (page: Page) => page.evaluate(() =>
+  (window as unknown as { __wirescapeTest: { ticker: { last?: { heldNotes: number[] } } } }).__wirescapeTest.ticker.last?.heldNotes ?? []);
+
+test('computer keys and on-screen keys play through the wasm engine and release', async ({ page }) => {
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await page.keyboard.down('a');
+  await expect.poll(() => held(page)).toEqual([48]);
+  await expect.poll(() => peak(page), { timeout: 15_000 }).toBeGreaterThan(0.001);
+  await page.keyboard.up('a');
+  await expect.poll(() => held(page)).toEqual([]);
+  await page.getByTestId('toggle-keyboard').click();
+  await page.getByTestId('piano-key-4').hover();
+  await page.mouse.down();
+  await expect.poll(() => held(page)).toEqual([52]);
+  await page.mouse.up();
+  await expect.poll(() => held(page)).toEqual([]);
+});
+
+test('a processor that throws reports an error and leaves Try again usable', async ({ page }) => {
+  await page.route('**/web/ws-processor.js', r => r.fulfill({ contentType: 'text/javascript',
+    body: "registerProcessor('wirescape-engine', class extends AudioWorkletProcessor { constructor() { super(); throw new Error('boom'); } process() { return true; } });" }));
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.getByTestId('web-error')).toBeVisible();
+  await expect(page.getByTestId('web-start')).toBeEnabled();
+  await expect(page.getByTestId('web-start')).toHaveText('Try again');
+});
+
+test('a silent processor times out instead of hanging on Starting', async ({ page }) => {
+  await page.addInitScript(() => { (window as unknown as { __wirescapeReadyTimeoutMs: number }).__wirescapeReadyTimeoutMs = 1500; });
+  await page.route('**/web/ws-processor.js', r => r.fulfill({ contentType: 'text/javascript',
+    body: "registerProcessor('wirescape-engine', class extends AudioWorkletProcessor { process() { return true; } });" }));
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.getByTestId('web-error')).toContainText('did not answer in time');
+  await expect(page.getByTestId('web-start')).toBeEnabled();
+});
+
+test('a failed start followed by Try again starts the engine', async ({ page }) => {
+  let fail = true;
+  await page.route('**/web/wirescape.wasm', r => fail
+    ? r.fulfill({ status: 503, contentType: 'application/wasm', body: '' }) : r.continue());
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.getByTestId('web-error')).toBeVisible();
+  fail = false;
+  await page.getByTestId('web-start').click();
+  await expect(page.getByTestId('web-splash')).toHaveCount(0);
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await page.keyboard.down('a');
+  await expect.poll(() => peak(page), { timeout: 15_000 }).toBeGreaterThan(0.001);
+  await page.keyboard.up('a');
+});

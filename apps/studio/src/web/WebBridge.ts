@@ -27,27 +27,44 @@ export class WebBridge implements WirescapeBridge {
   peak = 0;
 
   /** Must run from a user gesture: browsers only start audio after a click or key. */
-  async start(base: string): Promise<void> {
+  async start(base: string, readyTimeoutMs = 10_000): Promise<void> {
     const context = new AudioContext({ latencyHint: 'interactive' });
+    let node: AudioWorkletNode | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let catalogue: unknown;
+    try {
+      const [module] = await Promise.all([
+        WebAssembly.compileStreaming(fetch(base + 'web/wirescape.wasm')),
+        context.audioWorklet.addModule(base + 'web/ws-processor.js'),
+      ]);
+      const created = new AudioWorkletNode(context, 'wirescape-engine', {
+        numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { module },
+      });
+      node = created;
+      const ready = new Promise<Message>((resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('the engine did not answer in time')), readyTimeoutMs);
+        created.onprocessorerror = () => reject(new Error('the audio engine stopped while starting'));
+        created.port.onmessage = e => {
+          const m = e.data as Message;
+          if (m.kind === 'ready') resolve(m);
+          else if (m.kind === 'failed') reject(new Error(String(m.message)));
+        };
+      });
+      created.connect(context.destination);
+      await context.resume();
+      ({ catalogue } = await ready);
+    } catch (error) {
+      // A failed attempt leaves nothing running, so "Try again" starts clean.
+      if (node) { node.port.onmessage = null; node.onprocessorerror = null; node.disconnect(); }
+      await context.close().catch(() => undefined);
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
     this.context = context;
-    const [module] = await Promise.all([
-      WebAssembly.compileStreaming(fetch(base + 'web/wirescape.wasm')),
-      context.audioWorklet.addModule(base + 'web/ws-processor.js'),
-    ]);
-    const node = new AudioWorkletNode(context, 'wirescape-engine', {
-      numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { module },
-    });
     this.node = node;
-    const ready = new Promise<Message>((resolve, reject) => {
-      node.port.onmessage = e => {
-        const m = e.data as Message;
-        if (m.kind === 'ready') resolve(m);
-        else if (m.kind === 'failed') reject(new Error(String(m.message)));
-      };
-    });
-    node.connect(context.destination);
-    await context.resume();
-    const { catalogue } = await ready;
+    node.onprocessorerror = () =>
+      this.emit({ v: 0, type: 'app.engineExited', session: this.session, message: 'Audio engine stopped.' });
     node.port.onmessage = e => this.receive(e.data as Message);
     const latencyMs = Math.round(((context.baseLatency || 0) + (context.outputLatency || 0)) * 10000) / 10;
     this.hello = {
