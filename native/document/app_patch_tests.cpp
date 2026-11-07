@@ -19,13 +19,13 @@ static void require(bool ok,const char*s){if(!ok)throw std::runtime_error(s);}
 int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  require(argc==4,"modules, demo and legacy fixtures arguments");ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>cat(app_engine_create(&cfg),app_engine_destroy);
- require(app_engine_module_count(cat.get()) == 22,
-         "Twenty builtins (sound.blend included) plus the two SDK example sources in catalogue");
+ require(app_engine_module_count(cat.get()) == 23,
+         "Twenty-one builtins (sound.blend and fx.reverb included) plus the two SDK example sources in catalogue");
  for (const char *expected :
       {"essentials.vco", "essentials.lfo", "essentials.vcf", "essentials.adsr", "essentials.vca", "essentials.clock",
        "essentials.function_envelope", "essentials.ladder", "essentials.mixer", "essentials.noise", "essentials.output",
        "essentials.scale_offset", "essentials.slew", "host.keyboard", "essentials.chaos_lite", "midi.in", "midi.to_cv",
-       "midi.cc_to_cv", "ports.macro_oscillator", "example.step_sequencer", "example.random_source"}) {
+       "midi.cc_to_cv", "ports.macro_oscillator", "example.step_sequencer", "example.random_source", "sound.blend", "fx.reverb"}) {
      bool found = false;
      for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i)
          if (std::string(app_engine_module(cat.get(), i)->id) == expected) found = true;
