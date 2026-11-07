@@ -66,7 +66,7 @@ struct Resonator {
             v.body.reset();
             v.rng.seed(seed, c);
             std::fill_n(v.delay, 3, 0.f);
-            std::fill_n(v.colour, 3, 0.f);
+            std::fill_n(v.colour, 4, 0.f);
             v.dc_input = v.dc_output = v.noise = 0;
             v.burst_left = 0;
             v.high = v.initialized = false;
