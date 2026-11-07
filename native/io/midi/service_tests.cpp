@@ -40,6 +40,52 @@ static void fanout_identity_disconnect() {
     backend.list.push_back({"A renamed", "sys:A"}); service.poll(); REQUIRE(backend.opens == 3); REQUIRE(service.endpoint_states()[0].online);
     REQUIRE(service.endpoint_states()[0].saved.name == "A"); // saved label, never reassigned by enumeration index
 }
+static void hotplug_identity_and_first_packet() {
+    Fake backend; Output out;
+    backend.list = {{"Controller", "notes"}, {"Controller", "daw"}};
+    Service service(backend, out.sink());
+    REQUIRE(service.enable({"Controller", "notes"}));
+    REQUIRE(service.enable({"Controller", "daw"}));
+    REQUIRE(service.subscribe({1, {}, true}));
+    service.poll();
+    backend.bytes("notes", {0x90, 60, 100}, 1);
+    backend.bytes("daw", {0x90, 62, 100}, 2);
+    service.poll(); out.items.clear();
+    backend.list.erase(backend.list.begin()); service.poll();
+    REQUIRE(backend.opens == 2 && backend.closes == 1);
+    REQUIRE(out.items.size() == 1 && out.items[0].event.type == WS2_NOTE_CHOKE);
+    REQUIRE(out.items[0].event.source_id == 1);
+    REQUIRE(!service.endpoint_states()[0].online && service.endpoint_states()[1].online);
+    backend.bytes("daw", {0x80, 62, 0}, 3); service.poll();
+    REQUIRE(out.items.back().event.source_id == 2);
+    backend.list.push_back({"Controller renamed", "notes"}); service.poll();
+    REQUIRE(backend.opens == 3 && service.endpoint_states()[0].online);
+    REQUIRE(service.endpoint_states()[0].saved.name == "Controller");
+    backend.bytes("notes", {0x90, 64, 100}, 4); service.poll();
+    REQUIRE(out.items.back().event.source_id == 1);
+
+    struct Immediate : Fake {
+        bool open(const Endpoint& e, Callback cb) override {
+            if (!Fake::open(e, cb)) return false;
+            const uint8_t on[]{0x90, 67, 100};
+            cb.message(cb.context, on, 3, 5);
+            return true;
+        }
+    } immediate;
+    immediate.list = {{"A", "old"}};
+    Output first; Service legacy(immediate, first.sink());
+    REQUIRE(legacy.enable({"A", ""}));
+    REQUIRE(legacy.subscribe({10, {"A", ""}, false}));
+    REQUIRE(legacy.subscribe({11, {"A", "old"}, false}));
+    legacy.poll(); first.items.clear();
+    immediate.list = {{"A", "new"}};
+    legacy.poll();
+    REQUIRE(first.items.size() == 3);
+    REQUIRE(first.items[0].event.type == WS2_NOTE_CHOKE && first.items[0].node == 10);
+    REQUIRE(first.items[1].event.type == WS2_NOTE_CHOKE && first.items[1].node == 11);
+    REQUIRE(first.items[2].event.type == WS2_MIDI && first.items[2].node == 10);
+    REQUIRE(first.items[0].event.source_id == first.items[2].event.source_id);
+}
 static void per_endpoint_counts() {
     Fake backend;
     Output out;
@@ -156,6 +202,7 @@ static void transactional_routes() {
     REQUIRE(backend.opens == 1 && backend.closes == 0);
 }
 int main() {
+    hotplug_identity_and_first_packet();
     transactional_routes();
     per_endpoint_counts();
     saturated_source_isolation();
