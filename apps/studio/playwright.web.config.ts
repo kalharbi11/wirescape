@@ -4,6 +4,8 @@ import { defineConfig, devices } from '@playwright/test';
 /** Web demo smoke: needs public/web/wirescape.wasm (built by the web-demo workflow). */
 const executablePath = process.env.WIRESCAPE_CHROMIUM ?? '/opt/pw-browsers/chromium';
 const base = process.env.WIRESCAPE_BASE ?? '/';
+/** Set to test an already deployed site (the workflow's post-deploy check) instead of a local build. */
+const live = process.env.WIRESCAPE_LIVE_URL;
 
 export default defineConfig({
   testDir: './tests-web',
@@ -12,13 +14,13 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost:4174' + base,
+    baseURL: live ?? 'http://localhost:4174' + base,
     headless: true,
     trace: 'off',
     launchOptions: { executablePath, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] },
   },
   projects: [{ name: 'web', use: { ...devices['Desktop Chrome'], viewport: { width: 1600, height: 900 } } }],
-  webServer: {
+  webServer: live ? undefined : {
     command: 'VITE_WIRESCAPE_WEB=1 npm run build && npx vite preview --port 4174',
     url: 'http://localhost:4174' + base,
     reuseExistingServer: false,

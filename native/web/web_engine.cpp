@@ -68,7 +68,7 @@ struct Web {
     Owner catalogue{nullptr, app_engine_destroy}, live{nullptr, app_engine_destroy}, old{nullptr, app_engine_destroy};
     Json patch;
     uint64_t generation = 0;
-    uint32_t fade = 0;
+    uint32_t fade = 0, frames = 0;
     float left[kMaxFrames]{}, right[kMaxFrames]{}, scratch_l[kMaxFrames]{}, scratch_r[kMaxFrames]{};
     float peak = 0;
     std::set<uint32_t> held;
@@ -267,6 +267,7 @@ struct Web {
             p = std::max(p, std::max(std::fabs(left[i]), std::fabs(right[i])));
         }
         peak = p;
+        this->frames = frames;
     }
 };
 Web *web = nullptr;
@@ -359,10 +360,36 @@ const char *wsw_command(const char *json) {
 }
 const char *wsw_telemetry() {
     if (!web) return "{}";
-    Json meters = Json::object();
-    if (web->live && web->patch.contains("outputs") && !web->patch["outputs"].empty())
-        meters[std::to_string(integer(web->patch["outputs"][0]["module"]))] = Json::array({web->peak, web->peak});
-    web->reply = Json{{"meters", meters}, {"heldNotes", Json(web->held)}}.dump();
+    Json meters = Json::object(), scope = Json::object(), outputs = Json::object();
+    if (web->live && web->patch.contains("outputs") && !web->patch["outputs"].empty()) {
+        auto id = std::to_string(integer(web->patch["outputs"][0]["module"]));
+        meters[id] = Json::array({web->peak, web->peak});
+        // A 64-point view of the last block for the Output module's scope.
+        Json points = Json::array();
+        uint32_t n = std::max<uint32_t>(web->frames, 1);
+        for (uint32_t i = 0; i < 64; ++i) points.push_back(web->left[std::min(n - 1, i * n / 64)]);
+        scope[id] = points;
+    }
+    if (web->live) {
+        // Last sample of each cabled output, keyed moduleId:portId, for the "carrying signal" cable look.
+        auto &engine = app_engine_native(web->live.get());
+        uint32_t last = web->frames ? web->frames - 1 : 0;
+        for (const auto &c : web->patch["connections"]) {
+            auto module = integer(c.at("from").at("module"));
+            auto name = c.at("from").at("port").get<std::string>();
+            auto key = std::to_string(module) + ":" + name;
+            if (outputs.contains(key)) continue;
+            auto *d = engine.descriptor(module);
+            if (!d) continue;
+            for (uint32_t i = 0; i < d->output_count; ++i)
+                if (name == d->outputs[i].id && d->outputs[i].kind == WS2_SIGNAL) {
+                    float v = engine.output_sample(module, i, 0, last);
+                    outputs[key] = std::isfinite(v) ? std::max(-1.f, std::min(1.f, v)) : 0.f;
+                }
+        }
+    }
+    web->reply =
+        Json{{"meters", meters}, {"scope", scope}, {"outputs", outputs}, {"heldNotes", Json(web->held)}}.dump();
     return web->reply.c_str();
 }
 float *wsw_render(uint32_t frames) {

@@ -451,3 +451,23 @@ Phase 7 checks the current interface with `FakeEngine` on real Raspberry Pi hard
 **OPEN-5 remains unresolved:** the physical run must capture exact tested revision, renderer, resolution/DPR, normal/Pi × fit/100% results, ≥30 actual rAF FPS with acceptable pacing and resource/thermal context in [PERFORMANCE.md](PERFORMANCE.md). Cloud FPS or 30Hz ticker frequency do not count as Pi hardware evidence.
 
 Only UI/browser issues are fixed here. Native patch codec and output routing, real-host acknowledgements, genuine telemetry, actual sound/MIDI/OSC, DSP correctness, audio latency, and engine contention are **Phase 8**, documented in [PHASE8_HANDOFF.md](PHASE8_HANDOFF.md).
+
+### Conditional parameter controls (#306)
+
+A catalogue parameter may carry `visibleWhen: { param: "mode", values: [7] }`.
+The card shows it when the named parameter's saved base value matches a listed
+value (or its descriptor default when absent). DSP modulation does not change
+visibility. Hidden controls retain their values and modulation cables; their
+rail nodes remain available. Empty rows and section labels disappear, and the
+card remeasures and reroutes cables only when visibility changes. Unknown or
+malformed conditions leave the control visible. Static panel `hidden` still wins.
+
+### Crash recovery (#295)
+
+An active-session marker distinguishes unexpected termination from orderly pagehide.
+A valid autosave from an unclean session or unexpected engine exit is offered in
+the existing modal style. Autosave pauses until Restore or Keep current patch
+(including Escape/close); pending choices survive reload without overwriting the
+snapshot. Restore preserves the name and unknown patch fields. Clean sessions
+retain automatic last-session restoration. Recovery does not write a user file
+or request an engine restart; Electron main retains its crash-loop budget.

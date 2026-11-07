@@ -102,9 +102,32 @@ export class WebBridge implements WirescapeBridge {
     return () => this.listeners.delete(cb);
   }
 
-  // Opening and saving files is out of scope for the demo; autosave stays in the browser.
-  async openPatch(): Promise<null> { return null; }
-  async savePatch(): Promise<null> { return null; }
+  /** Browser file picker; nothing leaves the machine. Resolves null when cancelled. */
+  openPatch(): Promise<{ text: string; name: string } | null> {
+    return new Promise(resolve => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,application/json';
+      input.addEventListener('change', () => {
+        const file = input.files?.[0];
+        if (!file || file.size > 2 * 1024 * 1024) { resolve(null); return; }
+        void file.text().then(text => resolve({ text, name: file.name.replace(/\.(wirescape\.)?json$/i, '') }),
+          () => resolve(null));
+      });
+      input.addEventListener('cancel', () => resolve(null));
+      input.click();
+    });
+  }
+  /** Downloads the patch as a file. Returns null so the app keeps its name and dirty state. */
+  async savePatch(text: string): Promise<null> {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'wirescape-patch.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    return null;
+  }
 
   private emit(m: Message): void { for (const cb of [...this.listeners]) cb(m); }
   private reply(id: string, r: Reply, extra: Message = {}): void {
@@ -122,7 +145,8 @@ export class WebBridge implements WirescapeBridge {
         v: 0, type: 'telemetry', session: this.session, gen: this.gen,
         telemetry: {
           tick: ++this.tick, time: (Date.now() - this.started) / 1000, effective: {}, phase: {}, envelope: {},
-          scope: {}, eventActivity: {}, meters: t.meters ?? {}, heldNotes: t.heldNotes ?? [],
+          scope: t.scope ?? {}, eventActivity: {}, meters: t.meters ?? {}, heldNotes: t.heldNotes ?? [],
+          outputs: t.outputs ?? {},
         },
       });
     } else if (m.kind === 'failed') {

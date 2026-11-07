@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "session.h"
 #include "runtime_patch.h"
+#include "wirescape_sidecar_categories.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -116,7 +117,7 @@ Json catalogue(AppEngine *engine) {
             params.push_back(value);
         }
         result.push_back(
-            {{"id", d->id}, {"name", d->name}, {"category", "Native"}, {"ports", ports}, {"parameters", params}});
+            {{"id", d->id}, {"name", d->name}, {"category", wirescape_sidecar_category(d->id)}, {"ports", ports}, {"parameters", params}});
     }
     return {{"modules", result}};
 }
@@ -129,6 +130,7 @@ Options parse_options(int argc, char **argv) {
         if (arg == "--confirm-audio") o.audio = true;
         else if (arg == "--confirm-midi") o.midi = true;
         else if (arg == "--null-audio") o.null_audio = true;
+        else if (arg == "--bench-summary") o.bench_summary = true;
         else if (arg == "--device" || arg == "--settings" || arg == "--rate" || arg == "--block") {
             need(++i < argc);
             std::string v = argv[i];
@@ -144,6 +146,7 @@ Options parse_options(int argc, char **argv) {
             }
         } else throw Refusal("invalid", "Unknown startup flag");
     }
+    need(!o.bench_summary || o.null_audio, "invalid", "--bench-summary requires --null-audio");
     if (o.null_audio) o.audio = o.midi = false;
     return o;
 }
@@ -215,6 +218,12 @@ Session::~Session() {
 void Session::shutdown() {
     midi_->stop();
     stop_audio();
+    if (options_.bench_summary && !bench_reported_) {
+        bench_reported_ = true;
+        std::cerr << "bench blocks=" << bench_.blocks << " p50=" << bench_.percentile(50)
+                  << " p99=" << bench_.percentile(99) << " max=" << bench_.max_percent
+                  << " overruns=" << bench_.overruns << '\n';
+    }
 }
 void Session::start_audio() {
     stop_sink_.store(false);
@@ -235,16 +244,21 @@ void Session::start_audio() {
             [this, left = std::vector<float>(options_.block), right = std::vector<float>(options_.block)]() mutable {
                 float *rows[] = {left.data(), right.data()};
                 auto next = std::chrono::steady_clock::now();
+                sink_rendering_.store(true, std::memory_order_release);
                 while (!stop_sink_.load()) {
                     auto before = std::chrono::steady_clock::now();
                     if (app_engine_render_live(active_, rows, 2, options_.block, app_engine_clock_ns()) != WS_OK) break;
-                    double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - before).count();
-                    cpu_.store(elapsed * options_.rate / options_.block * 100);
+                    auto after = std::chrono::steady_clock::now();
+                    double percent = std::chrono::duration<double>(after - before).count() *
+                                     options_.rate / options_.block * 100;
+                    cpu_.store(percent);
                     next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                         std::chrono::duration<double>(double(options_.block) / options_.rate));
+                    if (options_.bench_summary) bench_.record(percent, after > next);
                     std::unique_lock<std::mutex> lock(sink_mutex_);
                     sink_wake_.wait_until(lock, next, [this] { return stop_sink_.load(); });
                 }
+                sink_rendering_.store(false, std::memory_order_release);
             });
     }
 }
@@ -252,6 +266,7 @@ void Session::stop_audio() {
     stop_sink_.store(true);
     sink_wake_.notify_all();
     if (sink_.joinable()) sink_.join();
+    sink_rendering_.store(false, std::memory_order_release);
     if (stream_) {
         dropouts_.fetch_add(stream_->dropouts());
         engine_ = stream_->stop();
@@ -366,18 +381,43 @@ Json Session::execution(Json patch) {
 void Session::commit(Json patch, bool new_namespace) {
     patch = execution(std::move(patch));
     std::string error;
-    audio::EngineOwner candidate(document::load_runtime_patch(patch.dump(), catalogue_.get(), config_, error),
+    const auto patch_bytes = patch.dump();
+    audio::EngineOwner candidate(document::load_runtime_patch(patch_bytes, catalogue_.get(), config_, error),
                                  app_engine_destroy);
     need(bool(candidate), "refused", "Graph configuration or state refused");
-    // D5 fallback: old graph keeps rendering through the linear fade-out.
+    // Stage all potentially throwing document/ID work before accepting a live graph.
+    std::set<uint32_t> ids = new_namespace ? std::set<uint32_t>{} : used_ids_;
+    for (const auto &m : patch["modules"]) ids.insert(integer(m["id"]));
+    const bool rendering = (stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire);
+    if (!new_namespace && rendering) {
+        const uint64_t timeout_ns = 3ULL * options_.block * 1000000000ULL / options_.rate;
+        // A busy MIDI dispatch is transient; a graph refusal is not. Never stop for busy.
+        for (unsigned attempt = 0; attempt < 4; ++attempt) {
+            if (midi_->replan(candidate.get(), patch_bytes, timeout_ns, error)) {
+                patch_.swap(patch);
+                used_ids_.swap(ids);
+                ++generation_;
+                std::cerr << "commit path=live gen=" << generation_ << '\n';
+                return;
+            }
+            if (error != "MIDI worker busy") break;
+            if (attempt == 3) throw Refusal("busy", "MIDI worker busy; graph unchanged");
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+    }
+    // D5 directly for loadGraph, stopped/lost streams and non-busy replan refusal.
     // The candidate was fully prepared above, so validation refusal is untouched.
     const auto begun = std::chrono::steady_clock::now();
     // D5 budgets (see kMuteBudget/kGapBudget); they stretch only when a block period is longer.
     const auto period = std::chrono::microseconds(int64_t(1e6 * double(options_.block) / double(options_.rate)));
-    if (stream_ || sink_.joinable()) {
+    if ((stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire)) {
         app_engine_begin_master_fade_out(active_);
         const auto deadline = begun + std::max<std::chrono::microseconds>(kMuteBudget, 2 * period);
         while (!app_engine_master_fade_silent(active_)) {
+            // D6 may lose the stream during a refused replan or the D5 fade.
+            // A callback that no longer renders cannot acknowledge a mute.
+            if ((stream_ && !stream_->running()) || (!stream_ && !sink_rendering_.load(std::memory_order_acquire)))
+                break;
             if (std::chrono::steady_clock::now() >= deadline) {
                 app_engine_resume_master_fade(active_);
                 throw Refusal("unavailable", "Audio mute did not complete");
@@ -398,7 +438,7 @@ void Session::commit(Json patch, bool new_namespace) {
     auto old_patch = patch_;
     engine_ = std::move(candidate);
     active_ = engine_.get();
-    patch_ = patch;
+    patch_.swap(patch); // No allocation after the quiescent graph replacement.
     try {
         start_audio();
         start_midi();
@@ -423,8 +463,8 @@ void Session::commit(Json patch, bool new_namespace) {
     }
     ++generation_;
     keyboard_.fill(false);
-    if (new_namespace) used_ids_.clear();
-    for (auto &m : patch_["modules"]) used_ids_.insert(integer(m["id"]));
+    used_ids_.swap(ids);
+    std::cerr << "commit path=d5 gen=" << generation_ << '\n';
 }
 Json Session::apply(const Json &command) {
     auto type = command.at("type").get<std::string>();
