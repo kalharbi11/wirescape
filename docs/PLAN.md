@@ -9,6 +9,7 @@ How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) liv
 - **New parallel track S (Sound kit):** original modules ported from the owner's prototypes. **S1** = the Conjunctions two-source processes (`docs/tasks/S1_CONJUNCTIONS_MODULES.md`). GUTTUR is on hold (owner); the Sampler and the effects (EQ, compressor, delay, reverb) are listed but not started.
 - **Priority order:** (1) Test Session 1 results and any fixes; (2) Phase 2; (3) Track S in parallel, never blocking 1 or 2; (4) Checkpoint A after Test Session 1.
 - **Pi first.** Windows (#266) waits until after Test Session 1.
+- **Web demo (D14, `docs/tasks/W_WEB_DEMO.md`):** a separate lane led by Compass that never blocks Pi work. W-web-1 is the wasm engine, the bridge, CI and Pages. Follow-ups W-web-2..5 are Codex-sized.
 
 ## Where we are (2026-11-07)
 **Works (verified):**
@@ -55,6 +56,7 @@ Wirescape app (Electron: native window, title bar, minimize/close, menus, F11 fu
 | D11 | Qt stays buildable and untouched until Phase 4 removes it. | No double work. |
 | D12 | Dependencies named here (no separate stop needed): **electron** (MIT) and, in Phase 4, **electron-builder** (MIT), both pinned in `apps/desktop/package.json`. Playwright's existing Electron support covers app tests. Anything else is still a stop. | Small, mainstream and cross-platform. |
 | D13 | Sidecar contingency (Compass, 2026-11-06): if #247 fails CI again after Keel's checklist, split 1B into **1B-1** (stdio protocol, session/gen, catalogue `hello`, null sink, fake MIDI, the D5 fade; everything CI can prove) and **1B-2** (PortAudio + real MIDI enumeration/selection and persistence). 1B-1 alone unblocks 1E on the null sink and #250. | Avoids a third attempt at one L-size T2 PR on the critical path; the device half is the part only the Pi and the owner can fully prove anyway. |
+| D14 | **Web demo** (Compass, 2026-11-07, owner request): a static showcase site, the real engine compiled to WebAssembly in an AudioWorklet behind the unchanged Studio UI (`native/web`, `apps/studio/src/web`, `.github/workflows/web-demo.yml`, GitHub Pages). Emscripten is the one named new build dependency (CI only, pinned). No MIDI, OSC, devices or files. It is not a product stage: D1 (Electron app) stands, and the web build never blocks Phases 1 to 4. | Lets professors and friends try Wirescape from a link. It reuses the real DSP and UI, and costs one T1 lane. |
 
 ## Phases
 

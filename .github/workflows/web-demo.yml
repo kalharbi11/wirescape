@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Web demo: the real engine compiled to WebAssembly behind the Studio UI, as a
+# static site. Device-free: no MIDI, OSC, sockets or files. Deploys to GitHub
+# Pages from main (Settings → Pages → Source: GitHub Actions).
+name: Web demo
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'native/web/**'
+      - 'native/engine2/**'
+      - 'native/control/**'
+      - 'native/document/**'
+      - 'native/modules2/**'
+      - 'native/sdk/**'
+      - 'apps/studio/**'
+      - '.github/workflows/web-demo.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'native/web/**'
+      - 'native/engine2/**'
+      - 'native/control/**'
+      - 'native/document/**'
+      - 'native/modules2/**'
+      - 'native/sdk/**'
+      - 'apps/studio/**'
+      - '.github/workflows/web-demo.yml'
+permissions:
+  contents: read
+concurrency:
+  group: web-demo-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  EMSDK_VERSION: 3.1.74
+  WIRESCAPE_BASE: /${{ github.event.repository.name }}/
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Native web-engine tests
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
+          cmake -S native/web -B build/web-native -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/web-native
+          ctest --test-dir build/web-native --output-on-failure
+      - name: Install Emscripten ${{ env.EMSDK_VERSION }}
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$EMSDK_VERSION"
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$EMSDK_VERSION"
+      - name: Build wirescape.wasm
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          emcmake cmake -S native/web -B build/web-wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/web-wasm
+          ls -l build/web-wasm/wirescape.wasm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wirescape-wasm
+          path: build/web-wasm/wirescape.wasm
+          if-no-files-found: error
+  site:
+    needs: engine
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/studio
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: wirescape-wasm
+          path: apps/studio/public/web
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/studio/package-lock.json
+      - run: npm ci
+      - name: Locate runner Chromium
+        run: |
+          browser="$(command -v chromium || command -v chromium-browser || command -v google-chrome)"
+          test -x "$browser"
+          echo "WIRESCAPE_CHROMIUM=$browser" >> "$GITHUB_ENV"
+      - name: Web demo smoke (builds the site with VITE_WIRESCAPE_WEB=1)
+        run: npx playwright test -c playwright.web.config.ts
+      - name: Upload failure output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-demo-failures-${{ github.sha }}
+          path: apps/studio/test-results/
+          if-no-files-found: ignore
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/studio/dist
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: site
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -16,6 +16,9 @@ import { App } from './app/App';
 const mount = document.getElementById('root');
 if (!mount) throw new Error('No #root element');
 
+// Web demo build (VITE_WIRESCAPE_WEB=1): the WebAssembly engine stands in for Electron.
+if (import.meta.env.VITE_WIRESCAPE_WEB === '1') await (await import('./web/start')).startWeb();
+
 App.boot(mount)
   .then(app => {
     // Test hooks: a scripted test can drive the whole app from here.
