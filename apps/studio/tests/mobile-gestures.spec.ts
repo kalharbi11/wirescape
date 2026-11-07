@@ -119,6 +119,12 @@ test('phone UI keeps patch context, touch defaults and an easily dismissed libra
   await page.mouse.click(375, 240);
   await expect(menu).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByTestId('library-backdrop')).toBeHidden();
+  // Escape (hardware keyboard on a tablet/phone) must close the scrim too.
+  await menu.click();
+  await expect(page.getByTestId('library-backdrop')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByTestId('library-backdrop')).toBeHidden();
   await menu.click();
   await page.getByTestId('library-item-essentials.vco').click();
   await expect(menu).toHaveAttribute('aria-expanded', 'false');

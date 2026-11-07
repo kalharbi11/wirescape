@@ -724,7 +724,7 @@ export class App {
     }
     this.canvas.selectModule(id, false);
     this.canvas.invalidateAnchors();
-    this.root.classList.remove('library-open');
+    this.setLibraryOpen(false);
     this.toasts.show(`${d.name} added.`);
     return id;
   }
@@ -860,7 +860,7 @@ export class App {
       if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); this.duplicate(); return; }
       if (mod && e.key.toLowerCase() === 'f') { e.preventDefault(); this.library.focusSearch(); return; }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this.deleteSelection(); return; }
-      if (e.key === 'Escape') { this.canvas.select({ kind: 'none' }); this.root.classList.remove('library-open'); return; }
+      if (e.key === 'Escape') { this.canvas.select({ kind: 'none' }); this.setLibraryOpen(false); return; }
       if (e.key === '?') { e.preventDefault(); this.shortcuts.open('Keyboard shortcuts'); return; }
       if (e.key === '`' || (e.shiftKey && e.key.toLowerCase() === 'd')) { e.preventDefault(); this.devPanel.toggle(); return; }
       if (e.key === '0' && mod) { e.preventDefault(); this.canvas.viewport.zoomTo(1); return; }
