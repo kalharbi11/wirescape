@@ -3,48 +3,43 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-07 11:30 UTC by Keel. **Pi first. Phase 2 runs beside Test Session 1. Any owner failure in #271 preempts all work.**
-Keel runs an owner-requested check-in every 3 h (scheduled task in Keel's session). Codex Lead runs every 150 min until 2026-11-09 06:00 UTC.
+**Updated:** 2026-11-07 11:30 UTC by Compass. **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
 
-## Main blocker: pi5 runner offline
-- The `pi5` self-hosted runner has been offline since about 2026-11-06 15:02 UTC. The Pi nightly job is still queued, and every `Pi PR poll` waits behind it in the `pi5-exclusive` group.
-- **All `ci/pi` evidence is blocked** (#273, #274, #298, #301, #304, #297 strict). Owner step: restart the runner service on the Pi. Agents can't reach it.
+## Lead split (owner, 2026-11-07)
+- **Compass (platform):** everything except modules: Phases 1–5, the app, the engine lanes, the web demo, the board and STATE. Checks in every 4 h (owner-requested scheduled run).
+- **Compass (modules):** Track S and the module lane (#304/#310, #314–#318, #305/#306/#307). Leaves this file's module lines to that session.
+- Codex Lead runs every 150 min through 2026-11-09 06:00 UTC (owner-requested).
 
-## Keel pass 8 (2026-11-07)
-- **#297 ruled and fixed:** **#320** (test-only). Bounded retry; each attempt keeps the full 3-block park deadline (the engine refuses longer). Strict single attempt with `--max-gap-ms` (pi5) or `WIRESCAPE_REPLAN_STRICT=1`. Closed #299. Needs a Codex/GPT T2 review.
-- **#273**: re-review approved at `00a5b24`, all hosted green including Windows. Merge on pi5.
-- **#274**: re-review approved at `c6ed064`. Merge on pi5. Unblocks #292 and #296.
-- **#298**: T2 approved at `97dcd6a` (Lows only). Merge on pi5.
-- **#301**: T2 at `43101f8`, two Mediums: emit `device-lost`→`reconnecting`→`running`, and don't kill a healthy stream on an enumeration miss. Rebase after #273.
-- **#256 (1H)**: T2 approved at `7bbf398`; budget 13 files / 1,150 lines authorized; `allow-protected` added. Needs a main merge and a green web re-run, then Keel merges.
-- **#290 / #210 ruled:** `last_note` (holds through release and choke, no bend) plus optional `min`/`max` row keys (config version bump, v1 still parses). **Learn moved to #287 (UI-owned, D3/D8)**; no module Learn.
-- **#307 ruled:** add `Engine::refresh_latency()` (control thread, no allocation), called in replan before the ack and at most once per status tick. Reporting only. Open for any builder.
-- Board: closed #277 and #259 (shipped in #282 and #263). #294 and #295 are unblocked (`status/todo`). #313 is superseded by this file.
+## Compass actions this session
+- Board: closed #278, #281, #277 and #259 (their PRs had merged). Moved #294 (patch browser) and #295 (crash recovery) to `status/todo`, since their prerequisites are on main, and left a UX bar on #294.
+- Closed #313 (a Codex Lead STATE built on a stale base); folded its live facts in below.
+
+## Main blocker
+- **#297**: Keel's #320 (test-only, +31/−5) replaces the #299 experiment. Every attempt keeps the full 3-block deadline, a bounded retry runs on hosted runners, and strict single-attempt mode is used for pi5 (`--max-gap-ms`). Needs a GPT/Codex T2 review, then merge. Until then, leads merge reviewed PRs whose only red is this test.
 
 ## In flight (who acts)
-- #300 keyboard default: gate-approved at `e4e0ae8`; check that it merged.
-- #304 spectral S1-1: needs a T1 review from another session plus a Pi probe. #310 is stacked on it.
-- #311 visible-when (#306): new-head Web plus an independent T1 review.
-- Module lane (#319 merged): #314 delay, #315 quantizer (claimed), #316 reverb, #317 resonator, #318 blend (after #304).
-- Web demo D14: #309 merged; follow-ups W-web-2 (#312) to W-web-5.
+- #273 live replan in sidecar `00a5b24`, #274 bench summary `c6ed064`, #298 MIDI hotplug, #301 audio-loss recovery: Keel T2 review plus pi5, then merge. #274 unblocks #292/#296; #273 unblocks #287; #301 unblocks #293.
+- #256 1H conformance: Keel rules on the 13-file budget and the guard red. Stale since 11-06 12:57. On the Phase 1 critical path.
+- #300 keyboard default: retargeted to main and integrated at `e4e0ae8`, reviewed, ready-to-merge. Auto-merges on green.
+- #311 (#306) conditional controls: Codex, draft, needs a new-head Web run plus an independent T1 review.
+- #210 / #290 MIDI controls: Keel/Compass contract ruling pending.
+- **Free now (Codex Lead to queue):** #294 patch browser, #295 crash-recovery offer.
 - Still blocked: #287 (after #273), #292 and #296 (after #274), #293 (after #301).
 
-## Latent technical notes (Keel)
-- `app_engine_replan` rebinds candidate ABI1 nodes to live metadata before `engine.replan` can fail. If a sidecar D5 fallback then uses that candidate, it would dangle. Safe today: the sidecar catalogue is ABI2 built-ins only. Fix before the sidecar loads ABI1 plugins.
-- An immediate replan retry after a park timeout is refused ("already parking") until the next render retires the cancel. Any retry loop must wait one block.
+## Web demo lane (D14)
+- #309 merged (wasm engine, WebBridge, AudioWorklet, Pages workflow). Follow-up #312 W-web-2 (catalogue-filtered starters) is briefed for Codex. W-web-3..5 (telemetry parity, patch in URL, download) are not filed yet; file them once #312 lands.
+- Owner one-time step, if not done: Settings → Pages → Source "GitHub Actions". URL `https://kalharbi11.github.io/wirescape/`.
 
 ## Phase 1 sign-off needs
-#271 owner results (A, B, C), 1H green (#256), the contention benchmark (#274 plus owner D3). Then Compass runs Checkpoint A.
+#271 owner results (A, B, C), 1H green (#256), and the contention benchmark (#274 plus owner D3). Then Compass runs Checkpoint A. The owner has deferred #271; nothing is asked of them until the 2A/2B/2C T2 lanes merge, so that one owner session covers Phase 1 and the first Phase 2 hardware checks.
 
 ## Retained rulings
 - Electron main is the only automatic restarter. Imported documents round-trip unchanged (D3). New loadGraph uses D5; live edits use replan with bounded busy retry.
-- Benchmark fields are render walltime; late catch-up blocks count as overruns. Missing metrics never count as zero.
-- Known non-required reds: cortex-m7 (#159); `static` is informational (but fix clang-format nits when touching the file).
+- Benchmark fields are render walltime. Missing metrics never count as zero.
+- Known non-required reds: cortex-m7 (#159); `static` is informational.
 - Tests and CI never open real audio, MIDI or LAN. Pi evidence comes only from the pi5 runner.
 
 ## Standing rules from the owner
 - Don't plan agent assignment. Pi first; Windows (#266) after Test Session 1. Real-device tests are the owner's.
 - No browser/kiosk product stage (D1). The web demo is a showcase build only (D14).
 - Leads save usage: delegate mechanics, don't poll, ask the owner only for approvals and hardware checks.
-
-Signed: Keel (Claude), 2026-11-07

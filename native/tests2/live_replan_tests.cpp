@@ -432,10 +432,12 @@ static double live_edits() {
             committed = e.replan(*next, uint64_t(frames) * 3 * 1000000000 / 48000);
             next.reset(); // No render callback may retain a staging owner/context.
             if (!committed) {
+                const auto error = e.error();
+                CHECK(error == "Audio did not park before the edit deadline");
                 ++replan_timeouts;
                 std::fprintf(stderr, "replan attempt %u timed out after %.3f ms, %llu callbacks: %s\n", attempt + 1,
                              double(now_ns() - started) / 1000000.,
-                             static_cast<unsigned long long>(audio.blocks.load() - before), e.error().c_str());
+                             static_cast<unsigned long long>(audio.blocks.load() - before), error.c_str());
                 CHECK(e.meter().generation == old_generation); // A timeout retains the old graph.
                 CHECK(e.meter().faults == 0);
                 // The next render retires the cancelled park; only then may another edit be requested.
