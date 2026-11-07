@@ -184,3 +184,27 @@ test('live telemetry reaches the UI: cable signal values and the output scope', 
   await expect.poll(async () => (await last()).scope).toEqual([64]);
   await page.keyboard.up('a');
 });
+
+
+// The initial audio permission screen must remain usable even in Safari's
+// shortest portrait/landscape visual viewport, before any WASM is loaded.
+test('audio-start splash fits or scrolls on a narrow, short phone viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 360 });
+  await page.goto('./');
+  const splash = page.getByTestId('web-splash');
+  await expect(splash).toBeVisible();
+  const start = page.getByTestId('web-start');
+  await start.scrollIntoViewIfNeeded();
+  await expect(start).toBeInViewport();
+  const result = await page.evaluate(() => {
+    const splash = document.querySelector('.web-splash') as HTMLElement;
+    const panel = document.querySelector('.web-splash-card') as HTMLElement;
+    const rect = panel.getBoundingClientRect();
+    return { width: rect.width, left: rect.left, right: rect.right,
+      scrollable: splash.scrollHeight >= splash.clientHeight };
+  });
+  expect(result.width).toBeLessThanOrEqual(320);
+  expect(result.left).toBeGreaterThanOrEqual(0);
+  expect(result.right).toBeLessThanOrEqual(320);
+  expect(result.scrollable).toBe(true);
+});
