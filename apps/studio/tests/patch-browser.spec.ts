@@ -48,3 +48,14 @@ test('patch list errors remain readable and do not replace the current document'
   await expect(page.getByTestId('patch-browser')).toContainText('Patch folder unavailable');
   expect((await state(page)).modules).toEqual(before.modules);
 });
+
+test('declining the unsaved-edit prompt keeps the current patch and browser open', async ({ page }) => {
+  await boot(page);
+  await page.getByTestId('library-item-essentials.noise').click();
+  const before = await state(page);
+  await page.getByTestId('open-patch-browser').click();
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByTestId('bundled-patch-0').click();
+  await expect(page.getByTestId('patch-browser')).toBeVisible();
+  expect((await state(page)).modules).toEqual(before.modules);
+});
