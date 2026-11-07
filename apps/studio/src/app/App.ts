@@ -461,9 +461,10 @@ export class App {
     const skipped: string[] = [];
     for (const m of clip.modules) {
       const id = this.allocateId();
-      try { this.engine.addModule(id, m.module, m.parameters); }
+      const params = m.parameters ?? {};
+      try { this.engine.addModule(id, m.module, params); }
       catch { skipped.push(m.module); continue; }
-      this.doc.addModule(m.module, m.parameters, m.pos[0] + dx, m.pos[1] + dy, id);
+      this.doc.addModule(m.module, params, m.pos[0] + dx, m.pos[1] + dy, id);
       this.trackRollback(() => this.doc.removeModule(id));
       const added = this.doc.modules.get(id);
       if (added) Object.assign(added, m.extra);
