@@ -32,16 +32,21 @@ static void matrix(){
  guard->input[0][0][0]=std::numeric_limits<float>::quiet_NaN();VERIFY(guard->d->process(guard->state,&guard->process)==WS2_INVALID);VERIFY(guard->outs[0].flags&WS2_CONSTANT);VERIFY(guard->output[0][0][0]==0);
  std::printf("PASS %zu DSP matrix cases, reset/determinism, scalar VCA, VCF counter, nullable/stop/locate transport\n",std::size(descriptors)*27);
 }
-static double measured_vco_hz(bool cable, float pitch, int midi = -1) {
+struct VcoTrackingInput {
+    bool cable;
+    float pitch;
+    int midi = -1;
+};
+static double measured_vco_hz(VcoTrackingInput input) {
     auto f = std::make_unique<DspFixture>(descriptors[0]);
-    f->ins[0].flags = cable ? WS2_CONNECTED : 0;
+    f->ins[0].flags = input.cable ? WS2_CONNECTED : 0;
     f->ins[1].flags = 0; // No FM; frequency remains the unchanged 220 Hz default.
-    std::fill_n(f->input[0][0], 256, pitch);
+    std::fill_n(f->input[0][0], 256, input.pitch);
     ws2_event on{};
-    if (midi >= 0) {
+    if (input.midi >= 0) {
         on.struct_size = sizeof(on);
         on.type = WS2_NOTE_ON;
-        on.key = midi;
+        on.key = input.midi;
         on.channel = 0;
         on.value = 1;
         f->process.events = {sizeof(ws2_event_list), 1, &on};
@@ -61,15 +66,15 @@ static double measured_vco_hz(bool cable, float pitch, int midi = -1) {
     return rising; // Cycles over exactly 1 second, +/- 1 Hz resolution.
 }
 static void vco_keyboard_tracking() {
-    const double c4 = measured_vco_hz(true, 0);
-    const double a4 = measured_vco_hz(true, .75f);
-    const double octave = measured_vco_hz(true, 1.f);
+    const double c4 = measured_vco_hz({true, 0.f});
+    const double a4 = measured_vco_hz({true, .75f});
+    const double octave = measured_vco_hz({true, 1.f});
     VERIFY(std::abs(c4 - 261.6255653) < 2);
     VERIFY(std::abs(a4 - 440) < 2);
     VERIFY(std::abs(octave / c4 - 2) < .02);
-    VERIFY(std::abs(measured_vco_hz(false, 0, 60) - 261.6255653) < 2);
-    VERIFY(std::abs(measured_vco_hz(false, 0, 69) - 440) < 2);
-    VERIFY(std::abs(measured_vco_hz(false, 0, 127) - 12543.853951) < 2);
+    VERIFY(std::abs(measured_vco_hz({false, 0.f, 60}) - 261.6255653) < 2);
+    VERIFY(std::abs(measured_vco_hz({false, 0.f, 69}) - 440) < 2);
+    VERIFY(std::abs(measured_vco_hz({false, 0.f, 127}) - 12543.853951) < 2);
     std::puts("PASS VCO pitch CV (0=C4, 0.75=A4, 1=octave) and MIDI 60/69/127 tracking");
 }
 static void vca_broadcast(){
@@ -122,8 +127,22 @@ static void equivalence(const char*directory,const char*report){
 }
 static void noalloc(){for(auto*d:descriptors){auto f=std::make_unique<DspFixture>(d,48000,16);allocation_watch::Scope watch;for(int i=0;i<16;++i){f->run(17);f->reset();}VERIFY(watch.allocations()==0);}std::puts("PASS zero new/new[]/aligned-new in static SDK/DSP process/reset");}
 #endif
-int main(int argc,char**argv){matrix();vco_keyboard_tracking();vca_exact();vca_broadcast();
+int main(int argc, char **argv) {
+    try {
+        matrix();
+        vco_keyboard_tracking();
+        vca_exact();
+        vca_broadcast();
 #ifndef WS2_PORTABLE_TEST
- noalloc();if(argc==3)equivalence(argv[1],argv[2]);
+        noalloc();
+        if (argc == 3) equivalence(argv[1], argv[2]);
+#else
+        (void)argc;
+        (void)argv;
 #endif
+    } catch (...) {
+        std::fputs("Unexpected exception in module tests\\n", stderr);
+        return 1;
+    }
+    return 0;
 }
