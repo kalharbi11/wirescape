@@ -46,6 +46,8 @@ export interface ModuleParam {
   decimals: number;
   modulatable: boolean;
   choices?: ParamChoice[];
+  /** Presentation only: hide this control unless the named base value matches. */
+  visibleWhen?: { param: string; values: number[] };
 }
 
 export interface ModuleDescriptor {

@@ -136,6 +136,7 @@ export class App {
     });
 
     this.keyboard = new ComputerKeyboard(this.engine);
+    this.keyboard.setEnabled(this.prefs.computerKeyboardPlays);
     this.piano = new OnScreenKeyboard(this.keyboard);
     this.keyboard.onOctaveChange = o => { this.octaveEl.textContent = `OCT ${o}`; this.piano.refresh(); };
     this.devPanel = new DevPanel(this.engine, this.ticker);
@@ -885,6 +886,11 @@ export class App {
     b.append(el('h3', 'settings-group', 'MIDI'));
     const midiFields = el('div', 'settings-midi');
     b.append(midiFields);
+    const computerKeys = switchButton(this.prefs.computerKeyboardPlays,
+      on => this.setPref({ computerKeyboardPlays: on }));
+    computerKeys.dataset.testid = 'computer-keyboard-plays';
+    b.append(field('Computer keyboard plays', computerKeys,
+      'A/W/S… plays notes in patches with a Keyboard module. MIDI inputs use their own device switches.'));
     void engine.listMidiDevices().then(devices => {
       if (!b.contains(midiFields)) return;
       if (!devices.length) {
@@ -1000,6 +1006,7 @@ export class App {
     this.prefs = { ...this.prefs, ...patch };
     applyPrefs(this.prefs);
     savePrefs(this.prefs);
+    this.keyboard.setEnabled(this.prefs.computerKeyboardPlays);
     CanvasPane.setZoom(this.canvas.viewport.view.s, true);
     this.ticker.throttleHz = this.prefs.profile === 'pi' ? 30 : 0;
     // Hit areas change the geometry the layout is derived from, so every
