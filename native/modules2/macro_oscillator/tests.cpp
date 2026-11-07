@@ -215,8 +215,9 @@ static void gate_lifecycle() {
     held.values[9] = 0.f;
     held.inputs[8].flags = WS2_CONNECTED;
     std::fill_n(held.buffer->input[8][0], 256, 1.f);
-    const double early = gate_rms(held, 2400); // first 50 ms
-    const double sustained = gate_rms(held, 24000); // through 550 ms
+    // First 50 ms, then the held plateau through 550 ms.
+    const double early = gate_rms(held, 2400);
+    const double sustained = gate_rms(held, 24000);
     REQUIRE(early > 0.001);
     REQUIRE(sustained > early * .5);
     std::fill_n(held.buffer->input[8][0], 256, 0.f);
