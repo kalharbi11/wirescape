@@ -547,3 +547,39 @@ body.motion-off .tring { transition: none !important; }
   .toolbar { padding-left: 6px; }
   .status-detail { display: none; }
 }
+
+/* iPhone / narrow touch devices: keep both app bars in the dynamic viewport.
+   Pan/zoom only the patch world, never scale the page chrome. */
+@media (max-width: 760px) {
+  .topbar {
+    height: 56px; flex: 0 0 56px;
+    padding: 0 8px; gap: 6px;
+  }
+  .topbar-left { flex: none; }
+  .topbar-right {
+    flex: 1 1 0; min-width: 0; overflow-x: auto; overflow-y: hidden;
+    overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+    touch-action: pan-x; scrollbar-width: none;
+    gap: 6px;
+  }
+  .topbar-right::-webkit-scrollbar { display: none; }
+  .topbar-right > * { flex: none; }
+  .topbar .action { height: 36px; min-width: 36px; font-size: 12px; }
+  .topbar .menu-btn { min-width: 38px; }
+  .topbar .input-select { height: 36px; font-size: 12px; }
+  .topbar .starter-select { max-width: 120px; }
+  .topbar .zoom-group .action { height: 34px; }
+  .topbar .zoom-label { line-height: 34px; }
+  .topbar .toolbar { padding-left: 6px; }
+  .library { top: 56px; bottom: env(safe-area-inset-bottom, 0px); }
+
+  .statusbar {
+    height: calc(42px + env(safe-area-inset-bottom, 0px));
+    flex: 0 0 calc(42px + env(safe-area-inset-bottom, 0px));
+    padding: 0 8px env(safe-area-inset-bottom, 0px);
+    gap: 8px;
+  }
+  .status-left { flex: 1 1 auto; overflow: hidden; white-space: nowrap; gap: 7px; }
+  .status-right { flex: none; gap: 5px; }
+  .status-btn { height: 32px; padding: 0 8px; min-width: 56px; }
+}
