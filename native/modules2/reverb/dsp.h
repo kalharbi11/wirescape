@@ -7,7 +7,7 @@
 #include <cstdint>
 
 namespace reverb {
-enum Param : uint32_t { SIZE, DECAY, DAMPING, PREDELAY, WIDTH, MOTION, FREEZE, MIX, COUNT };
+enum Param : uint8_t { SIZE, DECAY, DAMPING, PREDELAY, WIDTH, MOTION, FREEZE, MIX, COUNT };
 constexpr float kPi = 3.14159265358979323846f;
 constexpr float kHalfPi = 1.57079632679489661923f;
 constexpr float kLn1000 = 6.907755278982137f;
@@ -78,7 +78,7 @@ struct Reverb {
         const size_t samples = size_t(8) * line_count(c.sample_rate) + size_t(2) * pre_count(c.sample_rate) +
                                diffusion_count(c.sample_rate, 0) + diffusion_count(c.sample_rate, 1) +
                                diffusion_count(c.sample_rate, 2) + diffusion_count(c.sample_rate, 3);
-        m.large_bytes = samples * sizeof(float) + 14 * 32; // separate aligned host allocations
+        m.large_bytes = samples * sizeof(float) + size_t(14) * 32; // separate aligned host allocations
         return m;
     }
     static bool prime(uint32_t x) {
@@ -94,6 +94,7 @@ struct Reverb {
             if (prime(x + offset)) return x + offset;
         }
     }
+    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- a line index and normalized size are distinct.
     uint32_t scaled_length(uint32_t k, float size) const {
         const double factor = .25 + .75 * std::clamp(size, 0.f, 1.f);
         return nearest_prime(uint32_t(std::lround(double(base[k]) * double(rate) * factor / 48000.0)));
@@ -143,6 +144,7 @@ struct Reverb {
                     v[i + stride] = (x - y) * a;
                 }
     }
+    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- ring capacity and write cursor are distinct.
     float tap(const float *data, uint32_t capacity, uint32_t cursor, float length) const {
         const uint32_t n = uint32_t(length);
         const float frac = length - float(n);
@@ -188,7 +190,7 @@ struct Reverb {
                                                         std::clamp(pre_samples, 1.f, float(pre_capacity - 2)));
                 pre[c][pre_write] = d[c];
                 d[c] = old;
-                d[c] = diffusion[c * 2 + 1].step(diffusion[c * 2].step(d[c]));
+                d[c] = diffusion[size_t(c) * 2 + 1].step(diffusion[size_t(c) * 2].step(d[c]));
             }
             if (++pre_write == pre_capacity) pre_write = 0;
 
