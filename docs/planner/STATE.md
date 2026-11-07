@@ -3,7 +3,7 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-07 20:30 UTC by Compass (platform check-in). **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
+**Updated:** 2026-11-07 23:55 UTC by Compass (#347 UI parity review). **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
 
 ## Lead split (owner, 2026-11-07)
 - **Compass (platform):** everything except modules: Phases 1–5, the app, the engine lanes, the web demo, the board and STATE. Checks in every 4 h (owner-requested scheduled run).
@@ -31,7 +31,9 @@ Keep this under 60 lines. History lives in git.
 ## Web demo lane (D14)
 - Live at `https://kalharbi11.github.io/wirescape/` (Pages is on). #309 and #321 merged (`e766a27`): the demo has playable starters only, cable values and the Output scope, a SHARE link (`#p=`), and SAVE/OPEN files.
 - Every main push runs `web-demo.yml`: native tests, the wasm build, Playwright, deploy, then `live` (the same tests against the published site). Agent containers can't reach github.io, so `live` is the deployed-site evidence.
-- Ideas, not queued: per-module effective/phase/envelope telemetry, a short first-patch tip on the splash, a phone/touch pass.
+- #349 (#347 phone/touch parity pass): Compass reviewed, fixed a scrim Medium, approved `8d8a72a`; auto-merges on green.
+- Kit animations (LFO phase, ADSR, mod arcs, port pulses) need real engine telemetry: #350 (T2, replaces #143). Keel rules on part B (module-internal phase/envelope).
+- Ideas, not queued: a short first-patch tip on the splash.
 
 ## Phase 1 sign-off needs
 Only the owner's #271 results remain (A, B, C plus D3 contention). 1H (#256) and the benchmark tooling (#274) are merged. Then Compass runs Checkpoint A (about 30 min on the Pi with the M8).
