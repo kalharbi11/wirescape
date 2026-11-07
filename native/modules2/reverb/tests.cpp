@@ -152,6 +152,8 @@ double correlation(const Samples &a, const Samples &b, size_t start) {
     return ab / std::sqrt(aa * bb);
 }
 void test_lengths_and_rates() {
+    // Native legacy indices must match the stable UI slot map, not default to zero.
+    for (uint32_t p = 0; p < reverb::COUNT; ++p) REQUIRE(Reverb::params[p].legacy_index == p);
     for (double rate : {44100., 48000., 96000.}) {
         Reverb dsp;
         dsp.rate = float(rate);
