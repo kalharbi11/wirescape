@@ -266,6 +266,23 @@ void test_freeze() {
     const Stereo bx = b.run(silence(rate / 2), silence(rate / 2));
     REQUIRE(ax.l == bx.l && ax.r == bx.r);
 }
+void test_cached_parameter_changes() {
+    const Samples x = noise(4096), y = noise(4096, .1f);
+    Rig a, b;
+    a.set(reverb::MIX, .1f);
+    b.set(reverb::MIX, .9f);
+    a.run(x, y);
+    b.run(x, y); // Mix must not alter the internal feedback history.
+    a.set(reverb::MIX, .9f);
+    const Stereo same_a = a.run(x, y), same_b = b.run(x, y);
+    REQUIRE(same_a.l == same_b.l && same_a.r == same_b.r);
+    for (float size : {1.f, 0.f, .5f}) {
+        a.set(reverb::SIZE, size);
+        b.set(reverb::SIZE, size);
+        const Stereo part_a = a.run(x, y, 17), part_b = b.run(x, y, 256);
+        REQUIRE(part_a.l == part_b.l && part_a.r == part_b.r);
+    }
+}
 void test_state_extremes_and_sweep() {
     const Samples x = noise(12000);
     Rig used;
@@ -314,6 +331,7 @@ int main() {
     test_dry_and_width();
     test_decay();
     test_freeze();
+    test_cached_parameter_changes();
     test_state_extremes_and_sweep();
     std::puts("abi2_reverb_tests passed");
 }
