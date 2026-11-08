@@ -47,6 +47,10 @@ Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure 
 - Paste-ready lanes: docs/tasks/BUILD_LEAD_2026_11_08.md; three chats, maximum three active items each.
 - Three chats keep at most three active items each; current handoffs and contract batch are on #376.
 
+## Evidence automation (#383, accepted)
+- #384 acceptance syntax (pi-run: only) -> #385 offline render evidence (CTest, no runner change) -> #386 e2e.
+  Below #271 failures and the Phase 2 critical path. #387 shrinks owner checklists after the evidence lands. Stage D deferred.
+
 ## Retained rules
 - Tests/CI never open audio/MIDI/LAN. No agent SSH to Pi/laptop; private runner supplies Pi evidence.
 - Missing metrics never count as zero; queued or prior-head results never count as current evidence.
