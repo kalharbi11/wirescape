@@ -1,50 +1,55 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-Keep this under 60 lines. History lives in git.
+**Updated:** 2026-11-08, Codex Lead four-agent execution checkpoint.
+Pi first; #271 hardware sign-off remains open and failures preempt features.
+Use current heads/latest handoffs; no queued/stale/missing evidence counted passed.
 
-**Updated:** 2026-11-08 by Codex Lead; retains Compass/Keel rulings.
-Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure preempts other work.
+## Actual lead actions
+- MERGED #379 measured LFO phase at07fb277: static/required/Studio/WASM green,
+  independent review carried per Keel's explicit main-only/#417 conditional ruling.
+- MERGED #412 eight curated patches at3af48ae: stereo/layout repairs independently
+  re-reviewed; guard/Linux/Windows/sanitizers/static/Web/WASM engine+site green.
+- Shared STARTERS/read-only browser includes all8 in Studio and Pi/Windows Electron.
+  Native stereo render assertions and real WASM smoke pass; no hardware listening claimed.
+- Main Web-demo run42532299999 at3af48ae running: deployment/live NOT yet verified.
+  Previous good deployment42509218198 atb4ec649 remains historical.
+- #345 Delay already merged; native catalogue25. #422/#424 runbook/checkpoints merged.
+- Closed stale conflicting STATE-only #419; no feature work lost.
+- #398 actual job128870645680: five render CTests PASS; only local failure553>500lines.
+  Lead pushed task-only3f12baa, cap560/10files within existing documented scope allowance.
+  No audio threshold changed. T1 review posted; fresh acceptance/required/static still running.
+  Earlier780e280 task-specific pi5/accept PASS, docs-only carry rules apply.
 
-## Delegation (new, AGENTS.md 2026-11-08)
-- Codex Lead now merges stuck-but-green reviewed PRs, merges past inherited static/cortex-m7 reds,
-  applies Claude conditional approvals once their evidence is posted, decides Pi need for module/UI PRs,
-  and writes `Protected path named:` lines for docs/tasks/** and STATE.md. Modules and their DSP are T1.
-- Claude is needed only for real T2 (engine2 core, protocol/spec, patch format, ABI/SDK headers, CI/merge
-  control) and plan/scope changes. Batch them: one `Keel: T2 batch` comment, so one session clears them all.
+## Authority / invariant gates
+- Codex Lead T0/T1 and named docs/tasks/** /STATE; realT2 needs cross-family review.
+- Required guard/Linux/Windows/sanitizers AND task evidence; no threshold/test weakening.
+- No devices/SSH/LAN or force-push/main writes; preserve IDs/unknown document data.
+- Electron main sole automatic restarter. Gate-v4 exact-head signed approvals.
+- No CI polling; gates/runners wait. Owner hardware and subjective listening stay separate.
 
-## Done this session (11-08)
-- Merged #367 (shared CPU probe). Closed #181/#180 (superseded by docs/SDK_AUTHOR_GUIDE.md); closed #374 (folded in here).
-- #301 audio recovery and #371 emit rename merged. Codex Lead merged approved #368 at963384a; required checks/Pi pass.
-- Ruling: the #368 Pi 64-tap/no-tap comparison moves into #292 (callback load); it doesn't block A2.
+## Same four chats: direct continuation briefs posted on #383
+- Agent1 comment6728284272: #405 native16step -> #410 UI, then #420 SDK64 conflict repair.
+  Format authored sequencer files; fix actual Studio acceptance; keep statev1/default8.
+  UI old fixture y1000vs660 mismatch + native builtin/conformance failures are real.
+  Preserve new curated STARTERS/fixtures; regenerate from actual exports after native merge.
+- Agent2 comment6728284868: sequential #348 Reverb -> #323 Quantizer -> #310 Spectral B.
+  Normal main merges, retain Delay/all descriptors, Python-generated catalogues, fresh
+  native/Studio/WASM and task-specific Pi where required, independent T1.
+- Agent3 comment6728287573: #390 Learn seam + #210 controls -> #287 UI after actual seam merge.
+  Task13file allowance already fixed; helper refactor needs Claude review after integration.
+  #399 routes after a slot frees and Keel rules. No invented wire fields.
+- Agent4 comment6728288196: #398 evidence -> #386 real-sidecar e2e; #296 private edit-soak lane.
+  Actual private PR not yet present. Fixed3900s lane only, Claude T2, actual3600s evidence.
+  #387 checklist reduction only after385/386/296 evidence; no owner gate waived.
+- Canonical copy-ready file: docs/tasks/FOUR_AGENTS_2026_11_08.md.
+  Max3active/chat, oneissue/branch/PR, existing ownership respected, exact-head signed handoff.
 
-## Telemetry #350
-- #369 A3 now targets main; telemetry agent integrates and collects final native/wasm/site evidence.
-- #359 sidecar start gate is met by #368 merge; owner combined Electron/web visual check waits for B-wire.
-- Keep: reset event cursors on every commit; first post-edit burst must pulse; never fake phase.
-
-## Modules (all T1 now; Codex Lead owns)
-- #304 Spectral: conflicts with merged #367. Drop its private probe copy, use the shared tools/module_cpu_probe, rerun pi5/accept.
-- #373 at852a1ce: independent review and native/acceptance pass; Windows requested; static tool-download504 remains.
-- #348/#345 shared-probe integrations pushed; #344 waits for #373 poly probe. Keep module-specific exact-head Pi evidence.
-- Delay Web passed158 browser tests then Electron download504; one retry. Reverb/Resonator CodeQL download504 retried once.
-- #346 integrated main ataf01a60; local351-case DSP matrix/tracking/LFO checks pass; conflict review/new CI pending.
-- #310 Spectral Interleave/Vocoder: stacked on #304.
-
-## Phase 2 engine queue
-- #293 routes is available after #301. #292 in #378 atbce9bd0; format fixes pushed, final T2/CI/Pi pending.
-- #296 blocked: runner600s/1800s paths cannot certify3600s edit soak; bench/fault evidence also missing. Keel batch in #376.
-- #290/#210 controls: under the existing Keel Nov7 ruling; #210 has pi5/accept on d715bb4, needs review + merge.
-- #287 Learn: blocked for raw-CC observation contract (status.midi.activity lacks CC identity/value). T2: Keel batch.
-- #82 J5 OSC (phase 3, T2): parked until Phase 3; it needs a Claude review then.
-
-## Owner-requested three-agent handoff (#376)
-- Paste-ready lanes: docs/tasks/BUILD_LEAD_2026_11_08.md; three chats, maximum three active items each.
-- Three chats keep at most three active items each; current handoffs and contract batch are on #376.
-
-## Retained rules
-- Tests/CI never open audio/MIDI/LAN. No agent SSH to Pi/laptop; private runner supplies Pi evidence.
-- Missing metrics never count as zero; queued or prior-head results never count as current evidence.
-- Required checks: guard, linux-arm64, windows-x64, sanitizers. static is diff-scoped and often red from inherited code.
-- Keep documents lossless, Electron main sole automatic restarter, unknown data preserved.
-- Don't poll CI. Gates and runner do the waiting. No weakening tests/thresholds.
+## Retained Keel batch / later work
+- #415a9b7a00 green but new heading-boundary review candidate after lazy quote/list.
+- #4006dcc370 authored format79+233 diagnostics; repair first, then Claude T2 review.
+- #390a77b7f0 callback helper; #399781eda6 mono/backend/stream-restart contract.
+- #406a2a73c5/#4239591bd0 Chord/Notes→CV fan-in identity/channel/off/expression/capacity.
+  Three/four-note first, fifth optional; existing MIDI→CV already defaults4/supports16.
+- #408 task path explicitly authorized. #310 base304 merged; retarget main without rewrite.
+- Owner new chats/schedules not needed. #82 OSC and Windows packaging/hardware stay later.

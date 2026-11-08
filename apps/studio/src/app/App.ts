@@ -21,6 +21,7 @@ import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
 import { STARTERS, DEFAULT_STARTER } from './starters';
+import { CURATED_PATCHES } from './curated';
 import { playableStarters } from '../web/starters';
 import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } from '../theme/theme';
 import { el } from './dom';
@@ -1114,7 +1115,14 @@ export class App {
   private async loadBundledPatch(patch: PatchV2, name: string): Promise<void> {
     try { await window.wirescape?.openPatch({ library: 'reset' }); }
     catch { /* Save As below protects the previous native target if reset fails. */ }
-    await this.loadPatch(patch, name, true);
+    const loading = this.loadPatch(patch, name, true);
+    const loadedUi = this.doc.ui;
+    await loading;
+    // The wide, multi-row bundled graphs should open fully framed, not at 100%
+    // on their first leftmost module. Imported user patches keep their saved view.
+    requestAnimationFrame(() => {
+      if (this.doc.ui === loadedUi) this.canvas.fit();
+    });
   }
 
   private async openPatchBrowser(): Promise<void> {
@@ -1137,6 +1145,7 @@ export class App {
     };
     body.append(message, el('h3', 'settings-group', 'BUNDLED · READ ONLY'));
     const bundled = [...STARTERS.filter(s => s.id.startsWith('qt-')).map(s => ({ name: s.name, patch: s.patch() })),
+      ...STARTERS.filter(s => CURATED_PATCHES.some(p => p.id === s.id)).map(s => ({ name: s.name, patch: s.patch() })),
       { name: 'Class demo · CHAOS', patch: demoChaos as unknown as PatchV2 },
       { name: 'Class demo · Subtractive', patch: demoSub as unknown as PatchV2 },
       { name: 'Class demo · Macro', patch: demoMacro as unknown as PatchV2 }];

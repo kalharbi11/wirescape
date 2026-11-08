@@ -25,9 +25,8 @@ def changed_ranges(diff):
     return files
 
 
-def analysis_units(root, files):
+def build_units(root, files, build):
     """Use compiler-recorded Ninja dependencies, including nested/X-macro includes."""
-    build = root / "build/static"
     database = json.loads((build / "compile_commands.json").read_text())
     output = subprocess.check_output(["ninja", "-C", str(build), "-t", "deps"], text=True)
     dependencies, current = {}, None
@@ -49,11 +48,22 @@ def analysis_units(root, files):
         key = os.path.relpath(obj, build)
         reached = ({source} | dependencies.get(key, set())) & wanted
         if reached:
-            selected.append(entry)
+            selected.append({**entry, "file": str(source), "build": str(build)})
             covered.update(reached)
-    if wanted - covered:
+    return selected, covered
+
+
+def analysis_units(root, files, builds=("build/static", "build/static-web")):
+    """Require every configured build and cover changes with their union."""
+    selected, covered = [], set()
+    for name in builds:
+        units, reached = build_units(root, files, root / name)
+        selected.extend(units)
+        covered.update(reached)
+    missing = {(root / name).resolve() for name in files} - covered
+    if missing:
         raise ValueError("No compiled owner for changed files: " +
-                         ", ".join(str(p.relative_to(root)) for p in sorted(wanted - covered)))
+                         ", ".join(str(p.relative_to(root)) for p in sorted(missing)))
     return selected
 
 
@@ -70,12 +80,13 @@ def run_checks(root, diff, tidy_diff):
         line_filter = json.dumps([{"name": str((root / name).resolve()), "lines": ranges}
                                   for name, ranges in files.items() if ranges])
         for entry in units if any(files.values()) else []:
-            jobs.append(("clang-tidy diff " + entry["file"], ["clang-tidy-18", "-p", "build/static",
+            jobs.append(("clang-tidy diff " + entry["file"], ["clang-tidy-18", "-p", entry["build"],
                          "--header-filter=.*", "--line-filter=" + line_filter, entry["file"]], None))
         if units:
             project = root / "build/static/cppcheck_changed.json"
             project.parent.mkdir(parents=True, exist_ok=True)
-            project.write_text(json.dumps(units), encoding="utf-8")
+            project.write_text(json.dumps([{k: v for k, v in entry.items() if k != "build"}
+                                           for entry in units]), encoding="utf-8")
             jobs.append(("cppcheck changed files", ["cppcheck", "--enable=warning,performance",
                          "--error-exitcode=1", "--suppress=missingIncludeSystem", "--inline-suppr", "--template=gcc",
                          "--library=qt", "--project=" + str(project)], None))
