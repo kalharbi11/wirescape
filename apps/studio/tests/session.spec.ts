@@ -224,7 +224,7 @@ test.describe('the catalogue', () => {
       return out;
     });
 
-    expect(report).toHaveLength(23);
+    expect(report).toHaveLength(25);
     expect(report.some(r => r.id === 'fx.reverb')).toBe(true);
     for (const r of report) {
       expect(r.ports, `${r.id} should render its ports`).toBeGreaterThan(0);

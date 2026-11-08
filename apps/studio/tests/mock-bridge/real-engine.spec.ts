@@ -167,3 +167,22 @@ test('native open/save keeps the renderer-owned document and exact JSON text', a
   const saved = await page.evaluate(() => (window as any).__mockBridge.getSaved());
   expect(JSON.parse(saved).customUserData).toEqual({ preserved: true });
 });
+
+
+test('callback load and real dropouts preserve unavailable states', async ({ page }) => {
+  const status = (audio: Record<string, unknown>) => page.evaluate(value =>
+    (window as any).__mockBridge.status(value), audio);
+  await status({ state: 'starting', cpuPercent: 0, dropouts: 0 });
+  await expect(page.getByTestId('status-cpu')).toHaveText('CPU not available');
+  await status({ state: 'running', cpuPercent: 23.5, dropouts: 2 });
+  await expect(page.getByTestId('status-cpu')).toHaveText('CPU 24%');
+  await expect(page.getByTestId('status-dropouts')).toHaveText('2 dropouts');
+  await status({ state: 'running', cpuPercent: 120, dropouts: 3 });
+  await expect(page.getByTestId('status-cpu')).toHaveClass(/warn/);
+  await status({ state: 'device-lost', cpuPercent: 120, dropouts: 3 });
+  await expect(page.getByTestId('status-cpu')).toHaveText('CPU not available');
+  await expect(page.getByTestId('status-cpu')).not.toHaveClass(/warn/);
+  await expect(page.getByTestId('status-dropouts')).toHaveText('3 dropouts');
+  await status({ state: 'running', cpuPercent: null, dropouts: 3 });
+  await expect(page.getByTestId('status-cpu')).toHaveText('CPU not available');
+});
