@@ -10,15 +10,15 @@ ObservedMidi::ObservedMidi(bool fake, bool authorized)
         slots_[i].index = static_cast<uint8_t>(i);
     }
 }
-void ObservedMidi::capture_cc(uint8_t slot, uint8_t channel, uint8_t controller, uint8_t value) noexcept {
+void ObservedMidi::capture_cc(CcCapture cc) noexcept {
     // Epoch precedes armed: a callback racing a rearm must not be treated as a new capture.
     const uint64_t epoch = learn_epoch_.load(std::memory_order_acquire) & 31u;
     if (!learn_armed_.load(std::memory_order_acquire)) return;
     const uint32_t seq = learn_sequence_.fetch_add(1, std::memory_order_relaxed) + 1;
     // [63:59] arm epoch, [58] valid, [57:26] seq, [25:18] slot,
     // [17:14] MIDI channel 0..15, [13:7] controller, [6:0] value.
-    const uint64_t source_bits = (uint64_t{slot} << 18) | (uint64_t{channel} << 14);
-    const uint64_t cc_bits = (uint64_t{controller} << 7) | value;
+    const uint64_t source_bits = (uint64_t{cc.slot} << 18) | (uint64_t{cc.channel} << 14);
+    const uint64_t cc_bits = (uint64_t{cc.controller} << 7) | cc.value;
     const uint64_t packet = (epoch << 59) | (uint64_t{1} << 58) | (uint64_t{seq} << 26) | source_bits | cc_bits;
     learn_packet_.store(packet, std::memory_order_release);
 }
@@ -86,7 +86,7 @@ void ObservedMidi::message(void *context, const uint8_t *bytes, size_t n, uint64
         unsigned status = bytes[0] >> 4, channel = bytes[0] & 15;
         if (status == 8 || status == 9) note(s, bytes[1], channel, status == 9 && bytes[2] != 0);
         if (status == 11 && bytes[1] < 128 && bytes[2] < 128)
-            s.owner->capture_cc(s.index, uint8_t(channel), bytes[1], bytes[2]);
+            s.owner->capture_cc({s.index, uint8_t(channel), bytes[1], bytes[2]});
         if (status == 11 && (bytes[1] == 120 || bytes[1] == 123))
             for (auto &key : s.notes) key.fetch_and(uint16_t(~(1u << channel)));
     }
@@ -104,7 +104,7 @@ void ObservedMidi::ump(void *context, const uint32_t *words, size_t n, uint64_t 
             if (status == 11) {
                 const uint8_t controller = uint8_t((word >> 8) & 127u);
                 const uint8_t value = type == 2 ? uint8_t(word & 127u) : uint8_t(words[1] >> 25);
-                s.owner->capture_cc(s.index, uint8_t(channel), controller, value);
+                s.owner->capture_cc({s.index, uint8_t(channel), controller, value});
             }
             if (status == 11 && (((word >> 8) & 127) == 120 || ((word >> 8) & 127) == 123))
                 for (auto &key : s.notes) key.fetch_and(uint16_t(~(1u << channel)));
