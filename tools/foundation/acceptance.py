@@ -112,13 +112,22 @@ def visible_closing_issues(body):
             marker = opening.group(1)
             fence = (marker[0], len(marker))
             continue
-        if re.match(r" {0,3}(>|(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)", line):
+        if re.match(r" {0,3}>", line):
             continuation = True
             continue
-        if not continuation:
-            match = re.match(r"(?i)^ {0,3}Closes[ \t]+#(\d+)\b", line)
-            if match:
-                yield int(match.group(1))
+        item = re.match(r" {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]+", line)
+        if item:
+            line = line[item.end():]
+            continuation = True
+        elif continuation:
+            continue
+        # A literal inline-code example is not a GitHub closing directive.
+        line = re.sub(r"(`+).*?\1", "", line)
+        if re.match(r"(?i)^\s*(?:for example|e\.g\.)\s*:", line):
+            continue
+        match = re.search(r"(?i)\bCloses[ \t]+#(\d+)\b", line)
+        if match:
+            yield int(match.group(1))
 
 
 def select_pr_task(root, pr_body):
