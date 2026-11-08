@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "../../tests2/allocation_watch.h"
 #include "callback_render.h"
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -142,17 +143,31 @@ int main(int argc, char **argv) {
                 enabled[n] = measure(tapped);
             }
         }
-        CHECK(faults.load() == 0);
         float values[64]{};
         uint32_t counts[64]{};
         uint64_t frame = 0;
-        CHECK(app_engine_native(tapped.get()).read_telemetry(values, counts, 64, frame) == 64 && frame > 0);
+        const auto taps = app_engine_native(tapped.get()).read_telemetry(values, counts, 64, frame);
+        std::array<double, 5> ratios{};
+        bool passed = taps == 64 && frame > 0 && faults.load() == 0;
+        for (unsigned n = 0; n < ratios.size(); ++n) {
+            const bool valid = std::isfinite(baseline[n]) && baseline[n] > 0 &&
+                               std::isfinite(enabled[n]) && enabled[n] > 0;
+            ratios[n] = valid ? enabled[n] / baseline[n] : 0;
+            passed = passed && valid && std::isfinite(ratios[n]) && ratios[n] > 0;
+        }
+        auto ordered = ratios;
+        std::sort(ordered.begin(), ordered.end());
+        const double median_ratio = ordered[2];
+        passed = passed && median_ratio <= 1.05;
         std::printf("telemetry_bench {\"taps\":64,\"rate\":48000,\"frames\":256,\"plain_ns\":[");
         for (unsigned n = 0; n < 5; ++n) std::printf("%s%.3f", n ? "," : "", baseline[n]);
         std::printf("],\"tapped_ns\":[");
         for (unsigned n = 0; n < 5; ++n) std::printf("%s%.3f", n ? "," : "", enabled[n]);
-        std::puts("]}");
-        return 0; // measurement only; Pi comparison uses the ruled benchmark tolerance
+        std::printf("],\"ratios\":[");
+        for (unsigned n = 0; n < ratios.size(); ++n) std::printf("%s%.6f", n ? "," : "", ratios[n]);
+        std::printf("],\"median_ratio\":%.6f,\"faults\":%llu,\"result\":\"%s\"}\n",
+                    median_ratio, static_cast<unsigned long long>(faults.load()), passed ? "PASS" : "FAIL");
+        return passed ? 0 : 1;
     }
     CHECK(argc == 1);
     wirescape::audio::CallbackMetrics metrics;
