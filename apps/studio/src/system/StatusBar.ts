@@ -101,8 +101,9 @@ export class StatusBar {
     this.audioDetail.textContent = a.state === 'running' || a.state === 'reconnecting'
       ? `${a.deviceName} · ${(a.sampleRate / 1000).toFixed(1)} kHz · ${a.bufferFrames} frames · ${a.state === 'running' ? a.latencyMs + ' ms est.' : 'latency not available'}`
       : 'no output';
-    this.cpu.textContent = a.state === 'running' ? `CPU ${a.cpuPercent.toFixed(0)}%` : 'CPU not available';
-    this.cpu.classList.toggle('warn', a.cpuPercent > 80);
+    const cpuAvailable = a.state === 'running' && Number.isFinite(a.cpuPercent) && a.cpuPercent >= 0;
+    this.cpu.textContent = cpuAvailable ? `CPU ${a.cpuPercent.toFixed(0)}%` : 'CPU not available';
+    this.cpu.classList.toggle('warn', cpuAvailable && a.cpuPercent > 80);
     this.drop.textContent = `${a.dropouts} dropouts`;
     this.drop.classList.toggle('warn', a.dropouts > 0);
 
