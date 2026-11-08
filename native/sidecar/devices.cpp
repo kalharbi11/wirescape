@@ -32,7 +32,7 @@ void ObservedMidi::arm_learning(bool armed) {
 }
 void ObservedMidi::expire_learning(std::chrono::steady_clock::time_point now) {
     if (learn_armed_.load(std::memory_order_acquire) && now >= learn_deadline_ &&
-        (learn_packet_.load(std::memory_order_acquire) & (uint64_t{1} << 58)) == 0)
+        !learning().contains("seq"))
         arm_learning(false);
 }
 Json ObservedMidi::learning() {
