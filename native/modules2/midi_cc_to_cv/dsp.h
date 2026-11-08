@@ -2,6 +2,8 @@
 #pragma once
 #include "wirescape_sdk.h"
 #include "config.h"
+#include <algorithm>
+#include <limits>
 namespace wirescape::midi {
 struct CcToCv {
     static constexpr ws::Info info{"midi.cc_to_cv", "CC to CV", 1};
@@ -30,7 +32,7 @@ struct CcToCv {
         for (uint32_t i = 0; i < rows.size(); ++i) rows[i].coefficient = config.rows[i].smoothing_ms > 0 ? 1. - std::exp(-1000. / (config.rows[i].smoothing_ms * s.sample_rate())) : 1.;
         return true;
     }
-    void reset() { sources = {}; dropped = 0; for (uint32_t i = 0; i < rows.size(); ++i) { const double k = rows[i].coefficient; rows[i] = {}; rows[i].coefficient = k; rows[i].current = rows[i].target = config.rows[i].bipolar ? -1 : 0; } }
+    void reset() { sources = {}; dropped = 0; for (uint32_t i = 0; i < rows.size(); ++i) { const double k = rows[i].coefficient; rows[i] = {}; rows[i].coefficient = k; rows[i].current = rows[i].target = config.rows[i].minimum(); } }
     void event(const ws2_event& e) {
         if (e.type == WS2_NOTE_CHOKE) {
             for (uint32_t t = 0; t < sources.size(); ++t) if (sources[t].used && (e.source_id == UINT32_MAX || sources[t].id == e.source_id)) { sources[t] = {}; for (auto& row : rows) row.msb[t] = row.lsb[t] = 0; }
@@ -52,16 +54,19 @@ struct CcToCv {
                 if (controller == cfg.controller) row.msb[source] = uint8_t(e.ump[0] & 127); else row.lsb[source] = uint8_t(e.ump[0] & 127);
                 normalized = double(uint32_t(row.msb[source]) * 128 + row.lsb[source]) / 16383.;
             } else { if (controller != cfg.controller) continue; normalized = double(e.ump[0] & 127) / 127.; }
-            row.target = cfg.bipolar ? normalized * 2 - 1 : normalized;
+            row.target = cfg.minimum() * (1. - normalized) + cfg.maximum() * normalized;
         }
     }
     void process(ws::Block& b) {
         for (uint32_t p = 0; p < 8; ++p) { b.out(p).set_channels(1); b.out(p).mark_constant(false); }
         b.split([&](uint32_t first, uint32_t end) {
             for (uint32_t p = 0; p < 8; ++p) for (uint32_t i = first; i < end; ++i) {
-                auto& row = rows[p]; row.current += row.coefficient * (row.target - row.current);
+                auto& row = rows[p];
+                // A convex update avoids intermediate overflow for inverted finite endpoints.
+                row.current = (1. - row.coefficient) * row.current + row.coefficient * row.target;
                 if (std::abs(row.current - row.target) < 1e-7) row.current = row.target;
-                b.out(p).ch(0)[i] = float(row.current);
+                const double limit = double(std::numeric_limits<float>::max());
+                b.out(p).ch(0)[i] = float(std::clamp(row.current, -limit, limit));
             }
         }, [&](const ws2_event& e) { event(e); });
     }
