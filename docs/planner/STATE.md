@@ -16,7 +16,7 @@ Keep this under 60 lines. History lives in git.
 - Priority: owner failures, Phase 2 critical path, modules in parallel. Windows #266 follows Test Session 1.
 
 ## Engine and app queue
-- #301/#291 audio recovery: critical-path takeover fixing Keel's two Mediums; fresh head needs Keel and Pi. #293 follows.
+- #301/#291 audio recovery: both Mediums repaired at 003f64e with fake-device regressions; fresh CI, Keel and Pi required. #293 follows.
 - #331/#294 patch browser: takeover fixing preload/reset Lows plus malformed-load Save-target hazard; fresh Web/Electron evidence required.
 - #292 callback load/dropouts: ready builder brief in issue. #296 fake-device Pi soak: unblocked, status/todo, exact brief posted.
 - #287 MIDI Learn: blocked for Keel correction; status.midi.activity is recent endpoint activity, not CC number/channel/value.
@@ -33,7 +33,7 @@ Keep this under 60 lines. History lives in git.
 - After A1 merges: #357 A2 sidecar/spec (T2) and #358 A3 wasm (T1) parallel; then #359 B-wire after host and phase prerequisites.
 
 ## Module lane
-- #348 reverb: independent review found float delay-glide freeze loss at nondefault Size; precision fix and unchanged-tolerance regression in progress.
+- #348 reverb: precision fix + unchanged-tolerance regression pushed be3c306 and independently checked; dedicated tests pass, fresh CI/Pi pending.
 - #304 Spectral/shared CPU probe: review requires hop-aligned mode stress (:32, not :4), Pi evidence and current integration.
 - Builder brief: extract generic CPU probe/tooling as an independent T1 PR to unblock effects' Pi acceptance.
 - #345 delay and #344 resonator still need exact-head Pi CPU evidence; #344 independent module review outstanding.
