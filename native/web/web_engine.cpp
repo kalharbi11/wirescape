@@ -5,6 +5,7 @@
 // graph commits allocate on that thread and crossfade instead of the sidecar's
 // D5/live-replan paths. MIDI, OSC, devices and files do not exist here.
 #include "web_engine.h"
+#include "../document/telemetry_taps.h"
 #include "app_engine.h"
 #include "runtime_patch.h"
 #include <algorithm>
@@ -73,6 +74,7 @@ struct Web {
     float peak = 0;
     std::set<uint32_t> held;
     std::string reply;
+    wirescape::document::telemetry::Sampler telemetry;
 
     const ws2_descriptor *descriptor(const Json &m) {
         auto type = m.at("module").get<std::string>();
@@ -132,7 +134,10 @@ struct Web {
     void commit(Json candidate) {
         candidate = execution(std::move(candidate));
         std::string error;
-        Owner next(wirescape::document::load_runtime_patch(candidate.dump(), catalogue.get(), config, error),
+        wirescape::document::telemetry::Sampler next_telemetry(
+            wirescape::document::telemetry::plan(candidate, catalogue.get(), /*phase_enabled=*/true));
+        using wirescape::document::load_runtime_patch;
+        Owner next(load_runtime_patch(candidate.dump(), catalogue.get(), config, error, &next_telemetry.taps()),
                    app_engine_destroy);
         need(bool(next), "refused", "Graph configuration refused");
         if (live) {
@@ -141,6 +146,7 @@ struct Web {
             fade = kFadeFrames;
         }
         live = std::move(next);
+        telemetry.swap(next_telemetry); // Reset cumulative event cursors on every commit.
         patch = std::move(candidate);
         held.clear();
         ++generation;
@@ -388,8 +394,10 @@ const char *wsw_telemetry() {
                 }
         }
     }
-    web->reply =
-        Json{{"meters", meters}, {"scope", scope}, {"outputs", outputs}, {"heldNotes", Json(web->held)}}.dump();
+    auto snapshot = web->telemetry.sample(web->live.get());
+    Json result = {{"meters", meters}, {"scope", scope}, {"outputs", outputs}, {"heldNotes", Json(web->held)}};
+    result.update(snapshot); // Complete render-backed maps; never reuse the previous graph.
+    web->reply = result.dump();
     return web->reply.c_str();
 }
 float *wsw_render(uint32_t frames) {

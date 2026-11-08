@@ -157,6 +157,8 @@ add_test(NAME abi2_module_cpu_probe_smoke COMMAND abi2_module_cpu_probe --module
 set_tests_properties(abi2_module_cpu_probe_smoke PROPERTIES PASS_REGULAR_EXPRESSION "\"allocations\":0,\"faults\":0")
 add_test(NAME abi2_module_cpu_probe_stress_smoke COMMAND abi2_module_cpu_probe --module sound.blend --seconds 0.2 --param balance=0.25 --alternate mode=0:1:4)
 set_tests_properties(abi2_module_cpu_probe_stress_smoke PROPERTIES PASS_REGULAR_EXPRESSION "\"allocations\":0,\"faults\":0")
+add_test(NAME abi2_module_cpu_probe_poly_smoke COMMAND abi2_module_cpu_probe --module essentials.vco --seconds 0.2 --channels 8)
+set_tests_properties(abi2_module_cpu_probe_poly_smoke PROPERTIES PASS_REGULAR_EXPRESSION "\"channels\":8.*\"allocations\":0,\"faults\":0")
 add_test(NAME abi2_module_cpu_probe_unit COMMAND ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/../tools/foundation/tests/test_module_cpu_probe.py)
 

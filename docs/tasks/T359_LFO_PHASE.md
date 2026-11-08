@@ -3,7 +3,7 @@
 
 **Contract:** `docs/design/ENGINE_TELEMETRY.md` ruling 12, issue #359
 and `docs/tasks/T350_ENGINE_TELEMETRY.md`. B-mod #364 and A2 #368
-are merged. A3 web host #369 must merge before its phase mapping is wired.
+and A3 web host #369 are merged; both hosts now enable measured phase.
 
 Enable the existing host-side `essentials.lfo:phase` output tap (first
 channel, rendered last frame) and publish finite measured phase in [0,1).
@@ -19,7 +19,8 @@ cadence and all existing telemetry fields unchanged.
 `apps/studio/tests/revision.spec.ts`, `apps/studio/AGENTS.md`.
 
 **Further gates:** native null-sink LFO phase advancing in [0,1);
-native wasm host regression after #369 merges; Playwright dot presence,
+native Web host phase range/advancement and graph-replacement regression;
+Playwright dot presence,
 unavailability and no interpolation; engine, web and web-demo CI;
 independent T1 review. No device runs.
 
