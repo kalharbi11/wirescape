@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "runtime_patch.h"
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -68,9 +69,20 @@ int main(int argc, char **argv) {
                     require(routed, name + ": Output missing bus " + std::to_string(bus));
                 }
             }
-            float samples[256]{};
-            require(app_engine_render(engine.get(), samples, 256) == WS_OK, name + ": render failed");
-            for (float sample : samples) require(std::isfinite(sample), name + ": non-finite sample");
+            // Automatic patches must actually emit sound without any MIDI/key event.
+            // Run long enough to cover the first clock edge at the authored slow tempi.
+            const bool autoplay = std::set<std::string>{
+                "hollow-chapel", "breathing-walls", "dust-reactor", "witching-hour", "neon-elegy"
+            }.count(name) != 0;
+            float samples[256]{}, peak = 0.f;
+            for (int block = 0; block < (autoplay ? 256 : 1); ++block) {
+                require(app_engine_render(engine.get(), samples, 256) == WS_OK, name + ": render failed");
+                for (float sample : samples) {
+                    require(std::isfinite(sample), name + ": non-finite sample");
+                    peak = std::max(peak, std::fabs(sample));
+                }
+            }
+            if (autoplay) require(peak > 1.e-5f, name + ": autoplay produced silence");
             ++accepted;
         }
 
