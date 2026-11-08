@@ -38,10 +38,13 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
      }
  }
  require(found_resonator, "resonator in catalogue");
-  bool found_spectral = false;
-  for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i)
-      if (std::string(app_engine_module(cat.get(), i)->id) == "sound.spectral") found_spectral = true;
-  require(found_spectral, "spectral in catalogue");
+ bool found_spectral = false;
+ for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i) {
+     if (std::string(app_engine_module(cat.get(), i)->id) == "sound.spectral") {
+         found_spectral = true;
+     }
+ }
+ require(found_spectral, "spectral in catalogue");
  {
      const QByteArray fixture = R"({
        "format":"wirescape.native.patch","version":2,"name":"Offline keyboard to Macro",
