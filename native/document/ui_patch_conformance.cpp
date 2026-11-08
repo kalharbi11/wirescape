@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
         require(argc == 3, "fixture and UI catalogue paths required");
         std::ifstream fixtures_file(argv[1]), catalogue_file(argv[2]);
         const auto fixtures = Json::parse(fixtures_file), ui = Json::parse(catalogue_file);
-        require(fixtures.size() == 12, "all twelve UI starters must be exported");
+        require(fixtures.size() == 15, "all fifteen UI starters must be exported");
         ws_engine_config config{sizeof(config), 48000, 256, 64, 2048};
         Owner catalogue(app_engine_create(&config), app_engine_destroy);
         require(bool(catalogue), "create catalogue without devices");
@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
             ++accepted;
         }
 
-        require(accepted == 12, "all starters must load and render");
+        require(accepted == 15, "all starters must load and render");
         // Unknown identities still fail closed without changing editable data.
         auto unknown = fixtures.at(0).at("patch");
         unknown["modules"][0]["module"] = "test.unknown_module";
