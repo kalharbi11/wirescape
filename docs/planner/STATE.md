@@ -3,50 +3,44 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-07 America/New_York by Codex Lead; verified live PR heads, reviews, CI and merge records.
+**Updated:** 2026-11-08 by Compass (Claude), acting as Keel too.
 Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure preempts other work.
 
-## Lead split and priorities
-- Compass owns phase/product priorities and module lane; Keel owns T2 technical review/rulings.
-- Codex Lead owns builder queue, scoped takeovers and T0/T1 gate approvals.
-- Existing owner-requested schedules unchanged; no additional polling/schedules.
-- All Phase 1 code merged; #271 owner results remain before Checkpoint A. Minimum: 0, A, B, C, D3.
-- Windows #266 follows Test Session 1. Web demo remains an independent showcase lane.
+## Delegation (new, AGENTS.md 2026-11-08)
+- Codex Lead now merges stuck-but-green reviewed PRs, merges past inherited static/cortex-m7 reds,
+  applies Claude conditional approvals once their evidence is posted, decides Pi need for module/UI PRs,
+  and writes `Protected path named:` lines for docs/tasks/** and STATE.md. Modules and their DSP are T1.
+- Claude is needed only for real T2 (engine2 core, protocol/spec, patch format, ABI/SDK headers, CI/merge
+  control) and plan/scope changes. Batch them: one `Keel: T2 batch` comment, so one session clears them all.
 
-## Confirmed merged
-- #161 Plaits/Cortex context and #343 Macro gate merged. Keel waived #161 Pi rerun.
-- #331 patch browser/save safety, #352 waveform tail, #353 30Hz cap, #364 LFO phase merged.
-- #362 engine2 telemetry taps merged at bf74743; A2/A3 builders are unblocked.
+## Done this session (11-08)
+- Merged #367 (shared CPU probe). Closed #181/#180 (superseded by docs/SDK_AUTHOR_GUIDE.md); closed #374 (folded in here).
+- Approved and marked ready: #371 (emit rename), #301 (audio recovery; Keel pre-approval applied on the pi5 head),
+  #368 (A2 telemetry; Keel T2 clean, one Low). The gate merges them once windows-x64 is green.
+- Ruling: the #368 Pi 64-tap/no-tap comparison moves into #292 (callback load); it doesn't block A2.
 
 ## Telemetry #350
-- Contract: docs/design/ENGINE_TELEMETRY.md; shared brief: docs/tasks/T350_ENGINE_TELEMETRY.md.
-- #363 A0 snapshots 4e37373 merged; Studio snapshot semantics are on main.
-- #368 A2 e281706: hosted functional checks green; Keel T2 review requested, ci/pi added; 64-tap/no-tap Pi command/evidence missing.
-- #369 A3 wasm 8cf7c46: stacked on #368, source preflight clean; retarget main after A2 merges, then final native/wasm/site evidence.
-- Critical host regression: reset event-count cursors on every graph commit; first post-edit burst must pulse.
-- #359 B-wire follows host merge; B-mod is already merged. Do not fabricate phase.
-- Owner telemetry visual check waits for B-wire, then batch Electron/web check.
+- After #368 merges: #369 A3 wasm retargets to main, then final native/wasm/site evidence (T2: Keel batch).
+- #359 B-wire follows. Owner telemetry visual check waits for B-wire, then a combined Electron/web check.
+- Keep: reset event cursors on every commit; first post-edit burst must pulse; never fake phase.
 
-## Shared CPU evidence and modules
-- #367 shared probe extracted; review found channel0-only/NaN masking. Repaired to scan all channels/count nonfinite faults.
-- #367 current signed branch handoff is authoritative: full block-count/duration checks, named output bounds and authored static fixes pushed.
-- 7 Python tests and strict local C++17 output regression pass. Independent follow-up/fresh hosted checks required; no Pi timing claim.
-- After #367 merges, integrate probe into effects and Spectral without duplicate targets/helpers; run specified Pi timing.
-- #348 reverb be3c306: freeze precision fix independently reviewed; hosted checks pass, Pi CPU evidence still required.
-- #304 Spectral 38b2c24: hop-aligned :32 stress and integration fixed; hosted native/Web gates green; exact-head pi5 and pi5/accept success posted.
-- #304 Pi attempt2 shares old poll run URL; verify commit status/head, not the old-head handoff. Worst stress 1.023ms/2.667ms period.
-- #345 Delay 99b7eaf, #344 Resonator 06d5ede, #323 Quantizer a65a70a: verify current fixes/reviews/acceptance; do not repeat old findings blindly.
-- #346 oscillator UI 48aec95: hosted checks green, independent reviews clean; author Self-review checklist requested before approval.
+## Modules (all T1 now; Codex Lead owns)
+- #304 Spectral: conflicts with merged #367. Drop its private probe copy, use the shared tools/module_cpu_probe, rerun pi5/accept.
+- #373/#372 probe polyphony: retarget to main (base #367 merged), finish, merge.
+- #348 reverb, #345 delay, #344 resonator (--channels 8 after #373), #323 quantizer: switch to the shared probe,
+  run Pi CPU acceptance, then Codex Lead merges.
+- #346 oscillator UI: rebase conflict (dirty), then merge (reviews clean).
+- #310 Spectral Interleave/Vocoder: stacked on #304.
 
 ## Phase 2 engine queue
-- #301 audio recovery aba3042: authorized CMake repair present; ARM64/sanitizers/task acceptance green, no pi5 status yet.
-- Private Pi poll attempt2 is running; do not start duplicates. Compass/Keel can approve under Keel's pre-approval once exact-head pi5 passes.
-- #293 device routes/details follows #301. #292 callback load/dropouts and #296 fake-device soak remain available.
-- #290/#210 controls: implement under existing Keel Nov7 ruling.
-- #287 Learn: blocked for raw-CC observation contract; status.midi.activity scalars lack CC identity/value.
+- #301 merging. Next: #293 device routes, #292 callback load/dropouts (+ tap-cost check), #296 fake-device soak.
+- #290/#210 controls: under the existing Keel Nov7 ruling; #210 has pi5/accept on d715bb4, needs review + merge.
+- #287 Learn: blocked for raw-CC observation contract (status.midi.activity lacks CC identity/value). T2: Keel batch.
+- #82 J5 OSC (phase 3, T2): parked until Phase 3; it needs a Claude review then.
 
 ## Retained rules
 - Tests/CI never open audio/MIDI/LAN. No agent SSH to Pi/laptop; private runner supplies Pi evidence.
 - Missing metrics never count as zero; queued or prior-head results never count as current evidence.
+- Required checks: guard, linux-arm64, windows-x64, sanitizers. static is diff-scoped and often red from inherited code.
 - Keep documents lossless, Electron main sole automatic restarter, unknown data preserved.
-- Review exact changed seams; don't poll CI. Gates and runner do waiting. No weakening tests/thresholds.
+- Don't poll CI. Gates and runner do the waiting. No weakening tests/thresholds.
