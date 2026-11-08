@@ -44,7 +44,18 @@ struct Backend {
   if(!library)throw std::runtime_error("PortAudio unavailable: install libportaudio2 on Linux or place the DLL beside the runner");
   // Resident through process exit, including a broken-backend shutdown path.
 #define LOAD(member,name) symbol(member,name)
-  LOAD(initialize,"Pa_Initialize");LOAD(terminate,"Pa_Terminate");LOAD(count,"Pa_GetDeviceCount");LOAD(info,"Pa_GetDeviceInfo");LOAD(default_device,"Pa_GetDefaultOutputDevice");LOAD(text,"Pa_GetErrorText");LOAD(open,"Pa_OpenStream");LOAD(start,"Pa_StartStream");LOAD(stop,"Pa_StopStream");LOAD(abort,"Pa_AbortStream");LOAD(close,"Pa_CloseStream");LOAD(active,"Pa_IsStreamActive");
+        LOAD(initialize,"Pa_Initialize");
+        LOAD(terminate,"Pa_Terminate");
+        LOAD(count,"Pa_GetDeviceCount");
+        LOAD(info,"Pa_GetDeviceInfo");
+        LOAD(default_device,"Pa_GetDefaultOutputDevice");
+        LOAD(text,"Pa_GetErrorText");
+        LOAD(open,"Pa_OpenStream");
+        LOAD(start,"Pa_StartStream");
+        LOAD(stop,"Pa_StopStream");
+        LOAD(abort,"Pa_AbortStream");
+        LOAD(close,"Pa_CloseStream");
+        LOAD(active,"Pa_IsStreamActive");
 #undef LOAD
   check(initialize());initialized=true;
  }
@@ -54,9 +65,13 @@ struct Backend {
 struct Context {
  std::function<void()> stop_producers;
  ~Context(){if(stop_producers)stop_producers();}
- double rate;CallbackMetrics metrics;
- EngineOwner engine;std::vector<float> scratch;std::atomic<uint64_t> faults{0};
- Context(EngineOwner e,uint32_t block,double hz):rate(hz),engine(std::move(e)),scratch(size_t{block}*2){}
+    double rate;
+    CallbackMetrics metrics;
+    EngineOwner engine;
+    std::vector<float> scratch;
+    std::atomic<uint64_t> faults{0};
+    Context(EngineOwner e, uint32_t block, double hz)
+        : rate(hz), engine(std::move(e)), scratch(size_t{block} * 2) {}
 };
 int callback(const void *, void *output, unsigned long frames, const PaStreamCallbackTimeInfo *,
              PaStreamCallbackFlags flags, void *data) {
@@ -157,11 +172,18 @@ Stream::Stream(EngineOwner &e, const StreamSelection &selection, double rate, ui
 Stream::~Stream() = default;
 EngineOwner Stream::stop() { return impl_->retire(); }
 bool Stream::running() const { return impl_->stream && impl_->backend->active(impl_->stream) > 0; }
-double Stream::cpu_percent() const { return impl_->context ? impl_->context->metrics.read() : std::numeric_limits<double>::quiet_NaN(); }
-uint64_t Stream::dropouts() const { return impl_->context ? impl_->context->metrics.underflows.load(std::memory_order_relaxed) : impl_->retired_dropouts; }
+double Stream::cpu_percent() const {
+    return impl_->context ? impl_->context->metrics.read() : std::numeric_limits<double>::quiet_NaN();
+}
+uint64_t Stream::dropouts() const {
+    return impl_->context ? impl_->context->metrics.underflows.load(std::memory_order_relaxed) : impl_->retired_dropouts;
+}
 void play(EngineOwner engine,const std::string&directory,const std::string&name,double rate,uint32_t block,const std::atomic<bool>&quit,std::function<void()> stop_producers){
  struct StopOnError {std::function<void()>&stop;~StopOnError(){if(stop)stop();}} cleanup{stop_producers};
- Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block,rate);context->stop_producers=stop_producers;int device=b.default_device();
+    Backend b(directory);
+    auto context = std::make_unique<Context>(std::move(engine), block, rate);
+    context->stop_producers = stop_producers;
+    int device = b.default_device();
  if(!name.empty()){size_t consumed=0;try{device=std::stoi(name,&consumed);}catch(const std::exception&){consumed=0;}if(consumed!=name.size()){
    device=paNoDevice;int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&name==d->name){device=i;break;}}
  }}
@@ -171,7 +193,9 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  PaError start=b.start(stream),run_status=paNoError;
  if(start>=0){while(!quit.load(std::memory_order_relaxed)){
    int active=b.active(stream);if(active<=0){run_status=active;break;}
-   std::cerr<<"cpu="<<context->metrics.read()<<"% xruns="<<context->metrics.underflows.load(std::memory_order_relaxed)<<" faults="<<context->faults.load()<<'\n';
+            std::cerr << "cpu=" << context->metrics.read() << "% xruns="
+                      << context->metrics.underflows.load(std::memory_order_relaxed)
+                      << " faults=" << context->faults.load() << '\n';
    for(int tick=0;tick<10&&!quit.load(std::memory_order_relaxed);++tick)std::this_thread::sleep_for(std::chrono::milliseconds(100));
  }}
  if(stop_producers)stop_producers(); // producers join/drain while render still owns its engine.

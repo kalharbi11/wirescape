@@ -679,8 +679,9 @@ Json Session::audio_status() const {
     const double cpu = selected ? stream_->cpu_percent() : 0;
     // An opened stream has no measured load until its first callback completes.
     const bool measured = std::isfinite(cpu) && cpu >= 0;
-    const auto state = options_.audio && stream_ && !selected ? "device-lost"
-                       : selected && !measured ? "starting" : audio_state_;
+    auto state = audio_state_;
+    if (options_.audio && stream_ && !selected) state = "device-lost";
+    else if (selected && !measured) state = "starting";
     Json result = {{"state", state},
                    {"deviceId", selected ? Json(device_) : Json(nullptr)},
                    {"deviceName", selected ? Json(device_) : Json(nullptr)},

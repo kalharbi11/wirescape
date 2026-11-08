@@ -3,10 +3,10 @@
 #include "callback_render.h"
 #include <array>
 #include <chrono>
-#include <cstring>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 
 namespace {
@@ -133,11 +133,18 @@ int main(int argc, char **argv) {
         };
         for (unsigned n = 0; n < 5; ++n) {
             // Alternate order to avoid consistently favoring one graph with thermal/cache drift.
-            if (n % 2) { enabled[n] = measure(tapped); baseline[n] = measure(plain); }
-            else { baseline[n] = measure(plain); enabled[n] = measure(tapped); }
+            if (n % 2) {
+                enabled[n] = measure(tapped);
+                baseline[n] = measure(plain);
+            } else {
+                baseline[n] = measure(plain);
+                enabled[n] = measure(tapped);
+            }
         }
         CHECK(faults.load() == 0);
-        float values[64]{}; uint32_t counts[64]{}; uint64_t frame = 0;
+        float values[64]{};
+        uint32_t counts[64]{};
+        uint64_t frame = 0;
         CHECK(app_engine_native(tapped.get()).read_telemetry(values, counts, 64, frame) == 64 && frame > 0);
         std::printf("telemetry_bench {\"taps\":64,\"rate\":48000,\"frames\":256,\"plain_ns\":[");
         for (unsigned n = 0; n < 5; ++n) std::printf("%s%.3f", n ? "," : "", baseline[n]);
@@ -161,7 +168,7 @@ int main(int argc, char **argv) {
     metrics.publish(6000000, 240, 48000); // never cap an overload at 100%
     CHECK(std::abs(metrics.read() - 120) < 1e-5);
     metrics.publish(0, 240, 48000);
-    CHECK(metrics.read() == 0); // measured zero differs from no sample
+    CHECK(metrics.read() == 0);            // measured zero differs from no sample
     CHECK(metrics.underflows.load() == 0); // slow render alone is not a backend dropout
     metrics.publish(500000, 240, 48000, true);
     metrics.publish(500000, 240, 48000, true);
