@@ -473,6 +473,12 @@ Json Session::apply(const Json &command) {
     auto type = command.at("type").get<std::string>();
     if (type == "listAudioDevices") return {{"devices", audio_devices_}};
     if (type == "listMidiDevices") return {{"devices", midi_devices_}};
+    if (type == "midiLearn") {
+        need(command.at("armed").is_boolean());
+        const bool armed = command.at("armed").get<bool>();
+        observer_->arm_learning(armed);
+        return {{"armed", armed}};
+    }
     if (type == "setOsc" || type == "setSampleRate" || type == "setBufferFrames")
         throw Refusal("unavailable", "Capability not available");
     if (type == "selectAudioDevice") {
@@ -691,14 +697,19 @@ Json Session::audio_status() const {
                    {"dropouts", dropouts_.load() + (stream_ ? stream_->dropouts() : 0)}};
     return result;
 }
-Json Session::midi_status() const { return {{"devices", midi_devices_}, {"activity", observer_->activity()}}; }
+Json Session::midi_status() const {
+    Json result = {{"devices", midi_devices_}, {"activity", observer_->activity()}};
+    auto learn = observer_->learning();
+    if (!learn.is_null()) result["learn"] = std::move(learn);
+    return result;
+}
 Json Session::hello() const {
     return {{"v", 0},
             {"session", token_},
             {"type", "hello"},
             {"protocol", 0},
             {"engine", {{"version", "0.1.0"}, {"sha", WIRESCAPE_ENGINE_SHA}}},
-            {"capabilities", Json::array()},
+            {"capabilities", Json::array({"midiLearn"})},
             {"catalogue", catalogue(catalogue_.get())},
             {"audio", audio_status()},
             {"midi", midi_status()}};
@@ -765,6 +776,7 @@ bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumera
     return previous != audio_state_;
 }
 bool Session::poll(std::chrono::steady_clock::time_point now) {
+    observer_->expire_learning(now);
     auto old_audio = audio_devices_, old_midi = midi_devices_;
     if (midi_->enabled().empty()) observer_->endpoints();
     const auto enumerated = refresh_devices();
