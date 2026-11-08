@@ -343,7 +343,9 @@ static void test_state() {
 
 static void test_no_allocation() {
     Rig r;
-    r.pattern(kSemis, kNotes);
+    const int semis[16] = {0, 2, 4, 5, 7, 9, 11, 12, -12, -10, -8, -7, -5, -3, -1, 0};
+    const int gates[16] = {1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    r.pattern16({semis, gates});
     for (uint32_t i = 0; i < 256; ++i) { r.in[0][i] = Clock{}(i); r.in[1][i] = Resets{{100}}(i); }
     allocation_watch::Scope watch;
     for (int i = 0; i < 100; ++i) {
