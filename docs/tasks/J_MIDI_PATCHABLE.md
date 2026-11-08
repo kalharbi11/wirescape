@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # J MIDI patchable: additive MIDI Coordinator and CC Organizer (#163)
 
-Owner: Codex. T1 feature; first implementation-branch commit is this task file.
+Owner: Codex. T1 feature; first implementation-branch commit is this task file. Keel's #290 ruling (6706057275) supersedes the original DSP Learn/writeback scope.
 Extend the shipped modules so MIDI remains patchable through ordinary ABI2 wires.
 The whole issue, including this document, stays within 900 changed lines/14 files.
 
@@ -38,39 +38,24 @@ The whole issue, including this document, stays within 900 changed lines/14 file
    Preserve omitted-field/default behavior, bipolar settings, MIDI 1/2 conversion,
    per-source/channel CC14 pairing and the existing 0..2000 ms smoothing policy.
    Validate JSON and the typed runtime configuration; reject nonfinite endpoints.
-4. Add per-slot, one-shot CC-number Learn from the next eligible incoming CC.
-   Honor the slot's configured channel (0 omni, 1..16 filtered); do not learn or
-   overwrite its channel. Consume the armed state once; keep unrelated slots and
-   nonmatching-channel messages unaffected. Retain bounded callback work.
-5. Persist learned assignments through explicit quiescent control-side writeback
-   into saved module configuration. `Engine::save_state` is a quiescent operation;
-   DSP serialization alone is not patch persistence. Studio currently saves its
-   document configuration/parameters. Reconcile the learned controller into that
-   document before saving/rebuilding, and prove save/reload restores it. Never
-   read live processor state concurrently or mutate JSON from process/event.
-   Preserve unrelated document data and old assignments/defaults on reload.
-6. All added outputs are normal ABI2 ports, with ordinary cable behavior; no wire
-   special cases, new Activity/Mappings service, backend or device authorization.
-   No allocation, locks, I/O, exceptions or logging in process/event/reset.
+4. Keep DSP Learn and engine-driven document writeback **out of scope**. Keel
+   assigned transient MIDI observation to #381 and knob-to-D8 document mapping
+   to #287. The UI remains the only owner of the editable patch (PLAN D3);
+   frozen Qt must not be altered (PLAN D11).
 
-## Contracts to settle before dependent source changes
+## Settled Keel contract (#290 comment 6706057275, 2026-11-07)
 
-The linked planner decision approves the additive route; it does not specify all
-user-visible semantics. Record the bounded answers on the issue before inventing
-behavior that triggers the AGENTS design Stop:
-
-- `last_note`: confirm the proposal to hold the most recent accepted NoteOn
-  pitch through release, reset/start at 0, and exclude bend; also settle source
-  choke behavior. These proposed semantics are not established by the decision.
-- Min/max: confirm the proposal to allow inverted finite endpoints and settle
-  partial endpoint overrides with bipolar defaults. Only finite validation is
-  specified by the preflight.
-- Learn: exact arm/cancel control and stable additive parameter/config encoding;
-  eligibility in CC14 mode; transient arm state versus saved assignments.
-- Writeback: confirm quiescent capture before reset, merging learned controllers
-  into document config while preserving unknown keys; settle the exact existing
-  control operation and failure handling. This is a proposed integration, not an
-  existing state/UI contract. No concurrent inspection or new service is implied.
+- `last_note` is mono index 8, raw V/oct of the latest accepted NoteOn,
+  held through NoteOff and source choke. It ignores bend and polyphony,
+  initializes to 0 and resets/restore to 0.
+- Finite optional JSON row `min` / `max` keys override the matching end
+  of the bipolar defaults (0..1 or -1..1); either may be absent. Inverted
+  ranges and equal endpoints are valid; non-numbers and non-finite values
+  refuse at load without mutating the graph. Keep `bipolar` in the patch.
+- Bump typed native CC config to v2, accept legacy v1 bytes with bipolar
+  defaults, and reset each CV row to its effective minimum. JSON alone
+  persists the mapping. No new ABI, Learn parameter, DSP save writeback
+  protocol, or Qt changes.
 
 ## Verification and synthetic MIDI soak fixture
 
@@ -80,13 +65,11 @@ already tests ordinary engine routing and note/voice mapping, and both converter
 suites use the real SDK wrapper. `MidiRig::run` watches allocations around wrapper
 process (including event dispatch); the fake service also watches its callback.
 The commands below are existing baseline entry points, not evidence that the new
-features pass. Extend them before claiming acceptance. New Learn/persistence and
-coordinator-poly soak coverage is pending implementation.
-Cover new Learn/range/slew behavior, channel rejection, stable old output indices,
-mono last-note simultaneous with poly outputs, and learned assignment JSON/patch
-save/reload. Include malformed/nonfinite settings and old-config compatibility.
-Use relevant document/Studio tests for the actual persistence path, not just a
-module state-blob roundtrip. Qt-backed tests must be present when that path changes.
+features pass. Extend them before claiming acceptance. New last-note/range/save-reload coverage and coordinator-poly soak verification remain required.
+Cover min/max/range/slew behavior, channel rejection, stable old output indices,
+mono last-note alongside poly outputs, JSON patch save/reload, malformed/nonfinite
+settings and typed v1 compatibility. Keep the existing wrapper allocation checks.
+No DSP Learn/writeback or frozen Qt source tests.
 
 The current `wirescape_soak --graph poly8` constructs VCO/VCF/ADSR/VCA without MIDI;
 it is not coordinator evidence. `abi2_midi_to_cv_tests` now contains a one-second
@@ -110,12 +93,11 @@ physical or fake acquisition backend; existing service tests cover fake acquisit
 Keep the Pi requirement pending until the private runner publishes exact-head ABI2
 and 60-second coordinator-poly evidence. Never open devices or SSH to the Pi.
 
-Implementation contract ruling is requested in
-[#290 comment 6694184134](https://github.com/kalharbi11/wirescape/issues/290#issuecomment-6694184134).
-The current PLAN D3/D11 replace the old Qt Studio integration assumptions: the UI
-owns the editable document and Qt stays frozen. Do not implement Learn writeback
-until Keel names the approved control-side reconciliation operation. The remaining
-semantic questions above also remain pending; this fixture does not settle them.
+Keel's binding ruling is [#290 comment 6706057275](https://github.com/kalharbi11/wirescape/issues/290#issuecomment-6706057275).
+#287 alone owns UI Learn; its T2 observation prerequisite is #381. Do not
+infer CC identity from `status.midi.activity` or invent DSP writeback.
+The 60-second fixture at d715bb4 is already present, with exact-head Pi evidence
+only for that historical head; new feature heads require new acceptance evidence.
 
 Build first using the existing headless command below. Qt remains frozen under
 PLAN D11; resolve writeback ownership before selecting its integration tests. Run
