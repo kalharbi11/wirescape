@@ -17,8 +17,8 @@ struct CallbackMetrics {
     std::atomic<uint64_t> underflows{0};
     void publish(uint64_t elapsed_ns, unsigned long frames, double rate, bool underflow = false) noexcept {
         if (underflow) underflows.fetch_add(1, std::memory_order_relaxed);
-        const double load =
-            frames && rate > 0 ? double(elapsed_ns) * rate / double(frames) / 1e7 : std::numeric_limits<double>::quiet_NaN();
+        double load = std::numeric_limits<double>::quiet_NaN();
+        if (frames != 0 && rate > 0) load = double(elapsed_ns) * rate / double(frames) / 1e7;
         percent.store(std::isfinite(load) ? float(load) : std::numeric_limits<float>::quiet_NaN(),
                       std::memory_order_relaxed);
     }
