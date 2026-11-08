@@ -14,9 +14,13 @@ legacy patch loading unchanged. Update the DSP, native manifest, README/DESIGN,
 and both Studio presentation and generated web catalogue. B-wire host telemetry
 mapping belongs to #359, not here.
 
+The saved-patch compatibility requirement is exercised by `abi2_runtime_patch_tests`.
+The additional existing test file raises the file budget from 8 to 9 (within the
+workflow's 50% builder allowance); the 200-line limit stays unchanged.
+
 ```acceptance
 tier: T1
-size: <= 200 changed lines, <= 8 files
+size: <= 200 changed lines, <= 9 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
