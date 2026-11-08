@@ -241,6 +241,28 @@ class AcceptanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not verified.*#999"):
             acceptance.select_pr_task(self.root, examples + "Closes #999\nCloses #114")
 
+    def test_pr_selection_atx_heading_ends_lazy_blocks(self):
+        directory = self.root / "docs/tasks"
+        directory.mkdir(parents=True)
+        actual = directory / "real.md"
+        actual.write_text(task(["python -c 'pass'"]).replace("#85", "#114"), encoding="utf-8")
+        for body in ("> quoted example\n# Closes #114",
+                     "- list example\n# Closes #114",
+                     "1. numbered example\n## This closes #114"):
+            with self.subTest(body=body):
+                issue, path, note = acceptance.select_pr_task(self.root, body + "\nCloses #999")
+                self.assertEqual((issue, path, note), (114, actual, ""))
+        # A missing space after # or a seven-hash marker is not an ATX heading;
+        # indented list content is not a new top-level heading.
+        for body in ("> quoted example\n#Closes #114",
+                     "> quoted example\n####### Closes #114",
+                     "- list example\n  # Closes #114"):
+            with self.subTest(body=body):
+                issue, path, note = acceptance.select_pr_task(self.root, body)
+                self.assertIsNone(issue)
+                self.assertIsNone(path)
+                self.assertIn("not selected", note)
+
     def test_timeout_preserves_failure(self):
         code, report = self.run_task(['python -c "import time; time.sleep(10)"'], timeout=.1)
         self.assertEqual(code, 1)
