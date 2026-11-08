@@ -934,32 +934,48 @@ export class App {
         audioFields.append(empty);
         return;
       }
-      const currentId = this.lastStatus?.audio.deviceId ?? devices[0]!.id;
+      const currentId = this.lastStatus?.audio.deviceId ?? '';
+      // A missing or duplicate remembered identity must not select the first device.
+      const count = (id: string) => devices.filter(d => d.id === id).length;
+      const current = devices.find(d => d.id === currentId && count(d.id) === 1);
+      const placeholder = currentId
+        ? `Unavailable or ambiguous: ${this.lastStatus?.audio.deviceName ?? currentId}`
+        : 'Choose a physical output…';
+      const route = el('div', 'muted', current
+        ? `${this.lastStatus?.audio.state === 'running' ? 'Active' : 'Selected'} physical route: ${current.name}`
+        : `${placeholder}. Select an available output explicitly.`);
+      route.dataset.testid = 'audio-route-status';
+      audioFields.append(route);
       const rates = select([], '', v => engine.setSampleRate?.(Number(v)));
       rates.dataset.testid = 'audio-rate';
       const refreshRates = (deviceId: string) => {
-        const dev = devices.find(d => d.id === deviceId);
-        rates.replaceChildren(...(dev?.sampleRates ?? [48000]).map(n => {
+        const dev = devices.find(d => d.id === deviceId && count(d.id) === 1);
+        // Unknown rates are unknown, not proof that 48 kHz is supported.
+        rates.replaceChildren(...(dev?.sampleRates ?? []).map(n => {
           const option = document.createElement('option');
           option.value = String(n); option.textContent = `${(n / 1000).toFixed(1)} kHz`;
           return option;
         }));
-        const actual = String(this.lastStatus?.audio.sampleRate ?? 48000);
+        const actual = String(this.lastStatus?.audio.sampleRate ?? '');
         rates.value = actual;
-        // Do not imply an unsupported rate is active; ask the engine to pick it.
-        if (!rates.value && rates.options.length) {
-          rates.selectedIndex = 0;
-          engine.setSampleRate?.(Number(rates.value));
-        }
+        // Never issue a rate-change command merely by opening Settings.
+        rates.disabled = !dev || rates.options.length === 0;
       };
-      const sel = select(devices.map(d => ({ value: d.id, label: d.name })), currentId, v => {
+      const choices = devices.map(d => ({ value: d.id, label: d.name }));
+      if (!current) choices.unshift({ value: '', label: placeholder });
+      const sel = select(choices, current?.id ?? '', v => {
+        if (!v || count(v) !== 1) return;
         engine.selectAudioDevice(v);
+        route.textContent = `Requested physical route: ${devices.find(d => d.id === v)!.name} (awaiting engine status)`;
         if (engine.setSampleRate) refreshRates(v);
       });
+      for (const option of sel.options) {
+        if (option.value && count(option.value) !== 1) option.disabled = true;
+      }
       sel.dataset.testid = 'audio-device';
-      audioFields.append(field('Output device', sel));
+      audioFields.append(field('Physical output device (not graph Output)', sel));
       if (engine.setSampleRate) {
-        refreshRates(currentId);
+        refreshRates(current?.id ?? '');
         audioFields.append(field('Sample rate', rates));
       }
       if (engine.setBufferFrames) {
@@ -968,6 +984,7 @@ export class App {
           String(this.lastStatus?.audio.bufferFrames ?? 256),
           v => engine.setBufferFrames?.(Number(v)),
         );
+        buffer.disabled = !current;
         buffer.dataset.testid = 'audio-buffer';
         audioFields.append(field('Buffer size', buffer, 'Lower is tighter, and more likely to drop out'));
       }
