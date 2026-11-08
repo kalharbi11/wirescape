@@ -1042,6 +1042,15 @@
      "hint": "cv_bi",
      "poly": "poly",
      "stereo_pair": null
+    },
+    {
+     "id": "phase",
+     "name": "Phase",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_uni",
+     "poly": "poly",
+     "stereo_pair": null
     }
    ],
    "parameters": [
@@ -1199,6 +1208,15 @@
      "direction": "input",
      "kind": "signal",
      "hint": "cv_uni",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "gate",
+     "name": "Gate",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "gate",
      "poly": "poly",
      "stereo_pair": null
     },

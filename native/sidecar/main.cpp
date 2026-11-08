@@ -38,7 +38,9 @@ int main(int argc, char **argv) {
             if (transport.eof()) break;
             auto now = std::chrono::steady_clock::now();
             if (now - status >= std::chrono::milliseconds(100)) {
-                transport.send(session.status(), true);
+                auto snapshot = session.status();
+                const bool lost = snapshot["status"]["audio"]["state"] == "device-lost";
+                transport.send(std::move(snapshot), !lost); // Do not coalesce away the loss notification.
                 status = now;
             }
             if (now - telemetry >= std::chrono::milliseconds(34)) {

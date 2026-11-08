@@ -29,6 +29,11 @@ export class WebBridge implements WirescapeBridge {
   /** Must run from a user gesture: browsers only start audio after a click or key. */
   async start(base: string, options: { readyTimeoutMs?: number; processorUrl?: string } = {}): Promise<void> {
     const context = new AudioContext({ latencyHint: 'interactive' });
+    // iOS Safari needs resume() invoked during the original tap, not after
+    // asynchronous WASM compilation or worklet installation has consumed it.
+    // Keep the promise pending until the processor is connected below.
+    const resumed = context.resume();
+    void resumed.catch(() => undefined);
     let node: AudioWorkletNode | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let catalogue: unknown;
@@ -55,7 +60,7 @@ export class WebBridge implements WirescapeBridge {
         };
       });
       created.connect(context.destination);
-      await within(context.resume());
+      await within(resumed);
       ({ catalogue } = await within(ready));
     } catch (error) {
       // A failed attempt leaves nothing running, so "Try again" starts clean.
@@ -103,7 +108,8 @@ export class WebBridge implements WirescapeBridge {
   }
 
   /** Browser file picker; nothing leaves the machine. Resolves null when cancelled. */
-  openPatch(): Promise<{ text: string; name: string } | null> {
+  openPatch(request?: { library: 'list' | 'read' | 'reset'; name?: string }): Promise<{ text: string; name: string } | null> {
+    if (request) return Promise.resolve(request.library === 'list' ? { name: 'User patches', text: '[]' } : null);
     return new Promise(resolve => {
       const input = document.createElement('input');
       input.type = 'file';
@@ -139,13 +145,18 @@ export class WebBridge implements WirescapeBridge {
   private receive(m: Message): void {
     if (m.kind === 'reply') this.reply(String(m.id), m.reply as Reply);
     else if (m.kind === 'telemetry') {
+      // Use the worklet's graph generation, never relabel an older snapshot
+      // with the latest command reply's generation.
+      if (typeof m.gen !== 'string' || !/^\d+$/.test(m.gen) || BigInt(m.gen) < BigInt(this.gen)) return;
       this.peak = Number(m.peak) || 0;
       const t = (m.telemetry ?? {}) as Message;
       this.emit({
-        v: 0, type: 'telemetry', session: this.session, gen: this.gen,
+        v: 0, type: 'telemetry', session: this.session, gen: m.gen,
         telemetry: {
-          tick: ++this.tick, time: (Date.now() - this.started) / 1000, effective: {}, phase: {}, envelope: {},
-          scope: t.scope ?? {}, eventActivity: {}, meters: t.meters ?? {}, heldNotes: t.heldNotes ?? [],
+          tick: ++this.tick, time: (Date.now() - this.started) / 1000,
+          effective: t.effective ?? {}, phase: t.phase ?? {}, envelope: t.envelope ?? {},
+          scope: t.scope ?? {}, eventActivity: t.eventActivity ?? {}, meters: t.meters ?? {},
+          heldNotes: t.heldNotes ?? [],
           outputs: t.outputs ?? {},
         },
       });
