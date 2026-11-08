@@ -6,7 +6,7 @@ namespace wirescape::midi {
 struct MidiToCv {
     static constexpr ws::Info info{"midi.to_cv", "MIDI to CV", 1};
     static constexpr std::array inputs{ws::port("midi", "MIDI", WS2_EV_MIDI, WS2_POLY, 0, nullptr, WS2_EVENT)};
-    static constexpr std::array outputs{ws::port("pitch", "Pitch", WS2_PITCH), ws::port("gate", "Gate", WS2_GATE), ws::port("velocity", "Velocity", WS2_CV_UNI), ws::port("aftertouch", "Aftertouch", WS2_CV_UNI), ws::port("pressure", "Pressure", WS2_CV_UNI), ws::port("bend", "Bend", WS2_CV_BI), ws::port("mod", "Mod", WS2_CV_UNI), ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
+    static constexpr std::array outputs{ws::port("pitch", "Pitch", WS2_PITCH), ws::port("gate", "Gate", WS2_GATE), ws::port("velocity", "Velocity", WS2_CV_UNI), ws::port("aftertouch", "Aftertouch", WS2_CV_UNI), ws::port("pressure", "Pressure", WS2_CV_UNI), ws::port("bend", "Bend", WS2_CV_BI), ws::port("mod", "Mod", WS2_CV_UNI), ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT), ws::port("last_note", "Last note", WS2_PITCH)};
     static constexpr uint32_t stepped = WS2_STEPPED | WS2_AUTOMATABLE;
     static constexpr std::array params{
         ws::param("voice_count", "Voices", 1, 16, 4, "", stepped, WS2_LINEAR, 0, 4, 1),
@@ -25,8 +25,9 @@ struct MidiToCv {
     std::array<ws2_event, 256> pending{}; uint32_t pending_count = 0; bool panic_pending = false;
     uint32_t max_channels = 16; voice::Config configured{}; uint32_t filter = 0; bool valid_config = false, sustain_hold = true;
     uint64_t dropped = 0, ignored = 0;
+    float last_note = 0; // mono raw NoteOn pitch, intentionally independent of bend/gate
     void prepare(const ws::Setup& s) { max_channels = s.max_channels(); }
-    void reset() { core.reset(); expressions = {}; pending_count = 0; panic_pending = false; valid_config = false; sustain_hold = true; dropped = ignored = 0; }
+    void reset() { core.reset(); expressions = {}; pending_count = 0; panic_pending = false; valid_config = false; sustain_hold = true; dropped = ignored = 0; last_note = 0; }
     Expression* expression(uint32_t source, uint32_t channel, bool create) {
         Expression* free = nullptr;
         for (auto& e : expressions) { if (e.used && e.source == source && e.channel == channel) return &e; if (!e.used && !free) free = &e; }
@@ -40,6 +41,7 @@ struct MidiToCv {
             if (event.type == WS2_NOTE_OFF || event.type == WS2_NOTE_CHOKE) { if (pending_count < pending.size()) pending[pending_count++] = event; else panic_pending = true; }
         };
         b.out(7).set_channels(0);
+        b.out(8).set_channels(1); b.out(8).mark_constant(false);
         uint32_t retained = 0;
         for (uint32_t i = 0; i < pending_count; ++i) { auto e = pending[i]; e.offset = 0; if (!b.emit(7, e)) pending[retained++] = e; }
         pending_count = retained;
@@ -59,6 +61,7 @@ struct MidiToCv {
         const uint32_t n = uint32_t(core.allocator().voice_count());
         for (uint32_t p = 0; p < 7; ++p) { b.out(p).set_channels(n); b.out(p).mark_constant(false); }
         b.split([&](uint32_t first, uint32_t end) {
+            for (uint32_t i = first; i < end; ++i) b.out(8).ch(0)[i] = last_note;
             for (uint32_t c = 0; c < n; ++c) {
                 const auto& v = core.allocator().voice(int(c));
                 const auto* ex = v.assigned ? expression(core.original_source(v.source_id), uint32_t(v.channel), false) : nullptr;
@@ -83,6 +86,17 @@ struct MidiToCv {
                 note.type = status == 8 || (type == 2 && data == 0) ? WS2_NOTE_OFF : WS2_NOTE_ON;
                 note.value = type == 2 ? float(data) / 127.f : float(data >> 16) / 65535.f;
                 core.event(note, emit);
+                if (note.type == WS2_NOTE_ON) {
+                    // Only accept pitch after the allocator actually holds the NoteOn.
+                    for (uint32_t c = 0; c < n; ++c) {
+                        const auto &v = core.allocator().voice(int(c));
+                        if (v.gate && v.key == int(key) && v.channel == int(channel) &&
+                            core.original_source(v.source_id) == event.source_id) {
+                            last_note = float(int(key) - 60) / 12.f;
+                            break;
+                        }
+                    }
+                }
             } else if (status == 11) {
                 if (key == 64) { ex->pedal = sustain_hold && (type == 2 ? data >= 64 : data >= 0x80000000u); core.sustain(event.source_id, int(channel), ex->pedal, note, emit); }
                 else if (key == 120 || key == 123) { core.release_channel(event.source_id, int(channel), note, emit); ex->pedal = false; }
