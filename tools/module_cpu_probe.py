@@ -32,7 +32,8 @@ def validate_result(result, module, seconds):
         peak = float(result['peak'])
         valid = (result['module'] == module and result['instances'] == INSTANCES
                  and result['sample_rate'] == RATE and result['block'] == BLOCK
-                 and float(result['seconds']) == float(seconds) and result['blocks'] > 0
+                 and float(result['seconds']) == float(seconds)
+                 and result['blocks'] == int(float(seconds) * RATE) // BLOCK and result['blocks'] > 0
                  and result['allocations'] == 0 and result['faults'] == 0
                  and math.isfinite(peak) and peak > 0 and math.isfinite(p99) and 0 <= p99 <= worst
                  and math.isfinite(worst) and worst < 1e9 * BLOCK / RATE * .5)
@@ -50,8 +51,8 @@ def parse_args(argv):
     parser.add_argument('--param', action='append', default=[], help='id=value (repeatable)')
     parser.add_argument('--alternate', help='id=a:b:blocks, flip a parameter every K blocks')
     args = parser.parse_args(argv)
-    if not args.seconds > 0:
-        parser.error('--seconds must be positive')
+    if not math.isfinite(args.seconds) or args.seconds < BLOCK / RATE:
+        parser.error('--seconds must be finite and cover at least one block')
     for setting in args.param:
         if '=' not in setting or setting.startswith('='):
             parser.error('--param needs id=value')
