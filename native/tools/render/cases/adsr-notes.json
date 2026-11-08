@@ -1,0 +1,30 @@
+{
+  "SPDX-License-Identifier":"GPL-3.0-only","name":"Two note gates through production ADSR","rate":48000,"block":128,"seconds":4,"seed":7,"peak_limit":1.2,
+  "patch":{"format":"wirescape.native.patch","version":2,"settings":{"seed":7},"name":"Evidence: two ADSR notes",
+    "modules":[
+      {"id":1,"module":"host.keyboard","version":1,"parameters":{"voices":1}},
+      {"id":2,"module":"essentials.vco","version":2,"parameters":{}},
+      {"id":3,"module":"essentials.adsr","version":2,"parameters":{"attack":0.005,"decay":0.04,"sustain":0.8,"release":0.05}},
+      {"id":4,"module":"essentials.vca","version":2,"parameters":{"gain":0.6}},
+      {"id":5,"module":"essentials.output","version":2,"parameters":{}}
+    ],
+    "connections":[
+      {"kind":"signal","from":{"module":1,"port":"pitch"},"to":{"module":2,"port":"pitch"}},
+      {"kind":"signal","from":{"module":1,"port":"gate"},"to":{"module":3,"port":"gate"}},
+      {"kind":"signal","from":{"module":2,"port":"audio"},"to":{"module":4,"port":"audio"}},
+      {"kind":"signal","from":{"module":3,"port":"envelope"},"to":{"module":4,"port":"gain_cv"}},
+      {"kind":"signal","from":{"module":4,"port":"audio"},"to":{"module":5,"port":"audio"}}
+    ],
+    "outputs":[{"module":5,"port":"audio","bus_channel":0},{"module":5,"port":"audio","bus_channel":1}]
+  },
+  "events":[
+    {"frame":24000,"type":"noteOn","node":1,"key":60},
+    {"frame":72000,"type":"noteOff","node":1,"key":60},
+    {"frame":112000,"type":"noteOn","node":1,"key":67},
+    {"frame":160000,"type":"noteOff","node":1,"key":67}
+  ],
+  "windows":[{"kind":"silent","start":0,"end":16000},{"kind":"active","start":30000,"end":65000},
+             {"kind":"silent","start":88000,"end":104000},{"kind":"active","start":120000,"end":150000},
+             {"kind":"silent","start":180000,"end":190000}],
+  "frequencies":[]
+}
