@@ -206,6 +206,60 @@ static void modulation_spans(){
   float expected=static_cast<float>(ws::to_plain(ParamProbe::params[0],.5+sum));CHECK(e.output_sample(3,0,0,i)==expected);
  }}
 }
+static void telemetry(){
+  const Tap param{Tap::Param,2,0}, output_max{Tap::Output,1,0}, output_first{Tap::Output,1,0,Tap::First};
+  const Tap events_out{Tap::EventOut,3,0};
+  Config c=cfg();c.max_taps=4;
+  Engine e(c);
+  CHECK(e.add_node(1,ws::Module<Source>::descriptor()));
+  CHECK(e.add_node(2,ws::Module<ParamProbe>::descriptor()));
+  CHECK(e.add_node(3,ws::Module<Echo>::descriptor()));
+  CHECK(e.set_channels(1,4));CHECK(e.set_parameter(1,0,.2f));
+  CHECK(e.modulate(1,0,2,0,.25f));
+  CHECK(!e.set_telemetry_taps({Tap{Tap::Param,99,0}}));
+  CHECK(!e.set_telemetry_taps({Tap{Tap::Param,2,1}}));
+  CHECK(!e.set_telemetry_taps({Tap{Tap::EventOut,1,0}}));
+  CHECK(!e.set_telemetry_taps({Tap{Tap::Output,3,0}}));
+  CHECK(!e.set_telemetry_taps({Tap{static_cast<Tap::Kind>(99),2,0}}));
+  CHECK(!e.set_telemetry_taps({param,param}));
+  CHECK(!e.set_telemetry_taps({param,output_max,output_first,events_out,events_out}));
+  CHECK(e.set_telemetry_taps({param,output_max,events_out}));
+  CHECK(e.register_producer()==0);CHECK(e.prepare());
+  CHECK(!e.set_telemetry_taps({}));
+  float values[4]{};uint32_t counts[4]{};uint64_t frame=999;
+  CHECK(e.read_telemetry(values,counts,2,frame)==0&&frame==0);
+  {allocation_watch::Scope watch;render(e,17);CHECK(watch.allocations()==0);}
+  CHECK(e.read_telemetry(values,counts,4,frame)==3&&frame==17);
+  CHECK(values[0]==e.output_sample(2,0,0,16));
+  CHECK(values[0]>10.f); // A modulated plain-unit value, not normalized/base.
+  CHECK(std::abs(values[1]-.5f)<1e-6f); // Loudest of four source channels.
+  CHECK(counts[2]==0);
+  for(uint32_t i=0;i<5;++i)CHECK(e.enqueue(0,3,0,event(WS2_NOTE_ON),17+i)==WS2_OK);
+  render(e,17);
+  CHECK(e.read_telemetry(values,counts,4,frame)==3&&frame==34&&counts[2]==5);
+  render(e,17);
+  CHECK(e.read_telemetry(values,counts,4,frame)==3&&counts[2]==5);
+  Engine first(c);CHECK(first.add_node(1,ws::Module<Source>::descriptor()));CHECK(first.set_channels(1,4));
+  CHECK(first.set_parameter(1,0,.2f));CHECK(first.set_telemetry_taps({output_first}));
+  CHECK(first.prepare());render(first,1);
+  CHECK(first.read_telemetry(values,counts,4,frame)==1&&std::abs(values[0]-.2f)<1e-6f);
+
+  Engine zero(c);CHECK(zero.add_node(1,ws::Module<Source>::descriptor()));
+  CHECK(zero.add_node(2,ws::Module<ParamProbe>::descriptor()));
+  CHECK(zero.modulate(1,0,2,0,0.f));CHECK(zero.set_telemetry_taps({param}));
+  CHECK(zero.prepare());render(zero,17);
+  CHECK(zero.read_telemetry(values,counts,4,frame)==1&&values[0]==10.f);
+  Engine empty(c);CHECK(empty.add_node(1,ws::Module<Source>::descriptor()));
+  CHECK(empty.set_telemetry_taps({}));CHECK(empty.prepare());
+  {allocation_watch::Scope watch;render(empty,17);CHECK(watch.allocations()==0);}
+  CHECK(empty.read_telemetry(values,counts,4,frame)==0&&frame==0);
+
+  Config feedback=c;feedback.feedback_block=32;
+  Engine loop(feedback);CHECK(loop.add_node(2,ws::Module<ParamProbe>::descriptor()));
+  CHECK(loop.modulate(2,0,2,0,.02f));CHECK(loop.set_telemetry_taps({param}));CHECK(loop.prepare());
+  render(loop,70);CHECK(loop.read_telemetry(values,counts,4,frame)==1&&frame==70);
+  CHECK(values[0]==loop.output_sample(2,0,0,69)); // Final short feedback chunk.
+}
 static void modulation(){
  for(float amount:{-.5f,.5f,1.f}){
   Engine e(cfg());CHECK(e.add_node(1,ws::Module<Source>::descriptor()));CHECK(e.add_node(2,ws::Module<Source>::descriptor()));CHECK(e.add_node(3,ws::Module<ParamProbe>::descriptor()));CHECK(e.set_channels(1,4));CHECK(e.set_parameter(1,0,.2f));CHECK(e.set_parameter(2,0,.4f));CHECK(e.modulate(1,0,3,0,amount));CHECK(e.modulate(2,0,3,0,.25f));CHECK(e.prepare());render(e,17);CHECK(e.output_channels(3,0)==4);CHECK(e.output_constant(3,0));
@@ -223,7 +277,7 @@ int main(){
  {std::thread warm([](){});warm.join();}
  _CrtMemState before{},after{},difference{};_CrtMemCheckpoint(&before);
 #endif
- invalid_events();parameter_channels();modulation_spans();producer_validation();zero_copy();cached_taper<WS2_LINEAR>();cached_taper<WS2_LOG>();cached_taper<WS2_EXP>();signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
+ invalid_events();parameter_channels();modulation_spans();telemetry();producer_validation();zero_copy();cached_taper<WS2_LINEAR>();cached_taper<WS2_LOG>();cached_taper<WS2_EXP>();signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
 #if defined(_MSC_VER)&&defined(_DEBUG)
  CHECK(_CrtCheckMemory());_CrtMemCheckpoint(&after);if(_CrtMemDifference(&difference,&before,&after)){
   std::fprintf(stderr,"Debug CRT normal blocks %zu -> %zu, bytes %zu -> %zu; client blocks %zu -> %zu\n",before.lCounts[_NORMAL_BLOCK],after.lCounts[_NORMAL_BLOCK],before.lSizes[_NORMAL_BLOCK],after.lSizes[_NORMAL_BLOCK],before.lCounts[_CLIENT_BLOCK],after.lCounts[_CLIENT_BLOCK]);return 1;
