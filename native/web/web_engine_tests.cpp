@@ -153,6 +153,8 @@ int main(int argc, char **argv) {
     for (auto key : {"effective", "phase", "envelope", "eventActivity"})
         CHECK(empty_telemetry[key].is_object() && empty_telemetry[key].empty());
     bool modulation_observed = false;
+    bool phase_advanced = false;
+    double last_phase = -1;
     for (int i = 0; i < 40; ++i) {
         loudest(1);
         auto frame = Json::parse(wsw_telemetry());
@@ -165,12 +167,21 @@ int main(int argc, char **argv) {
             CHECK(false);
             continue;
         }
-        CHECK(frame["phase"].empty()); // B-wire #359 owns LFO phase mapping.
+        // B-wire: the Web host reads actual channel-0 phase from the LFO output tap.
+        const auto phase = frame["phase"].value("10", Json{});
+        CHECK(phase.is_number());
+        if (phase.is_number()) {
+            const double measured = phase.get<double>();
+            CHECK(std::isfinite(measured) && measured >= 0 && measured < 1);
+            if (last_phase >= 0 && std::abs(measured - last_phase) > 0.0001) phase_advanced = true;
+            last_phase = measured;
+        }
         CHECK(frame["eventActivity"].empty());
         CHECK(frame["outputs"].is_object() && frame["scope"].is_object());
         if (std::fabs(frequency.get<float>() - 440.f) > 0.01f) modulation_observed = true;
     }
     CHECK(modulation_observed);
+    CHECK(phase_advanced); // Must advance between genuine rendered blocks, not a locally invented clock.
     // A burst emits one pulse; a new block without emitted events decays it.
     CHECK(command({{"type", "noteOn"}, {"note", 60}, {"velocity", 0.9}})["ok"] == true);
     loudest(1);
@@ -199,6 +210,15 @@ int main(int argc, char **argv) {
     CHECK(command({{"type", "disconnect"}, {"connection", modulation}})["ok"] == true);
     loudest(1);
     CHECK(Json::parse(wsw_telemetry())["effective"].empty());
+    // Replacing the graph with no LFO must clear its measured phase immediately.
+    Json without_lfo = telemetry_patch;
+    without_lfo["modules"] = Json::array();
+    without_lfo["modules"].push_back({{"id", 7}, {"module", "essentials.output"}});
+    without_lfo["connections"] = Json::array();
+    CHECK(command({{"type", "loadGraph"}, {"patch", without_lfo}})["ok"] == true);
+    CHECK(Json::parse(wsw_telemetry())["phase"].empty());
+    loudest(1);
+    CHECK(Json::parse(wsw_telemetry())["phase"].empty());
     // Report JSON snapshot cost in native Web job output. This is diagnostic,
     // not a new performance threshold, and never runs in the realtime engine.
     std::chrono::microseconds telemetry_cost{0};
