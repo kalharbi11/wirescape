@@ -277,7 +277,7 @@ bool Engine::Impl::resolve_taps() {
     for(auto&node:nodes)node->event_tap_slots.clear();
     for(uint32_t i=0;i<taps.size();++i){
         const auto&t=taps[i];auto*n=find(t.node);
-        if(!n||(t.kind==Tap::Param?(n->legacy||t.index>=n->param.size()):
+        if(!n||(t.kind==Tap::Param?(n->legacy||t.index>=n->parameters.size()):
                 t.index>=n->outputs.size()||n->outputs[t.index].kind!=(t.kind==Tap::EventOut?WS2_EVENT:WS2_SIGNAL)))
             return fail("Telemetry tap endpoint changed during prepare");
         tap_nodes.push_back(n);
