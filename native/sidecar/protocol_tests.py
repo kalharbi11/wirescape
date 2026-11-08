@@ -360,4 +360,14 @@ with tempfile.TemporaryDirectory() as directory:
     for flags in [('--unknown',), ('--rate', '0'), ('--block', '4097'), ('--device',), ('--bench-summary',)]:
         result = subprocess.run([BINARY, *flags], input=b'', capture_output=True, timeout=10)
         assert result.returncode != 0 and not result.stdout
-print('sidecar protocol process vectors passed (null audio, fake MIDI only)')
+# Real, short, device-free end-to-end benchmark ingestion on the production sidecar.
+harness = Path(__file__).resolve().parents[2] / 'tools' / 'sidecar_edit_soak.py'
+smoke = subprocess.run([sys.executable, str(harness), '--engine', BINARY,
+                        '--seconds', '2', '--seed', '278'], capture_output=True, text=True, timeout=30)
+assert smoke.returncode == 0, smoke.stderr[-1200:] + smoke.stdout[-1200:]
+summary = json.loads(smoke.stdout, object_pairs_hook=strict_object)
+metrics = summary.get('performance_evidence')
+assert summary['status'] == 'passed' and summary['seed'] == 278 and summary['seconds'] == 2
+assert isinstance(metrics, dict) and metrics['blocks'] >= 0.9 * 2 * 48000 / 256
+assert metrics['faults'] == 0 and metrics['overruns'] == 0
+print('sidecar protocol and two-second measured edit soak passed (null audio, fake MIDI only)')
