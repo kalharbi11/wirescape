@@ -11,7 +11,9 @@ static constexpr uint32_t kFrames = 1024;
 enum : uint8_t { kScale, kRoot, kShift, kOctave, kNotes }; // parameter slots; notes n0..n11 start at kNotes
 
 struct Rig {
-    struct VoiceCount { uint32_t value; };
+    struct VoiceCount {
+        uint32_t value;
+    };
     Pool pool{};
     ws2_host host{sizeof(host), &pool, allocate};
     const ws2_descriptor *d = ws::Module<Quantizer>::descriptor();
@@ -322,7 +324,9 @@ static float walk(uint32_t voice, uint64_t frame) {
 }
 static float pulse(uint64_t frame) { return (frame % 37) < 6 ? 1.f : 0.f; }
 using Samples = Fixed<float, 32768>;
-struct RenderBlock { uint32_t size; };
+struct RenderBlock {
+    uint32_t size;
+};
 static Samples render(Rig &r, uint32_t total, RenderBlock block, uint64_t start = 0) {
     Samples result;
     result.resize(static_cast<size_t>(8) * total);
