@@ -45,7 +45,7 @@ class ObservedMidi final : public midi::Backend {
     Json activity();
     void arm_learning(bool armed); // control thread only
     void expire_learning(std::chrono::steady_clock::time_point now); // control thread only
-    Json learning() const; // control thread only; null when unarmed
+    Json learning(); // control thread only; null when unarmed
     void clear_notes();
     bool set_fake_endpoints(std::vector<midi::Endpoint>); // internal fake test surface only
     bool inject(const midi::Endpoint &, const uint8_t *, size_t, uint64_t);
