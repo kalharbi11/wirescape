@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# MOD-Q: `essentials.quantizer` (module lane row 2; Beta 0.8 musical core, pulled forward)
+# MOD-Q (#315): `essentials.quantizer` (module lane row 2; Beta 0.8 musical core, pulled forward)
 
 **What.** A polyphonic pitch quantizer: anything (LFO, Random Source, CHAOS, an envelope) in, notes of a scale out, plus a trigger whenever the note changes so it can fire an envelope by itself. Original code. Small.
 
@@ -23,7 +23,7 @@
 - Custom scale with no notes on → passes Chromatic (never silence, never NaN).
 - `shift` walks scale degrees with octave wrap (shift +1 on the top degree goes to the root an octave up).
 - Output is exact: an allowed note's pitch is `(midi − 60)/12` exactly, so downstream oscillators are in tune.
-- Panel: `n0`…`n11` show only when `scale` = Custom once #306 (`visibleWhen`) is merged; until then they show always. Category "Pitch" (or the nearest existing one).
+- Panel: `n0`…`n11` show only when `scale` = Custom using `visibleWhen` from #306. Category "Pitch" (or the nearest existing one).
 - No state beyond params; held notes reset on reset/load. CONSTANT allowed when the input is CONSTANT and no trigger is pending.
 
 ## Tests (guide §12 list, plus behaviour with independent math)
@@ -34,14 +34,16 @@
 5. Custom all-off → chromatic. 16 voices independent; mono pitch broadcast; `trigger` mono broadcast.
 6. Frame/rate matrix, reset, state, extremes, no-allocation (guide §12).
 
+The original implementation budget remains <= 700 changed lines and <= 8 files inside `native/modules2/quantizer/`; standard wiring and generated files are outside that module-folder budget. The executable acceptance cap covers the whole PR: 1,800 changed lines and 22 files, including native registration/build wiring, catalogues, documentation, and the visibility regression (the reviewed starting diff is 1,253 lines across 19 files).
+
 ```acceptance
 tier: T1
-size: <= 700 changed lines, <= 8 files in native/modules2/quantizer/ (standard wiring and generated files don't count)
+size: <= 1800 changed lines, <= 22 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_quantizer_tests" --output-on-failure
   - python tools/dev.py test
-  - cd apps/studio && npm ci && npm test
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install chromium ffmpeg && WIRESCAPE_CHROMIUM="$(node -p "require(\"playwright\").chromium.executablePath()")" npm test'
 stops: [ABI header edit, new dependency, test loosening, ID change after merge]
 ```
 Signed: Compass (Claude), 2026-11-07
