@@ -11,15 +11,16 @@ ObservedMidi::ObservedMidi(bool fake, bool authorized)
     }
 }
 void ObservedMidi::capture_cc(uint8_t slot, uint8_t channel, uint8_t controller, uint8_t value) noexcept {
+    // Epoch precedes armed: a callback racing a rearm must not be treated as a new capture.
     const uint64_t epoch = learn_epoch_.load(std::memory_order_acquire) & 31u;
     if (!learn_armed_.load(std::memory_order_acquire)) return;
     const uint32_t seq = learn_sequence_.fetch_add(1, std::memory_order_relaxed) + 1;
     // [63:59] arm epoch, [58] valid, [57:26] seq, [25:18] slot,
     // [17:14] MIDI channel 0..15, [13:7] controller, [6:0] value.
-    learn_packet_.store((epoch << 59) | (uint64_t{1} << 58) | (uint64_t{seq} << 26) |
-                            (uint64_t{slot} << 18) | (uint64_t{channel} << 14) |
-                            (uint64_t{controller} << 7) | value,
-                        std::memory_order_release);
+    const uint64_t source_bits = (uint64_t{slot} << 18) | (uint64_t{channel} << 14);
+    const uint64_t cc_bits = (uint64_t{controller} << 7) | value;
+    const uint64_t packet = (epoch << 59) | (uint64_t{1} << 58) | (uint64_t{seq} << 26) | source_bits | cc_bits;
+    learn_packet_.store(packet, std::memory_order_release);
 }
 void ObservedMidi::arm_learning(bool armed) {
     learn_armed_.store(false, std::memory_order_release);
@@ -31,23 +32,24 @@ void ObservedMidi::arm_learning(bool armed) {
     }
 }
 void ObservedMidi::expire_learning(std::chrono::steady_clock::time_point now) {
-    if (learn_armed_.load(std::memory_order_acquire) && now >= learn_deadline_ &&
-        !learning().contains("seq"))
-        arm_learning(false);
+    if (!learn_armed_.load(std::memory_order_acquire) || now < learn_deadline_) return;
+    if (!learning().contains("seq")) arm_learning(false);
 }
 Json ObservedMidi::learning() {
     if (!learn_armed_.load(std::memory_order_acquire)) return nullptr;
     Json result = {{"armed", true}};
     const uint64_t packet = learn_packet_.load(std::memory_order_acquire);
-    if (!(packet & (uint64_t{1} << 58)) || ((packet >> 59) & 31u) !=
-        (learn_epoch_.load(std::memory_order_acquire) & 31u)) return result;
+    const bool valid = (packet & (uint64_t{1} << 58)) != 0;
+    const bool current_epoch = ((packet >> 59) & 31u) == (learn_epoch_.load(std::memory_order_acquire) & 31u);
+    if (!valid || !current_epoch) return result;
     const size_t index = (packet >> 18) & 255u;
     std::lock_guard<std::mutex> lock(mutex_);
     if (index >= slots_.size() || slots_[index].endpoint.name.empty()) return result;
     const auto &endpoint = slots_[index].endpoint;
-    if (std::none_of(observed_.begin(), observed_.end(), [&](const auto &e) {
-            return e.name == endpoint.name && e.system_name == endpoint.system_name;
-        })) return result;
+    const bool visible = std::any_of(observed_.begin(), observed_.end(), [&](const auto &e) {
+        return e.name == endpoint.name && e.system_name == endpoint.system_name;
+    });
+    if (!visible) return result;
     result["seq"] = std::to_string(static_cast<uint32_t>(packet >> 26));
     result["deviceId"] = endpoint.name + "|" + endpoint.system_name;
     result["channel"] = ((packet >> 14) & 15u) + 1;
@@ -101,8 +103,7 @@ void ObservedMidi::ump(void *context, const uint32_t *words, size_t n, uint64_t 
                 note(s, (word >> 8) & 127, channel, status == 9 && (type == 4 || (word & 127) != 0));
             if (status == 11) {
                 const uint8_t controller = uint8_t((word >> 8) & 127u);
-                const uint8_t value = type == 2 ? uint8_t(word & 127u) :
-                    uint8_t(words[1] >> 25);
+                const uint8_t value = type == 2 ? uint8_t(word & 127u) : uint8_t(words[1] >> 25);
                 s.owner->capture_cc(s.index, uint8_t(channel), controller, value);
             }
             if (status == 11 && (((word >> 8) & 127) == 120 || ((word >> 8) & 127) == 123))
