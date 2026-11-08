@@ -49,6 +49,6 @@ Delay #345 and runbook #422 now merged; live heads/latest handoffs supersede old
 - #296 still needs private fixed ci/pi-edit-soak lane/3900s timeout and actual3600s evidence.
 - #398 offline audio evidence -> #386 real-sidecar e2e -> #387 checklist reduction remain.
   No owner gate removed before evidence. #82 OSC/Windows hardware/packaging stay later.
-- #412 owner-requested product/code approval posted; Windows requested, auto-merge enabled.
-  All8 shared Studio/WASM/Electron starters validated; published deployment follows merge.
+- #412 product approved; newd916846 stereo revision supersedes reviewedff8a95b. DRAFT:
+  curated.spec still assumes one Output/both buses; repair tests/docs, fresh CI+narrow review.
   One issue/branch/PR per item, max3 active per chat, separate review and signed handoff.
