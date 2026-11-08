@@ -74,7 +74,9 @@ test('real sidecar: hello, devices, native patch, live knob, cable D5 and crash 
     expect(child.argv).not.toContain('--confirm-midi');
 
     await page.getByTestId('open-settings').click();
-    await expect(page.getByTestId('audio-device')).toHaveValue('USB Stereo');
+    // The null sink is not a selected physical device: do not silently choose the first output.
+    await expect(page.getByTestId('audio-device')).toHaveValue('');
+    await expect(page.getByTestId('audio-route-status')).toContainText('Select an available output explicitly');
     await expect(page.getByTestId('midi-device')).toHaveValue('M8 MIDI 1|M8:M8 MIDI 1');
     // Null audio renders paced blocks; it must not impersonate a hardware device.
     expect(await page.evaluate(() => window.__e2e.find(m => m.type === 'status').status.audio.state))
