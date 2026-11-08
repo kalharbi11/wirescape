@@ -108,7 +108,8 @@ export class WebBridge implements WirescapeBridge {
   }
 
   /** Browser file picker; nothing leaves the machine. Resolves null when cancelled. */
-  openPatch(): Promise<{ text: string; name: string } | null> {
+  openPatch(request?: { library: 'list' | 'read' | 'reset'; name?: string }): Promise<{ text: string; name: string } | null> {
+    if (request) return Promise.resolve(request.library === 'list' ? { name: 'User patches', text: '[]' } : null);
     return new Promise(resolve => {
       const input = document.createElement('input');
       input.type = 'file';

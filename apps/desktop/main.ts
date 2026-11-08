@@ -257,6 +257,45 @@ async function patchDialogPath(save: boolean): Promise<string> {
   } catch { throw new Error('Could not create patch folder'); }
   return save ? path.join(directory, 'Untitled.json') : directory;
 }
+async function libraryPatch(request: unknown): Promise<{ text: string; name: string } | null> {
+  try {
+    if (!request || typeof request !== 'object') throw new Error();
+    const { library, name } = request as { library: unknown; name?: unknown };
+    if (library === 'reset') { patchPath = null; return null; }
+    if (library !== 'list' && library !== 'read') throw new Error();
+    const directory = path.join(app.getPath('userData'), 'patches');
+    await fs.promises.mkdir(directory, { recursive: true, mode: 0o700 });
+    if ((await fs.promises.lstat(directory)).isSymbolicLink()) throw new Error();
+    const root = await fs.promises.realpath(directory);
+    if (library === 'list') {
+      const names: string[] = [];
+      const dir = await fs.promises.opendir(root);
+      let examined = 0;
+      for await (const entry of dir) {
+        if (++examined > 1024 || names.length >= 256) break;
+        if (entry.isFile() && entry.name.length <= 240 && /\.json$/i.test(entry.name)) names.push(entry.name);
+      }
+      return { name: 'User patches', text: JSON.stringify(names.sort()) };
+    }
+    if (typeof name !== 'string' || !name || name.length > 240 || /[\\/\x00]/.test(name) ||
+        path.basename(name) !== name || !/\.json$/i.test(name)) throw new Error();
+    const filename = path.join(root, name);
+    if ((await fs.promises.lstat(filename)).isSymbolicLink() ||
+        path.dirname(await fs.promises.realpath(filename)) !== root) throw new Error();
+    const handle = await fs.promises.open(filename, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+    let text: string;
+    try {
+      if (!(await handle.stat()).isFile()) throw new Error();
+      const bytes = Buffer.allocUnsafe(LIMIT + 1);
+      const { bytesRead } = await handle.read(bytes, 0, LIMIT + 1, 0);
+      if (bytesRead > LIMIT) throw new Error();
+      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, bytesRead));
+    } finally { await handle.close(); }
+    patchPath = filename;
+    return { name, text };
+  } catch { throw new Error('Could not access user patch (JSON files, 2 MiB maximum)'); }
+}
+
 async function openPatch(): Promise<{ text: string; name: string } | null> {
   if (!window) throw new Error('Window unavailable');
   const result = await dialog.showOpenDialog(window, {
@@ -371,9 +410,9 @@ app.whenReady().then(() => {
   ipcMain.on('wirescape:send', (event, raw: unknown) => {
     if (senderAllowed(event) && typeof raw === 'string') command(raw);
   });
-  ipcMain.handle('wirescape:open', event => {
+  ipcMain.handle('wirescape:open', (event, request: unknown) => {
     if (!senderAllowed(event)) throw new Error('Unavailable');
-    return openPatch();
+    return request === undefined ? openPatch() : libraryPatch(request);
   });
   ipcMain.handle('wirescape:save', (event, input: unknown) => {
     if (!senderAllowed(event)) throw new Error('Unavailable');

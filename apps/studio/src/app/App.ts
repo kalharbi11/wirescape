@@ -24,6 +24,9 @@ import { STARTERS, DEFAULT_STARTER } from './starters';
 import { playableStarters } from '../web/starters';
 import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } from '../theme/theme';
 import { el } from './dom';
+import demoChaos from '../../../../native/examples/class_demo_1_chaos.json' with { type: 'json' };
+import demoSub from '../../../../native/examples/class_demo_2_subtractive.json' with { type: 'json' };
+import demoMacro from '../../../../native/examples/class_demo_3_macro.json' with { type: 'json' };
 
 const AUTOSAVE_KEY = 'wirescape.autosave.v2';
 const ACTIVE_SESSION_KEY = 'wirescape.session.active.v1';
@@ -51,6 +54,8 @@ export class App {
   private devPanel!: DevPanel;
   private settings = new Modal('settings-modal');
   private shortcuts = new Modal('shortcuts-modal');
+  private patchBrowser = new Modal('patch-browser');
+  private bundledPatch = false;
   private recovery = new Modal('recovery-modal');
   private recoveryPending = false;
   private prefs: Preferences;
@@ -165,7 +170,7 @@ export class App {
 
     this.root.append(
       this.library.root, main, this.libraryScrim, this.toasts.root, this.quick.root,
-      this.devPanel.root, this.settings.root, this.shortcuts.root, this.recovery.root, this.fileInput,
+      this.devPanel.root, this.settings.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
     );
 
     this.attachDropTarget();
@@ -207,7 +212,7 @@ export class App {
     this.fillStarters();
     starters.addEventListener('change', () => {
       const s = STARTERS.find(x => x.id === starters.value);
-      if (s) { this.loadPatch(s.patch(), s.name); this.toasts.show(`${s.name} loaded.`); }
+      if (s) { void this.loadBundledPatch(s.patch(), s.name); this.toasts.show(`${s.name} loaded.`); }
       starters.value = '';
     });
 
@@ -246,6 +251,7 @@ export class App {
       keys,
       this.action('NEW', () => this.newPatch(), 'new-patch'),
       this.action('OPEN', () => void this.openPatchFile(), 'open-patch'),
+      this.action('PATCHES', () => void this.openPatchBrowser(), 'open-patch-browser'),
       this.action('SAVE', () => void this.savePatchFile(), 'save-patch'),
       this.action('?', () => this.shortcuts.open('Keyboard shortcuts'), 'shortcuts-btn'),
     );
@@ -392,7 +398,7 @@ export class App {
 
   // ---- patch lifecycle --------------------------------------------------
 
-  async loadPatch(patch: PatchV2, name = 'Untitled'): Promise<void> {
+  async loadPatch(patch: PatchV2, name = 'Untitled', forceSaveAs = false): Promise<void> {
     this.ticker.resetTelemetry();
     this.doc.replace(patch);
     this.patchName = name;
@@ -418,6 +424,7 @@ export class App {
     this.history?.reset();
     this.autosave(true);
     this.pasteCount = 0;
+    this.bundledPatch = forceSaveAs;
     try { await running; }
     catch (e) { this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error'); }
   }
@@ -1104,6 +1111,57 @@ export class App {
   }
 
 
+  private async loadBundledPatch(patch: PatchV2, name: string): Promise<void> {
+    try { await window.wirescape?.openPatch({ library: 'reset' }); }
+    catch { /* Save As below protects the previous native target if reset fails. */ }
+    await this.loadPatch(patch, name, true);
+  }
+
+  private async openPatchBrowser(): Promise<void> {
+    const body = this.patchBrowser.body;
+    body.replaceChildren();
+    const message = el('p', '', '');
+    const choose = async (read: () => Promise<{ patch: PatchV2; name: string } | null>, bundled: boolean) => {
+      if (this.doc.dirty && !window.confirm('Discard unsaved edits and switch patches?')) return;
+      try {
+        // A native read can adopt its save target before renderer validation.
+        // Until this document loads successfully, plain Save must ask for a path.
+        this.bundledPatch = true;
+        const selected = await read();
+        if (!selected) return;
+        if (!Array.isArray(selected.patch.modules) || !Array.isArray(selected.patch.connections)) throw new Error('Invalid patch.');
+        if (bundled) await this.loadBundledPatch(selected.patch, selected.name);
+        else await this.loadPatch(selected.patch, selected.name);
+        this.patchBrowser.close();
+      } catch (e) { message.textContent = e instanceof Error ? e.message : 'Could not open patch.'; }
+    };
+    body.append(message, el('h3', 'settings-group', 'BUNDLED · READ ONLY'));
+    const bundled = [...STARTERS.filter(s => s.id.startsWith('qt-')).map(s => ({ name: s.name, patch: s.patch() })),
+      { name: 'Class demo · CHAOS', patch: demoChaos as unknown as PatchV2 },
+      { name: 'Class demo · Subtractive', patch: demoSub as unknown as PatchV2 },
+      { name: 'Class demo · Macro', patch: demoMacro as unknown as PatchV2 }];
+    for (const [i, item] of bundled.filter(item => item.patch.modules.every(m => this.registry.has(m.module))).entries()) {
+      const button = this.action(item.name + ' · read only', () => void choose(async () => item, true), `bundled-patch-${i}`);
+      body.append(button);
+    }
+    body.append(el('h3', 'settings-group', 'USER PATCHES'));
+    const users = el('div');
+    body.append(users);
+    this.patchBrowser.open('Patch browser');
+    if (!window.wirescape) { users.textContent = 'User patch folder is available in the desktop app.'; return; }
+    try {
+      const result = await window.wirescape.openPatch({ library: 'list' });
+      if (!this.patchBrowser.isOpen) return;
+      const names: unknown = result ? JSON.parse(result.text) : [];
+      if (!Array.isArray(names) || names.length > 256 || names.some(n => typeof n !== 'string')) throw new Error('Invalid patch list.');
+      if (!names.length) users.textContent = 'No user patches yet. Save a copy to add one.';
+      for (const [i, name] of names.entries()) users.append(this.action(name, () => void choose(async () => {
+        const file = await window.wirescape!.openPatch({ library: 'read', name });
+        return file ? { name: file.name, patch: JSON.parse(file.text) as PatchV2 } : null;
+      }, false), `user-patch-${i}`));
+    } catch (e) { message.textContent = e instanceof Error ? e.message : 'Could not list patches.'; }
+  }
+
   /** Native dialogs belong to Electron main; browser-only use keeps file input/export. */
   private async openPatchFile(): Promise<void> {
     if (!window.wirescape) { this.fileInput.click(); return; }
@@ -1121,8 +1179,9 @@ export class App {
   private async savePatchFile(saveAs = false): Promise<void> {
     if (!window.wirescape) { this.exportPatch(); return; }
     try {
-      const result = await window.wirescape.savePatch(JSON.stringify(this.doc.toJSON(), null, 2), { saveAs });
+      const result = await window.wirescape.savePatch(JSON.stringify(this.doc.toJSON(), null, 2), { saveAs: saveAs || this.bundledPatch });
       if (!result) return;
+      this.bundledPatch = false;
       this.patchName = result.name;
       this.nameEl.textContent = result.name;
       this.doc.markClean();

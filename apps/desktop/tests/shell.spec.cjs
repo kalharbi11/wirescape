@@ -229,3 +229,53 @@ test('Escape exits F11 fullscreen and Quit closes engine stdin', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('patch library keeps paths private, bounds reads and detaches bundled save targets', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'wirescape-library-'));
+  const patches = path.join(root, 'patches');
+  fs.mkdirSync(patches);
+  fs.writeFileSync(path.join(patches, 'Song.json'), '{"future":42}');
+  fs.writeFileSync(path.join(patches, 'Huge.json'), 'x'.repeat(2097153));
+  fs.writeFileSync(path.join(patches, 'Bad.json'), Buffer.from([255]));
+  let app;
+  try {
+    app = await launch();
+    // Playwright's Electron main-process evaluate runs without CommonJS require.
+    // Create fixtures in this Node test process and pass only serializable paths.
+    await app.evaluate(({ app }, directory) => app.setPath('userData', directory), root);
+    const page = await app.firstWindow();
+    await page.waitForFunction(() => document.body.dataset.ready === 'true');
+    const listed = await page.evaluate(() => window.wirescape.openPatch({ library: 'list' }));
+    expect(JSON.parse(listed.text)).toContain('Song.json');
+    expect(listed.text).not.toContain(root);
+    expect(await page.evaluate(() => window.wirescape.openPatch({ library: 'read', name: 'Song.json' })))
+      .toEqual({ name: 'Song.json', text: '{"future":42}' });
+    for (const name of ['../Song.json', 'Huge.json', 'Bad.json']) {
+      expect(await page.evaluate(async name => {
+        try { await window.wirescape.openPatch({ library: 'read', name }); return false; } catch { return true; }
+      }, name)).toBe(true);
+    }
+    if (process.platform !== 'win32') {
+      fs.writeFileSync(path.join(root, 'Outside.json'), '{}');
+      fs.symlinkSync(path.join(root, 'Outside.json'), path.join(patches, 'Escape.json'));
+      expect(await page.evaluate(async () => {
+        try { await window.wirescape.openPatch({ library: 'read', name: 'Escape.json' }); return false; } catch { return true; }
+      })).toBe(true);
+    }
+    await page.evaluate(() => window.wirescape.openPatch({ library: 'reset' }));
+    const output = path.join(patches, 'Copy.json');
+    const expectedDefault = path.join(patches, 'Untitled.json');
+    await app.evaluate(({ dialog }, paths) => {
+      dialog.showSaveDialog = async (_window, options) => {
+        if (options.defaultPath !== paths.expectedDefault) throw new Error('Wrong default folder');
+        return { canceled: false, filePath: paths.output };
+      };
+    }, { output, expectedDefault });
+    await page.evaluate(() => window.wirescape.savePatch('{"copy":true}', { saveAs: true }));
+    expect(fs.readFileSync(output, 'utf8')).toBe('{"copy":true}');
+    expect(fs.readFileSync(path.join(patches, 'Song.json'), 'utf8')).toBe('{"future":42}');
+  } finally {
+    if (app) await app.close().catch(() => {});
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
