@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import platform
 import struct
 import subprocess
@@ -138,6 +139,9 @@ def run(args):
     rate, block, seconds, seed = (source[key] for key in ("rate", "block", "seconds", "seed"))
     frames = round(rate * seconds)
     info = {"case": source["name"], "version": VERSION, "source_sha": git_head(),
+            "source_kind": "pull_request_merge" if os.getenv("GITHUB_EVENT_NAME") == "pull_request" else "checkout_head",
+            "workflow_run_url": (f"https://github.com/{os.environ[\'GITHUB_REPOSITORY\']}/actions/runs/{os.environ[\'GITHUB_RUN_ID\']}"
+                                 if os.getenv("GITHUB_REPOSITORY") and os.getenv("GITHUB_RUN_ID") else None),
             "harness_sha256": sha(Path(__file__).read_bytes()), "patch_sha256": sha(patch),
             "script_sha256": sha(script), "rate": rate, "block": block, "seconds": seconds,
             "frames": frames, "seed": seed, "events": source["events"],
