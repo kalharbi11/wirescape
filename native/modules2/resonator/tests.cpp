@@ -95,10 +95,13 @@ struct Rig {
                 for (uint32_t i = 0; i < n; ++i) {
                     const uint32_t t = first + i;
                     const uint32_t bits = t * 1664525u + (c + 1u) * 1013904223u;
-                    buffer->in[0][c][i] =
-                        e == Exciter::Impulse && t == at ? 1.f
-                        : e == Exciter::Noise            ? (float(bits & 65535u) / 32767.5f - 1.f)
-                                                       : 0.f;
+                    float excitation = 0.f;
+                    if (e == Exciter::Impulse && t == at) {
+                        excitation = 1.f;
+                    } else if (e == Exciter::Noise) {
+                        excitation = float(bits & 65535u) / 32767.5f - 1.f;
+                    }
+                    buffer->in[0][c][i] = excitation;
                     buffer->in[1][c][i] = pitch[c];
                     buffer->in[2][c][i] = e == Exciter::Strike && t >= at && t < at + 4 ? 1.f : 0.f;
                 }
@@ -150,7 +153,7 @@ struct FrequencyRange {
     double rate, lo, hi, step = 1.;
 };
 double strongest(const std::vector<float> &y, uint32_t total, uint32_t channel, uint32_t begin, uint32_t end,
-                 FrequencyRange range) {
+                 const FrequencyRange &range) {
     double best_hz = range.lo, best = -1.;
     for (double hz = range.lo; hz <= range.hi; hz += range.step) {
         const double e = energy(y, total, channel, begin, end, range.rate, hz);
