@@ -10,6 +10,7 @@
 namespace wirescape::audio {
 // One render writer, control readers. A whole load sample is one lock-free atomic;
 // no cross-field snapshot or callback-owned buffer is read by control.
+// Load covers render + interleave only; it excludes PortAudio/backend overhead.
 struct CallbackMetrics {
     static_assert(std::atomic<float>::is_always_lock_free);
     std::atomic<float> percent{std::numeric_limits<float>::quiet_NaN()};
