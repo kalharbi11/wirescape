@@ -8,9 +8,10 @@
 
 using quantizer::Quantizer;
 static constexpr uint32_t kFrames = 1024;
-enum { kScale, kRoot, kShift, kOctave, kNotes }; // parameter slots; notes n0..n11 start at kNotes
+enum : uint8_t { kScale, kRoot, kShift, kOctave, kNotes }; // parameter slots; notes n0..n11 start at kNotes
 
 struct Rig {
+    struct VoiceCount { uint32_t value; };
     Pool pool{};
     ws2_host host{sizeof(host), &pool, allocate};
     const ws2_descriptor *d = ws::Module<Quantizer>::descriptor();
@@ -34,7 +35,7 @@ struct Rig {
     uint32_t in_flags[2]{WS2_CONNECTED, 0}; // trigger starts unconnected
     uint32_t voices = 1;
 
-    explicit Rig(double rate = 48000, uint32_t voice_count = 1) : voices(voice_count) {
+    explicit Rig(double rate = 48000, VoiceCount voice_count = {1}) : voices(voice_count.value) {
         ws2_config cfg{sizeof(cfg), rate, kFrames, 16, 42, nullptr, 0};
         state = d->create(&host);
         REQUIRE(state && d->prepare(state, &cfg, &host) == WS2_OK);
@@ -73,7 +74,7 @@ struct Rig {
     float pitch(uint32_t c, uint32_t i) const { return out[0][c][(outs[0].flags & WS2_CONSTANT) ? 0 : i]; }
     float changed(uint32_t c, uint32_t i) const { return out[1][c][(outs[1].flags & WS2_CONSTANT) ? 0 : i]; }
     void set_notes(uint32_t bits) {
-        for (int k = 0; k < 12; ++k) values[kNotes + k] = (bits >> k) & 1u;
+        for (int k = 0; k < 12; ++k) values[kNotes + k] = static_cast<float>((bits >> k) & 1u);
     }
 };
 
@@ -99,7 +100,7 @@ static bool in_scale(const std::vector<int> &intervals, int root, int note) {
     return false;
 }
 // Brute force: scan every candidate upward, keep the strictly closer one, so ties go down.
-static int brute_nearest(const std::vector<int> &intervals, int root, double x) {
+static int brute_nearest(int root, const std::vector<int> &intervals, double x) {
     int best = 0;
     double best_distance = 1e9;
     for (int n = -80; n <= 80; ++n) {
@@ -137,7 +138,7 @@ static void test_sweep_all_scales() {
                 const uint32_t n = static_cast<uint32_t>(std::min<size_t>(200, points.size() - start));
                 feed(r, &points[start], n);
                 for (uint32_t i = 0; i < n; ++i)
-                    REQUIRE(r.pitch(0, i) == pitch_of(brute_nearest(kScales[scale], root, points[start + i])));
+                    REQUIRE(r.pitch(0, i) == pitch_of(brute_nearest(root, kScales[scale], points[start + i])));
             }
         }
     std::puts("PASS sweep -2..+2 V matches brute-force nearest for 13 scales x 3 roots");
@@ -148,7 +149,7 @@ static void test_ties_go_down() {
     for (double x : {3.0, 6.0, -6.0, -9.0}) {
         Rig r;
         feed(r, &x, 1);
-        const int expected = brute_nearest(kScales[1], 0, x);
+        const int expected = brute_nearest(0, kScales[1], x);
         REQUIRE(r.pitch(0, 0) == pitch_of(expected));
         REQUIRE(expected < x); // the lower neighbour won
     }
@@ -284,7 +285,7 @@ static void test_custom() {
 }
 
 static void test_voices() {
-    Rig r(48000, 16); // independent voices, each with its own pitch
+    Rig r(48000, {16}); // independent voices, each with its own pitch
     r.values[kScale] = 1;
     for (uint32_t c = 0; c < 16; ++c) {
         r.in_channels[0] = 16;
@@ -293,12 +294,12 @@ static void test_voices() {
     REQUIRE(r.run(8) == WS2_OK && r.outs[0].channels == 16 && r.outs[1].channels == 16);
     for (uint32_t c = 0; c < 16; ++c)
         for (uint32_t i = 0; i < 8; ++i)
-            REQUIRE(r.pitch(c, i) == pitch_of(brute_nearest(kScales[1], 0, c * 1.7 - 12 + 0.3)));
-    Rig mono(48000, 16); // mono pitch broadcasts to all voices
+            REQUIRE(r.pitch(c, i) == pitch_of(brute_nearest(0, kScales[1], c * 1.7 - 12 + 0.3)));
+    Rig mono(48000, {16}); // mono pitch broadcasts to all voices
     for (uint32_t i = 0; i < 8; ++i) mono.in[0][0][i] = in_pitch(6.1);
     REQUIRE(mono.run(8) == WS2_OK && mono.outs[0].channels == 16);
     for (uint32_t c = 0; c < 16; ++c) REQUIRE(mono.pitch(c, 3) == pitch_of(7));
-    Rig gate(48000, 16); // mono trigger broadcasts: every voice updates on the same edge
+    Rig gate(48000, {16}); // mono trigger broadcasts: every voice updates on the same edge
     gate.connect_trigger(1);
     gate.in_channels[0] = 16;
     for (uint32_t c = 0; c < 16; ++c)
@@ -316,15 +317,17 @@ static void test_voices() {
 
 // Deterministic pseudo-random walk plus a pulse train, for the matrix tests.
 static float walk(uint32_t voice, uint64_t frame) {
-    return static_cast<float>(std::sin(frame * 0.013 + voice) * 0.9 + std::sin(frame * 0.171 + 2 * voice) * 0.05);
+    const double t = static_cast<double>(frame);
+    return static_cast<float>(std::sin(t * 0.013 + voice) * 0.9 + std::sin(t * 0.171 + 2 * voice) * 0.05);
 }
 static float pulse(uint64_t frame) { return (frame % 37) < 6 ? 1.f : 0.f; }
 using Samples = Fixed<float, 32768>;
-static Samples render(Rig &r, uint32_t total, uint32_t block, uint64_t start = 0) {
+struct RenderBlock { uint32_t size; };
+static Samples render(Rig &r, uint32_t total, RenderBlock block, uint64_t start = 0) {
     Samples result;
-    result.resize(2 * 4 * total);
+    result.resize(static_cast<size_t>(8) * total);
     for (uint32_t done = 0; done < total;) {
-        const uint32_t n = std::min(block, total - done);
+        const uint32_t n = std::min(block.size, total - done);
         for (uint32_t c = 0; c < 4; ++c)
             for (uint32_t i = 0; i < n; ++i) r.in[0][c][i] = walk(c, start + done + i);
         for (uint32_t i = 0; i < n; ++i) r.in[1][0][i] = pulse(start + done + i);
@@ -339,15 +342,15 @@ static Samples render(Rig &r, uint32_t total, uint32_t block, uint64_t start = 0
 }
 static void test_frame_matrix() {
     for (bool gated : {false, true}) {
-        Rig reference(48000, 4);
+        Rig reference(48000, {4});
         reference.in_channels[0] = 4;
         if (gated) reference.connect_trigger();
-        const auto whole = render(reference, 1000, 1000);
+        const auto whole = render(reference, 1000, {1000});
         for (uint32_t block : {1u, 17u, 64u, 256u}) {
-            Rig r(48000, 4);
+            Rig r(48000, {4});
             r.in_channels[0] = 4;
             if (gated) r.connect_trigger();
-            REQUIRE(render(r, 1000, block) == whole);
+            REQUIRE(render(r, 1000, {block}) == whole);
         }
     }
     std::puts("PASS frame matrix 1/17/64/256 == one block (continuous and triggered)");
@@ -368,14 +371,14 @@ static void test_rates() {
 }
 
 static void test_reset_and_state() {
-    Rig a(48000, 4), fresh(48000, 4);
+    Rig a(48000, {4}), fresh(48000, {4});
     a.in_channels[0] = fresh.in_channels[0] = 4;
     a.connect_trigger();
     fresh.connect_trigger();
-    const auto first = render(a, 500, 64);
+    const auto first = render(a, 500, {64});
     a.d->reset(a.state);
-    REQUIRE(render(a, 500, 64) == first); // reset gives the same output as a fresh instance
-    REQUIRE(render(fresh, 500, 64) == first);
+    REQUIRE(render(a, 500, {64}) == first); // reset gives the same output as a fresh instance
+    REQUIRE(render(fresh, 500, {64}) == first);
     Bytes bytes;
     ws2_writer writer{sizeof(writer), &bytes, sink};
     REQUIRE(a.d->save_state(a.state, &writer) == WS2_UNSUPPORTED); // held notes are not state
@@ -409,7 +412,7 @@ static void test_constant() {
 }
 
 static void test_extremes() {
-    Rig r(96000, 16);
+    Rig r(96000, {16});
     r.in_channels[0] = 16;
     r.connect_trigger(16);
     for (float scale : {-5.f, 0.f, 1.f, 13.f, 99.f})
@@ -434,7 +437,7 @@ static void test_extremes() {
 }
 
 static void test_no_allocation() {
-    Rig r(48000, 16);
+    Rig r(48000, {16});
     r.in_channels[0] = 16;
     r.connect_trigger(16);
     for (uint32_t c = 0; c < 16; ++c)
