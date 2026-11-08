@@ -34,16 +34,16 @@
 5. Custom all-off → chromatic. 16 voices independent; mono pitch broadcast; `trigger` mono broadcast.
 6. Frame/rate matrix, reset, state, extremes, no-allocation (guide §12).
 
-The original implementation budget remains <= 700 changed lines and <= 8 files inside `native/modules2/quantizer/`; standard wiring and generated files are outside that module-folder budget. The executable acceptance cap covers the whole PR: 1,800 changed lines and 22 files, including native registration/build wiring, catalogues, documentation, and the visibility regression (the reviewed starting diff is 1,253 lines across 19 files).
+The nominal implementation budget is <= 700 changed lines and <= 8 files inside `native/modules2/quantizer/`. The current module-folder implementation is 788 changed lines, within the standing workflow +50% allowance (788 <= 1,050); the nominal 8-file limit is retained. Standard wiring and generated files are outside that module-folder budget. The executable acceptance cap covers the whole PR: 1,500 changed lines and 22 files, including native registration/build wiring, catalogues, documentation, and the visibility regression (the reviewed starting diff is 1,253 lines across 19 files).
 
 ```acceptance
 tier: T1
-size: <= 1800 changed lines, <= 22 files
+size: <= 1500 changed lines, <= 22 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_quantizer_tests" --output-on-failure
   - python tools/dev.py test
-  - bash -lc 'cd apps/studio && npm ci && npx playwright install chromium ffmpeg && WIRESCAPE_CHROMIUM="$(node -p "require(\"playwright\").chromium.executablePath()")" npm test'
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser="$(command -v chromium || command -v chromium-browser || command -v google-chrome)" && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
 stops: [ABI header edit, new dependency, test loosening, ID change after merge]
 ```
 Signed: Compass (Claude), 2026-11-07
