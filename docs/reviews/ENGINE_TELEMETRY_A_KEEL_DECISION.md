@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # #350 / T2: implementation contract for engine-authentic telemetry (Keel decision)
 
-**Status:** requested decision; NOT an approved protocol change or a claim of telemetry working.
+**Status:** SUPERSEDED by Keel's approved contract in `docs/design/ENGINE_TELEMETRY.md` (#360). The proposals below are historical discussion, not current implementation instructions. PR #353 contains only the independently reviewed T1 30-Hz worklet cap; #350 remains open for the separate engine/host work.
 **Read with:** issue #350, `docs/reviews/ENGINE_TELEMETRY_MODULE_PREFLIGHT_2026-11-07.md` in PR #352, `docs/specs/ENGINE_PROTOCOL.md`, `native/engine2/engine2.cpp`, and `apps/studio/src/runtime/Ticker.ts`.
 
 ## Verified implementation seams
