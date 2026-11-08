@@ -329,7 +329,7 @@ static void test_state() {
     auto truncated = bytes; truncated.pop_back();
     REQUIRE(load(f, truncated) == WS2_INVALID);
     REQUIRE(load(f, Bytes{}) == WS2_INVALID);
-    auto bad_step = bytes; bad_step[4] = 9;
+    auto bad_step = bytes; bad_step[4] = 17;
     REQUIRE(load(f, bad_step) == WS2_INVALID);
     auto bad_velocity = bytes; bad_velocity[bad_velocity.size() - 1] = 0x7f;      // velocity becomes NaN/huge
     REQUIRE(load(f, bad_velocity) == WS2_INVALID);
@@ -425,8 +425,11 @@ static void test_sixteen_block_matrix_and_length_edits() {
     edit.render(225, 17, Clock{}, Resets{}); // 12th step was just played at frame 220
     edit.values[S::kLength] = 4;
     const Trace shortened = edit.render(95, 17, Clock{}, Resets{});
-    for (const Ev& e : shortened.events) REQUIRE(e.key >= 55 && e.key <= 67); // only first four pitches
-    check_balanced(only(shortened, WS2_NOTE_ON).empty() ? Trace{} : Trace{}); // see full-event audit below
+    // The old note may still release after the length edit; only NEW onsets
+    // must come from the retained steps, never from the removed upper bank.
+    const Events new_notes = only(shortened, WS2_NOTE_ON);
+    REQUIRE(!new_notes.empty());
+    for (const Ev& e : new_notes) REQUIRE(e.key >= 60 && e.key <= 65);
     REQUIRE(shortened.gate.size() == 95);
     std::puts("PASS 16-step block/rate matrix and live length shortening");
 }
