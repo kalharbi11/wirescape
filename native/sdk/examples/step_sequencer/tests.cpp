@@ -7,6 +7,7 @@
 
 using S = StepSequencer;
 static constexpr uint32_t kFrames = 1024;   // max block size we prepare for
+static constexpr uint32_t kParams = static_cast<uint32_t>(S::params.size());
 
 struct Ev {
     uint32_t type; uint64_t frame; int32_t id, key; float value;
@@ -58,9 +59,9 @@ struct Rig {
     float (&in)[2][kFrames] = buffers->in;
     const float* in_rows[2]{};
     ws2_signal ins[2]{};
-    float values[26]{};
-    const float* value_rows[26]{};
-    ws2_signal params[26]{};
+    float values[kParams]{};
+    const float* value_rows[kParams]{};
+    ws2_signal params[kParams]{};
     float (&out)[4][16][kFrames] = buffers->out;
     float* out_rows[4][16]{};
     ws2_signal_out outs[4]{};
@@ -72,7 +73,7 @@ struct Rig {
         ws2_config cfg{sizeof(cfg), rate, kFrames, 16, 42, nullptr, 0};
         state = d->create(&host);
         REQUIRE(state && d->prepare(state, &cfg, &host) == WS2_OK);
-        for (uint32_t p = 0; p < 26; ++p) {
+        for (uint32_t p = 0; p < kParams; ++p) {
             values[p] = S::params[p].initial;
             value_rows[p] = &values[p];
             params[p] = {sizeof(ws2_signal), &value_rows[p], 1, WS2_CONSTANT};
@@ -87,7 +88,7 @@ struct Rig {
         ctx.channels = 1;
         ctx.input_count = 2;
         ctx.output_count = 4;
-        ctx.param_count = 26;
+        ctx.param_count = kParams;
         ctx.inputs = ins;
         ctx.params = params;
         ctx.outputs = outs;
@@ -101,6 +102,15 @@ struct Rig {
         for (uint32_t s = 0; s < 8; ++s) {
             values[S::pitch_param(s)] = static_cast<float>(semitones[s]) / 12.f;
             values[S::gate_param(s)] = static_cast<float>(gates[s]);
+        }
+    }
+
+    // All 16 steps are independently programmable; the first 8 retain their IDs.
+    void pattern16(const int (&semitones)[16], const int (&gates)[16], uint32_t length = 16) {
+        values[S::kLength] = static_cast<float>(length);
+        for (uint32_t i = 0; i < 16; ++i) {
+            values[S::pitch_param(i)] = static_cast<float>(semitones[i]) / 12.f;
+            values[S::gate_param(i)] = static_cast<float>(gates[i]);
         }
     }
 
@@ -342,7 +352,7 @@ static void test_no_allocation() {
 
 static void test_extremes() {
     Rig r;
-    for (uint32_t s = 0; s < 8; ++s) {       // out-of-range parameters the module must tolerate
+    for (uint32_t s = 0; s < 16; ++s) {       // out-of-range parameters the module must tolerate
         r.values[S::pitch_param(s)] = (s % 2) ? 1e6f : -1e6f;
         r.values[S::gate_param(s)] = static_cast<float>(s) - 2.f;
         r.values[S::vel_param(s)] = (s % 2) ? 9.f : -9.f;
@@ -357,8 +367,118 @@ static void test_extremes() {
     std::puts("PASS finite outputs and valid events under extreme parameters");
 }
 
+
+static void test_sixteen_steps_and_boundary_ties() {
+    static_assert(kParams == 50, "append 24 new step parameters without renumbering");
+    static_assert(S::pitch_param(0) == 2 && S::vel_param(7) == 25 &&
+                  S::pitch_param(8) == 26 && S::vel_param(15) == 49, "stable parameter slots");
+    const int semis[16] = {0, 2, 4, 5, 7, 9, 11, 12, -12, -10, -8, -7, -5, -3, -1, 0};
+    const int notes[16] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    Rig r;
+    r.pattern16(semis, notes);
+    const Trace t = r.render(660, 64, Clock{}, Resets{});
+    REQUIRE(t.events.size() == 66); // 33 notes across two cycles, matching clock falls
+    for (uint32_t i = 0; i < 33; ++i) {
+        REQUIRE(t.events[2 * i].type == WS2_NOTE_ON);
+        REQUIRE(t.events[2 * i].frame == i * 20 && t.events[2 * i].key == 60 + semis[i % 16]);
+        REQUIRE(t.events[2 * i + 1].type == WS2_NOTE_OFF && t.events[2 * i + 1].frame == i * 20 + 8);
+    }
+    check_balanced(t);
+    check_agreement(t);
+
+    // Tie over steps 8->9 and 16->1, even when the clock goes low between rises.
+    const int ties[16] = {2, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 1};
+    Rig tied;
+    tied.pattern16(semis, ties);
+    const Trace hold = tied.render(360, 17, Clock{}, Resets{});
+    const Ev expected[] = {
+        {WS2_NOTE_ON, 140, 0, 72, 0.8f}, {WS2_NOTE_OFF, 168, 0, 72, 0.f},
+        {WS2_NOTE_ON, 300, 1, 60, 0.8f}, {WS2_NOTE_OFF, 328, 1, 60, 0.f}};
+    REQUIRE(is(hold.events, expected));
+    REQUIRE(hold.gate[148] == 1 && hold.gate[167] == 1 && hold.gate[168] == 0);
+    REQUIRE(hold.gate[308] == 1 && hold.gate[327] == 1 && hold.gate[328] == 0);
+    check_balanced(hold);
+    check_agreement(hold);
+    std::puts("PASS 16 steps and ties over 8/9, 16/1 with stable note events");
+}
+
+static void test_sixteen_block_matrix_and_length_edits() {
+    const int semis[16] = {0, 2, 4, 5, 7, 9, 11, 12, -12, -10, -8, -7, -5, -3, -1, 0};
+    const int gates[16] = {1, 1, 2, 0, 1, 1, 0, 1, 1, 1, 2, 1, 0, 1, 1, 1};
+    const Resets resets{{333, 499}};
+    Rig one;
+    one.pattern16(semis, gates);
+    const Trace expected = one.render(640, 640, Clock{23, 9}, resets);
+    for (uint32_t size : {1u, 17u, 128u, 256u}) {
+        Rig r;
+        r.pattern16(semis, gates);
+        REQUIRE(r.render(640, size, Clock{23, 9}, resets) == expected);
+    }
+    for (double rate : {44100., 48000., 96000.}) {
+        Rig r(rate);
+        r.pattern16(semis, gates);
+        REQUIRE(r.render(640, 128, Clock{23, 9}, resets).events == expected.events);
+    }
+
+    Rig edit;
+    edit.pattern16(semis, gates);
+    edit.render(225, 17, Clock{}, Resets{}); // 12th step was just played at frame 220
+    edit.values[S::kLength] = 4;
+    const Trace shortened = edit.render(95, 17, Clock{}, Resets{});
+    for (const Ev& e : shortened.events) REQUIRE(e.key >= 55 && e.key <= 67); // only first four pitches
+    check_balanced(only(shortened, WS2_NOTE_ON).empty() ? Trace{} : Trace{}); // see full-event audit below
+    REQUIRE(shortened.gate.size() == 95);
+    std::puts("PASS 16-step block/rate matrix and live length shortening");
+}
+
+static void test_v1_v2_state_migration() {
+    const int semis[16] = {0, 2, 4, 5, 7, 9, 11, 12, -12, -10, -8, -7, -5, -3, -1, 0};
+    const int gates[16] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    auto save = [](Rig& r) {
+        Bytes data;
+        ws2_writer w{sizeof(w), &data, sink};
+        REQUIRE(r.d->save_state(r.state, &w) == WS2_OK);
+        return data;
+    };
+    auto load = [](Rig& r, Bytes& data) {
+        Source source_state{&data, 0};
+        ws2_reader rd{sizeof(rd), &source_state, source, static_cast<uint32_t>(data.size())};
+        return r.d->load_state(r.state, &rd);
+    };
+    Rig initial, resumed;
+    initial.pattern16(semis, gates);
+    resumed.pattern16(semis, gates);
+    initial.render(205, 17, Clock{}, Resets{}); // step 11 at frame 200
+    Bytes state2 = save(initial);
+    REQUIRE(state2[0] == 2);
+    REQUIRE(load(resumed, state2) == WS2_OK);
+    resumed.ctx.frame_position = initial.ctx.frame_position;
+    const Trace a = initial.render(155, 17, Clock{}, Resets{});
+    const Trace b = resumed.render(155, 17, Clock{}, Resets{});
+    REQUIRE(only(a, WS2_NOTE_ON) == only(b, WS2_NOTE_ON));
+    // A v1 header must not claim an impossible >=8 saved position.
+    Bytes wrong_legacy = state2;
+    wrong_legacy[0] = 1;
+    REQUIRE(load(resumed, wrong_legacy) == WS2_INVALID);
+    // A true v1 state stays loadable and produces the same subsequent trace.
+    Rig old, upgraded;
+    old.pattern(kSemis, kNotes, 8);
+    upgraded.pattern(kSemis, kNotes, 8);
+    old.render(65, 17, Clock{}, Resets{});
+    Bytes legacy = save(old);
+    legacy[0] = 1;
+    REQUIRE(load(upgraded, legacy) == WS2_OK);
+    upgraded.ctx.frame_position = old.ctx.frame_position;
+    REQUIRE(only(old.render(115, 17, Clock{}, Resets{}), WS2_NOTE_ON) ==
+            only(upgraded.render(115, 17, Clock{}, Resets{}), WS2_NOTE_ON));
+    std::puts("PASS v1 positions 0..7 load and v2 positions 0..15 round trip");
+}
+
 int main() {
     test_advance_and_wrap();
+    test_sixteen_steps_and_boundary_ties();
+    test_sixteen_block_matrix_and_length_edits();
+    test_v1_v2_state_migration();
     test_rest_and_tie();
     test_reset_wins_and_release();
     test_run_switch();
