@@ -111,6 +111,7 @@ struct Node {
     std::vector<ws2_signal>in_view,param_view;std::vector<ws2_signal_out>out_view;
     std::vector<std::vector<ws2_event>>port_events;
     std::vector<ws2_event_list>event_view;std::vector<ws2_event_out>event_outputs;
+    std::vector<uint32_t>event_tap_slots; // Precomputed event-output -> telemetry slot; empty when untapped.
     std::vector<ws2_event>events;std::vector<Item>pending;
     std::vector<const float*>legacy_in;std::vector<float*>legacy_out;
     int forced_channels=-1;uint32_t channels=1,latency=0;
@@ -152,6 +153,10 @@ struct Engine::Impl {
     std::unique_ptr<Producer>egress;
     std::vector<Packet>future;std::vector<uint8_t>arena;
     bool prepared=false;std::atomic_flag rendering=ATOMIC_FLAG_INIT;
+    std::vector<Tap> taps;std::vector<Node*> tap_nodes;
+    std::unique_ptr<std::atomic<float>[]> tap_values;
+    std::unique_ptr<std::atomic<uint32_t>[]> tap_counts;
+    std::atomic<uint64_t> tap_frame{0};
     std::atomic<Park> park{Park::Running};
     std::atomic<uint64_t> revision{0};
     std::vector<std::pair<uint32_t, uint32_t>> replan_chokes;
@@ -205,6 +210,7 @@ struct Engine::Impl {
     }
     bool topology();
     bool finish_prepare();
+    bool resolve_taps();
     bool setup(Node&);
     bool valid_target(const Node &, uint32_t, const ws2_event &) const;
     bool admit(Node &, uint32_t, const ws2_event &, uint64_t, uint64_t, bool cleanup = false);
@@ -213,7 +219,13 @@ struct Engine::Impl {
     void process_node(Node&,uint32_t,uint32_t);
     static int WS2_CALL emit(void*ctx,uint32_t port,const ws2_event*event){
         if(!event||event->struct_size<sizeof(ws2_event))return WS2_INVALID;
-        return static_cast<Impl*>(ctx)->route(port,*event)?WS2_OK:WS2_CAPACITY;
+        auto&engine=*static_cast<Impl*>(ctx);
+        const bool accepted=engine.route(port,*event);
+        if(accepted&&engine.processing&&port<engine.processing->event_tap_slots.size()){
+            const uint32_t slot=engine.processing->event_tap_slots[port];
+            if(slot!=UINT32_MAX)engine.tap_counts[slot].fetch_add(1,std::memory_order_relaxed);
+        }
+        return accepted?WS2_OK:WS2_CAPACITY;
     }
 };
 
@@ -260,9 +272,27 @@ bool Engine::Impl::setup(Node&n) {
     return true;
 }
 
+bool Engine::Impl::resolve_taps() {
+    tap_nodes.clear();tap_nodes.reserve(taps.size());
+    for(auto&node:nodes)node->event_tap_slots.clear();
+    for(uint32_t i=0;i<taps.size();++i){
+        const auto&t=taps[i];auto*n=find(t.node);
+        if(!n||(t.kind==Tap::Param?(n->legacy||t.index>=n->param.size()):
+                t.index>=n->outputs.size()||n->outputs[t.index].kind!=(t.kind==Tap::EventOut?WS2_EVENT:WS2_SIGNAL)))
+            return fail("Telemetry tap endpoint changed during prepare");
+        tap_nodes.push_back(n);
+        if(t.kind==Tap::EventOut){
+            if(n->event_tap_slots.empty())n->event_tap_slots.assign(n->outputs.size(),UINT32_MAX);
+            n->event_tap_slots[t.index]=i;
+        }
+    }
+    return true;
+}
+
 bool Engine::Impl::finish_prepare() {
     if(!topology())return false;
     for(auto&bus:buses){auto*n=find(bus.node);if(!n||bus.port>=n->outputs.size())return fail("Output no longer exists");bus.source=n;}
+    if(!resolve_taps())return false;
     arena.resize(cfg.message_arena_bytes);egress=std::make_unique<Producer>(cfg.ring_capacity);
     prepared=true;applied.store(generation.load());return true;
 }
@@ -581,6 +611,7 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
 
 Engine::Engine(Config config):p_(std::make_unique<Impl>(config)){}
 Engine::~Engine()=default;
+static_assert(std::atomic<float>::is_always_lock_free,"Telemetry floats must be lock-free");
 bool Engine::add_node(uint32_t id,const ws2_descriptor*d,const std::vector<uint8_t>&config){
     auto&p=*p_;if(!p.cfg.max_channels||p.cfg.max_channels>16||!p.cfg.max_block||p.cfg.max_block>4096)return p.fail("Invalid setup bounds");
     if(p.prepared||!id||p.find(id)||p.nodes.size()>=p.cfg.max_nodes||!d||d->struct_size<sizeof(ws2_descriptor)||d->abi_version!=2||!d->id||!d->name||
@@ -617,11 +648,39 @@ bool Engine::output(uint32_t node,uint32_t port,uint32_t channel){
     p.buses.push_back({node,port,channel});return true;
 }
 int Engine::register_producer(){auto&p=*p_;if(p.prepared||p.producer_count==32||!p.cfg.ring_capacity||p.cfg.ring_capacity>65536)return -1;uint32_t i=p.producer_count++;p.producers[i]=std::make_unique<Producer>(p.cfg.ring_capacity);return static_cast<int>(i);}
+bool Engine::set_telemetry_taps(const std::vector<Tap>&requested){
+    auto&p=*p_;
+    if(p.prepared||requested.size()>p.cfg.max_taps)return p.fail("Invalid telemetry tap capacity or setup state");
+    for(size_t i=0;i<requested.size();++i){
+        const auto&t=requested[i];const auto*n=p.find(t.node);
+        if(!n||t.kind>Tap::EventOut||(t.kind==Tap::Param?(n->legacy||t.index>=n->parameters.size()):
+            t.index>=n->outputs.size()||n->outputs[t.index].kind!=(t.kind==Tap::EventOut?WS2_EVENT:WS2_SIGNAL)))
+            return p.fail("Invalid telemetry tap endpoint");
+        for(size_t j=0;j<i;++j)if(requested[j].kind==t.kind&&requested[j].node==t.node&&requested[j].index==t.index)
+            return p.fail("Duplicate telemetry tap endpoint");
+    }
+    auto values=std::make_unique<std::atomic<float>[]>(requested.size());
+    auto counts=std::make_unique<std::atomic<uint32_t>[]>(requested.size());
+    for(size_t i=0;i<requested.size();++i){values[i].store(0,std::memory_order_relaxed);counts[i].store(0,std::memory_order_relaxed);}
+    p.taps=requested;p.tap_values.swap(values);p.tap_counts.swap(counts);
+    p.tap_nodes.clear();p.tap_frame.store(0,std::memory_order_relaxed);
+    return true;
+}
+uint32_t Engine::read_telemetry(float*values,uint32_t*counts,uint32_t capacity,uint64_t&frame)const noexcept {
+    const auto&p=*p_;frame=0;
+    if(capacity<p.taps.size()||(!p.taps.empty()&&(!values||!counts)))return 0;
+    frame=p.tap_frame.load(std::memory_order_acquire);
+    for(size_t i=0;i<p.taps.size();++i){
+        values[i]=p.tap_values[i].load(std::memory_order_relaxed);
+        counts[i]=p.tap_counts[i].load(std::memory_order_relaxed);
+    }
+    return static_cast<uint32_t>(p.taps.size());
+}
 bool Engine::prepare(){
     auto&p=*p_;if(p.prepared)return p.fail("Prepare is quiescent and single-use; reconfigure uses staged replacement");
     if(!std::isfinite(p.cfg.sample_rate)||p.cfg.sample_rate<1000||p.cfg.sample_rate>384000||!p.cfg.max_channels||p.cfg.max_channels>16||!p.cfg.max_block||p.cfg.max_block>4096||!p.cfg.max_nodes||p.cfg.max_nodes>1024||
        p.cfg.event_budget<2||p.cfg.event_budget>65536||!p.cfg.release_reserve||p.cfg.release_reserve>=p.cfg.event_budget||!p.cfg.ring_capacity||p.cfg.ring_capacity>65536||!p.cfg.future_capacity||p.cfg.future_capacity>65536||
-       !p.cfg.feedback_block||p.cfg.feedback_block>p.cfg.max_block||p.cfg.message_arena_bytes>64*1024*1024)return p.fail("Invalid engine2 configuration");
+       !p.cfg.feedback_block||p.cfg.feedback_block>p.cfg.max_block||p.cfg.message_arena_bytes>64*1024*1024||p.cfg.max_taps>4096)return p.fail("Invalid engine2 configuration");
     p.setup_bytes=0;
     for(auto&n:p.nodes)if(!p.setup(*n))return false;
     return p.finish_prepare();
@@ -710,6 +769,28 @@ int Engine::render(float*const*outputs,uint32_t output_channels,uint32_t frames,
                 if(!bus_written[bus.channel])outputs[bus.channel][i]=sample;else outputs[bus.channel][i]+=sample;}
             bus_written[bus.channel]=true;
         }
+    }
+    if(!p.taps.empty()){
+        // Render-owned, post-DSP snapshots. Feedback loops process in chunks, so
+        // their parameter buffer's last chunk is shorter than the full block.
+        for(size_t i=0;i<p.taps.size();++i){
+            const auto&t=p.taps[i];const auto*n=p.tap_nodes[i];float sample=0;
+            if(t.kind==Tap::Param){
+                const auto&b=n->param[t.index];
+                const uint32_t last=n->loop?(frames-1)%p.cfg.feedback_block:frames-1;
+                sample=b.data[0][(b.flags&WS2_CONSTANT)?0:last];
+            }else if(t.kind==Tap::Output){
+                const auto&b=n->global_out[t.index];
+                const uint32_t at=(b.flags&WS2_CONSTANT)?0:frames-1;
+                if(b.channels){
+                    sample=b.data[0][at];
+                    if(t.reduction==Tap::Maximum)
+                        for(uint32_t c=1;c<b.channels;++c)sample=std::max(sample,b.data[c][at]);
+                }
+            }
+            p.tap_values[i].store(sample,std::memory_order_relaxed);
+        }
+        p.tap_frame.store(p.block_start+frames,std::memory_order_release);
     }
     if(p.cfg.playing)p.beat+=frames*p.cfg.bpm/(60.*p.cfg.sample_rate);
     p.position.store(p.block_start+frames,std::memory_order_release);
@@ -879,7 +960,7 @@ bool Engine::replan(Engine &candidate, uint64_t timeout_ns) {
         return old.fail("Live graph is unavailable or already parking");
     auto limits = [](const Config &c) {
         return std::tie(c.sample_rate, c.max_block, c.max_channels, c.max_nodes, c.event_budget, c.release_reserve,
-                        c.ring_capacity, c.future_capacity, c.message_arena_bytes, c.feedback_block, c.seed);
+                        c.ring_capacity, c.future_capacity, c.message_arena_bytes, c.feedback_block, c.seed, c.max_taps);
     };
     const auto bound = uint64_t(3.e9 * old.cfg.max_block / old.cfg.sample_rate);
     if (limits(old.cfg) != limits(fresh.cfg) || !timeout_ns || timeout_ns > bound)
@@ -978,11 +1059,13 @@ bool Engine::replan(Engine &candidate, uint64_t timeout_ns) {
         node.signal_edges.swap(layout.signal_edges);
         node.modulation.swap(layout.modulation);
         node.outgoing.swap(layout.outgoing);
+        node.event_tap_slots.swap(layout.event_tap_slots);
         fresh.nodes[pair.first].swap(old.nodes[pair.second]);
     }
     for (auto *n : actual)
         for (uint32_t i = 0; i < n->event_outputs.size(); ++i)
             n->event_outputs[i] = {sizeof(ws2_event_out), &old, i, Impl::emit};
+    for(auto*&node:fresh.tap_nodes)node=actual[node->index];
     for (auto &e : fresh.edges) {
         e.source = actual[e.source->index];
         e.destination = actual[e.destination->index];
@@ -1004,6 +1087,9 @@ bool Engine::replan(Engine &candidate, uint64_t timeout_ns) {
     old.node_table.swap(fresh.node_table);
     old.buses.swap(fresh.buses);
     old.bus_latency.swap(fresh.bus_latency);
+    old.taps.swap(fresh.taps);old.tap_nodes.swap(fresh.tap_nodes);
+    old.tap_values.swap(fresh.tap_values);old.tap_counts.swap(fresh.tap_counts);
+    old.tap_frame.store(0,std::memory_order_release);
     old.feedback_count.store(fresh.feedback_count.load());
     old.latency.store(fresh.latency.load());
     size_t bytes = 0;
