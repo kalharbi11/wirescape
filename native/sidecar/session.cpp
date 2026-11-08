@@ -183,24 +183,11 @@ Session::Session(Options options)
     active_ = engine_.get();
     refresh_devices();
     device_ = options_.device.empty() ? preferences_.value("audioDeviceId", std::string{}) : options_.device;
-    if (options_.audio) {
-        auto found = std::count_if(audio_devices_.begin(), audio_devices_.end(),
-                                   [&](const Json &d) { return d["id"] == device_; });
-        if (!device_.empty() && found == 0) {
-            fallback_ = device_;
-            device_.clear();
-            audio_state_ = "starting";
-        }
-        if (device_.empty()) {
-            for (const auto &d : audio::devices(options_.directory))
-                if (d.is_default) device_ = d.name;
-        }
-    }
     if (options_.audio) audio_state_ = "starting";
 }
-void Session::start() {
+void Session::start(std::chrono::steady_clock::time_point now) {
     try {
-        start_audio();
+        start_audio(now);
         start_midi();
         if (stream_) persist();
     } catch (...) {
@@ -225,17 +212,26 @@ void Session::shutdown() {
                   << " overruns=" << bench_.overruns << '\n';
     }
 }
-void Session::start_audio() {
+void Session::start_audio(std::chrono::steady_clock::time_point now) {
     stop_sink_.store(false);
     if (options_.audio) {
         try {
+            // Resolve the default only before any identity has been selected.
+            // A remembered/missing output must never be replaced by the default.
+            if (device_.empty())
+                for (const auto &d : audio::devices(options_.directory))
+                    if (d.is_default) device_ = d.name;
+            need(!device_.empty(), "unavailable", "No selected audio output");
             stream_ = std::make_unique<audio::Stream>(engine_, audio::StreamSelection{options_.directory, device_},
                                                       options_.rate, options_.block, [this] { midi_->stop(); });
             audio_state_ = "running";
+            audio_backoff_ = std::chrono::milliseconds(100);
         } catch (const audio::ShutdownFailure &) {
             throw;
         } catch (const std::exception &) {
-            audio_state_ = "no-device";
+            audio_state_ = device_.empty() ? "no-device" : "reconnecting";
+            audio_retry_ = now + audio_backoff_;
+            audio_backoff_ = std::min(audio_backoff_ * 2, std::chrono::milliseconds(5000));
             if (!engine_) throw;
         }
     } else {
@@ -278,13 +274,15 @@ void Session::start_midi() {
     std::string error;
     need(midi_->start(active_, patch_.dump(), error), "unavailable", "Cannot start MIDI subscriptions");
 }
-void Session::refresh_devices() {
+bool Session::refresh_devices() {
+    bool enumerated = true;
     try {
         audio_devices_ = audio_devices(options_.directory, options_.null_audio);
     } catch (...) {
-        audio_devices_ = Json::array();
+        enumerated = false; // Keep the last successful list; failure is not disappearance.
     }
     midi_devices_ = midi_devices({observer_->observed(), midi_->enabled()}, options_.midi || options_.null_audio);
+    return enumerated;
 }
 void Session::persist() {
     auto preferences = preferences_;
@@ -678,7 +676,7 @@ Json Session::reply(const Request &request) {
 }
 Json Session::audio_status() const {
     auto selected = stream_ && stream_->running();
-    Json result = {{"state", audio_state_},
+    Json result = {{"state", options_.audio && stream_ && !selected ? "device-lost" : audio_state_},
                    {"deviceId", selected ? Json(device_) : Json(nullptr)},
                    {"deviceName", selected ? Json(device_) : Json(nullptr)},
                    {"sampleRate", options_.rate},
@@ -686,7 +684,6 @@ Json Session::audio_status() const {
                    {"latencyMs", 2. * options_.block / options_.rate * 1000},
                    {"cpuPercent", selected ? stream_->cpu_percent() : 0},
                    {"dropouts", dropouts_.load() + (stream_ ? stream_->dropouts() : 0)}};
-    if (!fallback_.empty()) result["fallbackFrom"] = fallback_;
     return result;
 }
 Json Session::midi_status() const { return {{"devices", midi_devices_}, {"activity", observer_->activity()}}; }
@@ -742,19 +739,30 @@ Json Session::devices() {
     value["midiDevices"] = midi_devices_;
     return value;
 }
-bool Session::poll() {
-    auto old_audio = audio_devices_, old_midi = midi_devices_;
-    if (midi_->enabled().empty()) observer_->endpoints();
-    refresh_devices();
-    if (options_.audio && stream_ && !stream_->running()) {
+bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumerated) {
+    if (!options_.audio) return false;
+    auto previous = audio_state_;
+    const auto matches = std::count_if(audio_devices_.begin(), audio_devices_.end(),
+                                       [&](const Json &d) { return d.at("id") == device_; });
+    if (stream_ && (!stream_->running() || (enumerated && matches == 0))) {
         midi_->stop();
         stop_audio();
         audio_state_ = "device-lost";
-    } else if (options_.audio && !stream_) {
-        audio_state_ = "reconnecting";
-        start_audio();
+        audio_backoff_ = std::chrono::milliseconds(100);
+        audio_retry_ = now + audio_backoff_;
+    } else if (!stream_) {
+        if (audio_state_ == "device-lost") audio_state_ = "reconnecting";
+        if (now < audio_retry_) return previous != audio_state_;
+        start_audio(now);
         if (stream_) start_midi();
     }
-    return old_audio != audio_devices_ || old_midi != midi_devices_;
+    return previous != audio_state_;
+}
+bool Session::poll(std::chrono::steady_clock::time_point now) {
+    auto old_audio = audio_devices_, old_midi = midi_devices_;
+    if (midi_->enabled().empty()) observer_->endpoints();
+    const auto enumerated = refresh_devices();
+    auto changed = poll_audio(now, enumerated);
+    return changed || old_audio != audio_devices_ || old_midi != midi_devices_;
 }
 } // namespace wirescape::sidecar
