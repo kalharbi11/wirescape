@@ -63,7 +63,7 @@ static void telemetry_reconfigure(){
   float audio[17]{};float*out[]={audio};float values[3]{};uint32_t counts[3]{};uint64_t frame=999;
   VERIFY(e.render(out,1,17)==WS2_OK);
   VERIFY(e.read_telemetry(values,counts,3,frame)==3&&frame==17&&counts[0]==0&&values[1]==1);
-  for(uint8_t rows:{2u,3u}){
+  for(uint8_t rows:{uint8_t{2},uint8_t{3}}){
     VERIFY(e.reconfigure(9,{rows}));
     VERIFY(e.read_telemetry(values,counts,3,frame)==3&&frame==0&&counts[0]==0);
     ws2_event note{};note.struct_size=sizeof(note);note.type=WS2_NOTE_ON;note.value=1;note.channel=0;note.note_id=1;
