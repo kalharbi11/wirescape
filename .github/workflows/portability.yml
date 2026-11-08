@@ -43,11 +43,45 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Reuse the production FetchContent pins, hashes and authorized patches.
-          # Configure only: no host binaries, devices or upstream source edits.
-          cmake -S native -B .tools/portability-context -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_BUILD_TYPE=Release
-          test -f .tools/portability-context/_deps/macro_eurorack-src/plaits/dsp/voice.h
-          test -f .tools/portability-context/engine2/macro_oscillator/upstream/stmlib/stmlib.h
+          # Read the production pins rather than configuring unrelated host/MIDI
+          # targets or maintaining independent Plaits/stmlib URLs and hashes.
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          import re
+          import subprocess
+
+          source = Path("native/modules2/macro_oscillator/CMakeLists.txt").read_text()
+          root = Path(".tools/portability-context")
+          for dependency, directory in (("macro_eurorack", "eurorack"), ("macro_stmlib", "stmlib")):
+              name = "FetchContent_Declare(" + dependency + "\n"
+              if source.count(name) != 1:
+                  raise SystemExit(f"Expected one pinned {dependency} declaration")
+              block = source.split(name, 1)[1].split("DOWNLOAD_EXTRACT_TIMESTAMP TRUE)", 1)[0]
+              url = re.search(r"(?m)^\s*URL\s+(\S+)", block)
+              checksum = re.search(r"(?m)^\s*URL_HASH\s+SHA256=([0-9a-f]{64})", block)
+              if not url or not checksum:
+                  raise SystemExit(f"Missing immutable URL or SHA256 pin for {dependency}")
+              archive = root / (directory + ".tar.gz")
+              archive.parent.mkdir(parents=True, exist_ok=True)
+              subprocess.run(["curl", "--fail", "--location", "--retry", "3",
+                              "--connect-timeout", "30", "--max-time", "600",
+                              url.group(1), "-o", str(archive)], check=True)
+              if hashlib.sha256(archive.read_bytes()).hexdigest() != checksum.group(1):
+                  raise SystemExit(f"{dependency} SHA256 mismatch")
+              target = root / directory
+              target.mkdir(parents=True, exist_ok=True)
+              subprocess.run(["tar", "-xzf", str(archive), "-C", str(target),
+                              "--strip-components=1"], check=True)
+          PY
+          patch_dir="$GITHUB_WORKSPACE/native/modules2/macro_oscillator/patches"
+          upstream="$GITHUB_WORKSPACE/.tools/portability-context"
+          cmake -DSOURCE_DIR="$upstream/eurorack" -DGIT_EXECUTABLE="$(command -v git)" \
+            -DPATCH_DIR="$patch_dir" -P "$patch_dir/apply.cmake"
+          cmake -DSOURCE_DIR="$upstream/stmlib" -DGIT_EXECUTABLE="$(command -v git)" \
+            -DPATCH_FILE="$patch_dir/stmlib-msvc-inline.patch" -P "$patch_dir/apply.cmake"
+          test -f "$upstream/eurorack/plaits/dsp/voice.h"
+          test -f "$upstream/stmlib/stmlib.h"
       - name: Compile each module.cpp (fail on any error)
         shell: bash
         run: |
@@ -64,8 +98,8 @@ jobs:
             row="| $module |"
             module_flags=()
             if [[ "$module" == macro_oscillator ]]; then
-              module_flags=(-I .tools/portability-context/_deps/macro_eurorack-src
-                            -I .tools/portability-context/engine2/macro_oscillator/upstream
+              module_flags=(-I .tools/portability-context/eurorack
+                            -I .tools/portability-context
                             -DTEST -include native/modules2/macro_oscillator/rng_scope.hpp)
             fi
             for extra in "" "-fno-exceptions -fno-rtti"; do
