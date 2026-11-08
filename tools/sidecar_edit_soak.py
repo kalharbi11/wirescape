@@ -279,8 +279,9 @@ def main(argv=None):
         return 0
     except (OSError, ValueError, SoakFailure) as exc:
         # Machine-readable failure is never an unavailable or zero-valued success.
-        print(json.dumps({'status': 'failed', 'seed': args.seed, 'seconds': args.seconds,
-                          'error': str(exc)}, sort_keys=True))
+        duration = args.seconds if math.isfinite(args.seconds) else None
+        print(json.dumps({'status': 'failed', 'seed': args.seed, 'seconds': duration,
+                          'error': str(exc)}, sort_keys=True, allow_nan=False))
         print(f'sidecar edit soak: {exc}', file=sys.stderr)
         return 1
 
