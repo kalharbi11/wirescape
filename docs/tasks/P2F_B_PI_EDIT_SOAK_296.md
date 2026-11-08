@@ -1,7 +1,10 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# P2F-b (#296): hour-long device-free Pi edit soak
+# P2F-b (#391): public measured null-sidecar edit soak (parent #296)
 
-Issue #296; Keel ruling: #296 comment 6720719308. Branch `task/296-2fb`.
+Public child #391; parent #296; Keel ruling: #296 comment 6720719308. Branch `task/296-2fb`.
+The child closes on public acceptance only. Parent #296 stays open for the private
+3600-second run. The 8-file public diff is within the original 6-file budget
+plus the permitted 50% self-decided extension (effective maximum: 9).
 Read AGENTS.md, docs/tasks/P2F_SIDECAR_EDIT_SOAK.md, #278/#284, the
 latest #296 signed handoff, docs/PI_RUNNER.md and docs/WORKFLOW.md.
 Tier T1 for the public harness. The private runner is separately reviewed T2.
@@ -28,8 +31,9 @@ Tier T1 for the public harness. The private runner is separately reviewed T2.
 ## Private runner slice (later, separate PR)
 
 Only after the public slice merges: in `kalharbi11/wirescape-pi`,
-read its AGENTS.md. Authorized files are `bridge.py`, `test_bridge.py`,
-`README.md`. Preserve the 600-second J1 `ci/pi-soak`, generic 1800-second
+inspect existing repo-level rules, README and workflows. Root `AGENTS.md` is
+absent; Codex Lead resolved the preflight in #296 comment 6721422375.
+Authorized files are `bridge.py`, `test_bridge.py`, `README.md`. Preserve the 600-second J1 `ci/pi-soak`, generic 1800-second
 acceptance timeout, current fork exclusion/concurrency and retry dedup.
 `ci/pi-edit-soak` runs the fixed `python3 tools/sidecar_edit_soak.py
 --engine build/native/wirescape-engine --seconds 3600 --seed 278`, timeout
@@ -42,13 +46,13 @@ acceptance and a 600-second J1 demo are not substitute evidence.
 
 ```acceptance
 tier: T1
-size: <= 400 changed lines, <= 6 files (public slice)
+size: <= 400 changed lines, <= 9 files
 must_pass:
   - python -W error::ResourceWarning -m unittest discover -s tools/foundation/tests -p "test_sidecar_edit_soak.py" -v
   - python tools/dev.py build --headless
   - python tools/sidecar_edit_soak.py --seconds 2 --seed 278
+  - ctest --test-dir build/native --output-on-failure -R abi2_sidecar_protocol_tests
   - ci: guard, linux-arm64, windows-x64, sanitizers
-  - pi: pi5/edit-soak successful on exact merged public source head, seed 278, 3600 seconds, measured zero overruns and faults, linked private run
 stops: [ABI edit, protocol/ID changes, new dependency, real devices/LAN/SSH, threshold loosening, missing metrics treated as pass]
 ```
 
