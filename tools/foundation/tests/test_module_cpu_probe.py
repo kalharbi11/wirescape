@@ -24,7 +24,7 @@ class ModuleCpuProbeTests(unittest.TestCase):
 
     def test_wrong_setup_or_runtime_faults_fail(self):
         for changes in (dict(allocations=1), dict(faults=1), dict(instances=1), dict(block=64),
-                        dict(sample_rate=44100), dict(seconds=1), dict(blocks=0), dict(peak=0),
+                        dict(sample_rate=44100), dict(seconds=1), dict(blocks=0), dict(blocks=1), dict(blocks=22499), dict(peak=0),
                         dict(peak=float('nan')), dict(module='essentials.noise'), dict(render_ns={}),
                         dict(render_ns=dict(max=100, p99=200)), dict(render_ns=dict(max=float('nan'), p99=1))):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
@@ -44,6 +44,11 @@ class ModuleCpuProbeTests(unittest.TestCase):
             parse_args(['sound.blend', '--seconds', '0'])
         with self.assertRaises(SystemExit):
             parse_args([])
+
+    def test_invalid_duration(self):
+        for seconds in ['nan', 'inf', '0.0001']:
+            with self.subTest(seconds=seconds), self.assertRaises(SystemExit):
+                parse_args(['sound.blend', '--seconds', seconds])
 
     def test_worst_case_settings(self):
         args = parse_args(['sound.blend', '--param', 'balance=0.25', '--param', 'fade=0.1',
