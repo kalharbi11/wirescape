@@ -64,7 +64,8 @@ class WirescapeProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
     this.state = { exports: null };
-    this.blocks = 0;
+    // Count real rendered frames, not worklet quanta: 12 * 128 at 48k is 31.25 Hz.
+    this.telemetryFrames = 0;
     this.gen = '0';
     this.error = '';
     try {
@@ -119,7 +120,9 @@ class WirescapeProcessor extends AudioWorkletProcessor {
       this.port.postMessage({ kind: 'failed', message: String(e && e.message ? e.message : e) });
       return true;
     }
-    if (++this.blocks % 12 === 0) {
+    this.telemetryFrames += frames;
+    if (this.telemetryFrames >= sampleRate / 30) {
+      this.telemetryFrames = 0;
       const telemetry = JSON.parse(this.text(x.wsw_telemetry()));
       this.port.postMessage({ kind: 'telemetry', gen: this.gen, telemetry, peak: x.wsw_peak() });
     }
