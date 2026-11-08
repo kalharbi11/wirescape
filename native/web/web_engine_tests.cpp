@@ -119,26 +119,28 @@ int main(int argc, char **argv) {
     CHECK(loudest(10) >= 0);
 
     // A3 telemetry is read from engine2's last rendered block, not UI guesses.
-    Json telemetry_patch = {
-        {"format", "wirescape.native.patch"}, {"version", 2}, {"settings", Json::object()},
-        {"modules", Json::array({
-            {{"id", 7}, {"module", "essentials.output"}},
-            {{"id", 9}, {"module", "essentials.vco"}, {"parameters", {{"frequency", 440}}}},
-            {{"id", 10}, {"module", "essentials.lfo"}},
-            {{"id", 12}, {"module", "host.keyboard"}},
-            {{"id", 14}, {"module", "essentials.adsr"}}
-        })},
-        {"connections", Json::array({
-            {{"kind", "signal"}, {"from", {{"module", 9}, {"port", "audio"}}},
-             {"to", {{"module", 7}, {"port", "audio"}}}},
-            {{"kind", "modulation"}, {"from", {{"module", 10}, {"port", "control"}}},
-             {"to", {{"module", 9}, {"port", "frequency"}}}, {"amount", 0.25}},
-            {{"kind", "signal"}, {"from", {{"module", 12}, {"port", "gate"}}},
-             {"to", {{"module", 14}, {"port", "gate"}}}},
-            {{"kind", "signal"}, {"from", {{"module", 14}, {"port", "envelope"}}},
-             {"to", {{"module", 9}, {"port", "fm"}}}}
-        })}
-    };
+    Json telemetry_patch = Json::parse(R"json({
+        "format": "wirescape.native.patch",
+        "version": 2,
+        "settings": {},
+        "modules": [
+            {"id": 7, "module": "essentials.output"},
+            {"id": 9, "module": "essentials.vco", "parameters": {"frequency": 440}},
+            {"id": 10, "module": "essentials.lfo"},
+            {"id": 12, "module": "host.keyboard"},
+            {"id": 14, "module": "essentials.adsr"}
+        ],
+        "connections": [
+            {"kind": "signal", "from": {"module": 9, "port": "audio"},
+             "to": {"module": 7, "port": "audio"}},
+            {"kind": "modulation", "from": {"module": 10, "port": "control"},
+             "to": {"module": 9, "port": "frequency"}, "amount": 0.25},
+            {"kind": "signal", "from": {"module": 12, "port": "gate"},
+             "to": {"module": 14, "port": "gate"}},
+            {"kind": "signal", "from": {"module": 14, "port": "envelope"},
+             "to": {"module": 9, "port": "fm"}}
+        ]
+    })json");
     auto telemetry_reply = command({{"type", "loadGraph"}, {"patch", telemetry_patch}});
     CHECK(telemetry_reply["ok"] == true);
     if (telemetry_reply["ok"] != true) {
@@ -155,8 +157,8 @@ int main(int argc, char **argv) {
         auto frame = Json::parse(wsw_telemetry());
         CHECK(frame["effective"].contains("9"));
         CHECK(frame["effective"]["9"].contains("frequency"));
-        if (!frame["effective"]["9"].contains("frequency") ||
-            !frame["effective"]["9"]["frequency"].is_number()) {
+        const auto frequency = frame["effective"]["9"].value("frequency", Json{});
+        if (!frequency.is_number()) {
             std::printf("missing rendered param tap: %s\n", frame.dump().c_str());
             std::fflush(stdout);
             CHECK(false);
@@ -165,8 +167,7 @@ int main(int argc, char **argv) {
         CHECK(frame["phase"].empty()); // B-wire #359 owns LFO phase mapping.
         CHECK(frame["eventActivity"].empty());
         CHECK(frame["outputs"].is_object() && frame["scope"].is_object());
-        if (std::fabs(frame["effective"]["9"]["frequency"].get<float>() - 440.f) > 0.01f)
-            modulation_observed = true;
+        if (std::fabs(frequency.get<float>() - 440.f) > 0.01f) modulation_observed = true;
     }
     CHECK(modulation_observed);
     // A burst emits one pulse; a new block without emitted events decays it.
@@ -204,8 +205,8 @@ int main(int argc, char **argv) {
         loudest(1);
         auto start = std::chrono::steady_clock::now();
         (void)wsw_telemetry();
-        telemetry_cost += std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - start);
+        const auto elapsed = std::chrono::steady_clock::now() - start;
+        telemetry_cost += std::chrono::duration_cast<std::chrono::microseconds>(elapsed);
     }
     std::printf("wsw_telemetry 100 frames: %lld us total; %.2f us/sample (native Web CI)\n",
                 static_cast<long long>(telemetry_cost.count()), telemetry_cost.count() / 100.);

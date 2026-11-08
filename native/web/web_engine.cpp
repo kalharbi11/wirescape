@@ -5,9 +5,9 @@
 // graph commits allocate on that thread and crossfade instead of the sidecar's
 // D5/live-replan paths. MIDI, OSC, devices and files do not exist here.
 #include "web_engine.h"
+#include "../document/telemetry_taps.h"
 #include "app_engine.h"
 #include "runtime_patch.h"
-#include "../document/telemetry_taps.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -136,8 +136,8 @@ struct Web {
         std::string error;
         wirescape::document::telemetry::Sampler next_telemetry(
             wirescape::document::telemetry::plan(candidate, catalogue.get()));
-        Owner next(wirescape::document::load_runtime_patch(candidate.dump(), catalogue.get(), config, error,
-                                                         &next_telemetry.taps()),
+        using wirescape::document::load_runtime_patch;
+        Owner next(load_runtime_patch(candidate.dump(), catalogue.get(), config, error, &next_telemetry.taps()),
                    app_engine_destroy);
         need(bool(next), "refused", "Graph configuration refused");
         if (live) {
