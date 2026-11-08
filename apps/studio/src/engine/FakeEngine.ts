@@ -100,7 +100,7 @@ export class FakeEngine implements EngineClient {
   async loadGraph(patch: PatchV2): Promise<void> {
     this.nodes.clear(); this.conns = []; this.voices = [];
     this.phases.clear(); this.randomHold.clear(); this.seqStep.clear();
-    this.currentEffective.clear(); this.meterPeak.clear();
+    this.currentEffective.clear(); this.meterPeak.clear(); this.eventActivity.clear();
     for (const m of patch.modules) {
       this.nodes.set(m.id, { id: m.id, type: m.module, params: { ...(m.parameters ?? {}) } });
     }
@@ -122,6 +122,7 @@ export class FakeEngine implements EngineClient {
 
   removeModule(id: number): void {
     this.nodes.delete(id);
+    for (const k of this.eventActivity.keys()) if (k.startsWith(`${id}:`)) this.eventActivity.delete(k);
     this.conns = this.conns.filter(c => c.from.module !== id && c.to.module !== id);
     this.pushStatus();
   }
@@ -296,7 +297,9 @@ export class FakeEngine implements EngineClient {
         this.currentEffective.set(`${n.id}:${p.id}`, modulated[p.id]!);
       }
       if (Object.keys(modulated).length) effective[n.id] = modulated;
-
+    }
+    // Evaluate meters only after every modulated effective value has been computed.
+    for (const n of this.nodes.values()) {
       if (n.type === 'essentials.lfo' || n.type === 'example.random_source' || n.type === 'essentials.clock') {
         phase[n.id] = this.phases.get(n.id) ?? 0;
       }
