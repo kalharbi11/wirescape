@@ -372,6 +372,24 @@ static void test_extremes() {
 }
 
 
+
+static void test_legacy_length_default() {
+    Rig r; // An older patch may omit length; it must still wrap at eight.
+    REQUIRE(r.values[S::kLength] == 8.f);
+    for (uint32_t i = 0; i < 16; ++i) {
+        r.values[S::pitch_param(i)] = static_cast<float>(static_cast<int>(i) - 8) / 12.f;
+    }
+    const Trace t = r.render(340, 64, Clock{}, Resets{});
+    const Events ons = only(t, WS2_NOTE_ON);
+    REQUIRE(ons.size() == 17);
+    for (size_t i = 0; i < ons.size(); ++i) {
+        REQUIRE(ons[i].frame == i * 20 && ons[i].key == 52 + static_cast<int>(i % 8));
+    }
+    check_balanced(t);
+    check_agreement(t);
+    std::puts("PASS legacy patches without length keep the eight-step default");
+}
+
 static void test_sixteen_steps_and_boundary_ties() {
     static_assert(kParams == 50, "append 24 new step parameters without renumbering");
     static_assert(S::pitch_param(0) == 2 && S::vel_param(7) == 25 &&
@@ -446,6 +464,14 @@ static void test_sixteen_block_matrix_and_length_edits() {
         REQUIRE(r.render(640, 128, Clock{23, 9}, resets).events == expected.events);
     }
 
+    Rig grow;
+    grow.pattern16({semis, gates}, 8);
+    grow.render(145, 17, Clock{}, Resets{}); // just played the eighth step
+    grow.values[S::kLength] = 16.f;
+    const Events expanded = only(grow.render(60, 17, Clock{}, Resets{}), WS2_NOTE_ON);
+    REQUIRE(expanded.size() == 2 && expanded[0].frame == 160 && expanded[0].key == 48 &&
+            expanded[1].frame == 180 && expanded[1].key == 50);
+
     Rig edit;
     edit.pattern16({semis, gates});
     edit.render(225, 17, Clock{}, Resets{}); // 12th step was just played at frame 220
@@ -505,6 +531,7 @@ static void test_v1_v2_state_migration() {
 
 int main() {
     test_advance_and_wrap();
+    test_legacy_length_default();
     test_sixteen_steps_and_boundary_ties();
     test_sixteen_block_matrix_and_length_edits();
     test_v1_v2_state_migration();
