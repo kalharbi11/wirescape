@@ -194,7 +194,6 @@ test('FakeEngine meters use modulated gain when Output precedes VCA in patch ord
   });
   expect(modded).toBeGreaterThan(base * 1.5);
 });
-
 test('FakeEngine prunes event activity on removal and graph replacement with reused IDs', async ({ page }) => {
   await boot(page);
   const [active, removed, replaced] = await page.evaluate(async () => {
