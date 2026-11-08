@@ -262,8 +262,7 @@ void test_freeze() {
         hold.set(reverb::FREEZE, 1);
         const auto tail = hold.run(silence(rate * 5), silence(rate * 5));
         for (const auto *channel : {&tail.l, &tail.r}) {
-            const double drift = 20 * std::log10(rms(*channel, rate * 4, rate * 5) /
-                                                rms(*channel, rate / 2, rate));
+            const double drift = 20 * std::log10(rms(*channel, rate * 4, rate * 5) / rms(*channel, rate / 2, rate));
             REQUIRE(std::abs(drift) < 1.5);
         }
     }

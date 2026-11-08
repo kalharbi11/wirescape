@@ -210,8 +210,8 @@ struct Reverb {
             for (uint32_t k = 0; k < 8; ++k) {
                 delay[k] += glide * (target[k] - delay[k]);
                 if (std::abs(delay[k] - target[k]) < .001f) delay[k] = target[k];
-                const float shifted =
-                    std::clamp(float(delay[k]) + (k & 1 ? ma : -ma) + (k & 2 ? mb : -mb), 2.f, float(line_capacity - 2));
+                const float modulated = float(delay[k]) + (k & 1 ? ma : -ma) + (k & 2 ? mb : -mb);
+                const float shifted = std::clamp(modulated, 2.f, float(line_capacity - 2));
                 const float delayed = tap(lines[k], line_capacity, write, shifted);
                 wet_l += project_l[k] * delayed;
                 wet_r += project_r[k] * delayed;
