@@ -5,7 +5,7 @@
 #include "../../tests2/allocation_watch.h"
 #include <cstring>
 using namespace wirescape::engine2;
-template<uint32_t Delay>struct Tap {
+template<uint32_t Delay>struct LatencyTap {
  static constexpr ws::Info info{"test.latency","Latency",1};
  static constexpr std::array inputs{ws::port("signal","Signal"),ws::port("event","Event",WS2_EV_NOTES,WS2_POLY,0,nullptr,WS2_EVENT)};
  static constexpr std::array outputs{ws::port("signal","Signal"),ws::port("event","Event",WS2_EV_NOTES,WS2_POLY,0,nullptr,WS2_EVENT)};
@@ -19,25 +19,25 @@ struct Rows:ws2test::Rows {
  void prepare(const ws::Setup&s){++prepares;ws2test::Rows::prepare(s);}
 };
 static void latency(){
- Engine e;VERIFY(e.add_node(1,ws::Module<Tap<7>>::descriptor()));VERIFY(e.add_node(2,ws::Module<Tap<11>>::descriptor()));
- VERIFY(e.add_node(3,ws::Module<Tap<99>>::descriptor()));VERIFY(e.add_node(4,ws::Module<Tap<101>>::descriptor()));VERIFY(e.add_node(5,ws::Module<Tap<1000>>::descriptor()));VERIFY(e.add_node(6,ws::Module<Tap<13>>::descriptor()));
+ Engine e;VERIFY(e.add_node(1,ws::Module<LatencyTap<7>>::descriptor()));VERIFY(e.add_node(2,ws::Module<LatencyTap<11>>::descriptor()));
+ VERIFY(e.add_node(3,ws::Module<LatencyTap<99>>::descriptor()));VERIFY(e.add_node(4,ws::Module<LatencyTap<101>>::descriptor()));VERIFY(e.add_node(5,ws::Module<LatencyTap<1000>>::descriptor()));VERIFY(e.add_node(6,ws::Module<LatencyTap<13>>::descriptor()));
  VERIFY(e.connect(1,0,2,0));VERIFY(e.modulate(3,0,2,0,.1f));VERIFY(e.connect(4,1,2,1));
  VERIFY(e.output(2,0,0));VERIFY(e.output(6,0,1));VERIFY(e.output(1,0,1));VERIFY(e.prepare());
  VERIFY(e.latency_frames(0)==18);VERIFY(e.latency_frames(1)==13);VERIFY(e.latency_frames(2)==0);VERIFY(e.latency_frames(32)==0);VERIFY(e.meter().latency_frames==18);VERIFY(e.feedback_loops().empty());
  for(uint32_t delay:{1u,32u,256u}){
-  Config c;c.feedback_block=delay;Engine loop(c);VERIFY(loop.add_node(1,ws::Module<Tap<7>>::descriptor()));VERIFY(loop.add_node(2,ws::Module<Tap<11>>::descriptor()));VERIFY(loop.add_node(3,ws::Module<Tap<13>>::descriptor()));
+  Config c;c.feedback_block=delay;Engine loop(c);VERIFY(loop.add_node(1,ws::Module<LatencyTap<7>>::descriptor()));VERIFY(loop.add_node(2,ws::Module<LatencyTap<11>>::descriptor()));VERIFY(loop.add_node(3,ws::Module<LatencyTap<13>>::descriptor()));
   VERIFY(loop.connect(1,0,1,0));VERIFY(loop.connect(2,0,3,0));VERIFY(loop.connect(2,1,3,1));VERIFY(loop.connect(3,1,2,1));VERIFY(loop.output(1,0,0));VERIFY(loop.output(3,0,1));VERIFY(loop.prepare());
   VERIFY(loop.latency_frames(0)==7);VERIFY(loop.latency_frames(1)==24);VERIFY(loop.meter().latency_frames==24);
   auto loops=loop.feedback_loops();VERIFY(loops.size()==2);for(auto&l:loops)VERIFY(l.delay_frames==delay);
   VERIFY(loops[0].nodes==std::vector<uint32_t>({1}));VERIFY(loops[1].nodes==std::vector<uint32_t>({2,3}));
  }
- Engine large;VERIFY(large.add_node(1,ws::Module<Tap<UINT32_MAX>>::descriptor()));VERIFY(large.add_node(2,ws::Module<Tap<11>>::descriptor()));VERIFY(large.connect(1,0,2,0));VERIFY(large.output(2,0,0));VERIFY(large.prepare());VERIFY(large.latency_frames(0)==UINT32_MAX);
+ Engine large;VERIFY(large.add_node(1,ws::Module<LatencyTap<UINT32_MAX>>::descriptor()));VERIFY(large.add_node(2,ws::Module<LatencyTap<11>>::descriptor()));VERIFY(large.connect(1,0,2,0));VERIFY(large.output(2,0,0));VERIFY(large.prepare());VERIFY(large.latency_frames(0)==UINT32_MAX);
 }
 static void continuity(uint32_t frames,uint32_t channels){
  Engine a,b;
  for(auto*e:{&a,&b}){
   VERIFY(e->add_node(1,ws::Module<ws2ports::Vco>::descriptor()));VERIFY(e->add_node(2,ws::Module<ws2ports::Vcf>::descriptor()));
-  VERIFY(e->add_node(9,ws::Module<Rows>::descriptor(),{3}));VERIFY(e->add_node(10,ws::Module<Tap<0>>::descriptor()));
+  VERIFY(e->add_node(9,ws::Module<Rows>::descriptor(),{3}));VERIFY(e->add_node(10,ws::Module<LatencyTap<0>>::descriptor()));
   VERIFY(e->set_channels(1,channels));VERIFY(e->connect(1,0,2,0));VERIFY(e->output(2,1,0));VERIFY(e->register_producer()==0);VERIFY(e->prepare());
  }
  float x[256]{},y[256]{};float*xo[]={x};float*yo[]={y};
