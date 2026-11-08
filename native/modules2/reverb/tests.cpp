@@ -254,6 +254,19 @@ void test_freeze() {
     const double db = 20 * std::log10(held / original);
     std::printf("freeze RMS change: %.3f dB\n", db);
     REQUIRE(std::abs(db) < 1.5);
+    // Non-default sizes must converge to integer taps and hold frozen energy.
+    for (float size : {.2f, 1.f}) {
+        Rig hold;
+        hold.set(reverb::SIZE, size).set(reverb::MIX, 1);
+        hold.run(first, first);
+        hold.set(reverb::FREEZE, 1);
+        const auto tail = hold.run(silence(rate * 5), silence(rate * 5));
+        for (const auto *channel : {&tail.l, &tail.r}) {
+            const double drift = 20 * std::log10(rms(*channel, rate * 4, rate * 5) /
+                                                rms(*channel, rate / 2, rate));
+            REQUIRE(std::abs(drift) < 1.5);
+        }
+    }
     // Once the 20ms transition has finished, two distinct new inputs cannot enter.
     Rig a, b;
     for (Rig *rig : {&a, &b}) {
