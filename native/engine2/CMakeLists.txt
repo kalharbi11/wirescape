@@ -159,6 +159,8 @@ add_test(NAME abi2_module_cpu_probe_stress_smoke COMMAND abi2_module_cpu_probe -
 set_tests_properties(abi2_module_cpu_probe_stress_smoke PROPERTIES PASS_REGULAR_EXPRESSION "\"allocations\":0,\"faults\":0")
 add_test(NAME abi2_module_cpu_probe_poly_smoke COMMAND abi2_module_cpu_probe --module essentials.vco --seconds 0.2 --channels 8)
 set_tests_properties(abi2_module_cpu_probe_poly_smoke PROPERTIES PASS_REGULAR_EXPRESSION "\"channels\":8.*\"allocations\":0,\"faults\":0")
+add_test(NAME abi2_module_cpu_probe_spectral_smoke COMMAND abi2_module_cpu_probe --module sound.spectral --seconds 0.2 --param size=3 --param pitch=1 --alternate mode=0:1:32)
+set_tests_properties(abi2_module_cpu_probe_spectral_smoke PROPERTIES PASS_REGULAR_EXPRESSION "\"allocations\":0,\"faults\":0")
 add_test(NAME abi2_module_cpu_probe_unit COMMAND ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/../tools/foundation/tests/test_module_cpu_probe.py)
 
@@ -209,4 +211,5 @@ endif()
 add_subdirectory(../modules2/chaos_lite chaos_lite)
 add_subdirectory(../modules2/blend blend)
 add_subdirectory(../modules2/resonator resonator)
+add_subdirectory(../modules2/spectral spectral)
 add_subdirectory(../modules2/quantizer quantizer)

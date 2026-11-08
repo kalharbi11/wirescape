@@ -3076,6 +3076,226 @@
    }
   },
   {
+   "id": "sound.spectral",
+   "name": "Spectral",
+   "category": "Two-source",
+   "ports": [
+    {
+     "id": "a",
+     "name": "A",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "sum",
+     "stereo_pair": null
+    },
+    {
+     "id": "b",
+     "name": "B",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "sum",
+     "stereo_pair": null
+    },
+    {
+     "id": "audio",
+     "name": "Audio",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [
+    {
+     "id": "mode",
+     "name": "Mode",
+     "minimum": 0,
+     "maximum": 5,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": true,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Morph"
+      },
+      {
+       "value": 1,
+       "label": "Cross"
+      },
+      {
+       "value": 2,
+       "label": "Max"
+      },
+      {
+       "value": 3,
+       "label": "Mean"
+      },
+      {
+       "value": 4,
+       "label": "Min"
+      },
+      {
+       "value": 5,
+       "label": "A − B"
+      }
+     ]
+    },
+    {
+     "id": "size",
+     "name": "Resolution",
+     "minimum": 0,
+     "maximum": 3,
+     "default": 2,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "512"
+      },
+      {
+       "value": 1,
+       "label": "1024"
+      },
+      {
+       "value": 2,
+       "label": "2048"
+      },
+      {
+       "value": 3,
+       "label": "4096"
+      }
+     ]
+    },
+    {
+     "id": "morph",
+     "name": "Morph",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.5,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "curve",
+     "name": "Morph curve",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Geometric"
+      },
+      {
+       "value": 1,
+       "label": "Linear"
+      }
+     ]
+    },
+    {
+     "id": "pitch",
+     "name": "Morph pitch",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Louder bin"
+      },
+      {
+       "value": 1,
+       "label": "Blend"
+      }
+     ]
+    },
+    {
+     "id": "amount",
+     "name": "Cross amount",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "smooth",
+     "name": "Cross smoothing",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.15,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "b_level",
+     "name": "B level",
+     "minimum": 0,
+     "maximum": 2,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "level",
+     "name": "Level",
+     "minimum": 0,
+     "maximum": 2,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    }
+   ],
+   "version": 1,
+   "legacy_parameters": {
+    "mode": 0,
+    "size": 1,
+    "morph": 2,
+    "curve": 3,
+    "pitch": 4,
+    "amount": 5,
+    "smooth": 6,
+    "b_level": 7,
+    "level": 8
+   }
+  },
+  {
    "id": "essentials.quantizer",
    "name": "Quantizer",
    "category": "Pitch",
