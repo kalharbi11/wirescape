@@ -127,10 +127,11 @@ test('FakeEngine disconnect clears the VCF graph and knob within one telemetry t
   await settle(page, 1);
   expect(await pixels()).toBe(base);
   expect(await knob.getAttribute('data-live')).toBe('1000');
-  // One genuine engine tick restores the live value before disconnecting.
+  // Confirm the producer's restored value, then wait for the ticker-driven canvas paint.
   await page.evaluate(() => window.__wirescapeTest.engine.step());
-  await settle(page, 1);
-  expect(await pixels()).not.toBe(base);
+  await expect.poll(() => page.evaluate(() => window.__wirescapeTest.ticker.last?.effective[2]?.cutoff))
+    .toBeGreaterThan(1000);
+  await expect.poll(pixels).not.toBe(base);
 
   await page.evaluate(c => {
     const api = window.__wirescapeTest;
