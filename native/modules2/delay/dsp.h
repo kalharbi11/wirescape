@@ -21,7 +21,7 @@ struct Delay {
         ws::param("tone", "Tone", -1, 1, 0, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 3),
         ws::param("mode", "Mode", 0, 1, 0, "", stepped, WS2_LINEAR, 4, 4, 1),
         ws::param("mix", "Mix", 0, 1, 0.35f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 5)};
-    enum Slot { kTime, kDivision, kFeedback, kTone, kMode, kMix };
+    enum Slot : uint8_t { kTime, kDivision, kFeedback, kTone, kMode, kMix };
 
     static constexpr double kMax = 2.0, kMin = 0.001;   // seconds
     static constexpr double kGlide = 0.05, kSlew = 0.5; // glide time constant; max samples moved per sample
