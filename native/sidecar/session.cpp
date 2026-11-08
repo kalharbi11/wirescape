@@ -704,6 +704,8 @@ Json Session::hello() const {
             {"midi", midi_status()}};
 }
 Json Session::status() const {
+    // The caller is the existing 100ms control-thread status tick, never render.
+    if (active_) app_engine_native(active_).refresh_latency();
     auto value = base();
     value["type"] = "status";
     value["status"] = {{"audio", audio_status()}, {"midi", midi_status()}};
