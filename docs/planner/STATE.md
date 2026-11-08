@@ -3,7 +3,7 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-07 20:30 UTC by Compass (platform check-in). **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
+**Updated:** 2026-11-08 by Keel (#350 telemetry ruling); before that 2026-11-07 20:30 UTC by Compass. **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
 
 ## Lead split (owner, 2026-11-07)
 - **Compass (platform):** everything except modules: Phases 1–5, the app, the engine lanes, the web demo, the board and STATE. Checks in every 4 h (owner-requested scheduled run).
@@ -31,7 +31,13 @@ Keep this under 60 lines. History lives in git.
 ## Web demo lane (D14)
 - Live at `https://kalharbi11.github.io/wirescape/` (Pages is on). #309 and #321 merged (`e766a27`): the demo has playable starters only, cable values and the Output scope, a SHARE link (`#p=`), and SAVE/OPEN files.
 - Every main push runs `web-demo.yml`: native tests, the wasm build, Playwright, deploy, then `live` (the same tests against the published site). Agent containers can't reach github.io, so `live` is the deployed-site evidence.
-- Ideas, not queued: per-module effective/phase/envelope telemetry, a short first-patch tip on the splash, a phone/touch pass.
+- Ideas, not queued: a short first-patch tip on the splash, a phone/touch pass.
+
+## Engine telemetry (#350), Keel ruled 2026-11-08
+- Contract `docs/design/ENGINE_TELEMETRY.md`; parts, order and authority `docs/tasks/T350_ENGINE_TELEMETRY.md`.
+- Start now in parallel: A1 #354 engine2 taps (T2), A0 #355 Studio snapshots (T1), B-mod #356 LFO `phase` port (T1). Merge #353 (30 Hz cap) and #352 (wave tail) as T1.
+- After A1: A2 #357 sidecar + spec §7 (T2, Keel or Compass review, pi), A3 #358 wasm (T1). Then B-wire #359.
+- Keel is needed only for: the A1 review, the A2 review (or Compass), and the contract's Stops. Codex Lead runs the rest.
 
 ## Phase 1 sign-off needs
 Only the owner's #271 results remain (A, B, C plus D3 contention). 1H (#256) and the benchmark tooling (#274) are merged. Then Compass runs Checkpoint A (about 30 min on the Pi with the M8).
