@@ -1033,6 +1033,15 @@
      "stereo_pair": null
     },
     {
+     "id": "gate",
+     "name": "Gate",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "gate",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
      "id": "main",
      "name": "Main",
      "direction": "output",
