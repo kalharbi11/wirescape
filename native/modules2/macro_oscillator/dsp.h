@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
+#include <cmath>
+// Strict C++17/newlib may omit this non-standard constant used by pinned Plaits.
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 #include "plaits/dsp/voice.h"
 #include "rng_scope.hpp"
 #include "wirescape_sdk.h"
@@ -44,13 +49,13 @@ struct MacroOscillator {
         ws2_memory m{};
         m.struct_size = sizeof(m);
         m.alignment = 32;
-        m.fast_bytes = std::min(c.max_channels, 8u) * (sizeof(plaits::Voice) + 32);
-        m.large_bytes = std::min(c.max_channels, 8u) * 16384;
+        m.fast_bytes = std::min<uint32_t>(c.max_channels, 8u) * (sizeof(plaits::Voice) + 32);
+        m.large_bytes = std::min<uint32_t>(c.max_channels, 8u) * 16384;
         return m;
     }
     bool prepare(const ws::Setup &setup) {
         if (setup.sample_rate() != 48000) return false;
-        capacity = std::min(setup.max_channels(), 8u);
+        capacity = std::min<uint32_t>(setup.max_channels(), 8u);
         seed = setup.config.seed;
         for (uint32_t c = 0; c < capacity; ++c) {
             void *object = setup.alloc(sizeof(plaits::Voice), 32, WS2_FAST);
