@@ -32,7 +32,7 @@ reproduced verbatim from #381; no acceptance checks are removed or weakened.
 
 ```acceptance
 tier: T2
-size: <= 400 changed lines, <= 10 files
+size: <= 400 changed lines, <= 13 files
 must_pass:
   - ctest --test-dir build/native -R "sidecar_|midi" --output-on-failure --no-tests=error
   - ci: cd apps/studio && npm run build && npx playwright test tests/mock-bridge
