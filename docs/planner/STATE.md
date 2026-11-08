@@ -20,8 +20,8 @@ Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure 
 
 ## Telemetry #350
 - Contract: docs/design/ENGINE_TELEMETRY.md; shared brief: docs/tasks/T350_ENGINE_TELEMETRY.md.
-- #363 A0 snapshots 4e37373: all hosted checks green, final independent review and Codex gate approval posted.
-- #368 A2 sidecar e281706: draft T2; needs final CI/Pi and Keel/Compass review.
+- #363 A0 snapshots 4e37373 merged; Studio snapshot semantics are on main.
+- #368 A2 e281706: hosted functional checks green; Keel T2 review requested, ci/pi added; 64-tap/no-tap Pi command/evidence missing.
 - #369 A3 wasm 8cf7c46: stacked on #368, source preflight clean; retarget main after A2 merges, then final native/wasm/site evidence.
 - Critical host regression: reset event-count cursors on every graph commit; first post-edit burst must pulse.
 - #359 B-wire follows host merge; B-mod is already merged. Do not fabricate phase.
@@ -29,8 +29,8 @@ Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure 
 
 ## Shared CPU evidence and modules
 - #367 shared probe extracted; review found channel0-only/NaN masking. Repaired to scan all channels/count nonfinite faults.
-- #367 latest 54cdbde: also requires full expected block count and finite/at-least-one-block duration; 7 Python tests pass locally.
-- All-channel C++ regression passes local strict C++17 compile. Independent follow-up + fresh hosted checks required; no Pi timing claim.
+- #367 current signed branch handoff is authoritative: full block-count/duration checks, named output bounds and authored static fixes pushed.
+- 7 Python tests and strict local C++17 output regression pass. Independent follow-up/fresh hosted checks required; no Pi timing claim.
 - After #367 merges, integrate probe into effects and Spectral without duplicate targets/helpers; run specified Pi timing.
 - #348 reverb be3c306: freeze precision fix independently reviewed; hosted checks pass, Pi CPU evidence still required.
 - #304 Spectral 38b2c24: hop-aligned :32 stress and integration fixed; hosted native/Web gates green; exact-head pi5 and pi5/accept success posted.
