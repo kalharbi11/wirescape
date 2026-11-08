@@ -93,7 +93,6 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       ],
       connections: [
         {"kind":"signal","from":{"module":1,"port":"pitch"},"to":{"module":2,"port":"pitch"}},
-        {"kind":"signal","from":{"module":1,"port":"velocity"},"to":{"module":2,"port":"velocity"}},
         {"kind":"signal","from":{"module":1,"port":"gate"},"to":{"module":5,"port":"gate"}},
         {"kind":"signal","from":{"module":2,"port":"left"},"to":{"module":3,"port":"audio"}},
         {"kind":"signal","from":{"module":5,"port":"envelope"},"to":{"module":3,"port":"gain_cv"}},
@@ -128,7 +127,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       connections: [
         {"kind":"signal","from":{"module":1,"port":"pitch"},"to":{"module":2,"port":"pitch"}},
         {"kind":"signal","from":{"module":1,"port":"gate"},"to":{"module":2,"port":"trigger"}},
-        {"kind":"signal","from":{"module":1,"port":"gate"},"to":{"module":2,"port":"gate"}},
+        {"kind":"signal","from":{"module":1,"port":"velocity"},"to":{"module":2,"port":"level"}},
         {"kind":"signal","from":{"module":1,"port":"gate"},"to":{"module":6,"port":"gate"}},
         {"kind":"signal","from":{"module":2,"port":"main"},"to":{"module":3,"port":"audio"}},
         {"kind":"signal","from":{"module":3,"port":"low12"},"to":{"module":4,"port":"audio"}},
