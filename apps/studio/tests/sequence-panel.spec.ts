@@ -53,3 +53,39 @@ test('shortened sequence maps engine phase to its actual length and stop clears 
   await page.getByTestId('step-gate-1-3').click();
   await expect(page.getByTestId('step-gate-1-3')).toHaveText('Rest');
 });
+
+// Keep the editor forward-compatible while the ABI2 32-parameter ceiling is
+// reviewed. This test changes only the test catalogue, never the shipped one.
+test('16-step catalogue extension edits steps 9–16 and preserves save/undo', async ({ page }) => {
+  await page.route('**/wirescape_modules.json', async route => {
+    const response = await route.fetch();
+    const catalogue = await response.json();
+    const seq = catalogue.modules.find((m: { id: string }) => m.id === 'example.step_sequencer');
+    expect(seq).toBeTruthy();
+    const length = seq.parameters.find((p: { id: string }) => p.id === 'length');
+    length.maximum = 16;
+    for (let i = 9; i <= 16; ++i) {
+      for (const prefix of ['pitch', 'gate', 'vel']) {
+        const template = seq.parameters.find((p: { id: string }) => p.id === `${prefix}1`);
+        seq.parameters.push({ ...template, id: `${prefix}${i}`, name: `${prefix} ${i}` });
+      }
+    }
+    await route.fulfill({ response, json: catalogue });
+  });
+  await sequence(page, 16);
+  await expect(page.getByTestId('step-1-16')).toBeVisible();
+  const grid = page.getByTestId('steps-1').locator('.steps-grid');
+  await expect(grid).toHaveAttribute('aria-label', '16-step pattern');
+  expect(await grid.evaluate(e => getComputedStyle(e).gridTemplateColumns.split(' ').length)).toBe(8);
+  await page.getByTestId('readout-1-pitch16').click();
+  await page.getByTestId('readout-input-1-pitch16').fill('0.5');
+  await page.getByTestId('readout-input-1-pitch16').press('Enter');
+  await page.getByTestId('step-gate-1-16').click();
+  await expect(page.getByTestId('step-gate-1-16')).toHaveText('Tie');
+  const saved = await state(page);
+  expect(saved.modules[0].parameters.pitch16).toBeCloseTo(0.5);
+  expect(saved.modules[0].parameters.gate16).toBe(2);
+  await page.evaluate(patch => window.__wirescapeTest.load(patch), saved);
+  await expect(page.getByTestId('step-gate-1-16')).toHaveText('Tie');
+  await expect(page.getByTestId('step-1-16')).not.toHaveClass(/outside-length/);
+});
