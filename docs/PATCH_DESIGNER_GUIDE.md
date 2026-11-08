@@ -5,6 +5,40 @@ Owner instruction: #426, 2026-11-08. The owner wants rapid design and publicatio
 without Codex Lead approval. This is the standing authorization for PATCH DATA
 ONLY; ordinary application/engine changes retain the repository's normal review.
 
+## Assigning a patch designer
+
+Paste this into the agent's chat:
+
+> You are my Wirescape patch designer. Read AGENTS.md,
+> docs/PATCH_DESIGNER_GUIDE.md, apps/studio/patches/README.md and the current
+> generated module catalogue. Design the requested sound using supported
+> capabilities, add or edit JSON in apps/studio/patches, validate it, commit
+> for me and merge the passing patch-only change under my standing authority.
+> Do not wait for Codex Lead approval. Follow existing branch protection/checks;
+> report the actual deployment link/SHA and any untested listening limitations.
+> My sound brief: [describe the sound, autoplay or keyboard, and desired controls].
+
+## Keeping limitations current — integration author owns this
+
+The permanent rule is in AGENTS.md → Docs upkeep, so every agent sees it.
+A module/engine/UI/platform/publishing integration that changes what a patch
+can do updates THIS guide in the same PR; the reviewer verifies that update.
+This is not a later Codex Lead chore and does not need a separate docs ticket.
+
+Update the affected limitations, native-versus-web availability, exact
+module/port/parameter IDs and units, polyphony/asset restrictions, persistence
+or publication steps, and a small wiring example when a new route is enabled.
+Read the current catalogue/spec/source and actual evidence, not an old roadmap.
+For example: a production Notes→CV route becoming available must replace the
+current chord-routing limitation with its real module ID, connections and voice
+limit. A sequencer gaining16steps must update the documented step limit and
+saved-patch compatibility, only when that integration is actually available.
+Keep pending capability proposals separate from working features.
+
+If nothing patch-facing changes, the PR self-review says
+`Patch guide impact: none — <reason>`. Missing/stale guide changes are part
+of integration review, not an additional approval step for a patch designer.
+
 ## Where the public patches live
 
 Edit/add/delete individual JSON files in **apps/studio/patches/**.

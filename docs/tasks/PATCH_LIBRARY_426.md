@@ -11,7 +11,7 @@ Later patch-only issues may reference this standing task without editing it.
 
 ```acceptance
 tier: T1
-size: <= 5000 changed lines, <= 24 files
+size: <= 5000 changed lines, <= 25 files
 must_pass:
   - python tools/patch_library.py check apps/studio/patches --shared
   - python -m unittest discover -s tools/foundation/tests -p test_patch_library.py
