@@ -3,7 +3,7 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-08 by Codex Lead. Pi first. Phase 2 and modules run beside Test Session 1; any owner failure in #271 preempts other work.
+**Updated:** 2026-11-07 America/New_York by Codex Lead, verified against live PRs and Keel comments. Pi first; owner #271 failures preempt.
 
 ## Lead split
 - Compass (platform): app, engine lanes, web demo, roadmap. Compass (modules): Track S and module lane.
@@ -16,8 +16,8 @@ Keep this under 60 lines. History lives in git.
 - Priority: owner failures, Phase 2 critical path, modules in parallel. Windows #266 follows Test Session 1.
 
 ## Engine and app queue
-- #301/#291 audio recovery: both Mediums repaired at 003f64e with fake-device regressions; fresh CI, Keel and Pi required. #293 follows.
-- #331/#294 patch browser: repairs + pending-load Save regression pushed 1d154c3 and independently checked; fresh Web/Electron required.
+- #301/#291: Keel confirmed Medium fixes; generated-header CMake build fix pushed aba3042. Fresh CI/pi5, then Compass/Keel approval under his pre-approval.
+- #331/#294 patch browser: 1d154c3 reviews and exact-head hosted acceptance green; Codex gate approval posted.
 - #292 callback load/dropouts: ready builder brief in issue. #296 fake-device Pi soak: unblocked, status/todo, exact brief posted.
 - #287 MIDI Learn: blocked for Keel correction; status.midi.activity is recent endpoint activity, not CC number/channel/value.
 - #290/#210 MIDI controls: Keel's Nov7 ruling exists; implement last_note/min/max within that ruling (brief posted). Not waiting on a new general contract.
@@ -25,25 +25,25 @@ Keep this under 60 lines. History lives in git.
 
 ## Engine telemetry #350
 - Authority: docs/design/ENGINE_TELEMETRY.md and docs/tasks/T350_ENGINE_TELEMETRY.md.
-- #364 B-mod LFO phase: saved-patch bit-identical regression added/reviewed at 7f6514b; draft/blocked until fresh CI, approval withdrawn.
-- #352 waveform tail: reviewed; acceptance metadata fixed at 6bae69b; fresh CI before approval.
-- #353 30Hz cap: cadence-only T1, Refs #350, old proposal superseded at 3a5ec95; fresh CI before approval.
+- #364 B-mod phase: 7f6514b saved-patch regression + hosted checks green; processing replacement gate approval.
+- #352 waveform tail: 6bae69b exact-head hosted checks green; Codex gate approval posted.
+- #353 30Hz cap: 3a5ec95 exact-head hosted checks green; Codex gate approval posted.
 - #363 A0 snapshots: blocked on Web restoration regression and acceptance browser bootstrap; exact review posted.
-- #362 A1 taps dc8c1d1: corrected reconfigure High; Keel exact-head T2 review required.
+- #362 A1 taps 9f1f3c0: Keel approved; gate waits current sanitizer run. A2/A3 begin after merge.
 - After A1 merges: #357 A2 sidecar/spec (T2) and #358 A3 wasm (T1) parallel; then #359 B-wire after host and phase prerequisites.
 
 ## Module lane
-- #348 reverb: precision fix + unchanged-tolerance regression pushed be3c306 and independently checked; dedicated tests pass, fresh CI/Pi pending.
+- #348 reverb be3c306: precision repair independently reviewed and hosted acceptance green; shared probe/Pi timing still required.
 - #304 Spectral/shared CPU probe: review requires hop-aligned mode stress (:32, not :4), Pi evidence and current integration.
 - Builder brief: extract generic CPU probe/tooling as an independent T1 PR to unblock effects' Pi acceptance.
 - #345 delay and #344 resonator still need exact-head Pi CPU evidence; #344 independent module review outstanding.
 - #323 quantizer: prior Mediums remain (Custom visibleWhen, task title/acceptance metadata); concrete brief posted.
-- #346 oscillator UI: formatting follow-up 48aec95 independently checked; fresh CI before approval. #343 Macro gate is T2, Keel review requested.
+- #346 oscillator UI: formatting 48aec95 independently checked. #343 fb4f4b1 Keel-approved; merge #161 first, then reconcile main.
 
 ## Plaits and CI
 - #159/#161 header-context fix already passes actual Cortex all modules/both variants, plus native/Web checks at 39eb93d.
 - Raw REST says mergeable=true; normalized connector false is misleading. No speculative conflict edits.
-- #161 needs Keel T2 review and exact-head pi5/accept for compiled adapter changes; missing ci/pi-accept added.
+- #161: Keel approved 39eb93d and waived Pi rerun (equivalent Linux code + hosted ARM64 Macro tests). Merge before #343.
 - #361 static diagnostic ownership is separate; protected tooling authorization requested, preserve first-party gating and upstream reports.
 - Known cortex baseline #159 is non-required; static is informational. Never weaken checks or treat queued work as evidence.
 
