@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { test, expect, type Page } from '@playwright/test';
+import { CURATED_PATCHES } from '../src/app/curated';
 
 const peak = (page: Page) => page.evaluate(() => (window as unknown as { __wirescapeWeb: { peak: number } }).__wirescapeWeb.peak);
 const send = (page: Page, cmd: Record<string, unknown>) => page.evaluate(c =>
@@ -29,7 +30,9 @@ test('web demo plays a curated step progression immediately after loading', asyn
   await page.goto('./');
   await page.getByTestId('web-start').click();
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
-  await page.getByTestId('starter-select').selectOption('witching-hour');
+  const patch = CURATED_PATCHES.find(s => s.id === 'witching-hour')!;
+  await page.evaluate(({ patch, name }) =>
+    (window as any).__wirescapeTest.load(patch, name), { patch: patch.patch, name: patch.name });
   await expect(page.getByTestId('patch-name')).toContainText('Witching Hour');
   await expect.poll(() => peak(page), { timeout: 15_000 }).toBeGreaterThan(0.001);
 });
@@ -140,7 +143,7 @@ test('SHARE puts the patch in a link that opens the same patch', async ({ page, 
   await page.goto('./');
   await page.getByTestId('web-start').click();
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
-  await page.getByTestId('starter-select').selectOption('drone');
+  await page.getByTestId('starter-select').selectOption('dust-reactor');
   await expect.poll(() => modules(page)).toContain('2:essentials.noise');
   const expected = await modules(page);
   await page.getByTestId('share-patch').click();
