@@ -108,6 +108,41 @@ int main(int argc, char** argv) {
         auto future = original; future["version"] = 99; check(!read_patch(encode(future), catalog).valid(), "future native rejected");
         for (const auto& name : {"patch_v1.json", "patch_v2.json", "patch_v3_unknown.json", "visual_study_v4.json", "future_patch_v99.json", "malformed_patch.json"})
             check(!read_patch(read(QString::fromLocal8Bit(argv[1]) + '/' + name), catalog).valid(), "legacy inspection remains separate from native loading");
+        // #395: start from a valid two-module graph, then break one reference at a time.
+        auto referenceBase = patch.object;
+        auto referenceModules = referenceBase["modules"].toArray();
+        auto destinationModule = referenceModules[0].toObject();
+        destinationModule["id"] = 2;
+        referenceModules.append(destinationModule);
+        referenceBase["modules"] = referenceModules;
+        referenceBase["connections"] = QJsonArray{QJsonObject{{"kind", "signal"},
+            {"from", QJsonObject{{"module", 1}, {"port", "audio"}}},
+            {"to", QJsonObject{{"module", 2}, {"port", "audio"}}}}};
+        referenceBase["outputs"] = QJsonArray{QJsonObject{{"module", 2}, {"port", "audio"}, {"bus_channel", 0}}};
+        check(validate_patch(referenceBase, &error) && error.isEmpty(), "two-module reference control validates");
+        check(read_patch(encode(referenceBase), catalog).valid(), "two-module reference control reads");
+
+        auto missingDestination = referenceBase;
+        auto referenceCables = missingDestination["connections"].toArray();
+        auto referenceCable = referenceCables[0].toObject();
+        auto destination = referenceCable["to"].toObject();
+        destination["module"] = 99;
+        referenceCable["to"] = destination;
+        referenceCables[0] = referenceCable;
+        missingDestination["connections"] = referenceCables;
+        check(!validate_patch(missingDestination, &error) && !error.isEmpty(), "dangling cable destination rejected");
+        const auto destinationRead = read_patch(encode(missingDestination), catalog);
+        check(!destinationRead.valid() && !destinationRead.error.isEmpty(), "dangling cable destination read rejected");
+
+        auto missingOutput = referenceBase;
+        auto referenceOutputs = missingOutput["outputs"].toArray();
+        auto referenceOutput = referenceOutputs[0].toObject();
+        referenceOutput["module"] = 99;
+        referenceOutputs[0] = referenceOutput;
+        missingOutput["outputs"] = referenceOutputs;
+        check(!validate_patch(missingOutput, &error) && !error.isEmpty(), "dangling output module rejected");
+        const auto outputRead = read_patch(encode(missingOutput), catalog);
+        check(!outputRead.valid() && !outputRead.error.isEmpty(), "dangling output module read rejected");
         auto bad = patch.object;
         auto rejected = [&](const QJsonObject& o) { check(!validate_patch(o, &error) && !error.isEmpty(), "validator negative with diagnostic"); };
         modules = bad["modules"].toArray(); modules.append(modules[0]); bad["modules"] = modules; rejected(bad);
