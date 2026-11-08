@@ -115,7 +115,7 @@ test('FakeEngine disconnect clears the VCF graph and knob within one telemetry t
   }, cable);
   await settle(page, 1);
   await expect(knob).toHaveClass(/has-mod/);
-  expect(await pixels()).not.toBe(base);
+  await expect.poll(pixels).not.toBe(base);
   expect(await page.evaluate(() => window.__wirescapeTest.ticker.last?.effective[2]?.cutoff))
     .toBeDefined();
 
@@ -124,8 +124,7 @@ test('FakeEngine disconnect clears the VCF graph and knob within one telemetry t
     const ticker = window.__wirescapeTest.ticker;
     ticker.push({ ...ticker.last, tick: ticker.last.tick + 1, effective: {} });
   });
-  await settle(page, 1);
-  expect(await pixels()).toBe(base);
+  await expect.poll(pixels).toBe(base);
   expect(await knob.getAttribute('data-live')).toBe('1000');
   // Confirm the producer's restored value, then wait for the ticker-driven canvas paint.
   await page.evaluate(() => window.__wirescapeTest.engine.step());
@@ -142,7 +141,7 @@ test('FakeEngine disconnect clears the VCF graph and knob within one telemetry t
   expect(await page.evaluate(() => window.__wirescapeTest.ticker.last?.effective[2])).toBeUndefined();
   await expect(knob).not.toHaveClass(/has-mod/);
   expect(await knob.getAttribute('data-live')).toBeNull();
-  expect(await pixels()).toBe(base);
+  await expect.poll(pixels).toBe(base);
 });
 
 test('RealEngine ignores telemetry from a generation older than its committed graph', async ({ page }) => {
