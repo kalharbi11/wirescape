@@ -961,6 +961,7 @@ export class App {
         // Never issue a rate-change command merely by opening Settings.
         rates.disabled = !dev || rates.options.length === 0;
       };
+      let buffer: HTMLSelectElement | undefined;
       const choices = devices.map(d => ({ value: d.id, label: d.name }));
       if (!current) choices.unshift({ value: '', label: placeholder });
       const sel = select(choices, current?.id ?? '', v => {
@@ -968,6 +969,7 @@ export class App {
         engine.selectAudioDevice(v);
         route.textContent = `Requested physical route: ${devices.find(d => d.id === v)!.name} (awaiting engine status)`;
         if (engine.setSampleRate) refreshRates(v);
+        if (buffer) buffer.disabled = false;
       });
       for (const option of sel.options) {
         if (option.value && count(option.value) !== 1) option.disabled = true;
@@ -979,7 +981,7 @@ export class App {
         audioFields.append(field('Sample rate', rates));
       }
       if (engine.setBufferFrames) {
-        const buffer = select(
+        buffer = select(
           [64, 128, 256, 512, 1024].map(n => ({ value: String(n), label: `${n} frames` })),
           String(this.lastStatus?.audio.bufferFrames ?? 256),
           v => engine.setBufferFrames?.(Number(v)),
