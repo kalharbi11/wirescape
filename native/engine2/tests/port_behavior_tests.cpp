@@ -129,9 +129,9 @@ struct Param64Probe {
     }();
     static constexpr auto params = [] {
         std::array<ws2_param, WS2_MAX_PARAMS> values{};
+        constexpr uint32_t flags = WS2_STEPPED | WS2_AUTOMATABLE;
         for (uint32_t i = 0; i < WS2_MAX_PARAMS; ++i)
-            values[i] = ws::param(ids[i].data(), "Value", 0, 1, 0, "",
-                                  WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1);
+            values[i] = ws::param(ids[i].data(), "Value", 0, 1, 0, "", flags, WS2_LINEAR, 0, 4, 1);
         return values;
     }();
     void prepare(const ws::Setup &) {}
@@ -142,8 +142,7 @@ struct Param64Probe {
         const auto a = b.param(0).ch(0), z31 = b.param(31).ch(0);
         const auto z32 = b.param(32).ch(0), z63 = b.param(63).ch(0);
         auto *out = b.out(0).ch(0);
-        for (uint32_t i = 0; i < b.frames(); ++i)
-            out[i] = 0.125f * (a[i] + z31[i] + z32[i] + z63[i]);
+        for (uint32_t i = 0; i < b.frames(); ++i) out[i] = 0.125f * (a[i] + z31[i] + z32[i] + z63[i]);
     }
 };
 
@@ -152,8 +151,7 @@ static void param64_sdk() {
     VERIFY(d->param_count == WS2_MAX_PARAMS);
     for (uint32_t i = 0; i < d->param_count; ++i) {
         VERIFY(std::strlen(d->params[i].id) == 3);
-        for (uint32_t j = 0; j < i; ++j)
-            VERIFY(std::strcmp(d->params[i].id, d->params[j].id) != 0);
+        for (uint32_t j = 0; j < i; ++j) VERIFY(std::strcmp(d->params[i].id, d->params[j].id) != 0);
     }
     Engine e;
     VERIFY(e.add_node(1, d));
@@ -186,8 +184,7 @@ static void param64_sdk() {
         VERIFY(e.render(rows, 1, 128) == WS2_OK);
         VERIFY(watch.allocations() == 0);
     }
-    for (uint32_t i = 0; i < 128; ++i)
-        VERIFY(samples[i] == (i < 5 ? 0.375f : 0.5f));
+    for (uint32_t i = 0; i < 128; ++i) VERIFY(samples[i] == (i < 5 ? 0.375f : 0.5f));
     VERIFY(e.meter().faults == 0);
 }
 
