@@ -57,3 +57,21 @@ test('FakeEngine CC Learn is transient and cannot capture when disarmed', async 
     undefined,
   ]);
 });
+
+test('FakeEngine Learn never edits saved CC rows or opaque document fields', async ({ page }) => {
+  await boot(page);
+  const state = await page.evaluate(() => {
+    const api = window.__wirescapeTest;
+    api.load({ format: 'wirescape.native.patch', version: 2,
+      modules: [{ id: 12, module: 'midi.cc_to_cv',
+        config: { rows: [{ channel: 1, controller: 19, bipolar: true }] } }],
+      connections: [], ui: { opaque: { retain: 'unknown' } },
+    });
+    const before = JSON.stringify(api.state());
+    api.engine.midiLearn(true);
+    api.engine.emitMidiCc('Arturia KeyStep|midi:0', 1, 74, 127);
+    api.engine.midiLearn(false);
+    return { before, after: JSON.stringify(api.state()) };
+  });
+  expect(state.after).toEqual(state.before);
+});
