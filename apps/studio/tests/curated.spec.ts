@@ -22,7 +22,8 @@ test('curated collection is eight independent, valid v2 patches with no replaced
     expect(patch.version).toBe(2);
     expect(patch.settings?.sample_rate).toBe(48000);
     expect(patch.outputs).toHaveLength(2);
-    expect(patch.modules.filter(m => m.module === 'essentials.output')).toHaveLength(1);
+    expect(patch.modules.filter(m => m.module === 'essentials.output'))
+      .toHaveLength(starter.id === 'hollow-chapel' ? 2 : 1);
     const modules = new Map(patch.modules.map(m => [m.id, m]));
     expect(modules.size).toBe(patch.modules.length);
     for (const module of patch.modules) {
@@ -52,11 +53,41 @@ test('curated collection is eight independent, valid v2 patches with no replaced
         expect(Math.abs(connection.amount ?? 2)).toBeLessThanOrEqual(1);
       }
     }
-    const output = patch.modules.find(m => m.module === 'essentials.output')!;
-    expect(patch.outputs).toEqual([0, 1].map(bus_channel => ({ module: output.id, port: 'audio', bus_channel })));
+    expect(patch.outputs.map(r => r.bus_channel)).toEqual([0, 1]);
+    expect(patch.outputs.every(r => r.port === 'audio'
+      && modules.get(r.module)?.module === 'essentials.output')).toBe(true);
+    if (starter.id === 'hollow-chapel') {
+      expect(patch.outputs[0]!.module).not.toBe(patch.outputs[1]!.module);
+      for (const side of ['left', 'right']) {
+        expect(patch.connections.some(c => c.kind === 'signal'
+          && c.from.module === 1 && c.from.port === side)).toBe(true);
+        expect(patch.connections.some(c => c.kind === 'signal'
+          && c.from.module === 2 && c.from.port === side)).toBe(true);
+      }
+    }
+    expect(Math.max(...Object.values(patch.ui?.positions ?? {}).map(p => p[0])))
+      .toBeLessThanOrEqual(3500); // preserve legibility at the canvas 25% minimum zoom
     patch.modules[0]!.parameters!.mutation = 999;
     expect(starter.patch().modules[0]!.parameters).not.toHaveProperty('mutation');
   }
+});
+
+test('macro resonator blends both outputs and vocal-filter modulation runs independently', () => {
+  const glass = curated.find(s => s.id === 'glass-cathedrals')!.patch();
+  const macro = glass.modules.find(m => m.module === 'ports.macro_oscillator')!;
+  const mixer = glass.modules.find(m => m.module === 'essentials.mixer')!;
+  expect(mixer.parameters?.level_b).toBeGreaterThan(0);
+  for (const port of ['main', 'aux']) {
+    expect(glass.connections.some(c => c.kind === 'signal' && c.from.module === macro.id
+      && c.from.port === port && c.to.module === mixer.id)).toBe(true);
+  }
+  const vowel = curated.find(s => s.id === 'vowel-apparitions')!.patch();
+  const lfos = vowel.modules.filter(m => m.module === 'essentials.lfo');
+  expect(lfos).toHaveLength(2);
+  expect(lfos[0]!.parameters?.rate).not.toBe(lfos[1]!.parameters?.rate);
+  const sources = vowel.connections.filter(c => c.kind === 'modulation'
+    && (c.to.port === 'morph' || c.to.port === 'cutoff')).map(c => c.from.module);
+  expect(new Set(sources).size).toBe(2);
 });
 
 test('autoplay patches have running clocks or continuously sounding sources', () => {
