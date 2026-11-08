@@ -2,6 +2,8 @@
 #include "../../tests2/allocation_watch.h"
 #include "callback_render.h"
 #include <array>
+#include <chrono>
+#include <cstring>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -18,7 +20,7 @@ void check(bool ok, const char *expression, int line) {
 constexpr uint32_t block = 256, rate = 48000;
 constexpr uint64_t epoch = 1000000000000000ULL;
 using App = std::unique_ptr<AppEngine, decltype(&app_engine_destroy)>;
-App graph() {
+App graph(bool bench = false, bool tapped = false) {
     ws_engine_config cfg{sizeof(cfg), rate, block, 8, 2048};
     App app(app_engine_create(&cfg), app_engine_destroy);
     CHECK(app);
@@ -35,6 +37,16 @@ App graph() {
     CHECK(app_engine_connect(app.get(), 4, 0, 5, 1) == WS_OK);
     CHECK(app_engine_connect(app.get(), 5, 0, 6, 0) == WS_OK);
     CHECK(app_engine_native(app.get()).output(6, 0, 1));
+    if (bench) {
+        std::vector<wirescape::engine2::Tap> taps;
+        for (uint32_t id = 10; id < 42; ++id) {
+            CHECK(app_engine_add_node(app.get(), id, "essentials.vco") == WS_OK);
+            CHECK(app_engine_connect(app.get(), id, 0, 5, 0) == WS_OK);
+            taps.push_back({wirescape::engine2::Tap::Param, id, 0});
+            taps.push_back({wirescape::engine2::Tap::Output, id, 0});
+        }
+        if (tapped) CHECK(app_engine_native(app.get()).set_telemetry_taps(taps));
+    }
     CHECK(app_engine_prepare(app.get(), 6, 0) == WS_OK);
     CHECK(app_engine_initialize_parameter(app.get(), 2, 0, 1) == WS_OK);
     CHECK(app_engine_initialize_parameter(app.get(), 4, 0, .0001f) == WS_OK);
@@ -105,7 +117,59 @@ void live_notes(uint32_t offset) {
     CHECK(faults.load() == 2);
 }
 } // namespace
-int main() {
+int main(int argc, char **argv) {
+    if (argc == 2 && std::strcmp(argv[1], "--telemetry-bench") == 0) {
+        auto plain = graph(true, false), tapped = graph(true, true);
+        std::array<float, 512> scratch{}, out{};
+        std::atomic<uint64_t> faults{0};
+        std::array<double, 5> baseline{}, enabled{};
+        auto measure = [&](App &app) {
+            for (unsigned n = 0; n < 256; ++n)
+                CHECK(render_callback_block(app.get(), scratch.data(), block, out.data(), block, epoch, faults));
+            const auto start = std::chrono::steady_clock::now();
+            for (unsigned n = 0; n < 800; ++n)
+                CHECK(render_callback_block(app.get(), scratch.data(), block, out.data(), block, epoch, faults));
+            return std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - start).count() / 800;
+        };
+        for (unsigned n = 0; n < 5; ++n) {
+            // Alternate order to avoid consistently favoring one graph with thermal/cache drift.
+            if (n % 2) { enabled[n] = measure(tapped); baseline[n] = measure(plain); }
+            else { baseline[n] = measure(plain); enabled[n] = measure(tapped); }
+        }
+        CHECK(faults.load() == 0);
+        float values[64]{}; uint32_t counts[64]{}; uint64_t frame = 0;
+        CHECK(app_engine_native(tapped.get()).read_telemetry(values, counts, 64, frame) == 64 && frame > 0);
+        std::printf("telemetry_bench {\"taps\":64,\"rate\":48000,\"frames\":256,\"plain_ns\":[");
+        for (unsigned n = 0; n < 5; ++n) std::printf("%s%.3f", n ? "," : "", baseline[n]);
+        std::printf("],\"tapped_ns\":[");
+        for (unsigned n = 0; n < 5; ++n) std::printf("%s%.3f", n ? "," : "", enabled[n]);
+        std::puts("]}");
+        return 0; // measurement only; Pi comparison uses the ruled benchmark tolerance
+    }
+    CHECK(argc == 1);
+    wirescape::audio::CallbackMetrics metrics;
+    CHECK(!std::isfinite(metrics.read())); // no fabricated pre-callback zero
+    uint64_t allocations;
+    {
+        allocation_watch::Scope watch;
+        metrics.publish(500000, 240, 48000); // 0.5 ms / 5 ms = 10%
+        allocations = watch.allocations();
+    }
+    CHECK(allocations == 0 && std::abs(metrics.read() - 10) < 1e-5);
+    metrics.publish(500000, 120, 48000); // use actual callback frames
+    CHECK(std::abs(metrics.read() - 20) < 1e-5);
+    metrics.publish(6000000, 240, 48000); // never cap an overload at 100%
+    CHECK(std::abs(metrics.read() - 120) < 1e-5);
+    metrics.publish(0, 240, 48000);
+    CHECK(metrics.read() == 0); // measured zero differs from no sample
+    CHECK(metrics.underflows.load() == 0); // slow render alone is not a backend dropout
+    metrics.publish(500000, 240, 48000, true);
+    metrics.publish(500000, 240, 48000, true);
+    metrics.publish(500000, 240, 48000, false);
+    CHECK(metrics.underflows.load() == 2);
+    metrics.publish(1, 0, 48000);
+    CHECK(!std::isfinite(metrics.read()));
+
     live_notes(0);
     live_notes(block / 2);
     std::puts("PASS live callback MIDI onset/release, mid-block timestamps, stereo and zero allocations");
