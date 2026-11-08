@@ -20,11 +20,10 @@ class ObservedMidi final : public midi::Backend {
     std::unique_ptr<midi::Backend> backend_;
     std::array<Slot, 16> slots_{};
     // One latest-wins observation; no queue, callbacks never allocate or lock.
-    static_assert(std::atomic<uint64_t>::is_always_lock_free &&
-                      std::atomic<uint32_t>::is_always_lock_free &&
-                      std::atomic<uint8_t>::is_always_lock_free &&
-                      std::atomic<bool>::is_always_lock_free,
-                  "MIDI Learn callback atomics must all be lock-free");
+    static_assert(std::atomic<uint64_t>::is_always_lock_free, "MIDI Learn packet must be lock-free");
+    static_assert(std::atomic<uint32_t>::is_always_lock_free, "MIDI Learn sequence must be lock-free");
+    static_assert(std::atomic<uint8_t>::is_always_lock_free, "MIDI Learn epoch must be lock-free");
+    static_assert(std::atomic<bool>::is_always_lock_free, "MIDI Learn armed flag must be lock-free");
     std::atomic<bool> learn_armed_{false};
     std::atomic<uint64_t> learn_packet_{0};
     std::atomic<uint32_t> learn_sequence_{0};
@@ -47,9 +46,12 @@ class ObservedMidi final : public midi::Backend {
     void close(const midi::Endpoint &) override;
     Json held() const;
     Json activity();
-    void arm_learning(bool armed); // control thread only
-    void expire_learning(std::chrono::steady_clock::time_point now); // control thread only
-    Json learning(); // control thread only; null when unarmed
+    // Control thread only; rearming drops previous observations.
+    void arm_learning(bool armed);
+    // Control thread only; expires after 30 s with no capture.
+    void expire_learning(std::chrono::steady_clock::time_point now);
+    // Control thread only; null when unarmed.
+    Json learning();
     void clear_notes();
     bool set_fake_endpoints(std::vector<midi::Endpoint>); // internal fake test surface only
     bool inject(const midi::Endpoint &, const uint8_t *, size_t, uint64_t);
