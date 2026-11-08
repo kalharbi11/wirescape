@@ -6,8 +6,7 @@ Contract: `docs/design/ENGINE_TELEMETRY.md` (5, 7, 8).
 tier: T1
 size: <= 250 changed lines, <= 11 files
 must_pass:
-  - cd apps/studio && npm ci && npm test
-  - Playwright: disconnect clears knob/filter in one tick; old gen ignored
+  - bash -lc 'cd apps/studio && npm ci && npm test'
   - ci: web, site
 stops: [fabricated motion, protocol or engine changes, reducing test coverage]
 ```
