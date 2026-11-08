@@ -376,11 +376,13 @@ static void test_sixteen_steps_and_boundary_ties() {
     const int notes[16] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
     Rig r;
     r.pattern16(semis, notes);
+    r.values[S::vel_param(15)] = 0.37f; // exercise the final parameter slot (49)
     const Trace t = r.render(660, 64, Clock{}, Resets{});
     REQUIRE(t.events.size() == 66); // 33 notes across two cycles, matching clock falls
     for (uint32_t i = 0; i < 33; ++i) {
         REQUIRE(t.events[2 * i].type == WS2_NOTE_ON);
         REQUIRE(t.events[2 * i].frame == i * 20 && t.events[2 * i].key == 60 + semis[i % 16]);
+        REQUIRE(t.events[2 * i].value == (i % 16 == 15 ? 0.37f : 0.8f));
         REQUIRE(t.events[2 * i + 1].type == WS2_NOTE_OFF && t.events[2 * i + 1].frame == i * 20 + 8);
     }
     check_balanced(t);
@@ -399,6 +401,26 @@ static void test_sixteen_steps_and_boundary_ties() {
     REQUIRE(hold.gate[308] == 1 && hold.gate[327] == 1 && hold.gate[328] == 0);
     check_balanced(hold);
     check_agreement(hold);
+    // Stop while step 16 is sounding: release immediately. Restart and reset on
+    // the same clock edge: the legacy reset-wins rule must still play step 1.
+    Rig stopped;
+    stopped.pattern16(semis, notes);
+    Trace all = stopped.render(304, 17, Clock{}, Resets{});
+    REQUIRE(all.events.back().type == WS2_NOTE_ON && all.events.back().frame == 300);
+    stopped.values[S::kRun] = 0.f;
+    const Trace off = stopped.render(16, 16, Clock{}, Resets{});
+    REQUIRE(off.events.size() == 1 && off.events[0].type == WS2_NOTE_OFF && off.events[0].frame == 304);
+    stopped.values[S::kRun] = 1.f;
+    const Trace resumed = stopped.render(60, 17, Clock{}, Resets{{340}});
+    bool step_one_on_reset = false;
+    for (const Ev& e : resumed.events) {
+        if (e.type == WS2_NOTE_ON && e.frame == 340 && e.key == 60) step_one_on_reset = true;
+    }
+    REQUIRE(step_one_on_reset);
+    all.append(off);
+    all.append(resumed);
+    check_balanced(all);
+    check_agreement(all);
     std::puts("PASS 16 steps and ties over 8/9, 16/1 with stable note events");
 }
 
