@@ -215,9 +215,9 @@ int main(int argc, char **argv) {
     // the existing Actions step summary, without changing protected CI jobs.
     if (const char *summary = std::getenv("GITHUB_STEP_SUMMARY")) {
         std::ofstream report(summary, std::ios::app);
-        report << "Native `wsw_telemetry` JSON: " << telemetry_cost.count()
-               << " us / 100 frames, " << telemetry_cost.count() / 100.
-               << " us/sample (diagnostic; not a threshold).\n";
+        report << "Native `wsw_telemetry` JSON: ";
+        report << telemetry_cost.count() << " us / 100 frames; ";
+        report << telemetry_cost.count() / 100. << " us/sample (diagnostic; not a threshold).\n";
     }
 
     std::printf(failures ? "web_engine_tests: %d failure(s)\n" : "web_engine_tests: ok\n", failures);
