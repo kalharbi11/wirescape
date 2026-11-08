@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
+find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
 add_executable(wirescape_render main.cpp)
 target_link_libraries(wirescape_render PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
 foreach(case_name adsr-notes frequency-step blend-selection)
