@@ -145,10 +145,13 @@ export class WebBridge implements WirescapeBridge {
   private receive(m: Message): void {
     if (m.kind === 'reply') this.reply(String(m.id), m.reply as Reply);
     else if (m.kind === 'telemetry') {
+      // Use the worklet's graph generation, never relabel an older snapshot
+      // with the latest command reply's generation.
+      if (typeof m.gen !== 'string' || !/^\d+$/.test(m.gen) || BigInt(m.gen) < BigInt(this.gen)) return;
       this.peak = Number(m.peak) || 0;
       const t = (m.telemetry ?? {}) as Message;
       this.emit({
-        v: 0, type: 'telemetry', session: this.session, gen: this.gen,
+        v: 0, type: 'telemetry', session: this.session, gen: m.gen,
         telemetry: {
           tick: ++this.tick, time: (Date.now() - this.started) / 1000,
           effective: t.effective ?? {}, phase: t.phase ?? {}, envelope: t.envelope ?? {},

@@ -123,7 +123,7 @@ export async function mockBridge(page: Page): Promise<void> {
       platform: 'linux',
     };
     (window as any).__mockBridge = {
-      sent, getGraph: () => copy(graph), getSession: session,
+      sent, getGraph: () => copy(graph), getSession: session, generation: () => String(gen),
       getSaved: () => saved,
       setOpen: (value: { text: string; name: string } | null) => { openText = value; },
       setDelay: (ms: number) => { delay = ms; },
@@ -135,8 +135,8 @@ export async function mockBridge(page: Page): Promise<void> {
         audioDevices: copy(audio), midiDevices: copy(midi) }),
       status: () => emit({ v: 0, type: 'status', session: session(), gen: String(gen),
         status: { audio: copy(audioStatus), midi: { devices: copy(midi), activity: {} } } }),
-      telemetry: (data: Message) => emit({ v: 0, type: 'telemetry', session: session(),
-        gen: String(gen), telemetry: { tick: 12, time: 0.4, effective: {}, phase: {},
+      telemetry: (data: Message, atGen = String(gen)) => emit({ v: 0, type: 'telemetry', session: session(),
+        gen: atGen, telemetry: { tick: 12, time: 0.4, effective: {}, phase: {},
           envelope: {}, meters: {}, scope: {}, eventActivity: {}, heldNotes: [], ...data } }),
     };
   });
