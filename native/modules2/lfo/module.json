@@ -13,6 +13,7 @@
   },
   "inputs": {},
   "outputs": {
-    "control": "signal"
+    "control": "signal",
+    "phase": "signal"
   }
 }

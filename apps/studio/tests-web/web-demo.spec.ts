@@ -239,6 +239,7 @@ test('web bridge does not drop genuine engine animation telemetry when supplied'
     const bridge = (window as unknown as { __wirescapeWeb: {
       onMessage(cb: (m: Record<string, any>) => void): () => void;
       receive(m: Record<string, unknown>): void;
+      gen: string;
     } }).__wirescapeWeb;
     return new Promise<Record<string, any>>(resolve => {
       const off = bridge.onMessage(m => {
@@ -246,7 +247,7 @@ test('web bridge does not drop genuine engine animation telemetry when supplied'
         off();
         resolve(m.telemetry);
       });
-      bridge.receive({ kind: 'telemetry', telemetry: {
+      bridge.receive({ kind: 'telemetry', gen: bridge.gen, telemetry: {
         effective: { 9: { cutoff: 1234 } }, phase: { 9: 0.25 },
         envelope: { 9: 0.5 }, eventActivity: { '9:gate': 0.8 },
         meters: {}, scope: {}, outputs: {},

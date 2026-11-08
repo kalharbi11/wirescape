@@ -39,7 +39,8 @@ export class FakeEngine implements EngineClient {
   private tick = 0;
   private t0 = performance.now();
   private time = 0;
-  private lastEffective = new Map<string, number>();
+  /** Effective values for this simulation tick only (meter and signal estimates). */
+  private currentEffective = new Map<string, number>();
   private phases = new Map<number, number>();
   private randomHold = new Map<number, { value: number; target: number; last: number }>();
   private clockEdge = new Map<number, number>();
@@ -99,7 +100,7 @@ export class FakeEngine implements EngineClient {
   async loadGraph(patch: PatchV2): Promise<void> {
     this.nodes.clear(); this.conns = []; this.voices = [];
     this.phases.clear(); this.randomHold.clear(); this.seqStep.clear();
-    this.lastEffective.clear(); this.meterPeak.clear();
+    this.currentEffective.clear(); this.meterPeak.clear(); this.eventActivity.clear();
     for (const m of patch.modules) {
       this.nodes.set(m.id, { id: m.id, type: m.module, params: { ...(m.parameters ?? {}) } });
     }
@@ -121,6 +122,7 @@ export class FakeEngine implements EngineClient {
 
   removeModule(id: number): void {
     this.nodes.delete(id);
+    for (const k of this.eventActivity.keys()) if (k.startsWith(`${id}:`)) this.eventActivity.delete(k);
     this.conns = this.conns.filter(c => c.from.module !== id && c.to.module !== id);
     this.pushStatus();
   }
@@ -270,6 +272,7 @@ export class FakeEngine implements EngineClient {
 
     const cache = new Map<string, number>();
     const effective: Record<number, Record<string, number>> = {};
+    this.currentEffective.clear();
     const phase: Record<number, number> = {};
     const envelope: Record<number, number> = {};
     const meters: Record<number, [number, number]> = {};
@@ -283,27 +286,20 @@ export class FakeEngine implements EngineClient {
       const d = this.registry.get(n.type);
       if (!d) continue;
       const mods = this.conns.filter(c => c.kind === 'modulation' && c.to.module === n.id);
-      const changed: Record<string, number> = {};
+      const modulated: Record<string, number> = {};
       for (const p of d.parameters) {
-        const base = n.params[p.id] ?? p.default;
-        let value = base;
         const my = mods.filter(c => c.to.port === p.id);
-        if (my.length) {
-          let norm = valueToNorm(p, base);
-          for (const c of my) {
-            norm += (c.amount ?? 0) * this.sourceValue(c, cache);
-          }
-          value = normToValue(p, Math.max(0, Math.min(1, norm)));
-        }
-        const k = `${n.id}:${p.id}`;
-        const prev = this.lastEffective.get(k);
-        if (prev === undefined || Math.abs(prev - value) > Math.abs(value) * 1e-4 + 1e-9) {
-          this.lastEffective.set(k, value);
-          changed[p.id] = value;
-        }
+        if (!my.length) continue;
+        const base = n.params[p.id] ?? p.default;
+        let norm = valueToNorm(p, base);
+        for (const c of my) norm += (c.amount ?? 0) * this.sourceValue(c, cache);
+        modulated[p.id] = normToValue(p, Math.max(0, Math.min(1, norm)));
+        this.currentEffective.set(`${n.id}:${p.id}`, modulated[p.id]!);
       }
-      if (Object.keys(changed).length) effective[n.id] = changed;
-
+      if (Object.keys(modulated).length) effective[n.id] = modulated;
+    }
+    // Evaluate meters only after every modulated effective value has been computed.
+    for (const n of this.nodes.values()) {
       if (n.type === 'essentials.lfo' || n.type === 'example.random_source' || n.type === 'essentials.clock') {
         phase[n.id] = this.phases.get(n.id) ?? 0;
       }
@@ -592,7 +588,7 @@ export class FakeEngine implements EngineClient {
   }
 
   private effectiveParam(n: Node, id: string): number | undefined {
-    return this.lastEffective.get(`${n.id}:${id}`) ?? n.params[id];
+    return this.currentEffective.get(`${n.id}:${id}`) ?? n.params[id];
   }
 
   private meterWithPeak(id: number, level: number): [number, number] {

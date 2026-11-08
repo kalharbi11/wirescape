@@ -43,7 +43,7 @@ class Session {
     ObservedMidi *observer_ = nullptr;
     std::unique_ptr<midi::Host> midi_;
     Json patch_, preferences_ = Json::object(), audio_devices_, midi_devices_;
-    std::string token_, device_, fallback_, audio_state_ = "no-device";
+    std::string token_, device_, audio_state_ = "no-device";
     uint64_t generation_ = 0, tick_ = 0;
     std::set<uint32_t> used_ids_;
     document::telemetry::Sampler telemetry_;
@@ -57,11 +57,14 @@ class Session {
     RenderHistogram bench_; // only sink thread records; joined before shutdown reads
     bool bench_reported_ = false;
     std::chrono::steady_clock::time_point started_ = std::chrono::steady_clock::now();
-    void start_audio();
+    std::chrono::steady_clock::time_point audio_retry_{};
+    std::chrono::milliseconds audio_backoff_{100};
+    void start_audio(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
+    bool poll_audio(std::chrono::steady_clock::time_point, bool enumerated);
     void stop_audio();
     void start_midi();
     void persist();
-    void refresh_devices();
+    bool refresh_devices();
     Json execution(Json);
     void commit(Json, bool);
     Json apply(const Json &);
@@ -73,13 +76,14 @@ class Session {
     explicit Session(Options);
     ~Session();
     void shutdown();
-    void start(); // begin rendering only after the hello handshake is flushed
+    // Begin rendering only after the hello handshake is flushed.
+    void start(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
     Json hello() const;
     Json reply(const Request &);
     Json status() const;
     Json telemetry();
     Json devices();
-    bool poll();
+    bool poll(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
 };
 Options parse_options(int, char **);
 } // namespace wirescape::sidecar

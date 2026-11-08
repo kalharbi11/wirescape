@@ -56,7 +56,7 @@ export interface OscStatus {
   recent: { time: number; address: string; args: (number | string)[] }[];
 }
 
-/** Live values, pushed ~30x a second. Effective parameters are deltas; other fields are snapshots. */
+/** Live values, pushed ~30x a second. Each message is a complete snapshot. */
 export interface Telemetry {
   /** Monotonic tick counter. */
   tick: number;

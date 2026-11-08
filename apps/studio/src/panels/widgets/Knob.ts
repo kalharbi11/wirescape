@@ -173,9 +173,11 @@ export class Knob {
 
     this.refresh();
     this.unbind = o.ticker.bind(o.moduleId, t => {
-      const v = t.effective[o.moduleId]?.[p.id];
-      if (v === undefined || v === this.live) return;
+      const effective = t.effective[o.moduleId]?.[p.id];
+      const v = effective ?? this.o.getValue();
+      if (v === this.live) return;
       this.live = v;
+      if (effective === undefined) this.lastText = 0; // clear stale live text in this tick
       this.paintLive();
     });
   }
