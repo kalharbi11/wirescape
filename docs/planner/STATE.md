@@ -27,7 +27,7 @@ Use live issue/PR heads and latest handoffs; queued/stale/missing evidence never
   fixed ci/pi-edit-soak/3900s timeout, fork/concurrency/credential safety; then #384 private baseline.
   Root private AGENTS absent404 is recorded, not a requirement to invent a policy file.
 - Agent2: #379 integrates #382; compile ownership is fixed but unchanged telemetry_taps cppcheck
-  red needs Keel disposition because green static was explicitly required. Check final sanitizer.
+  red needs Keel disposition under explicit green-static condition; current branch conflicts.
 - #304 current3a6784b: merged-main catalogue/format repair needs narrow T1 and all3 fresh Pi cases.
   #323 Quantizer/#310 wait for ACTUAL #304 merge. No earlier approval transfers to new heads.
 - #345 Delay reviewed ebb538c and exact-head acceptance pass, but merge CONFLICTS; normal main
@@ -40,15 +40,17 @@ Use live issue/PR heads and latest handoffs; queued/stale/missing evidence never
   #387 checklist reduction after verified385/386/296. Real capture deferred.
 
 ## Independent and musical work
-- #400 latency tests/task now pass at6dcc370; static cancelled; Claude T2 review still required.
-- #399 routes has live owner; fake-state test corrected but hosted rerun failed; native metadata/
-  mono/restart contract still needs Keel. No invented wire fields or timeout loosening.
-- #404 cap64: cross-family source review supplied; test-only token-preserving formatting fix
- 17a1c2f now needs fresh static/required checks. #405 native then#410 UI depend on actual404merge.
+- #400 tests/task pass at6dcc370, but actual static log has authored formatting79+233; repair
+  with pinned formatter, not a cancellation waiver. Claude T2 review still required.
+- #399 current Web failure is old real-null-audio test expecting auto-selected USB Stereo;
+  align to explicit no-device/empty route. Native metadata/mono/restart still needs Keel.
+- #404 cap64 actually merged b4ec649; #402 superseded/closed. #405 native then#410 UI still
+  need their own real acceptance and reviewed final heads; no cap permission wait remains.
 - #406 Chord design: ID/controls confirmed; fix note_id0/voice-count/anonymous-off caveats;
   Keel must resolve fan-in identity/capacity. One design PR only, no legacy chord sequencer.
-- #407 gate-v4 is T2, needs Claude review/Windows; old approval syntax stands until actual merge.
-- Free-agent index #393: NEW READY #413 quoted/example closing-directive selector regression;
-  claim before work. #394/#395 done; don't duplicate live owners. #412 patch curation has a PR.
+- #407 required checks including Windows now pass; Claude T2 review remains. Old gate syntax stands.
+- #415 selector HTML-comment span bug repaired82445f3, Python25/25 pass; fresh checks/Claude T2 pending.
+- Free-agent index#393: NEW READY #418 SDK64 prepare/render high-index tests. #417/#416 real-header
+  Qt slots macro compile regression/identifier fix needs independent T1; no analyzer suppression.
 - Keep #82 Phase3/Windows hardware parked. Add actionable unclaimed briefs each lead run,
   never busywork. Owner requested finite checkpoints only; do not create more schedules.
