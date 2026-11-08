@@ -678,6 +678,7 @@ Json Session::audio_status() const {
     auto selected = stream_ && stream_->running();
     const double cpu = selected ? stream_->cpu_percent() : 0;
     // An opened stream has no measured load until its first callback completes.
+    // A zero-frame callback also leaves load unavailable, so it stays starting.
     const bool measured = std::isfinite(cpu) && cpu >= 0;
     auto state = audio_state_;
     if (options_.audio && stream_ && !selected) state = "device-lost";
