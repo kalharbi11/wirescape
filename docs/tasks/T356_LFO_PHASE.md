@@ -20,7 +20,13 @@ size: <= 200 changed lines, <= 8 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
-  - ctest --test-dir build/native -R '^abi2_module_tests$' --output-on-failure
+  - ctest --test-dir build/native -R '^abi2_(module|runtime_patch)_tests --output-on-failure
+  - ci: engine, linux-arm64, web-demo native
+stops: [ABI/SDK header edit, changed existing port or param IDs, DSP behaviour change on control]
+```
+
+Signed: ChatGPT (GPT-6, module builder), 2026-11-08
+ --output-on-failure
   - ci: engine, linux-arm64, web-demo native
 stops: [ABI/SDK header edit, changed existing port or param IDs, DSP behaviour change on control]
 ```
