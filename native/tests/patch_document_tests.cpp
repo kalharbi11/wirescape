@@ -115,9 +115,10 @@ int main(int argc, char** argv) {
         destinationModule["id"] = 2;
         referenceModules.append(destinationModule);
         referenceBase["modules"] = referenceModules;
-        referenceBase["connections"] = QJsonArray{QJsonObject{{"kind", "signal"},
-            {"from", QJsonObject{{"module", 1}, {"port", "audio"}}},
-            {"to", QJsonObject{{"module", 2}, {"port", "audio"}}}}};
+        QJsonObject validCable{{"kind", "signal"}};
+        validCable["from"] = QJsonObject{{"module", 1}, {"port", "audio"}};
+        validCable["to"] = QJsonObject{{"module", 2}, {"port", "audio"}};
+        referenceBase["connections"] = QJsonArray{validCable};
         referenceBase["outputs"] = QJsonArray{QJsonObject{{"module", 2}, {"port", "audio"}, {"bus_channel", 0}}};
         check(validate_patch(referenceBase, &error) && error.isEmpty(), "two-module reference control validates");
         check(read_patch(encode(referenceBase), catalog).valid(), "two-module reference control reads");
