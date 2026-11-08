@@ -11,7 +11,18 @@ import sys
 
 from foundation.helpers import git_revision, run_logged, utc_iso, write_json
 
+# Local acceptance only executes run lines. The private Pi bridge alone executes
+# pi-run: with ci/pi-accept; pi: remains a descriptive requirement.
 EXTERNAL = ("pi:", "pi-run:", "ci:", "user:", "chatgpt-pre-review:")
+
+
+def classify_line(command):
+    """Classify one must_pass line, rejecting unknown colon-prefixed kinds."""
+    match = re.match(r"^([A-Za-z][A-Za-z0-9_-]*):", command.strip())
+    if not match:
+        return "run"
+    kind = match.group(1) + ":"
+    return kind if kind in EXTERNAL else "unknown"
 
 # Planner-approved exceptions for historical, user-run tasks (issue #114).
 # These are skipped and visibly NOT verified, never reported as a task pass.
@@ -153,9 +164,15 @@ def run(root, args):
         record.update(task=str(task), task_sha256=hashlib.sha256(text.encode()).hexdigest(), tier=block.get("tier"))
         record["size"] = size_check(root, block["size"], getattr(args, "base", "origin/main"))
         for index, command in enumerate(block["must_pass"]):
-            item = {"command": command}
-            if command.startswith(EXTERNAL):
-                item["status"] = "external"
+            kind = classify_line(command)
+            item = {"command": command, "kind": kind}
+            if kind == "unknown":
+                item.update(status="failed", error="unknown acceptance prefix: " + command.split(":", 1)[0])
+            elif kind != "run":
+                if not command.split(":", 1)[1].strip():
+                    item.update(status="failed", error="empty acceptance requirement: " + kind)
+                else:
+                    item["status"] = "external"
             else:
                 try:
                     argv = command_argv(command)
@@ -166,21 +183,30 @@ def run(root, args):
                                         out.with_name(f"{out.name}-{index}.log"), timeout=args.timeout)
                     item.update(result, command=command, status="passed" if result["exit_code"] == 0 else "failed")
             record["commands"].append(item)
-        record["status"] = "passed" if record["size"]["status"] != "failed" and all(
-            item["status"] in ("passed", "external") for item in record["commands"]) else "failed"
+        statuses = {item["status"] for item in record["commands"]}
+        size_status = record["size"]["status"]
+        if size_status == "failed" or "failed" in statuses:
+            record["status"] = "failed"
+        elif size_status in ("pending", "unavailable", "external") or statuses.intersection(
+                ("external", "pending", "unavailable")):
+            record["status"] = "incomplete"
+        else:
+            record["status"] = "passed"
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         record["error"] = str(error)
     lines = [f"Acceptance: {record['status']}", "", f"Commit: `{record['commit']}`", "",
              "| Command | Result |", "|---|---|"]
     for item in record["commands"]:
         label = item["command"].replace("|", "\\|")
-        lines.append(f"| `{label}` | {item['status']} |")
+        lines.append(f"| `{label}` | {item['status']} ({item['kind']}) |")
     lines.extend(["", "Size: " + json.dumps(record.get("size", {})),
-                  "", "External entries are pending evidence; local success does not verify them."])
+                  "", "External, pending, or unavailable requirements are not verified here. "
+                  "An incomplete report is never an acceptance pass."])
     if record.get("error"):
         lines.append(record["error"])
     markdown = "\n".join(lines) + "\n"
     write_json(out.with_suffix(".json"), record)
     out.with_suffix(".md").write_text(markdown, encoding="utf-8")
     print(json.dumps(record, indent=2) if args.json else markdown, end="\n" if args.json else "")
-    return int(record["status"] != "passed")
+    return int(record["status"] == "failed" or
+               (record["status"] == "incomplete" and getattr(args, "strict", False)))

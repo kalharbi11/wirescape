@@ -4,8 +4,26 @@
 #include "wirescape/output_policy.h"
 #include <algorithm>
 #include <atomic>
+#include <cmath>
+#include <limits>
 
 namespace wirescape::audio {
+// One render writer, control readers. A whole load sample is one lock-free atomic;
+// no cross-field snapshot or callback-owned buffer is read by control.
+// Load covers render + interleave only; it excludes PortAudio/backend overhead.
+struct CallbackMetrics {
+    static_assert(std::atomic<float>::is_always_lock_free);
+    std::atomic<float> percent{std::numeric_limits<float>::quiet_NaN()};
+    std::atomic<uint64_t> underflows{0};
+    void publish(uint64_t elapsed_ns, unsigned long frames, double rate, bool underflow = false) noexcept {
+        if (underflow) underflows.fetch_add(1, std::memory_order_relaxed);
+        double load = std::numeric_limits<double>::quiet_NaN();
+        if (frames != 0 && rate > 0) load = double(elapsed_ns) * rate / double(frames) / 1e7;
+        percent.store(std::isfinite(load) ? float(load) : std::numeric_limits<float>::quiet_NaN(),
+                      std::memory_order_relaxed);
+    }
+    double read() const noexcept { return percent.load(std::memory_order_relaxed); }
+};
 // Internal callback seam: scratch has two preallocated capacity-frame rows.
 // now_ns is the same steady-clock domain as MIDI SystemMonotonic timestamps.
 inline bool render_callback_block(AppEngine *engine, float *scratch, uint32_t capacity, float *out,

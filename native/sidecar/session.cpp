@@ -264,8 +264,8 @@ void Session::stop_audio() {
     if (sink_.joinable()) sink_.join();
     sink_rendering_.store(false, std::memory_order_release);
     if (stream_) {
-        dropouts_.fetch_add(stream_->dropouts());
         engine_ = stream_->stop();
+        dropouts_.fetch_add(stream_->dropouts()); // include the final callback after stop joins
         stream_.reset();
     }
     cpu_.store(0);
@@ -681,13 +681,20 @@ Json Session::reply(const Request &request) {
 }
 Json Session::audio_status() const {
     auto selected = stream_ && stream_->running();
-    Json result = {{"state", options_.audio && stream_ && !selected ? "device-lost" : audio_state_},
+    const double cpu = selected ? stream_->cpu_percent() : 0;
+    // An opened stream has no measured load until its first callback completes.
+    // A zero-frame callback also leaves load unavailable, so it stays starting.
+    const bool measured = std::isfinite(cpu) && cpu >= 0;
+    auto state = audio_state_;
+    if (options_.audio && stream_ && !selected) state = "device-lost";
+    else if (selected && !measured) state = "starting";
+    Json result = {{"state", state},
                    {"deviceId", selected ? Json(device_) : Json(nullptr)},
                    {"deviceName", selected ? Json(device_) : Json(nullptr)},
                    {"sampleRate", options_.rate},
                    {"bufferFrames", options_.block},
                    {"latencyMs", 2. * options_.block / options_.rate * 1000},
-                   {"cpuPercent", selected ? stream_->cpu_percent() : 0},
+                   {"cpuPercent", measured ? cpu : 0},
                    {"dropouts", dropouts_.load() + (stream_ ? stream_->dropouts() : 0)}};
     return result;
 }
