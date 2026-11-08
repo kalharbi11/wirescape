@@ -226,8 +226,11 @@ class AcceptanceTests(unittest.TestCase):
         actual.write_text(task(["python -c 'pass'"]).replace("#85", "#114"), encoding="utf-8")
         examples = ("> Closes #384\n\n- Closes #384\n\n"
                     + "\x60\x60\x60markdown\nCloses #384\n\x60\x60\x60\n\n"
-                    + "<!-- Closes #384 -->\n\n")
-        for real in ("Closes #114", "closes #114.", "   ClOsEs #114 (implementation)"):
+                    + "<!-- Closes #384 -->\n\n<!--\nCloses #384\n-->\n\n")
+        for real in ("Closes #114", "closes #114.", "   ClOsEs #114 (implementation)",
+                     "Closes #114 <!-- context -->",
+                     "Closes #114 <!-- context\nstill context -->",
+                     "<!-- context\nstill context --> Closes #114"):
             with self.subTest(real=real):
                 issue, path, note = acceptance.select_pr_task(
                     self.root, examples + real + "\nCloses #999")
