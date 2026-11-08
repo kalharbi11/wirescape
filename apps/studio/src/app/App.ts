@@ -399,7 +399,6 @@ export class App {
   // ---- patch lifecycle --------------------------------------------------
 
   async loadPatch(patch: PatchV2, name = 'Untitled'): Promise<void> {
-    this.bundledPatch = false;
     this.ticker.resetTelemetry();
     this.doc.replace(patch);
     this.patchName = name;
@@ -425,6 +424,7 @@ export class App {
     this.history?.reset();
     this.autosave(true);
     this.pasteCount = 0;
+    this.bundledPatch = false;
     try { await running; }
     catch (e) { this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error'); }
   }
