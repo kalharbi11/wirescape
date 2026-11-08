@@ -15,7 +15,7 @@ after every topology commit; test the first next burst. The worklet frame
 cap remains ≤30 Hz and is not changed here.
 
 **Read first:** `native/web/web_engine.cpp`,
-`native/web/web_engine_tests.cpp`, `apps/studio/src/web/ws-processor.js`.
+`native/web/web_engine_tests.cpp`, `apps/studio/public/web/ws-processor.js`.
 
 **Further gates:** native web test; wasm build; Playwright web site;
 web and web-demo CI; one independent T1 review; report telemetry JSON cost.
