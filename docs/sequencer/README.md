@@ -8,7 +8,7 @@ Shared home for Groove and future conventional/generative sequencers. This is a 
 ## Shared expectations
 Studio owns editable musical data; native DSP owns playback. Keep authored patterns separate from transient playhead, held notes and queued performance actions. Persist musical settings; load stopped by default, with no accidental note-on. Preserve unknown patch data and validate executable configuration.
 
-Use fixed-capacity, bounded realtime state. No callback allocation, locks, JSON, I/O or logging. UI animation never supplies timing. Live content edits must not rebuild the graph. Accepted, pending, refused and actually applied edits must be distinguishable; generation/revision guards, undo/redo and restart recovery belong to the shared contract.
+Use fixed-capacity, bounded realtime state. No callback allocation, locks, JSON, I/O or logging. UI animation never supplies timing. Stopped editing may use the existing graph reload/apply path in the first Groove release; that can interrupt other modules. When live content editing is introduced, it must not rebuild the graph. Accepted, pending, refused and actually applied edits must be distinguishable; generation/revision guards, undo/redo and restart recovery belong to the shared contract.
 
 Stable IDs, pitch units (1.0/octave, 0=C4), gate behavior and NOTE_ON/OFF identity must agree with the SDK. Quantized pitch CV and unquantized note events must not compete on the same destination. Test usable downstream routes, not just output generation.
 
