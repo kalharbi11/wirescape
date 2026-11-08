@@ -189,6 +189,16 @@ class EditSoakTests(unittest.TestCase):
         self.assertNotIn('performance_evidence', verdict)
         self.assertIn('exactly one bench line', verdict['error'])
 
+    def test_invalid_duration_emits_strict_failure_json(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+            code = soak.main(['--engine', str(self.stub), '--seconds', 'nan'])
+        self.assertEqual(code, 1)
+        verdict = json.loads(output.getvalue())
+        self.assertEqual(verdict['status'], 'failed')
+        self.assertIsNone(verdict['seconds'])
+        self.assertNotIn('NaN', output.getvalue())
+
     def test_invalid_limits(self):
         for seconds in (0, -1, float('nan'), float('inf'), 3601):
             with self.assertRaises(ValueError):
