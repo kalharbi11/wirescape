@@ -112,11 +112,28 @@ static void cv_new_ports(){
  VERIFY(covered==17); // mixer 2, noise 1, output 0, scale 2, slew 2, clock 4, envelope 3, ladder 3
 }
 
-static void param_cap(){
- // #402: the host accepts up to WS2_MAX_PARAMS (64) parameters and rejects one more.
- static_assert(WS2_MAX_PARAMS==64u,"parameter cap");
- const ws2_descriptor*base=ws::Module<ws2ports::Vca>::descriptor();static ws2_param many[WS2_MAX_PARAMS+1];
- for(auto&p:many)p=base->params[0];
- for(uint32_t count:{50u,WS2_MAX_PARAMS,WS2_MAX_PARAMS+1}){ws2_descriptor d=*base;d.param_count=count;d.params=many;Engine e;VERIFY(e.add_node(1,&d)==(count<=WS2_MAX_PARAMS));}
+static void param_cap() {
+    // #402: the host accepts up to WS2_MAX_PARAMS (64) parameters and rejects one more.
+    static_assert(WS2_MAX_PARAMS == 64u, "parameter cap");
+    const ws2_descriptor *base = ws::Module<ws2ports::Vca>::descriptor();
+    static ws2_param many[WS2_MAX_PARAMS + 1];
+    for (auto &p : many) p = base->params[0];
+    for (uint32_t count : {50u, WS2_MAX_PARAMS, WS2_MAX_PARAMS + 1}) {
+        ws2_descriptor d = *base;
+        d.param_count = count;
+        d.params = many;
+        Engine e;
+        VERIFY(e.add_node(1, &d) == (count <= WS2_MAX_PARAMS));
+    }
 }
-int main(){adsr();lfo();vca();vcf();vco();cv();cv_new_ports();param_cap();std::puts("PASS existing-port behavior regressions and every continuous D7 parameter");}
+int main() {
+    adsr();
+    lfo();
+    vca();
+    vcf();
+    vco();
+    cv();
+    cv_new_ports();
+    param_cap();
+    std::puts("PASS existing-port behavior regressions and every continuous D7 parameter");
+}
