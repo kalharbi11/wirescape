@@ -232,7 +232,7 @@ static void telemetry(){
   CHECK(e.read_telemetry(values,counts,4,frame)==3&&frame==17);
   CHECK(values[0]==e.output_sample(2,0,0,16));
   CHECK(values[0]>10.f); // A modulated plain-unit value, not normalized/base.
-  CHECK(std::abs(values[1]-.5f)<1e-6f); // Loudest of four source channels.
+  CHECK(values[1]==e.output_sample(1,0,3,16)); // Loudest of four source channels.
   CHECK(counts[2]==0);
   for(uint32_t i=0;i<5;++i)CHECK(e.enqueue(0,3,0,event(WS2_NOTE_ON),17+i)==WS2_OK);
   render(e,17);
@@ -242,7 +242,7 @@ static void telemetry(){
   Engine first(c);CHECK(first.add_node(1,ws::Module<Source>::descriptor()));CHECK(first.set_channels(1,4));
   CHECK(first.set_parameter(1,0,.2f));CHECK(first.set_telemetry_taps({output_first}));
   CHECK(first.prepare());render(first,1);
-  CHECK(first.read_telemetry(values,counts,4,frame)==1&&std::abs(values[0]-.2f)<1e-6f);
+  CHECK(first.read_telemetry(values,counts,4,frame)==1&&values[0]==first.output_sample(1,0,0,0));
 
   Engine zero(c);CHECK(zero.add_node(1,ws::Module<Source>::descriptor()));
   CHECK(zero.add_node(2,ws::Module<ParamProbe>::descriptor()));
