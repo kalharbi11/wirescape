@@ -78,7 +78,7 @@ struct Rig {
                 for (size_t c = 0; c < count; ++c)
                     rows[p][c] = port.connected ? port.ch[c].data() + first : zeros.data();
                 inputs[p] = {sizeof(ws2_signal), rows[p], static_cast<uint32_t>(count),
-                             port.connected ? WS2_CONNECTED : WS2_CONSTANT};
+                             static_cast<uint32_t>(port.connected ? WS2_CONNECTED : WS2_CONSTANT)};
             }
             const float *value_rows[6];
             ws2_signal params[6];
