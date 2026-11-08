@@ -29,6 +29,11 @@ export class WebBridge implements WirescapeBridge {
   /** Must run from a user gesture: browsers only start audio after a click or key. */
   async start(base: string, options: { readyTimeoutMs?: number; processorUrl?: string } = {}): Promise<void> {
     const context = new AudioContext({ latencyHint: 'interactive' });
+    // iOS Safari needs resume() invoked during the original tap, not after
+    // asynchronous WASM compilation or worklet installation has consumed it.
+    // Keep the promise pending until the processor is connected below.
+    const resumed = context.resume();
+    void resumed.catch(() => undefined);
     let node: AudioWorkletNode | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let catalogue: unknown;
@@ -55,7 +60,7 @@ export class WebBridge implements WirescapeBridge {
         };
       });
       created.connect(context.destination);
-      await within(context.resume());
+      await within(resumed);
       ({ catalogue } = await within(ready));
     } catch (error) {
       // A failed attempt leaves nothing running, so "Try again" starts clean.
@@ -144,8 +149,10 @@ export class WebBridge implements WirescapeBridge {
       this.emit({
         v: 0, type: 'telemetry', session: this.session, gen: this.gen,
         telemetry: {
-          tick: ++this.tick, time: (Date.now() - this.started) / 1000, effective: {}, phase: {}, envelope: {},
-          scope: t.scope ?? {}, eventActivity: {}, meters: t.meters ?? {}, heldNotes: t.heldNotes ?? [],
+          tick: ++this.tick, time: (Date.now() - this.started) / 1000,
+          effective: t.effective ?? {}, phase: t.phase ?? {}, envelope: t.envelope ?? {},
+          scope: t.scope ?? {}, eventActivity: t.eventActivity ?? {}, meters: t.meters ?? {},
+          heldNotes: t.heldNotes ?? [],
           outputs: t.outputs ?? {},
         },
       });

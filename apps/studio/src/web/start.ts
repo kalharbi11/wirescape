@@ -18,7 +18,7 @@ export function startWeb(): Promise<void> {
       <p>A modular synth in your browser. Patch cables between modules, turn knobs, and play notes
         with your computer keyboard (A–K) or the on-screen keys.</p>
       <p class="muted">Web demo: every non-MIDI module and the built-in starters. SHARE copies a link to your patch.
-        Best in desktop Chrome or Edge. Use headphones or speakers.</p>
+        For desktop or mobile browsers with WebAssembly and AudioWorklet. Use headphones or speakers.</p>
       <button type="button" data-testid="web-start">Start with sound</button>
       <p class="web-splash-error" data-testid="web-error" hidden></p>
     </div>`;
@@ -54,7 +54,7 @@ export function startWeb(): Promise<void> {
         button.textContent = 'Try again';
         error.hidden = false;
         error.textContent = 'Could not start audio: ' + (e instanceof Error ? e.message : String(e)) +
-          '. This demo needs a recent desktop browser with WebAssembly and AudioWorklet.';
+          '. Try a current browser with WebAssembly and AudioWorklet, then tap Try again.';
       });
     });
   });
