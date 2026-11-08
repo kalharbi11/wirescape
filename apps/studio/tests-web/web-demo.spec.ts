@@ -143,8 +143,8 @@ test('SHARE puts the patch in a link that opens the same patch', async ({ page, 
   await page.goto('./');
   await page.getByTestId('web-start').click();
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
-  await page.getByTestId('starter-select').selectOption('dust-reactor');
-  await expect.poll(() => modules(page)).toContain('2:essentials.noise');
+  await page.getByTestId('starter-select').selectOption('black-ice-choir');
+  await expect.poll(() => modules(page)).toContain('2:essentials.chaos_lite');
   const expected = await modules(page);
   await page.getByTestId('share-patch').click();
   await expect.poll(() => page.evaluate(() => location.hash)).toMatch(/^#p=/);
