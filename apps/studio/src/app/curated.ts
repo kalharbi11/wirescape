@@ -9,7 +9,7 @@ export interface CuratedPatch { id: string; name: string; note: string; patch: P
 export const CURATED_PATCHES: CuratedPatch[] = [
   {
     id: "hollow-chapel", name: "01 · Hollow Chapel",
-    note: "Autoplay · Two detuned CHAOS bodies; slow opposing movement through a dark ladder filter.",
+    note: "Autoplay · True stereo CHAOS bodies with independently filtered left/right shadows and slow counterphase drift.",
     patch: {
       "SPDX-License-Identifier": "GPL-3.0-only",
       name: "01 · Hollow Chapel", format: "wirescape.native.patch", version: 2,
@@ -21,22 +21,30 @@ export const CURATED_PATCHES: CuratedPatch[] = [
         {"id":4,"module":"essentials.ladder","parameters":{"cutoff":1450,"resonance":0.28,"drive":0.14},"version":2},
         {"id":5,"module":"essentials.output","parameters":{},"version":2},
         {"id":6,"module":"essentials.lfo","parameters":{"rate":0.037,"depth":0.85},"version":2},
-        {"id":7,"module":"essentials.lfo","parameters":{"rate":0.071,"depth":0.7},"version":2}
+        {"id":7,"module":"essentials.lfo","parameters":{"rate":0.071,"depth":0.7},"version":2},
+        {"id":8,"module":"essentials.mixer","parameters":{"level_a":0.47,"level_b":0.44},"version":2},
+        {"id":9,"module":"essentials.ladder","parameters":{"cutoff":1120,"resonance":0.32,"drive":0.13},"version":2},
+        {"id":10,"module":"essentials.output","parameters":{},"version":2}
       ],
       connections: [
         {"kind":"signal","from":{"module":1,"port":"left"},"to":{"module":3,"port":"a"}},
-        {"kind":"signal","from":{"module":2,"port":"right"},"to":{"module":3,"port":"b"}},
+        {"kind":"signal","from":{"module":2,"port":"left"},"to":{"module":3,"port":"b"}},
         {"kind":"signal","from":{"module":3,"port":"audio"},"to":{"module":4,"port":"audio"}},
         {"kind":"signal","from":{"module":4,"port":"audio"},"to":{"module":5,"port":"audio"}},
         {"kind":"modulation","from":{"module":6,"port":"control"},"to":{"module":1,"port":"body_tune"},"amount":0.16},
         {"kind":"modulation","from":{"module":7,"port":"control"},"to":{"module":2,"port":"cutoff"},"amount":0.22},
         {"kind":"modulation","from":{"module":6,"port":"control"},"to":{"module":4,"port":"cutoff"},"amount":0.19},
-        {"kind":"modulation","from":{"module":7,"port":"control"},"to":{"module":2,"port":"roughness"},"amount":0.09}
+        {"kind":"modulation","from":{"module":7,"port":"control"},"to":{"module":2,"port":"roughness"},"amount":0.09},
+        {"kind":"signal","from":{"module":1,"port":"right"},"to":{"module":8,"port":"a"}},
+        {"kind":"signal","from":{"module":2,"port":"right"},"to":{"module":8,"port":"b"}},
+        {"kind":"signal","from":{"module":8,"port":"audio"},"to":{"module":9,"port":"audio"}},
+        {"kind":"signal","from":{"module":9,"port":"audio"},"to":{"module":10,"port":"audio"}},
+        {"kind":"modulation","from":{"module":7,"port":"control"},"to":{"module":9,"port":"cutoff"},"amount":-0.16}
       ],
-      outputs: [{"module":5,"port":"audio","bus_channel":0},{"module":5,"port":"audio","bus_channel":1}],
+      outputs: [{"module":5,"port":"audio","bus_channel":0},{"module":10,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[80,1320],"3":[1200,80],"4":[2320,80],"5":[3440,80],"6":[1200,1320],"7":[2320,1320]},
-        labels: {"1":"Stone choir · low","2":"Stone choir · high","6":"Slow tide","7":"Breathing haze"}, view: {"x":0,"y":0,"zoom":1},
+        positions: {"1":[80,80],"2":[80,1270],"3":[740,80],"4":[1400,80],"5":[2060,80],"6":[740,2350],"7":[1400,2350],"8":[740,1270],"9":[1400,1270],"10":[2060,1270]},
+        labels: {"1":"Stone choir · low L/R","2":"Stone choir · high L/R","6":"Slow tide","7":"Counterphase haze","8":"Right body mix","9":"Right-hand shadow"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
   },
@@ -70,7 +78,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       ],
       outputs: [{"module":5,"port":"audio","bus_channel":0},{"module":5,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[80,1320],"3":[1200,80],"4":[2320,80],"5":[3440,80],"6":[1200,1320],"7":[2320,1320],"8":[3440,1320]},
+        positions: {"1":[80,80],"2":[80,1180],"3":[740,80],"4":[1400,80],"5":[2060,80],"6":[740,1180],"7":[1400,1180],"8":[2060,1180]},
         labels: {"1":"Bent wall","2":"Air leakage","7":"Slow random wander","8":"Structural pulse"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
@@ -103,14 +111,14 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       ],
       outputs: [{"module":4,"port":"audio","bus_channel":0},{"module":4,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[1200,80],"3":[2320,80],"4":[3440,80],"5":[80,1320],"6":[1200,1320],"7":[2320,1320]},
+        positions: {"1":[80,80],"2":[740,80],"3":[1400,80],"4":[2060,80],"5":[80,1180],"6":[740,1180],"7":[1400,1180]},
         labels: {"2":"Frozen voices","5":"Slow apparition","6":"Body tide","7":"Filter tide"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
   },
   {
     id: "vowel-apparitions", name: "04 · Vowel Apparitions",
-    note: "Play keys · Macro model 7, vocal/formant textures, breathing filter and slow envelope.",
+    note: "Play keys · Vocal/formant textures with independent vowel and filter-breath modulation.",
     patch: {
       "SPDX-License-Identifier": "GPL-3.0-only",
       name: "04 · Vowel Apparitions", format: "wirescape.native.patch", version: 2,
@@ -122,7 +130,8 @@ export const CURATED_PATCHES: CuratedPatch[] = [
         {"id":4,"module":"essentials.vca","parameters":{"gain":0.68},"version":2},
         {"id":5,"module":"essentials.output","parameters":{},"version":2},
         {"id":6,"module":"essentials.adsr","parameters":{"attack":0.8,"decay":1.7,"sustain":0.64,"release":4.8},"version":2},
-        {"id":7,"module":"essentials.lfo","parameters":{"rate":0.082,"depth":0.65},"version":2}
+        {"id":7,"module":"essentials.lfo","parameters":{"rate":0.082,"depth":0.65},"version":2},
+        {"id":8,"module":"essentials.lfo","parameters":{"rate":0.031,"depth":0.71},"version":2}
       ],
       connections: [
         {"kind":"signal","from":{"module":1,"port":"pitch"},"to":{"module":2,"port":"pitch"}},
@@ -134,18 +143,18 @@ export const CURATED_PATCHES: CuratedPatch[] = [
         {"kind":"signal","from":{"module":6,"port":"envelope"},"to":{"module":4,"port":"gain_cv"}},
         {"kind":"signal","from":{"module":4,"port":"audio"},"to":{"module":5,"port":"audio"}},
         {"kind":"modulation","from":{"module":7,"port":"control"},"to":{"module":2,"port":"morph"},"amount":0.19},
-        {"kind":"modulation","from":{"module":7,"port":"control"},"to":{"module":3,"port":"cutoff"},"amount":0.2}
+        {"kind":"modulation","from":{"module":8,"port":"control"},"to":{"module":3,"port":"cutoff"},"amount":0.2}
       ],
       outputs: [{"module":5,"port":"audio","bus_channel":0},{"module":5,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[1200,80],"3":[2320,80],"4":[3440,80],"5":[4560,80],"6":[80,1320],"7":[1200,1320]},
-        labels: {"2":"Vocal engine · model 7","6":"Long breath","7":"Vowel drift"}, view: {"x":0,"y":0,"zoom":1},
+        positions: {"1":[80,80],"2":[740,80],"3":[1400,80],"4":[2060,80],"5":[2720,80],"6":[80,1180],"7":[740,1180],"8":[2060,1180]},
+        labels: {"2":"Vocal engine · model 7","6":"Long breath","7":"Vowel drift","8":"Independent filter breath"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
   },
   {
     id: "glass-cathedrals", name: "05 · Glass Cathedrals",
-    note: "Play keys · Macro model 12, resonant struck textures, gentle spectral drift.",
+    note: "Play keys · Macro model 12, main/aux resonant blend and slowly drifting overtones.",
     patch: {
       "SPDX-License-Identifier": "GPL-3.0-only",
       name: "05 · Glass Cathedrals", format: "wirescape.native.patch", version: 2,
@@ -156,21 +165,24 @@ export const CURATED_PATCHES: CuratedPatch[] = [
         {"id":3,"module":"essentials.ladder","parameters":{"cutoff":4500,"resonance":0.18,"drive":0.07},"version":2},
         {"id":4,"module":"essentials.output","parameters":{},"version":2},
         {"id":5,"module":"essentials.lfo","parameters":{"rate":0.11,"depth":0.75},"version":2},
-        {"id":6,"module":"essentials.lfo","parameters":{"rate":0.047,"depth":0.7},"version":2}
+        {"id":6,"module":"essentials.lfo","parameters":{"rate":0.047,"depth":0.7},"version":2},
+        {"id":7,"module":"essentials.mixer","parameters":{"level_a":0.72,"level_b":0.19},"version":2}
       ],
       connections: [
         {"kind":"signal","from":{"module":1,"port":"pitch"},"to":{"module":2,"port":"pitch"}},
         {"kind":"signal","from":{"module":1,"port":"gate"},"to":{"module":2,"port":"trigger"}},
         {"kind":"signal","from":{"module":1,"port":"velocity"},"to":{"module":2,"port":"level"}},
-        {"kind":"signal","from":{"module":2,"port":"main"},"to":{"module":3,"port":"audio"}},
+        {"kind":"signal","from":{"module":2,"port":"main"},"to":{"module":7,"port":"a"}},
+        {"kind":"signal","from":{"module":2,"port":"aux"},"to":{"module":7,"port":"b"}},
+        {"kind":"signal","from":{"module":7,"port":"audio"},"to":{"module":3,"port":"audio"}},
         {"kind":"signal","from":{"module":3,"port":"audio"},"to":{"module":4,"port":"audio"}},
         {"kind":"modulation","from":{"module":5,"port":"control"},"to":{"module":2,"port":"timbre"},"amount":0.18},
         {"kind":"modulation","from":{"module":6,"port":"control"},"to":{"module":3,"port":"cutoff"},"amount":0.2}
       ],
       outputs: [{"module":4,"port":"audio","bus_channel":0},{"module":4,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[1200,80],"3":[2320,80],"4":[3440,80],"5":[80,1320],"6":[1200,1320]},
-        labels: {"2":"Modal engine · model 12","5":"Glass shimmer","6":"Slow shadow"}, view: {"x":0,"y":0,"zoom":1},
+        positions: {"1":[80,80],"2":[740,80],"3":[2060,80],"4":[2720,80],"5":[740,1180],"6":[2060,1180],"7":[1400,80]},
+        labels: {"2":"Modal engine · model 12","5":"Glass shimmer","6":"Slow shadow","7":"Modal + overtone blend"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
   },
@@ -205,7 +217,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       ],
       outputs: [{"module":6,"port":"audio","bus_channel":0},{"module":6,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[80,1320],"3":[1200,80],"4":[2320,80],"5":[3440,80],"6":[4560,80],"7":[1200,1320],"8":[2320,1320],"9":[3440,1320]},
+        positions: {"1":[80,80],"2":[80,1180],"3":[740,80],"4":[1400,80],"5":[2060,80],"6":[2720,80],"7":[740,1180],"8":[1400,1180],"9":[2060,1180]},
         labels: {"1":"Sub-bass sine","2":"Grain field","8":"Random geology","9":"Thermal drift"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
@@ -239,7 +251,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       ],
       outputs: [{"module":6,"port":"audio","bus_channel":0},{"module":6,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[1200,80],"3":[2320,80],"4":[3440,80],"5":[4560,80],"6":[5680,80],"7":[80,1320],"8":[1200,1320]},
+        positions: {"1":[80,80],"2":[740,80],"3":[1400,80],"4":[2060,80],"5":[2720,80],"6":[3380,80],"7":[80,1180],"8":[740,1180]},
         labels: {"2":"D minor · eight steps","3":"Ostinato voice","7":"Note contour"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
@@ -272,7 +284,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       ],
       outputs: [{"module":5,"port":"audio","bus_channel":0},{"module":5,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[1200,80],"3":[2320,80],"4":[3440,80],"5":[4560,80],"6":[80,1320]},
+        positions: {"1":[80,80],"2":[740,80],"3":[1400,80],"4":[2060,80],"5":[2720,80],"6":[80,1180]},
         labels: {"2":"A minor · eight steps","3":"FM engine · model 2","6":"Shifting harmonics"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
