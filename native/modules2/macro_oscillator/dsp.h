@@ -50,7 +50,7 @@ struct MacroOscillator {
         m.struct_size = sizeof(m);
         m.alignment = 32;
         m.fast_bytes = std::min<uint32_t>(c.max_channels, 8u) * (sizeof(plaits::Voice) + 32);
-        m.large_bytes = std::min<uint32_t>(c.max_channels, 8u) * 16384;
+        m.large_bytes = static_cast<size_t>(std::min<uint32_t>(c.max_channels, 8u)) * 16384;
         return m;
     }
     bool prepare(const ws::Setup &setup) {
