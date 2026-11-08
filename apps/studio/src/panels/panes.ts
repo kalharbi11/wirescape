@@ -82,20 +82,13 @@ export function buildPane(kind: PaneKind, c: PaneContext): Pane | null {
     case 'scope': return new Scope(id, ticker);
     case 'channels': return new ChannelMeters(c);
     case 'models': return new ModelGrid(c);
-    case 'steps': {
-      // Derive the editable count from the live engine catalogue, not a UI constant.
-      // Keep the shipped eight-step view intact until a 16-step descriptor is available.
-      let steps = 0;
-      while (steps < 16 && c.param(`pitch${steps + 1}`) && c.param(`gate${steps + 1}`)
-          && c.param(`vel${steps + 1}`)) steps++;
-      if (!steps) return null;
+    case 'steps':
       return new StepsPane({
-        moduleId: id, ticker, steps,
+        moduleId: id, ticker, steps: 8,
         param: pid => c.param(pid),
         getValue: pid => c.getValue(pid),
         setValue: (pid, val, commit) => c.setValue(pid, val, commit),
       });
-    }
     default: return null;
   }
 }
