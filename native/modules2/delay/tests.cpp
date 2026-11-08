@@ -8,12 +8,13 @@
 #include <vector>
 
 using fxdelay::Delay;
-enum { kTime, kDivision, kFeedback, kTone, kMode, kMix };
+enum : uint8_t { kTime, kDivision, kFeedback, kTone, kMode, kMix };
 using Wave = std::vector<float>;
 
 struct Arena {
-    std::vector<unsigned char> bytes = std::vector<unsigned char>(4 * 1024 * 1024);
+    std::vector<unsigned char> bytes = std::vector<unsigned char>(size_t(4) * 1024 * 1024);
     size_t used = 0;
+    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- fixed host allocator ABI.
     static void *WS2_CALL alloc(void *context, size_t bytes, size_t alignment, uint32_t) {
         auto &a = *static_cast<Arena *>(context);
         const uintptr_t base = reinterpret_cast<uintptr_t>(a.bytes.data());
@@ -21,7 +22,7 @@ struct Arena {
         const size_t end = next - base + bytes;
         if (end > a.bytes.size()) return nullptr;
         a.used = end;
-        return reinterpret_cast<void *>(next);
+        return a.bytes.data() + (next - base);
     }
 };
 
@@ -135,11 +136,13 @@ struct Rig {
     }
 };
 
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- duration and onset are intentionally separate.
 static Wave impulse(size_t length, size_t at = 0, float height = 1.f) {
     Wave w(length, 0.f);
     w[at] = height;
     return w;
 }
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- sample length, seed, and amplitude are distinct.
 static Wave noise(size_t length, uint32_t seed, float amount = 1.f) {
     Wave w(length);
     uint32_t s = seed;
@@ -149,6 +152,7 @@ static Wave noise(size_t length, uint32_t seed, float amount = 1.f) {
     }
     return w;
 }
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- half-open search bounds are intentional.
 static size_t argmax(const Wave &w, size_t from, size_t to) {
     size_t best = from;
     for (size_t i = from; i < to; ++i)
@@ -160,6 +164,7 @@ static bool finite_within(const Wave &w, float limit) {
         if (!std::isfinite(x) || std::fabs(x) > limit) return false;
     return true;
 }
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- delay time and loop feedback are different parameters.
 static void wet_only(Rig &r, float time, float feedback) {
     r.values[kMix] = 1.f;
     r.values[kTime] = time;
@@ -189,7 +194,7 @@ static void feedback_decay() {
     const Result out = r.run(30000);
     float previous = 0;
     for (int k = 1; k <= 5; ++k) {
-        const size_t centre = 4800u * k;
+        const size_t centre = size_t(4800) * size_t(k);
         const float peak = std::fabs(out.l[argmax(out.l, centre - 5, centre + 5)]);
         REQUIRE(std::fabs(peak - std::pow(0.5f, float(k - 1))) < 0.02f * std::pow(0.5f, float(k - 1)));
         if (k > 1) REQUIRE(std::fabs(peak / previous - 0.5f) < 0.01f);
@@ -205,7 +210,7 @@ static void ping_pong() {
     for (int k = 1; k <= 5; ++k) {
         const Wave &hit = k % 2 ? out.l : out.r; // L, R, L, R, L
         const Wave &quiet = k % 2 ? out.r : out.l;
-        const size_t centre = 4800u * k;
+        const size_t centre = size_t(4800) * size_t(k);
         const size_t peak = argmax(hit, centre - 5, centre + 5);
         const float expected = std::pow(0.5f, float(k - 1));
         REQUIRE(std::fabs(std::fabs(hit[peak]) - expected) < 0.02f * expected);
@@ -220,6 +225,7 @@ static void ping_pong() {
     REQUIRE(finite_within(stereo.r, 0.01f));
     REQUIRE(std::fabs(stereo.l[argmax(stereo.l, 4795, 4805)]) > 0.99f);
 }
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- duration and clock period are distinct.
 static Wave pulses(size_t length, size_t period, size_t first = 0) {
     Wave w(length, 0.f);
     for (size_t at = first; at < length; at += period)
@@ -264,8 +270,10 @@ static void mix_law() {
     dry.left(noise(length, 1));
     dry.right(noise(length, 2));
     const Result a = dry.run(length);
-    REQUIRE(std::memcmp(a.l.data(), dry.in[0].ch[0].data(), length * 4) == 0);
-    REQUIRE(std::memcmp(a.r.data(), dry.in[1].ch[0].data(), length * 4) == 0);
+    // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison) -- bit-exact dry passthrough includes signed zero.
+    REQUIRE(std::memcmp(a.l.data(), dry.in[0].ch[0].data(), length * sizeof(float)) == 0);
+    // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison) -- bit-exact dry passthrough includes signed zero.
+    REQUIRE(std::memcmp(a.r.data(), dry.in[1].ch[0].data(), length * sizeof(float)) == 0);
     Rig wet;
     wet_only(wet, 0.1f, 0.f);
     wet.left(noise(length, 1));
@@ -285,7 +293,8 @@ static void unpatched_right() {
     r.values[kMix] = 0.5f;
     r.left(noise(10000, 3));
     const Result out = r.run(10000);
-    REQUIRE(std::memcmp(out.l.data(), out.r.data(), 40000) == 0);
+    // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison) -- left/right mirroring requires exact audio bits.
+    REQUIRE(std::memcmp(out.l.data(), out.r.data(), size_t(10000) * sizeof(float)) == 0);
     REQUIRE(!finite_within(out.l, 0.f)); // not silent
 }
 static void poly_sum() {
@@ -450,7 +459,7 @@ static void state_and_extremes() {
     ws2_memory memory{sizeof(memory)};
     const ws2_config config{sizeof(config), 96000, 256, 16, 7, nullptr, 0};
     REQUIRE(w.d->memory_requirements(&config, &memory) == WS2_OK &&
-            memory.large_bytes >= 2 * 2 * 96000 * sizeof(float));
+            memory.large_bytes >= size_t(2) * 2 * 96000 * sizeof(float));
 }
 
 int main() {
