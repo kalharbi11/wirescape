@@ -115,6 +115,9 @@ def visible_closing_issues(body):
         if re.match(r" {0,3}>", line):
             continuation = True
             continue
+        # ATX headings end lazy quote/list continuation without a blank line.
+        if re.match(r"^#{1,6}(?:[ \t]|$)", line):
+            continuation = False
         item = re.match(r" {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]+", line)
         if item:
             line = line[item.end():]
