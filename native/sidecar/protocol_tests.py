@@ -343,11 +343,11 @@ with tempfile.TemporaryDirectory() as directory:
              if line.startswith('bench ')]
     assert len(lines) == 1, lines
     match = re.fullmatch(
-        r'bench blocks=(\d+) p50=(\d+) p99=(\d+) max=(\d+(?:\.\d+)?(?:e[+-]?\d+)?) overruns=(\d+)',
+        r'bench blocks=(\d+) p50=(\d+) p99=(\d+) max=(\d+(?:\.\d+)?(?:e[+-]?\d+)?) overruns=(\d+) faults=(\d+)',
         lines[0])
     assert match, lines[0]
-    blocks, p50, p99, maximum, overruns = map(float, match.groups())
-    assert blocks > 0 and 0 <= p50 <= p99 <= maximum and overruns >= 0
+    blocks, p50, p99, maximum, overruns, faults = map(float, match.groups())
+    assert blocks > 0 and 0 <= p50 <= p99 <= maximum and overruns >= 0 and faults == 0
     # Long block periods cannot delay hello or EOF teardown. 8 kHz x 4096 frames is the
     # longest supported period (~512 ms); the engine refuses rates below 8 kHz.
     started = time.monotonic()
