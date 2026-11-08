@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """No hardware: protocol-speaking subprocess stub and bounded failure vectors."""
 import contextlib
+import io
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -175,6 +177,17 @@ class EditSoakTests(unittest.TestCase):
         with self.engine('logs'):
             result = soak.run(self.stub, .02, 278)
         self.assertEqual(result['performance_evidence']['faults'], 0)
+
+    def test_failure_cli_json_is_explicit_not_unavailable(self):
+        with self.engine('missing-bench'):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+                code = soak.main(['--engine', str(self.stub), '--seconds', '.02', '--seed', '278'])
+        verdict = json.loads(output.getvalue())
+        self.assertEqual(code, 1)
+        self.assertEqual(verdict['status'], 'failed')
+        self.assertNotIn('performance_evidence', verdict)
+        self.assertIn('exactly one bench line', verdict['error'])
 
     def test_invalid_limits(self):
         for seconds in (0, -1, float('nan'), float('inf'), 3601):
