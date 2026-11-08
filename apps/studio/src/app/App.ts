@@ -929,7 +929,10 @@ export class App {
       // The dialog may have been rebuilt while device enumeration was pending.
       if (!b.contains(audioFields)) return;
       if (!devices.length) {
-        const empty = el('div', 'muted', 'No audio devices available.');
+        const missing = this.lastStatus?.audio.deviceId;
+        const empty = el('div', 'muted', missing
+          ? `Selected physical route ${this.lastStatus?.audio.deviceName ?? missing} is unavailable; no audio devices listed.`
+          : 'No audio devices available.');
         empty.dataset.testid = 'audio-no-devices';
         audioFields.append(empty);
         return;
