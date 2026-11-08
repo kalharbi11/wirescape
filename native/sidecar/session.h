@@ -3,6 +3,7 @@
 #include "../io/audio/portaudio_service.h"
 #include "devices.h"
 #include "midi_host.h"
+#include "../document/telemetry_taps.h"
 #include <array>
 #include <set>
 namespace wirescape::sidecar {
@@ -45,6 +46,7 @@ class Session {
     std::string token_, device_, audio_state_ = "no-device";
     uint64_t generation_ = 0, tick_ = 0;
     std::set<uint32_t> used_ids_;
+    document::telemetry::Sampler telemetry_;
     std::array<bool, 128> keyboard_{};
     std::mutex sink_mutex_;
     std::condition_variable sink_wake_;
