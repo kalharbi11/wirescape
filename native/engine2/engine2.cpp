@@ -913,6 +913,20 @@ bool Engine::reconfigure(uint32_t node,const std::vector<uint8_t>&config){
     }
     for(auto&bus:old.buses){auto*source=old.find(bus.node),*target=fresh.find(bus.node);uint32_t port=index_of(target->outputs,source->outputs[bus.port].id);if(port==UINT32_MAX){++fresh.dropped_connections;continue;}if(!next.output(bus.node,port,bus.channel))return old.fail("Staged bus failed");}
     for(uint32_t i=0;i<old.producer_count;++i)if(next.register_producer()<0)return old.fail("Staged producer failed");
+    // Keep the tap order stable across quiescent reconfiguration. Dynamic port
+    // indices can shift, so resolve the old endpoint ID against the new layout.
+    // Refuse a removed tap endpoint rather than silently shifting reader slots.
+    std::vector<Tap> remapped;remapped.reserve(old.taps.size());
+    for(const auto&t:old.taps){
+        const auto*prior=old.find(t.node);const auto*target=fresh.find(t.node);
+        const char*id=t.kind==Tap::Param?prior->parameters[t.index].id:prior->outputs[t.index].id;
+        const auto&ports=t.kind==Tap::Param?target->parameters:target->outputs;
+        uint32_t index=UINT32_MAX;
+        for(uint32_t i=0;i<ports.size();++i)if(!std::strcmp(ports[i].id,id)){index=i;break;}
+        if(index==UINT32_MAX)return old.fail("Reconfiguration removes telemetry tap endpoint");
+        auto mapped=t;mapped.index=index;remapped.push_back(mapped);
+    }
+    if(!remapped.empty()&&!next.set_telemetry_taps(remapped))return old.fail("Cannot stage telemetry tap layout");
     if(!fresh.finish_prepare())return old.fail("Staged graph prepare failed");
     if(!changed->legacy){auto bytes=save_state(node);if(!bytes.empty()){int r=next.load_state(node,bytes);if(r!=WS2_OK&&r!=WS2_UNSUPPORTED)return old.fail("Staged state restore failed");}}
     std::vector<Node*>actual;actual.reserve(fresh.nodes.size());
@@ -928,11 +942,13 @@ bool Engine::reconfigure(uint32_t node,const std::vector<uint8_t>&config){
         retained.index=layout.index;retained.component=layout.component;retained.loop=layout.loop;
         retained.incoming.swap(layout.incoming);retained.signal_edges.swap(layout.signal_edges);
         retained.modulation.swap(layout.modulation);retained.outgoing.swap(layout.outgoing);
+        retained.event_tap_slots.swap(layout.event_tap_slots);
         for(uint32_t j=0;j<retained.event_outputs.size();++j)retained.event_outputs[j]={sizeof(ws2_event_out),&fresh,j,Impl::emit};
         fresh.nodes[i].swap(old.nodes[i]);
     }
     for(auto&e:fresh.edges){e.source=actual[e.source->index];e.destination=actual[e.destination->index];}
     for(auto&component:fresh.components)for(auto*&n:component.nodes)n=actual[n->index];
+    for(auto*&n:fresh.tap_nodes)n=actual[n->index];
     for(auto&entry:fresh.node_table)entry.second=actual[entry.second->index];
     for(auto&bus:fresh.buses)bus.source=actual[bus.source->index];
     for(auto pair:delays){auto&e=fresh.edges[pair.first];auto&v=old.edges[pair.second];std::swap(e.delay,v.delay);e.delay_channels.swap(v.delay_channels);std::swap(e.head,v.head);}
