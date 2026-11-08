@@ -98,6 +98,15 @@ class Sidecar:
     def _stderr(self):
         pending = bytearray()
         discarded = False
+
+        def capture_bench(raw, complete):
+            # Incomplete records count as candidates: never silently accept the
+            # first valid metric if a second bench line is oversized or lacks LF.
+            if raw.lstrip().startswith(b'bench') and len(self.bench_lines) < 2:
+                line = (bytes(raw).removesuffix(b'\r').decode('ascii', errors='replace')
+                        if complete else '<incomplete or oversized bench record>')
+                self.bench_lines.append(line)
+
         for chunk in iter(lambda: self.process.stderr.read(4096), b''):
             self.tail.extend(chunk)
             del self.tail[:-8192]
@@ -105,17 +114,17 @@ class Sidecar:
             for part in parts[:-1]:
                 if not discarded:
                     pending.extend(part)
-                    if len(pending) <= 2048:
-                        line = bytes(pending).removesuffix(b'\r')
-                        if line.lstrip().startswith(b'bench'):
-                            if len(self.bench_lines) < 2:
-                                self.bench_lines.append(line.decode('ascii', errors='replace'))
+                    capture_bench(pending, len(pending) <= 2048)
                 pending.clear()
                 discarded = False
-            pending.extend(parts[-1])
-            if len(pending) > 2048:
-                pending.clear()
-                discarded = True
+            if not discarded:
+                pending.extend(parts[-1])
+                if len(pending) > 2048:
+                    capture_bench(pending, False)
+                    pending.clear()
+                    discarded = True
+        if not discarded and pending:
+            capture_bench(pending, False)
 
     def _next(self, deadline):
         while True:
