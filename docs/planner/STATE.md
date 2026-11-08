@@ -3,7 +3,7 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-08 by Compass (Claude), acting as Keel too.
+**Updated:** 2026-11-08 by Codex Lead; retains Compass/Keel rulings.
 Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure preempts other work.
 
 ## Delegation (new, AGENTS.md 2026-11-08)
@@ -15,28 +15,32 @@ Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure 
 
 ## Done this session (11-08)
 - Merged #367 (shared CPU probe). Closed #181/#180 (superseded by docs/SDK_AUTHOR_GUIDE.md); closed #374 (folded in here).
-- Approved and marked ready: #371 (emit rename), #301 (audio recovery; Keel pre-approval applied on the pi5 head),
-  #368 (A2 telemetry; Keel T2 clean, one Low). The gate merges them once windows-x64 is green.
+- #301 audio recovery and #371 emit rename merged. Codex Lead merged approved #368 at963384a; required checks/Pi pass.
 - Ruling: the #368 Pi 64-tap/no-tap comparison moves into #292 (callback load); it doesn't block A2.
 
 ## Telemetry #350
-- After #368 merges: #369 A3 wasm retargets to main, then final native/wasm/site evidence (T2: Keel batch).
-- #359 B-wire follows. Owner telemetry visual check waits for B-wire, then a combined Electron/web check.
+- #369 A3 now targets main; telemetry agent integrates and collects final native/wasm/site evidence.
+- #359 sidecar start gate is met by #368 merge; owner combined Electron/web visual check waits for B-wire.
 - Keep: reset event cursors on every commit; first post-edit burst must pulse; never fake phase.
 
 ## Modules (all T1 now; Codex Lead owns)
 - #304 Spectral: conflicts with merged #367. Drop its private probe copy, use the shared tools/module_cpu_probe, rerun pi5/accept.
-- #373/#372 probe polyphony: retarget to main (base #367 merged), finish, merge.
-- #348 reverb, #345 delay, #344 resonator (--channels 8 after #373), #323 quantizer: switch to the shared probe,
-  run Pi CPU acceptance, then Codex Lead merges.
-- #346 oscillator UI: rebase conflict (dirty), then merge (reviews clean).
+- #373 at852a1ce: independent review and native/acceptance pass; Windows requested; static tool-download504 remains.
+- #348/#345 shared-probe integrations pushed; #344 waits for #373 poly probe. Keep module-specific exact-head Pi evidence.
+- Delay Web passed158 browser tests then Electron download504; one retry. Reverb/Resonator CodeQL download504 retried once.
+- #346 integrated main ataf01a60; local351-case DSP matrix/tracking/LFO checks pass; conflict review/new CI pending.
 - #310 Spectral Interleave/Vocoder: stacked on #304.
 
 ## Phase 2 engine queue
-- #301 merging. Next: #293 device routes, #292 callback load/dropouts (+ tap-cost check), #296 fake-device soak.
+- #293 routes is available after #301. #292 in #378 atbce9bd0; format fixes pushed, final T2/CI/Pi pending.
+- #296 blocked: runner600s/1800s paths cannot certify3600s edit soak; bench/fault evidence also missing. Keel batch in #376.
 - #290/#210 controls: under the existing Keel Nov7 ruling; #210 has pi5/accept on d715bb4, needs review + merge.
 - #287 Learn: blocked for raw-CC observation contract (status.midi.activity lacks CC identity/value). T2: Keel batch.
 - #82 J5 OSC (phase 3, T2): parked until Phase 3; it needs a Claude review then.
+
+## Owner-requested three-agent handoff (#376)
+- Paste-ready lanes: docs/tasks/BUILD_LEAD_2026_11_08.md; three chats, maximum three active items each.
+- Three chats keep at most three active items each; current handoffs and contract batch are on #376.
 
 ## Retained rules
 - Tests/CI never open audio/MIDI/LAN. No agent SSH to Pi/laptop; private runner supplies Pi evidence.
