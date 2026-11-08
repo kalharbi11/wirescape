@@ -54,7 +54,9 @@ struct Backend {
 };
 struct Context {
     std::function<void()> stop_producers;
- ~Context(){if(stop_producers)stop_producers();}
+    ~Context() {
+        if (stop_producers) stop_producers();
+    }
     double rate = 0;
     CallbackMetrics metrics;
     EngineOwner engine;
@@ -172,7 +174,7 @@ uint64_t Stream::dropouts() const {
 void play(EngineOwner engine,const std::string&directory,const std::string&name,double rate,uint32_t block,const std::atomic<bool>&quit,std::function<void()> stop_producers){
  struct StopOnError {std::function<void()>&stop;~StopOnError(){if(stop)stop();}} cleanup{stop_producers};
  Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block);context->stop_producers=stop_producers;int device=b.default_device();
-    context->rate = rate;
+ context->rate = rate;
  if(!name.empty()){size_t consumed=0;try{device=std::stoi(name,&consumed);}catch(const std::exception&){consumed=0;}if(consumed!=name.size()){
    device=paNoDevice;int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&name==d->name){device=i;break;}}
  }}
@@ -182,9 +184,9 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  PaError start=b.start(stream),run_status=paNoError;
  if(start>=0){while(!quit.load(std::memory_order_relaxed)){
    int active=b.active(stream);if(active<=0){run_status=active;break;}
-            std::cerr << "cpu=" << context->metrics.read() << "% xruns="
-                      << context->metrics.underflows.load(std::memory_order_relaxed)
-                      << " faults=" << context->faults.load() << '\n';
+   std::cerr << "cpu=" << context->metrics.read()
+             << "% xruns=" << context->metrics.underflows.load(std::memory_order_relaxed)
+             << " faults=" << context->faults.load() << '\n';
    for(int tick=0;tick<10&&!quit.load(std::memory_order_relaxed);++tick)std::this_thread::sleep_for(std::chrono::milliseconds(100));
  }}
  if(stop_producers)stop_producers(); // producers join/drain while render still owns its engine.
