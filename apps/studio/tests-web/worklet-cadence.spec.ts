@@ -5,10 +5,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
-const worklet = readFileSync(resolve(dirname(test.info().file), '../public/web/ws-processor.js'), 'utf8');
-
 for (const rate of [44100, 48000, 96000, 192000]) {
   test(`worklet telemetry at ${rate} Hz never exceeds 30 reports per audio second`, () => {
+    const worklet = readFileSync(resolve(dirname(test.info().file), '../public/web/ws-processor.js'), 'utf8');
     const events: { kind: string }[] = [];
     const heap = new ArrayBuffer(65536);
     const bytes = new Uint8Array(heap);
