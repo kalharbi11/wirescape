@@ -71,12 +71,51 @@ def find_task(root, issue):
 
 
 
+def visible_closing_issues(body):
+    """Yield actual top-level closing lines, not Markdown examples or comments."""
+    fence = None
+    html_comment = False
+    continuation = False
+    for line in (body or "").splitlines():
+        if fence:
+            if re.fullmatch(r" {0,3}" + re.escape(fence[0]) +
+                            "{" + str(fence[1]) + r",}[ \t]*", line):
+                fence = None
+            continue
+        if html_comment or "<!--" in line:
+            cursor = 0
+            while True:
+                marker = "-->" if html_comment else "<!--"
+                position = line.find(marker, cursor)
+                if position < 0:
+                    break
+                html_comment = not html_comment
+                cursor = position + len(marker)
+            continue
+        if not line.strip():
+            continuation = False
+            continue
+        if line.startswith(("    ", "\t")):
+            continue
+        opening = re.match(r" {0,3}(\x60{3,}|~{3,})", line)
+        if opening:
+            marker = opening.group(1)
+            fence = (marker[0], len(marker))
+            continue
+        if re.match(r" {0,3}(>|(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)", line):
+            continuation = True
+            continue
+        if not continuation:
+            match = re.match(r"(?i)^ {0,3}Closes[ \t]+#(\d+)\b", line)
+            if match:
+                yield int(match.group(1))
+
+
 def select_pr_task(root, pr_body):
     """Return (issue, task, note); fail closed for referenced unverified tasks."""
-    match = re.search(r"(?i)\bCloses\s+#(\d+)\b", pr_body or "")
-    if not match:
+    issue = next(visible_closing_issues(pr_body), None)
+    if issue is None:
         return None, None, "No Closes #N reference; acceptance not selected."
-    issue = int(match.group(1))
     if issue in LEGACY_EXCEPTIONS:
         return issue, None, (f"legacy exception — not verified: #{issue} "
                              f"({LEGACY_EXCEPTIONS[issue]}); this is not an acceptance pass")
