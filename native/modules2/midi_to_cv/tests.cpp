@@ -210,6 +210,34 @@ static void full_endpoint_channel_matrix() {
     for (uint32_t voice = 0; voice < 4; ++voice) REQUIRE(r.sample(1, voice) == 0);
 }
 
+static void last_note_mono_hold_and_restore() {
+    MidiRig<MidiToCv> r;
+    REQUIRE(r.d->output_count == 9);
+    const char* ids[] = {"pitch", "gate", "velocity", "aftertouch", "pressure", "bend", "mod", "notes", "last_note"};
+    for (uint32_t i = 0; i < 9; ++i) REQUIRE(std::strcmp(r.d->outputs[i].id, ids[i]) == 0);
+    r.values[0] = 4;
+    r.run();
+    REQUIRE(r.outputs[8].channels == 1 && r.sample(8) == 0);
+    r.run({midi1(0x90, 72, 127, 2), midi1(0x91, 67, 110, 8)});
+    REQUIRE(r.sample(8, 0, 1) == 0);
+    REQUIRE(r.sample(8, 0, 3) == 1.f);
+    REQUIRE(r.sample(8, 0, 9) == float(67 - 60) / 12.f);
+    REQUIRE(r.outputs[0].channels == 4); // mono history independent of poly outputs
+    r.run({midi1(0xe1, 0, 0), midi1(0x81, 67, 0), source_choke(1)});
+    REQUIRE(r.sample(8) == float(67 - 60) / 12.f); // note off, bend and source choke hold
+    r.values[8] = 1; // channel 1 only
+    r.run({midi1(0x91, 90, 127)}); // channel 2 is rejected
+    REQUIRE(r.sample(8) == float(67 - 60) / 12.f);
+    r.run({midi1(0x90, 48, 127)});
+    REQUIRE(r.sample(8) == -1.f);
+    r.run({midi1(0x90, 48, 0), source_choke(UINT32_MAX)});
+    REQUIRE(r.sample(8) == -1.f);
+    Bytes bytes; ws2_writer writer{sizeof(writer), &bytes, sink};
+    REQUIRE(r.d->save_state(r.instance, &writer) == WS2_OK);
+    Source ctx{&bytes, 0}; ws2_reader reader{sizeof(reader), &ctx, source, uint32_t(bytes.size())};
+    REQUIRE(r.d->load_state(r.instance, &reader) == WS2_OK);
+    r.run(); REQUIRE(r.sample(8) == 0); // restart/restore never persists transient last note
+}
 static void metadata_contract() {
     REQUIRE(MidiToCv::params.size() == 9);
     for (const auto& parameter : MidiToCv::params) REQUIRE(std::strcmp(parameter.id, "retrigger") != 0);
@@ -289,6 +317,7 @@ int main(int argc, char** argv) {
     full_endpoint_channel_matrix();
     metadata_contract();
     basic_and_steal();
+    last_note_mono_hold_and_restore();
     sustain_bend_expression();
     modes_state_and_bounds();
     graph_fixtures();
