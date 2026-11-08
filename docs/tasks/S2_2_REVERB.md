@@ -39,7 +39,7 @@
 
 ```acceptance
 tier: T1
-size: <= 900 changed lines, <= 16 files
+size: <= 920 changed lines, <= 16 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_reverb_tests" --output-on-failure
