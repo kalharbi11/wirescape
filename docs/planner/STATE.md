@@ -25,7 +25,7 @@ Keep this under 60 lines. History lives in git.
 
 ## Engine telemetry #350
 - Authority: docs/design/ENGINE_TELEMETRY.md and docs/tasks/T350_ENGINE_TELEMETRY.md.
-- #364 B-mod LFO phase: approval withdrawn/draft blocked; mandatory saved-patch bit-identical render case missing; regression being added.
+- #364 B-mod LFO phase: saved-patch bit-identical regression added/reviewed at 7f6514b; draft/blocked until fresh CI, approval withdrawn.
 - #352 waveform tail: reviewed; acceptance metadata fixed at 6bae69b; fresh CI before approval.
 - #353 30Hz cap: cadence-only T1, Refs #350, old proposal superseded at 3a5ec95; fresh CI before approval.
 - #363 A0 snapshots: blocked on Web restoration regression and acceptance browser bootstrap; exact review posted.
