@@ -186,6 +186,20 @@ class EditSoakTests(unittest.TestCase):
             result = soak.run(self.stub, .02, 278)
         self.assertEqual(result['performance_evidence']['faults'], 0)
 
+    def test_incomplete_bench_candidate_fails_even_when_it_is_the_only_record(self):
+        from types import SimpleNamespace
+        good = b'bench blocks=1000 p50=1 p99=2 max=3.5 overruns=0 faults=0'
+        for raw in (good, b'bench ' + b'x' * 2100 + b'\n'):
+            with self.subTest(bytes=len(raw)):
+                client = soak.Sidecar.__new__(soak.Sidecar)
+                client.process = SimpleNamespace(stderr=io.BytesIO(raw))
+                client.tail = bytearray()
+                client.bench_lines = []
+                client._stderr()
+                self.assertEqual(len(client.bench_lines), 1)
+                with self.assertRaises(soak.SoakFailure):
+                    soak.parse_bench(client.bench_lines, .02)
+
     def test_failure_cli_json_is_explicit_not_unavailable(self):
         with self.engine('missing-bench'):
             output = io.StringIO()
