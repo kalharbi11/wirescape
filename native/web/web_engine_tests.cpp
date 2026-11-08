@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <sstream>
@@ -210,6 +211,14 @@ int main(int argc, char **argv) {
     }
     std::printf("wsw_telemetry 100 frames: %lld us total; %.2f us/sample (native Web CI)\n",
                 static_cast<long long>(telemetry_cost.count()), telemetry_cost.count() / 100.);
+    // CTest hides successful stdout: publish the same measured diagnostic to
+    // the existing Actions step summary, without changing protected CI jobs.
+    if (const char *summary = std::getenv("GITHUB_STEP_SUMMARY")) {
+        std::ofstream report(summary, std::ios::app);
+        report << "Native `wsw_telemetry` JSON: " << telemetry_cost.count()
+               << " us / 100 frames, " << telemetry_cost.count() / 100.
+               << " us/sample (diagnostic; not a threshold).\n";
+    }
 
     std::printf(failures ? "web_engine_tests: %d failure(s)\n" : "web_engine_tests: ok\n", failures);
     return failures ? 1 : 0;
