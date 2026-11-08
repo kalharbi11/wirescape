@@ -29,14 +29,21 @@ Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure 
 
 ## Shared CPU evidence and modules
 - #367 shared probe extracted; review found channel0-only/NaN masking. Repaired to scan all channels/count nonfinite faults.
-- #367 current signed branch handoff is authoritative: full block-count/duration checks, named output bounds and authored static fixes pushed.
-- 7 Python tests and strict local C++17 output regression pass. Independent follow-up/fresh hosted checks required; no Pi timing claim.
+- #367 6293abd: independent reviews clean, functional+authored static checks green; approved/auto-merge enabled, GitHub still blocked.
+- #367 inherited note_to_cv parser failure is tracked #361; Compass/Keel asked to inspect remaining merge gate (protection unreadable via integration).
 - After #367 merges, integrate probe into effects and Spectral without duplicate targets/helpers; run specified Pi timing.
 - #348 reverb be3c306: freeze precision fix independently reviewed; hosted checks pass, Pi CPU evidence still required.
 - #304 Spectral 38b2c24: hop-aligned :32 stress and integration fixed; hosted native/Web gates green; exact-head pi5 and pi5/accept success posted.
 - #304 Pi attempt2 shares old poll run URL; verify commit status/head, not the old-head handoff. Worst stress 1.023ms/2.667ms period.
-- #345 Delay 99b7eaf, #344 Resonator 06d5ede, #323 Quantizer a65a70a: verify current fixes/reviews/acceptance; do not repeat old findings blindly.
-- #346 oscillator UI 48aec95: hosted checks green, independent reviews clean; author Self-review checklist requested before approval.
+- #323 Quantizer: visibility/catalogue/acceptance repaired and reviewed at fe5d1db; new-head hosted tests pending (local UI proxy503).
+- #344 Resonator: authored static repair reviewed; full local tests pass and 62 render hashes match; final hosted/Pi evidence pending.
+- Effects task IDs corrected: fx.reverb, fx.delay, essentials.resonator --channels 8; no CPU threshold changed.
+- #346 oscillator UI: concurrent builder fixed both Lows at 6861ab1, self-review+independent review posted; fresh hosted checks pending.
+
+## New compatibility/probe follow-ups
+- #371/#370: NoteToCv emit callback-name collision repaired; local+independent macro-enabled identity tests pass, hosted ARM64/task pass, sanitizer pending.
+- #371 original header cppcheck error is gone; two inherited b.emit caller diagnostics remain #361. No analyzer/SDK suppression added.
+- #373/#372: requested probe polyphony (1..16) and channel evidence; stacked on #367, 8 Python tests pass, native smoke/hosted verification pending.
 
 ## Phase 2 engine queue
 - #301 audio recovery aba3042: authorized CMake repair present; ARM64/sanitizers/task acceptance green, no pi5 status yet.
