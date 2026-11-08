@@ -148,6 +148,9 @@ target_link_libraries(wirescape_app_engine PUBLIC wirescape_engine2 wirescape_en
 target_link_libraries(wirescape_cli PRIVATE wirescape_app_engine)
 
 # Device-free, deterministic benchmark shared by all built-in modules.
+add_executable(abi2_module_cpu_probe_output_tests tests/module_cpu_probe_output_tests.cpp)
+target_link_libraries(abi2_module_cpu_probe_output_tests PRIVATE wirescape_engine2)
+add_test(NAME abi2_module_cpu_probe_output_tests COMMAND abi2_module_cpu_probe_output_tests)
 add_executable(abi2_module_cpu_probe tests/module_cpu_probe.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(abi2_module_cpu_probe PRIVATE wirescape_app_engine)
 add_test(NAME abi2_module_cpu_probe_smoke COMMAND abi2_module_cpu_probe --module sound.blend --seconds 0.2)
