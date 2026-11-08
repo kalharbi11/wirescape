@@ -1,4 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// Compile the real helper with Qt's keyword macro in scope, before session.h includes it.
+#include <nlohmann/json.hpp>
+#define slots
+#include "../document/telemetry_taps.h"
+#undef slots
 #include "../io/audio/callback_render.h"
 #include "../io/audio/portaudio_service.h"
 #include "../tests2/allocation_watch.h"
