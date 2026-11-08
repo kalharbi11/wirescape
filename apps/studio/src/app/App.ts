@@ -1115,7 +1115,14 @@ export class App {
   private async loadBundledPatch(patch: PatchV2, name: string): Promise<void> {
     try { await window.wirescape?.openPatch({ library: 'reset' }); }
     catch { /* Save As below protects the previous native target if reset fails. */ }
-    await this.loadPatch(patch, name, true);
+    const loading = this.loadPatch(patch, name, true);
+    const loadedUi = this.doc.ui;
+    await loading;
+    // The wide, multi-row bundled graphs should open fully framed, not at 100%
+    // on their first leftmost module. Imported user patches keep their saved view.
+    requestAnimationFrame(() => {
+      if (this.doc.ui === loadedUi) this.canvas.fit();
+    });
   }
 
   private async openPatchBrowser(): Promise<void> {
