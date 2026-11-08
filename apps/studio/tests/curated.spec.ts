@@ -53,11 +53,12 @@ test('curated collection is eight independent, valid v2 patches with no replaced
         expect(Math.abs(connection.amount ?? 2)).toBeLessThanOrEqual(1);
       }
     }
-    expect(patch.outputs.map(r => r.bus_channel)).toEqual([0, 1]);
-    expect(patch.outputs.every(r => r.port === 'audio'
+    const routes = patch.outputs ?? [];
+    expect(routes.map(r => r.bus_channel)).toEqual([0, 1]);
+    expect(routes.every(r => r.port === 'audio'
       && modules.get(r.module)?.module === 'essentials.output')).toBe(true);
     if (starter.id === 'hollow-chapel') {
-      expect(patch.outputs[0]!.module).not.toBe(patch.outputs[1]!.module);
+      expect(routes[0]!.module).not.toBe(routes[1]!.module);
       for (const side of ['left', 'right']) {
         expect(patch.connections.some(c => c.kind === 'signal'
           && c.from.module === 1 && c.from.port === side)).toBe(true);
