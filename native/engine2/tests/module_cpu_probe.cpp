@@ -200,9 +200,9 @@ int main(int argc, char **argv) {
                 "\"block\":%u,\"channels\":%u,\"seconds\":%g,"
                 "\"blocks\":%zu,\"render_ns\":{\"max\":%lld,\"p99\":%lld},\"period_ns\":%.0f,\"allocations\":%zu,"
                 "\"faults\":%zu,\"peak\":%.6g,\"params\":\"%s\",\"alternate\":\"%s\"}\n",
-                id.c_str(), instances, rate, block, channels, seconds, blocks, (long long)worst,
-                (long long)p99, 1e9 * block / rate, allocations, faults + output_evidence.faults,
-                output_evidence.peak, settings_text.c_str(),
+                id.c_str(), instances, rate, block, channels, seconds, blocks, (long long)worst, (long long)p99,
+                1e9 * block / rate, allocations, faults + output_evidence.faults, output_evidence.peak,
+                settings_text.c_str(),
                 alternate_id.empty() ? ""
                                      : (alternate_id + "=" + std::to_string(alternate_a) + ":" +
                                         std::to_string(alternate_b) + ":" + std::to_string(alternate_every))
