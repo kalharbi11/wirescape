@@ -16,7 +16,7 @@ test('review recording, screenshots and frame samples', async ({ page, browser }
   page.on('pageerror', e => errors.push(e.message));
   await boot(page);
   environment.display = await page.evaluate(() => ({ width: screen.width, height: screen.height, dpr: devicePixelRatio, viewport: [innerWidth, innerHeight], userAgent: navigator.userAgent }));
-  for (const id of ['sequence', 'macro', 'drone']) {
+  for (const id of ['witching-hour', 'vowel-apparitions', 'dust-reactor']) {
     await page.evaluate(id => {
       const a = window.__wirescapeTest;
       const s = a.starters.find((s: { id: string }) => s.id === id);
@@ -25,12 +25,12 @@ test('review recording, screenshots and frame samples', async ({ page, browser }
     await settle(page, 20);
     await page.screenshot({ path: info.outputPath(`${id}.png`) });
     // Exercise each signature control in the recording.
-    if (id === 'sequence') await page.getByTestId('step-gate-2-2').click();
-    if (id === 'macro') {
+    if (id === 'witching-hour') await page.getByTestId('step-gate-2-2').click();
+    if (id === 'vowel-apparitions') {
       const bank = page.locator('.model-bank');
       await bank.getByRole('radio').nth(7).click();
     }
-    if (id === 'drone') await page.getByTestId('fader-thumb-3-level_a').press('ArrowUp');
+    if (id === 'dust-reactor') await page.getByTestId('fader-thumb-3-level_a').press('ArrowUp');
     await settle(page, 20);
   }
   const samples = [];
@@ -38,7 +38,7 @@ test('review recording, screenshots and frame samples', async ({ page, browser }
     if (workload === 'signal-drone') {
       await page.evaluate(() => {
         const a = window.__wirescapeTest;
-        const starter = a.starters.find((s: { id: string }) => s.id === 'drone');
+        const starter = a.starters.find((s: { id: string }) => s.id === 'dust-reactor');
         a.load(starter.patch(), starter.name); a.noteOn(60);
       });
     } else {
@@ -99,8 +99,8 @@ test('review recording, screenshots and frame samples', async ({ page, browser }
             allFocused = allFocused && document.hasFocus();
             if (signalBearing) {
               const telemetry = a.ticker.last;
-              const meters = telemetry?.meters[5] as [number, number] | undefined;
-              const scope = telemetry?.scope[5] as Float32Array | undefined;
+              const meters = telemetry?.meters[6] as [number, number] | undefined;
+              const scope = telemetry?.scope[6] as Float32Array | undefined;
               if (meters?.some(value => value > 0.001)) activeMeterFrames++;
               if (scope?.some(value => Math.abs(value) > 0.001)) activeScopeFrames++;
               // Count changed waveform buffers, not repeated browser frames
@@ -130,7 +130,7 @@ test('review recording, screenshots and frame samples', async ({ page, browser }
           allVisible, allFocused, visibilityInterruptions, focusInterruptions,
           applyMs: sum / intervals.length, fps: a.fps(),
           modules: state.modules.length, cables: state.connections.length,
-          outputModule: signalBearing ? state.modules.find((m: { id: number }) => m.id === 5)?.module : undefined,
+          outputModule: signalBearing ? state.modules.find((m: { id: number }) => m.id === 6)?.module : undefined,
           activeMeterFrames, activeScopeFrames, scopeUpdates,
         };
       }, { piRun, signalBearing: workload === 'signal-drone' });
@@ -146,7 +146,7 @@ test('review recording, screenshots and frame samples', async ({ page, browser }
   expect(samples).toHaveLength(8);
   for (const sample of samples) {
     const condition = `${sample.workload} / ${sample.profile} / ${sample.zoom}`;
-    expect([sample.modules, sample.cables], condition).toEqual(sample.workload === 'stress-20-40' ? [20, 40] : [6, 5]);
+    expect([sample.modules, sample.cables], condition).toEqual(sample.workload === 'stress-20-40' ? [20, 40] : [9, 9]);
     if (sample.workload === 'signal-drone') {
       expect(sample.outputModule, condition).toBe('essentials.output');
       expect(sample.activeMeterFrames, `${condition}: Output meters carry signal`).toBeGreaterThan(0);
