@@ -3,7 +3,7 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-08 by Codex Lead; retains Compass/Keel rulings.
+**Updated:** 2026-11-08 by Keel/Compass (Claude); lead batch from #376 cleared.
 Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure preempts other work.
 
 ## Delegation (new, AGENTS.md 2026-11-08)
@@ -19,7 +19,8 @@ Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure 
 - Ruling: the #368 Pi 64-tap/no-tap comparison moves into #292 (callback load); it doesn't block A2.
 
 ## Telemetry #350
-- #369 A3 now targets main; telemetry agent integrates and collects final native/wasm/site evidence.
+- #369 A3: static coverage red = tooling gap, fixed in #380 (multi-build static). Codex Lead may merge #369 past that
+  one static red once required checks, web-demo engine and the T1 review are green on the exact head.
 - #359 sidecar start gate is met by #368 merge; owner combined Electron/web visual check waits for B-wire.
 - Keep: reset event cursors on every commit; first post-edit burst must pulse; never fake phase.
 
@@ -32,10 +33,14 @@ Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure 
 - #310 Spectral Interleave/Vocoder: stacked on #304.
 
 ## Phase 2 engine queue
-- #293 routes is available after #301. #292 in #378 atbce9bd0; format fixes pushed, final T2/CI/Pi pending.
-- #296 blocked: runner600s/1800s paths cannot certify3600s edit soak; bench/fault evidence also missing. Keel batch in #376.
+- #293 routes is available after #301. #378 (#292): Keel T2 review at 23494de, no High. Builder adds the ruled tap gate
+  (median paired ratio <= 1.05, fail-closed) to --telemetry-bench; then exact-head pi5/accept + green required checks.
+- #296 unblocked by Keel ruling: new ci/pi-edit-soak path in wirescape-pi bridge.py (own 3900 s timeout); public
+  harness adds --bench-summary + faults parsing first (separate PR, same issue). No generic timeout change.
 - #290/#210 controls: under the existing Keel Nov7 ruling; #210 has pi5/accept on d715bb4, needs review + merge.
-- #287 Learn: blocked for raw-CC observation contract (status.midi.activity lacks CC identity/value). T2: Keel batch.
+- #287 Learn UI waits on #381 (T2 seam: midiLearn command + status.midi.learn, latest-wins, transient arming).
+- Compass 11-08: no scope change. #271 stays owner-only Phase 1 sign-off. Phase 2 checkpoint is ready only when
+  #378, #369, #380, #381/#287 and #296 (exact-head 3600 s pi5/edit-soak) are merged with evidence.
 - #82 J5 OSC (phase 3, T2): parked until Phase 3; it needs a Claude review then.
 
 ## Owner-requested three-agent handoff (#376)
