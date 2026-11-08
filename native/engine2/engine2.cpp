@@ -920,9 +920,7 @@ bool Engine::reconfigure(uint32_t node,const std::vector<uint8_t>&config){
     for(const auto&t:old.taps){
         const auto*prior=old.find(t.node);const auto*target=fresh.find(t.node);
         const char*id=t.kind==Tap::Param?prior->parameters[t.index].id:prior->outputs[t.index].id;
-        const auto&ports=t.kind==Tap::Param?target->parameters:target->outputs;
-        uint32_t index=UINT32_MAX;
-        for(uint32_t i=0;i<ports.size();++i)if(!std::strcmp(ports[i].id,id)){index=i;break;}
+        const uint32_t index=t.kind==Tap::Param?index_of(target->parameters,id):index_of(target->outputs,id);
         if(index==UINT32_MAX)return old.fail("Reconfiguration removes telemetry tap endpoint");
         auto mapped=t;mapped.index=index;remapped.push_back(mapped);
     }
