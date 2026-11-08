@@ -13,6 +13,7 @@ const double kTwoPi = 6.283185307179586;
 struct Arena {
     std::vector<unsigned char> bytes = std::vector<unsigned char>(4u << 20);
     size_t used = 0;
+    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters) -- ws2_host allocator ABI fixes size/alignment order.
     static void *WS2_CALL alloc(void *context, size_t size, size_t alignment, uint32_t) {
         auto &a = *static_cast<Arena *>(context);
         const uintptr_t base = reinterpret_cast<uintptr_t>(a.bytes.data());
@@ -223,7 +224,10 @@ void test_approximations() {
     }
     std::printf("approx: log2 %.2g, exp2 %.2g, atan2 %.2g rad, sincos %.2g\n", log_err, exp_err, atan_err, trig_err);
     REQUIRE(log_err < 2e-5 && exp_err < 2e-5 && atan_err < 2e-5 && trig_err < 4e-6);
-    REQUIRE(spectral::approx::atan2(0, 0) == 0);
+    // Call the Wirescape approximation through a typed local: cppcheck otherwise mistakes
+    // this guarded zero/zero contract for the C library's implementation-defined atan2(0,0).
+    const auto approximation = &spectral::approx::atan2;
+    REQUIRE(approximation(0, 0) == 0);
 }
 
 void test_fft_matches_dft() {
