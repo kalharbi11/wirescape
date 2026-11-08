@@ -45,9 +45,10 @@ For headphone listening, start with a low output volume.
   audio smoke test depends on it.
 - Five old generic interactive starters (**Two-source drone**, **Clocked random**,
   **Eight-step sequence**, **Macro voice**, **CHAOS-lite**) were replaced in the
-  interactive list. The frozen `native/document/ui_starters.json` fixture
-  remains unchanged for legacy engine conformance testing. User patch folders,
-  legacy examples and archived material are not deleted.
+  interactive list. The generated `native/document/ui_starters.json` fixture
+  now mirrors the fifteen active starters, so the native runtime conformance test
+  also loads and renders the new patches. User patch folders, legacy examples
+  and archived material are not deleted.
 
 The patch format, module IDs, native engine, DSP, WebAssembly audio path and
 session-file semantics are unchanged. For a sound check, listen to the pads on
