@@ -202,10 +202,10 @@ class AcceptanceTests(unittest.TestCase):
             "For example: Closes #384",
             "> Closes #384",
             "> an example\nCloses #384",  # lazy block-quote continuation
-            "- Closes #384",
+            "- \x60Closes #384\x60",
             "- an example\nCloses #384",  # lazy list continuation
             "- an example\n<!-- context -->\nCloses #384",
-            "1. Closes #384",
+            "1. \x60Closes #384\x60",
             "    Closes #384",
             "\tCloses #384",
             "\x60\x60\x60markdown\nCloses #384\n\x60\x60\x60",
@@ -225,10 +225,12 @@ class AcceptanceTests(unittest.TestCase):
         directory.mkdir(parents=True)
         actual = directory / "real.md"
         actual.write_text(task(["python -c 'pass'"]).replace("#85", "#114"), encoding="utf-8")
-        examples = ("> Closes #384\n\n- Closes #384\n\n"
+        examples = ("> Closes #384\n\n- \x60Closes #384\x60\n\n"
                     + "\x60\x60\x60markdown\nCloses #384\n\x60\x60\x60\n\n"
                     + "<!-- Closes #384 -->\n\n<!--\nCloses #384\n-->\n\n")
         for real in ("Closes #114", "closes #114.", "   ClOsEs #114 (implementation)",
+                     "This closes #114.", "- Closes #114", "1. Closes #114",
+                     "- This closes #114", "The change <!-- context --> closes #114.",
                      "Closes #114 <!-- context -->",
                      "Closes #114 <!-- context\nstill context -->",
                      "<!-- context\nstill context --> Closes #114"):
