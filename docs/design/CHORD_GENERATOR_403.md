@@ -1,23 +1,24 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # CHORD-403: incoming-note chord generator — proposed contract (design only)
 
-Status: **proposal for Keel/Codex Lead review**, 2026-11-08. No DSP,
-catalogue, panel or ABI implementation is authorized by this note. This is
+Status: **product surface confirmed by Codex Lead; technical contract pending Keel**,
+2026-11-08. No DSP, catalogue, panel or ABI implementation is authorized by this note. This is
 an event transformer, **not** a chord-pattern sequencer or an Ableton clone.
 It is independent of #401's 16-step sequencer and #404's parameter cap.
 
-## Public surface to confirm
+## Public surface (product IDs confirmed; implementation still gated)
 
-- Proposed stable module ID: `essentials.chord`; display name: **Chord**.
-  Confirm this exact ID before publishing a manifest or saved patch.
+- Confirmed stable module ID: `essentials.chord`; display name: **Chord**.
+  Do not publish a manifest or saved patch before the Keel technical gate.
 - One `notes` input and one `notes` output, both `WS2_EVENT` with
   `WS2_EV_NOTES` hint and `WS2_POLY` semantics; no signal/CV ports in v1.
 - Eight stable stepped, automatable parameters in this proposed order:
   `enable1`, `shift1`, ..., `enable4`, `shift4`. Each enable is
   0/1; each shift is an integer semitone offset in [-24,+24].
   Defaults: (on,+4), (on,+7), (off,+12), (off,-12).
-  The untransposed root is **always** present, so defaults sound three
-  notes (0,+4,+7), and enabling the other slots yields four or five.
+  The untransposed root is **always** present; defaults sound three
+  notes (0,+4,+7). Disabled or out-of-range shifts mean **1–5** emitted
+  notes including the root, not an unconditional 3–5.
 - Parameter changes apply only to **subsequent NOTE_ONs**. Each activation
   snapshots its actual emitted pitches; a held chord is not retuned.
   Duplicate offsets, including zero, deliberately create separate voices
@@ -37,12 +38,14 @@ It is independent of #401's 16-step sequencer and #404's parameter cap.
   channel. Each output note receives a unique nonnegative `note_id` from
   a bounded module-local sequence, not the input ID. Store the actual
   emitted (key, output note_id, source_id, channel) per input activation.
-- Match a positive input `note_id` by (source_id, channel, note_id).
-  For anonymous negative IDs, track activations by (source_id, channel,
-  key) and consume matching repeated NOTE_OFFs in a deterministic LIFO
-  order. Repeated NOTE_ONs are distinct activations, not a pitch toggle.
-  A late NOTE_OFF for a retired/stolen activation must not release a
-  newer activation with the same pitch.
+- Match a **nonnegative** input `note_id` (including valid ID **0**) by
+  (source_id, channel, note_id). For anonymous negative IDs, a candidate
+  policy tracks (source_id, channel, key) and consumes repeated NOTE_OFFs
+  in LIFO order. Repeated NOTE_ONs are distinct activations, not toggles.
+  **Keel stop:** anonymous same-pitch late offs and reuse of an explicit
+  identity cannot be distinguished from newer activations by the current
+  event fields alone. Do not promise late-off isolation; rule on identity
+  reuse, retirement/tombstones and the documented ambiguity first.
 - On `WS2_NOTE_OFF`, emit one off per **actually emitted** output voice,
   at the input offset, with its stored ID/key/channel/source_id. Releases
   precede any replacement attacks at equal sample offsets. Ignore
@@ -66,7 +69,7 @@ It is independent of #401's 16-step sequencer and #404's parameter cap.
 
 ## Bounded failure policy to validate
 
-- Candidate capacity: at most **16 active input activations** and five
+- Candidate capacity: at most **16 active input activations** and **1–5**
   emitted notes per activation (80 voices maximum); fixed arrays and
   bounded scans, no process allocation, locks, I/O or unbounded retries.
   This capacity is proposed, not a guaranteed host voice limit.
@@ -90,13 +93,21 @@ It is independent of #401's 16-step sequencer and #404's parameter cap.
 | Test | Required observation |
 |---|---|
 | Major root 60 | `NOTE_ON` keys 60/64/67 at identical sample offset and velocity; three distinct output IDs; matching three offs |
-| Minor/custom | shifts -3/+7, enabled slots 3–4, negative and high-key out-of-range omissions; exactly 3–5 in-range voices including root |
-| Identity | two sources, channels 0/15, repeated root and anonymous IDs, shared output pitches, LIFO offs; no cross-release |
+| Minor/custom | shifts -3/+7, enabled slots 3–4, negative and high-key out-of-range omissions; 1–5 emitted voices including root |
+| Identity | input ID 0, two sources, channels 0/15, repeated root, shared pitches and anonymous IDs; no cross-source release, explicit tests for Keel-ruled late-off/reuse ambiguity |
 | Held edits | change enable/shift while held; old pitches release exactly, next activation uses new settings |
 | Choke/reset | targeted and wildcard choke, reset, stop, graph removal, patch reload; no stranded voices or false resurrection |
 | Capacity | refuse first/middle/later note-on, refuse releases over multiple blocks, exhaust activation slots, retry with off priority |
 | Realtime | 1/17/128/max frames, 44.1/48/96 kHz, no allocations in `process`, bounded work and deterministic output |
-| Integration | keyboard -> Chord -> MIDI-to-CV/allocator -> instrument; Step Sequencer `notes` -> Chord; FakeEngine catalogue/panel and save/reload |
+| Integration | keyboard/Step Sequencer `notes` -> Chord -> **approved production Notes-to-CV poly allocator** -> instrument; FakeEngine catalogue/panel and save/reload; no claim that existing MIDI-to-CV accepts note events |
+
+**Playable-polyphony stop:** `native/modules2/midi_to_cv/dsp.h` accepts
+`WS2_MIDI`, not Chord's `WS2_NOTE_ON/OFF`. The existing `NotesToCv` in
+`native/tests2/test_modules.h` is test-only; VCO `notes` uses channel
+assignment rather than allocating chord voices. Keel must select a separately
+scoped production Notes-to-CV voice allocator/adapter (prefer reuse of
+`native/voice/NoteToCv`) or an independently reviewed alternative before
+claiming the chord chain sounds multiple notes. No adapter is added here.
 
 Native proposed targets: `abi2_chord_tests` (callback sink, deterministic
 event sequences) and `abi2_chord_engine_tests` (real engine routing,
@@ -114,9 +125,12 @@ Document patch wiring explicitly; do not claim these paths are equivalent.
 1. **Keel:** approve or revise the source_id/note_id fan-in namespace,
    anonymous matching, expression forwarding, release queue and 16/80
    capacity. If this needs engine/ABI/protocol work, stop and split T2.
-2. **Codex Lead/Compass:** confirm `essentials.chord`, the two `notes`
-   ports, eight IDs/ranges/defaults, duplicate and out-of-range policy.
-3. After these rulings, open a separate bounded implementation task/PR
+2. **Codex Lead:** product ID, two `notes` ports, eight controls/defaults,
+   duplicate and out-of-range policy confirmed in PR #406 comment 6722798879;
+   no extra quality/preset control is approved in this design slice.
+3. **Keel:** select the playable Notes-to-CV poly adapter path and its
+   separate scope; do not conflate the current MIDI-to-CV with a note allocator.
+4. After these technical rulings, open a separate bounded implementation task/PR
    with native deterministic tests first, then manifest/UI/FakeEngine
    coverage and the normal T1 different-session review.
 
