@@ -80,6 +80,42 @@ test('LFO trace moves with telemetry instead of an independent animation', async
   await expect(page.getByTestId('wave-1')).not.toContainText('not available');
 });
 
+test('LFO reference curve does not twitch when output changes without phase', async ({ page }) => {
+  await boot(page);
+  await loadDisplays(page);
+  await page.evaluate(() => window.__wirescapeTest.zoomTo(1));
+  await settle(page);
+  // Stop FakeEngine's clock: only the injected telemetry may change the display.
+  await page.evaluate(() => window.__wirescapeTest.engine.stop());
+  const push = async (phase: number | null, output: number) => {
+    await page.evaluate(({ phase, output }) => {
+      const ticker = window.__wirescapeTest.ticker;
+      const last = ticker.last;
+      ticker.push({
+        tick: (last?.tick ?? 0) + 1, time: (last?.time ?? 0) + 0.1,
+        effective: {}, phase: phase === null ? {} : { 1: phase },
+        envelope: {}, meters: {}, scope: {}, eventActivity: {},
+        outputs: { '1:control': output }, heldNotes: [],
+      });
+    }, { phase, output });
+    await settle(page);
+  };
+  const wave = page.getByTestId('wave-1');
+  const pixels = () => wave.locator('canvas').evaluate(c => (c as HTMLCanvasElement).toDataURL());
+
+  await push(null, -0.9);
+  const withoutPhase = await pixels();
+  await push(null, 0.9);
+  expect(await pixels()).toBe(withoutPhase);
+  await expect(wave).toContainText('phase not available');
+
+  await push(0.25, 1);
+  const phaseQuarter = await pixels();
+  await push(0.75, -1);
+  expect(await pixels()).not.toBe(phaseQuarter);
+  await expect(wave).not.toContainText('phase not available');
+});
+
 test('scope head spans a whole cycle at slow and fast LFO rates', () => {
   // An elapsed phase is independent of rate: 0..1 maps to one complete
   // oscillation at the newest end, not to the first half of a two-cycle view.
