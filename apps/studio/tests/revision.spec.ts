@@ -119,6 +119,19 @@ test('FakeEngine disconnect clears the VCF graph and knob within one telemetry t
   expect(await page.evaluate(() => window.__wirescapeTest.ticker.last?.effective[2]?.cutoff))
     .toBeDefined();
 
+  // Even with the cable still attached, a missing effective key is unavailable.
+  await page.evaluate(() => {
+    const ticker = window.__wirescapeTest.ticker;
+    ticker.push({ ...ticker.last, tick: ticker.last.tick + 1, effective: {} });
+  });
+  await settle(page, 1);
+  expect(await pixels()).toBe(base);
+  expect(await knob.getAttribute('data-live')).toBe('1000');
+  // One genuine engine tick restores the live value before disconnecting.
+  await page.evaluate(() => window.__wirescapeTest.engine.step());
+  await settle(page, 1);
+  expect(await pixels()).not.toBe(base);
+
   await page.evaluate(c => {
     const api = window.__wirescapeTest;
     api.engine.disconnect(c); api.doc.disconnect(c);
