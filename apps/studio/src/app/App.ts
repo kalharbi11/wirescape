@@ -398,7 +398,7 @@ export class App {
 
   // ---- patch lifecycle --------------------------------------------------
 
-  async loadPatch(patch: PatchV2, name = 'Untitled'): Promise<void> {
+  async loadPatch(patch: PatchV2, name = 'Untitled', forceSaveAs = false): Promise<void> {
     this.ticker.resetTelemetry();
     this.doc.replace(patch);
     this.patchName = name;
@@ -424,7 +424,7 @@ export class App {
     this.history?.reset();
     this.autosave(true);
     this.pasteCount = 0;
-    this.bundledPatch = false;
+    this.bundledPatch = forceSaveAs;
     try { await running; }
     catch (e) { this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error'); }
   }
@@ -1114,8 +1114,7 @@ export class App {
   private async loadBundledPatch(patch: PatchV2, name: string): Promise<void> {
     try { await window.wirescape?.openPatch({ library: 'reset' }); }
     catch { /* Save As below protects the previous native target if reset fails. */ }
-    await this.loadPatch(patch, name);
-    this.bundledPatch = true;
+    await this.loadPatch(patch, name, true);
   }
 
   private async openPatchBrowser(): Promise<void> {
