@@ -23,6 +23,17 @@ test('web demo starts the wasm engine, loads the starter and makes sound', async
   expect(errors).toEqual([]);
 });
 
+
+// The clock and sequencer are self-running: no computer key or MIDI event is needed.
+test('web demo plays a curated step progression immediately after loading', async ({ page }) => {
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await page.getByTestId('starter-select').selectOption('witching-hour');
+  await expect(page.getByTestId('patch-name')).toContainText('Witching Hour');
+  await expect.poll(() => peak(page), { timeout: 15_000 }).toBeGreaterThan(0.001);
+});
+
 test('web demo refuses MIDI modules without breaking the live patch', async ({ page }) => {
   await page.goto('./');
   await page.getByTestId('web-start').click();
