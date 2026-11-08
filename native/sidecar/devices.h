@@ -20,7 +20,11 @@ class ObservedMidi final : public midi::Backend {
     std::unique_ptr<midi::Backend> backend_;
     std::array<Slot, 16> slots_{};
     // One latest-wins observation; no queue, callbacks never allocate or lock.
-    static_assert(std::atomic<uint64_t>::is_always_lock_free, "MIDI Learn requires a lock-free packed atomic");
+    static_assert(std::atomic<uint64_t>::is_always_lock_free &&
+                      std::atomic<uint32_t>::is_always_lock_free &&
+                      std::atomic<uint8_t>::is_always_lock_free &&
+                      std::atomic<bool>::is_always_lock_free,
+                  "MIDI Learn callback atomics must all be lock-free");
     std::atomic<bool> learn_armed_{false};
     std::atomic<uint64_t> learn_packet_{0};
     std::atomic<uint32_t> learn_sequence_{0};
