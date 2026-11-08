@@ -3,23 +3,15 @@
 
 Owner decision, 2026-11-07: a module-building lane runs now, beside Phase 2, until Monday 2026-11-09 06:00 and then as normal Track S work. **Compass plans and reviews; Codex builds most modules; Compass/subagents take small or stuck items.** It never preempts a #271 owner failure or a Phase 2 critical-path fix. Keep this file short; history lives in git.
 
-## Overview: every module item (2026-11-07 21:00 UTC; pick from the top, one issue = one branch `task/<issue#>-<slug>` = one PR)
-| Item | Module / work | State | Next action (anyone may take it) |
-|---|---|---|---|
-| #315 / PR #323 | `essentials.quantizer` | built, required CI green, **unreviewed**; conflicts with main since #329 merged | merge main in, set module count 22→23, then a T1 review from a session other than Compass |
-| #314 | `fx.delay` | built locally in the Compass session (`ab154ad`), **not on GitHub** | owner allows the push to `task/314-delay`, or a builder rebuilds from `docs/tasks/S2_1_DELAY.md` (claim is stale after 6 h) |
-| #316 | `fx.reverb` | unclaimed | build from `docs/tasks/S2_2_REVERB.md` |
-| #317 | `essentials.resonator` (CHAOS R1) | unclaimed | build from `docs/tasks/CHAOS_R1_RESONATOR.md` |
-| #304 | `sound.spectral` A | audit fixed; waits for `pi5/accept` and a T1 review | check that the pi5 run happened; review |
-| #305 / PR #310 | `sound.spectral` B | draft, stacked on #304 | after #304: merge main in, repeat gates |
-| #328 / PR #329 | `sound.blend` | **merged** | owner listening note |
-| #332 | `sound.cross_mod` | unclaimed | build from the S1 file, row 3, and #332 |
-| OSC-1 (#337) | Macro Oscillator `gate` input | ruled, ready | `docs/tasks/OSC_TUNING_GATE.md` §OSC-1 (T2, Keel reviews) |
-| OSC-2 (#337) | VCO/Macro honest tuning labels + musical dial | ruled, ready | same file, §OSC-2 (UI only) |
-| OSC-3 (#337) | live effective-frequency readout | blocked on #143 (3A telemetry) | same file, §OSC-3 |
-| #307 | `latency_frames()` re-query at replan | waits on Keel | not a Spectral release blocker (ruled in #304) |
-| later | R2 Waveshaper | after the owner hears the Resonator | Compass writes the brief |
-| later | S1-4 Waveset, S1-5 Shaper, S1-6 Grains; S2 EQ, compressor | after Cross Mod / Reverb | briefs from the S1 file / Compass |
+## Queue (pick from the top; one issue = one branch `task/<issue#>-<slug>` = one PR)
+| # | Module ID | Name | Task file | Why now | Depends on |
+|---|---|---|---|---|---|
+| 1 #314 | `fx.delay` | Delay | `docs/tasks/S2_1_DELAY.md` | Biggest jam value per line of code; the Pi patches are dry | none (CPU probe line waits for #304) |
+| 2 #315 | `essentials.quantizer` | Quantizer | `docs/tasks/MOD_QUANTIZER.md` | Small; turns LFO/Random/Chaos into melodies | none |
+| 3 #316 | `fx.reverb` | Reverb | `docs/tasks/S2_2_REVERB.md` | Second effect; shares the stereo-in/out pattern with #1 | none; reuse #1's patterns if merged |
+| 4 #317 | `essentials.resonator` | Resonator | `docs/tasks/CHAOS_R1_RESONATOR.md` | **CHAOS rebuild step 1**: the body as a playable module | none |
+| 5 #318 | `sound.blend` | Blend | `docs/tasks/S1_CONJUNCTIONS_MODULES.md` (#2) | Next S1 process | #304 merged (two-source conventions) |
+| — | `sound.spectral` | Spectral | #302/#304, #305/#310 | in flight | — |
 
 Not queued yet (and why): S3 sample buffer + Sampler (T2, needs a Keel ruling first); MIDI Out/Clock (engine output path, T2); CHAOS-lite custom panel (waits for the owner's redesign); `ports.*` third-party ports (licence/dependency work, Phase 5); GUTTUR (on hold).
 
@@ -38,8 +30,5 @@ R1 **Resonator** (the three-comb body, now) → R2 **Waveshaper** (after R1 is h
 
 ## Status (update in the PR that changes it)
 - 2026-11-07: lane opened; issues #314–#318 filed for rows 1–5 (Compass).
-- 2026-11-07 16:00 UTC (Compass check-in): #315 Quantizer → PR #323, CI green on the required jobs, needs a different-session T1 review. #314 Delay is being built by a Compass subagent (nobody had claimed it). #316 Reverb and #317 Resonator are unclaimed (asked Codex Lead). #304 Spectral is fixed after the audit and waits for `pi5/accept`. #318 Blend waits on #304.
-- 2026-11-07 19:00 UTC (Compass): #329 Blend reviewed (no High/Medium) and approved; #318 closed as a duplicate of #328. #314 Delay is built locally (`ab154ad`), not pushed: this session has one push branch, held by #323. #323 asked the sound-kit builder for a T1 review. #316 and #317 still unclaimed. #332 Cross Mod filed.
-- 2026-11-07 21:00 UTC (Compass): overview rewritten; #337 oscillator notes ruled and split into OSC-1/2/3. Compass scheduled check-ins paused by the owner.
 
 Signed: Compass (Claude), 2026-11-07

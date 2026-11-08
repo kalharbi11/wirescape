@@ -25,7 +25,7 @@ std::vector<uint8_t> state_bytes(const Json&s){
  }return out;
 }
 }
-AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws_engine_config&config,std::string&error){
+AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws_engine_config&config,std::string&error,const std::vector<engine2::Tap>*telemetry_taps){
  try{
   need(bytes.size()<=RuntimePatchLimit,"Patch exceeds 2 MiB limit");std::vector<std::set<std::string>> keys;
   auto callback=[&](int depth,Json::parse_event_t event,Json&value){need(depth<=64,"JSON nesting exceeds 64");
@@ -73,6 +73,7 @@ AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws
   }
   if(version==1){uint32_t output=id(patch.at("outputNode"));need(graph.output(output,0,0)&&graph.output(output,0,1),"Invalid output");}
   else{need(patch.at("outputs").is_array()&&!patch.at("outputs").empty(),"Missing outputs");for(const auto&o:patch.at("outputs")){uint32_t node=id(o.at("module"));need(o.at("bus_channel").is_number_integer(),"Invalid bus channel");int bus=o.at("bus_channel").get<int>();need(bus>=0&&bus<16&&graph.output(node,port(node,o.at("port").get<std::string>(),true),uint32_t(bus)),"Invalid output bus");}}
+  if(telemetry_taps)need(graph.set_telemetry_taps(*telemetry_taps),"Cannot configure telemetry taps");
   need(graph.prepare(),"Cannot prepare graph");
   for(const auto&m:modules){uint32_t node=id(m.at("id"));auto*d=nodes.at(node);const auto values=m.value(version==1?"values":"parameters",Json::object());need(values.is_object(),"Invalid parameters");
    for(auto it=values.begin();it!=values.end();++it){bool found=false;for(uint32_t p=0;p<d->parameter_count;++p){bool matches=version==1?it.key()==std::to_string(d->parameters[p].id):it.key()==app_engine_parameter_id(engine.get(),d->id,p);if(!matches)continue;need(it.value().is_number(),"Invalid parameter value");float v=it.value().get<float>();need(std::isfinite(v)&&app_engine_initialize_parameter(engine.get(),node,d->parameters[p].id,v)==WS_OK,"Parameter outside range");found=true;break;}need(version==1||found,"Unknown parameter ID");}

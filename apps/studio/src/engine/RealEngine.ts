@@ -9,7 +9,7 @@ import { EngineRefusal, type EngineClient, type EngineError, type Device, type S
 export interface WirescapeBridge {
   send(obj: Record<string, unknown>): void;
   onMessage(cb: (message: Record<string, unknown>) => void): () => void;
-  openPatch(): Promise<{ text: string; name: string } | null>;
+  openPatch(request?: { library: 'list' | 'read' | 'reset'; name?: string }): Promise<{ text: string; name: string } | null>;
   savePatch(text: string, options?: { saveAs?: boolean }): Promise<{ name: string } | null>;
   readonly platform: 'linux' | 'win32' | 'darwin';
   /** Set only by the web demo bridge (D14). */

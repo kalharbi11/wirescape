@@ -79,7 +79,7 @@ export class Fader {
     if (o.ticker) {
       this.unbind = o.ticker.bind(o.moduleId, t => {
         const v = t.effective[o.moduleId]?.[p.id];
-        if (v !== undefined) this.paintLive(v);
+        this.paintLive(v ?? this.o.getValue());
       });
     }
   }
