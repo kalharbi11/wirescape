@@ -143,8 +143,8 @@ test('SHARE puts the patch in a link that opens the same patch', async ({ page, 
   await page.goto('./');
   await page.getByTestId('web-start').click();
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
-  await page.getByTestId('starter-select').selectOption('black-ice-choir');
-  await expect.poll(() => modules(page)).toContain('2:essentials.chaos_lite');
+  await page.getByTestId('starter-select').selectOption('witching-hour');
+  await expect.poll(() => modules(page)).toContain('2:example.step_sequencer');
   const expected = await modules(page);
   await page.getByTestId('share-patch').click();
   await expect.poll(() => page.evaluate(() => location.hash)).toMatch(/^#p=/);
@@ -156,9 +156,8 @@ test('SHARE puts the patch in a link that opens the same patch', async ({ page, 
   await expect.poll(() => modules(other)).toEqual(expected);
   await expect.poll(() => other.evaluate(() => location.hash)).toBe('');
   await expect(other.getByTestId('share-patch')).toBeVisible();
-  await other.keyboard.down('a');
+  // The shared sequencer must resume without a keyboard or MIDI event.
   await expect.poll(() => peak(other), { timeout: 15_000 }).toBeGreaterThan(0.001);
-  await other.keyboard.up('a');
 });
 
 test('a malformed shared link falls back to the normal start', async ({ page }) => {
