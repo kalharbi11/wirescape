@@ -318,8 +318,11 @@ static void test_voices() {
 }
 
 // Deterministic pseudo-random walk plus a pulse train, for the matrix tests.
-static float walk(uint32_t voice, uint64_t frame) {
-    const double t = static_cast<double>(frame);
+struct WalkFrame {
+    uint64_t value;
+};
+static float walk(uint32_t voice, WalkFrame frame) {
+    const double t = static_cast<double>(frame.value);
     return static_cast<float>(std::sin(t * 0.013 + voice) * 0.9 + std::sin(t * 0.171 + 2 * voice) * 0.05);
 }
 static float pulse(uint64_t frame) { return (frame % 37) < 6 ? 1.f : 0.f; }
@@ -333,7 +336,7 @@ static Samples render(Rig &r, uint32_t total, RenderBlock block, uint64_t start 
     for (uint32_t done = 0; done < total;) {
         const uint32_t n = std::min(block.size, total - done);
         for (uint32_t c = 0; c < 4; ++c)
-            for (uint32_t i = 0; i < n; ++i) r.in[0][c][i] = walk(c, start + done + i);
+            for (uint32_t i = 0; i < n; ++i) r.in[0][c][i] = walk(c, {start + done + i});
         for (uint32_t i = 0; i < n; ++i) r.in[1][0][i] = pulse(start + done + i);
         REQUIRE(r.run(n) == WS2_OK);
         for (uint32_t p = 0; p < 2; ++p)
@@ -446,7 +449,7 @@ static void test_no_allocation() {
     r.connect_trigger(16);
     for (uint32_t c = 0; c < 16; ++c)
         for (uint32_t i = 0; i < 256; ++i) {
-            r.in[0][c][i] = walk(c, i);
+            r.in[0][c][i] = walk(c, {i});
             r.in[1][c][i] = pulse(i);
         }
     allocation_watch::Scope watch;
