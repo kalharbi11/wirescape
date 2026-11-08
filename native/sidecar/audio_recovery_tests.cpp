@@ -8,12 +8,15 @@
 namespace fake {
 std::vector<wirescape::audio::Device> outputs;
 std::vector<std::string> attempts;
-bool active = true, refuse = false;
+bool active = true, refuse = false, enumeration_throws = false;
 int stopped = 0;
 AppEngine *engine = nullptr;
 }
 namespace wirescape::audio {
-std::vector<Device> devices(const std::string &) { return fake::outputs; }
+std::vector<Device> devices(const std::string &) {
+    if (fake::enumeration_throws) throw std::runtime_error("fake enumeration failure");
+    return fake::outputs;
+}
 struct Stream::Impl {
     EngineOwner engine{nullptr, app_engine_destroy};
     std::function<void()> producers;
@@ -65,7 +68,7 @@ int main() {
         {
             Session s(options);
             s.start(base);
-            check(audio(s)["state"] == "no-device", "missing remembered output must stay no-device");
+            check(audio(s)["state"] == "reconnecting", "missing remembered output must retry");
             check(audio(s)["deviceId"].is_null(), "missing output must not be fabricated");
             check(fake::attempts == std::vector<std::string>{"Remembered"}, "must not open default");
             for (int i = 0; i < 100; ++i) s.poll(base); // no busy-spin opens
@@ -79,13 +82,24 @@ int main() {
             check(audio(s)["state"] == "running" && audio(s)["deviceId"] == "Remembered", "identity recovered");
             const auto token = s.status()["session"];
             auto *const graph = fake::engine;
+            fake::enumeration_throws = true;
+            s.poll(base + 310ms);
+            check(audio(s)["state"] == "running" && fake::stopped == 0,
+                  "enumeration exception must preserve healthy stream");
+            fake::enumeration_throws = false;
+            fake::outputs.push_back({"Remembered", 10, false});
+            s.poll(base + 320ms);
+            check(audio(s)["state"] == "running" && fake::stopped == 0,
+                  "duplicate identity must preserve healthy stream");
+            fake::outputs.pop_back();
             fake::active = false;
-            check(audio(s)["state"] == "no-device", "inactive stream status cannot claim running");
+            check(audio(s)["state"] == "device-lost", "inactive stream status cannot claim running");
             check(s.poll(base + 400ms), "loss must notify devices");
-            check(audio(s)["state"] == "no-device" && fake::stopped == 1, "loss must retire once");
+            check(audio(s)["state"] == "device-lost" && fake::stopped == 1, "loss must retire once");
             fake::outputs = {{"Other default", 0, true}};
             const auto count = fake::attempts.size();
             s.poll(base + 499ms);
+            check(audio(s)["state"] == "reconnecting", "loss is followed by reconnecting");
             check(fake::attempts.size() == count, "loss retry must wait");
             s.poll(base + 500ms); // permanently missing for a while
             fake::outputs.push_back({"Remembered", 2, false}); // changed backend index
@@ -99,7 +113,7 @@ int main() {
             saved >> settings;
             check(settings["audioDeviceId"] == "Remembered" && settings["opaque"] == 17, "preferences preserved");
             fake::outputs = {{"Other default", 0, true}};
-            check(s.poll(base + 800ms) && audio(s)["state"] == "no-device",
+            check(s.poll(base + 800ms) && audio(s)["state"] == "device-lost",
                   "enumerated removal must retire even before backend activity reports loss");
             s.shutdown();
             check(fake::stopped == 2, "clean shutdown retires recovered stream");
@@ -120,7 +134,7 @@ int main() {
                 check(fake::attempts.size() == before + 1, "bounded exponential delay");
                 now += std::chrono::milliseconds(delay);
             }
-            check(audio(s)["state"] == "no-device", "permanent refusal remains no-device");
+            check(audio(s)["state"] == "reconnecting", "permanent refusal keeps reconnecting");
             auto reply = s.reply({{{"v", 0}, {"id", "still-alive"}, {"type", "panic"}}, {}, {}});
             check(reply["ok"] == true && reply["gen"] == "0", "commands remain usable without output");
         }

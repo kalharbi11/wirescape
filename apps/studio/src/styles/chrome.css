@@ -16,6 +16,15 @@ body { font: 13px/1.45 var(--sans); }
 }
 
 /* ---- library ------------------------------------------------------------ */
+.on-screen-keyboard { flex: none; padding: 8px 18px; border-top: .5px solid var(--hair); background: var(--paper); }
+.on-screen-keyboard[hidden] { display: none; }
+.keyboard-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.keyboard-octave { font: 10px var(--mono); color: var(--mute); }
+.keyboard-keys { display: flex; gap: 2px; overflow-x: auto; padding: 3px; }
+.piano-key { flex: 1 0 30px; height: 54px; padding: 3px; border: .5px solid var(--hair); border-radius: 2px; background: var(--card); color: var(--ink); font: 10px var(--mono); touch-action: none; user-select: none; }
+.piano-key.accidental { background: var(--graph); color: var(--card); }
+.piano-key[aria-pressed="true"] { border-color: var(--rust); background: var(--rust); color: var(--paper); }
+
 .library { background: var(--paper); border-right: 0.5px solid var(--hair); }
 .brand { padding: 14px 18px 12px; border-bottom: 0.5px solid var(--hair); }
 .brand h1 {

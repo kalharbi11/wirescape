@@ -216,7 +216,7 @@ Each line below is a standalone JSON wire line. `>` denotes renderer→engine st
 
 **T11 — device notification is unthrottled and tied to real enumeration.**
 ```text
-< {"v":0,"session":"s1","type":"devices","gen":"4","audioDevices":[{"id":"USB Stereo","name":"USB Stereo","kind":"audio","index":3}],"midiDevices":[]}
+< {"v":0,"session":"s1","type":"devices","gen":"4","audioDevices":[{"id":"USB Stereo","name":"USB Stereo","kind":"audio","index":3}],"midiDevices":[{"id":"M8 MIDI 1|M8:M8 MIDI 1","name":"M8 MIDI 1","system_name":"M8:M8 MIDI 1","kind":"midi","enabled":false}]}
 ```
 
 **T12 — CC row write is a graph swap (precondition: node 12 is `midi.cc_to_cv`).**
@@ -225,11 +225,13 @@ Each line below is a standalone JSON wire line. `>` denotes renderer→engine st
 < {"v":0,"session":"s1","re":"r12","ok":true,"gen":"5"}
 ```
 
-**T13 — status and measured-only telemetry (empty unsupported fields, never fake scope; precondition: a fake-backend MIDI note 60 is currently held).**
+**T13 — status and measured-only telemetry (empty unsupported fields, never fake scope).**
 ```text
 < {"v":0,"session":"s1","type":"status","gen":"5","status":{"audio":{"state":"running","deviceId":"USB Stereo","deviceName":"USB Stereo","sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":2.1,"dropouts":0},"midi":{"devices":[],"activity":{}}}}
-< {"v":0,"session":"s1","type":"telemetry","gen":"5","telemetry":{"tick":12,"time":0.4,"effective":{},"phase":{},"envelope":{},"meters":{"7":[0.1,0.1]},"scope":{},"eventActivity":{},"heldNotes":[60]}}
+< {"v":0,"session":"s1","type":"telemetry","gen":"5","telemetry":{"tick":12,"time":0.4,"effective":{},"phase":{},"envelope":{},"meters":{"7":[0.1,0.1]},"scope":{},"eventActivity":{},"heldNotes":[]}}
 ```
+
+Device values in T09/T13 illustrate a real device; `--null-audio` reports `no-device` with null ids.
 
 **T14 — malformed JSON and overload never kill the process or mutate the graph.**
 ```text

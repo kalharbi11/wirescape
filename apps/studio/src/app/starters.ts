@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import type { PatchV2 } from '../patch/types';
+import catalogue from '../../public/wirescape_modules.json' with { type: 'json' };
 import qtMinimal from './qt-starters/qt-minimal.json' with { type: 'json' };
 import qtLfoFilter from './qt-starters/qt-lfo-filter.json' with { type: 'json' };
 import qtMidi from './qt-starters/qt-midi.json' with { type: 'json' };
@@ -9,12 +10,26 @@ import qtMacro from './qt-starters/qt-macro.json' with { type: 'json' };
 
 export interface Starter { id: string; name: string; note: string; patch: () => PatchV2 }
 
+/** Builtins author their defaults explicitly; imported user patches stay untouched. */
+function authoredStarter(patch: PatchV2): PatchV2 {
+  const versions = new Map(catalogue.modules.map(m => [m.id, m.version]));
+  return {
+    ...patch,
+    settings: patch.settings ?? { sample_rate: 48000, max_block_frames: 256, max_channels: 16, feedback_block: 1 },
+    outputs: patch.outputs ?? patch.modules.filter(m => m.module === 'essentials.output')
+      .flatMap(m => [0, 1].map(bus_channel => ({ module: m.id, port: 'audio', bus_channel }))),
+    modules: patch.modules.map(m => ({ ...(!('version' in m) && versions.has(m.module)
+      ? { version: versions.get(m.module) } : {}), ...m, parameters: { ...(m.parameters ?? {}) } })),
+    ui: { positions: {}, labels: {}, view: { x: 0, y: 0, zoom: 1 }, ...patch.ui },
+  };
+}
+
 const p = (
   modules: PatchV2['modules'],
   connections: PatchV2['connections'],
   positions: Record<string, [number, number]>,
   labels: Record<string, string> = {},
-): PatchV2 => ({
+): PatchV2 => authoredStarter({
   format: 'wirescape.native.patch', version: 2, modules, connections,
   ui: { positions, labels, view: { x: 0, y: 0, zoom: 1 } },
 });
@@ -184,7 +199,7 @@ function qtStarter(id: string, name: string, note: string, source: unknown): Sta
         ] as [number, number]])),
         view: { x: 0, y: 0, zoom: 1 },
       };
-      return patch;
+      return authoredStarter(patch);
     },
   };
 }

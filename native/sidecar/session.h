@@ -3,12 +3,35 @@
 #include "../io/audio/portaudio_service.h"
 #include "devices.h"
 #include "midi_host.h"
+#include <array>
 #include <set>
 namespace wirescape::sidecar {
 struct Options {
-    bool audio = false, midi = false, null_audio = false;
+    bool audio = false, midi = false, null_audio = false, bench_summary = false;
     std::string device, settings = "user_data/settings.json", directory;
     uint32_t rate = 48000, block = 256;
+};
+// The sink thread is the sole writer. Read only after it has joined.
+struct RenderHistogram {
+    std::array<uint64_t, 201> bins{}; // 0..199%, plus >=200%
+    uint64_t blocks = 0, overruns = 0;
+    double max_percent = 0;
+
+    void record(double percent, bool late) noexcept {
+        ++bins[static_cast<size_t>(percent >= 200 ? 200 : percent)];
+        ++blocks;
+        if (late) ++overruns;
+        if (percent > max_percent) max_percent = percent;
+    }
+    uint32_t percentile(uint32_t pct) const noexcept {
+        if (!blocks) return 0;
+        uint64_t rank = (blocks - 1) * pct / 100 + 1;
+        for (size_t i = 0; i < bins.size(); ++i) {
+            if (rank <= bins[i]) return static_cast<uint32_t>(i);
+            rank -= bins[i];
+        }
+        return 200;
+    }
 };
 class Session {
     Options options_;
@@ -26,18 +49,20 @@ class Session {
     std::mutex sink_mutex_;
     std::condition_variable sink_wake_;
     std::thread sink_;
-    std::atomic<bool> stop_sink_{false};
+    std::atomic<bool> stop_sink_{false}, sink_rendering_{false};
     std::atomic<double> cpu_{0};
     std::atomic<uint64_t> dropouts_{0};
+    RenderHistogram bench_; // only sink thread records; joined before shutdown reads
+    bool bench_reported_ = false;
     std::chrono::steady_clock::time_point started_ = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point audio_retry_{};
     std::chrono::milliseconds audio_backoff_{100};
     void start_audio(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
-    bool poll_audio(std::chrono::steady_clock::time_point);
+    bool poll_audio(std::chrono::steady_clock::time_point, bool enumerated);
     void stop_audio();
     void start_midi();
     void persist();
-    void refresh_devices();
+    bool refresh_devices();
     Json execution(Json);
     void commit(Json, bool);
     Json apply(const Json &);

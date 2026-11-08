@@ -16,10 +16,18 @@ import { App } from './app/App';
 const mount = document.getElementById('root');
 if (!mount) throw new Error('No #root element');
 
+// Web demo build (VITE_WIRESCAPE_WEB=1): the WebAssembly engine stands in for Electron.
+if (import.meta.env.VITE_WIRESCAPE_WEB === '1') await (await import('./web/start')).startWeb();
+
 App.boot(mount)
   .then(app => {
     // Test hooks: a scripted test can drive the whole app from here.
     (window as unknown as Record<string, unknown>).__wirescapeTest = app.testApi();
+    if (import.meta.env.VITE_WIRESCAPE_WEB === '1') {
+      const api = app.testApi();
+      void import('./web/share').then(({ installSharing }) =>
+        installSharing({ save: () => api.save(), loadPatch: (p, n) => app.loadPatch(p, n) }));
+    }
     document.body.dataset.ready = 'true';
   })
   .catch((err: unknown) => {

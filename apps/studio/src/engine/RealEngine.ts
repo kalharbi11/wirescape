@@ -12,6 +12,8 @@ export interface WirescapeBridge {
   openPatch(): Promise<{ text: string; name: string } | null>;
   savePatch(text: string, options?: { saveAs?: boolean }): Promise<{ name: string } | null>;
   readonly platform: 'linux' | 'win32' | 'darwin';
+  /** Set only by the web demo bridge (D14). */
+  readonly web?: boolean;
 }
 declare global { interface Window { wirescape?: WirescapeBridge } }
 

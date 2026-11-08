@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # P2C-a (#291): bounded audio-device loss recovery
 
-The Qt-free sidecar reports `no-device` after a lost output, keeps the patch,
+The Qt-free sidecar reports `device-lost`, then `reconnecting`, after a lost output, keeps the patch,
 MIDI choices and remembered output identity, and retries on the control thread
 with bounded backoff. It never substitutes a default or another output. All
 regressions use fake backends; physical devices and direct Pi access are forbidden.

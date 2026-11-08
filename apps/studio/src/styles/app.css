@@ -108,6 +108,8 @@ button { cursor: pointer; }
 .action.strong { background: var(--surface); border-color: var(--line); font-weight: 500; }
 .toolbar { display: flex; align-items: center; gap: 4px; padding-left: 12px; border-left: 1px solid var(--line); }
 .menu-btn { display: none; }
+/* A tap outside the drawer returns focus to the patch canvas on narrow screens. */
+.library-scrim { display: none; }
 .octave-tag {
   font-size: var(--fs-micro); letter-spacing: 0.08em; color: var(--sub);
   border: 1px solid var(--line); border-radius: var(--radius-xs); padding: 5px 8px;
@@ -541,9 +543,58 @@ body.motion-off .tring { transition: none !important; }
   .main { grid-column: 2; }
   .menu-btn { display: inline-flex; }
   .octave-tag { display: none; }
+  .library-scrim:not([hidden]) {
+    display: block; position: fixed; z-index: 55;
+    inset: var(--top-h) 0 0; padding: 0; border: 0;
+    background: rgba(22, 22, 22, 0.16); cursor: default;
+  }
 }
 @media (max-width: 760px) {
-  .patch-path { display: none; }
+  /* Keep the active patch visible on phones; actions remain scrollable. */
+  .patch-path { display: flex; max-width: clamp(72px, 27vw, 112px); min-width: 0; }
+  .patch-prefix { display: none; }
+  .patch-name {
+    display: block; min-width: 0; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .toolbar { padding-left: 6px; }
   .status-detail { display: none; }
+}
+
+/* iPhone / narrow touch devices: keep both app bars in the dynamic viewport.
+   Pan/zoom only the patch world, never scale the page chrome. */
+@media (max-width: 760px) {
+  .topbar {
+    height: 56px; flex: 0 0 56px;
+    padding: 0 8px; gap: 6px;
+  }
+  .topbar-left { flex: none; }
+  .topbar-right {
+    flex: 1 1 0; min-width: 0; overflow-x: auto; overflow-y: hidden;
+    overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+    touch-action: pan-x; scrollbar-width: none;
+    gap: 6px;
+  }
+  .topbar-right::-webkit-scrollbar { display: none; }
+  .topbar-right > * { flex: none; }
+  .topbar .action { height: 36px; min-width: 36px; font-size: 12px; }
+  .topbar .menu-btn { min-width: 38px; }
+  .topbar .input-select { height: 36px; font-size: 12px; }
+  .topbar .starter-select { max-width: 120px; }
+  .topbar .zoom-group .action { height: 34px; }
+  .topbar .zoom-label { line-height: 34px; }
+  .topbar .toolbar { padding-left: 6px; }
+  .library { top: 56px; bottom: env(safe-area-inset-bottom, 0px); }
+  .library-scrim:not([hidden]) { top: 56px; }
+  .keyboard-keys .piano-key { flex-basis: 42px; touch-action: pan-x; }
+
+  .statusbar {
+    height: calc(42px + env(safe-area-inset-bottom, 0px));
+    flex: 0 0 calc(42px + env(safe-area-inset-bottom, 0px));
+    padding: 0 8px env(safe-area-inset-bottom, 0px);
+    gap: 8px;
+  }
+  .status-left { flex: 1 1 auto; overflow: hidden; white-space: nowrap; gap: 7px; }
+  .status-right { flex: none; gap: 5px; }
+  .status-btn { height: 32px; padding: 0 8px; min-width: 56px; }
 }

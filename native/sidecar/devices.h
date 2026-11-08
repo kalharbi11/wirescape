@@ -19,6 +19,7 @@ class ObservedMidi final : public midi::Backend {
     bool fake_;
     std::mutex mutex_;
     std::vector<midi::Endpoint> observed_;
+    std::vector<midi::Endpoint> fake_endpoints_{{"M8 MIDI 1", "M8:M8 MIDI 1"}};
     static void message(void *, const uint8_t *, size_t, uint64_t);
     static void ump(void *, const uint32_t *, size_t, uint64_t);
     static void note(Slot &, unsigned, unsigned, bool);
@@ -32,6 +33,7 @@ class ObservedMidi final : public midi::Backend {
     Json held() const;
     Json activity();
     void clear_notes();
+    bool set_fake_endpoints(std::vector<midi::Endpoint>); // internal fake test surface only
     bool inject(const midi::Endpoint &, const uint8_t *, size_t, uint64_t);
     bool inject_ump(const midi::Endpoint &, const uint32_t *, size_t, uint64_t);
 };

@@ -15,6 +15,16 @@ same-directory renames. Engine confirmation flags are forwarded only when the
 owner starts the desktop app with them; the test stub mandates `--null-audio`
 and refuses device confirmation flags.
 
+## Patch folder (Phase 2D-a / #276)
+
+Before a patch has been selected, Open starts in `patches/` under Electron's
+per-user application data directory, and Save As suggests `Untitled.json` there.
+The directory is created lazily for the first file operation; nothing is copied
+into it or overwritten. After selection, dialogs suggest the active patch path.
+Cancel leaves that selection unchanged. Folder creation failures reject the file
+operation through the existing renderer error handling, without blocking startup.
+Filesystem paths remain in main; the preload bridge is unchanged.
+
 ## Dependencies and licensing
 
 - `electron@36.9.5`, pinned exactly, MIT, npm package
