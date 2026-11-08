@@ -59,31 +59,39 @@ int main(int argc, char **argv) {
                          app_engine_destroy);
             require(patch.dump() == before, name + ": execution mutated editable data");
             require(bool(engine), (name + ": ").append(error));
-            for (const auto &module : patch.at("modules")) {
-                if (module.at("module") != "essentials.output") continue;
-                for (int bus = 0; bus < 2; ++bus) {
-                    bool routed = false;
-                    for (const auto &route : patch.at("outputs"))
-                        routed |= route.at("module") == module.at("id") && route.at("port") == "audio" &&
-                                  route.at("bus_channel") == bus;
-                    require(routed, name + ": Output missing bus " + std::to_string(bus));
+            bool has_bus[2]{false, false};
+            for (const auto &route : patch.at("outputs")) {
+                if (route.at("port") != "audio") continue;
+                const int bus = route.at("bus_channel").get<int>();
+                if (bus < 0 || bus >= 2) continue;
+                bool from_output = false;
+                for (const auto &module : patch.at("modules")) {
+                    from_output |= module.at("module") == "essentials.output" && module.at("id") == route.at("module");
                 }
+                require(from_output, name + ": output bus references a non-Output module");
+                require(!has_bus[bus], name + ": duplicate output bus route");
+                has_bus[bus] = true;
             }
+            require(has_bus[0] && has_bus[1], name + ": missing stereo output bus");
             // Automatic patches must actually emit sound without any MIDI/key event.
             // Run long enough to cover the first clock edge at the authored slow tempi.
             const bool horror_pad = name == "hollow-chapel" || name == "breathing-walls";
             const bool stock_drone = name == "dust-reactor";
             const bool sequence = name == "witching-hour" || name == "neon-elegy";
             const bool autoplay = horror_pad || stock_drone || sequence;
-            float samples[256]{}, peak = 0.f;
+            float left[256]{}, right[256]{}, peak = 0.f, stereo_difference = 0.f;
+            float *channels[]{left, right};
             for (int block = 0; block < (autoplay ? 256 : 1); ++block) {
-                require(app_engine_render(engine.get(), samples, 256) == WS_OK, name + ": render failed");
-                for (float sample : samples) {
-                    require(std::isfinite(sample), name + ": non-finite sample");
-                    if (std::fabs(sample) > peak) peak = std::fabs(sample);
+                require(app_engine_render_channels(engine.get(), channels, 2, 256) == WS_OK, name + ": render failed");
+                for (int i = 0; i < 256; ++i) {
+                    require(std::isfinite(left[i]) && std::isfinite(right[i]), name + ": non-finite sample");
+                    peak = std::max(peak, std::max(std::fabs(left[i]), std::fabs(right[i])));
+                    stereo_difference = std::max(stereo_difference, std::fabs(left[i] - right[i]));
                 }
             }
             if (autoplay) require(peak > 1.e-5f, name + ": autoplay produced silence");
+            if (name == "hollow-chapel")
+                require(stereo_difference > 1.e-5f, name + ": stereo output collapsed to mono");
             ++accepted;
         }
 
