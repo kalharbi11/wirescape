@@ -62,7 +62,8 @@ struct Reverb {
     float *lines[8]{};
     float *pre[2]{};
     Diffuser diffusion[4]{};
-    float delay[8]{}, target[8]{}, gain[8]{}, low[8]{};
+    double delay[8]{}; // Float glides stall before the integer target, making frozen feedback lossy.
+    float target[8]{}, gain[8]{}, low[8]{};
     float pre_samples = 960, freeze_amount = 0, phase_a = 0, phase_b = 0;
     float last_mix = -1.f, dry_gain = 1.f, wet_gain = 0.f, last_size = -1.f;
     uint64_t sample_counter = 0;
@@ -163,7 +164,7 @@ struct Reverb {
             }
         }
         const float rt60 = std::clamp(b.param(DECAY).value(0, i), .2f, 20.f);
-        for (uint32_t k = 0; k < 8; ++k) gain[k] = std::exp(-kLn1000 * delay[k] / (rt60 * rate));
+        for (uint32_t k = 0; k < 8; ++k) gain[k] = float(std::exp(-kLn1000 * delay[k] / (rt60 * rate)));
     }
     void process(ws::Block &b) {
         auto lout = b.out(0), rout = b.out(1);
@@ -210,7 +211,7 @@ struct Reverb {
                 delay[k] += glide * (target[k] - delay[k]);
                 if (std::abs(delay[k] - target[k]) < .001f) delay[k] = target[k];
                 const float shifted =
-                    std::clamp(delay[k] + (k & 1 ? ma : -ma) + (k & 2 ? mb : -mb), 2.f, float(line_capacity - 2));
+                    std::clamp(float(delay[k]) + (k & 1 ? ma : -ma) + (k & 2 ? mb : -mb), 2.f, float(line_capacity - 2));
                 const float delayed = tap(lines[k], line_capacity, write, shifted);
                 wet_l += project_l[k] * delayed;
                 wet_r += project_r[k] * delayed;
