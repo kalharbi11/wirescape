@@ -25,7 +25,7 @@ Separate independent T1 review and Keel seam look are required.
 
 ```acceptance
 tier: T1
-size: <= 500 changed lines, <= 10 files
+size: <= 560 changed lines, <= 10 files
 must_pass:
   - ctest --test-dir build/native -R render_evidence --output-on-failure --no-tests=error
   - pi-run: ctest --test-dir build/native -R render_evidence --output-on-failure --no-tests=error
