@@ -148,6 +148,7 @@ struct Engine::Impl {
     std::vector<std::unique_ptr<Node>>nodes;std::vector<Edge>edges;std::vector<Component>components;
     std::vector<std::pair<uint32_t,Node*>>node_table;
     std::array<uint32_t,32>bus_latency{};
+    std::vector<uint32_t>distance;
     std::vector<Bus>buses;std::array<std::unique_ptr<Producer>,32>producers;
     uint32_t producer_count=0,dropped_connections=0;
     std::unique_ptr<Producer>egress;
@@ -209,6 +210,7 @@ struct Engine::Impl {
         future.clear();
     }
     bool topology();
+    void recompute_latency() noexcept;
     bool finish_prepare();
     bool resolve_taps();
     bool setup(Node&);
@@ -297,6 +299,25 @@ bool Engine::Impl::finish_prepare() {
     prepared=true;applied.store(generation.load());return true;
 }
 
+void Engine::Impl::recompute_latency() noexcept {
+    std::fill(distance.begin(),distance.end(),0);
+    bus_latency.fill(0);
+    uint32_t maximum=0;
+    for(auto&component:components)for(auto*n:component.nodes){
+        uint32_t upstream=0;
+        for(auto&e:edges)if(!e.removed&&!e.back&&e.kind==0&&e.destination==n)
+            upstream=std::max(upstream,distance[e.source->index]);
+        distance[n->index]=static_cast<uint32_t>(std::min<uint64_t>(UINT32_MAX,uint64_t(upstream)+n->latency));
+    }
+    for(const auto&bus:buses){
+        auto*n=find(bus.node);
+        if(!n)continue;
+        bus_latency[bus.channel]=std::max(bus_latency[bus.channel],distance[n->index]);
+        maximum=std::max(maximum,bus_latency[bus.channel]);
+    }
+    latency.store(maximum,std::memory_order_relaxed);
+}
+
 bool Engine::Impl::topology() {
     std::sort(nodes.begin(),nodes.end(),[](const auto&a,const auto&b){return a->id<b->id;});
     for(uint32_t i=0;i<nodes.size();++i)nodes[i]->index=i;
@@ -348,19 +369,9 @@ bool Engine::Impl::topology() {
     }components=std::move(ordered_components);
     for(auto&e:edges)if(e.back&&e.kind!=1){e.delay.prepare(cfg.max_channels,cfg.feedback_block);e.delay_channels.assign(cfg.feedback_block,0);e.head=0;}
     for(auto&component:components)for(auto*n:component.nodes)n->loop=component.loop;
-    std::vector<uint32_t>distance(nodes.size(),0);bus_latency.fill(0);latency=0;
-    for(auto&component:components)for(auto*n:component.nodes){
-        uint32_t upstream=0;
-        for(auto&e:edges)if(!e.removed&&!e.back&&e.kind==0&&e.destination==n)upstream=std::max(upstream,distance[e.source->index]);
-        distance[n->index]=static_cast<uint32_t>(std::min<uint64_t>(UINT32_MAX,uint64_t(upstream)+n->latency));
-    }
-    for (auto &bus : buses) {
-        auto *n = find(bus.node);
-        if (n) {
-            bus_latency[bus.channel] = std::max(bus_latency[bus.channel], distance[n->index]);
-            latency = std::max(latency.load(), bus_latency[bus.channel]);
-        }
-    }
+    // Scratch is sized during topology/prepare, never during a status refresh.
+    distance.resize(nodes.size());
+    recompute_latency();
     return true;
 }
 
@@ -863,6 +874,13 @@ bool Engine::output_constant(uint32_t node,uint32_t port)const{auto*n=p_->find(n
 float Engine::output_sample(uint32_t node,uint32_t port,uint32_t channel,uint32_t frame)const{auto*n=p_->find(node);if(!n||port>=n->global_out.size())return 0;auto&b=n->global_out[port];return channel<b.channels&&frame<p_->cfg.max_block?b.data[channel][(b.flags&WS2_CONSTANT)?0:frame]:0;}
 uint32_t Engine::feedback_edges()const{return p_->feedback_count;}
 
+void Engine::refresh_latency() noexcept {
+    auto&p=*p_;
+    if(!p.prepared)return;
+    for(auto&n:p.nodes)if(n->d&&n->instance)
+        n->latency=n->d->latency_frames(n->instance);
+    p.recompute_latency();
+}
 uint32_t Engine::latency_frames(uint32_t bus)const{return bus<p_->bus_latency.size()?p_->bus_latency[bus]:0;}
 std::vector<FeedbackLoop>Engine::feedback_loops()const{
     std::vector<FeedbackLoop>result;
@@ -1101,6 +1119,7 @@ bool Engine::replan(Engine &candidate, uint64_t timeout_ns) {
     old.node_table.swap(fresh.node_table);
     old.buses.swap(fresh.buses);
     old.bus_latency.swap(fresh.bus_latency);
+    old.distance.swap(fresh.distance);
     old.taps.swap(fresh.taps);old.tap_nodes.swap(fresh.tap_nodes);
     old.tap_values.swap(fresh.tap_values);old.tap_counts.swap(fresh.tap_counts);
     old.tap_frame.store(0,std::memory_order_release);
@@ -1112,6 +1131,9 @@ bool Engine::replan(Engine &candidate, uint64_t timeout_ns) {
     old.replan_chokes.swap(chokes);
     old.revision.store(next_revision, std::memory_order_release);
     old.error.clear();
+    // Retained instances may have advanced their reported latency since the
+    // candidate was prepared. Publish the live result before the park ack.
+    refresh_latency();
     old.park.store(Park::Running, std::memory_order_release);
     return true;
 }
