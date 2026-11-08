@@ -139,8 +139,8 @@ int main(int argc, char **argv) {
         noalloc();
         if (argc == 3) equivalence(argv[1], argv[2]);
 #else
-        (void)argc;
-        (void)argv;
+    (void)argc;
+    (void)argv;
 #endif
 #if defined(__cpp_exceptions) || defined(_CPPUNWIND)
     } catch (...) {
