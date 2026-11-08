@@ -141,4 +141,3 @@ export async function mockBridge(page: Page): Promise<void> {
     };
   });
 }
-

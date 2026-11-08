@@ -100,4 +100,3 @@ contextBridge.exposeInMainWorld('wirescape', Object.freeze({
   },
   platform: process.platform
 }));
-

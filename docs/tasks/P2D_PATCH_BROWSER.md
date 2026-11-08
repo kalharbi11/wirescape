@@ -23,4 +23,3 @@ must_pass:
   - ci: full Web/desktop tests cover user list, bundled read-only starters, live selection, Save As, path containment, bounded reads and unknown-data roundtrip
 stops: [ABI header edit, ID/format change, new dependency, real devices in tests, threshold loosening]
 ```
-

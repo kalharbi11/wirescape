@@ -279,4 +279,3 @@ test('patch library keeps paths private, bounds reads and detaches bundled save 
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
-

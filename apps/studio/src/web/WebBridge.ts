@@ -164,4 +164,3 @@ export class WebBridge implements WirescapeBridge {
 
   async suspend(): Promise<void> { await this.context?.suspend(); }
 }
-
