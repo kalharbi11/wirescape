@@ -21,6 +21,7 @@ import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
 import { STARTERS, DEFAULT_STARTER } from './starters';
+import { CURATED_PATCHES } from './curated';
 import { playableStarters } from '../web/starters';
 import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } from '../theme/theme';
 import { el } from './dom';
@@ -1137,6 +1138,7 @@ export class App {
     };
     body.append(message, el('h3', 'settings-group', 'BUNDLED · READ ONLY'));
     const bundled = [...STARTERS.filter(s => s.id.startsWith('qt-')).map(s => ({ name: s.name, patch: s.patch() })),
+      ...STARTERS.filter(s => CURATED_PATCHES.some(p => p.id === s.id)).map(s => ({ name: s.name, patch: s.patch() })),
       { name: 'Class demo · CHAOS', patch: demoChaos as unknown as PatchV2 },
       { name: 'Class demo · Subtractive', patch: demoSub as unknown as PatchV2 },
       { name: 'Class demo · Macro', patch: demoMacro as unknown as PatchV2 }];
