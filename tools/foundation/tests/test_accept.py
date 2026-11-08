@@ -195,6 +195,46 @@ class AcceptanceTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "not verified"):
                     acceptance.select_pr_task(self.root, "Closes #114")
 
+    def test_pr_selection_ignores_quoted_example_and_code_directives(self):
+        examples = (
+            "The PR quotes \x60Closes #384\x60 but does not close that issue.",
+            "\x60Closes #384\x60",
+            "For example: Closes #384",
+            "> Closes #384",
+            "> an example\nCloses #384",  # lazy block-quote continuation
+            "- Closes #384",
+            "- an example\nCloses #384",  # lazy list continuation
+            "1. Closes #384",
+            "    Closes #384",
+            "\tCloses #384",
+            "\x60\x60\x60markdown\nCloses #384\n\x60\x60\x60",
+            "~~~markdown\nCloses #384\n~~~",
+            "<!-- Closes #384 -->",
+            "<!--\nCloses #384\n-->",
+        )
+        for example in examples:
+            with self.subTest(example=example):
+                issue, path, message = acceptance.select_pr_task(self.root, example)
+                self.assertIsNone(issue)
+                self.assertIsNone(path)
+                self.assertIn("not selected", message)
+
+    def test_pr_selection_first_real_line_and_fail_closed(self):
+        directory = self.root / "docs/tasks"
+        directory.mkdir(parents=True)
+        actual = directory / "real.md"
+        actual.write_text(task(["python -c 'pass'"]).replace("#85", "#114"), encoding="utf-8")
+        examples = ("> Closes #384\n\n- Closes #384\n\n"
+                    + "\x60\x60\x60markdown\nCloses #384\n\x60\x60\x60\n\n"
+                    + "<!-- Closes #384 -->\n\n")
+        for real in ("Closes #114", "closes #114.", "   ClOsEs #114 (implementation)"):
+            with self.subTest(real=real):
+                issue, path, note = acceptance.select_pr_task(
+                    self.root, examples + real + "\nCloses #999")
+                self.assertEqual((issue, path, note), (114, actual, ""))
+        with self.assertRaisesRegex(ValueError, "not verified.*#999"):
+            acceptance.select_pr_task(self.root, examples + "Closes #999\nCloses #114")
+
     def test_timeout_preserves_failure(self):
         code, report = self.run_task(['python -c "import time; time.sleep(10)"'], timeout=.1)
         self.assertEqual(code, 1)
