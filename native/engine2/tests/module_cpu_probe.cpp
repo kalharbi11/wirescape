@@ -75,8 +75,7 @@ int main(int argc, char **argv) {
             const unsigned long count = std::stoul(value);
             if (count < 1 || count > 16) return fail("--channels must be in 1..16");
             channels = static_cast<uint32_t>(count);
-        }
-        else if (key == "--seconds") seconds = std::stod(value);
+        } else if (key == "--seconds") seconds = std::stod(value);
         else if (key == "--seed") seed = std::stoull(value);
         else if (key == "--param") {
             const size_t eq = value.find('=');
@@ -95,7 +94,8 @@ int main(int argc, char **argv) {
         } else return fail("unknown argument");
     }
     if (id.empty() || !instances || instances > 16 || !block || block > 4096 || !(rate >= 8000) || !(seconds > 0))
-        return fail("usage: --module ID [--instances N] [--rate HZ] [--block FRAMES] [--seconds S] [--seed N] [--channels 1..16]");
+        return fail("usage: --module ID [--instances N] [--rate HZ] [--block FRAMES] "
+                    "[--seconds S] [--seed N] [--channels 1..16]");
     const ws2_descriptor *d = nullptr;
     for (const ws2_descriptor *m : wirescape::app::builtin_modules())
         if (id == m->id) d = m;
@@ -196,12 +196,13 @@ int main(int argc, char **argv) {
     std::sort(sorted.begin(), sorted.end());
     const int64_t worst = sorted.empty() ? 0 : sorted.back();
     const int64_t p99 = sorted.empty() ? 0 : sorted[std::min(sorted.size() - 1, size_t(double(sorted.size()) * .99))];
-    std::printf("module_cpu_probe {\"module\":\"%s\",\"instances\":%u,\"sample_rate\":%.0f,\"block\":%u,\"channels\":%u,\"seconds\":%g,"
+    std::printf("module_cpu_probe {\"module\":\"%s\",\"instances\":%u,\"sample_rate\":%.0f,"
+                "\"block\":%u,\"channels\":%u,\"seconds\":%g,"
                 "\"blocks\":%zu,\"render_ns\":{\"max\":%lld,\"p99\":%lld},\"period_ns\":%.0f,\"allocations\":%zu,"
                 "\"faults\":%zu,\"peak\":%.6g,\"params\":\"%s\",\"alternate\":\"%s\"}\n",
-                id.c_str(), instances, rate, block, channels, seconds, blocks, (long long)worst, (long long)p99,
-                1e9 * block / rate, allocations, faults + output_evidence.faults, output_evidence.peak,
-                settings_text.c_str(),
+                id.c_str(), instances, rate, block, channels, seconds, blocks, (long long)worst,
+                (long long)p99, 1e9 * block / rate, allocations, faults + output_evidence.faults,
+                output_evidence.peak, settings_text.c_str(),
                 alternate_id.empty() ? ""
                                      : (alternate_id + "=" + std::to_string(alternate_a) + ":" +
                                         std::to_string(alternate_b) + ":" + std::to_string(alternate_every))
