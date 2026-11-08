@@ -114,7 +114,7 @@ unquantized event pitch driving the synth):
 ```text
 Clock.clock → StepSequencer.clock
 StepSequencer.pitch → Quantizer.pitch → VCO.pitch
-StepSequencer.gate → ADSR.gate → VCA.control
+StepSequencer.gate → ADSR.gate; ADSR.envelope → VCA.gain_cv
 VCO.audio → VCA.audio → Output.audio
 ```
 
