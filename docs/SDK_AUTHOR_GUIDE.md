@@ -198,7 +198,7 @@ The CHAOS two-instance reference is a 120-second offline CPU render on the Pi at
 - `ws::Block`: `frames()`, `channels()`, `sample_rate()`, `frame_position()`, `in(i)`, `param(i)`, `out(i)`, `events()`, `events_in(port)`, `split(range, event)`, `emit(port, e)`, `transport()`.
 - Signal view: `channels()`, `constant()`, `connected()`, `ch(c)[i]`, `value(c, i)`, `row(c, scratch, frames)`. Output: `set_channels(n)`, `ch(c)` (writable), `mark_constant(bool)`, `channels()`.
 - Helpers (`native/sdk/signals.h`): `ws::Schmitt`, `ws::Trigger` (≥1 ms), `ws::Random` (`seed(instance, channel)`, `next()`, `bipolar()`, `save()`, `restore()`), `ws::LinearRamp`. `native/sdk/simd.h`: `ws::simd::f4` (load/store, `+ - *`). `native/sdk/fastmath.h`: `tan_small` only for |x| ≤ 0.25 rad. No global fast-math flags; keep `double` only where precision needs it.
-- Limits: 16 channels, 32 ports, 32 parameters, event payload ≤ 1,472 bytes.
+- Limits: 16 channels, 32 ports, 64 parameters (raised from 32 in #402; a module above 32 fails cleanly on older hosts), event payload ≤ 1,472 bytes.
 - Known SDK gaps (additive fixes planned after J9): no `Schmitt::high()`, no stepped-parameter helper (spell out `WS2_STEPPED|WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1`), no 64-bit `Writer`/`Reader` helpers, `Reader` can't report remaining bytes, `reset()` can't emit events (the host chokes notes on reset).
 - **Compatibility promise (from J-R2):** additive SDK changes only; a breaking change needs a migration note here and in the PR.
 
