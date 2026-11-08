@@ -1,54 +1,55 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-08 agent-review checkpoint, Codex Lead owner-requested audit.
-Pi first; #271 failures preempt features. Owner Phase1 sign-off remains open.
-Delay #345 and runbook #422 now merged; live heads/latest handoffs supersede older briefs.
+**Updated:** 2026-11-08, Codex Lead four-agent execution checkpoint.
+Pi first; #271 hardware sign-off remains open and failures preempt features.
+Use current heads/latest handoffs; no queued/stale/missing evidence counted passed.
 
-## Authority and evidence
-- Codex Lead T0/T1, named docs/tasks/** and STATE paths, delegated reviewed-green merges.
-- T2 requires independent cross-family review; no device/SSH/LAN, force-push or threshold weakening.
-- Required guard/Linux/Windows/sanitizers plus task evidence; queued/stale/missing is not passed.
-- Preserve IDs/unknown patch data, sole Electron automatic restart ownership. Do not poll CI.
-- #407 gate-v4 MERGED ec1eea5: signed neutral exact-head approvals now available.
-- Existing #419 STATE PR is older; reconcile it with this checkpoint before merging.
+## Actual lead actions
+- MERGED #379 measured LFO phase at07fb277: static/required/Studio/WASM green,
+  independent review carried per Keel's explicit main-only/#417 conditional ruling.
+- MERGED #412 eight curated patches at3af48ae: stereo/layout repairs independently
+  re-reviewed; guard/Linux/Windows/sanitizers/static/Web/WASM engine+site green.
+- Shared STARTERS/read-only browser includes all8 in Studio and Pi/Windows Electron.
+  Native stereo render assertions and real WASM smoke pass; no hardware listening claimed.
+- Main Web-demo run42532299999 at3af48ae running: deployment/live NOT yet verified.
+  Previous good deployment42509218198 atb4ec649 remains historical.
+- #345 Delay already merged; native catalogue25. #422/#424 runbook/checkpoints merged.
+- Closed stale conflicting STATE-only #419; no feature work lost.
+- #398 actual job128870645680: five render CTests PASS; only local failure553>500lines.
+  Lead pushed task-only3f12baa, cap560/10files within existing documented scope allowance.
+  No audio threshold changed. T1 review posted; fresh acceptance/required/static still running.
+  Earlier780e280 task-specific pi5/accept PASS, docs-only carry rules apply.
 
-## Verified merged and app availability
-- #301 audio recovery; #368/#369 native/WASM telemetry; #378 callback CPU/cumulative dropouts.
-- #343 Macro gate, #346 musical VCO tuning, #364 LFO phase output (display wiring pending).
-- #344 Resonator, #304 Spectral base modes, earlier #329 Blend; Delay adds the25th module.
-- #331 patch browser; earlier autosave/recovery/hotplug/keyboards/live edits remain merged.
-- #373 poly probe, #382 static ownership, #388 evidence syntax, #389 public edit soak,
-  #396 dangling-reference tests, #397 diagnostic fixtures, #404 param64, #417 Qt slots fix merged.
-- Shared native catalogue covers Electron and WASM; browser intentionally omits3 midi.* modules.
-- Web deployment42509218198 atb4ec649: engine/site/deploy/live all SUCCESS.
-  This verifies that deployment, not latest-main/browser hardware or future module branches.
-- tools/pi/update-and-build.sh resolves one SHA and rebuilds engine + Studio + Electron.
-- Refreshed owner runbook: docs/tasks/OWNER_TEST_SESSION_271.md; #271 body updated.
-  All24 modules, 3/4-note MIDI, persistence/recovery, CC matrix, web, original600s benchmark.
+## Authority / invariant gates
+- Codex Lead T0/T1 and named docs/tasks/** /STATE; realT2 needs cross-family review.
+- Required guard/Linux/Windows/sanitizers AND task evidence; no threshold/test weakening.
+- No devices/SSH/LAN or force-push/main writes; preserve IDs/unknown document data.
+- Electron main sole automatic restarter. Gate-v4 exact-head signed approvals.
+- No CI polling; gates/runners wait. Owner hardware and subjective listening stay separate.
 
-## Active integration queue (continue owners/branches; no duplicate claims)
-- #345 Delay MERGED; #348 Reverb conflicts again. Preserve upstream registrations, regenerate
-  catalogues with Python, normal main merges, fresh exact-head gates/Pi and narrow T1 review.
-- #323 Quantizer conflicts too; #304 is merged, no longer a blocker. #310 additional modes open.
-- #379 LFO phase wiring conflicts; integrate #417, actual compiled static ownership required
-  and Keel strict-static disposition retained. No fake/interpolated dot.
-- #390 Learn seam conflicts; task13-file allowance stands; callback helper needs Claude look.
-  #287 production UI waits for seam merge; #210 patchable controls remains open.
-- #399 routes: owned, native mono/backend/stream-restart contract needs Keel.
-- #400 latency: owned, final static + Claude T2 review; cancellation is not a waiver.
-- #415 selector: owned, final revised tests and Keel review. #420 SDK64 regression is open.
-- #405 native16-step -> #410 editor now unblocked by actual #404 merge; keep order, review,
-  old8-step compatibility, exact-head tests. #412 independent T1 review passed atff8a95b.
+## Same four chats: direct continuation briefs posted on #383
+- Agent1 comment6728284272: #405 native16step -> #410 UI, then #420 SDK64 conflict repair.
+  Format authored sequencer files; fix actual Studio acceptance; keep statev1/default8.
+  UI old fixture y1000vs660 mismatch + native builtin/conformance failures are real.
+  Preserve new curated STARTERS/fixtures; regenerate from actual exports after native merge.
+- Agent2 comment6728284868: sequential #348 Reverb -> #323 Quantizer -> #310 Spectral B.
+  Normal main merges, retain Delay/all descriptors, Python-generated catalogues, fresh
+  native/Studio/WASM and task-specific Pi where required, independent T1.
+- Agent3 comment6728287573: #390 Learn seam + #210 controls -> #287 UI after actual seam merge.
+  Task13file allowance already fixed; helper refactor needs Claude review after integration.
+  #399 routes after a slot frees and Keel rules. No invented wire fields.
+- Agent4 comment6728288196: #398 evidence -> #386 real-sidecar e2e; #296 private edit-soak lane.
+  Actual private PR not yet present. Fixed3900s lane only, Claude T2, actual3600s evidence.
+  #387 checklist reduction only after385/386/296 evidence; no owner gate waived.
+- Canonical copy-ready file: docs/tasks/FOUR_AGENTS_2026_11_08.md.
+  Max3active/chat, oneissue/branch/PR, existing ownership respected, exact-head signed handoff.
 
-## Chords and next phase
-- #406 design corrected at a2a73c5; product IDs/eight controls already confirmed.
-- Owner accepts3/4-note first; fifth optional. Existing MIDI→CV defaults4 and supports1–16.
-- NEW #421 tracks missing production Notes→CV allocation route; do not duplicate #406.
-  Keel must resolve fan-in identity/anonymous offs/expression/capacity and adapter route first.
-- #296 still needs private fixed ci/pi-edit-soak lane/3900s timeout and actual3600s evidence.
-- #398 offline audio evidence -> #386 real-sidecar e2e -> #387 checklist reduction remain.
-  No owner gate removed before evidence. #82 OSC/Windows hardware/packaging stay later.
-- #412 product approved; newd916846 stereo revision supersedes reviewedff8a95b. DRAFT:
-  curated.spec still assumes one Output/both buses; repair tests/docs, fresh CI+narrow review.
-  One issue/branch/PR per item, max3 active per chat, separate review and signed handoff.
+## Retained Keel batch / later work
+- #415a9b7a00 green but new heading-boundary review candidate after lazy quote/list.
+- #4006dcc370 authored format79+233 diagnostics; repair first, then Claude T2 review.
+- #390a77b7f0 callback helper; #399781eda6 mono/backend/stream-restart contract.
+- #406a2a73c5/#4239591bd0 Chord/Notes→CV fan-in identity/channel/off/expression/capacity.
+  Three/four-note first, fifth optional; existing MIDI→CV already defaults4/supports16.
+- #408 task path explicitly authorized. #310 base304 merged; retarget main without rewrite.
+- Owner new chats/schedules not needed. #82 OSC and Windows packaging/hardware stay later.
