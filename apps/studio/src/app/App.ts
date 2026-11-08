@@ -1085,7 +1085,8 @@ export class App {
 
 
   private async loadBundledPatch(patch: PatchV2, name: string): Promise<void> {
-    await window.wirescape?.openPatch({ library: 'reset' });
+    try { await window.wirescape?.openPatch({ library: 'reset' }); }
+    catch { /* Save As below protects the previous native target if reset fails. */ }
     await this.loadPatch(patch, name);
     this.bundledPatch = true;
   }
@@ -1097,6 +1098,9 @@ export class App {
     const choose = async (read: () => Promise<{ patch: PatchV2; name: string } | null>, bundled: boolean) => {
       if (this.doc.dirty && !window.confirm('Discard unsaved edits and switch patches?')) return;
       try {
+        // A native read can adopt its save target before renderer validation.
+        // Until this document loads successfully, plain Save must ask for a path.
+        this.bundledPatch = true;
         const selected = await read();
         if (!selected) return;
         if (!Array.isArray(selected.patch.modules) || !Array.isArray(selected.patch.connections)) throw new Error('Invalid patch.');
