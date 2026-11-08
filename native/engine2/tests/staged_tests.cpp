@@ -3,7 +3,10 @@
 #include "../../tests2/dsp_fixture.h"
 #include "../../tests2/test_modules.h"
 #include "../../tests2/allocation_watch.h"
+#include <atomic>
+#include <chrono>
 #include <cstring>
+#include <thread>
 using namespace wirescape::engine2;
 template<uint32_t Delay>struct LatencyTap {
  static constexpr ws::Info info{"test.latency","Latency",1};
@@ -32,6 +35,72 @@ static void latency(){
   VERIFY(loops[0].nodes==std::vector<uint32_t>({1}));VERIFY(loops[1].nodes==std::vector<uint32_t>({2,3}));
  }
  Engine large;VERIFY(large.add_node(1,ws::Module<LatencyTap<UINT32_MAX>>::descriptor()));VERIFY(large.add_node(2,ws::Module<LatencyTap<11>>::descriptor()));VERIFY(large.connect(1,0,2,0));VERIFY(large.output(2,0,0));VERIFY(large.prepare());VERIFY(large.latency_frames(0)==UINT32_MAX);
+}
+struct DynamicLatency {
+ static constexpr ws::Info info{"test.dynamic_latency","Dynamic latency",1};
+ static constexpr std::array inputs{ws::port("signal","Signal")};
+ static constexpr std::array outputs{ws::port("signal","Signal")};
+ static constexpr std::array params{ws::param("frames","Frames",0,64,7,"frames",
+     WS2_STEPPED|WS2_AUTOMATABLE,WS2_LINEAR,0,4,1)};
+ std::atomic<uint32_t> published{7};
+ void prepare(const ws::Setup&){published.store(7,std::memory_order_relaxed);}
+ void reset(){}
+ uint32_t latency_frames()const{return published.load(std::memory_order_relaxed);}
+ void process(ws::Block&b){
+  published.store(static_cast<uint32_t>(b.param(0).value(0,b.frames()-1)),std::memory_order_relaxed);
+  b.out(0).set_channels(1);b.out(0).mark_constant();b.out(0).ch(0)[0]=b.in(0).value(0,0);
+ }
+};
+static void dynamic_latency(){
+ auto graph=[](Engine& e){
+  VERIFY(e.add_node(1,ws::Module<DynamicLatency>::descriptor()));
+  VERIFY(e.add_node(2,ws::Module<LatencyTap<11>>::descriptor()));
+  VERIFY(e.add_node(3,ws::Module<LatencyTap<13>>::descriptor()));
+  VERIFY(e.connect(1,0,2,0));
+  VERIFY(e.output(2,0,0));VERIFY(e.output(1,0,1));VERIFY(e.output(3,0,1));
+  VERIFY(e.register_producer()==0);VERIFY(e.prepare());
+ };
+ Engine live;graph(live);
+ VERIFY(live.latency_frames(0)==18&&live.latency_frames(1)==13);
+ float left[17]{},right[17]{};float*outputs[]{left,right};
+ auto change=[&](float frames){
+  ws2_event event{};event.struct_size=sizeof(event);event.type=WS2_PARAM;
+  event.index=0;event.value=frames;
+  VERIFY(live.enqueue(0,1,WS2_DIRECT_PORT,event,0,Timing::Immediate)==WS2_OK);
+  VERIFY(live.render(outputs,2,17)==WS2_OK);
+ };
+ change(23);
+ VERIFY(live.latency_frames(0)==18); // Still the prepared reporting snapshot.
+ {
+  allocation_watch::Scope watch;
+  live.refresh_latency();
+  VERIFY(watch.allocations()==0);
+ }
+ VERIFY(live.latency_frames(0)==34&&live.latency_frames(1)==23);
+ VERIFY(live.meter().latency_frames==34);
+ change(31);
+ VERIFY(live.latency_frames(0)==34);
+ Engine candidate;graph(candidate);VERIFY(candidate.latency_frames(0)==18);
+ std::atomic<bool> done{false},success{false};
+ std::thread control([&]{
+  success.store(live.replan(candidate,16000000),std::memory_order_release);
+  done.store(true,std::memory_order_release);
+ });
+ const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+ while(!done.load(std::memory_order_acquire)&&std::chrono::steady_clock::now()<deadline){
+  VERIFY(live.render(outputs,2,17)==WS2_OK);
+  std::this_thread::yield();
+ }
+ control.join();
+ VERIFY(success.load(std::memory_order_acquire));
+ VERIFY(live.latency_frames(0)==42&&live.latency_frames(1)==31);
+ VERIFY(live.meter().latency_frames==42);
+ {
+  allocation_watch::Scope watch;
+  live.refresh_latency();
+  VERIFY(watch.allocations()==0);
+ }
+ VERIFY(live.latency_frames(0)==42&&live.latency_frames(1)==31);
 }
 static void continuity(uint32_t frames,uint32_t channels){
  Engine a,b;
@@ -91,4 +160,4 @@ static void feedback_continuity(){
  float x[17]{},y[17]{};float*xo[]={x};float*yo[]={y};
  for(int i=0;i<10;++i){if(i==3)VERIFY(a.reconfigure(9,{2}));allocation_watch::Scope watch;VERIFY(a.render(xo,1,17)==0);VERIFY(b.render(yo,1,17)==0);VERIFY(std::memcmp(x,y,sizeof(x))==0);VERIFY(watch.allocations()==0);}
 }
-int main(){latency();for(uint32_t frames:{1u,17u,256u})for(uint32_t channels:{1u,4u,16u})continuity(frames,channels);telemetry_reconfigure();feedback_continuity();std::puts("PASS per-bus signal latency, SCC delays, staged continuity/rollback/callbacks/noalloc");}
+int main(){latency();dynamic_latency();for(uint32_t frames:{1u,17u,256u})for(uint32_t channels:{1u,4u,16u})continuity(frames,channels);telemetry_reconfigure();feedback_continuity();std::puts("PASS per-bus signal latency, SCC delays, staged continuity/rollback/callbacks/noalloc");}
