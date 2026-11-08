@@ -158,8 +158,9 @@ struct Reverb {
         const float size = b.param(SIZE).value(0, i);
         if (size != last_size) {
             last_size = size;
-            for (uint32_t k = 0; k < 8; ++k)
+            for (uint32_t k = 0; k < 8; ++k) {
                 target[k] = float(std::min(line_capacity - 3, scaled_length(k, size)));
+            }
         }
         const float rt60 = std::clamp(b.param(DECAY).value(0, i), .2f, 20.f);
         for (uint32_t k = 0; k < 8; ++k) gain[k] = std::exp(-kLn1000 * delay[k] / (rt60 * rate));
