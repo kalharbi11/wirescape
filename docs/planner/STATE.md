@@ -3,7 +3,7 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-08 by Compass (Claude), acting as Keel too.
+**Updated:** 2026-11-08 by Codex Lead; retains Compass/Keel rulings.
 Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure preempts other work.
 
 ## Delegation (new, AGENTS.md 2026-11-08)
@@ -26,17 +26,21 @@ Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure 
 
 ## Modules (all T1 now; Codex Lead owns)
 - #304 Spectral: conflicts with merged #367. Drop its private probe copy, use the shared tools/module_cpu_probe, rerun pi5/accept.
-- #373/#372 probe polyphony: retarget to main (base #367 merged), finish, merge.
+- #373/#372: main integrated at 852a1ce (two parents, no rewrite); Python 8/8 pass; final CI/review pending.
 - #348 reverb, #345 delay, #344 resonator (--channels 8 after #373), #323 quantizer: switch to the shared probe,
   run Pi CPU acceptance, then Codex Lead merges.
 - #346 oscillator UI: rebase conflict (dirty), then merge (reviews clean).
 - #310 Spectral Interleave/Vocoder: stacked on #304.
 
 ## Phase 2 engine queue
-- #301 merging. Next: #293 device routes, #292 callback load/dropouts (+ tap-cost check), #296 fake-device soak.
+- #301 merged (aba3042). Next: #293 device routes, #292 callback load/dropouts (+ tap-cost check), #296 fake-device soak.
 - #290/#210 controls: under the existing Keel Nov7 ruling; #210 has pi5/accept on d715bb4, needs review + merge.
 - #287 Learn: blocked for raw-CC observation contract (status.midi.activity lacks CC identity/value). T2: Keel batch.
 - #82 J5 OSC (phase 3, T2): parked until Phase 3; it needs a Claude review then.
+
+## Owner-requested three-agent handoff (#376)
+- Paste-ready lanes: docs/tasks/BUILD_LEAD_2026_11_08.md; three chats, maximum three active items each.
+- Codex Lead owns #373 integration and then #292 implementation; agents own telemetry, modules, review/soak.
 
 ## Retained rules
 - Tests/CI never open audio/MIDI/LAN. No agent SSH to Pi/laptop; private runner supplies Pi evidence.
