@@ -11,8 +11,8 @@ constexpr uint32_t kStep = kMod | WS2_STEPPED;
 struct Resonator {
     static constexpr ws::Info info{"essentials.resonator", "Resonator", 1};
     static constexpr std::array inputs{ws::port("audio", "Audio", WS2_AUDIO, WS2_POLY),
-                                     ws::port("pitch", "Pitch", WS2_PITCH, WS2_POLY, 0),
-                                     ws::port("strike", "Strike", WS2_TRIGGER, WS2_POLY, 0)};
+                                       ws::port("pitch", "Pitch", WS2_PITCH, WS2_POLY, 0),
+                                       ws::port("strike", "Strike", WS2_TRIGGER, WS2_POLY, 0)};
     static constexpr std::array outputs{ws::port("audio", "Audio", WS2_AUDIO, WS2_POLY)};
     static constexpr std::array params{
         ws::param("tune", "Tune", -24, 24, 0, "st", kMod, WS2_LINEAR, Tune),
