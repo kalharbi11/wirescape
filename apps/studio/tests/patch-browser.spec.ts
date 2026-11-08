@@ -60,11 +60,14 @@ test('declining the unsaved-edit prompt keeps the current patch and browser open
   expect((await state(page)).modules).toEqual(before.modules);
 });
 
-test('failed bundle reset still loads and forces Save As', async ({ page }) => {
+test('failed bundle reset forces Save As while graph loading is pending', async ({ page }) => {
   await mockBridge(page);
   await boot(page);
   await page.evaluate(() => {
     const bridge = window.wirescape!;
+    window.__wirescapeTest.engine.loadGraph = () => new Promise<void>(resolve => {
+      (window as any).__finishGraphLoad = resolve;
+    });
     bridge.openPatch = async request => {
       if (request?.library === 'reset') throw new Error('Reset failed');
       return { name: 'User patches', text: '[]' };
@@ -76,9 +79,13 @@ test('failed bundle reset still loads and forces Save As', async ({ page }) => {
   });
   await page.getByTestId('open-patch-browser').click();
   await page.getByTestId('bundled-patch-0').click();
-  await expect(page.getByTestId('patch-browser')).toBeHidden();
-  await page.getByTestId('save-patch').click();
+  await page.waitForFunction(() => typeof (window as any).__finishGraphLoad === 'function');
+  // The browser remains open while loadGraph awaits; invoke the actual Save
+  // button handler to exercise a concurrent menu/keyboard-style save.
+  await page.evaluate(() => (document.querySelector('[data-testid="save-patch"]') as HTMLButtonElement).click());
   expect(await page.evaluate(() => (window as any).__saveOptions)).toEqual({ saveAs: true });
+  await page.evaluate(() => (window as any).__finishGraphLoad());
+  await expect(page.getByTestId('patch-browser')).toBeHidden();
 });
 
 test('malformed user patch keeps the document and cannot silently redirect Save', async ({ page }) => {
