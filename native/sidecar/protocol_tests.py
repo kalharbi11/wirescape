@@ -323,6 +323,9 @@ with tempfile.TemporaryDirectory() as directory:
     replaced = observed.call('loadGraph', patch=tap_patch)['gen']
     observed.call('noteOn', note=62, velocity=0.8)
     telemetry_when(observed, replaced, lambda t: t['eventActivity'].get('12:notes') == 1)
+    telemetry_when(observed, replaced, lambda t: t['envelope'].get('14', 0) > 0)
+    observed.call('noteOff', note=62)
+    telemetry_when(observed, replaced, lambda t: t['envelope'].get('14', 1) <= 0.01)
     disconnected = observed.call('disconnect', connection=mod)['gen']
     telemetry_when(observed, disconnected, lambda t: t['effective'] == {})
     observed.close()
