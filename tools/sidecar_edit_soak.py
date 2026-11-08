@@ -278,6 +278,9 @@ def main(argv=None):
         print(json.dumps(run(binary.resolve(), args.seconds, args.seed), sort_keys=True))
         return 0
     except (OSError, ValueError, SoakFailure) as exc:
+        # Machine-readable failure is never an unavailable or zero-valued success.
+        print(json.dumps({'status': 'failed', 'seed': args.seed, 'seconds': args.seconds,
+                          'error': str(exc)}, sort_keys=True))
         print(f'sidecar edit soak: {exc}', file=sys.stderr)
         return 1
 
