@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# S2-1: `fx.delay`, a stereo delay (Track S2, module lane row 1)
+# S2-1 (#314): `fx.delay`, a stereo delay (Track S2, module lane row 1)
 
 **What.** A clean, musical stereo delay for jamming on the Pi: echoes that can sync to a patched clock, feedback that can run away without blowing up, a tone control in the loop, and ping-pong. Original code. No tape (owner, 2026-10-27): no wow/flutter, no saturation model beyond a soft limiter in the loop.
 
