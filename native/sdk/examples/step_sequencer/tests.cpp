@@ -105,12 +105,16 @@ struct Rig {
         }
     }
 
-    // All 16 steps are independently programmable; the first 8 retain their IDs.
-    void pattern16(const int (&semitones)[16], const int (&gates)[16], uint32_t length = 16) {
+    // A named pattern prevents accidentally exchanging pitch and gate arrays.
+    struct Pattern16 {
+        const int (&semitones)[16];
+        const int (&gates)[16];
+    };
+    void pattern16(Pattern16 pattern, uint32_t length = 16) {
         values[S::kLength] = static_cast<float>(length);
         for (uint32_t i = 0; i < 16; ++i) {
-            values[S::pitch_param(i)] = static_cast<float>(semitones[i]) / 12.f;
-            values[S::gate_param(i)] = static_cast<float>(gates[i]);
+            values[S::pitch_param(i)] = static_cast<float>(pattern.semitones[i]) / 12.f;
+            values[S::gate_param(i)] = static_cast<float>(pattern.gates[i]);
         }
     }
 
@@ -375,11 +379,11 @@ static void test_sixteen_steps_and_boundary_ties() {
     const int semis[16] = {0, 2, 4, 5, 7, 9, 11, 12, -12, -10, -8, -7, -5, -3, -1, 0};
     const int notes[16] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
     Rig r;
-    r.pattern16(semis, notes);
+    r.pattern16({semis, notes});
     r.values[S::vel_param(15)] = 0.37f; // exercise the final parameter slot (49)
     const Trace t = r.render(660, 64, Clock{}, Resets{});
     REQUIRE(t.events.size() == 66); // 33 notes across two cycles, matching clock falls
-    for (uint32_t i = 0; i < 33; ++i) {
+    for (size_t i = 0; i < 33; ++i) {
         REQUIRE(t.events[2 * i].type == WS2_NOTE_ON);
         REQUIRE(t.events[2 * i].frame == i * 20 && t.events[2 * i].key == 60 + semis[i % 16]);
         REQUIRE(t.events[2 * i].value == (i % 16 == 15 ? 0.37f : 0.8f));
@@ -391,7 +395,7 @@ static void test_sixteen_steps_and_boundary_ties() {
     // Tie over steps 8->9 and 16->1, even when the clock goes low between rises.
     const int ties[16] = {2, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 1};
     Rig tied;
-    tied.pattern16(semis, ties);
+    tied.pattern16({semis, ties});
     const Trace hold = tied.render(360, 17, Clock{}, Resets{});
     const Ev expected[] = {
         {WS2_NOTE_ON, 140, 0, 72, 0.8f}, {WS2_NOTE_OFF, 168, 0, 72, 0.f},
@@ -404,7 +408,7 @@ static void test_sixteen_steps_and_boundary_ties() {
     // Stop while step 16 is sounding: release immediately. Restart and reset on
     // the same clock edge: the legacy reset-wins rule must still play step 1.
     Rig stopped;
-    stopped.pattern16(semis, notes);
+    stopped.pattern16({semis, notes});
     Trace all = stopped.render(304, 17, Clock{}, Resets{});
     REQUIRE(all.events.back().type == WS2_NOTE_ON && all.events.back().frame == 300);
     stopped.values[S::kRun] = 0.f;
@@ -429,21 +433,21 @@ static void test_sixteen_block_matrix_and_length_edits() {
     const int gates[16] = {1, 1, 2, 0, 1, 1, 0, 1, 1, 1, 2, 1, 0, 1, 1, 1};
     const Resets resets{{333, 499}};
     Rig one;
-    one.pattern16(semis, gates);
+    one.pattern16({semis, gates});
     const Trace expected = one.render(640, 640, Clock{23, 9}, resets);
     for (uint32_t size : {1u, 17u, 128u, 256u}) {
         Rig r;
-        r.pattern16(semis, gates);
+        r.pattern16({semis, gates});
         REQUIRE(r.render(640, size, Clock{23, 9}, resets) == expected);
     }
     for (double rate : {44100., 48000., 96000.}) {
         Rig r(rate);
-        r.pattern16(semis, gates);
+        r.pattern16({semis, gates});
         REQUIRE(r.render(640, 128, Clock{23, 9}, resets).events == expected.events);
     }
 
     Rig edit;
-    edit.pattern16(semis, gates);
+    edit.pattern16({semis, gates});
     edit.render(225, 17, Clock{}, Resets{}); // 12th step was just played at frame 220
     edit.values[S::kLength] = 4;
     const Trace shortened = edit.render(95, 17, Clock{}, Resets{});
@@ -471,8 +475,8 @@ static void test_v1_v2_state_migration() {
         return r.d->load_state(r.state, &rd);
     };
     Rig initial, resumed;
-    initial.pattern16(semis, gates);
-    resumed.pattern16(semis, gates);
+    initial.pattern16({semis, gates});
+    resumed.pattern16({semis, gates});
     initial.render(205, 17, Clock{}, Resets{}); // step 11 at frame 200
     Bytes state2 = save(initial);
     REQUIRE(state2[0] == 2);
