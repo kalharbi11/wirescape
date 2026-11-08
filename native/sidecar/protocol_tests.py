@@ -139,6 +139,21 @@ class Engine:
         assert not self.errors, self.errors
 
 
+
+def telemetry_when(engine, gen, predicate, timeout=8.0):
+    """Read a same-generation complete snapshot satisfying a render-backed condition."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        message = engine.pushes.pop(0) if engine.pushes else engine.receive()
+        if message.get('type') == 'telemetry' and message['gen'] == gen:
+            data = message['telemetry']
+            assert all(isinstance(data[key], dict)
+                       for key in ('effective', 'phase', 'envelope', 'eventActivity'))
+            if predicate(data):
+                return data
+    raise AssertionError(f'no matching telemetry at gen {gen}: {engine.stderr()}')
+
+
 def minimal():
     return dict(format='wirescape.native.patch', version=2,
                 modules=[dict(id=7, module='essentials.output')], connections=[],
@@ -232,7 +247,9 @@ with tempfile.TemporaryDirectory() as directory:
         message = engine.receive()
         if message.get('type') == 'telemetry':
             telemetry = message['telemetry']
-            assert all(telemetry[key] == {} for key in ['effective', 'phase', 'envelope', 'scope', 'eventActivity'])
+            assert all(isinstance(telemetry[key], dict)
+                       for key in ['effective', 'phase', 'envelope', 'scope', 'eventActivity'])
+            assert telemetry['phase'] == {} and telemetry['scope'] == {}
             if telemetry['meters'].get('7', [0])[0] > 0:
                 break
     else:
@@ -275,6 +292,43 @@ with tempfile.TemporaryDirectory() as directory:
     for path, gen in expected_commits:
         assert [line for line in commits if line.endswith(f' gen={gen}')] == [
             f'commit path={path} gen={gen}'], engine.stderr()
+    # A2: true rendered taps, complete snapshots, and first-burst cursor reset.
+    observed = Engine(Path(directory) / 'telemetry.json')
+    tap_patch = minimal()
+    tap_patch['modules'] += [
+        dict(id=9, module='essentials.vco', parameters=dict(frequency=440)),
+        dict(id=10, module='essentials.lfo'),
+        dict(id=12, module='host.keyboard'),
+        dict(id=14, module='essentials.adsr'),
+    ]
+    mod = edge('modulation', 10, 'control', 9, 'frequency', amount=0.25)
+    tap_patch['connections'] = [edge('signal', 9, 'audio', 7, 'audio'), mod,
+                                edge('signal', 12, 'gate', 14, 'gate'),
+                                edge('signal', 14, 'envelope', 9, 'fm')]
+    first = observed.call('loadGraph', patch=tap_patch)['gen']
+    telemetry_when(observed, first, lambda t:
+                   'frequency' in t['effective'].get('9', {}) and
+                   abs(t['effective']['9']['frequency'] - 440) > 0.01)
+    observed.call('noteOn', note=60, velocity=0.8)
+    telemetry_when(observed, first, lambda t: t['eventActivity'].get('12:notes') == 1)
+    telemetry_when(observed, first, lambda t: t['envelope'].get('14', 0) > 0)
+    telemetry_when(observed, first, lambda t:
+                   0.05 <= t['eventActivity'].get('12:notes', 0) < 1)
+    # Engine2 restarts counts at zero on replan; the next one-event burst may
+    # equal the old count, so stale cursors would silently suppress the pulse.
+    edited = observed.call('addModule', moduleId=13, moduleType='essentials.vco')['gen']
+    observed.call('noteOn', note=61, velocity=0.8)
+    telemetry_when(observed, edited, lambda t: t['eventActivity'].get('12:notes') == 1)
+    # Full D5 graph replacement must reset the same cursors and pulse decay too.
+    replaced = observed.call('loadGraph', patch=tap_patch)['gen']
+    observed.call('noteOn', note=62, velocity=0.8)
+    telemetry_when(observed, replaced, lambda t: t['eventActivity'].get('12:notes') == 1)
+    telemetry_when(observed, replaced, lambda t: t['envelope'].get('14', 0) > 0)
+    observed.call('noteOff', note=62)
+    telemetry_when(observed, replaced, lambda t: t['envelope'].get('14', 1) <= 0.01)
+    disconnected = observed.call('disconnect', connection=mod)['gen']
+    telemetry_when(observed, disconnected, lambda t: t['effective'] == {})
+    observed.close()
     restarted = Engine(settings)
     assert restarted.session != old_session
     assert restarted.call('loadGraph', patch=minimal())['gen'] == '1'

@@ -380,7 +380,10 @@ void Session::commit(Json patch, bool new_namespace) {
     patch = execution(std::move(patch));
     std::string error;
     const auto patch_bytes = patch.dump();
-    audio::EngineOwner candidate(document::load_runtime_patch(patch_bytes, catalogue_.get(), config_, error),
+    // Stage metadata and cursor storage before any live graph swap.
+    document::telemetry::Sampler next_telemetry(document::telemetry::plan(patch, catalogue_.get()));
+    audio::EngineOwner candidate(document::load_runtime_patch(patch_bytes, catalogue_.get(), config_, error,
+                                                             &next_telemetry.taps()),
                                  app_engine_destroy);
     need(bool(candidate), "refused", "Graph configuration or state refused");
     // Stage all potentially throwing document/ID work before accepting a live graph.
@@ -394,6 +397,7 @@ void Session::commit(Json patch, bool new_namespace) {
             if (midi_->replan(candidate.get(), patch_bytes, timeout_ns, error)) {
                 patch_.swap(patch);
                 used_ids_.swap(ids);
+                telemetry_.swap(next_telemetry); // Engine2 counts restart at every replan.
                 ++generation_;
                 std::cerr << "commit path=live gen=" << generation_ << '\n';
                 return;
@@ -462,6 +466,7 @@ void Session::commit(Json patch, bool new_namespace) {
     ++generation_;
     keyboard_.fill(false);
     used_ids_.swap(ids);
+    telemetry_.swap(next_telemetry); // D5 also resets all last-seen event counts.
     std::cerr << "commit path=d5 gen=" << generation_ << '\n';
 }
 Json Session::apply(const Json &command) {
@@ -725,8 +730,9 @@ Json Session::telemetry() {
                       {"time", std::chrono::duration<double>(std::chrono::steady_clock::now() - started_).count()},
                       {"meters", meters},
                       {"heldNotes", held}};
-    for (const char *key : {"effective", "phase", "envelope", "scope", "eventActivity"})
-        telemetry[key] = Json::object();
+    telemetry["scope"] = Json::object();
+    auto snapshot = telemetry_.sample(active_);
+    telemetry.update(snapshot);
     auto value = base();
     value["type"] = "telemetry";
     value["telemetry"] = telemetry;
