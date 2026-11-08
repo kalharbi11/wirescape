@@ -17,7 +17,7 @@ Keep this under 60 lines. History lives in git.
 
 ## Engine and app queue
 - #301/#291 audio recovery: both Mediums repaired at 003f64e with fake-device regressions; fresh CI, Keel and Pi required. #293 follows.
-- #331/#294 patch browser: takeover fixing preload/reset Lows plus malformed-load Save-target hazard; fresh Web/Electron evidence required.
+- #331/#294 patch browser: repairs + pending-load Save regression pushed 1d154c3 and independently checked; fresh Web/Electron required.
 - #292 callback load/dropouts: ready builder brief in issue. #296 fake-device Pi soak: unblocked, status/todo, exact brief posted.
 - #287 MIDI Learn: blocked for Keel correction; status.midi.activity is recent endpoint activity, not CC number/channel/value.
 - #290/#210 MIDI controls: Keel's Nov7 ruling exists; implement last_note/min/max within that ruling (brief posted). Not waiting on a new general contract.
