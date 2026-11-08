@@ -3,41 +3,44 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-07 16:30 UTC by Compass (platform check-in). **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
+**Updated:** 2026-11-08 by Keel (#350 telemetry ruling); before that 2026-11-07 20:30 UTC by Compass. **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
 
 ## Lead split (owner, 2026-11-07)
 - **Compass (platform):** everything except modules: Phases 1–5, the app, the engine lanes, the web demo, the board and STATE. Checks in every 4 h (owner-requested scheduled run).
 - **Compass (modules):** Track S and the module lane (#304/#310, #314–#318, #305/#306/#307). Leaves this file's module lines to that session.
 - Codex Lead runs every 150 min through 2026-11-09 06:00 UTC (owner-requested).
 
-## Compass actions (16:12 check-in)
-- #320 (#297 fix): cross-family review of the GPT follow-up at `360ea3b` found nothing, so I approved it to auto-merge on green. Strict single-attempt mode keeps the pi5 `--max-gap-ms 20` evidence meaning what it did.
-- #256 (1H): merged main in (`01305a3`) and ruled that Keel's no-Pi review covers its `pi:` line. Approved for auto-merge on green; it closes 1H.
-- #321 (W-web-2..5): merged main in (`f8f203f`), two T1 reviews already done. Approved for auto-merge.
-- #325 (Codex Lead STATE): approved. This file is built on top of it.
-- Asked Keel (on #273) for the four stalled T2 reviews, in this order: #274 → #273 → #301 → #298.
+## Compass actions (20:13 check-in)
+- Merged since 16:12: #320 (#297 fix), #256 (1H), #273 (2A-2), #274 (1E-b), #330 (2B-c hotplug, which replaced #298), #324 (2D-d recovery), #321 (web extras). **All Phase 1 code is on main.**
+- #271: posted the refreshed feature table and told the owner the session is ready to run (0, A, B, C, D3 = minimum for sign-off).
+- #301: Keel's two Mediums have had no builder for 9 h. Asked Codex Lead to take it over, with the exact fix.
+- #331 patch browser: independent T1 review found no High/Medium. Two Lows (preload request rebuild, uncaught `reset` in `loadBundledPatch`) should be fixed before ready; after that, any lead or Codex Lead may approve on green.
 
 ## Main blocker
-- **T2 review throughput.** #273, #274, #298 and #301 have been waiting on Keel since 11:11 UTC, and they gate the rest of Phase 2. #297 is resolved by #320.
+- **Owner Test Session 1 (#271)** is now the only Phase 1 sign-off item. Then Compass runs Checkpoint A.
+- Phase 2 engine: #301 (2C-a) needs a builder for Keel's Mediums, and it gates #293.
 
 ## In flight (who acts)
-- #273 live replan in sidecar `00a5b24`, #274 bench summary `c6ed064`, #298 MIDI hotplug, #301 audio-loss recovery: Keel T2 review plus pi5, then merge. #274 unblocks #292/#296; #273 unblocks #287; #301 unblocks #293.
-- #256 1H conformance: approved at `01305a3`, auto-merges on green. If web goes red on the merged head, fix it with a small change; don't re-scope.
-- #300 and #311 merged.
+- #301 audio recovery: Codex builder fixes, then Keel re-review plus pi5.
+- #331 patch browser: Codex fixes the two Lows, then approve.
+- #292 load/dropouts and #296 fake-device Pi soak: unblocked by #274, queued by Codex Lead.
+- #287 MIDI Learn: topology prerequisite done; raw-CC observation seam ruling needed (Keel).
 - #210 / #290 MIDI controls: Keel/Compass contract ruling pending.
-- #295 crash recovery: draft #324 at 9b3e697; added expected-exit and pending-offer reload regressions (11 total).
-  be1bebc had green hosted CI/Web and independent review (no implementation defects); two Low tests addressed.
-  New-head hosted Web/Electron evidence pending; local npm/git remain blocked by proxy HTTP503.
-- **Free now, unclaimed for 5 h (Codex Lead to queue first):** #294 patch browser.
-- Still blocked: #287 (after #273), #292 and #296 (after #274), #293 (after #301).
+- Phase 2 left after these: 2B-b Learn, 2B-e controls, 2C-b/c, 2F-b soak. Then Checkpoint B.
 
 ## Web demo lane (D14)
 - Live at `https://kalharbi11.github.io/wirescape/` (Pages is on). #309 and #321 merged (`e766a27`): the demo has playable starters only, cable values and the Output scope, a SHARE link (`#p=`), and SAVE/OPEN files.
 - Every main push runs `web-demo.yml`: native tests, the wasm build, Playwright, deploy, then `live` (the same tests against the published site). Agent containers can't reach github.io, so `live` is the deployed-site evidence.
-- Ideas, not queued: per-module effective/phase/envelope telemetry, a short first-patch tip on the splash, a phone/touch pass.
+- Ideas, not queued: a short first-patch tip on the splash, a phone/touch pass.
+
+## Engine telemetry (#350), Keel ruled 2026-11-08
+- Contract `docs/design/ENGINE_TELEMETRY.md`; parts, order and authority `docs/tasks/T350_ENGINE_TELEMETRY.md`.
+- Start now in parallel: A1 #354 engine2 taps (T2), A0 #355 Studio snapshots (T1), B-mod #356 LFO `phase` port (T1). Merge #353 (30 Hz cap) and #352 (wave tail) as T1.
+- After A1: A2 #357 sidecar + spec §7 (T2, Keel or Compass review, pi), A3 #358 wasm (T1). Then B-wire #359.
+- Keel is needed only for: the A1 review, the A2 review (or Compass), and the contract's Stops. Codex Lead runs the rest.
 
 ## Phase 1 sign-off needs
-#271 owner results (A, B, C), 1H green (#256), and the contention benchmark (#274 plus owner D3). Then Compass runs Checkpoint A. The owner has deferred #271; nothing is asked of them until the 2A/2B/2C T2 lanes merge, so that one owner session covers Phase 1 and the first Phase 2 hardware checks.
+Only the owner's #271 results remain (A, B, C plus D3 contention). 1H (#256) and the benchmark tooling (#274) are merged. Then Compass runs Checkpoint A (about 30 min on the Pi with the M8).
 
 ## Retained rulings
 - Electron main is the only automatic restarter. Imported documents round-trip unchanged (D3). New loadGraph uses D5; live edits use replan with bounded busy retry.

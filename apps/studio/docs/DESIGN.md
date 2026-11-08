@@ -483,3 +483,4 @@ and unknown fields use the normal lossless document path. Optional openPatch
 library list/read/reset requests retain the five-member preload surface and
 existing return shape; main owns containment, UTF-8 and 2 MiB bounds. Browser
 builds return an empty user list and keep normal file-picker Open unchanged.
+

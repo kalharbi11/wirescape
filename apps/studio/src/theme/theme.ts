@@ -30,7 +30,12 @@ export const DEFAULT_PREFS: Preferences = {
 };
 
 export function loadPrefs(): Preferences {
-  const defaults = { ...DEFAULT_PREFS, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+  const defaults = {
+    ...DEFAULT_PREFS,
+    motion: !matchMedia('(prefers-reduced-motion: reduce)').matches,
+    // A fresh phone install should not start with mouse-sized knob and jack targets.
+    hit: matchMedia('(pointer: coarse)').matches ? 'touch' as const : 'mouse' as const,
+  };
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) return { ...defaults, ...JSON.parse(raw) };

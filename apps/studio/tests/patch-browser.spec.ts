@@ -102,3 +102,4 @@ test('malformed user patch keeps the document and cannot silently redirect Save'
   await page.getByTestId('save-patch').click();
   expect(await page.evaluate(() => (window as any).__saveOptions)).toEqual({ saveAs: true });
 });
+

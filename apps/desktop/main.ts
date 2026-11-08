@@ -429,3 +429,4 @@ app.on('before-quit', event => {
   shuttingDown = true;
   void stopEngine().finally(() => app.quit());
 });
+

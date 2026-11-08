@@ -44,6 +44,8 @@ export class App {
   private maxModuleId = 0;
   private canvas!: PatchCanvas;
   private library!: Library;
+  private libraryScrim!: HTMLButtonElement;
+  private menuBtn!: HTMLButtonElement;
   private quick!: QuickAdd;
   private toasts = new Toasts();
   private statusBar!: StatusBar;
@@ -104,8 +106,8 @@ export class App {
 
   private build(): void {
     this.library = new Library(this.registry, {
-      add: type => this.addModuleCentred(type),
-      addAt: (type, x, y) => this.addModuleAt(type, x, y),
+      add: type => { this.setLibraryOpen(false); this.addModuleCentred(type); },
+      addAt: (type, x, y) => { this.setLibraryOpen(false); this.addModuleAt(type, x, y); },
     });
 
     this.quick = new QuickAdd(this.registry);
@@ -159,8 +161,15 @@ export class App {
     this.fileInput.dataset.testid = 'file-input';
     this.fileInput.addEventListener('change', () => void this.importFile());
 
+    this.libraryScrim = el('button', 'library-scrim') as HTMLButtonElement;
+    this.libraryScrim.type = 'button';
+    this.libraryScrim.hidden = true;
+    this.libraryScrim.dataset.testid = 'library-backdrop';
+    this.libraryScrim.setAttribute('aria-label', 'Close module library');
+    this.libraryScrim.addEventListener('click', () => this.setLibraryOpen(false));
+
     this.root.append(
-      this.library.root, main, this.toasts.root, this.quick.root,
+      this.library.root, main, this.libraryScrim, this.toasts.root, this.quick.root,
       this.devPanel.root, this.settings.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
     );
 
@@ -174,8 +183,12 @@ export class App {
     bar.dataset.testid = 'topbar';
 
     const left = el('div', 'topbar-left');
-    const menuBtn = this.action('☰', () => this.root.classList.toggle('library-open'), 'menu-toggle');
+    const menuBtn = this.menuBtn = this.action('☰', () =>
+      this.setLibraryOpen(!this.root.classList.contains('library-open')), 'menu-toggle');
     menuBtn.classList.add('icon-only', 'menu-btn');
+    menuBtn.setAttribute('aria-label', 'Show module library');
+    menuBtn.setAttribute('aria-expanded', 'false');
+    menuBtn.setAttribute('aria-controls', 'module-library');
     this.nameEl = el('span', 'patch-name', this.patchName);
     this.nameEl.dataset.testid = 'patch-name';
     this.nameEl.title = 'Click to rename the patch';
@@ -243,9 +256,17 @@ export class App {
       this.action('?', () => this.shortcuts.open('Keyboard shortcuts'), 'shortcuts-btn'),
     );
 
-    right.append(starters, this.octaveEl, history, zoomGroup, tools);
+    // Keep zoom at the start of the scrollable mobile toolbar, after patches.
+    right.append(starters, this.octaveEl, zoomGroup, history, tools);
     bar.append(left, right);
     return bar;
+  }
+
+  private setLibraryOpen(open: boolean): void {
+    this.root.classList.toggle('library-open', open);
+    this.libraryScrim.hidden = !open;
+    this.menuBtn.setAttribute('aria-expanded', String(open));
+    this.menuBtn.setAttribute('aria-label', open ? 'Hide module library' : 'Show module library');
   }
 
   /** The web demo only lists starters its engine can play; desktop lists them all. */
@@ -308,7 +329,10 @@ export class App {
     if (saved) this.offerRecovery('app', saved);
 
     requestAnimationFrame(() => { this.canvas.fit(); this.canvas.invalidateAnchors(); });
-    window.addEventListener('resize', () => this.canvas.updateVisibility());
+    window.addEventListener('resize', () => {
+      this.canvas.updateVisibility();
+      if (window.innerWidth > 1060) this.setLibraryOpen(false);
+    });
     setInterval(() => this.autosave(), 4000);
     window.addEventListener('pagehide', () => {
       if (this.recoveryPending) return; // Keep the original snapshot across an unanswered offer.
@@ -707,7 +731,7 @@ export class App {
     }
     this.canvas.selectModule(id, false);
     this.canvas.invalidateAnchors();
-    this.root.classList.remove('library-open');
+    this.setLibraryOpen(false);
     this.toasts.show(`${d.name} added.`);
     return id;
   }
@@ -843,7 +867,7 @@ export class App {
       if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); this.duplicate(); return; }
       if (mod && e.key.toLowerCase() === 'f') { e.preventDefault(); this.library.focusSearch(); return; }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this.deleteSelection(); return; }
-      if (e.key === 'Escape') { this.canvas.select({ kind: 'none' }); this.root.classList.remove('library-open'); return; }
+      if (e.key === 'Escape') { this.canvas.select({ kind: 'none' }); this.setLibraryOpen(false); return; }
       if (e.key === '?') { e.preventDefault(); this.shortcuts.open('Keyboard shortcuts'); return; }
       if (e.key === '`' || (e.shiftKey && e.key.toLowerCase() === 'd')) { e.preventDefault(); this.devPanel.toggle(); return; }
       if (e.key === '0' && mod) { e.preventDefault(); this.canvas.viewport.zoomTo(1); return; }
@@ -1055,7 +1079,10 @@ export class App {
       el('div', '', `Wirescape Studio prototype · ${__APP_VERSION__}`),
       el('div', 'muted', `Build ${__BUILD__} · ${navigator.hardwareConcurrency ?? '?'} cores · profile ${this.prefs.profile}`),
       el('div', 'muted', this.engine instanceof RealEngine
-        ? 'Native engine via the isolated preload bridge.' : 'Simulated engine. No audio or hardware MIDI.'),
+        ? window.wirescape?.web
+          ? 'WebAssembly audio engine running in an AudioWorklet. No hardware MIDI or OSC.'
+          : 'Native engine via the isolated preload bridge.'
+        : 'Simulated engine. No audio or hardware MIDI.'),
       upd, updOut,
     );
     b.append(about);
@@ -1227,3 +1254,4 @@ export class App {
 
 declare const __APP_VERSION__: string;
 declare const __BUILD__: string;
+
