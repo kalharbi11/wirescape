@@ -121,7 +121,8 @@ int main(int argc, char** argv) {
         referenceBase["connections"] = QJsonArray{validCable};
         referenceBase["outputs"] = QJsonArray{QJsonObject{{"module", 2}, {"port", "audio"}, {"bus_channel", 0}}};
         check(validate_patch(referenceBase, &error) && error.isEmpty(), "two-module reference control validates");
-        check(read_patch(encode(referenceBase), catalog).valid(), "two-module reference control reads");
+        const auto referenceRead = read_patch(encode(referenceBase), catalog);
+        check(referenceRead.valid() && referenceRead.object == referenceBase, "two-module reference control reads identically");
 
         auto missingDestination = referenceBase;
         auto referenceCables = missingDestination["connections"].toArray();
