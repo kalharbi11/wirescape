@@ -39,6 +39,8 @@ export class FakeEngine implements EngineClient {
   private tick = 0;
   private t0 = performance.now();
   private time = 0;
+  /** Effective values for this simulation tick only (meter and signal estimates). */
+  private currentEffective = new Map<string, number>();
   private phases = new Map<number, number>();
   private randomHold = new Map<number, { value: number; target: number; last: number }>();
   private clockEdge = new Map<number, number>();
@@ -98,7 +100,7 @@ export class FakeEngine implements EngineClient {
   async loadGraph(patch: PatchV2): Promise<void> {
     this.nodes.clear(); this.conns = []; this.voices = [];
     this.phases.clear(); this.randomHold.clear(); this.seqStep.clear();
-    this.meterPeak.clear();
+    this.currentEffective.clear(); this.meterPeak.clear();
     for (const m of patch.modules) {
       this.nodes.set(m.id, { id: m.id, type: m.module, params: { ...(m.parameters ?? {}) } });
     }
@@ -269,6 +271,7 @@ export class FakeEngine implements EngineClient {
 
     const cache = new Map<string, number>();
     const effective: Record<number, Record<string, number>> = {};
+    this.currentEffective.clear();
     const phase: Record<number, number> = {};
     const envelope: Record<number, number> = {};
     const meters: Record<number, [number, number]> = {};
@@ -290,6 +293,7 @@ export class FakeEngine implements EngineClient {
         let norm = valueToNorm(p, base);
         for (const c of my) norm += (c.amount ?? 0) * this.sourceValue(c, cache);
         modulated[p.id] = normToValue(p, Math.max(0, Math.min(1, norm)));
+        this.currentEffective.set(`${n.id}:${p.id}`, modulated[p.id]!);
       }
       if (Object.keys(modulated).length) effective[n.id] = modulated;
 
@@ -581,7 +585,7 @@ export class FakeEngine implements EngineClient {
   }
 
   private effectiveParam(n: Node, id: string): number | undefined {
-    return this.lastEffective.get(`${n.id}:${id}`) ?? n.params[id];
+    return this.currentEffective.get(`${n.id}:${id}`) ?? n.params[id];
   }
 
   private meterWithPeak(id: number, level: number): [number, number] {
