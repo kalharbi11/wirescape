@@ -33,7 +33,7 @@ App graph(bool bench = false, bool tapped = false) {
     CHECK(app_engine_connect(app.get(), 1, 0, 2, 0) == WS_OK);
     CHECK(app_engine_connect(app.get(), 2, 0, 3, 0) == WS_OK); // pitch
     CHECK(app_engine_connect(app.get(), 2, 1, 4, 0) == WS_OK); // gate
-    CHECK(app_engine_connect(app.get(), 3, 0, 5, 0) == WS_OK);
+    if (!bench) CHECK(app_engine_connect(app.get(), 3, 0, 5, 0) == WS_OK);
     CHECK(app_engine_connect(app.get(), 4, 0, 5, 1) == WS_OK);
     CHECK(app_engine_connect(app.get(), 5, 0, 6, 0) == WS_OK);
     CHECK(app_engine_native(app.get()).output(6, 0, 1));
@@ -41,10 +41,11 @@ App graph(bool bench = false, bool tapped = false) {
         std::vector<wirescape::engine2::Tap> taps;
         for (uint32_t id = 10; id < 42; ++id) {
             CHECK(app_engine_add_node(app.get(), id, "essentials.vco") == WS_OK);
-            CHECK(app_engine_connect(app.get(), id, 0, 5, 0) == WS_OK);
+            CHECK(app_engine_connect(app.get(), id == 10 ? 3 : id - 1, 0, id, 1) == WS_OK);
             taps.push_back({wirescape::engine2::Tap::Param, id, 0});
             taps.push_back({wirescape::engine2::Tap::Output, id, 0});
         }
+        CHECK(app_engine_connect(app.get(), 41, 0, 5, 0) == WS_OK);
         if (tapped) CHECK(app_engine_native(app.get()).set_telemetry_taps(taps));
     }
     CHECK(app_engine_prepare(app.get(), 6, 0) == WS_OK);
