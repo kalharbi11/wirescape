@@ -32,19 +32,10 @@ budget: one independent builder session
 size: <= 300 changed lines, <= 6 files
 must_pass:
   - python tools/dev.py build --headless
-  - ctest --test-dir build/native -R '^(abi2_staged_tests|abi2_live_replan_tests|abi2_engine_tests|abi2_sidecar_unit_tests|abi2_sidecar_protocol_tests)
+  - ctest --test-dir build/native -R '^(abi2_staged_tests|abi2_live_replan_tests|abi2_engine_tests|abi2_sidecar_unit_tests|abi2_sidecar_protocol_tests)$' --output-on-failure --no-tests=error
   - ci: guard, linux-arm64, windows-x64, sanitizers green on exact PR head
 stops: [ABI/protocol change, realtime safety design change, new dependency, test removal, >450 changed lines, protected CI edit]
 ```
 
 The independent Claude/Keel T2 COMMENT review on the exact PR head is a
 mandatory *human* merge gate, not a machine-executable acceptance command.
-
- --output-on-failure --no-tests=error
-  - ci: guard, linux-arm64, windows-x64, sanitizers green on exact PR head
-stops: [ABI/protocol change, realtime safety design change, new dependency, test removal, >450 changed lines, protected CI edit]
-```
-
-The independent Claude/Keel T2 COMMENT review on the exact PR head is a
-mandatory *human* merge gate, not a machine-executable acceptance command.
-
