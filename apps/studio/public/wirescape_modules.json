@@ -1,5 +1,5 @@
 {
- "note": "Real Wirescape ABI 2 module descriptors: 20 built-ins + 2 SDK examples, extracted from research PR #215. Use the ids exactly; they are stable and will match the real engine. kind 'signal' = audio-rate cable, 'event' = notes/MIDI messages. hint is advisory (audio, pitch, cv, gate...) and never blocks a connection.",
+ "note": "Real Wirescape ABI 2 module descriptors: 21 built-ins + 2 SDK examples, extracted from research PR #215. Use the ids exactly; they are stable and will match the real engine. kind 'signal' = audio-rate cable, 'event' = notes/MIDI messages. hint is advisory (audio, pitch, cv, gate...) and never blocks a connection.",
  "modules": [
   {
    "id": "essentials.adsr",
@@ -522,6 +522,176 @@
     "lfo_self": 23,
     "cutoff": 24,
     "level": 25
+   }
+  },
+  {
+   "id": "essentials.resonator",
+   "name": "Resonator",
+   "category": "Sound",
+   "ports": [
+    {
+     "id": "audio",
+     "name": "Audio",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "pitch",
+     "name": "Pitch",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "pitch",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "strike",
+     "name": "Strike",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "trigger",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "audio",
+     "name": "Audio",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [
+    {
+     "id": "tune",
+     "name": "Tune",
+     "minimum": -24,
+     "maximum": 24,
+     "default": 0,
+     "unit": "st",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 2,
+     "modulatable": true
+    },
+    {
+     "id": "structure",
+     "name": "Structure",
+     "minimum": 0,
+     "maximum": 3,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": true,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Body"
+      },
+      {
+       "value": 1,
+       "label": "Harmonic"
+      },
+      {
+       "value": 2,
+       "label": "Bar"
+      },
+      {
+       "value": 3,
+       "label": "Bell"
+      }
+     ]
+    },
+    {
+     "id": "decay",
+     "name": "Decay",
+     "minimum": 0.05,
+     "maximum": 20,
+     "default": 1.5,
+     "unit": "s",
+     "taper": "log",
+     "step": 0,
+     "decimals": 2,
+     "modulatable": true
+    },
+    {
+     "id": "damping",
+     "name": "Damping",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.3,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "strike_tone",
+     "name": "Strike tone",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.5,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "strike_level",
+     "name": "Strike level",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.8,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "mix",
+     "name": "Mix",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "level",
+     "name": "Level",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.7,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    }
+   ],
+   "version": 1,
+   "legacy_parameters": {
+    "tune": 0,
+    "structure": 1,
+    "decay": 2,
+    "damping": 3,
+    "strike_tone": 4,
+    "strike_level": 5,
+    "mix": 6,
+    "level": 7
    }
   },
   {
@@ -1876,442 +2046,6 @@
    "legacy_parameters": {}
   },
   {
-   "id": "essentials.quantizer",
-   "name": "Quantizer",
-   "category": "Pitch",
-   "ports": [
-    {
-     "id": "pitch",
-     "name": "Pitch",
-     "direction": "input",
-     "kind": "signal",
-     "hint": "pitch",
-     "poly": "poly",
-     "stereo_pair": null
-    },
-    {
-     "id": "trigger",
-     "name": "Trigger",
-     "direction": "input",
-     "kind": "signal",
-     "hint": "trigger",
-     "poly": "poly",
-     "stereo_pair": null
-    },
-    {
-     "id": "pitch",
-     "name": "Pitch",
-     "direction": "output",
-     "kind": "signal",
-     "hint": "pitch",
-     "poly": "poly",
-     "stereo_pair": null
-    },
-    {
-     "id": "changed",
-     "name": "Changed",
-     "direction": "output",
-     "kind": "signal",
-     "hint": "trigger",
-     "poly": "poly",
-     "stereo_pair": null
-    }
-   ],
-   "parameters": [
-    {
-     "id": "scale",
-     "name": "Scale",
-     "minimum": 0,
-     "maximum": 13,
-     "default": 1,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "choices": [
-      {
-       "value": 0,
-       "label": "Chromatic"
-      },
-      {
-       "value": 1,
-       "label": "Major"
-      },
-      {
-       "value": 2,
-       "label": "Natural minor"
-      },
-      {
-       "value": 3,
-       "label": "Harmonic minor"
-      },
-      {
-       "value": 4,
-       "label": "Dorian"
-      },
-      {
-       "value": 5,
-       "label": "Phrygian"
-      },
-      {
-       "value": 6,
-       "label": "Lydian"
-      },
-      {
-       "value": 7,
-       "label": "Mixolydian"
-      },
-      {
-       "value": 8,
-       "label": "Locrian"
-      },
-      {
-       "value": 9,
-       "label": "Major pentatonic"
-      },
-      {
-       "value": 10,
-       "label": "Minor pentatonic"
-      },
-      {
-       "value": 11,
-       "label": "Blues"
-      },
-      {
-       "value": 12,
-       "label": "Whole tone"
-      },
-      {
-       "value": 13,
-       "label": "Custom"
-      }
-     ]
-    },
-    {
-     "id": "root",
-     "name": "Root",
-     "minimum": 0,
-     "maximum": 11,
-     "default": 0,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "choices": [
-      {
-       "value": 0,
-       "label": "C"
-      },
-      {
-       "value": 1,
-       "label": "C#"
-      },
-      {
-       "value": 2,
-       "label": "D"
-      },
-      {
-       "value": 3,
-       "label": "D#"
-      },
-      {
-       "value": 4,
-       "label": "E"
-      },
-      {
-       "value": 5,
-       "label": "F"
-      },
-      {
-       "value": 6,
-       "label": "F#"
-      },
-      {
-       "value": 7,
-       "label": "G"
-      },
-      {
-       "value": 8,
-       "label": "G#"
-      },
-      {
-       "value": 9,
-       "label": "A"
-      },
-      {
-       "value": 10,
-       "label": "A#"
-      },
-      {
-       "value": 11,
-       "label": "B"
-      }
-     ]
-    },
-    {
-     "id": "shift",
-     "name": "Shift",
-     "minimum": -7,
-     "maximum": 7,
-     "default": 0,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false
-    },
-    {
-     "id": "octave",
-     "name": "Octave",
-     "minimum": -3,
-     "maximum": 3,
-     "default": 0,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false
-    },
-    {
-     "id": "n0",
-     "name": "C",
-     "minimum": 0,
-     "maximum": 1,
-     "default": 1,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "visibleWhen": {
-      "param": "scale",
-      "values": [
-       13
-      ]
-     }
-    },
-    {
-     "id": "n1",
-     "name": "C#",
-     "minimum": 0,
-     "maximum": 1,
-     "default": 0,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "visibleWhen": {
-      "param": "scale",
-      "values": [
-       13
-      ]
-     }
-    },
-    {
-     "id": "n2",
-     "name": "D",
-     "minimum": 0,
-     "maximum": 1,
-     "default": 1,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "visibleWhen": {
-      "param": "scale",
-      "values": [
-       13
-      ]
-     }
-    },
-    {
-     "id": "n3",
-     "name": "D#",
-     "minimum": 0,
-     "maximum": 1,
-     "default": 0,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "visibleWhen": {
-      "param": "scale",
-      "values": [
-       13
-      ]
-     }
-    },
-    {
-     "id": "n4",
-     "name": "E",
-     "minimum": 0,
-     "maximum": 1,
-     "default": 1,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "visibleWhen": {
-      "param": "scale",
-      "values": [
-       13
-      ]
-     }
-    },
-    {
-     "id": "n5",
-     "name": "F",
-     "minimum": 0,
-     "maximum": 1,
-     "default": 1,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "visibleWhen": {
-      "param": "scale",
-      "values": [
-       13
-      ]
-     }
-    },
-    {
-     "id": "n6",
-     "name": "F#",
-     "minimum": 0,
-     "maximum": 1,
-     "default": 0,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "visibleWhen": {
-      "param": "scale",
-      "values": [
-       13
-      ]
-     }
-    },
-    {
-     "id": "n7",
-     "name": "G",
-     "minimum": 0,
-     "maximum": 1,
-     "default": 1,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "visibleWhen": {
-      "param": "scale",
-      "values": [
-       13
-      ]
-     }
-    },
-    {
-     "id": "n8",
-     "name": "G#",
-     "minimum": 0,
-     "maximum": 1,
-     "default": 0,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "visibleWhen": {
-      "param": "scale",
-      "values": [
-       13
-      ]
-     }
-    },
-    {
-     "id": "n9",
-     "name": "A",
-     "minimum": 0,
-     "maximum": 1,
-     "default": 1,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "visibleWhen": {
-      "param": "scale",
-      "values": [
-       13
-      ]
-     }
-    },
-    {
-     "id": "n10",
-     "name": "A#",
-     "minimum": 0,
-     "maximum": 1,
-     "default": 0,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "visibleWhen": {
-      "param": "scale",
-      "values": [
-       13
-      ]
-     }
-    },
-    {
-     "id": "n11",
-     "name": "B",
-     "minimum": 0,
-     "maximum": 1,
-     "default": 1,
-     "unit": "",
-     "taper": "linear",
-     "step": 1,
-     "decimals": 3,
-     "modulatable": false,
-     "visibleWhen": {
-      "param": "scale",
-      "values": [
-       13
-      ]
-     }
-    }
-   ],
-   "version": 1,
-   "legacy_parameters": {
-    "scale": 0,
-    "root": 1,
-    "shift": 2,
-    "octave": 3,
-    "n0": 4,
-    "n1": 5,
-    "n2": 6,
-    "n3": 7,
-    "n4": 8,
-    "n5": 9,
-    "n6": 10,
-    "n7": 11,
-    "n8": 12,
-    "n9": 13,
-    "n10": 14,
-    "n11": 15
-   }
-  },
-  {
    "id": "essentials.scale_offset",
    "name": "Scale/Offset",
    "category": "Utility",
@@ -3339,6 +3073,442 @@
     "seg_b": 3,
     "fade": 4,
     "jitter": 5
+   }
+  },
+  {
+   "id": "essentials.quantizer",
+   "name": "Quantizer",
+   "category": "Pitch",
+   "ports": [
+    {
+     "id": "pitch",
+     "name": "Pitch",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "pitch",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "trigger",
+     "name": "Trigger",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "trigger",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "pitch",
+     "name": "Pitch",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "pitch",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "changed",
+     "name": "Changed",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "trigger",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [
+    {
+     "id": "scale",
+     "name": "Scale",
+     "minimum": 0,
+     "maximum": 13,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Chromatic"
+      },
+      {
+       "value": 1,
+       "label": "Major"
+      },
+      {
+       "value": 2,
+       "label": "Natural minor"
+      },
+      {
+       "value": 3,
+       "label": "Harmonic minor"
+      },
+      {
+       "value": 4,
+       "label": "Dorian"
+      },
+      {
+       "value": 5,
+       "label": "Phrygian"
+      },
+      {
+       "value": 6,
+       "label": "Lydian"
+      },
+      {
+       "value": 7,
+       "label": "Mixolydian"
+      },
+      {
+       "value": 8,
+       "label": "Locrian"
+      },
+      {
+       "value": 9,
+       "label": "Major pentatonic"
+      },
+      {
+       "value": 10,
+       "label": "Minor pentatonic"
+      },
+      {
+       "value": 11,
+       "label": "Blues"
+      },
+      {
+       "value": 12,
+       "label": "Whole tone"
+      },
+      {
+       "value": 13,
+       "label": "Custom"
+      }
+     ]
+    },
+    {
+     "id": "root",
+     "name": "Root",
+     "minimum": 0,
+     "maximum": 11,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "C"
+      },
+      {
+       "value": 1,
+       "label": "C#"
+      },
+      {
+       "value": 2,
+       "label": "D"
+      },
+      {
+       "value": 3,
+       "label": "D#"
+      },
+      {
+       "value": 4,
+       "label": "E"
+      },
+      {
+       "value": 5,
+       "label": "F"
+      },
+      {
+       "value": 6,
+       "label": "F#"
+      },
+      {
+       "value": 7,
+       "label": "G"
+      },
+      {
+       "value": 8,
+       "label": "G#"
+      },
+      {
+       "value": 9,
+       "label": "A"
+      },
+      {
+       "value": 10,
+       "label": "A#"
+      },
+      {
+       "value": 11,
+       "label": "B"
+      }
+     ]
+    },
+    {
+     "id": "shift",
+     "name": "Shift",
+     "minimum": -7,
+     "maximum": 7,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false
+    },
+    {
+     "id": "octave",
+     "name": "Octave",
+     "minimum": -3,
+     "maximum": 3,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false
+    },
+    {
+     "id": "n0",
+     "name": "C",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
+    },
+    {
+     "id": "n1",
+     "name": "C#",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
+    },
+    {
+     "id": "n2",
+     "name": "D",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
+    },
+    {
+     "id": "n3",
+     "name": "D#",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
+    },
+    {
+     "id": "n4",
+     "name": "E",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
+    },
+    {
+     "id": "n5",
+     "name": "F",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
+    },
+    {
+     "id": "n6",
+     "name": "F#",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
+    },
+    {
+     "id": "n7",
+     "name": "G",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
+    },
+    {
+     "id": "n8",
+     "name": "G#",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
+    },
+    {
+     "id": "n9",
+     "name": "A",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
+    },
+    {
+     "id": "n10",
+     "name": "A#",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
+    },
+    {
+     "id": "n11",
+     "name": "B",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
+    }
+   ],
+   "version": 1,
+   "legacy_parameters": {
+    "scale": 0,
+    "root": 1,
+    "shift": 2,
+    "octave": 3,
+    "n0": 4,
+    "n1": 5,
+    "n2": 6,
+    "n3": 7,
+    "n4": 8,
+    "n5": 9,
+    "n6": 10,
+    "n7": 11,
+    "n8": 12,
+    "n9": 13,
+    "n10": 14,
+    "n11": 15
    }
   }
  ]

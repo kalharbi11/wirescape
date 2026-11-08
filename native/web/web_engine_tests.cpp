@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Native tests for the browser demo engine's C surface (device-free).
 #include "web_engine.h"
+#include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <sstream>
@@ -116,6 +118,107 @@ int main(int argc, char **argv) {
     CHECK(Json::parse(wsw_command("not json"))["code"] == "invalid");
     CHECK(wsw_render(4096) == nullptr);
     CHECK(loudest(10) >= 0);
+
+    // A3 telemetry is read from engine2's last rendered block, not UI guesses.
+    Json telemetry_patch = Json::parse(R"json({
+        "format": "wirescape.native.patch",
+        "version": 2,
+        "settings": {},
+        "modules": [
+            {"id": 7, "module": "essentials.output"},
+            {"id": 9, "module": "essentials.vco", "parameters": {"frequency": 440}},
+            {"id": 10, "module": "essentials.lfo"},
+            {"id": 12, "module": "host.keyboard"},
+            {"id": 14, "module": "essentials.adsr"}
+        ],
+        "connections": [
+            {"kind": "signal", "from": {"module": 9, "port": "audio"},
+             "to": {"module": 7, "port": "audio"}},
+            {"kind": "modulation", "from": {"module": 10, "port": "control"},
+             "to": {"module": 9, "port": "frequency"}, "amount": 0.25},
+            {"kind": "signal", "from": {"module": 12, "port": "gate"},
+             "to": {"module": 14, "port": "gate"}},
+            {"kind": "signal", "from": {"module": 14, "port": "envelope"},
+             "to": {"module": 9, "port": "fm"}}
+        ]
+    })json");
+    auto telemetry_reply = command({{"type", "loadGraph"}, {"patch", telemetry_patch}});
+    CHECK(telemetry_reply["ok"] == true);
+    if (telemetry_reply["ok"] != true) {
+        std::printf("telemetry graph refused: %s\n", telemetry_reply.dump().c_str());
+        return 1;
+    }
+    // No render after commit means no source frames: empty maps, not stale data.
+    auto empty_telemetry = Json::parse(wsw_telemetry());
+    for (auto key : {"effective", "phase", "envelope", "eventActivity"})
+        CHECK(empty_telemetry[key].is_object() && empty_telemetry[key].empty());
+    bool modulation_observed = false;
+    for (int i = 0; i < 40; ++i) {
+        loudest(1);
+        auto frame = Json::parse(wsw_telemetry());
+        CHECK(frame["effective"].contains("9"));
+        CHECK(frame["effective"]["9"].contains("frequency"));
+        const auto frequency = frame["effective"]["9"].value("frequency", Json{});
+        if (!frequency.is_number()) {
+            std::printf("missing rendered param tap: %s\n", frame.dump().c_str());
+            std::fflush(stdout);
+            CHECK(false);
+            continue;
+        }
+        CHECK(frame["phase"].empty()); // B-wire #359 owns LFO phase mapping.
+        CHECK(frame["eventActivity"].empty());
+        CHECK(frame["outputs"].is_object() && frame["scope"].is_object());
+        if (std::fabs(frequency.get<float>() - 440.f) > 0.01f) modulation_observed = true;
+    }
+    CHECK(modulation_observed);
+    // A burst emits one pulse; a new block without emitted events decays it.
+    CHECK(command({{"type", "noteOn"}, {"note", 60}, {"velocity", 0.9}})["ok"] == true);
+    loudest(1);
+    auto first_burst = Json::parse(wsw_telemetry());
+    CHECK(first_burst["eventActivity"].value("12:notes", 0.f) == 1.f);
+    CHECK(first_burst["envelope"].value("14", 0.f) > 0.f);
+    loudest(1);
+    auto decay = Json::parse(wsw_telemetry());
+    CHECK(decay["eventActivity"].value("12:notes", 0.f) > 0.f);
+    CHECK(decay["eventActivity"].value("12:notes", 0.f) < 1.f);
+    // Repeated reads of the same frame publish complete but empty live maps.
+    auto stale = Json::parse(wsw_telemetry());
+    for (auto key : {"effective", "phase", "envelope", "eventActivity"})
+        CHECK(stale[key].is_object() && stale[key].empty());
+    // First event after a topology edit may equal the pre-edit cumulative count:
+    // commit must reset both the last-seen cursor AND the previous pulse.
+    CHECK(command({{"type", "addModule"}, {"moduleId", 13}, {"moduleType", "essentials.vco"}})["ok"] == true);
+    CHECK(command({{"type", "noteOn"}, {"note", 61}, {"velocity", 0.9}})["ok"] == true);
+    loudest(1);
+    CHECK(Json::parse(wsw_telemetry())["eventActivity"].value("12:notes", 0.f) == 1.f);
+    CHECK(command({{"type", "loadGraph"}, {"patch", telemetry_patch}})["ok"] == true);
+    CHECK(command({{"type", "noteOn"}, {"note", 62}, {"velocity", 0.9}})["ok"] == true);
+    loudest(1);
+    CHECK(Json::parse(wsw_telemetry())["eventActivity"].value("12:notes", 0.f) == 1.f);
+    const auto modulation = telemetry_patch["connections"][1];
+    CHECK(command({{"type", "disconnect"}, {"connection", modulation}})["ok"] == true);
+    loudest(1);
+    CHECK(Json::parse(wsw_telemetry())["effective"].empty());
+    // Report JSON snapshot cost in native Web job output. This is diagnostic,
+    // not a new performance threshold, and never runs in the realtime engine.
+    std::chrono::microseconds telemetry_cost{0};
+    for (int i = 0; i < 100; ++i) {
+        loudest(1);
+        auto start = std::chrono::steady_clock::now();
+        (void)wsw_telemetry();
+        const auto elapsed = std::chrono::steady_clock::now() - start;
+        telemetry_cost += std::chrono::duration_cast<std::chrono::microseconds>(elapsed);
+    }
+    std::printf("wsw_telemetry 100 frames: %lld us total; %.2f us/sample (native Web CI)\n",
+                static_cast<long long>(telemetry_cost.count()), telemetry_cost.count() / 100.);
+    // CTest hides successful stdout: publish the same measured diagnostic to
+    // the existing Actions step summary, without changing protected CI jobs.
+    if (const char *summary = std::getenv("GITHUB_STEP_SUMMARY")) {
+        std::ofstream report(summary, std::ios::app);
+        report << "Native `wsw_telemetry` JSON: ";
+        report << telemetry_cost.count() << " us / 100 frames; ";
+        report << telemetry_cost.count() / 100. << " us/sample (diagnostic; not a threshold).\n";
+    }
 
     std::printf(failures ? "web_engine_tests: %d failure(s)\n" : "web_engine_tests: ok\n", failures);
     return failures ? 1 : 0;

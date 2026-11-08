@@ -19,8 +19,8 @@ static void require(bool ok,const char*s){if(!ok)throw std::runtime_error(s);}
 int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  require(argc==4,"modules, demo and legacy fixtures arguments");ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>cat(app_engine_create(&cfg),app_engine_destroy);
- require(app_engine_module_count(cat.get()) == 23,
-         "Twenty-one builtins (sound.blend, essentials.quantizer) plus the two SDK example sources in catalogue");
+ require(app_engine_module_count(cat.get()) == 24,
+         "Twenty-two builtins (blend, resonator, quantizer included) plus the two SDK example sources in catalogue");
  for (const char *expected :
       {"essentials.vco", "essentials.lfo", "essentials.vcf", "essentials.adsr", "essentials.vca", "essentials.clock",
        "essentials.function_envelope", "essentials.ladder", "essentials.mixer", "essentials.noise", "essentials.output",
@@ -31,6 +31,13 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
          if (std::string(app_engine_module(cat.get(), i)->id) == expected) found = true;
      require(found, "all existing entries and Macro in catalogue");
  }
+ bool found_resonator = false;
+ for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i) {
+     if (std::string(app_engine_module(cat.get(), i)->id) == "essentials.resonator") {
+         found_resonator = true;
+     }
+ }
+ require(found_resonator, "resonator in catalogue");
  bool found_quantizer = false;
  for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i) {
      if (std::string(app_engine_module(cat.get(), i)->id) == "essentials.quantizer") {

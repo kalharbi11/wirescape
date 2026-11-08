@@ -225,8 +225,12 @@ export class Panel {
         let tier = L.tiers[p.id] ?? 'M';
         if (heroSection && tier === 'S' && L.roles[p.id] !== 'trim') tier = 'M';
         const t = this.host.ticker;
+        const musical = this.d.id === 'essentials.vco' && p.id === 'frequency' ? 'vco'
+          : this.d.id === 'ports.macro_oscillator' && p.id === 'coarse' ? 'macro-coarse' : undefined;
         return new Knob({
-          param: named, moduleId, tier, ticker: t,
+          param: named, moduleId, tier, ticker: t, musical,
+          pitchConnected: musical === 'vco' ? () => this.host.doc.connections.some(c =>
+            c.to.module === moduleId && c.to.port === 'pitch') : undefined,
           getValue: get,
           setValue: (v, commit) => set(v, commit),
           getMods: () => this.host.doc.modsInto(moduleId, p.id),
