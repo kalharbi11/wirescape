@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import static_checks
+from tools.ci import static_checks
 
 ANALYSIS_UNITS = static_checks.analysis_units
 
@@ -18,7 +18,7 @@ class StaticChecksTests(unittest.TestCase):
     def setUp(self):
         def units(root, files):
             return [{"file": str(root / f), "directory": str(root),
-                     "command": "c++ -c " + f} for f in files]
+                     "command": "c++ -c " + f, "build": str(root / "build/static")} for f in files]
         mock = patch.object(static_checks, "analysis_units", side_effect=units)
         mock.start()
         self.addCleanup(mock.stop)
@@ -34,9 +34,43 @@ class StaticChecksTests(unittest.TestCase):
             deps = "test.o: #deps 2, deps mtime 1 (VALID)\n    " + str(root / "native/nested.h")
             deps += "\n    " + str(root / "native/catalog.inc") + "\n"
             with patch.object(static_checks.subprocess, "check_output", return_value=deps):
-                self.assertEqual(ANALYSIS_UNITS(root, {"native/nested.h": [], "native/catalog.inc": []}), entries)
+                self.assertEqual(ANALYSIS_UNITS(root, {"native/nested.h": [], "native/catalog.inc": []},
+                                                builds=("build/static",)), [{**e, "build": str(build)} for e in entries])
                 with self.assertRaisesRegex(ValueError, "No compiled owner"):
-                    ANALYSIS_UNITS(root, {"native/orphan.h": []})
+                    ANALYSIS_UNITS(root, {"native/orphan.h": []}, builds=("build/static",))
+
+    def test_multiple_builds_require_valid_databases_and_union_ownership(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            for name, source in (("static", "native/test.cpp"), ("static-web", "native/web/test.cpp")):
+                build = root / "build" / name
+                build.mkdir(parents=True)
+                entry = {"directory": str(build), "file": str(root / source),
+                         "command": "c++ -o test.o -c " + str(root / source)}
+                (build / "compile_commands.json").write_text(json.dumps([entry]))
+            with patch.object(static_checks.subprocess, "check_output", return_value="test.o: #deps 0 (VALID)\n"):
+                units = ANALYSIS_UNITS(root, {"native/web/test.cpp": []})
+                self.assertEqual([u["build"] for u in units], [str(root / "build/static-web")])
+                for stale in (0, 1):
+                    deps = ["test.o: #deps 0 (VALID)\n"] * 2
+                    deps[stale] = "test.o: #deps 0 (STALE)\n"
+                    with patch.object(static_checks.subprocess, "check_output", side_effect=deps):
+                        with self.assertRaisesRegex(ValueError, "Stale compiler dependencies"):
+                            ANALYSIS_UNITS(root, {"native/web/test.cpp": []})
+                (root / "build/static-web/compile_commands.json").unlink()
+                with self.assertRaises(FileNotFoundError):
+                    ANALYSIS_UNITS(root, {"native/test.cpp": []})
+
+    def test_tidy_selects_each_units_build(self):
+        entries = [{"file": "native/web/test.cpp", "directory": "/repo", "command": "c++ -c test.cpp",
+                    "build": "/repo/build/static-web"}]
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(static_checks, "analysis_units", return_value=entries), \
+                patch.object(static_checks.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
+            self.assertEqual(static_checks.run_checks(Path(tmp), DIFF, "unused"), 0)
+            self.assertEqual(run.call_args_list[0].args[0][1:3], ["-p", entries[0]["build"]])
+            project = json.loads((Path(tmp) / "build/static/cppcheck_changed.json").read_text())
+            self.assertNotIn("build", project[0])
 
     def test_missing_database_fails_closed_but_runs_other_tools(self):
         with tempfile.TemporaryDirectory() as tmp, \

@@ -79,10 +79,20 @@ label remains. Never push an empty commit merely to retrigger. Drafts still
 need `ci/pi`, and forks remain ineligible. Prefer the scheduled poll; avoid
 duplicate manual runs. All private Pi jobs share the exclusive concurrency group.
 
-For task-specific commands, add `pi-run:` lines to the task acceptance block
-and label the PR **`ci/pi-accept`**. The bridge posts **`pi5/accept`** and a PR
-comment with output tails. A build/test status alone does not verify these
-commands; inspect their result on the exact head.
+For task-specific commands, add executable `pi-run: <command>` lines to the
+task acceptance block and label the PR **`ci/pi-accept`**. The bridge posts
+**`pi5/accept`** and a PR comment with output tails. The separate **`ci/pi`**
+label requests only build/tests (`pi5`); it does **not** run task-specific
+`pi-run:` acceptance. A build/test status alone does not verify these commands;
+inspect their result on the exact head.
+
+`pi:` is a descriptive requirement and is **never executed** by the bridge.
+Do not turn prose like `pi: build + tests` into executable commands by a
+mechanical migration. Rewrite requirements to runnable `pi-run:` syntax when
+their task is next touched. Local `tools/dev.py accept` marks `pi:`,
+`pi-run:`, `ci:`, and `user:` as external/incomplete, never passed.
+Its `--strict` switch exits nonzero on incomplete evidence; a default
+non-strict exit zero is only local compatibility, not proof of Pi acceptance.
 
 ## Real-document loader soak
 

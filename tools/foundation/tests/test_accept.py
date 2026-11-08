@@ -57,13 +57,48 @@ class AcceptanceTests(unittest.TestCase):
         code, report = self.run_task(commands)
         self.assertEqual(code, 0)
         self.assertEqual([item["status"] for item in report["commands"]], ["external"] * len(commands))
+        self.assertEqual([item["kind"] for item in report["commands"]], list(acceptance.EXTERNAL))
+        self.assertEqual(report["status"], "incomplete")
 
     def test_pi_run_is_external_and_preserves_runner_command(self):
         command = 'pi-run: build/native/probe --benchmark # runner only'
         with patch.object(acceptance, "run_logged", side_effect=AssertionError("Pi command executed locally")):
             code, report = self.run_task([command])
         self.assertEqual(code, 0)
-        self.assertEqual(report["commands"], [{"command": command, "status": "external"}])
+        self.assertEqual(report["commands"], [{"command": command, "kind": "pi-run:", "status": "external"}])
+        self.assertEqual(report["status"], "incomplete")
+
+    def test_strict_incomplete_exits_nonzero_but_preserves_local_compatibility(self):
+        commands = ['python -c "pass"', 'ci: guard green', 'pi: descriptive check',
+                    'pi-run: ctest -R probe', 'user: physical listening']
+        code, report = self.run_task(commands)
+        self.assertEqual(code, 0)
+        self.assertEqual(report["status"], "incomplete")
+        self.assertEqual(report["commands"][0]["status"], "passed")
+        code, report = self.run_task(commands, strict=True)
+        self.assertEqual(code, 1)
+        self.assertEqual(report["status"], "incomplete")
+        self.assertNotIn("Acceptance: passed", (self.root / "build_reports/accept-85.md").read_text())
+
+    def test_unknown_prefix_fails_without_execution(self):
+        with patch.object(acceptance, "run_logged", side_effect=AssertionError("unknown prefix executed")):
+            code, report = self.run_task(["custom: do not execute"])
+        self.assertEqual(code, 1)
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["commands"][0]["kind"], "unknown")
+        self.assertIn("unknown acceptance prefix", report["commands"][0]["error"])
+
+    def test_empty_external_requirement_fails_closed(self):
+        code, report = self.run_task(["pi-run:"])
+        self.assertEqual(code, 1)
+        self.assertEqual(report["status"], "failed")
+        self.assertIn("empty", report["commands"][0]["error"])
+
+    def test_unavailable_size_keeps_aggregation_incomplete(self):
+        with patch.object(acceptance, "size_check", return_value={"status": "unavailable"}):
+            code, report = self.run_task(['python -c "pass"'], strict=True)
+        self.assertEqual(code, 1)
+        self.assertEqual(report["status"], "incomplete")
 
     def test_size_overflow_and_binary_fail(self):
         with patch.object(subprocess, "check_output", side_effect=[b"abc123\n", b"12\t3\tfile.cpp\0"]):

@@ -1,0 +1,10 @@
+{
+  "code": "SPEC",
+  "sections": [
+    { "label": "01 / ENGINE", "params": ["mode", "size", "level"] },
+    { "label": "02 / MORPH", "params": ["morph", "curve", "pitch"] },
+    { "label": "03 / CROSS", "params": ["amount", "smooth"] },
+    { "label": "04 / MAX · MEAN · MIN · A − B", "params": ["b_level"] }
+  ],
+  "modPorts": ["morph", "mode"]
+}
