@@ -17,6 +17,12 @@ class ObservedMidi final : public midi::Backend {
         std::array<std::atomic<uint16_t>, 128> notes{};
         std::atomic<uint64_t> activity{0};
     };
+    struct CcCapture {
+        uint8_t slot;
+        uint8_t channel;
+        uint8_t controller;
+        uint8_t value;
+    };
     std::unique_ptr<midi::Backend> backend_;
     std::array<Slot, 16> slots_{};
     // One latest-wins observation; no queue, callbacks never allocate or lock.
@@ -29,7 +35,7 @@ class ObservedMidi final : public midi::Backend {
     std::atomic<uint32_t> learn_sequence_{0};
     std::atomic<uint8_t> learn_epoch_{0};
     std::chrono::steady_clock::time_point learn_deadline_{};
-    void capture_cc(uint8_t slot, uint8_t channel, uint8_t controller, uint8_t value) noexcept;
+    void capture_cc(CcCapture cc) noexcept;
     bool fake_;
     std::mutex mutex_;
     std::vector<midi::Endpoint> observed_;
