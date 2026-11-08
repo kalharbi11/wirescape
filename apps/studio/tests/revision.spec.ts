@@ -181,12 +181,10 @@ test('FakeEngine meters use modulated gain when Output precedes VCA in patch ord
   await boot(page);
   const [modded, base] = await page.evaluate(async () => {
     const e = window.__wirescapeTest.engine; e.stop();
-    const cable = { kind: 'modulation', from: { module: 4, port: 'control' },
-      to: { module: 2, port: 'gain' }, amount: 0.5 };
+    const cable = { kind: 'modulation', from: { module: 4, port: 'control' }, to: { module: 2, port: 'gain' }, amount: 0.5 };
     await e.loadGraph({ modules: [
       { id: 1, module: 'essentials.output' }, { id: 2, module: 'essentials.vca', parameters: { gain: 0.2 } },
-      { id: 3, module: 'essentials.noise', parameters: { level: 0.8 } },
-      { id: 4, module: 'essentials.scale_offset', parameters: { offset: 1 } }],
+      { id: 3, module: 'essentials.noise', parameters: { level: 0.8 } }, { id: 4, module: 'essentials.scale_offset', parameters: { offset: 1 } }],
     connections: [
       { kind: 'signal', from: { module: 3, port: 'audio' }, to: { module: 2, port: 'audio' } },
       { kind: 'signal', from: { module: 2, port: 'audio' }, to: { module: 1, port: 'audio' } }, cable] });
@@ -201,11 +199,9 @@ test('FakeEngine prunes event activity on removal and graph replacement with reu
   await boot(page);
   const [active, removed, replaced] = await page.evaluate(async () => {
     const e = window.__wirescapeTest.engine; e.stop();
-    const has = () => Object.keys(window.__wirescapeTest.ticker.last.eventActivity).some(k => k.startsWith('42:'));
-    e.addModule(42, 'host.keyboard'); e.noteOn(60, 1); e.step();
+    const has = () => Object.keys(window.__wirescapeTest.ticker.last.eventActivity).some(k => k.startsWith('42:')); e.addModule(42, 'host.keyboard'); e.noteOn(60, 1); e.step();
     const active = has();
-    e.removeModule(42); e.addModule(42, 'essentials.vcf'); e.step();
-    const removed = has();
+    e.removeModule(42); e.addModule(42, 'essentials.vcf'); e.step(); const removed = has();
     e.removeModule(42); e.addModule(42, 'host.keyboard'); e.step();
     await e.loadGraph({ modules: [{ id: 42, module: 'essentials.vcf' }], connections: [] });
     e.step(); return [active, removed, has()];
