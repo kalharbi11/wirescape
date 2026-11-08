@@ -116,6 +116,51 @@ static void lfo_phase() {
     }
     std::puts("PASS LFO phase: IDs, per-voice ramp/wrap, bit-exact control, depth zero, sync/locate/stop");
 }
+struct VcoTrackingInput {
+    bool cable;
+    float pitch;
+    int midi = -1;
+};
+static double measured_vco_hz(VcoTrackingInput input) {
+    auto f = std::make_unique<DspFixture>(descriptors[0]);
+    f->ins[0].flags = input.cable ? WS2_CONNECTED : 0;
+    f->ins[1].flags = 0; // No FM; frequency remains the unchanged 220 Hz default.
+    std::fill_n(f->input[0][0], 256, input.pitch);
+    ws2_event on{};
+    if (input.midi >= 0) {
+        on.struct_size = sizeof(on);
+        on.type = WS2_NOTE_ON;
+        on.key = input.midi;
+        on.channel = 0;
+        on.value = 1;
+        f->process.events = {sizeof(ws2_event_list), 1, &on};
+    }
+    float previous = 0;
+    uint32_t rising = 0;
+    for (uint32_t first = 0; first < 48000; first += 256) {
+        const uint32_t count = std::min(256u, 48000 - first);
+        f->run(count);
+        f->process.events.count = 0;
+        for (uint32_t i = 0; i < count; ++i) {
+            const float sample = f->output[0][0][i];
+            if (previous <= 0 && sample > 0) ++rising;
+            previous = sample;
+        }
+    }
+    return rising; // Cycles over exactly 1 second, +/- 1 Hz resolution.
+}
+static void vco_keyboard_tracking() {
+    const double c4 = measured_vco_hz({true, 0.f});
+    const double a4 = measured_vco_hz({true, .75f});
+    const double octave = measured_vco_hz({true, 1.f});
+    VERIFY(std::abs(c4 - 261.6255653) < 2);
+    VERIFY(std::abs(a4 - 440) < 2);
+    VERIFY(std::abs(octave / c4 - 2) < .02);
+    VERIFY(std::abs(measured_vco_hz({false, 0.f, 60}) - 261.6255653) < 2);
+    VERIFY(std::abs(measured_vco_hz({false, 0.f, 69}) - 440) < 2);
+    VERIFY(std::abs(measured_vco_hz({false, 0.f, 127}) - 12543.853951) < 2);
+    std::puts("PASS VCO pitch CV (0=C4, 0.75=A4, 1=octave) and MIDI 60/69/127 tracking");
+}
 static void vca_broadcast(){
  for(uint32_t frames:{1u,4u,17u,256u}){
   auto f=std::make_unique<DspFixture>(descriptors[4],48000,4);
@@ -166,9 +211,27 @@ static void equivalence(const char*directory,const char*report){
 }
 static void noalloc(){for(auto*d:descriptors){auto f=std::make_unique<DspFixture>(d,48000,16);allocation_watch::Scope watch;for(int i=0;i<16;++i){f->run(17);f->reset();}VERIFY(watch.allocations()==0);}std::puts("PASS zero new/new[]/aligned-new in static SDK/DSP process/reset");}
 #endif
-int main(int argc,char**argv){matrix();vca_exact();vca_broadcast();
-    lfo_phase();
-#ifndef WS2_PORTABLE_TEST
- noalloc();if(argc==3)equivalence(argv[1],argv[2]);
+int main(int argc, char **argv) {
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+    try {
 #endif
+        matrix();
+        vco_keyboard_tracking();
+        vca_exact();
+        vca_broadcast();
+        lfo_phase();
+#ifndef WS2_PORTABLE_TEST
+        noalloc();
+        if (argc == 3) equivalence(argv[1], argv[2]);
+#else
+    (void)argc;
+    (void)argv;
+#endif
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+    } catch (...) {
+        std::fputs("Unexpected exception in module tests\n", stderr);
+        return 1;
+    }
+#endif
+    return 0;
 }
