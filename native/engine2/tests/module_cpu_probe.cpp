@@ -21,6 +21,8 @@ namespace {
 struct Arena {
     std::vector<unsigned char> bytes;
     size_t used = 0;
+    // Fixed ws2_host allocator signature; size/alignment order is defined by the ABI.
+    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
     static void *WS2_CALL alloc(void *context, size_t size, size_t alignment, uint32_t) {
         auto &a = *static_cast<Arena *>(context);
         const uintptr_t base = reinterpret_cast<uintptr_t>(a.bytes.data());
@@ -180,9 +182,9 @@ int main(int argc, char **argv) {
             allocations += watch.allocations();
         }
         ns[k] = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
-        for (auto &x : all)
-            for (uint32_t o = 0; o < d->output_count; ++o)
-                output_evidence.scan(x->outputs[o], block, channels);
+        for (auto &x : all) {
+            for (uint32_t o = 0; o < d->output_count; ++o) output_evidence.scan(x->outputs[o], {block, channels});
+        }
     }
     for (auto &x : all) d->destroy(x->self);
     std::vector<int64_t> sorted = ns;
@@ -193,7 +195,8 @@ int main(int argc, char **argv) {
                 "\"blocks\":%zu,\"render_ns\":{\"max\":%lld,\"p99\":%lld},\"period_ns\":%.0f,\"allocations\":%zu,"
                 "\"faults\":%zu,\"peak\":%.6g,\"params\":\"%s\",\"alternate\":\"%s\"}\n",
                 id.c_str(), instances, rate, block, seconds, blocks, (long long)worst, (long long)p99,
-                1e9 * block / rate, allocations, faults + output_evidence.faults, output_evidence.peak, settings_text.c_str(),
+                1e9 * block / rate, allocations, faults + output_evidence.faults, output_evidence.peak,
+                settings_text.c_str(),
                 alternate_id.empty() ? ""
                                      : (alternate_id + "=" + std::to_string(alternate_a) + ":" +
                                         std::to_string(alternate_b) + ":" + std::to_string(alternate_every))
