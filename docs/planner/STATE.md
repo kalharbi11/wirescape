@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-08 21:15 UTC, Codex Lead owner-requested audit.
+**Updated:** 2026-11-08 agent-review checkpoint, Codex Lead owner-requested audit.
 Pi first; #271 failures preempt features. Owner Phase1 sign-off remains open.
-Snapshot main ec1eea5; live heads/latest handoffs supersede older briefs.
+Delay #345 and runbook #422 now merged; live heads/latest handoffs supersede older briefs.
 
 ## Authority and evidence
 - Codex Lead T0/T1, named docs/tasks/** and STATE paths, delegated reviewed-green merges.
@@ -16,7 +16,7 @@ Snapshot main ec1eea5; live heads/latest handoffs supersede older briefs.
 ## Verified merged and app availability
 - #301 audio recovery; #368/#369 native/WASM telemetry; #378 callback CPU/cumulative dropouts.
 - #343 Macro gate, #346 musical VCO tuning, #364 LFO phase output (display wiring pending).
-- #344 Resonator, #304 Spectral base modes, earlier #329 Blend; main catalogue has24 modules.
+- #344 Resonator, #304 Spectral base modes, earlier #329 Blend; Delay adds the25th module.
 - #331 patch browser; earlier autosave/recovery/hotplug/keyboards/live edits remain merged.
 - #373 poly probe, #382 static ownership, #388 evidence syntax, #389 public edit soak,
   #396 dangling-reference tests, #397 diagnostic fixtures, #404 param64, #417 Qt slots fix merged.
@@ -28,7 +28,7 @@ Snapshot main ec1eea5; live heads/latest handoffs supersede older briefs.
   All24 modules, 3/4-note MIDI, persistence/recovery, CC matrix, web, original600s benchmark.
 
 ## Active integration queue (continue owners/branches; no duplicate claims)
-- #345 Delay and #348 Reverb: now CONFLICTING. Preserve all24 main registrations, regenerate
+- #345 Delay MERGED; #348 Reverb conflicts again. Preserve upstream registrations, regenerate
   catalogues with Python, normal main merges, fresh exact-head gates/Pi and narrow T1 review.
 - #323 Quantizer conflicts too; #304 is merged, no longer a blocker. #310 additional modes open.
 - #379 LFO phase wiring conflicts; integrate #417, actual compiled static ownership required
@@ -39,7 +39,7 @@ Snapshot main ec1eea5; live heads/latest handoffs supersede older briefs.
 - #400 latency: owned, final static + Claude T2 review; cancellation is not a waiver.
 - #415 selector: owned, final revised tests and Keel review. #420 SDK64 regression is open.
 - #405 native16-step -> #410 editor now unblocked by actual #404 merge; keep order, review,
-  old8-step compatibility, exact-head tests. #412 curated patches remains draft/unmerged.
+  old8-step compatibility, exact-head tests. #412 independent T1 review passed atff8a95b.
 
 ## Chords and next phase
 - #406 design corrected at a2a73c5; product IDs/eight controls already confirmed.
@@ -49,5 +49,6 @@ Snapshot main ec1eea5; live heads/latest handoffs supersede older briefs.
 - #296 still needs private fixed ci/pi-edit-soak lane/3900s timeout and actual3600s evidence.
 - #398 offline audio evidence -> #386 real-sidecar e2e -> #387 checklist reduction remain.
   No owner gate removed before evidence. #82 OSC/Windows hardware/packaging stay later.
-- Copy-ready owner lanes: module integration; sequencer+polyphony; telemetry/evidence.
+- #412 product approved; newd916846 stereo revision supersedes reviewedff8a95b. DRAFT:
+  curated.spec still assumes one Output/both buses; repair tests/docs, fresh CI+narrow review.
   One issue/branch/PR per item, max3 active per chat, separate review and signed handoff.
