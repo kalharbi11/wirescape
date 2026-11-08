@@ -145,8 +145,13 @@ export class Knob {
     this.dial.type = 'button';
     this.dial.setAttribute('role', 'slider');
     this.dial.setAttribute('aria-label', p.name);
-    this.dial.setAttribute('aria-valuemin', String(p.minimum));
-    this.dial.setAttribute('aria-valuemax', String(p.maximum));
+    this.dial.setAttribute('aria-valuemin', String(travel.minimum));
+    this.dial.setAttribute('aria-valuemax', String(travel.maximum));
+    if (o.musical === 'vco') {
+      this.dial.setAttribute('aria-description',
+        'Dial travel is C0 to G9. Saved values outside the dial stay unchanged; ' +
+        'activate the value readout to type any value from 0.01 to 20,000 Hz.');
+    }
     wrap.append(svg, this.dial);
 
     // Readout: name, value (the value you set), live value, source chips (L).
@@ -246,7 +251,11 @@ export class Knob {
 
   private paintBase(base: number): void {
     this.readout.textContent = this.shown(base);
-    this.dial.setAttribute('aria-valuenow', String(round(base)));
+    // ARIA's numeric value must stay within dial travel; valuetext retains the
+    // actual selected Hz (or Tune), including saved values beyond the dial.
+    const ariaNow = this.o.musical === 'vco'
+      ? Math.min(this.travel.maximum, Math.max(this.travel.minimum, base)) : round(base);
+    this.dial.setAttribute('aria-valuenow', String(ariaNow));
     this.dial.setAttribute('aria-valuetext', this.readout.textContent);
   }
 
