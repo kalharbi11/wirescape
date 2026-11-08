@@ -8,7 +8,7 @@ export function patchIndex(directory = defaultDirectory) {
   if (names.length > 128) throw new Error('Shared library exceeds 128 patches');
   let total = 0;
   const patches = names.map(filename => {
-    if (!/^[a-z0-9][a-z0-9-]*\.json$/.test(filename)) throw new Error('Use lowercase-hyphen patch filenames');
+    if (filename.length > 120 || !/^[a-z0-9][a-z0-9-]*\.json$/.test(filename)) throw new Error('Use lowercase-hyphen patch filenames');
     if (filename === 'keyboard-voice.json' || filename.startsWith('qt-')) throw new Error('Reserved built-in patch ID');
     const path = directory + '/' + filename;
     const stat = lstatSync(path);
@@ -16,9 +16,12 @@ export function patchIndex(directory = defaultDirectory) {
       throw new Error('Shared patches must be regular JSON files <=2 MiB');
     total += stat.size;
     const patch = JSON.parse(readFileSync(path, 'utf8'));
+    if (patch && 'name' in patch && (typeof patch.name !== 'string' || !patch.name.length || patch.name.length > 240))
+      throw new Error('Patch name must be 1–240 characters: ' + filename);
     if (patch?.format !== 'wirescape.native.patch' || patch.version !== 2 ||
         !Array.isArray(patch.modules) || !Array.isArray(patch.connections) ||
-        !Array.isArray(patch.outputs) || patch.modules.length > 32)
+        !Array.isArray(patch.outputs) || patch.modules.length > 32 ||
+        !patch.modules.every(m => m && typeof m.module === 'string'))
       throw new Error('Invalid shared patch: ' + filename);
     return { id: filename.slice(0, -5), name: typeof patch.name === 'string' ? patch.name : filename, patch };
   });

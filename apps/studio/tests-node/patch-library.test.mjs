@@ -18,6 +18,8 @@ test('upload, update, delete are reflected by the next build index; opaque field
     assert.deepEqual(index.patches[0].patch.future, { keep: true });
     writeFileSync(path, JSON.stringify({ ...patch, name: 'Updated' }));
     assert.equal(JSON.parse(patchIndex(dir)).patches[0].name, 'Updated');
+    writeFileSync(path, JSON.stringify({ ...patch, name: 'x'.repeat(241) }));
+    assert.throws(() => patchIndex(dir));
     unlinkSync(path);
     assert.deepEqual(JSON.parse(patchIndex(dir)).patches, []);
     writeFileSync(path, '{bad json');
@@ -30,7 +32,7 @@ test('production plugin emits a relative, offline-compatible library asset', () 
   patchLibraryPlugin().generateBundle.call({ emitFile: asset => assets.push(asset) });
   assert.equal(assets[0].fileName, 'patches/index.json');
   const index = JSON.parse(assets[0].source);
-  assert.ok(index.patches.length > 0);
+  assert.ok(Array.isArray(index.patches));
   assert.ok(index.patches.every(p => p.patch.version === 2));
 });
 

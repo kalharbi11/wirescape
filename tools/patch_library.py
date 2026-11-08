@@ -79,6 +79,7 @@ def validate(data, catalogue, shared=False):
         bus = route.get("bus_channel")
         need(type(bus) is int and 0 <= bus < 16, "invalid output bus")
     if shared:
+        need("name" not in data or (isinstance(data["name"], str) and 0 < len(data["name"]) <= 240), "shared patch name must be 1–240 characters")
         need(not data.get("devices"), "remove private device bindings before sharing")
         need(not any(m["module"].startswith("midi.") for m in modules), "web library excludes hardware MIDI modules; use host.keyboard")
         settings = data.get("settings", {})
@@ -134,7 +135,7 @@ def main():
     try:
         catalogue = json.loads((ROOT / "apps/studio/public/wirescape_modules.json").read_text())
         paths = sorted(args.source.glob("*.json")) if args.source.is_dir() else [args.source]
-        need(bool(paths), "no JSON patches found")
+        need(bool(paths) or (args.action == "check" and args.source.is_dir()), "no JSON patches found")
         prepared = [(p, *read_patch(p, catalogue, args.shared)) for p in paths]
         if args.action == "install":
             need(args.dest is not None, "install requires --dest; use the actual desktop patch folder")

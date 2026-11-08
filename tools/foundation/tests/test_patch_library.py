@@ -36,6 +36,12 @@ class PatchLibraryTests(unittest.TestCase):
             library.install(source, dest, validated)
             self.assertEqual((dest / source.name).read_bytes(), raw)
 
+    def test_shared_name_length_is_rejected(self):
+        patch = copy.deepcopy(self.example)
+        patch["name"] = "x" * 241
+        with self.assertRaises(ValueError):
+            library.validate(patch, self.catalogue, True)
+
     def test_graph_errors_are_rejected(self):
         broken = []
         p = copy.deepcopy(self.example)

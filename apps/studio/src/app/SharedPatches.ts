@@ -3,7 +3,7 @@ import type { PatchV2 } from '../patch/types';
 
 export interface SharedPatch { id: string; name: string; patch: PatchV2 }
 export async function sharedPatches(): Promise<SharedPatch[]> {
-  const response = await fetch(new URL('patches/index.json', document.baseURI), { signal: AbortSignal.timeout(5000) });
+  const response = await fetch(new URL('patches/index.json', document.baseURI), { signal: AbortSignal.timeout(5000), cache: 'no-cache' });
   if (!response.ok) throw new Error('Shared patch library is unavailable.');
   const text = await response.text();
   if (text.length > 8 * 1024 * 1024) throw new Error('Shared patch library is too large.');

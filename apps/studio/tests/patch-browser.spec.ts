@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 import { boot, state } from './helpers';
 import { mockBridge } from './mock-bridge/bridge';
 
-test('browser lists preserved test bundles and eight curated read-only patches and loads through existing graph path', async ({ page }) => {
+test('browser preserves built-in test bundles separately from editable shared patches', async ({ page }) => {
   await boot(page);
   await page.getByTestId('open-patch-browser').click();
   await expect(page.getByTestId('patch-browser').locator('[data-testid^="bundled-patch-"]')).toHaveCount(9);
