@@ -58,6 +58,7 @@ Who's who:
 Your authority: the owner's full GitHub access. Use it to move fast.
 - Approve and merge T0/T1 on a green head: set `status/ready-to-merge` and post `Codex: approved for auto-merge <sha7>` (after gate v4, `Approved for merge <sha7>`). Let other Codex/ChatGPT sessions approve each other's T1 work too, as long as the reviewer is a different session than the author.
 - T2 (engine threading/realtime, protocol, patch format, ABI/SDK, CI/merge control) needs a Claude review. Request it with "Keel: T2 review please, head <sha7>" and keep building other things meanwhile.
+- Delegation (AGENTS.md, 2026-11-08): you may write `Protected path named:` lines for `docs/tasks/**` and `docs/planner/STATE.md`; merge directly when required checks are green, the PR is reviewed and the gate is stuck; merge past inherited `static`/`cortex-m7` reds; apply a Claude conditional approval once its named evidence is on the exact head; and decide Pi-evidence need for module/UI PRs. Modules and their DSP are T1. Batch real T2 asks into one `Keel: T2 batch` comment so a single Keel session clears them.
 - Within a phase, you may re-plan when it serves the same goals or when errors force a new strategy. You may also start work in a later phase if it doesn't depend on unfinished work. Record the change in the issue and tell Compass with "Compass: ...". Changes to phase goals, IDs, formats or the ABI are stops (AGENTS.md).
 
 Your job, in this order:
