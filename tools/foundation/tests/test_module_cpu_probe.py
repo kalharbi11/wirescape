@@ -11,7 +11,7 @@ from module_cpu_probe import parse_args, parse_line, validate_result
 class ModuleCpuProbeTests(unittest.TestCase):
     def evidence(self, **changes):
         result = dict(module='sound.blend', instances=2, sample_rate=48000, block=128, seconds=60,
-                      blocks=22500, render_ns=dict(max=200000, p99=40000), period_ns=2666667,
+                      channels=1, blocks=22500, render_ns=dict(max=200000, p99=40000), period_ns=2666667,
                       allocations=0, faults=0, peak=.4)
         result.update(changes)
         return result
@@ -50,6 +50,21 @@ class ModuleCpuProbeTests(unittest.TestCase):
         for seconds in ['nan', 'inf', '0.0001']:
             with self.subTest(seconds=seconds), self.assertRaises(SystemExit):
                 parse_args(['sound.blend', '--seconds', seconds])
+
+    def test_requested_polyphony(self):
+        self.assertEqual(parse_args(['essentials.vco', '--channels', '8']).channels, 8)
+        self.assertEqual(parse_args(['essentials.vco']).channels, 1)
+        validate_result(self.evidence(channels=8), 'sound.blend', 60, 8)
+        for channels in (1, 16):
+            with self.subTest(channels=channels), self.assertRaises(ValueError):
+                validate_result(self.evidence(channels=channels), 'sound.blend', 60, 8)
+        for channels in ('0', '17'):
+            with self.subTest(channels=channels), self.assertRaises(SystemExit):
+                parse_args(['essentials.vco', '--channels', channels])
+        result = self.evidence()
+        del result['channels']
+        with self.assertRaises(ValueError):
+            validate_result(result, 'sound.blend', 60)
 
     def test_worst_case_settings(self):
         args = parse_args(['sound.blend', '--param', 'balance=0.25', '--param', 'fade=0.1',
