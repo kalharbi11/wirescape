@@ -80,6 +80,14 @@ test('autoplay patches have running clocks or continuously sounding sources', ()
   }
 });
 
+test('selecting a bundled cinematic patch fits its wide graph to the Studio viewport', async ({ page }) => {
+  await boot(page);
+  await page.getByTestId('starter-select').selectOption('hollow-chapel');
+  await expect(page.getByTestId('patch-name')).toContainText('Hollow Chapel');
+  await expect.poll(() => page.evaluate(() =>
+    window.__wirescapeTest.state().ui?.view?.zoom ?? 1)).toBeLessThan(0.8);
+});
+
 for (const starter of curated) {
   test(starter.id + ' loads into the Studio and preserves its patch graph', async ({ page }) => {
     const errors: string[] = [];
