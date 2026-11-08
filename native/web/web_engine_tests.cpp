@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
             {{"kind", "signal"}, {"from", {{"module", 12}, {"port", "gate"}}},
              {"to", {{"module", 14}, {"port", "gate"}}}},
             {{"kind", "signal"}, {"from", {{"module", 14}, {"port", "envelope"}}},
-             {"to", {{"module", 7}, {"port", "audio"}}}}
+             {"to", {{"module", 9}, {"port", "fm"}}}}
         })}
     };
     auto telemetry_reply = command({{"type", "loadGraph"}, {"patch", telemetry_patch}});
