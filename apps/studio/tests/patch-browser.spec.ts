@@ -17,7 +17,7 @@ test('curated patches are accessible in the read-only browser without changing s
   await page.getByTestId('open-patch-browser').click();
   await page.getByTestId('bundled-patch-6').click(); // six preserved Qt bundles precede curated patches
   await expect(page.getByTestId('patch-name')).toContainText('Hollow Chapel');
-  expect((await state(page)).modules.some(m => m.module === 'essentials.chaos_lite')).toBe(true);
+  expect((await state(page)).modules.some((m: { module: string }) => m.module === 'essentials.chaos_lite')).toBe(true);
 });
 
 test('user selection round-trips unknown fields; bundled Save creates a copy', async ({ page }) => {
