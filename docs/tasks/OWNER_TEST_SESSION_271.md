@@ -7,21 +7,18 @@ Plan 60–90 minutes plus optional extended sessions. Start at low volume.
 Record PASS / FAIL / SKIP for every row; SKIP never means passed.
 
 ## 0. Know what you are testing
-
 Snapshot: main at ec1eea5 (2026-11-08). Build current main and record its actual SHA.
 Merged: seamless edits, patch folder/browser, autosave/recovery, keyboard,
 MIDI hotplug, remembered audio recovery, callback CPU/dropouts, telemetry,
 VCO musical tuning, Macro gate, Blend, Resonator and Spectral base modes.
 Native catalogue: 24 modules. Browser catalogue: 21 (midi.* excluded).
 If testing a later SHA, record extra modules rather than enforcing this count.
-
 Not merged at this snapshot: Delay #345, Reverb #348, Quantizer #323,
 Spectral Interleave/Vocoder #310, LFO phase display #379, MIDI controls #210,
 Learn seam #390/UI #287, audio route details #399, latency refresh #400,
 16-step sequencer #405 + editor #410, curated patches #412, Chord #406.
 The 64-parameter host cap #404 is merged; it does not itself add 16 steps.
 Check the relevant PR is merged AND included in your SHA before testing extras.
-
 Browser demo uses WASM DSP after its audio-start gesture. Pi uses Electron
 and native wirescape-engine. Ordinary Vite preview can use FakeEngine:
 a moving meter alone is not proof of DSP sound. MIDI/device/native-folder
@@ -91,7 +88,6 @@ Pitch CV is 0=C4 and 1/octave; output sums voices. Keep output gain low.
 - Save/reload: Voices=4 and allocation/filter settings persist; held notes do not.
 - Repeat a three/four-note computer-keyboard chord with host.keyboard Voices=4.
   If your source only sends one note, use another chord-capable source; record SKIP.
-
 MIDI→CV already supports 1–16 voices (default four). This is different from
 generating a chord from one root. Chord is design-only: current MIDI→CV accepts
 MIDI events, not Chord NOTE events. Generated-chord acceptance waits for the
