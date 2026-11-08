@@ -73,6 +73,12 @@ if mode != 'missing-bench':
     print(bench, file=sys.stderr, flush=True)
 if mode == 'duplicate-bench':
     print(bench, file=sys.stderr, flush=True)
+elif mode == 'unterminated-second-bench':
+    sys.stderr.write(bench)
+    sys.stderr.flush()
+elif mode == 'oversized-second-bench':
+    sys.stderr.write('bench ' + 'x' * 2100 + '\n')
+    sys.stderr.flush()
 '''
 
 
@@ -146,6 +152,8 @@ class EditSoakTests(unittest.TestCase):
         for mode, message in (
                 ('missing-bench', 'exactly one bench line'),
                 ('duplicate-bench', 'exactly one bench line'),
+                ('unterminated-second-bench', 'exactly one bench line'),
+                ('oversized-second-bench', 'exactly one bench line'),
                 ('bad-bench', 'malformed bench'),
                 ('short-blocks', 'insufficient bench blocks'),
                 ('overruns', 'overruns=1'),
