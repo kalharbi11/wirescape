@@ -66,10 +66,8 @@ export class FilterDisplay {
     this.bindPointer();
     this.unbind = o.ticker.bind(o.moduleId, t => {
       const e = t.effective[o.moduleId];
-      if (e) {
-        if (e[o.cutoff] !== undefined) this.live.c = e[o.cutoff]!;
-        if (e[o.resonance] !== undefined) this.live.r = e[o.resonance]!;
-      }
+      this.live.c = e?.[o.cutoff] ?? NaN;
+      this.live.r = e?.[o.resonance] ?? NaN;
       this.draw();
     });
   }

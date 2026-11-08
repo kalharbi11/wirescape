@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
+// Qt defines emit as an empty macro; the portable header must still compile.
+#define emit
 #include "note_to_cv.h"
+#undef emit
 #include <array>
 #include <cstdio>
 #include <cstdlib>

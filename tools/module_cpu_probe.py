@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Offline Pi CPU acceptance for one built-in module (Track S): two instances, 48 kHz / 128 frames.
+"""Offline Pi CPU acceptance for any built-in module: two instances, 48 kHz / 128 frames.
 
 Runs build/native/abi2_module_cpu_probe (Qt-free, device-free, deterministic inputs: a saw into A,
 seeded noise into B) and passes when the worst block is under half the period with zero
-allocations and zero faults. Usage: python tools/module_cpu_probe.py sound.spectral [--seconds S]
+allocations and zero faults. Usage: python tools/module_cpu_probe.py sound.blend [--seconds S]
 [--param id=value ...] [--alternate id=a:b:blocks]: settings select a worst case (a heavy mode,
 the largest FFT, a parameter flipped every K blocks); the pass rule is the same.
 """
@@ -32,7 +32,8 @@ def validate_result(result, module, seconds):
         peak = float(result['peak'])
         valid = (result['module'] == module and result['instances'] == INSTANCES
                  and result['sample_rate'] == RATE and result['block'] == BLOCK
-                 and float(result['seconds']) == float(seconds) and result['blocks'] > 0
+                 and float(result['seconds']) == float(seconds)
+                 and result['blocks'] == int(float(seconds) * RATE) // BLOCK and result['blocks'] > 0
                  and result['allocations'] == 0 and result['faults'] == 0
                  and math.isfinite(peak) and peak > 0 and math.isfinite(p99) and 0 <= p99 <= worst
                  and math.isfinite(worst) and worst < 1e9 * BLOCK / RATE * .5)
@@ -45,13 +46,13 @@ def validate_result(result, module, seconds):
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('module', help='built-in module ID, e.g. sound.spectral')
+    parser.add_argument('module', help='built-in module ID, e.g. sound.blend')
     parser.add_argument('--seconds', type=float, default=60.0)
     parser.add_argument('--param', action='append', default=[], help='id=value (repeatable)')
     parser.add_argument('--alternate', help='id=a:b:blocks, flip a parameter every K blocks')
     args = parser.parse_args(argv)
-    if not args.seconds > 0:
-        parser.error('--seconds must be positive')
+    if not math.isfinite(args.seconds) or args.seconds < BLOCK / RATE:
+        parser.error('--seconds must be finite and cover at least one block')
     for setting in args.param:
         if '=' not in setting or setting.startswith('='):
             parser.error('--param needs id=value')

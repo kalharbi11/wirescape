@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # S1-1 (#302): sound.spectral, PR A (STFT engine; Morph, Cross, Max, Mean, Min, A − B)
 
-Brief: `docs/tasks/S1_CONJUNCTIONS_MODULES.md` (module 1). The plan, IDs and Keel/Compass rulings are in issue #302. PR A ships the engine, modes 0–5, the catalogue wiring and the generic CPU probe (`tools/module_cpu_probe.py`). Interleave and Vocoder (modes 6–7, parameter slots 9–15) follow in their own issue and PR.
+Brief: `docs/tasks/S1_CONJUNCTIONS_MODULES.md` (module 1). The plan, IDs and Keel/Compass rulings are in issue #302. PR A ships the engine, modes 0–5, the catalogue wiring and acceptance using the generic CPU probe now shared on main from #367 (`tools/module_cpu_probe.py`). Interleave and Vocoder (modes 6–7, parameter slots 9–15) follow in their own issue and PR.
 
 ```acceptance
 tier: T1

@@ -67,7 +67,7 @@ class NoteToCv {
         return empty;
     }
     template <class Emit>
-    void changes(const std::array<Voice, kMaxVoices> &before, const ws2_event &cause, Emit emit, bool choke) {
+    void changes(const std::array<Voice, kMaxVoices> &before, const ws2_event &cause, Emit emit_event, bool choke) {
         // Releases precede replacement attacks at the same offset.
         for (int c = 0; c < allocator_.voice_count(); ++c) {
             const auto &a = before[c];
@@ -80,7 +80,7 @@ class NoteToCv {
                 out.note_id = a.note_id;
                 out.source_id = sources_[a.source_id].id;
                 out.value = 0;
-                emit(out);
+                emit_event(out);
             }
         }
         for (int c = 0; c < allocator_.voice_count(); ++c) {
@@ -94,7 +94,7 @@ class NoteToCv {
                 out.note_id = b.note_id;
                 out.source_id = sources_[b.source_id].id;
                 out.value = b.velocity;
-                emit(out);
+                emit_event(out);
             }
         }
     }
@@ -124,35 +124,35 @@ class NoteToCv {
     }
     Allocator &allocator() noexcept { return allocator_; }
     const Allocator &allocator() const noexcept { return allocator_; }
-    template <class Emit> void sustain(uint32_t source, int channel, bool down, const ws2_event &e, Emit emit) {
+    template <class Emit> void sustain(uint32_t source, int channel, bool down, const ws2_event &e, Emit emit_event) {
         int t = token(source, channel, down);
         if (t < 0) return;
         auto before = snapshot();
         allocator_.sustain(static_cast<uint32_t>(t), down);
-        changes(before, e, emit, false);
+        changes(before, e, emit_event, false);
     }
-    template <class Emit> void release_channel(uint32_t source, int channel, const ws2_event &e, Emit emit) {
+    template <class Emit> void release_channel(uint32_t source, int channel, const ws2_event &e, Emit emit_event) {
         int t = token(source, channel, false);
         if (t < 0) return;
         auto before = snapshot();
         allocator_.release_all_from_source(static_cast<uint32_t>(t));
-        changes(before, e, emit, true);
+        changes(before, e, emit_event, true);
         for (auto &a : anonymous_)
             if (a.used && a.source == static_cast<uint32_t>(t)) a = {};
     }
-    template <class Emit> void release_all(uint32_t source, const ws2_event &e, Emit emit) {
+    template <class Emit> void release_all(uint32_t source, const ws2_event &e, Emit emit_event) {
         auto before = snapshot();
         if (source == UINT32_MAX) allocator_.reset();
         else
             for (int t = 0; t < kMaxHeldNotes; ++t)
                 if (sources_[t].used && sources_[t].id == source) allocator_.release_all_from_source(t);
-        changes(before, e, emit, true);
+        changes(before, e, emit_event, true);
         for (auto &a : anonymous_)
             if (a.used && (source == UINT32_MAX || sources_[a.source].id == source)) a = {};
     }
-    template <class Emit> void event(const ws2_event &e, Emit emit) {
+    template <class Emit> void event(const ws2_event &e, Emit emit_event) {
         if (e.type == WS2_NOTE_CHOKE) {
-            release_all(e.source_id, e, emit);
+            release_all(e.source_id, e, emit_event);
             return;
         }
         int channel = e.channel < 0 ? 0 : e.channel;
@@ -210,12 +210,12 @@ class NoteToCv {
                     auto out = e;
                     out.channel = c;
                     out.note_id = v.note_id;
-                    emit(out);
+                    emit_event(out);
                     if (n.note_id >= 0) break;
                 }
             }
         }
-        changes(before, e, emit, false);
+        changes(before, e, emit_event, false);
     }
 };
 } // namespace wirescape::voice

@@ -152,3 +152,12 @@ target_link_libraries(sidecar_protocol_unit_tests PRIVATE wirescape_runtime_docu
   wirescape_midi_host nlohmann_json::nlohmann_json Threads::Threads)
 add_test(NAME abi2_sidecar_unit_tests COMMAND sidecar_protocol_unit_tests)
 set_tests_properties(abi2_sidecar_unit_tests PROPERTIES TIMEOUT 30)
+add_executable(sidecar_audio_recovery_tests sidecar/audio_recovery_tests.cpp sidecar/session.cpp
+  sidecar/protocol.cpp sidecar/devices.cpp)
+target_include_directories(sidecar_audio_recovery_tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_definitions(sidecar_audio_recovery_tests PRIVATE WIRESCAPE_ENGINE_SHA="${engine_sha}")
+# Deliberately omit wirescape_audio_service: the test supplies its fake boundary.
+target_link_libraries(sidecar_audio_recovery_tests PRIVATE wirescape_runtime_document
+  wirescape_midi_host nlohmann_json::nlohmann_json Threads::Threads)
+add_test(NAME abi2_sidecar_audio_recovery_tests COMMAND sidecar_audio_recovery_tests)
+set_tests_properties(abi2_sidecar_audio_recovery_tests PROPERTIES TIMEOUT 30)

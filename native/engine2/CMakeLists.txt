@@ -147,10 +147,20 @@ target_include_directories(wirescape_app_engine PUBLIC ../control)
 target_link_libraries(wirescape_app_engine PUBLIC wirescape_engine2 wirescape_engine wirescape_catalog_dependencies)
 target_link_libraries(wirescape_cli PRIVATE wirescape_app_engine)
 
+# Device-free, deterministic benchmark shared by all built-in modules.
+add_executable(abi2_module_cpu_probe_output_tests tests/module_cpu_probe_output_tests.cpp)
+target_link_libraries(abi2_module_cpu_probe_output_tests PRIVATE wirescape_engine2)
+add_test(NAME abi2_module_cpu_probe_output_tests COMMAND abi2_module_cpu_probe_output_tests)
 add_executable(abi2_module_cpu_probe tests/module_cpu_probe.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(abi2_module_cpu_probe PRIVATE wirescape_app_engine)
-add_test(NAME abi2_module_cpu_probe_smoke COMMAND abi2_module_cpu_probe --module sound.spectral --seconds 0.2)
+add_test(NAME abi2_module_cpu_probe_smoke COMMAND abi2_module_cpu_probe --module sound.blend --seconds 0.2)
 set_tests_properties(abi2_module_cpu_probe_smoke PROPERTIES PASS_REGULAR_EXPRESSION "\"allocations\":0,\"faults\":0")
+add_test(NAME abi2_module_cpu_probe_stress_smoke COMMAND abi2_module_cpu_probe --module sound.blend --seconds 0.2 --param balance=0.25 --alternate mode=0:1:4)
+set_tests_properties(abi2_module_cpu_probe_stress_smoke PROPERTIES PASS_REGULAR_EXPRESSION "\"allocations\":0,\"faults\":0")
+add_test(NAME abi2_module_cpu_probe_spectral_smoke COMMAND abi2_module_cpu_probe --module sound.spectral --seconds 0.2 --param size=3 --param pitch=1 --alternate mode=0:1:32)
+set_tests_properties(abi2_module_cpu_probe_spectral_smoke PROPERTIES PASS_REGULAR_EXPRESSION "\"allocations\":0,\"faults\":0")
+add_test(NAME abi2_module_cpu_probe_unit COMMAND ${Python3_EXECUTABLE}
+  ${PROJECT_SOURCE_DIR}/../tools/foundation/tests/test_module_cpu_probe.py)
 
 add_executable(abi2_host_keyboard_tests ../modules2/host_keyboard/tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(abi2_host_keyboard_tests PRIVATE wirescape_engine2 wirescape_voice2)

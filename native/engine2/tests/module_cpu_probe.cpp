@@ -6,6 +6,7 @@
 //   module_cpu_probe {"module":..., "render_ns":{"max":..,"p99":..}, "allocations":.., ...}
 #include "../../tests2/allocation_watch.h"
 #include "module_catalog.h"
+#include "module_cpu_probe_output.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -20,6 +21,8 @@ namespace {
 struct Arena {
     std::vector<unsigned char> bytes;
     size_t used = 0;
+    // Fixed ws2_host allocator signature; size/alignment order is defined by the ABI.
+    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
     static void *WS2_CALL alloc(void *context, size_t size, size_t alignment, uint32_t) {
         auto &a = *static_cast<Arena *>(context);
         const uintptr_t base = reinterpret_cast<uintptr_t>(a.bytes.data());
@@ -155,7 +158,8 @@ int main(int argc, char **argv) {
 
     const size_t blocks = frames_total / block;
     std::vector<int64_t> ns(blocks);
-    double phase = 0, peak = 0;
+    double phase = 0;
+    module_cpu_probe::OutputEvidence output_evidence;
     uint32_t lcg = uint32_t(seed) * 2654435761u + 1u;
     size_t allocations = 0, faults = 0;
     for (size_t k = 0; k < blocks; ++k) {
@@ -178,11 +182,9 @@ int main(int argc, char **argv) {
             allocations += watch.allocations();
         }
         ns[k] = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
-        for (auto &x : all)
-            for (uint32_t o = 0; o < d->output_count; ++o) {
-                const uint32_t frames = (x->outputs[o].flags & WS2_CONSTANT) ? 1 : block;
-                for (uint32_t i = 0; i < frames; ++i) peak = std::max(peak, double(std::abs(x->out_rows[o][0][i])));
-            }
+        for (auto &x : all) {
+            for (uint32_t o = 0; o < d->output_count; ++o) output_evidence.scan(x->outputs[o], {block, channels});
+        }
     }
     for (auto &x : all) d->destroy(x->self);
     std::vector<int64_t> sorted = ns;
@@ -193,7 +195,8 @@ int main(int argc, char **argv) {
                 "\"blocks\":%zu,\"render_ns\":{\"max\":%lld,\"p99\":%lld},\"period_ns\":%.0f,\"allocations\":%zu,"
                 "\"faults\":%zu,\"peak\":%.6g,\"params\":\"%s\",\"alternate\":\"%s\"}\n",
                 id.c_str(), instances, rate, block, seconds, blocks, (long long)worst, (long long)p99,
-                1e9 * block / rate, allocations, faults, peak, settings_text.c_str(),
+                1e9 * block / rate, allocations, faults + output_evidence.faults, output_evidence.peak,
+                settings_text.c_str(),
                 alternate_id.empty() ? ""
                                      : (alternate_id + "=" + std::to_string(alternate_a) + ":" +
                                         std::to_string(alternate_b) + ":" + std::to_string(alternate_every))
