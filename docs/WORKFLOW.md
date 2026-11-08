@@ -55,11 +55,25 @@ tier: T1
 size: <= 600 changed lines, <= 12 files
 must_pass:
   - ctest -R host_protocol_
-  - pi: build + ctest -R host_protocol_ (null audio)
+  - pi-run: ctest --test-dir build/native -R host_protocol_ --output-on-failure
 stops: [ABI edit, new dependency, threshold change, unspecified design choice]
 ```
 ````
-`pi:` lines run on the Pi runner. Owner-only checks (real sound, MIDI devices, the display) are listed under `owner:` in the task text, not in `must_pass`; they're collected at checkpoints.
+Only `pi-run: <command>` lines are executable Pi acceptance. They require the PR label
+`ci/pi-accept` and a matching exact-head `pi5/accept` result from the private runner.
+`pi:` is descriptive, **never executed** or counted as passed. Do not mechanically
+migrate existing `pi:` prose into commands: rewrite it when the task is next touched.
+`ci/pi` alone runs the Pi build/tests, **not** task-specific acceptance; a green
+build never substitutes for required task evidence.
+
+Local `python tools/dev.py accept <issue#>` classifies local commands, `ci:`,
+`pi-run:`, `pi:`, and `user:`. External requirements are listed as *not
+verified here* and make the aggregate `incomplete`, never `passed`.
+The default exit code retains historical local compatibility (zero for
+incomplete-only); `--strict` exits nonzero for incomplete evidence. Unknown
+prefixes, empty external requirements and failed local checks are errors.
+Owner-only checks (real sound, MIDI devices, the display) remain under `owner:`
+in the task text and are collected at checkpoints.
 
 ## 7. Checkpoints
 At the end of Phases 1, 2 and 4 (`docs/PLAN.md`): tag `checkpoint-<X>`, build the review pack for the phase, and hold one owner + Compass session. Decisions go at the top of `docs/PLAN.md`. Work on the next phase continues during the review; a High blocks only the sections it touches.
