@@ -88,8 +88,9 @@ setting blocker rather than pretending to merge.
 - Use only modules/ports/parameters in current
   apps/studio/public/wirescape_modules.json. No hardware MIDI modules in the
   web library; use host.keyboard. Browser audio needs its user start gesture.
+- Reverb fx.reverb is merged on main (c39af7b): stereo SUM inputs, one wet/dry output per side, not one reverb per note. Unconnected right follows left; size/decay/damping/predelay/width/motion/freeze/mix are available. Use two output-bus routes to preserve stereo; saved state clears the tail.
 - Macro requires48k. No external sample files/services. Do not assume pending
-  Chord, Notes→CV, Quantizer, Reverb or16steps exist: inspect actual catalogue.
+  Chord, Notes→CV, Quantizer or16steps exist: inspect actual catalogue.
 - Start poly keyboard patches at3–4voices. MIDI→CV supports polyphony in desktop,
   but raw MIDI input and generated note events are different kinds.
 - Pitch CV0=C4, +1=one octave; VCO base frequency matters. Signals and events
