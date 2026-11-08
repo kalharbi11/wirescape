@@ -101,6 +101,7 @@ def visible_closing_issues(body):
                 cursor = position + len("<!--")
         line = "".join(visible)
         if not line.strip():
+            continuation = False
             continue
         if line.startswith(("    ", "\t")):
             continue
