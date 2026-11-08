@@ -33,64 +33,88 @@ static void matrix(){
  std::printf("PASS %zu DSP matrix cases, reset/determinism, scalar VCA, VCF counter, nullable/stop/locate transport\n",std::size(descriptors)*27);
 }
 
-static void lfo_phase(){
- const auto*d=descriptors[1];
- VERIFY(d->output_count==2);
- VERIFY(!std::strcmp(d->outputs[0].id,"control")&&!std::strcmp(d->outputs[1].id,"phase"));
- VERIFY(d->outputs[1].kind==WS2_SIGNAL&&d->outputs[1].hint==WS2_CV_UNI);
- VERIFY(d->param_count==5);
- const char*ids[]={"rate","depth","offset","sync","beats"};
- for(uint32_t i=0;i<5;++i){VERIFY(!std::strcmp(d->params[i].id,ids[i]));VERIFY(d->params[i].legacy_index==i);}
- auto f=std::make_unique<DspFixture>(d,48000,4);
- f->pars[0].channels=4;
- constexpr double tau=6.283185307179586476925286766559;
- const float rates[4]={5.f,10.f,15.f,20.f};
- double reference[4]{};
- float previous[4]{};
- uint32_t wraps[4]{};
- for(uint32_t c=0;c<4;++c)f->parameter[0][c][0]=rates[c];
- // Use the original control equation and phase update as a bit-exact regression reference.
- for(uint32_t block=0;block<21;++block){
-  f->run(256);
-  for(uint32_t c=0;c<4;++c){
-   VERIFY(f->outs[0].channels==4&&f->outs[1].channels==4);
-   for(uint32_t i=0;i<256;++i){
-    const float actual=f->output[1][c][i];
-    VERIFY(actual>=0.f&&actual<1.f);
-    if((block||i)&&actual<previous[c])++wraps[c];
-    const float control=static_cast<float>(std::sin(reference[c])*1.f+0.f);
-    VERIFY(std::memcmp(&control,&f->output[0][c][i],sizeof(float))==0);
-    VERIFY(std::abs(actual-static_cast<float>(reference[c]/tau))<1e-6f);
-    reference[c]+=tau*rates[c]/48000.;
-    if(reference[c]>=tau)reference[c]=std::fmod(reference[c],tau);
-    previous[c]=actual;
-   }
-  }
- }
- VERIFY(wraps[0]==0&&wraps[1]==1&&wraps[2]==1&&wraps[3]==2);
- // Phase is a real ramp even when depth suppresses the sine.
- f->reset();f->parameter[1][0][0]=0;f->parameter[2][0][0]=.25f;f->run(256);
- for(uint32_t c=0;c<4;++c)for(uint32_t i=0;i<256;++i)VERIFY(f->output[0][c][i]==.25f);
- for(uint32_t c=0;c<4;++c)VERIFY(f->output[1][c][255]>f->output[1][c][0]);
- // Transport position determines phase independently per voice's beats/cycle.
- ws2_transport t{sizeof(t),WS2_PLAYING,120,.25,0,4,4,0,0};
- f->process.transport=&t;f->parameter[3][0][0]=1;
- f->pars[4].channels=4;
- const float beats[4]={1.f,2.f,4.f,8.f};
- for(uint32_t c=0;c<4;++c)f->parameter[4][c][0]=beats[c];
- f->run(17);
- for(uint32_t c=0;c<4;++c)for(uint32_t i=0;i<17;++i){
-  const double position=.25+double(i)*120./(60.*48000.);
-  const double cycles=position/beats[c];
-  VERIFY(std::abs(f->output[1][c][i]-float(cycles-std::floor(cycles)))<1e-6f);
- }
- // Stopped transport holds the located phase, including negative beat positions.
- t.flags=0;t.beat=-.25;f->run(17);
- for(uint32_t c=0;c<4;++c)for(uint32_t i=0;i<17;++i){
-  const double cycles=-.25/double(beats[c]);
-  VERIFY(std::abs(f->output[1][c][i]-float(cycles-std::floor(cycles)))<1e-6f);
- }
- std::puts("PASS LFO phase: ID compatibility, per-voice ramp/wrap, bit-exact control, depth zero, sync/locate/stop");
+static void lfo_phase() {
+    const auto *d = descriptors[1];
+    VERIFY(d->output_count == 2);
+    VERIFY(!std::strcmp(d->outputs[0].id, "control") && !std::strcmp(d->outputs[1].id, "phase"));
+    VERIFY(d->outputs[1].kind == WS2_SIGNAL && d->outputs[1].hint == WS2_CV_UNI);
+    VERIFY(d->param_count == 5);
+    const char *ids[] = {"rate", "depth", "offset", "sync", "beats"};
+    for (uint32_t i = 0; i < 5; ++i) {
+        VERIFY(!std::strcmp(d->params[i].id, ids[i]));
+        VERIFY(d->params[i].legacy_index == i);
+    }
+
+    auto f = std::make_unique<DspFixture>(d, 48000, 4);
+    f->pars[0].channels = 4;
+    constexpr double tau = 6.283185307179586476925286766559;
+    const float rates[4] = {5.f, 10.f, 15.f, 20.f};
+    double reference[4]{};
+    float previous[4]{};
+    uint32_t wraps[4]{};
+    for (uint32_t c = 0; c < 4; ++c) f->parameter[0][c][0] = rates[c];
+
+    // Verify every sample against the pre-existing control formula, including its update order.
+    for (uint32_t block = 0; block < 21; ++block) {
+        f->run(256);
+        for (uint32_t c = 0; c < 4; ++c) {
+            VERIFY(f->outs[0].channels == 4 && f->outs[1].channels == 4);
+            for (uint32_t i = 0; i < 256; ++i) {
+                const float actual = f->output[1][c][i];
+                VERIFY(actual >= 0.f && actual < 1.f);
+                if ((block || i) && actual < previous[c]) ++wraps[c];
+                const float control = static_cast<float>(std::sin(reference[c]) * 1.f + 0.f);
+                uint32_t expected_bits = 0;
+                uint32_t actual_bits = 0;
+                std::memcpy(&expected_bits, &control, sizeof(control));
+                std::memcpy(&actual_bits, &f->output[0][c][i], sizeof(control));
+                VERIFY(expected_bits == actual_bits);
+                VERIFY(std::abs(actual - static_cast<float>(reference[c] / tau)) < 1e-6f);
+                reference[c] += tau * rates[c] / 48000.;
+                if (reference[c] >= tau) reference[c] = std::fmod(reference[c], tau);
+                previous[c] = actual;
+            }
+        }
+    }
+    VERIFY(wraps[0] == 0 && wraps[1] == 1 && wraps[2] == 1 && wraps[3] == 2);
+
+    // Depth and offset affect only control; phase must continue running.
+    f->reset();
+    f->parameter[1][0][0] = 0;
+    f->parameter[2][0][0] = .25f;
+    f->run(256);
+    for (uint32_t c = 0; c < 4; ++c) {
+        for (uint32_t i = 0; i < 256; ++i) VERIFY(f->output[0][c][i] == .25f);
+        VERIFY(f->output[1][c][255] > f->output[1][c][0]);
+    }
+
+    // Each voice's beats/cycle parameter controls its transport-synced phase.
+    ws2_transport t{sizeof(t), WS2_PLAYING, 120, .25, 0, 4, 4, 0, 0};
+    f->process.transport = &t;
+    f->parameter[3][0][0] = 1;
+    f->pars[4].channels = 4;
+    const float beats[4] = {1.f, 2.f, 4.f, 8.f};
+    for (uint32_t c = 0; c < 4; ++c) f->parameter[4][c][0] = beats[c];
+    f->run(17);
+    for (uint32_t c = 0; c < 4; ++c) {
+        for (uint32_t i = 0; i < 17; ++i) {
+            const double position = .25 + double(i) * 120. / (60. * 48000.);
+            const double cycles = position / beats[c];
+            VERIFY(std::abs(f->output[1][c][i] - float(cycles - std::floor(cycles))) < 1e-6f);
+        }
+    }
+
+    // A stopped transport holds the located phase, including negative beat positions.
+    t.flags = 0;
+    t.beat = -.25;
+    f->run(17);
+    for (uint32_t c = 0; c < 4; ++c) {
+        for (uint32_t i = 0; i < 17; ++i) {
+            const double cycles = -.25 / double(beats[c]);
+            VERIFY(std::abs(f->output[1][c][i] - float(cycles - std::floor(cycles))) < 1e-6f);
+        }
+    }
+    std::puts("PASS LFO phase: IDs, per-voice ramp/wrap, bit-exact control, depth zero, sync/locate/stop");
 }
 static void vca_broadcast(){
  for(uint32_t frames:{1u,4u,17u,256u}){
@@ -142,7 +166,8 @@ static void equivalence(const char*directory,const char*report){
 }
 static void noalloc(){for(auto*d:descriptors){auto f=std::make_unique<DspFixture>(d,48000,16);allocation_watch::Scope watch;for(int i=0;i<16;++i){f->run(17);f->reset();}VERIFY(watch.allocations()==0);}std::puts("PASS zero new/new[]/aligned-new in static SDK/DSP process/reset");}
 #endif
-int main(int argc,char**argv){matrix();lfo_phase();vca_exact();vca_broadcast();
+int main(int argc,char**argv){matrix();vca_exact();vca_broadcast();
+    lfo_phase();
 #ifndef WS2_PORTABLE_TEST
  noalloc();if(argc==3)equivalence(argv[1],argv[2]);
 #endif
