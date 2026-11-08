@@ -64,9 +64,7 @@ struct Backend {
 };
 struct Context {
     std::function<void()> stop_producers;
-    ~Context() {
-        if (stop_producers) stop_producers();
-    }
+    ~Context() { if (stop_producers) stop_producers(); }
     double rate = 0;
     CallbackMetrics metrics;
     EngineOwner engine;
@@ -184,9 +182,7 @@ void play(EngineOwner engine, const std::string &directory, const std::string &n
           const std::atomic<bool> &quit, std::function<void()> stop_producers) {
     struct StopOnError {
         std::function<void()> &stop;
-        ~StopOnError() {
-            if (stop) stop();
-        }
+        ~StopOnError() { if (stop) stop(); }
     } cleanup{stop_producers};
     Backend b(directory);
     auto context = std::make_unique<Context>(std::move(engine), block);
