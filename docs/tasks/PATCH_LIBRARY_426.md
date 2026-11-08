@@ -15,7 +15,7 @@ size: <= 5000 changed lines, <= 25 files
 must_pass:
   - python tools/patch_library.py check apps/studio/patches --shared
   - python -m unittest discover -s tools/foundation/tests -p test_patch_library.py
-  - node --test apps/studio/tests-node/patch-library.test.mjs
+  - bash -lc 'node --test apps/studio/tests-node/patch-library.test.mjs'
   - bash -lc 'cd apps/studio && npm ci && npm run build && WIRESCAPE_CHROMIUM="$(command -v chromium || command -v chromium-browser || command -v google-chrome)" npx playwright test tests/patch-browser.spec.ts tests/curated.spec.ts tests/codec-roundtrip.spec.cjs'
   - ci: guard, linux-arm64, windows-x64, sanitizers, Web and Web demo green on exact head
 stops: [DSP or ABI change, external credentials, new dependency, threshold weakening]
