@@ -11,9 +11,9 @@ ObservedMidi::ObservedMidi(bool fake, bool authorized)
     }
 }
 void ObservedMidi::capture_cc(uint8_t slot, uint8_t channel, uint8_t controller, uint8_t value) noexcept {
+    const uint64_t epoch = learn_epoch_.load(std::memory_order_acquire) & 31u;
     if (!learn_armed_.load(std::memory_order_acquire)) return;
     const uint32_t seq = learn_sequence_.fetch_add(1, std::memory_order_relaxed) + 1;
-    const uint64_t epoch = learn_epoch_.load(std::memory_order_relaxed) & 31u;
     // [63:59] arm epoch, [58] valid, [57:26] seq, [25:18] slot,
     // [17:14] MIDI channel 0..15, [13:7] controller, [6:0] value.
     learn_packet_.store((epoch << 59) | (uint64_t{1} << 58) | (uint64_t{seq} << 26) |
@@ -35,7 +35,7 @@ void ObservedMidi::expire_learning(std::chrono::steady_clock::time_point now) {
         (learn_packet_.load(std::memory_order_acquire) & (uint64_t{1} << 58)) == 0)
         arm_learning(false);
 }
-Json ObservedMidi::learning() const {
+Json ObservedMidi::learning() {
     if (!learn_armed_.load(std::memory_order_acquire)) return nullptr;
     Json result = {{"armed", true}};
     const uint64_t packet = learn_packet_.load(std::memory_order_acquire);
