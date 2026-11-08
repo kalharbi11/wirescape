@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "runtime_patch.h"
+
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -67,8 +68,7 @@ int main(int argc, char **argv) {
                 if (bus < 0 || bus >= 2) continue;
                 bool from_output = false;
                 for (const auto &module : patch.at("modules")) {
-                    from_output |=
-                        module.at("module") == "essentials.output" && module.at("id") == route.at("module");
+                    from_output |= module.at("module") == "essentials.output" && module.at("id") == route.at("module");
                 }
                 require(from_output, name + ": output bus references a non-Output module");
                 require(!has_bus[bus], name + ": duplicate output bus route");
@@ -84,8 +84,7 @@ int main(int argc, char **argv) {
             float left[256]{}, right[256]{}, peak = 0.f, stereo_difference = 0.f;
             float *channels[]{left, right};
             for (int block = 0; block < (autoplay ? 256 : 1); ++block) {
-                require(app_engine_render_channels(engine.get(), channels, 2, 256) == WS_OK,
-                        name + ": render failed");
+                require(app_engine_render_channels(engine.get(), channels, 2, 256) == WS_OK, name + ": render failed");
                 for (int i = 0; i < 256; ++i) {
                     require(std::isfinite(left[i]) && std::isfinite(right[i]), name + ": non-finite sample");
                     peak = std::max(peak, std::max(std::fabs(left[i]), std::fabs(right[i])));
