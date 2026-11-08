@@ -21,7 +21,7 @@ constexpr uint32_t block = 256, rate = 48000;
 constexpr uint64_t epoch = 1000000000000000ULL;
 using App = std::unique_ptr<AppEngine, decltype(&app_engine_destroy)>;
 App graph(bool bench = false, bool tapped = false) {
-    ws_engine_config cfg{sizeof(cfg), rate, block, 8, 2048};
+    ws_engine_config cfg{sizeof(cfg), rate, block, bench ? 64u : 8u, 2048};
     App app(app_engine_create(&cfg), app_engine_destroy);
     CHECK(app);
     CHECK(app_engine_add_node(app.get(), 1, "midi.in") == WS_OK);
