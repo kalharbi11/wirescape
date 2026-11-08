@@ -93,16 +93,16 @@ struct Quantizer {
     }
 
     // Nearest allowed note; ties go down. The mask is never empty, so both searches end within 12 steps.
-    static int nearest(double x, uint16_t mask) noexcept {
+    static int nearest(double x, const Config &cfg) noexcept {
         const int f = static_cast<int>(std::floor(x));
         int lo = f, hi = f + 1;
         for (int k = 0; k < 12; ++k)
-            if (allowed(mask, f - k)) {
+            if (allowed(cfg.mask, f - k)) {
                 lo = f - k;
                 break;
             }
         for (int k = 1; k <= 12; ++k)
-            if (allowed(mask, f + k)) {
+            if (allowed(cfg.mask, f + k)) {
                 hi = f + k;
                 break;
             }
@@ -110,14 +110,14 @@ struct Quantizer {
     }
 
     // Move `shift` allowed notes up (or down), wrapping into the next octave.
-    static int shifted(int note, uint16_t mask, int shift) noexcept {
-        if (shift == 0) return note;
-        const int octave = floor_div(note, 12), pc = note - 12 * octave, k = count(mask);
-        const int index = count(static_cast<uint16_t>(mask & ((1u << pc) - 1))) + shift;
+    static int shifted(int note, const Config &cfg) noexcept {
+        if (cfg.shift == 0) return note;
+        const int octave = floor_div(note, 12), pc = note - 12 * octave, k = count(cfg.mask);
+        const int index = count(static_cast<uint16_t>(cfg.mask & ((1u << pc) - 1))) + cfg.shift;
         const int wraps = floor_div(index, k), degree = index - wraps * k;
         int seen = 0;
         for (int p = 0; p < 12; ++p)
-            if ((mask >> p) & 1u) {
+            if ((cfg.mask >> p) & 1u) {
                 if (seen++ == degree) return 12 * (octave + wraps) + p;
             }
         return note;
@@ -146,8 +146,8 @@ struct Quantizer {
     static bool update(Voice &v, double x, const Config &cfg) noexcept {
         if (!(x == x)) x = 0;
         x = std::clamp(x, -kLimit, kLimit);
-        if (!(v.has && v.mask == cfg.mask && x >= v.low && x <= v.up)) set_hold(v, nearest(x, cfg.mask), cfg.mask);
-        const int out = shifted(v.note, cfg.mask, cfg.shift) + 12 * cfg.octave;
+        if (!(v.has && v.mask == cfg.mask && x >= v.low && x <= v.up)) set_hold(v, nearest(x, cfg), cfg.mask);
+        const int out = shifted(v.note, cfg) + 12 * cfg.octave;
         const bool changed = v.has && out != v.out_note;
         v.has = true;
         v.out_note = out;
