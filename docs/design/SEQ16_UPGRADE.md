@@ -30,20 +30,15 @@ rejects a module whose parameter count exceeds it. The correct straightforward
 extension requires **26 + (8 × 3) = 50 parameters**, *before* a tempo, swing,
 division or mode control. A two-row UI does not remove this engine limit.
 
-Preferred option, **pending lead sign-off**: audit every use of the maximum
-(descriptor validation, SDK scratch, engine parameter buffers, catalogue generator,
-sidecar protocol, UI controls, presets, standalone/plugin targets, CI matrices);
-change the ABI ceiling additively to at least **64** if the audit proves safe.
-No ABI struct layout, IDs, serialized types or parameter meaning changes.
-Run cross-platform and Pi headless evidence. This is a T2/technical-lead decision.
+**Keel's ruling (#401, 2026-11-08):** implement a separate, additive host
+parameter-cap change in #404 (32 -> 64; authored by Keel, T2) after its
+cross-family review and CI. Parameter storage is dynamic; all fifty step
+parameters use ordinary host parameter automation and patch persistence.
+The sequencer module change is T1, stacked on the #404 branch pending merge.
+Do not implement opaque float packing, bank aliases, a new patch-state
+contract or any ABI edits in the module PR.
 
-Alternative: a first-class patch-level versioned pattern-state editing API that
-updates an immutable 16-step snapshot at a safe control-thread boundary and is
-serialized losslessly. This needs more host/protocol/schema work (also T2), but
-scales to 64-step and chord patterns. Do **not** pack opaque step patterns into
-floating-point numeric params or make the UI secretly change all params at once.
-
-### Planned additive parameter slots (once unblocked)
+### Planned additive parameter slots (approved; #404 required)
 
 | Slots | Exact IDs | Behavior |
 |---|---|---|
@@ -54,9 +49,9 @@ floating-point numeric params or make the UI secretly change all params at once.
 **Keep `length` default 8**, even for a new version of the same module.
 Old patches may omit an explicit length and must still sound identical.
 The updated editor can render 16 available steps while dimming 9–16 when length=8.
-New factory starters can explicitly set length 16. Use a function handling two
-eight-step parameter banks for DSP parameter indices; the old `2+3*step` formula
-must not be used for step indexes 8–15 once slots 26–49 are appended.
+New factory starters can explicitly set length 16. The existing parameter
+index formula `2 + 3 * step` remains valid for step indexes 0–15 because all
+new triples are appended contiguously after slot 25.
 
 ## Playback and compatibility
 
@@ -151,7 +146,7 @@ after core parity if the size/review budget requires splitting.
 
 ## Review and delivery
 
-1. Keel rules on the parameter representation/ABI and the reset contradiction.
+1. Keel approved #404 (64 parameters) and Compass approved the compatibility scope; preserve existing reset behavior for the 16-step upgrade.
 2. Codex Lead coordinates an independent review and acceptance, Compass checks
    the 16-step interaction and timing priorities.
 3. A T2 implementation PR must pass device-free headless CTests, studio
