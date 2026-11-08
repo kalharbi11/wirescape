@@ -15,9 +15,15 @@ struct Options {
 // The sink thread is the sole writer. Read only after it has joined.
 struct RenderHistogram {
     std::array<uint64_t, 201> bins{}; // 0..199%, plus >=200%
-    uint64_t blocks = 0, overruns = 0;
+    uint64_t blocks = 0, overruns = 0, faults = 0, previous_faults = 0;
     double max_percent = 0;
 
+    // Sample the existing Engine2 render-fault meter on the sink thread.
+    // A replan may reset the engine counter; retain all observed deltas.
+    void observe_faults(uint64_t current) noexcept {
+        faults += current >= previous_faults ? current - previous_faults : current;
+        previous_faults = current;
+    }
     void record(double percent, bool late) noexcept {
         ++bins[static_cast<size_t>(percent >= 200 ? 200 : percent)];
         ++blocks;
