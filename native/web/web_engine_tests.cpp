@@ -141,6 +141,10 @@ int main(int argc, char **argv) {
     };
     auto telemetry_reply = command({{"type", "loadGraph"}, {"patch", telemetry_patch}});
     CHECK(telemetry_reply["ok"] == true);
+    if (telemetry_reply["ok"] != true) {
+        std::printf("telemetry graph refused: %s\n", telemetry_reply.dump().c_str());
+        return 1;
+    }
     // No render after commit means no source frames: empty maps, not stale data.
     auto empty_telemetry = Json::parse(wsw_telemetry());
     for (auto key : {"effective", "phase", "envelope", "eventActivity"})
@@ -151,6 +155,13 @@ int main(int argc, char **argv) {
         auto frame = Json::parse(wsw_telemetry());
         CHECK(frame["effective"].contains("9"));
         CHECK(frame["effective"]["9"].contains("frequency"));
+        if (!frame["effective"]["9"].contains("frequency") ||
+            !frame["effective"]["9"]["frequency"].is_number()) {
+            std::printf("missing rendered param tap: %s\n", frame.dump().c_str());
+            std::fflush(stdout);
+            CHECK(false);
+            continue;
+        }
         CHECK(frame["phase"].empty()); // B-wire #359 owns LFO phase mapping.
         CHECK(frame["eventActivity"].empty());
         CHECK(frame["outputs"].is_object() && frame["scope"].is_object());
@@ -188,15 +199,16 @@ int main(int argc, char **argv) {
     CHECK(Json::parse(wsw_telemetry())["effective"].empty());
     // Report JSON snapshot cost in native Web job output. This is diagnostic,
     // not a new performance threshold, and never runs in the realtime engine.
-    auto started = std::chrono::steady_clock::now();
+    std::chrono::microseconds telemetry_cost{0};
     for (int i = 0; i < 100; ++i) {
         loudest(1);
+        auto start = std::chrono::steady_clock::now();
         (void)wsw_telemetry();
+        telemetry_cost += std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - start);
     }
-    auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
-        std::chrono::steady_clock::now() - started).count();
-    std::printf("wsw_telemetry+render 100x: %lld us (native Web CI)\n",
-                static_cast<long long>(elapsed_us));
+    std::printf("wsw_telemetry 100 frames: %lld us total; %.2f us/sample (native Web CI)\n",
+                static_cast<long long>(telemetry_cost.count()), telemetry_cost.count() / 100.);
 
     std::printf(failures ? "web_engine_tests: %d failure(s)\n" : "web_engine_tests: ok\n", failures);
     return failures ? 1 : 0;
