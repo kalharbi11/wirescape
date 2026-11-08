@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "runtime_patch.h"
-#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -38,8 +37,9 @@ int main(int argc, char **argv) {
                 std::set<uint32_t> slots;
                 for (uint32_t p = 0; p < native->param_count; ++p) {
                     const auto &param = native->params[p];
-                    require(legacy.contains(param.id), id + ": parameter missing from UI legacy map");
-                    require(slots.insert(param.legacy_index).second, id + ": duplicate legacy_index");
+                    require(legacy.find(param.id) != legacy.end(), id + ": parameter missing from UI legacy map");
+                    const bool unique_slot = slots.insert(param.legacy_index).second;
+                    require(unique_slot, id + ": duplicate legacy_index");
                     require(param.legacy_index == legacy.at(param.id).get<uint32_t>(),
                             id + ": legacy_index differs from UI catalogue");
                     require(descriptor->parameters[p].id == param.legacy_index,
@@ -71,15 +71,14 @@ int main(int argc, char **argv) {
             }
             // Automatic patches must actually emit sound without any MIDI/key event.
             // Run long enough to cover the first clock edge at the authored slow tempi.
-            const bool autoplay = std::set<std::string>{
-                "hollow-chapel", "breathing-walls", "dust-reactor", "witching-hour", "neon-elegy"
-            }.count(name) != 0;
+            const bool autoplay = name == "hollow-chapel" || name == "breathing-walls" ||
+                                  name == "dust-reactor" || name == "witching-hour" || name == "neon-elegy";
             float samples[256]{}, peak = 0.f;
             for (int block = 0; block < (autoplay ? 256 : 1); ++block) {
                 require(app_engine_render(engine.get(), samples, 256) == WS_OK, name + ": render failed");
                 for (float sample : samples) {
                     require(std::isfinite(sample), name + ": non-finite sample");
-                    peak = std::max(peak, std::fabs(sample));
+                    if (std::fabs(sample) > peak) peak = std::fabs(sample);
                 }
             }
             if (autoplay) require(peak > 1.e-5f, name + ": autoplay produced silence");
