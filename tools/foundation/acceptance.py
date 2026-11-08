@@ -82,18 +82,25 @@ def visible_closing_issues(body):
                             "{" + str(fence[1]) + r",}[ \t]*", line):
                 fence = None
             continue
-        if html_comment or "<!--" in line:
-            cursor = 0
-            while True:
-                marker = "-->" if html_comment else "<!--"
-                position = line.find(marker, cursor)
+        visible = []
+        cursor = 0
+        while cursor < len(line):
+            if html_comment:
+                position = line.find("-->", cursor)
                 if position < 0:
                     break
-                html_comment = not html_comment
-                cursor = position + len(marker)
-            continue
+                html_comment = False
+                cursor = position + len("-->")
+            else:
+                position = line.find("<!--", cursor)
+                if position < 0:
+                    visible.append(line[cursor:])
+                    break
+                visible.append(line[cursor:position])
+                html_comment = True
+                cursor = position + len("<!--")
+        line = "".join(visible)
         if not line.strip():
-            continuation = False
             continue
         if line.startswith(("    ", "\t")):
             continue
