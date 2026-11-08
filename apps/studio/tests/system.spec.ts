@@ -139,6 +139,9 @@ test.describe('system', () => {
     await boot(page);
     await page.evaluate(() => {
       const e = window.__wirescapeTest.engine as any;
+      // The route is active in this scenario; the displayed 48 kHz is not supported.
+      e.status.audio.state = 'running';
+      e.pushStatus();
       e.listAudioDevices = async () => [
         { id: 'hw:0', name: 'Built-in Audio', kind: 'audio', sampleRates: [96000] },
       ];
