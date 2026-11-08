@@ -115,6 +115,7 @@ def publish(out, info, results, error):
     lines = [f"# {info['case']} — {info['status']}", "",
              f"Source: \x60{info['source_sha']}\x60; harness: \x60{info['harness_sha256']}\x60",
              f"Patch SHA-256: \x60{info['patch_sha256']}\x60; script SHA-256: \x60{info['script_sha256']}\x60",
+             f"Renderer binary SHA-256: \x60{info['renderer_sha256']}\x60",
              f"Platform: {info['platform']} / {info['architecture']}; compiler: {info['compiler']}; configuration: {info['configuration']}",
              f"Rate: {info['rate']} Hz; block: {info['block']} frames; length: {info['frames']} frames; seed: {info['seed']}",
              "", "| Assertion | Measurement |", "|---|---|"]
@@ -142,7 +143,8 @@ def run(args):
             "source_kind": "pull_request_merge" if os.getenv("GITHUB_EVENT_NAME") == "pull_request" else "checkout_head",
             "workflow_run_url": (f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
                                  if os.getenv("GITHUB_REPOSITORY") and os.getenv("GITHUB_RUN_ID") else None),
-            "harness_sha256": sha(Path(__file__).read_bytes()), "patch_sha256": sha(patch),
+            "harness_sha256": sha(Path(__file__).read_bytes()),
+            "renderer_sha256": sha(Path(args.render).read_bytes()), "patch_sha256": sha(patch),
             "script_sha256": sha(script), "rate": rate, "block": block, "seconds": seconds,
             "frames": frames, "seed": seed, "events": source["events"],
             "platform": platform.system(), "architecture": platform.machine(),
