@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # #380 Static web compile ownership and telemetry timing
 
 **Issue:** [#380](https://github.com/kalharbi11/wirescape/issues/380)  
