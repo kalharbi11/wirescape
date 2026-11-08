@@ -204,6 +204,7 @@ class AcceptanceTests(unittest.TestCase):
             "> an example\nCloses #384",  # lazy block-quote continuation
             "- Closes #384",
             "- an example\nCloses #384",  # lazy list continuation
+            "- an example\n<!-- context -->\nCloses #384",
             "1. Closes #384",
             "    Closes #384",
             "\tCloses #384",
