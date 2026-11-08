@@ -2122,7 +2122,13 @@
      "taper": "linear",
      "step": 1,
      "decimals": 3,
-     "modulatable": false
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
     },
     {
      "id": "n1",
@@ -2134,7 +2140,13 @@
      "taper": "linear",
      "step": 1,
      "decimals": 3,
-     "modulatable": false
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
     },
     {
      "id": "n2",
@@ -2146,7 +2158,13 @@
      "taper": "linear",
      "step": 1,
      "decimals": 3,
-     "modulatable": false
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
     },
     {
      "id": "n3",
@@ -2158,7 +2176,13 @@
      "taper": "linear",
      "step": 1,
      "decimals": 3,
-     "modulatable": false
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
     },
     {
      "id": "n4",
@@ -2170,7 +2194,13 @@
      "taper": "linear",
      "step": 1,
      "decimals": 3,
-     "modulatable": false
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
     },
     {
      "id": "n5",
@@ -2182,7 +2212,13 @@
      "taper": "linear",
      "step": 1,
      "decimals": 3,
-     "modulatable": false
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
     },
     {
      "id": "n6",
@@ -2194,7 +2230,13 @@
      "taper": "linear",
      "step": 1,
      "decimals": 3,
-     "modulatable": false
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
     },
     {
      "id": "n7",
@@ -2206,7 +2248,13 @@
      "taper": "linear",
      "step": 1,
      "decimals": 3,
-     "modulatable": false
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
     },
     {
      "id": "n8",
@@ -2218,7 +2266,13 @@
      "taper": "linear",
      "step": 1,
      "decimals": 3,
-     "modulatable": false
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
     },
     {
      "id": "n9",
@@ -2230,7 +2284,13 @@
      "taper": "linear",
      "step": 1,
      "decimals": 3,
-     "modulatable": false
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
     },
     {
      "id": "n10",
@@ -2242,7 +2302,13 @@
      "taper": "linear",
      "step": 1,
      "decimals": 3,
-     "modulatable": false
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
     },
     {
      "id": "n11",
@@ -2254,7 +2320,13 @@
      "taper": "linear",
      "step": 1,
      "decimals": 3,
-     "modulatable": false
+     "modulatable": false,
+     "visibleWhen": {
+      "param": "scale",
+      "values": [
+       13
+      ]
+     }
     }
    ],
    "version": 1,
