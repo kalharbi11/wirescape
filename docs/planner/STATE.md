@@ -3,52 +3,50 @@
 
 Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-08 by Keel (#350 telemetry ruling); before that 2026-11-07 20:30 UTC by Compass. **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
+**Updated:** 2026-11-07 America/New_York by Codex Lead; verified live PR heads, reviews, CI and merge records.
+Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure preempts other work.
 
-## Lead split (owner, 2026-11-07)
-- **Compass (platform):** everything except modules: Phases 1–5, the app, the engine lanes, the web demo, the board and STATE. Checks in every 4 h (owner-requested scheduled run).
-- **Compass (modules):** Track S and the module lane (#304/#310, #314–#318, #305/#306/#307). Leaves this file's module lines to that session.
-- Codex Lead runs every 150 min through 2026-11-09 06:00 UTC (owner-requested).
+## Lead split and priorities
+- Compass owns phase/product priorities and module lane; Keel owns T2 technical review/rulings.
+- Codex Lead owns builder queue, scoped takeovers and T0/T1 gate approvals.
+- Existing owner-requested schedules unchanged; no additional polling/schedules.
+- All Phase 1 code merged; #271 owner results remain before Checkpoint A. Minimum: 0, A, B, C, D3.
+- Windows #266 follows Test Session 1. Web demo remains an independent showcase lane.
 
-## Compass actions (20:13 check-in)
-- Merged since 16:12: #320 (#297 fix), #256 (1H), #273 (2A-2), #274 (1E-b), #330 (2B-c hotplug, which replaced #298), #324 (2D-d recovery), #321 (web extras). **All Phase 1 code is on main.**
-- #271: posted the refreshed feature table and told the owner the session is ready to run (0, A, B, C, D3 = minimum for sign-off).
-- #301: Keel's two Mediums have had no builder for 9 h. Asked Codex Lead to take it over, with the exact fix.
-- #331 patch browser: independent T1 review found no High/Medium. Two Lows (preload request rebuild, uncaught `reset` in `loadBundledPatch`) should be fixed before ready; after that, any lead or Codex Lead may approve on green.
+## Confirmed merged
+- #161 Plaits/Cortex context and #343 Macro gate merged. Keel waived #161 Pi rerun.
+- #331 patch browser/save safety, #352 waveform tail, #353 30Hz cap, #364 LFO phase merged.
+- #362 engine2 telemetry taps merged at bf74743; A2/A3 builders are unblocked.
 
-## Main blocker
-- **Owner Test Session 1 (#271)** is now the only Phase 1 sign-off item. Then Compass runs Checkpoint A.
-- Phase 2 engine: #301 (2C-a) needs a builder for Keel's Mediums, and it gates #293.
+## Telemetry #350
+- Contract: docs/design/ENGINE_TELEMETRY.md; shared brief: docs/tasks/T350_ENGINE_TELEMETRY.md.
+- #363 A0 snapshots 4e37373 merged; Studio snapshot semantics are on main.
+- #368 A2 e281706: hosted functional checks green; Keel T2 review requested, ci/pi added; 64-tap/no-tap Pi command/evidence missing.
+- #369 A3 wasm 8cf7c46: stacked on #368, source preflight clean; retarget main after A2 merges, then final native/wasm/site evidence.
+- Critical host regression: reset event-count cursors on every graph commit; first post-edit burst must pulse.
+- #359 B-wire follows host merge; B-mod is already merged. Do not fabricate phase.
+- Owner telemetry visual check waits for B-wire, then batch Electron/web check.
 
-## In flight (who acts)
-- #301 audio recovery: Codex builder fixes, then Keel re-review plus pi5.
-- #331 patch browser: Codex fixes the two Lows, then approve.
-- #292 load/dropouts and #296 fake-device Pi soak: unblocked by #274, queued by Codex Lead.
-- #287 MIDI Learn: topology prerequisite done; raw-CC observation seam ruling needed (Keel).
-- #210 / #290 MIDI controls: Keel/Compass contract ruling pending.
-- Phase 2 left after these: 2B-b Learn, 2B-e controls, 2C-b/c, 2F-b soak. Then Checkpoint B.
+## Shared CPU evidence and modules
+- #367 shared probe extracted; review found channel0-only/NaN masking. Repaired to scan all channels/count nonfinite faults.
+- #367 current signed branch handoff is authoritative: full block-count/duration checks, named output bounds and authored static fixes pushed.
+- 7 Python tests and strict local C++17 output regression pass. Independent follow-up/fresh hosted checks required; no Pi timing claim.
+- After #367 merges, integrate probe into effects and Spectral without duplicate targets/helpers; run specified Pi timing.
+- #348 reverb be3c306: freeze precision fix independently reviewed; hosted checks pass, Pi CPU evidence still required.
+- #304 Spectral 38b2c24: hop-aligned :32 stress and integration fixed; hosted native/Web gates green; exact-head pi5 and pi5/accept success posted.
+- #304 Pi attempt2 shares old poll run URL; verify commit status/head, not the old-head handoff. Worst stress 1.023ms/2.667ms period.
+- #345 Delay 99b7eaf, #344 Resonator 06d5ede, #323 Quantizer a65a70a: verify current fixes/reviews/acceptance; do not repeat old findings blindly.
+- #346 oscillator UI 48aec95: hosted checks green, independent reviews clean; author Self-review checklist requested before approval.
 
-## Web demo lane (D14)
-- Live at `https://kalharbi11.github.io/wirescape/` (Pages is on). #309 and #321 merged (`e766a27`): the demo has playable starters only, cable values and the Output scope, a SHARE link (`#p=`), and SAVE/OPEN files.
-- Every main push runs `web-demo.yml`: native tests, the wasm build, Playwright, deploy, then `live` (the same tests against the published site). Agent containers can't reach github.io, so `live` is the deployed-site evidence.
-- Ideas, not queued: a short first-patch tip on the splash, a phone/touch pass.
+## Phase 2 engine queue
+- #301 audio recovery aba3042: authorized CMake repair present; ARM64/sanitizers/task acceptance green, no pi5 status yet.
+- Private Pi poll attempt2 is running; do not start duplicates. Compass/Keel can approve under Keel's pre-approval once exact-head pi5 passes.
+- #293 device routes/details follows #301. #292 callback load/dropouts and #296 fake-device soak remain available.
+- #290/#210 controls: implement under existing Keel Nov7 ruling.
+- #287 Learn: blocked for raw-CC observation contract; status.midi.activity scalars lack CC identity/value.
 
-## Engine telemetry (#350), Keel ruled 2026-11-08
-- Contract `docs/design/ENGINE_TELEMETRY.md`; parts, order and authority `docs/tasks/T350_ENGINE_TELEMETRY.md`.
-- Start now in parallel: A1 #354 engine2 taps (T2), A0 #355 Studio snapshots (T1), B-mod #356 LFO `phase` port (T1). Merge #353 (30 Hz cap) and #352 (wave tail) as T1.
-- After A1: A2 #357 sidecar + spec §7 (T2, Keel or Compass review, pi), A3 #358 wasm (T1). Then B-wire #359.
-- Keel is needed only for: the A1 review, the A2 review (or Compass), and the contract's Stops. Codex Lead runs the rest.
-
-## Phase 1 sign-off needs
-Only the owner's #271 results remain (A, B, C plus D3 contention). 1H (#256) and the benchmark tooling (#274) are merged. Then Compass runs Checkpoint A (about 30 min on the Pi with the M8).
-
-## Retained rulings
-- Electron main is the only automatic restarter. Imported documents round-trip unchanged (D3). New loadGraph uses D5; live edits use replan with bounded busy retry.
-- Benchmark fields are render walltime. Missing metrics never count as zero.
-- Known non-required reds: cortex-m7 (#159); `static` is informational.
-- Tests and CI never open real audio, MIDI or LAN. Pi evidence comes only from the pi5 runner.
-
-## Standing rules from the owner
-- Don't plan agent assignment. Pi first; Windows (#266) after Test Session 1. Real-device tests are the owner's.
-- No browser/kiosk product stage (D1). The web demo is a showcase build only (D14).
-- Leads save usage: delegate mechanics, don't poll, ask the owner only for approvals and hardware checks.
+## Retained rules
+- Tests/CI never open audio/MIDI/LAN. No agent SSH to Pi/laptop; private runner supplies Pi evidence.
+- Missing metrics never count as zero; queued or prior-head results never count as current evidence.
+- Keep documents lossless, Electron main sole automatic restarter, unknown data preserved.
+- Review exact changed seams; don't poll CI. Gates and runner do waiting. No weakening tests/thresholds.
