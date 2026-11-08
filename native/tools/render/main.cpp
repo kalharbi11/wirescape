@@ -73,9 +73,9 @@ int main(int argc, char **argv) {
         for (int i = 1; i < argc; i += 2) {
             need(i + 1 < argc, "missing option value");
             const std::string key(argv[i]);
-            need(key == "--patch" || key == "--script" || key == "--out" || key == "--rate" ||
-                     key == "--block" || key == "--seconds" || key == "--seed" || key == "--late-fixture",
-                 "unknown option: " + key);
+            const bool io_option = key == "--patch" || key == "--script" || key == "--out";
+            const bool run_option = key == "--rate" || key == "--block" || key == "--seconds" || key == "--seed";
+            need(io_option || run_option || key == "--late-fixture", "unknown option: " + key);
             need(args.emplace(key, argv[i + 1]).second, "duplicate option: " + key);
         }
         for (const char *key : {"--patch", "--script", "--out", "--rate", "--block", "--seconds", "--seed"})
@@ -182,19 +182,18 @@ int main(int argc, char **argv) {
             }
         }
         const auto meter = app_engine_native(engine.get()).meter();
-        std::cout << "render_metrics "
-                  << Json{{"faults", meter.faults},
-                          {"late_events", meter.late},
-                          {"dropped_events", meter.dropped},
-                          {"ring_full_events", meter.ring_full},
-                          {"stale_events", meter.stale},
-                          {"arena_full_events", meter.arena_full}}
-                         .dump()
-                  << '\n';
+        Json counters = Json::object();
+        counters["faults"] = meter.faults;
+        counters["late_events"] = meter.late;
+        counters["dropped_events"] = meter.dropped;
+        counters["ring_full_events"] = meter.ring_full;
+        counters["stale_events"] = meter.stale;
+        counters["arena_full_events"] = meter.arena_full;
+        std::cout << "render_metrics " << counters.dump() << '\n';
         std::cout.flush();
-        need(meter.faults == 0 && meter.late == 0 && meter.dropped == 0 && meter.ring_full == 0 &&
-                 meter.stale == 0 && meter.arena_full == 0,
-             "render event accounting failed: late, dropped, stale or faulted event");
+        const bool events_clean = meter.faults == 0 && meter.late == 0 && meter.dropped == 0;
+        const bool queues_clean = meter.ring_full == 0 && meter.stale == 0 && meter.arena_full == 0;
+        need(events_clean && queues_clean, "render event accounting failed: late, dropped, stale or faulted event");
         wav(args.at("--out"), interleaved, uint32_t(rate));
         std::cout << "rendered " << frames << " ABI2 frames; devices off\n";
     } catch (const std::exception &e) {
