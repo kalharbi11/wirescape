@@ -512,18 +512,25 @@ void test_transitions_under_stress() {
         steady_step = std::max(steady_step, max_step(y, {6000, n}));
         steady_rms = std::max(steady_rms, peak_rms(y, {6000, n}, 256));
     }
-    { // mode CV flips 6 <-> 7 every 64 frames, well inside one fade
+    { // Mode CV switches at each FFT hop (512 samples), faster than the four-frame fade.
         Rig r;
         r.set(spectral::P_MODE, spectral::Interleave);
         std::vector<float> y;
+        bool saw_interleave = false, saw_vocoder = false;
         for (size_t pos = 0; pos < n; pos += 64) {
-            r.set(spectral::P_MODE,
-                  pos >= half && (pos / 64) % 2 ? float(spectral::Vocoder) : float(spectral::Interleave));
-            const std::vector<float> a0(a.begin() + long(pos), a.begin() + long(pos + 64)),
-                b0(b.begin() + long(pos), b.begin() + long(pos + 64));
-            const auto part = r.run(a0, b0, 64);
+            const bool vocoder = pos >= half && ((pos - half) / 512) % 2 != 0;
+            r.set(spectral::P_MODE, vocoder ? float(spectral::Vocoder) : float(spectral::Interleave));
+            if (pos >= half && pos % 512 == 0) {
+                saw_interleave |= !vocoder;
+                saw_vocoder |= vocoder;
+            }
+            const size_t count = std::min<size_t>(64, n - pos);
+            const std::vector<float> a0(a.begin() + long(pos), a.begin() + long(pos + count)),
+                b0(b.begin() + long(pos), b.begin() + long(pos + count));
+            const auto part = r.run(a0, b0, uint32_t(count));
             y.insert(y.end(), part.begin(), part.end());
         }
+        REQUIRE(saw_interleave && saw_vocoder && y.size() == n);
         std::printf("rapid mode CV: step %.4f rms %.4f (steady %.4f / %.4f)\n", max_step(y, {half + 2048, n}),
                     peak_rms(y, {half + 2048, n}, 256), steady_step, steady_rms);
         REQUIRE(max_step(y, {half + 2048, n}) <= 1.25 * steady_step);
