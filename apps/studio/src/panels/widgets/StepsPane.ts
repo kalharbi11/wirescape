@@ -14,7 +14,7 @@ export interface StepsOptions {
   setValue(id: string, v: number, commit?: boolean): void;
 }
 
-/** Descriptor-driven 8- or 16-step editor; live position comes only from engine telemetry. */
+/** Eight editable lanes; live position is read only from engine telemetry. */
 export class StepsPane {
   readonly root: HTMLElement;
   private cells: HTMLElement[] = [];
@@ -31,10 +31,7 @@ export class StepsPane {
     this.root.append(head);
 
     const grid = el('div', 'steps-grid');
-    // Sixteen steps display as two eight-step rows, not sixteen unreadable columns.
-    // Eight-step patches keep their original layout and control test IDs.
-    grid.style.gridTemplateColumns = `repeat(${Math.min(o.steps, 8)}, minmax(0,1fr))`;
-    grid.setAttribute('aria-label', `${o.steps}-step pattern`);
+    grid.style.gridTemplateColumns = `repeat(${o.steps}, minmax(0,1fr))`;
     for (let i = 1; i <= o.steps; i++) {
       const cell = el('div', 'step-cell');
       cell.dataset.step = String(i);
