@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "runtime_patch.h"
-
-#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -87,8 +85,10 @@ int main(int argc, char **argv) {
                 require(app_engine_render_channels(engine.get(), channels, 2, 256) == WS_OK, name + ": render failed");
                 for (int i = 0; i < 256; ++i) {
                     require(std::isfinite(left[i]) && std::isfinite(right[i]), name + ": non-finite sample");
-                    peak = std::max(peak, std::max(std::fabs(left[i]), std::fabs(right[i])));
-                    stereo_difference = std::max(stereo_difference, std::fabs(left[i] - right[i]));
+                    if (std::fabs(left[i]) > peak) peak = std::fabs(left[i]);
+                    if (std::fabs(right[i]) > peak) peak = std::fabs(right[i]);
+                    const float difference = std::fabs(left[i] - right[i]);
+                    if (difference > stereo_difference) stereo_difference = difference;
                 }
             }
             if (autoplay) require(peak > 1.e-5f, name + ": autoplay produced silence");
