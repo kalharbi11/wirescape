@@ -92,8 +92,9 @@ class EditSoakTests(unittest.TestCase):
     @contextlib.contextmanager
     def engine(self, mode):
         def spawn(argv, **kwargs):
-            self.assertEqual(argv[:4], [str(self.stub), '--null-audio',
-                                        '--bench-summary', '--settings'])
+            # Windows can spell the same temp file with 8.3 or long names.
+            self.assertTrue(os.path.samefile(argv[0], self.stub))
+            self.assertEqual(argv[1:4], ['--null-audio', '--bench-summary', '--settings'])
             self.assertEqual(len(argv), 5)
             self.assertTrue(str(argv[4]).endswith('settings.json'))
             kwargs['env'] = {**os.environ, 'SOAK_STUB_MODE': mode}
