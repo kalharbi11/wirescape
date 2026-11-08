@@ -27,7 +27,19 @@ budget: one independent builder session
 size: <= 120 changed lines, <= 2 files
 must_pass:
   - python tools/dev.py build --headless
-  - ctest --test-dir build/native -R '^(document_reader_tests|patch_document_tests)$' --output-on-failure --no-tests=error
-  - ci: guard, linux-arm64, windows-x64, sanitizers green on the exact head
+  - ctest --test-dir build/native -R '^(abi2_runtime_patch_tests|abi2_staged_tests)
 stops: [production change, patch format change, test removal, new dependency, device access]
 ```
+ --output-on-failure --no-tests=error
+  - ci: guard, linux-arm64, windows-x64, sanitizers green on the exact head
+  - ci: windows-x64 Qt-enabled native test run includes document_reader_tests and patch_document_tests
+stops: [production change, patch format change, test removal, new dependency, device access]
+```
+
+The optional QtCore document targets are not registered in the headless x64
+acceptance runner without Qt6 >=6.5 (an observed `No tests were found`).
+Do not omit their validation: the Windows CI matrix installs Qt6 and runs
+`python tools/dev.py test` against these targets. The Qt-specific document
+tests remain mandatory for this task on that exact head; request `ci/windows`
+for the draft PR. Headless acceptance also runs available native regression
+targets rather than recording a false CTest pass on an empty test selection.
