@@ -59,3 +59,46 @@ test('declining the unsaved-edit prompt keeps the current patch and browser open
   await expect(page.getByTestId('patch-browser')).toBeVisible();
   expect((await state(page)).modules).toEqual(before.modules);
 });
+
+test('failed bundle reset still loads and forces Save As', async ({ page }) => {
+  await mockBridge(page);
+  await boot(page);
+  await page.evaluate(() => {
+    const bridge = window.wirescape!;
+    bridge.openPatch = async request => {
+      if (request?.library === 'reset') throw new Error('Reset failed');
+      return { name: 'User patches', text: '[]' };
+    };
+    bridge.savePatch = async (_text, options) => {
+      (window as any).__saveOptions = options;
+      return { name: 'Copy.json' };
+    };
+  });
+  await page.getByTestId('open-patch-browser').click();
+  await page.getByTestId('bundled-patch-0').click();
+  await expect(page.getByTestId('patch-browser')).toBeHidden();
+  await page.getByTestId('save-patch').click();
+  expect(await page.evaluate(() => (window as any).__saveOptions)).toEqual({ saveAs: true });
+});
+
+test('malformed user patch keeps the document and cannot silently redirect Save', async ({ page }) => {
+  await mockBridge(page);
+  await boot(page);
+  const before = await state(page);
+  await page.evaluate(() => {
+    window.wirescape!.openPatch = async request => request?.library === 'list'
+      ? { name: 'User patches', text: '["Broken.json"]' }
+      : { name: 'Broken.json', text: '{"modules":null}' };
+    window.wirescape!.savePatch = async (_text, options) => {
+      (window as any).__saveOptions = options;
+      return null;
+    };
+  });
+  await page.getByTestId('open-patch-browser').click();
+  await page.getByTestId('user-patch-0').click();
+  await expect(page.getByTestId('patch-browser')).toContainText('Invalid patch');
+  expect((await state(page)).modules).toEqual(before.modules);
+  await page.getByTestId('patch-browser').getByRole('button', { name: 'Close' }).click();
+  await page.getByTestId('save-patch').click();
+  expect(await page.evaluate(() => (window as any).__saveOptions)).toEqual({ saveAs: true });
+});
