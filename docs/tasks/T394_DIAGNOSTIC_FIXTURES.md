@@ -29,7 +29,7 @@ size: <= 180 changed lines, <= 5 files
 must_pass:
   - python -m json.tool tools/diagnostics/fixtures/diagnostic_origin_cases.json
   - python -c "import json,pathlib; p=pathlib.Path('tools/diagnostics/fixtures/diagnostic_origin_cases.json'); a=json.loads(p.read_text()); assert len(a['cases']) >= 7; assert all(c['synthetic'] and c['diagnostics'] for c in a['cases']); assert all(d['tool'] and d['severity'] and d['location'] and d['message'] and d['expected_origin'] for c in a['cases'] for d in c['diagnostics'])"
-  - git diff --check
+  - bash -lc 'git diff --check origin/main...HEAD'
 stops: [new parser or classifier, CI gate change, suppressions, new dependency]
 ```
 
