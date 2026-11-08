@@ -56,9 +56,9 @@ Use current heads/latest handoffs; no queued/stale/missing evidence counted pass
 
 ## Owner-requested sequencer lane (Codex Lead, 2026-11-08)
 - #429 roadmap / #431 docs PR establishes docs/sequencer/ shared guidance.
-- #430 is the new builder start: prove live edits, storage and reconciliation first (T2 seam).
-- Curated order: S0 foundation, S1 expanded two-track release, S2 memories/chains,
-  S3 independent timing/four tracks/long gates, S4 scenes; generative work is separately scoped.
+- #430 is the builder start: prove stopped config/loading, then the playable instrument.
+- Curated order: S0 config proof, S1 stopped-edit two-track release, S2 live editing,
+  S3 memories/chains, S4 timing/four tracks/long gates, S5 scenes; generative work is separate.
 - Preserve existing sequencer/Chord ownership and #271 priorities. Proposed contracts need
   Keel review; no runtime changes or native/Pi acceptance claimed by the documentation PR.
 - Copy-ready prompt: docs/sequencer/AGENT_PROMPT.md on task/429-sequencer-roadmap.
