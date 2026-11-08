@@ -58,7 +58,7 @@ test('Quantizer Custom notes retain saved values through scale changes and reloa
   const scale = page.getByTestId('select-1-scale');
   const expectNotes = async (visible: boolean) => {
     for (let i = 0; i < 12; ++i) {
-      const note = page.getByTestId(`toggle-1-n${i}`);
+      const note = knob(page, 1, `n${i}`);
       if (visible) await expect(note).toBeVisible();
       else await expect(note).toBeHidden();
     }
