@@ -309,6 +309,14 @@ with tempfile.TemporaryDirectory() as directory:
     telemetry_when(observed, first, lambda t:
                    'frequency' in t['effective'].get('9', {}) and
                    abs(t['effective']['9']['frequency'] - 440) > 0.01)
+    # B-wire: real channel-0 LFO phase must advance in the bounded range.
+    first_phase = telemetry_when(observed, first, lambda t:
+        isinstance(t['phase'].get('10'), (int, float)) and
+        0 <= t['phase']['10'] < 1)['phase']['10']
+    telemetry_when(observed, first, lambda t:
+        isinstance(t['phase'].get('10'), (int, float)) and
+        0 <= t['phase']['10'] < 1 and
+        abs(t['phase']['10'] - first_phase) > 0.005)
     observed.call('noteOn', note=60, velocity=0.8)
     telemetry_when(observed, first, lambda t: t['eventActivity'].get('12:notes') == 1)
     telemetry_when(observed, first, lambda t: t['envelope'].get('14', 0) > 0)
@@ -328,6 +336,9 @@ with tempfile.TemporaryDirectory() as directory:
     telemetry_when(observed, replaced, lambda t: t['envelope'].get('14', 1) <= 0.01)
     disconnected = observed.call('disconnect', connection=mod)['gen']
     telemetry_when(observed, disconnected, lambda t: t['effective'] == {})
+    # Replacing the graph must remove phase immediately, even with reused IDs.
+    no_lfo = observed.call('loadGraph', patch=minimal())['gen']
+    telemetry_when(observed, no_lfo, lambda t: t['phase'] == {})
     observed.close()
     restarted = Engine(settings)
     assert restarted.session != old_session

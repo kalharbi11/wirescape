@@ -144,6 +144,69 @@ test('FakeEngine disconnect clears the VCF graph and knob within one telemetry t
   await expect.poll(pixels).toBe(base);
 });
 
+
+test('LFO phase dot only draws for sampled phase and never advances locally', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => {
+    const api = window.__wirescapeTest;
+    api.load({
+      format: 'wirescape.native.patch', version: 2,
+      modules: [{ id: 10, module: 'essentials.lfo' }],
+      connections: [], ui: { positions: { '10': [20, 20] } },
+    });
+    api.engine.stop();
+    api.fit();
+    // An absent phase is unavailable, even when the LFO module exists.
+    const t = api.ticker.last;
+    api.ticker.push({ ...t, tick: 10, time: 10, phase: {} });
+  });
+  const wave = page.getByTestId('wave-10');
+  const canvas = wave.locator('canvas');
+  await expect(canvas).toBeVisible();
+  await expect(wave).not.toHaveAttribute('data-phase', /./);
+  await expect(wave.locator('.disp-readout')).toHaveText('phase not available');
+
+  const rustPixels = () => canvas.evaluate(node => {
+    const c = node as HTMLCanvasElement;
+    const pixels = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+    let count = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i] > 130 && pixels[i] > pixels[i + 1] * 1.5 &&
+          pixels[i + 1] > pixels[i + 2] * 1.3) count++;
+    }
+    return count;
+  });
+  expect(await rustPixels()).toBe(0);
+
+  const sample = async (phase: number | null, tick: number) => {
+    await page.evaluate(({ phase, tick }) => {
+      const ticker = window.__wirescapeTest.ticker;
+      ticker.push({ ...ticker.last, tick, time: tick, phase: phase === null ? {} : { 10: phase } });
+    }, { phase, tick });
+    await settle(page, 3);
+  };
+  await sample(0.125, 11);
+  await expect(wave).toHaveAttribute('data-phase', '0.125');
+  await expect(wave.locator('.disp-readout')).toContainText('φ 45°');
+  expect(await rustPixels()).toBeGreaterThan(0);
+  const still = await canvas.evaluate(c => (c as HTMLCanvasElement).toDataURL());
+  await settle(page, 8);
+  expect(await canvas.evaluate(c => (c as HTMLCanvasElement).toDataURL())).toBe(still);
+
+  await sample(0.375, 12);
+  await expect(wave).toHaveAttribute('data-phase', '0.375');
+  expect(await canvas.evaluate(c => (c as HTMLCanvasElement).toDataURL())).not.toBe(still);
+
+  await sample(null, 13);
+  await expect(wave).not.toHaveAttribute('data-phase', /./);
+  await expect(wave.locator('.disp-readout')).toHaveText('phase not available');
+  expect(await rustPixels()).toBe(0);
+
+  await sample(1.5, 14); // Out-of-range packets must not wrap into a plausible phase.
+  await expect(wave).not.toHaveAttribute('data-phase', /./);
+  expect(await rustPixels()).toBe(0);
+});
+
 test('RealEngine ignores telemetry from a generation older than its committed graph', async ({ page }) => {
   await mockBridge(page);
   await boot(page);
