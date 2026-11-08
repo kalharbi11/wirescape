@@ -150,8 +150,9 @@ int main(int argc, char **argv) {
         std::array<double, 5> ratios{};
         bool passed = taps == 64 && frame > 0 && faults.load() == 0;
         for (unsigned n = 0; n < ratios.size(); ++n) {
-            const bool valid = std::isfinite(baseline[n]) && baseline[n] > 0 &&
-                               std::isfinite(enabled[n]) && enabled[n] > 0;
+            const bool base_ok = std::isfinite(baseline[n]) && baseline[n] > 0;
+            const bool tap_ok = std::isfinite(enabled[n]) && enabled[n] > 0;
+            const bool valid = base_ok && tap_ok;
             ratios[n] = valid ? enabled[n] / baseline[n] : 0;
             passed = passed && valid && std::isfinite(ratios[n]) && ratios[n] > 0;
         }
@@ -165,8 +166,8 @@ int main(int argc, char **argv) {
         for (unsigned n = 0; n < 5; ++n) std::printf("%s%.3f", n ? "," : "", enabled[n]);
         std::printf("],\"ratios\":[");
         for (unsigned n = 0; n < ratios.size(); ++n) std::printf("%s%.6f", n ? "," : "", ratios[n]);
-        std::printf("],\"median_ratio\":%.6f,\"faults\":%llu,\"result\":\"%s\"}\n",
-                    median_ratio, static_cast<unsigned long long>(faults.load()), passed ? "PASS" : "FAIL");
+        std::printf("],\"median_ratio\":%.6f,\"faults\":%llu,\"result\":\"%s\"}\n", median_ratio,
+                    static_cast<unsigned long long>(faults.load()), passed ? "PASS" : "FAIL");
         return passed ? 0 : 1;
     }
     CHECK(argc == 1);
