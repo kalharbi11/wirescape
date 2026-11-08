@@ -19,6 +19,40 @@ class SoakFailure(Exception):
     pass
 
 
+# Strict and anchored: neither truncated stderr tails nor unrelated diagnostics count.
+FLOAT = r'[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?'
+BENCH = re.compile(
+    rf'bench blocks=(?P<blocks>[0-9]{{1,20}}) '
+    rf'p50=(?P<p50>{FLOAT}) p99=(?P<p99>{FLOAT}) max=(?P<max>{FLOAT}) '
+    rf'overruns=(?P<overruns>[0-9]{{1,20}}) faults=(?P<faults>[0-9]{{1,20}})')
+
+
+def parse_bench(lines, seconds):
+    if len(lines) != 1:
+        raise SoakFailure(f'expected exactly one bench line, got {len(lines)}')
+    match = BENCH.fullmatch(lines[0])
+    if not match:
+        raise SoakFailure('malformed bench metrics')
+    values = {}
+    for name in ('blocks', 'overruns', 'faults'):
+        number = int(match[name])
+        if number > 2**64 - 1:
+            raise SoakFailure(f'bench {name} exceeds u64')
+        values[name] = number
+    for name in ('p50', 'p99', 'max'):
+        number = float(match[name])
+        if not math.isfinite(number) or number < 0:
+            raise SoakFailure(f'bench {name} invalid')
+        values[name] = number
+    if values['p50'] > values['p99'] or values['p99'] > values['max']:
+        raise SoakFailure('bench percentiles out of order')
+    if values['blocks'] < 0.9 * seconds * 48000 / 256:
+        raise SoakFailure('insufficient bench blocks')
+    if values['overruns'] or values['faults']:
+        raise SoakFailure(f'bench overruns={values["overruns"]} faults={values["faults"]}')
+    return values
+
+
 def unique_object(pairs):
     obj = {}
     for key, value in pairs:
@@ -30,13 +64,14 @@ def unique_object(pairs):
 
 class Sidecar:
     def __init__(self, binary, settings, timeout):
-        self.process = subprocess.Popen([str(binary), '--null-audio', '--settings', str(settings)],
+        self.process = subprocess.Popen([str(binary), '--null-audio', '--bench-summary', '--settings', str(settings)],
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE, bufsize=0)
         self.timeout = timeout
         self.inbox = queue.Queue(maxsize=128)
         self.errors = deque(maxlen=2)
         self.tail = bytearray()
+        self.bench_lines = []  # at most two candidate lines, independent of the tail
         self.step = 0
         self.gen = 0
         self.session = None
@@ -61,9 +96,35 @@ class Sidecar:
                     self.errors.append(f'{exc}: {line[:120]!r}')
 
     def _stderr(self):
+        pending = bytearray()
+        discarded = False
+
+        def capture_bench(raw, complete):
+            # Incomplete records count as candidates: never silently accept the
+            # first valid metric if a second bench line is oversized or lacks LF.
+            if raw.lstrip().startswith(b'bench') and len(self.bench_lines) < 2:
+                line = (bytes(raw).removesuffix(b'\r').decode('ascii', errors='replace')
+                        if complete else '<incomplete or oversized bench record>')
+                self.bench_lines.append(line)
+
         for chunk in iter(lambda: self.process.stderr.read(4096), b''):
             self.tail.extend(chunk)
             del self.tail[:-8192]
+            parts = chunk.split(b'\n')
+            for part in parts[:-1]:
+                if not discarded:
+                    pending.extend(part)
+                    capture_bench(pending, len(pending) <= 2048)
+                pending.clear()
+                discarded = False
+            if not discarded:
+                pending.extend(parts[-1])
+                if len(pending) > 2048:
+                    capture_bench(pending, False)
+                    pending.clear()
+                    discarded = True
+        if not discarded and pending:
+            capture_bench(pending, False)
 
     def _next(self, deadline):
         while True:
@@ -194,11 +255,15 @@ def run(binary, seconds, seed, timeout=5.0):
             result = {'status': 'passed', 'seed': seed, 'seconds': seconds,
                       'cycles': cycles, 'steps': sidecar.step, 'session': sidecar.session,
                       'generation': str(sidecar.gen), 'commands': sidecar.counts,
-                      'audio': 'null-sink', 'midi': 'fake-only',
-                      'performance_evidence': 'unavailable'}
+                      'audio': 'null-sink', 'midi': 'fake-only'}
         except (SoakFailure, OSError, ValueError) as exc:
             error = str(exc)
         shutdown = sidecar.close()
+        if not error and not shutdown:
+            try:
+                result['performance_evidence'] = parse_bench(sidecar.bench_lines, seconds)
+            except SoakFailure as exc:
+                error = str(exc)
         if error or shutdown:
             tail = bytes(sidecar.tail).decode('utf-8', errors='replace')[-1000:]
             raise SoakFailure(f'seed={seed} step={sidecar.step}: {error or ""}; '
@@ -222,6 +287,10 @@ def main(argv=None):
         print(json.dumps(run(binary.resolve(), args.seconds, args.seed), sort_keys=True))
         return 0
     except (OSError, ValueError, SoakFailure) as exc:
+        # Machine-readable failure is never an unavailable or zero-valued success.
+        duration = args.seconds if math.isfinite(args.seconds) else None
+        print(json.dumps({'status': 'failed', 'seed': args.seed, 'seconds': duration,
+                          'error': str(exc)}, sort_keys=True, allow_nan=False))
         print(f'sidecar edit soak: {exc}', file=sys.stderr)
         return 1
 

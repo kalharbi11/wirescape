@@ -209,7 +209,7 @@ void Session::shutdown() {
         bench_reported_ = true;
         std::cerr << "bench blocks=" << bench_.blocks << " p50=" << bench_.percentile(50)
                   << " p99=" << bench_.percentile(99) << " max=" << bench_.max_percent
-                  << " overruns=" << bench_.overruns << '\n';
+                  << " overruns=" << bench_.overruns << " faults=" << bench_.faults << '\n';
     }
 }
 void Session::start_audio(std::chrono::steady_clock::time_point now) {
@@ -243,7 +243,12 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
                 sink_rendering_.store(true, std::memory_order_release);
                 while (!stop_sink_.load()) {
                     auto before = std::chrono::steady_clock::now();
-                    if (app_engine_render_live(active_, rows, 2, options_.block, app_engine_clock_ns()) != WS_OK) break;
+                    const int render = app_engine_render_live(active_, rows, 2, options_.block, app_engine_clock_ns());
+                    if (options_.bench_summary) {
+                        bench_.observe_faults(app_engine_native(active_).meter().faults);
+                        if (render != WS_OK) ++bench_.faults;
+                    }
+                    if (render != WS_OK) break;
                     auto after = std::chrono::steady_clock::now();
                     double percent = std::chrono::duration<double>(after - before).count() *
                                      options_.rate / options_.block * 100;
