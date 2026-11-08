@@ -163,6 +163,7 @@ test('WebBridge uses the worklet generation and rejects older telemetry', () => 
   const received: Record<string, unknown>[] = [];
   bridge.onMessage(message => received.push(message));
   (bridge as any).gen = '10';
+  (bridge as any).receive({ kind: 'telemetry', peak: 0.9, telemetry: {} }); // no gen
   (bridge as any).receive({
     kind: 'telemetry', gen: '9', peak: 0.9, telemetry: { effective: { 1: { cutoff: 9 } } },
   });
@@ -174,4 +175,40 @@ test('WebBridge uses the worklet generation and rejects older telemetry', () => 
   expect(received).toHaveLength(1);
   expect(received[0]?.gen).toBe('10');
   expect((received[0]?.telemetry as Telemetry).effective).toEqual({ 1: { cutoff: 1234 } });
+});
+
+test('FakeEngine meters use modulated gain when Output precedes VCA in patch order', async ({ page }) => {
+  await boot(page);
+  const [modded, base] = await page.evaluate(async () => {
+    const e = window.__wirescapeTest.engine; e.stop();
+    const cable = { kind: 'modulation', from: { module: 4, port: 'control' },
+      to: { module: 2, port: 'gain' }, amount: 0.5 };
+    await e.loadGraph({ modules: [
+      { id: 1, module: 'essentials.output' }, { id: 2, module: 'essentials.vca', parameters: { gain: 0.2 } },
+      { id: 3, module: 'essentials.noise', parameters: { level: 0.8 } },
+      { id: 4, module: 'essentials.scale_offset', parameters: { offset: 1 } }],
+    connections: [
+      { kind: 'signal', from: { module: 3, port: 'audio' }, to: { module: 2, port: 'audio' } },
+      { kind: 'signal', from: { module: 2, port: 'audio' }, to: { module: 1, port: 'audio' } }, cable] });
+    e.step(); const high = window.__wirescapeTest.ticker.last.meters[1][0];
+    e.disconnect(cable); e.step();
+    return [high, window.__wirescapeTest.ticker.last.meters[1][0]];
+  });
+  expect(modded).toBeGreaterThan(base * 1.5);
+});
+
+test('FakeEngine prunes event activity on removal and graph replacement with reused IDs', async ({ page }) => {
+  await boot(page);
+  const [active, removed, replaced] = await page.evaluate(async () => {
+    const e = window.__wirescapeTest.engine; e.stop();
+    const has = () => Object.keys(window.__wirescapeTest.ticker.last.eventActivity).some(k => k.startsWith('42:'));
+    e.addModule(42, 'host.keyboard'); e.noteOn(60, 1); e.step();
+    const active = has();
+    e.removeModule(42); e.addModule(42, 'essentials.vcf'); e.step();
+    const removed = has();
+    e.removeModule(42); e.addModule(42, 'host.keyboard'); e.step();
+    await e.loadGraph({ modules: [{ id: 42, module: 'essentials.vcf' }], connections: [] });
+    e.step(); return [active, removed, has()];
+  });
+  expect([active, removed, replaced]).toEqual([true, false, false]);
 });
