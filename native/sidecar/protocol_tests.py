@@ -299,15 +299,19 @@ with tempfile.TemporaryDirectory() as directory:
         dict(id=9, module='essentials.vco', parameters=dict(frequency=440)),
         dict(id=10, module='essentials.lfo'),
         dict(id=12, module='host.keyboard'),
+        dict(id=14, module='essentials.adsr'),
     ]
     mod = edge('modulation', 10, 'control', 9, 'frequency', amount=0.25)
-    tap_patch['connections'] = [edge('signal', 9, 'audio', 7, 'audio'), mod]
+    tap_patch['connections'] = [edge('signal', 9, 'audio', 7, 'audio'), mod,
+                                edge('signal', 12, 'gate', 14, 'gate'),
+                                edge('signal', 14, 'envelope', 9, 'fm')]
     first = observed.call('loadGraph', patch=tap_patch)['gen']
     telemetry_when(observed, first, lambda t:
                    'frequency' in t['effective'].get('9', {}) and
                    abs(t['effective']['9']['frequency'] - 440) > 0.01)
     observed.call('noteOn', note=60, velocity=0.8)
     telemetry_when(observed, first, lambda t: t['eventActivity'].get('12:notes') == 1)
+    telemetry_when(observed, first, lambda t: t['envelope'].get('14', 0) > 0)
     telemetry_when(observed, first, lambda t:
                    0.05 <= t['eventActivity'].get('12:notes', 0) < 1)
     # Engine2 restarts counts at zero on replan; the next one-event burst may
