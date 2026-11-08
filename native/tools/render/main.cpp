@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Device-free ABI2 evidence renderer; Python evidence.py owns assertions and provenance reports.
 #include "runtime_patch.h"
-#include <nlohmann/json.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -12,6 +11,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -34,10 +34,12 @@ static uint32_t u32(const Json &x, const char *what) {
     return uint32_t(value);
 }
 static void put16(std::ostream &out, uint16_t x) {
-    out.put(char(x & 255)); out.put(char((x >> 8) & 255));
+    out.put(char(x & 255));
+    out.put(char((x >> 8) & 255));
 }
 static void put32(std::ostream &out, uint32_t x) {
-    put16(out, uint16_t(x)); put16(out, uint16_t(x >> 16));
+    put16(out, uint16_t(x));
+    put16(out, uint16_t(x >> 16));
 }
 static void wav(const std::string &path, const std::vector<float> &samples, uint32_t rate) {
     std::filesystem::path dest(path);
@@ -45,10 +47,18 @@ static void wav(const std::string &path, const std::vector<float> &samples, uint
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     need(bool(out), "cannot create WAV: " + path);
     const uint32_t size = uint32_t(samples.size() * sizeof(float));
-    out.write("RIFF", 4); put32(out, 36 + size); out.write("WAVEfmt ", 8);
-    put32(out, 16); put16(out, 3); put16(out, 2); // IEEE float, stereo
-    put32(out, rate); put32(out, rate * 8); put16(out, 8); put16(out, 32);
-    out.write("data", 4); put32(out, size);
+    out.write("RIFF", 4);
+    put32(out, 36 + size);
+    out.write("WAVEfmt ", 8);
+    put32(out, 16);
+    put16(out, 3);
+    put16(out, 2); // IEEE float, stereo
+    put32(out, rate);
+    put32(out, rate * 8);
+    put16(out, 8);
+    put16(out, 32);
+    out.write("data", 4);
+    put32(out, size);
     for (float sample : samples) {
         uint32_t bits;
         std::memcpy(&bits, &sample, sizeof(bits));
@@ -63,8 +73,8 @@ int main(int argc, char **argv) {
         for (int i = 1; i < argc; i += 2) {
             need(i + 1 < argc, "missing option value");
             const std::string key(argv[i]);
-            need(key == "--patch" || key == "--script" || key == "--out" ||
-                 key == "--rate" || key == "--block" || key == "--seconds" || key == "--seed",
+            need(key == "--patch" || key == "--script" || key == "--out" || key == "--rate" ||
+                     key == "--block" || key == "--seconds" || key == "--seed" || key == "--late-fixture",
                  "unknown option: " + key);
             need(args.emplace(key, argv[i + 1]).second, "duplicate option: " + key);
         }
@@ -73,10 +83,13 @@ int main(int argc, char **argv) {
         const auto rate = std::stoul(args.at("--rate")), block = std::stoul(args.at("--block"));
         const double seconds = std::stod(args.at("--seconds"));
         const auto seed = std::stoull(args.at("--seed"));
-        need(rate >= 8000 && rate <= 96000 && block >= 1 && block <= 1024 &&
-             std::isfinite(seconds) && seconds > 0 && seconds <= 10, "invalid rate/block/duration");
-        const uint64_t frames = uint64_t(std::llround(rate * seconds));
-        need(frames > 0 && frames * 8 <= 20u * 1024u * 1024u, "WAV exceeds 20 MiB");
+        const bool valid_rate = rate >= 8000 && rate <= 96000;
+        const bool valid_block = block >= 1 && block <= 1024;
+        const bool valid_duration = std::isfinite(seconds) && seconds > 0 && seconds <= 10;
+        need(valid_rate && valid_block && valid_duration, "invalid rate/block/duration");
+        if (args.count("--late-fixture")) need(args.at("--late-fixture") == "1", "invalid late fixture flag");
+        const uint64_t frames = uint64_t(std::llround(static_cast<double>(rate) * seconds));
+        need(frames > 0 && frames * 8ULL <= 20ULL * 1024 * 1024, "WAV exceeds 20 MiB");
         Json patch = Json::parse(read_bounded(args.at("--patch"), wirescape::document::RuntimePatchLimit));
         need(patch.is_object() && patch.value("version", 0) == 2, "requires ABI2 patch v2");
         patch["settings"]["seed"] = seed;
@@ -118,25 +131,28 @@ int main(int argc, char **argv) {
                 event.value = entry.at("value").get<float>();
                 need(std::isfinite(event.value), "non-finite parameter");
                 std::string module;
-                for (const auto &m : patch.at("modules"))
-                    if (u32(m.at("id"), "module id") == node)
-                        module = m.at("module").get<std::string>();
+                for (const auto &m : patch.at("modules")) {
+                    if (u32(m.at("id"), "module id") == node) module = m.at("module").get<std::string>();
+                }
                 need(!module.empty(), "parameter targets missing node");
                 const std::string parameter = entry.at("parameter").get<std::string>();
                 bool found = false;
                 for (uint32_t i = 0; i < app_engine_module_count(engine.get()); ++i) {
                     const auto *descriptor = app_engine_module(engine.get(), i);
                     if (module != descriptor->id) continue;
-                    for (uint32_t p = 0; p < descriptor->parameter_count; ++p)
+                    for (uint32_t p = 0; p < descriptor->parameter_count; ++p) {
                         if (parameter == app_engine_parameter_id(engine.get(), module.c_str(), p)) {
                             const auto &d = descriptor->parameters[p];
                             need(event.value >= d.minimum && event.value <= d.maximum, "parameter outside range");
                             event.parameter_id = d.id;
                             found = true;
                         }
+                    }
                 }
                 need(found, "unknown parameter: " + parameter);
-            } else throw std::runtime_error("unknown event type: " + type);
+            } else {
+                throw std::runtime_error("unknown event type: " + type);
+            }
             need(app_engine_enqueue(engine.get(), &event) == WS_OK,
                  "frame-addressed event enqueue failed at frame " + std::to_string(frame));
         }
@@ -145,6 +161,19 @@ int main(int argc, char **argv) {
         for (uint64_t start = 0; start < frames; start += block) {
             const auto n = uint32_t(std::min<uint64_t>(block, frames - start));
             float *rows[]{left.data(), right.data()};
+            if (args.count("--late-fixture") && start == block) {
+                // Test-only: enqueue an already-rendered frame; this must be detected.
+                ws_event late{};
+                late.struct_size = sizeof(late);
+                late.frame = 0;
+                late.node_id = 1;
+                late.source_id = 1;
+                late.generation = app_engine_generation(engine.get());
+                late.type = WS_NOTE_ON;
+                late.note_id = 60;
+                late.value = 60.f;
+                need(app_engine_enqueue(engine.get(), &late) == WS_OK, "late fixture enqueue failed");
+            }
             need(app_engine_render_channels(engine.get(), rows, 2, n) == WS_OK,
                  "render failed at frame " + std::to_string(start));
             for (uint32_t i = 0; i < n; ++i) {
@@ -152,7 +181,20 @@ int main(int argc, char **argv) {
                 interleaved[size_t(start + i) * 2 + 1] = right[i];
             }
         }
-        need(app_engine_native(engine.get()).meter().faults == 0, "engine faults during offline render");
+        const auto meter = app_engine_native(engine.get()).meter();
+        std::cout << "render_metrics "
+                  << Json{{"faults", meter.faults},
+                          {"late_events", meter.late},
+                          {"dropped_events", meter.dropped},
+                          {"ring_full_events", meter.ring_full},
+                          {"stale_events", meter.stale},
+                          {"arena_full_events", meter.arena_full}}
+                         .dump()
+                  << '\n';
+        std::cout.flush();
+        need(meter.faults == 0 && meter.late == 0 && meter.dropped == 0 && meter.ring_full == 0 &&
+                 meter.stale == 0 && meter.arena_full == 0,
+             "render event accounting failed: late, dropped, stale or faulted event");
         wav(args.at("--out"), interleaved, uint32_t(rate));
         std::cout << "rendered " << frames << " ABI2 frames; devices off\n";
     } catch (const std::exception &e) {

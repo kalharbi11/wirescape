@@ -13,6 +13,12 @@ foreach(case_name adsr-notes frequency-step blend-selection)
       --configuration "$<CONFIG>")
   set_tests_properties(render_evidence_${test_name} PROPERTIES TIMEOUT 90)
 endforeach()
+add_test(NAME render_evidence_late_negative
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/evidence.py
+    --render $<TARGET_FILE:wirescape_render>
+    --case ${CMAKE_CURRENT_SOURCE_DIR}/cases/adsr-notes.json
+    --out ${CMAKE_BINARY_DIR}/render_evidence/late-negative --negative-late)
+set_tests_properties(render_evidence_late_negative PROPERTIES TIMEOUT 90)
 add_test(NAME render_evidence_negative COMMAND ${Python3_EXECUTABLE}
   ${CMAKE_CURRENT_SOURCE_DIR}/evidence.py --negative)
 set_tests_properties(render_evidence_negative PROPERTIES TIMEOUT 30)

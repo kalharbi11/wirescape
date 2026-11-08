@@ -118,6 +118,7 @@ def publish(out, info, results, error):
              f"Renderer binary SHA-256: \x60{info['renderer_sha256']}\x60",
              f"Platform: {info['platform']} / {info['architecture']}; compiler: {info['compiler']}; configuration: {info['configuration']}",
              f"Rate: {info['rate']} Hz; block: {info['block']} frames; length: {info['frames']} frames; seed: {info['seed']}",
+             f"Event accounting: late={info.get('late_events')}, dropped={info.get('dropped_events')}, faults={info.get('faults')}",
              "", "| Assertion | Measurement |", "|---|---|"]
     for item in results:
         value = item.get("measured_hz", item.get("rms_fs", item.get("peak_fs", item.get("value", "finite"))))
@@ -157,12 +158,30 @@ def run(args):
         command = [args.render, "--patch", str(out / "patch.json"), "--script", str(out / "events.json"),
                    "--out", str(out / "audio.wav"), "--rate", str(rate), "--block", str(block),
                    "--seconds", str(seconds), "--seed", str(seed)]
+        if args.negative_late:
+            command.extend(["--late-fixture", "1"])
+            info["case"] += " (intentional late-event negative)"
         proc = subprocess.run(command, capture_output=True, text=True, timeout=60)
-        check(proc.returncode == 0, f"renderer exit {proc.returncode}: {proc.stderr[-600:]}")
-        samples = wav_samples(out / "audio.wav", rate, frames)
-        results = measure(samples, source)
-        size = sum(f.stat().st_size for f in out.iterdir() if f.is_file())
-        check(size <= 7 * 1024 * 1024, "case artifacts exceed 7 MiB")
+        prefix = "render_metrics "
+        lines = [line[len(prefix):] for line in proc.stdout.splitlines() if line.startswith(prefix)]
+        check(len(lines) == 1, "missing or duplicate renderer event metrics")
+        counters = json.loads(lines[0])
+        fields = ("faults", "late_events", "dropped_events", "ring_full_events",
+                  "stale_events", "arena_full_events")
+        check(isinstance(counters, dict) and all(type(counters.get(key)) is int and
+              counters[key] >= 0 for key in fields), "invalid renderer event metrics")
+        info.update({key: counters[key] for key in fields})
+        if args.negative_late:
+            check(proc.returncode != 0 and "render event accounting failed" in proc.stderr and
+                  counters["late_events"] > 0, "late event negative fixture was not rejected")
+            results = [{"check": "late-event rejection", "late_events": counters["late_events"]}]
+        else:
+            check(proc.returncode == 0, f"renderer exit {proc.returncode}: {proc.stderr[-600:]}")
+            check(all(counters[key] == 0 for key in fields), "nonzero renderer event metrics")
+            samples = wav_samples(out / "audio.wav", rate, frames)
+            results = measure(samples, source)
+            size = sum(f.stat().st_size for f in out.iterdir() if f.is_file())
+            check(size <= 7 * 1024 * 1024, "case artifacts exceed 7 MiB")
     except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
         error = exc
     publish(out, info, results, error)
@@ -176,6 +195,7 @@ def run(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--negative", action="store_true")
+    parser.add_argument("--negative-late", action="store_true")
     parser.add_argument("--render")
     parser.add_argument("--case")
     parser.add_argument("--out")
