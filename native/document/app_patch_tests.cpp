@@ -24,13 +24,19 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  for (const char *expected :
       {"essentials.vco", "essentials.lfo", "essentials.vcf", "essentials.adsr", "essentials.vca", "essentials.clock",
        "essentials.function_envelope", "essentials.ladder", "essentials.mixer", "essentials.noise", "essentials.output",
-       "essentials.scale_offset", "essentials.slew", "host.keyboard", "essentials.chaos_lite", "essentials.resonator", "midi.in", "midi.to_cv",
+       "essentials.scale_offset", "essentials.slew", "host.keyboard", "essentials.chaos_lite", "midi.in", "midi.to_cv",
        "midi.cc_to_cv", "ports.macro_oscillator", "example.step_sequencer", "example.random_source"}) {
      bool found = false;
      for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i)
          if (std::string(app_engine_module(cat.get(), i)->id) == expected) found = true;
      require(found, "all existing entries and Macro in catalogue");
- }
+ }    bool found_resonator = false;
+    for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i) {
+        if (std::string(app_engine_module(cat.get(), i)->id) == "essentials.resonator") {
+            found_resonator = true;
+        }
+    }
+    require(found_resonator, "resonator in catalogue");
  {
      const QByteArray fixture = R"({
        "format":"wirescape.native.patch","version":2,"name":"Offline keyboard to Macro",
