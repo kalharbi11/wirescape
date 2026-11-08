@@ -19,7 +19,7 @@ Continue #314/#345 Delay, #316/#348 Reverb, #317/#344 Resonator on their existin
 
 ## Codex Lead retained work
 - #373 integration pushed as 852a1ce, preserving b883ecb and main 4c8bfe0 as parents. Local Python 8/8 pass; native/full CI unverified.
-- Next engine implementation: #292 callback load/dropouts, including Keel's moved 64-tap/no-tap comparison from #368. Keep missing metrics unavailable and numerical tolerances unchanged; T2 review required.
+- #292 implemented in draft #378, head 1ac6d71. Local metrics/allocation regression and changed-unit C++ syntax checks pass; full native/Studio/hosted/Pi evidence pending. The raw 64-tap measurement command is implemented; numeric tolerance/aggregation awaits Keel's ruling. No thresholds changed.
 - #293 can proceed after merged audio recovery #301. #287 remains blocked on raw CC identity/value contract; batch with genuine T2 questions for Keel.
 - #304/#323/#310 remain in queue; activate them when a module slot opens, without exceeding three active module items.
 - Owner Test Session 1 #271 remains Phase 1 sign-off; any reported failure preempts these lanes.

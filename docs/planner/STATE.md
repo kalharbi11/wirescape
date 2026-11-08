@@ -40,7 +40,7 @@ Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure 
 
 ## Owner-requested three-agent handoff (#376)
 - Paste-ready lanes: docs/tasks/BUILD_LEAD_2026_11_08.md; three chats, maximum three active items each.
-- Codex Lead owns #373 integration and then #292 implementation; agents own telemetry, modules, review/soak.
+- Codex Lead pushed #373 integration and #292 implementation (#378, 1ac6d71); checks/reviews pending.
 
 ## Retained rules
 - Tests/CI never open audio/MIDI/LAN. No agent SSH to Pi/laptop; private runner supplies Pi evidence.
