@@ -34,11 +34,11 @@ int main(int argc, char **argv) {
                 const auto &legacy = module.at("legacy_parameters");
                 const std::string id = descriptor->id;
                 require(legacy.size() == native->param_count, id + ": parameter slot count drift");
-                std::set<uint32_t> slots;
+                std::set<uint32_t> used_legacy_indices;
                 for (uint32_t p = 0; p < native->param_count; ++p) {
                     const auto &param = native->params[p];
                     require(legacy.find(param.id) != legacy.end(), id + ": parameter missing from UI legacy map");
-                    const bool unique_slot = slots.insert(param.legacy_index).second;
+                    const bool unique_slot = used_legacy_indices.insert(param.legacy_index).second;
                     require(unique_slot, id + ": duplicate legacy_index");
                     require(param.legacy_index == legacy.at(param.id).get<uint32_t>(),
                             id + ": legacy_index differs from UI catalogue");
@@ -71,8 +71,10 @@ int main(int argc, char **argv) {
             }
             // Automatic patches must actually emit sound without any MIDI/key event.
             // Run long enough to cover the first clock edge at the authored slow tempi.
-            const bool autoplay = name == "hollow-chapel" || name == "breathing-walls" ||
-                                  name == "dust-reactor" || name == "witching-hour" || name == "neon-elegy";
+            const bool horror_pad = name == "hollow-chapel" || name == "breathing-walls";
+            const bool stock_drone = name == "dust-reactor";
+            const bool sequence = name == "witching-hour" || name == "neon-elegy";
+            const bool autoplay = horror_pad || stock_drone || sequence;
             float samples[256]{}, peak = 0.f;
             for (int block = 0; block < (autoplay ? 256 : 1); ++block) {
                 require(app_engine_render(engine.get(), samples, 256) == WS_OK, name + ": render failed");
