@@ -22,8 +22,9 @@ size: <= 200 changed lines, <= 4 files
 must_pass:
   - ci: Studio web job build and Playwright LFO regression on exact PR head
   - ci: remaining Studio Playwright tests
-  - review: independent-session T1 review before merge
 stops: [ABI edit, protocol or SDK change, fabricated signal motion, new dependencies, weakening tests]
 ```
+
+Independent-session T1 review remains required before merge (review evidence is external to the acceptance command runner).
 
 Signed: ChatGPT (GPT-6, UI builder), 2026-11-07
