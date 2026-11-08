@@ -284,3 +284,12 @@ uses the existing AppEngine/PortAudio callback and MIDI host. Null mode runs a
 paced discard sink and fake endpoints without device access. The UI owns saved
 documents; sidecar candidates are disposable execution copies. Details and
 shutdown ownership are in `native/sidecar/DESIGN.md`.
+
+Audio loss leaves the same graph and remembered output identity owned by the
+control thread. Stream retirement retains the existing quarantine-on-unsafe-stop
+policy. Reopen attempts use 100 ms exponential backoff capped at five seconds;
+only a fresh preference-free startup may select the default. A missing remembered
+output reports `reconnecting`, never a substitute. Loss reports `device-lost`
+before retrying; failed enumeration does not retire a healthy stream. Device-free regressions link a
+fake implementation of the existing audio service boundary and advance poll time
+explicitly; production callbacks perform no recovery, enumeration or allocation.

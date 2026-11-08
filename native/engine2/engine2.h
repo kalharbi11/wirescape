@@ -15,6 +15,14 @@ struct Config {
     uint32_t message_arena_bytes=1472*1024,feedback_block=32;
     double bpm=120; bool playing=true;
     uint64_t epoch_ns=0,seed=1;
+    uint32_t max_taps=256;
+};
+// Output taps default to the maximum last-frame sample across active channels;
+// use First for a phase-like output whose channel 0 has semantic meaning.
+struct Tap {
+    enum Kind : uint8_t { Param, Output, EventOut } kind=Param;
+    uint32_t node=0,index=0;
+    enum Reduction : uint8_t { First, Maximum } reduction=Maximum;
 };
 struct Meter {
     uint64_t frame=0,generation=1,applied_generation=1,events=0;
@@ -33,6 +41,10 @@ struct Outgoing {
 // processor state. panic(), enqueue(), pop_egress() and meter() are the explicit
 // cross-thread surface. replan alone permits one control owner beside render;
 // the prepared candidate and all other graph operations remain quiescent.
+// set_telemetry_taps() is quiescent, on a candidate before prepare(). After prepare,
+// read_telemetry() is CONTROL-OWNER-ONLY (the same owner that calls replan), and
+// may overlap render but never replan/layout swaps. Individual values are atomic;
+// a read may mix adjacent blocks. Never read DSP buffers from the control owner.
 class Engine {
     struct Impl;std::unique_ptr<Impl>p_;
 public:
@@ -45,6 +57,12 @@ public:
     bool output(uint32_t node,uint32_t port,uint32_t bus_channel);
     int register_producer();
     bool prepare();
+    bool set_telemetry_taps(const std::vector<Tap>&);
+    // Returns the number of configured taps in their installation order, or 0
+    // for no taps/insufficient capacity. values and counts each have capacity slots;
+    // counts are cumulative for EventOut taps and zero for other kinds.
+    // frame is the latest completed render-block end (0 until first publish).
+    uint32_t read_telemetry(float*values,uint32_t*counts,uint32_t capacity,uint64_t&frame)const noexcept;
     bool set_parameter(uint32_t node,uint32_t index,float plain);
     bool set_channels(uint32_t node,uint32_t channels);
     int enqueue(uint32_t producer,uint32_t node,uint32_t port,const ws2_event&,

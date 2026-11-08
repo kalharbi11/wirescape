@@ -108,6 +108,8 @@ button { cursor: pointer; }
 .action.strong { background: var(--surface); border-color: var(--line); font-weight: 500; }
 .toolbar { display: flex; align-items: center; gap: 4px; padding-left: 12px; border-left: 1px solid var(--line); }
 .menu-btn { display: none; }
+/* A tap outside the drawer returns focus to the patch canvas on narrow screens. */
+.library-scrim { display: none; }
 .octave-tag {
   font-size: var(--fs-micro); letter-spacing: 0.08em; color: var(--sub);
   border: 1px solid var(--line); border-radius: var(--radius-xs); padding: 5px 8px;
@@ -541,9 +543,20 @@ body.motion-off .tring { transition: none !important; }
   .main { grid-column: 2; }
   .menu-btn { display: inline-flex; }
   .octave-tag { display: none; }
+  .library-scrim:not([hidden]) {
+    display: block; position: fixed; z-index: 55;
+    inset: var(--top-h) 0 0; padding: 0; border: 0;
+    background: rgba(22, 22, 22, 0.16); cursor: default;
+  }
 }
 @media (max-width: 760px) {
-  .patch-path { display: none; }
+  /* Keep the active patch visible on phones; actions remain scrollable. */
+  .patch-path { display: flex; max-width: clamp(72px, 27vw, 112px); min-width: 0; }
+  .patch-prefix { display: none; }
+  .patch-name {
+    display: block; min-width: 0; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .toolbar { padding-left: 6px; }
   .status-detail { display: none; }
 }
@@ -572,6 +585,8 @@ body.motion-off .tring { transition: none !important; }
   .topbar .zoom-label { line-height: 34px; }
   .topbar .toolbar { padding-left: 6px; }
   .library { top: 56px; bottom: env(safe-area-inset-bottom, 0px); }
+  .library-scrim:not([hidden]) { top: 56px; }
+  .keyboard-keys .piano-key { flex-basis: 42px; touch-action: pan-x; }
 
   .statusbar {
     height: calc(42px + env(safe-area-inset-bottom, 0px));

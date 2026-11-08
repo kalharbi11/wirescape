@@ -20,6 +20,7 @@ export class Library {
   constructor(private readonly registry: ModuleRegistry, private readonly hooks: LibraryHooks) {
     this.root = el('aside', 'library');
     this.root.dataset.testid = 'library';
+    this.root.id = 'module-library';
     this.root.setAttribute('aria-label', 'Module library');
 
     const brand = el('div', 'brand');
@@ -58,7 +59,7 @@ export class Library {
       row.append(ring, document.createTextNode(label));
       foot.append(row);
     }
-    foot.append(el('div', 'library-note', 'VISUAL PROTOTYPE · NO AUDIO ENGINE'));
+    foot.append(el('div', 'library-note', 'MODULAR SYNTH · PATCH AND PLAY'));
     this.root.append(foot);
 
     this.render('');
