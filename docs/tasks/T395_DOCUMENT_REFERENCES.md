@@ -27,10 +27,7 @@ budget: one independent builder session
 size: <= 120 changed lines, <= 2 files
 must_pass:
   - python tools/dev.py build --headless
-  - ctest --test-dir build/native -R '^(abi2_runtime_patch_tests|abi2_staged_tests)
-stops: [production change, patch format change, test removal, new dependency, device access]
-```
- --output-on-failure --no-tests=error
+  - ctest --test-dir build/native -R '^(abi2_runtime_patch_tests|abi2_staged_tests)$' --output-on-failure --no-tests=error
   - ci: guard, linux-arm64, windows-x64, sanitizers green on the exact head
   - ci: windows-x64 Qt-enabled native test run includes document_reader_tests and patch_document_tests
 stops: [production change, patch format change, test removal, new dependency, device access]
