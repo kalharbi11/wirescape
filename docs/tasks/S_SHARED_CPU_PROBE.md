@@ -30,6 +30,9 @@ the Spectral engine. This task changes tooling only; it does not certify any mod
   physical devices or add a dependency. Keep the `sound.spectral` acceptance
   cases on #304 after this tooling PR merges.
 
+The all-channel finite-output regression adds two small test/helper files (5→7),
+within Workflow v3's +50% file allowance. Numerical thresholds are unchanged.
+
 ## Usage
 `python tools/module_cpu_probe.py sound.blend --seconds 10 --param balance=0.25 --alternate mode=0:1:4`
 
@@ -38,7 +41,7 @@ record hardware-specific evidence; local desktop timings are not Pi certificatio
 
 ```acceptance
 tier: T1
-size: <= 550 changed lines, <= 5 files
+size: <= 550 changed lines, <= 7 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R abi2_module_cpu_probe --output-on-failure
