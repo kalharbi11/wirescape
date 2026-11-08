@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
-#include "wirescape_sdk.h"
 #include "comb_body.h"
+#include "wirescape_sdk.h"
 
 namespace resonator {
-enum Param : uint32_t { Tune, Structure, Decay, Damping, StrikeTone, StrikeLevel, Mix, Level, Count };
+enum Param : uint8_t { Tune, Structure, Decay, Damping, StrikeTone, StrikeLevel, Mix, Level, Count };
 constexpr uint32_t kMod = WS2_MODULATABLE | WS2_AUTOMATABLE | WS2_PER_VOICE;
 constexpr uint32_t kStep = kMod | WS2_STEPPED;
 
 struct Resonator {
     static constexpr ws::Info info{"essentials.resonator", "Resonator", 1};
-    static constexpr std::array inputs{
-        ws::port("audio", "Audio", WS2_AUDIO, WS2_POLY),
-        ws::port("pitch", "Pitch", WS2_PITCH, WS2_POLY, 0),
-        ws::port("strike", "Strike", WS2_TRIGGER, WS2_POLY, 0)};
+    static constexpr std::array inputs{ws::port("audio", "Audio", WS2_AUDIO, WS2_POLY),
+                                     ws::port("pitch", "Pitch", WS2_PITCH, WS2_POLY, 0),
+                                     ws::port("strike", "Strike", WS2_TRIGGER, WS2_POLY, 0)};
     static constexpr std::array outputs{ws::port("audio", "Audio", WS2_AUDIO, WS2_POLY)};
     static constexpr std::array params{
         ws::param("tune", "Tune", -24, 24, 0, "st", kMod, WS2_LINEAR, Tune),
@@ -38,14 +37,15 @@ struct Resonator {
     uint64_t seed = 0;
 
     static uint32_t comb_length(double r) { return static_cast<uint32_t>(std::ceil(r / 20.0)) + 4; }
-    static ws2_memory memory_requirements(const ws2_config& c) {
+    static ws2_memory memory_requirements(const ws2_config &c) {
         ws2_memory m{};
         m.struct_size = sizeof(m);
         m.alignment = 32;
-        m.large_bytes = size_t(std::min<uint32_t>(c.max_channels, 8u)) * (3u * comb_length(c.sample_rate) * sizeof(float) + 32);
+        m.large_bytes = size_t(std::min<uint32_t>(c.max_channels, 8u)) *
+                        (size_t(3) * comb_length(c.sample_rate) * sizeof(float) + 32);
         return m;
     }
-    bool prepare(const ws::Setup& s) {
+    bool prepare(const ws::Setup &s) {
         rate = static_cast<float>(s.sample_rate());
         capacity = std::min<uint32_t>(s.max_channels(), 8u);
         seed = s.config.seed ^ UINT64_C(0x9e3779b97f4a7c15);
@@ -53,7 +53,7 @@ struct Resonator {
         burst = std::max<uint32_t>(1u, static_cast<uint32_t>(std::ceil(rate * .005f)));
         glide = 1.f - std::exp(-1.f / (rate * .012f));
         for (uint32_t c = 0; c < capacity; ++c) {
-            auto* memory = static_cast<float*>(s.alloc(3u * line_size * sizeof(float), 32, WS2_LARGE));
+            auto *memory = static_cast<float *>(s.alloc(size_t(3) * line_size * sizeof(float), 32, WS2_LARGE));
             if (!memory) return false;
             voices[c].body.attach(memory, line_size);
         }
@@ -62,7 +62,7 @@ struct Resonator {
     }
     void reset() {
         for (uint32_t c = 0; c < capacity; ++c) {
-            auto& v = voices[c];
+            auto &v = voices[c];
             v.body.reset();
             v.rng.seed(seed, c);
             std::fill_n(v.delay, 3, 0.f);
@@ -72,19 +72,21 @@ struct Resonator {
             v.high = v.initialized = false;
         }
     }
-    void process(ws::Block& b) {
+    void process(ws::Block &b) {
         const uint32_t n = b.channels();
         auto out = b.out(0);
         out.set_channels(n);
         // Even a currently silent comb has running state. Never mark a ringing voice CONSTANT.
         out.mark_constant(false);
         constexpr float ratios[4][3]{
-            {1.f, 1.4983f, 2.003f}, {1.f, 2.f, 3.f},
-            {1.f, 2.756f, 5.404f}, {1.f, 2.32f, 4.25f}};
+            {1.f, 1.4983f, 2.003f}, {1.f, 2.f, 3.f}, {1.f, 2.756f, 5.404f}, {1.f, 2.32f, 4.25f}};
         for (uint32_t c = 0; c < n; ++c) {
-            float* y = out.ch(c);
-            if (c >= capacity) { std::fill_n(y, b.frames(), 0.f); continue; }
-            auto& v = voices[c];
+            float *y = out.ch(c);
+            if (c >= capacity) {
+                std::fill_n(y, b.frames(), 0.f);
+                continue;
+            }
+            auto &v = voices[c];
             for (uint32_t i = 0; i < b.frames(); ++i) {
                 const auto p = [&](uint32_t slot) { return b.param(slot).value(c, i); };
                 const float audio = std::clamp(b.in(0).value(c, i), -2.f, 2.f);
@@ -97,12 +99,12 @@ struct Resonator {
                     const float tone = std::clamp(p(StrikeTone), 0.f, 1.f);
                     const float alpha = .04f + .96f * tone * tone;
                     v.noise += alpha * (v.rng.bipolar() - v.noise);
-                    strike = .003f * std::clamp(p(StrikeLevel), 0.f, 1.f) *
-                             (float(v.burst_left) / float(burst)) * v.noise;
+                    strike =
+                        .003f * std::clamp(p(StrikeLevel), 0.f, 1.f) * (float(v.burst_left) / float(burst)) * v.noise;
                     --v.burst_left;
                 }
-                const float oct = std::clamp(b.in(1).value(c, i) +
-                                             std::clamp(p(Tune), -24.f, 24.f) / 12.f, -16.f, 16.f);
+                const float oct =
+                    std::clamp(b.in(1).value(c, i) + std::clamp(p(Tune), -24.f, 24.f) / 12.f, -16.f, 16.f);
                 const float hz = std::clamp(261.625565f * std::exp2(oct), 20.f, rate * .45f);
                 const uint32_t mode = static_cast<uint32_t>(std::clamp(std::lround(p(Structure)), 0l, 3l));
                 for (uint32_t tap = 0; tap < 3; ++tap) {
@@ -115,19 +117,18 @@ struct Resonator {
                 float feedback[3];
                 for (uint32_t tap = 0; tap < 3; ++tap)
                     feedback[tap] = std::exp(-6.907755279f * v.delay[tap] / (rate * seconds));
-                const float body = v.body.process(audio + strike, v.delay, feedback,
-                                                  std::clamp(p(Damping), 0.f, 1.f));
+                const float body =
+                    v.body.process(audio + strike, {v.delay, feedback}, std::clamp(p(Damping), 0.f, 1.f));
                 // Four-pole pitch-tracking radiation filter suppresses higher
                 // comb harmonics without altering the delay-loop T60.
                 const float coefficient = std::min(1.f, 3.769911184f * hz / rate);
                 float wet = 16.f * body + .5f * strike;
-                for (float& stage : v.colour) {
+                for (float &stage : v.colour) {
                     stage += coefficient * (wet - stage);
                     wet = stage;
                 }
                 const float mix = std::clamp(p(Mix), 0.f, 1.f);
-                const float raw = std::clamp(p(Level), 0.f, 1.f) *
-                                  ((1.f - mix) * audio + mix * wet);
+                const float raw = std::clamp(p(Level), 0.f, 1.f) * ((1.f - mix) * audio + mix * wet);
                 // DC block the final signal. The hard ceiling is a safety net for hot exciters.
                 const float dc = raw - v.dc_input + .995f * v.dc_output;
                 v.dc_input = raw;
