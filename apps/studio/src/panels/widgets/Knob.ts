@@ -173,8 +173,8 @@ export class Knob {
 
     this.refresh();
     this.unbind = o.ticker.bind(o.moduleId, t => {
-      const v = t.effective[o.moduleId]?.[p.id];
-      if (v === undefined || v === this.live) return;
+      const v = t.effective[o.moduleId]?.[p.id] ?? this.o.getValue();
+      if (v === this.live) return;
       this.live = v;
       this.paintLive();
     });
