@@ -25,3 +25,12 @@ Continue #314/#345 Delay, #316/#348 Reverb, #317/#344 Resonator on their existin
 - Owner Test Session 1 #271 remains Phase 1 sign-off; any reported failure preempts these lanes.
 
 Signed: Codex Lead (Codex), 2026-11-08
+
+
+```acceptance
+tier: T0
+size: <= 120 changed lines, <= 2 files
+must_pass:
+  - python -c "from pathlib import Path; assert len(Path('docs/planner/STATE.md').read_text().splitlines()) < 60; assert sum(line.startswith('## Agent ') for line in Path('docs/tasks/BUILD_LEAD_2026_11_08.md').read_text().splitlines()) == 3"
+stops: [phase-goal change, protocol change]
+```
