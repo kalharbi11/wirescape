@@ -91,6 +91,69 @@ test.describe('system', () => {
     expect(await page.evaluate(() => window.__wirescapeTest.engine.contractBufferCalled)).toBe(512);
   });
 
+  test('audio route: stale remembered identity never silently selects the first output', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => {
+      const e = window.__wirescapeTest.engine as any;
+      e.status.audio.deviceId = 'disconnected:old';
+      e.status.audio.deviceName = 'Disconnected DAC';
+      e.pushStatus();
+      e.routeCalls = [];
+      e.selectAudioDevice = (id: string) => { e.routeCalls.push(id); };
+    });
+    await page.getByTestId('open-settings').click();
+    await expect(page.getByTestId('audio-route-status')).toContainText('Disconnected DAC');
+    await expect(page.getByTestId('audio-device')).toHaveValue('');
+    await expect(page.getByTestId('audio-rate')).toBeDisabled();
+    await expect(page.getByTestId('audio-buffer')).toBeDisabled();
+    expect(await page.evaluate(() => (window.__wirescapeTest.engine as any).routeCalls)).toEqual([]);
+    await page.getByTestId('audio-device').selectOption('usb:1');
+    await expect(page.getByTestId('audio-route-status')).toContainText('awaiting engine status');
+    await expect(page.getByTestId('audio-buffer')).toBeEnabled();
+    expect(await page.evaluate(() => (window.__wirescapeTest.engine as any).routeCalls)).toEqual(['usb:1']);
+  });
+
+  test('audio route: duplicate physical identities are not offered as selectable', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => {
+      const e = window.__wirescapeTest.engine as any;
+      e.status.audio.deviceId = 'ambiguous';
+      e.status.audio.deviceName = 'Twin DAC';
+      e.pushStatus();
+      e.listAudioDevices = async () => [
+        { id: 'ambiguous', name: 'Twin DAC A', kind: 'audio' },
+        { id: 'ambiguous', name: 'Twin DAC B', kind: 'audio' },
+        { id: 'other', name: 'Known output', kind: 'audio' },
+      ];
+    });
+    await page.getByTestId('open-settings').click();
+    await expect(page.getByTestId('audio-device')).toHaveValue('');
+    await expect(page.getByTestId('audio-route-status')).toContainText('ambiguous');
+    const duplicates = page.getByTestId('audio-device').locator('option[value="ambiguous"]');
+    await expect(duplicates).toHaveCount(2);
+    await expect(duplicates.nth(0)).toBeDisabled();
+    await expect(duplicates.nth(1)).toBeDisabled();
+  });
+
+  test('audio route: unsupported displayed rate never triggers an implicit stream restart', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => {
+      const e = window.__wirescapeTest.engine as any;
+      e.listAudioDevices = async () => [
+        { id: 'hw:0', name: 'Built-in Audio', kind: 'audio', sampleRates: [96000] },
+      ];
+      e.rateCalls = [];
+      e.setSampleRate = (hz: number) => { e.rateCalls.push(hz); };
+    });
+    await page.getByTestId('open-settings').click();
+    await expect(page.getByTestId('audio-route-status')).toContainText('Active physical route');
+    await expect(page.getByTestId('audio-rate').locator('option')).toHaveCount(1);
+    await expect(page.getByTestId('audio-rate')).toHaveValue('');
+    expect(await page.evaluate(() => (window.__wirescapeTest.engine as any).rateCalls)).toEqual([]);
+    await page.getByTestId('audio-rate').selectOption('96000');
+    expect(await page.evaluate(() => (window.__wirescapeTest.engine as any).rateCalls)).toEqual([96000]);
+  });
+
   test('OSC: off by default, local by default, refuses a bad port, shows messages', async ({ page }) => {
     await boot(page);
     await page.getByTestId('open-settings').click();
