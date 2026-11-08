@@ -15,8 +15,9 @@ const INSET = 3;
 
 /**
  * LFO scope: a two-cycle scrolling trace driven only by received engine
- * phase, with the newest output at the right. Without phase telemetry the
- * wave stays static; no clock or CSS motion invents a signal.
+ * phase. The live output sample updates the numeric readout only: splicing
+ * it into the last trace pixel would create a misleading moving kink when
+ * phase is unavailable. No local clock invents phase or signal motion.
  */
 export class WavePreview {
   readonly root: HTMLElement;
@@ -26,7 +27,6 @@ export class WavePreview {
   private phase: number | null = null;
   private output: number | null = null;
   private drawnPhase: number | null = null;
-  private drawnOutput: number | null = null;
   private layer: HTMLCanvasElement | null = null;
   private layerKey = '';
   private lastText = 0;
@@ -59,9 +59,11 @@ export class WavePreview {
       this.root.title = s.rateLabel;
     }
     const ph = this.phase;
-    if (!changed && this.layer && ph === this.drawnPhase && this.output === this.drawnOutput) return;
+    if (!changed && this.layer && ph === this.drawnPhase) {
+      this.updateReadout(time);
+      return;
+    }
     this.drawnPhase = ph;
-    this.drawnOutput = this.output;
 
     const w = pane.width, h = pane.height, ctx = pane.ctx, pal = pane.palette();
     const x0 = INSET, x1 = w - INSET, cy = h / 2, A = h * 0.34;
@@ -79,8 +81,7 @@ export class WavePreview {
     const latestPhase = ph ?? 0;
     for (let x = x0; x <= x1; x++) {
       const u = (x - x0) / (x1 - x0);
-      const output = u === 1 && this.output !== null ? this.output
-        : lfoTraceValue(latestPhase, u, s.depth, s.offset);
+      const output = lfoTraceValue(latestPhase, u, s.depth, s.offset);
       const y = cy - Math.max(-1, Math.min(1, output)) * A;
       x === x0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
@@ -89,14 +90,19 @@ export class WavePreview {
     ctx.lineJoin = 'round';
     ctx.stroke();
 
-    if (time - this.lastText >= 1 / 15 || time < this.lastText) {
-      this.lastText = time;
-      if (ph === null) {
-        this.readout.textContent = 'phase not available';
-      } else {
-        const v = this.output ?? lfoTraceValue(ph, 1, s.depth, s.offset);
-        this.readout.textContent = `φ ${Math.round(ph * 360)}° ${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`;
-      }
+    this.updateReadout(time);
+  }
+
+  /** Live amplitude may update the label, never the phase-based trace. */
+  private updateReadout(time: number): void {
+    if (time - this.lastText < 1 / 15 && time >= this.lastText) return;
+    this.lastText = time;
+    if (this.phase === null) {
+      this.readout.textContent = 'phase not available';
+    } else {
+      const s = this.o.shape();
+      const v = this.output ?? lfoTraceValue(this.phase, 1, s.depth, s.offset);
+      this.readout.textContent = `φ ${Math.round(this.phase * 360)}° ${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`;
     }
   }
 
