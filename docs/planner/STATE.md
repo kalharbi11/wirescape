@@ -37,7 +37,7 @@ Use current heads/latest handoffs; no queued/stale/missing evidence counted pass
   Format authored sequencer files; fix actual Studio acceptance; keep statev1/default8.
   UI old fixture y1000vs660 mismatch + native builtin/conformance failures are real.
   Preserve new curated STARTERS/fixtures; regenerate from actual exports after native merge.
-- Agent2 comment6728284868: sequential #348 Reverb -> #323 Quantizer -> #310 Spectral B.
+- Agent2: #348 Reverb MERGED c39af7b; #323 Quantizer prepared0acdad4,27modules,CIpending.
   Normal main merges, retain Delay/all descriptors, Python-generated catalogues, fresh
   native/Studio/WASM and task-specific Pi where required, independent T1.
 - Agent3 comment6728287573: #390 Learn seam + #210 controls -> #287 UI after actual seam merge.
