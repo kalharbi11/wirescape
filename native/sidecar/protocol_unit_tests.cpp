@@ -58,7 +58,14 @@ int run_tests() {
     allocation_watch::enabled.store(true);
     for (int percent = 0; percent < 100; ++percent) histogram.record(percent + 0.5, false);
     histogram.record(255.25, true);
+    histogram.observe_faults(0);
+    histogram.observe_faults(2);
+    histogram.observe_faults(2); // a repeated sample is not another fault
+    histogram.observe_faults(3);
+    histogram.observe_faults(0); // new graph's counter restarted
+    histogram.observe_faults(1);
     allocation_watch::enabled.store(false);
+    check(histogram.faults == 4);
     check(allocation_watch::count.load() == 0);
     check(histogram.blocks == 101 && histogram.overruns == 1);
     check(histogram.bins[0] == 1 && histogram.bins[199] == 0 && histogram.bins[200] == 1);
