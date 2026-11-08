@@ -29,13 +29,15 @@ static void saved_lfo_patch(const char *demo, AppEngine *catalog, const ws_engin
     // Frozen free-run renderer from Lfo::process at pre-change main 7c7d713.
     // Use a same-build reference because libm sin bits may differ across platforms.
     const auto &params = patch.at("modules").at(4).at("parameters");
-    check(patch.at("modules").at(4).at("module") == "essentials.lfo", "saved LFO identity");
+    check(patch.at("modules").at(4).at("module") == "essentials.lfo" &&
+          patch.at("modules").at(4).at("id") == 5 && params.empty(), "saved LFO identity/defaults");
     const float rate = params.value("rate", 1.f), depth = params.value("depth", 1.f);
     const float offset = params.value("offset", 0.f);
     constexpr double tau = 6.283185307179586476925286766559;
     double phase = 0;
     float audio[128];
     auto &native = app_engine_native(engine.get());
+    check(native.meter().feedback_edges == 0, "saved patch has no feedback chunking");
     for (uint32_t block = 0; block < 750; ++block) {
         check(app_engine_render(engine.get(), audio, 128) == WS_OK, "render saved LFO patch");
         for (uint32_t i = 0; i < 128; ++i) {
