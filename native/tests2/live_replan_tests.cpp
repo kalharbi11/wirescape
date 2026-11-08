@@ -80,7 +80,7 @@ static Config config() {
 struct Topology {
     bool pass, event_edge, fourth;
 };
-static std::unique_ptr<Engine> graph(Topology topology) {
+static std::unique_ptr<Engine> graph(Topology topology, const std::vector<Tap> &taps = {}) {
     const auto [pass, event_edge, fourth] = topology;
     auto e = std::make_unique<Engine>(config());
     CHECK(e->add_node(1, ws::Module<Voice>::descriptor()));
@@ -94,6 +94,7 @@ static std::unique_ptr<Engine> graph(Topology topology) {
     if (fourth) CHECK(e->output(4, 0, 2));
     CHECK(e->register_producer() == 0);
     CHECK(e->register_producer() == 1);
+    CHECK(e->set_telemetry_taps(taps));
     CHECK(e->prepare());
     return e;
 }
@@ -512,6 +513,33 @@ static double live_edits() {
     audio.wait(0, 0);
     return double(audio.gap_ns.load()) / 1000000.;
 }
+static void telemetry_replan_layout() {
+    auto live=graph({false,false,false},{{Tap::Param,1,0},{Tap::EventOut,1,1}});
+    auto kept=graph({false,false,false},{{Tap::Param,1,0}});
+    auto removed=std::make_unique<Engine>(config());
+    CHECK(removed->add_node(2,ws::Module<Voice>::descriptor()));
+    CHECK(removed->output(2,0,0));
+    CHECK(removed->set_telemetry_taps({}));
+    CHECK(removed->register_producer()==0);
+    CHECK(removed->register_producer()==1);
+    CHECK(removed->prepare());
+    CHECK(live->enqueue(0,1,0,note(),0,Timing::Immediate)==WS2_OK);
+    float a[frames]{},b[frames]{};float*out[]{a,b};
+    CHECK(live->render(out,2,frames)==WS2_OK);
+    CHECK(b[frames-1]>.1f);
+    float values[2]{};uint32_t counts[2]{};uint64_t frame=0;
+    CHECK(live->read_telemetry(values,counts,2,frame)==2&&counts[1]==1&&frame==frames);
+    replan_at_fade_out(*live,*kept);
+    kept.reset();
+    CHECK(live->render(out,2,frames)==WS2_OK);
+    CHECK(live->read_telemetry(values,counts,2,frame)==1&&frame==live->meter().frame);
+    CHECK(values[0]==.75f || values[0]==1.f); // Retained node's rendered gain.
+    replan_at_fade_out(*live,*removed);
+    removed.reset();
+    CHECK(live->render(out,2,frames)==WS2_OK);
+    CHECK(live->read_telemetry(values,counts,2,frame)==0&&frame==0);
+    CHECK(live->descriptor(1)==nullptr); // Removed nodes cannot retain a stale tap.
+}
 int main(int argc, char **argv) {
     double max_gap_ms = 0;
     if (argc == 3 && std::strcmp(argv[1], "--max-gap-ms") == 0) max_gap_ms = std::strtod(argv[2], nullptr);
@@ -521,6 +549,7 @@ int main(int argc, char **argv) {
     allocation_scope_is_thread_local();
     counted_target_rejection();
     removed_event_routes_release();
+    telemetry_replan_layout();
     feedback_delay_survives();
     ramp_survives();
     const auto gap = live_edits();
