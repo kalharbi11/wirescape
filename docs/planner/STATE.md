@@ -1,51 +1,54 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-Keep this under 60 lines. Rewrite it at the end of each lead session; history lives in git.
+Keep this under 60 lines. History lives in git.
 
-**Updated:** 2026-11-06 ~12:50 UTC by Keel (seventh pass). **Owner priority: get the Pi working fully. Windows waits.**
+**Updated:** 2026-11-08 by Keel (#350 telemetry ruling); before that 2026-11-07 20:30 UTC by Compass. **Pi first. Phase 2 runs beside Test Session 1. The web demo (D14) is a separate lane. Any owner failure in #271 preempts all work.**
 
-## Where things stand
-- **Merged today:** P1B sidecar (#247), Pi appliance (#264), e2e smoke (#265), **2A live edits (#209, `6e92eed`)**. Phase 1 code is complete except 1H (#250/#256) and the 1E benchmark.
-- **Test Session 1 = #271**, expanded (owner can't test yet): builds `origin/main`; ★ A M8 patches, B app (+save round trip), C robustness (engine kill, M8/audio unplug, panic), D1 chrt/top; ☆ D2 block 128/64, D3 owner-run contention benchmark (Phase 1 perf gate; needs #274), D4 30-min MIDI soak, E boot-to-sound (#264), F seamless edits (needs #273), G new modules (needs #263). **Keel keeps the PR table at the top of #271 current.**
-- Closed done issues #260, #233, #231, #227.
-- Known non-required red: `cortex-m7` / portability probe (#159). `static` is informational.
+## Lead split (owner, 2026-11-07)
+- **Compass (platform):** everything except modules: Phases 1–5, the app, the engine lanes, the web demo, the board and STATE. Checks in every 4 h (owner-requested scheduled run).
+- **Compass (modules):** Track S and the module lane (#304/#310, #314–#318, #305/#306/#307). Leaves this file's module lines to that session.
+- Codex Lead runs every 150 min through 2026-11-09 06:00 UTC (owner-requested).
 
-## Open lanes (all have active builders as of 12:40)
-1. **#274** (#258 bench summary): Keel T2 done, no High; needs the line format in `native/sidecar/DESIGN.md`, green + `pi5`, then Keel merges.
-2. **#273** (#267 live replan in sidecar): Keel T2 done, no High; Medium = stderr `commit path=live|d5 gen=N` + process-test asserts. Then merge (unlocks #271 F).
-3. **#256** (#250 1H): Keel ruled the 4 fixture/engine conflicts (category is an engine bug; fake M8, null-device status are engine-correct; T11/T13 fixture fixes, protected-path line on #250); budget 11 files.
-4. **#263** (#259 modules): Keel T1-approved `dcefcf2`, auto-merging.
-5. **#266** 1B-2 Windows raw-handle transport: not started; after Test Session 1.
+## Compass actions (20:13 check-in)
+- Merged since 16:12: #320 (#297 fix), #256 (1H), #273 (2A-2), #274 (1E-b), #330 (2B-c hotplug, which replaced #298), #324 (2D-d recovery), #321 (web extras). **All Phase 1 code is on main.**
+- #271: posted the refreshed feature table and told the owner the session is ready to run (0, A, B, C, D3 = minimum for sign-off).
+- #301: Keel's two Mediums have had no builder for 9 h. Asked Codex Lead to take it over, with the exact fix.
+- #331 patch browser: independent T1 review found no High/Medium. Two Lows (preload request rebuild, uncaught `reset` in `loadBundledPatch`) should be fixed before ready; after that, any lead or Codex Lead may approve on green.
+
+## Main blocker
+- **Owner Test Session 1 (#271)** is now the only Phase 1 sign-off item. Then Compass runs Checkpoint A.
+- Phase 2 engine: #301 (2C-a) needs a builder for Keel's Mediums, and it gates #293.
+
+## In flight (who acts)
+- #301 audio recovery: Codex builder fixes, then Keel re-review plus pi5.
+- #331 patch browser: Codex fixes the two Lows, then approve.
+- #292 load/dropouts and #296 fake-device Pi soak: unblocked by #274, queued by Codex Lead.
+- #287 MIDI Learn: topology prerequisite done; raw-CC observation seam ruling needed (Keel).
+- #210 / #290 MIDI controls: Keel/Compass contract ruling pending.
+- Phase 2 left after these: 2B-b Learn, 2B-e controls, 2C-b/c, 2F-b soak. Then Checkpoint B.
+
+## Web demo lane (D14)
+- Live at `https://kalharbi11.github.io/wirescape/` (Pages is on). #309 and #321 merged (`e766a27`): the demo has playable starters only, cable values and the Output scope, a SHARE link (`#p=`), and SAVE/OPEN files.
+- Every main push runs `web-demo.yml`: native tests, the wasm build, Playwright, deploy, then `live` (the same tests against the published site). Agent containers can't reach github.io, so `live` is the deployed-site evidence.
+- Ideas, not queued: a short first-patch tip on the splash, a phone/touch pass.
+
+## Engine telemetry (#350), Keel ruled 2026-11-08
+- Contract `docs/design/ENGINE_TELEMETRY.md`; parts, order and authority `docs/tasks/T350_ENGINE_TELEMETRY.md`.
+- Start now in parallel: A1 #354 engine2 taps (T2), A0 #355 Studio snapshots (T1), B-mod #356 LFO `phase` port (T1). Merge #353 (30 Hz cap) and #352 (wave tail) as T1.
+- After A1: A2 #357 sidecar + spec §7 (T2, Keel or Compass review, pi), A3 #358 wasm (T1). Then B-wire #359.
+- Keel is needed only for: the A1 review, the A2 review (or Compass), and the contract's Stops. Codex Lead runs the rest.
 
 ## Phase 1 sign-off needs
-#271 owner results (A, B, C), 1H green, contention benchmark (#271 D3 or the Pi runner; zero overruns, p99 < 50% period). Then Compass runs Checkpoint A.
+Only the owner's #271 results remain (A, B, C plus D3 contention). 1H (#256) and the benchmark tooling (#274) are merged. Then Compass runs Checkpoint A (about 30 min on the Pi with the M8).
 
-## Compass decisions (2026-11-06 check-in)
-- Agreed: P0F is folded into Test Session 1; PLAN "Now" and 0F updated. 0E, 1D, 1G ticked; #250 is plan item **1H**.
-- **D13 sidecar contingency:** if #247 is red again after Keel's checklist, split it into 1B-1 (protocol, null sink, fake MIDI, fade: everything CI proves) and 1B-2 (PortAudio + real MIDI devices). No third attempt at the full L PR.
-- Electron (D1) reconfirmed. Board: closed #70 (done) and #140 (Qt; semantics → 2C); `phase/2`–`phase/5` labels on parked items (labels 3–5 created).
-
-## Rulings this session
-- **Crash restarts:** Electron main is the only automatic restarter; a renderer request never resets the crash-loop budget.
-- **#247 slow fixture:** supported rates only (8 kHz floor kept); D5 deadlines scale with the block period, and 150 ms holds at normal blocks.
-- **T02 / D3:** imported documents round-trip unchanged; only UI-authored content carries synthesized fields.
-- **Test Session 1 vs benchmark:** the owner sitting doesn't wait for the benchmark; the owner's D3 run counts as the contention evidence (runner has no display).
-- **#256 golden transcript:** illustrative device values; checker asserts shapes/order/gen/§7 invariants, literal only for session-independent values.
-- **#209 scope:** sidecar wiring is #267; it retries a busy MIDI try-lock (bounded) and uses D5 directly when audio isn't rendering.
-- **Benchmark source:** null-sink histogram + `--bench-summary` stderr line (#258); no protocol change.
-
-## Waiting on the owner
-- **#271 Test Session 1** on the Pi (one sitting). Then post results in #271.
-
-## Next lead sessions
-- Keel: triage #271 results (engine faults → issue per failure); T2-review #258, #267, #256 native, #266; merge when green.
-- Compass: Checkpoint A agenda after Test Session 1; triage the owner's results.
+## Retained rulings
+- Electron main is the only automatic restarter. Imported documents round-trip unchanged (D3). New loadGraph uses D5; live edits use replan with bounded busy retry.
+- Benchmark fields are render walltime. Missing metrics never count as zero.
+- Known non-required reds: cortex-m7 (#159); `static` is informational.
+- Tests and CI never open real audio, MIDI or LAN. Pi evidence comes only from the pi5 runner.
 
 ## Standing rules from the owner
-- Don't plan agent assignment; the owner and their managers assign. Keep sections parallel where possible.
-- Pi first (Windows allowed for faster smoke tests); touchscreen, Plaits polish and a CHAOS custom panel go to Phase 5.
-- No browser/kiosk stage: the product is a standalone app window with the web UI inside.
-- Real-device tests are the owner's; the Pi runner and the laptop run offline tests only.
-- Checkpoints are spread out and don't stop work.
-- Leads save usage: delegate mechanics (Codex or a subagent), don't poll, ask the owner only for approvals and hardware checks.
+- Don't plan agent assignment. Pi first; Windows (#266) after Test Session 1. Real-device tests are the owner's.
+- No browser/kiosk product stage (D1). The web demo is a showcase build only (D14).
+- Leads save usage: delegate mechanics, don't poll, ask the owner only for approvals and hardware checks.

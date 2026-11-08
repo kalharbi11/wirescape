@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 from pathlib import Path
+import shlex
 import sys
 import unittest
 
@@ -47,12 +48,36 @@ class ModuleCpuProbeTests(unittest.TestCase):
 
     def test_worst_case_settings(self):
         args = parse_args(['sound.spectral', '--param', 'size=3', '--param', 'pitch=1',
-                           '--alternate', 'mode=0:1:4'])
+                           '--alternate', 'mode=0:1:32'])
         self.assertEqual(args.param, ['size=3', 'pitch=1'])
-        self.assertEqual(args.alternate, 'mode=0:1:4')
+        self.assertEqual(args.alternate, 'mode=0:1:32')
         for bad in (['--param', 'size'], ['--param', '=3'], ['--alternate', 'mode=0:1'], ['--alternate', 'mode:0:1:2']):
             with self.subTest(bad=bad), self.assertRaises(SystemExit):
                 parse_args(['sound.spectral', *bad])
+
+
+    def test_spectral_pi_stress_reaches_both_modes_on_actual_hops(self):
+        # At 48k/128 and size=3, each 4096/4-sample Spectral hop spans 8 blocks.
+        # The probe sets mode before every block; tick() reads it on each hop's
+        # last sample. Inspect the checked-in acceptance command directly.
+        task = Path(__file__).resolve().parents[3] / 'docs/tasks/S1_1_SPECTRAL.md'
+        lines = [line.strip() for line in task.read_text(encoding='utf-8').splitlines()
+                 if line.strip().startswith('- pi-run:') and '--alternate mode=' in line]
+        self.assertEqual(len(lines), 1)
+        args = parse_args(shlex.split(lines[0].split('tools/module_cpu_probe.py', 1)[1]))
+        self.assertEqual(args.module, 'sound.spectral')
+        self.assertIn('size=3', args.param)
+        self.assertIn('pitch=1', args.param)
+        control, values = args.alternate.split('=', 1)
+        first, second, every = values.split(':')
+        self.assertEqual((control, first, second), ('mode', '0', '1'))
+        every = int(every)
+        blocks_per_hop = (4096 // 4) // 128
+        sampled = [((hop * blocks_per_hop - 1) // every) % 2 for hop in range(1, 17)]
+        self.assertEqual(sampled, [0] * 4 + [1] * 4 + [0] * 4 + [1] * 4)
+        # Four-block toggles alias against eight-block hops: one sampled mode.
+        self.assertEqual(len({((hop * blocks_per_hop - 1) // 4) % 2
+                              for hop in range(1, 17)}), 1)
 
 
 if __name__ == '__main__':

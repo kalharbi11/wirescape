@@ -10,6 +10,7 @@ const MAP: Record<string, number> = {
 
 export class ComputerKeyboard {
   private octave = 4;
+  private enabled = true;
   private held = new Map<string, number>();
   onOctaveChange: (o: number) => void = () => {};
   onNotesChange: () => void = () => {};
@@ -17,6 +18,11 @@ export class ComputerKeyboard {
   constructor(private readonly engine: EngineClient) {}
 
   get currentOctave(): number { return this.octave }
+
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    if (!enabled) this.releaseAll('computer:');
+  }
 
   setOctave(octave: number): void {
     this.octave = Math.max(0, Math.min(8, octave));
@@ -48,7 +54,7 @@ export class ComputerKeyboard {
 
   attach(): () => void {
     const down = (e: KeyboardEvent) => {
-      if (!canPlayNotes()) return;
+      if (!this.enabled || !canPlayNotes()) return;
       if (e.code === 'KeyZ' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         this.setOctave(this.octave - 1); return;
       }
@@ -56,15 +62,15 @@ export class ComputerKeyboard {
         this.setOctave(this.octave + 1); return;
       }
       const semi = MAP[e.code];
-      if (semi === undefined || e.repeat || this.held.has(e.code) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (semi === undefined || e.repeat || this.held.has(`computer:${e.code}`) || e.metaKey || e.ctrlKey || e.altKey) return;
       e.preventDefault();
       const note = this.octave * 12 + semi;
-      this.press(e.code, note);
+      this.press(`computer:${e.code}`, note);
     };
     const up = (e: KeyboardEvent) => {
       const semi = MAP[e.code];
-      if (semi === undefined || !this.held.has(e.code)) return;
-      this.release(e.code);
+      if (semi === undefined) return;
+      this.release(`computer:${e.code}`);
     };
     const blur = () => {
       this.releaseAll();

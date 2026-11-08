@@ -30,7 +30,7 @@ test('a new pointer gesture preserves the pending keyboard edit as its own undo 
   expect(parameters.pitch1).toBeCloseTo(0.04);
   expect(parameters.gate1 ?? 1).toBe(1);
   await page.evaluate(() => window.__wirescapeTest.undo());
-  expect((await state(page)).modules[0].parameters.pitch1 ?? 0).toBe(0);
+  expect((await state(page)).modules[0].parameters?.pitch1 ?? 0).toBe(0);
 });
 
 test('rapid separate gate clicks create separate undo steps and commit at gesture end', async ({ page }) => {

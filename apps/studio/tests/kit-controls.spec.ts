@@ -19,7 +19,7 @@ const loadMods = async (page: Page, mods: [number, string, number, number][], co
 };
 
 const param = (page: Page, id: number, p: string) =>
-  page.evaluate(({ id, p }) => window.__wirescapeTest.state().modules.find((m: any) => m.id === id).parameters[p],
+  page.evaluate(({ id, p }) => window.__wirescapeTest.state().modules.find((m: any) => m.id === id).parameters?.[p],
     { id, p });
 
 const cableMid = (page: Page) => page.evaluate(() => {
