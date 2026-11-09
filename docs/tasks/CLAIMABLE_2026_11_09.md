@@ -1,9 +1,10 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# #393 Claimable integration queue — 2026-11-09
+# #393 / #455 Claimable integration queue — 2026-11-09
 
 Owner priorities: Groove S1 native first; stable16-step baseline; Interleave before Vocoder; MIDI and
 OSC actively progress. Groove already has agents: do not duplicate that lane.
 Lead review checkpoint #455; excludes #439 and Pi install/setup.
+READY means useful work is available, not merge-ready or contract-approved.
 This replaces stale ready/unclaimed lists. The live issue's latest claim wins.
 A handoff-ready branch can be continued; check for newer work before editing.
 Claim on the issue, continue its existing branch, sign exact-head evidence.
@@ -24,12 +25,14 @@ Native/Studio/WASM + task-specific Pi stress, independent T1, patch-guide update
 Run python tools/dev.py accept305 plus actual must_pass (including executable
 Pi cases); queued/prior-head checks are not proof. Done: playable reviewed mode6,
 correct current catalogue, source/phase behavior and persistence proven.
+Current83a4b05 has independent T1 without High/Medium and hosted native/Web PASS;
+verify all3 exact-head Pi probes and lead inherited-static classification before ready.
 Vocoder polish follows; no speculative new spectral architecture.
 
 ## READY 2 — MIDI completion (#381/#390; #290/#210; then #287)
 Continue task/381-midi-learn and task/163-midi-patchable, not duplicate APIs.
 Read latest381/390and290/210 handoffs and their named tasks.
-390current6a8be72 is mergeable and hosted/static/Web/WASM green; no stale conflict task.
+390current6a8be72 remains open and hosted/static/Web/WASM green; no stale conflict task.
 210currentdf81486 has exact Linux/Windows/sanitizers/privatePi PASS and independent
 T1 inspection without correctness findings; authored formatting and803cppcheck
 introduced-vs-upstream diagnostic classification remain, not an inherited-red waiver.
@@ -49,11 +52,13 @@ hardware MIDI. Chord's NOTE events need a separate production allocator, not mid
 Continue reusable task/72-osc work only after checking its latest handoff.
 Old82reviews cover oldQt/CLI code, not current Electron/stdio sidecar support.
 Read docs/tasks/J5_OSC_MONITOR.md, current architecture/protocol and82code.
-T0 inventory #440/#441ea39c09 already exists; finish review/gates for
+T0 inventory #440/#441ea39c09 selected acceptance/static/Linux/sanitizers passed.
+Lead names protected path on440 too; use current gatev4, not staleClaude-only request.
+Keep current-host task/inventory at
 docs/tasks/OSC_CURRENT_HOST_72.md: reusable codec/service/module/tests vs missing
 sidecar/Studio/Monitor/launcher seams. Keep frozenQt unchanged and avoid copying
 the entire stale52file PR into current app. Existing osc.in/monitor IDs stay.
-Then implement approved portable/current-host slices, with a separate Keel T2
+After actual inventory merge and Keel ruling, implement approved portable/current-host slices, with a separate Keel T2
 decision before any new protocol/settings/engine-ownership contract.
 Defaultlocalhost, LAN disabled and explicit owner consent; bound rings/strings,
 sharedports/lifetimes, stale timeout, reset/churn and scheduling must be tested.
@@ -69,7 +74,9 @@ reviewed T2/current-head evidence. Inventory-only is not implementation completi
 Read latest actual checks; source780e280 had all5render CTests and task-specific
 Pi acceptance pass; lead independent T1 review posted, size553→560 synchronized.
 Keep merged provenance/thresholds. Continue #386/#442 real-sidecar E2E
-save/reopen/refusal/reconnect/numeric telemetry; no second harness.
+save/reopen/refusal/numeric telemetry; no second harness. #442current1716e2a has
+3authored cases with hosted checks green. Fourth recovery case needs Keel safe injection
+ruling; no invented test-only protocol, Windows e2e not certified.
 Then386extends existing Electron real-sidecar e2e, not a second harness.
 296private lane remains open: fixed ci/pi-edit-soak/3900s timeout, independent
 Claude T2 review and actual3600s fake-device source-head evidence. Inspect private
@@ -87,37 +94,41 @@ The control-thread latency behavior remains T2; obtain Claude final review.
 Done: parameter-dependent latency refresh validated without callback allocation.
 
 ## READY 6 — Patch publishing rollout (#426/#427)
-Existing task/426-patch-designer-library. Current1207e40 selected acceptance/required jobs/static/Web/WASM and current-head
-independent review verified by lead; merge held for explicit owner permission after
-auto-review rejected enabling auto-merge. Do not claim merged/deployed.
-Runtime infrastructure has independent
-T1 review with Medium findings repaired; source variants passed31focused UI tests
-and WASM site, but final exact-head/full evidence and main reconciliation remain.
-Continue current branch, preserve latest guide/AGENTS owner delegation and STATE;
-don't overwrite live sequencer docs or module catalogues. Inspect latest427head.
-Resolve selected task-command bootstrap (bare Node was wrapped in bash) and actual
-new failures; don't misclassify shell setup as product correctness.
-Run accept426 and full Studio/Web-demo/current required checks, then authorized
-gate + verify main deploy/live and public upload/update/delete behavior.
-Future JSON-only designers have standing owner self-review/merge authority.
-No GitHub credentials/live sync in this implementation. Future428stays separate.
+Owner enabled auto-merge; no permission blocker remains for427. Still OPEN:
+latest head464c042 after conflict resolution; older1207e40checks are historical.
+Existing owner/Copilot conflict resolver retains branch; do not create a duplicate.
+Review main-integration delta, selected accept426, required/static/Studio/WASM
+on the resulting exact head. Preserve new task/planner content and owner guide.
+After ACTUAL merge verify main deployment and live8patches, plus upload/update/
+delete build behavior; site build or enabled auto-merge does not prove deployment.
+Future JSON-only designer authority applies as documented once actually merged.
+#456 coordination must retain these docs after427 main integration; no lost handoff.
+Future428live-sync stays separate; no credentials or speculative service.
 
 ## Not a new claimant / blocked contract
 - Groove432 native451: child454, task linkagebaceee6, lead index fix31e0aa8.
-  Existing builder: actual mute/conformance rerun, saturated NOTE_OFF/reload-pending
-  identity tests, authored formatting, accept454/Windows/privatePi/T1. No UI changes.
+  Existing builder: oldmute/conformance now PASS; fix102cycle fixture by draining
+  bounded egress between blocks, collect event identities, preserve loop assertion.
+  Separate forced NOTE_OFF saturation/reload-pending tests, formatting, accept454/
+  Windows/privatePi/T1. Web Electron fetch504 gets one infra retry, no product edit.
   S1(b) waits designer + Keel STOP/playhead observation ruling, not browser inference.
-- 401/405and408/410are with existing sequencer agents; explicit regression gate
+- 401/405current960ec61: fix cppcheck emit-macro parse atdsp.h:90 and pinned
+  formatting attests.cpp:376, then fresh acceptance/required/Studio/Pi/T1.
+  408/410waits actual405merge; explicit regression gate
   is in docs/sequencer/README.md. Groove430also stays with its existing agents.
 - Quantizer323is already implemented and independently reviewed at0acdad4;
   native/Windows/sanitizers/Studio/WASM/task PASS there. Root corrected2format-only
-  count-assertion wraps at385ad20. Exact385ad20 acceptance/required/Web/WASM green; static red and current-head delta
-  review remain. SDK64 #420 MERGED84f926b via gate after signed approval;
+  count-assertion wraps at385ad20. Exact385ad20 previous acceptance/required/Web/WASM green; current main conflict
+  now needs normal integration, fresh delta review/gates. Static was only inherited
+  host_keyboard/dsp.h parser diagnostic; lead classification, no blanket waiver. SDK64 #420 MERGED84f926b via gate after signed approval;
   selected commands/required/static reviewed green. No duplicate DSP.
 - Chord406 + Notes→CV423: Keel source/note identity/capacity/expression/channel
   ruling still required.423Medium baseline repair is executable docs work:
   directMIDI baseline native only, supported non-midi note source for WASM.
-- Audio routes399: fix unsupported task command via supported bash/Chromium,
+- Macro435/438current24787c6: preserve exact executable reset lifetime; Keel confirms
+  narrow memsetClass annotation/vendor baseline; currentWindows/static green,
+  confirm task external evidence and final-head T2 review before approval.
+- Audio routes399current67fc2bb: fix unsupported task command via supported bash/Chromium,
   then fake-state regression; native mono/backend/stream-restart needs Keel.
 - New sound.cross_mod332is lower priority until Interleave/MIDI/OSC slots clear.
 
