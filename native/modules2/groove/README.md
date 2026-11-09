@@ -1,48 +1,37 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Groove S1(a) native core
 
-`sequencing.groove`: two synchronized 32-step/sixteenth-note tracks at
-20–300 BPM; one two-bar master cycle, independent clocks per module instance.
-This is the native core; the stopped Studio editor is separate S1(b).
+`sequencing.groove` provides two synchronized 32-step sixteenth-note tracks
+(20–300 BPM) with independent per-module clocks. S1(b) supplies the Studio editor.
 
-## Authored `module.config` (persisted JSON, never POD)
-
+Persist JSON `module.config.version=1`, **not** the 4×64 transient POD:
 ```json
 {"version":1,"bpm":120,"tracks":[
  {"steps":[{"kind":"note","key":60,"velocity":0.8,"mod1":0.25,"mod2":0.75},{"kind":"tie"},{"kind":"rest"}]},
  {"armed":true,"mute":false,"steps":[{"kind":"note","key":67,"velocity":0.9}]}
 ]}
 ```
+Old S0 one-track patches remain valid. Accept 1–2 tracks, 1–32 steps
+(pad shorter tracks with rests), optional track `armed` true and `mute` false,
+optional step `mod1`/`mod2` 0..1 default zero. Notes need MIDI `key` 0..127
+and `velocity` 0..1; zero velocity rests, tie sustains. Unknown fields refuse.
 
-S0's one-track version 1 JSON is still valid. Accept 1–2 tracks and 1–32
-steps/track; pad shorter tracks with rests up to 32, without rewriting the
-authored patch. Optional track `armed`=true and `mute`=false; optional
-step `mod1`/`mod2` in 0..1 (defaults 0). Note requires MIDI
-`key` 0..127 and `velocity` 0..1; zero velocity is a rest. Tie sustains
-the previous note; rest releases. Unknown fields/types/ranges are refused.
+Permanent slots: `t1_pitch/gate/mod1/mod2/notes` (0–4), then
+`t2_pitch/gate/mod1/mod2/notes` (5–9); pitch 1V/oct C4=0, gate 0/1,
+mods 0..1 sample-held on admitted NOTE_ON. Pitch/mods hold on rest,
+tie, stop, reset; disabled track is zero. NOTE_OFF retry blocks later ON.
 
-Output slots 0–4 retain `t1_pitch/gate/mod1/mod2/notes`; slots 5–9
-append `t2_pitch/gate/mod1/mod2/notes`. Pitch is 1 V/oct (C4=0);
-gate is 0/1; both mods sample-hold 0..1 only on successfully emitted
-NOTE_ON. Pitch and mods hold through rest/tie/stop/reset. Disabled
-track 2 outputs zero. Notes use matched IDs and deferred NOTE_OFF retry.
+Edge parameters by slot: `run` 0, `stop` 1, `reset` 2, `mute` 3,
+`t1_run/stop/mute` 4/5/6, `t2_run/stop/mute` 7/8/9.
+First observed high is baseline, not START. Global STOP toggles a
+shared-step-32 boundary stop; track STOP queues its own exit, track START
+arms/queues entry; repeated actions toggle. Mute immediately releases
+but preserves phase. Reset releases, clears queues and waits for the
+next step-1 boundary. Priority: RESET > STOP > MUTE > START > tick.
 
-Parameter slots are `run`=0 (published S0 ID), `stop`=1,
-`reset`=2, `mute`=3, `t1_run`=4, `t1_stop`=5,
-`t1_mute`=6, `t2_run`=7, `t2_stop`=8, `t2_mute`=9.
-All commands need a fresh low→high edge after an initial saved-value
-baseline; high on load is never START. Global START plays step 1;
-global STOP toggles queue for the shared cycle end. Track START arms
-while globally stopped or queues entry at the next cycle boundary;
-track STOP queues exit (or cancels queued entry), and repeated
-requests toggle pending actions. MUTE toggles immediately, releases
-notes/gates without losing phase, and unmute awaits the next eligible
-note. RESET releases/clears queues, preserves running/armed/mute intent,
-then waits one sixteenth for step 1 if running. Same-frame precedence:
-RESET > STOP > MUTE > START > step tick; releases before note-ons.
-
-Edit only after **native confirmed STOP**; apply validated JSON through
-an off-thread candidate `loadGraph`, await ACK, then issue fresh START.
-Refusal retains the draft and must never start it. Applying may reset
-unrelated modules. Studio UI, completed-STOP/playhead reporting, native
-platform evidence and owner listening remain separate release gates.
+Draft edits require **native confirmed STOP**. Submit a validated candidate
+via off-render `loadGraph`, await load ACK, issue fresh START on success,
+and retain draft/do not start on refusal. Reload may interrupt other modules.
+S1(b) owns UI and truthful native STOP/playhead observation; no new protocol
+or live-edit seam is implemented here. Platform/Pi and owner audio remain
+release gates.
