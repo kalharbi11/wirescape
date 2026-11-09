@@ -13,6 +13,7 @@ bool active = true, refuse = false, enumeration_throws = false, render = false;
 uint32_t rejected_rate = 0;
 std::string rate_refused_id;
 int stopped = 0, exchanges = 0;
+std::atomic<uint64_t> completed_blocks{0};
 AppEngine *engine = nullptr;
 }
 // Legacy-shaped fake output: the id is the bare name, as before host-API identity.
@@ -51,6 +52,7 @@ Stream::Stream(EngineOwner &owner, const StreamSelection &selection, double rate
             while (!impl->quit.load()) {
                 live = impl->slot.adopt(live);
                 app_engine_render_live(live, rows, 2, block, app_engine_clock_ns());
+                fake::completed_blocks.fetch_add(1, std::memory_order_release);
                 std::this_thread::sleep_for(period);
             }
         });
@@ -311,6 +313,15 @@ int main() {
             check(failed["code"] == "unavailable" && s.status()["gen"] == gen && audio(s)["state"] == "running" &&
                       audio(s)["sampleRate"] == 48000,
                   "post-start preferences failure rolls back the live graph and configuration");
+            // Starting a stream does not mean its first callback ran (notably on Windows).
+            // Panic marks a pending engine reset; wait for real render progress before an edit.
+            const auto completed = fake::completed_blocks.load(std::memory_order_acquire);
+            const auto deadline = std::chrono::steady_clock::now() + 1s;
+            while (fake::completed_blocks.load(std::memory_order_acquire) == completed &&
+                   std::chrono::steady_clock::now() < deadline)
+                std::this_thread::yield();
+            check(fake::completed_blocks.load(std::memory_order_acquire) > completed,
+                  "the restored stream must render before testing its editable graph");
             auto edit = s.reply({{{"v", 0},
                                   {"id", "old-graph"},
                                   {"type", "setParam"},
@@ -319,7 +330,8 @@ int main() {
                                   {"value", 4}},
                                  {},
                                  {}});
-            check(edit["ok"] == true, "the previous document remains editable after rollback");
+            if (edit["ok"] != true)
+                throw std::runtime_error("the previous document remains editable after rollback: " + edit.dump());
             check(s.telemetry()["telemetry"]["phase"].contains("2"), "previous telemetry storage survives rollback");
         }
         fake::render = false;
