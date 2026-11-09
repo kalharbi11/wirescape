@@ -58,6 +58,16 @@ export class PatchDoc {
   }
 
   replace(patch: PatchV2): void {
+    // Validate the ingress envelope before clearing the current editable document.
+    // Legacy Python/visual formats are inspection-only, never native migrations.
+    if (!patch || patch.format !== 'wirescape.native.patch' ||
+        !Number.isInteger(patch.version) || ![1, 2].includes(patch.version)) {
+      throw new Error('Unsupported patch format or version; the current patch was kept.');
+    }
+    if ((patch.modules !== undefined && !Array.isArray(patch.modules)) ||
+        (patch.connections !== undefined && !Array.isArray(patch.connections))) {
+      throw new Error('Invalid patch containers; the current patch was kept.');
+    }
     // Mirror the native document's v1 migration, preserving the original envelope.
     if ((patch as { version: number }).version === 1) patch = migrateV1(patch);
     patch = structuredClone(patch);
