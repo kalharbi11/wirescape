@@ -19,6 +19,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "foundation"))
+# --check-only must not create helpers.__pycache__ on its very first invocation.
+sys.dont_write_bytecode = True
 from helpers import discover_toolchain, tool_version  # noqa: E402
 
 NODE_LTS = {22, 24, 26}  # Maintained even-numbered LTS releases in Nov 2026.
@@ -102,6 +104,10 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
     present = [key for key in inherited if os.environ.get(key)]
     check("no inherited Qt overrides", not present,
           "Unset process-local Qt/CMake overrides: " + ", ".join(present) + ". Do not change global user settings.")
+    # tools/dev.py configures -S native -B build/native using this discovered generator.
+    # An own, headless cache is reusable; reject foreign/Qt-enabled caches without
+    # deleting them or assuming that a freshly built Pi cache is stale.
+    expected_generator = discover_toolchain().get("generator")
     for cache in (root / "build/CMakeCache.txt", root / "build/native/CMakeCache.txt"):
         if not cache.is_file():
             continue
@@ -109,17 +115,26 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
             contents = cache.read_text(encoding="utf-8", errors="replace")
         except OSError:
             contents = ""
-        match = re.search(r"^CMAKE_HOME_DIRECTORY:[^=]*=(.*)$", contents, re.M)
-        expected = (root / "native").resolve()
-        match_arch = re.search(r"^CMAKE_SYSTEM_PROCESSOR:[^=]*=(.*)$", contents, re.M)
-        same_source = bool(match and Path(match.group(1)).resolve() == expected)
-        same_arch = not match_arch or match_arch.group(1).lower() in ("aarch64", "arm64")
-        qt_values = re.findall(r"^(?:Qt6_DIR|CMAKE_PREFIX_PATH):[^=]*=(.*)$", contents, re.M)
-        qt_cache = any(v.strip() and not v.strip().endswith("-NOTFOUND")
-                       for v in qt_values)
-        check(f"cache:{cache.relative_to(root)}", same_source and same_arch and not qt_cache,
-              "Cache source/architecture mismatch or Qt override. Owner: move the build directory aside "
-              "(do not delete it), then rerun; inspect CMAKE_HOME_DIRECTORY and CMAKE_SYSTEM_PROCESSOR.")
+        values = {}
+        for line in contents.splitlines():
+            if line.startswith(("#", "//")) or "=" not in line or ":" not in line:
+                continue
+            name_type, value = line.split("=", 1)
+            name = name_type.split(":", 1)[0]
+            values[name] = value.strip()
+        source = values.get("CMAKE_HOME_DIRECTORY", "")
+        same_source = bool(source and Path(source).resolve() == (root / "native").resolve())
+        arch = values.get("CMAKE_SYSTEM_PROCESSOR", "").lower()
+        same_arch = not arch or arch in ("aarch64", "arm64")
+        same_generator = bool(expected_generator and values.get("CMAKE_GENERATOR") == expected_generator)
+        qt_cache = any(values.get(key, "") and not values[key].endswith("-NOTFOUND")
+                       for key in ("Qt6_DIR", "CMAKE_PREFIX_PATH"))
+        ui_enabled = values.get("WIRESCAPE_BUILD_UI", "").upper() in ("ON", "TRUE", "YES", "1")
+        check(f"cache:{cache.relative_to(root)}",
+              same_source and same_arch and same_generator and not qt_cache and not ui_enabled,
+              "Cache source/architecture/generator mismatch or Qt UI override. Owner: inspect "
+              "CMAKE_HOME_DIRECTORY, CMAKE_SYSTEM_PROCESSOR, CMAKE_GENERATOR and WIRESCAPE_BUILD_UI; "
+              "move an incompatible build directory aside (never delete it automatically).")
     return checks, {"sha": sha if rc == 0 else None, "architecture": arch, "tools": tools}
 
 
