@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Replay the shared protocol v0 transcript against the real null-audio sidecar."""
 import json
+import os
 import math
 from pathlib import Path
 import queue
@@ -212,7 +213,8 @@ class Engine:
         self.audit = audit
         self.process = subprocess.Popen([binary, '--null-audio', '--settings', str(settings)],
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE)
+                                        stderr=subprocess.PIPE,
+                                        env={**os.environ, 'WIRESCAPE_PIPE_TRACE': '1'})
         self.messages = queue.Queue()
         self.reader_errors = []
         self.stderr_tail = bytearray()

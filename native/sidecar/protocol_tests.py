@@ -2,6 +2,7 @@
 """Process conformance: pipes, null sink and an explicitly fake device catalogue."""
 import atexit
 import json
+import os
 import queue
 import re
 import subprocess
@@ -26,7 +27,8 @@ class Engine:
     def __init__(self, settings, *extra):
         self.process = subprocess.Popen([BINARY, '--null-audio', '--settings', str(settings), *extra],
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE)
+                                        stderr=subprocess.PIPE,
+                                        env={**os.environ, 'WIRESCAPE_PIPE_TRACE': '1'})
         self.messages = queue.Queue()
         self.errors = []
         self.serial = 0
