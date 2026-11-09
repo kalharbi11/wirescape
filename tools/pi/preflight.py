@@ -124,7 +124,7 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
         qt_cache = any(values.get(key, "") and not values[key].endswith("-NOTFOUND")
                        for key in ("Qt6_DIR", "CMAKE_PREFIX_PATH"))
         ui_enabled = values.get("WIRESCAPE_BUILD_UI", "").upper() in ("ON", "TRUE", "YES", "1")
-        check(f"cache:{cache.relative_to(root)}",
+        check(f"cache:{cache.relative_to(root).as_posix()}",
               same_source and same_arch and same_generator and not qt_cache and not ui_enabled,
               "Cache source/architecture/generator or Qt UI mismatch. Inspect CMAKE_HOME_DIRECTORY, "
               "CMAKE_SYSTEM_PROCESSOR, CMAKE_GENERATOR, WIRESCAPE_BUILD_UI; move incompatible "

@@ -48,8 +48,9 @@ class PiPreflightTests(unittest.TestCase):
         return {name for name, ok, _ in preflight.inspect(self.root)[0] if not ok}
 
     def test_check_only_is_read_only_even_with_spaces(self):
-        snapshot = lambda: {str(p.relative_to(self.root)): p.read_bytes()
-                            for p in self.root.rglob("*") if p.is_file()}
+        def snapshot():
+            return {str(p.relative_to(self.root)): p.read_bytes()
+                    for p in self.root.rglob("*") if p.is_file()}
         before = snapshot()
         self.assertEqual(preflight.preflight(self.root), 0)
         self.assertEqual(before, snapshot())
@@ -113,8 +114,9 @@ class PiPreflightTests(unittest.TestCase):
             dest = tools / folder
             dest.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source / folder / filename, dest / filename)
-        snapshot = lambda: {str(p.relative_to(self.root)): p.read_bytes()
-                            for p in self.root.rglob("*") if p.is_file()}
+        def snapshot():
+            return {str(p.relative_to(self.root)): p.read_bytes()
+                    for p in self.root.rglob("*") if p.is_file()}
         before = snapshot()
         env = {k: v for k, v in os.environ.items() if k not in
                ("PYTHONDONTWRITEBYTECODE", "PYTHONPYCACHEPREFIX")}
