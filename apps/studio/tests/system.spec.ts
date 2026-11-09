@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { test, expect, type Page } from '@playwright/test';
 import { boot } from './helpers';
+import { mockBridge } from './mock-bridge/bridge';
 
 /** Phase 5: system status and settings against the fake engine. */
 
@@ -89,6 +90,31 @@ test.describe('system', () => {
     await expect(page.getByTestId('audio-rate').locator('option')).toHaveAttribute('value', '96000');
     await page.getByTestId('audio-buffer').selectOption('512');
     expect(await page.evaluate(() => window.__wirescapeTest.engine.contractBufferCalled)).toBe(512);
+  });
+
+  test('audio route: mock bridge disables mono and hides unsupported capability controls', async ({ page }) => {
+    await mockBridge(page);
+    await boot(page);
+    await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
+    await page.evaluate(() => {
+      const e = window.__wirescapeTest.engine;
+      e.listAudioDevices = async () => [
+        { id: 'USB Stereo', name: 'USB Stereo', kind: 'audio', index: 3,
+          backend: 'ALSA', outputChannels: 2, supported: true, sampleRates: [48000] },
+        { id: 'Mono DAC', name: 'Mono DAC', kind: 'audio', index: 4,
+          backend: 'ALSA', outputChannels: 1, supported: false, unsupportedReason: 'mono-output' },
+      ];
+    });
+    await page.getByTestId('open-settings').click();
+    const options = page.getByTestId('audio-device').locator('option');
+    await expect(options.filter({ hasText: 'Mono DAC' })).toBeDisabled();
+    await expect(options.filter({ hasText: 'Mono DAC' })).toContainText('mono-output');
+    await expect(options.filter({ hasText: 'USB Stereo' })).toContainText('ALSA · 2 channels');
+    await expect(page.getByTestId('audio-route-status')).toContainText('ALSA · 2 channels');
+    await expect(page.getByTestId('audio-rate')).toHaveCount(0);
+    await expect(page.getByTestId('audio-buffer')).toHaveCount(0);
+    const wire = await page.evaluate(() => (window as any).__mockBridge.sent as any[]);
+    expect(wire.some(m => m.type === 'selectAudioDevice' && m.deviceId === 'Mono DAC')).toBe(false);
   });
 
   test('audio route: stale remembered identity never silently selects the first output', async ({ page }) => {
