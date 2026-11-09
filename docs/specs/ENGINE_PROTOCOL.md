@@ -66,7 +66,7 @@ interface WirescapeBridge {
 
 Wire `type` is the `EngineClient` method name, except `ccMap.set`. Numbers are finite JSON numbers, module instance IDs are positive uint32, parameter and port IDs are stable strings from the catalogue. `Connection` is the exact UI object `{kind:"signal"|"event"|"modulation",from:{module,port},to:{module,port},amount?}`; modulation `amount` is in `[-1,1]`. Unknown document fields are preserved, never rewritten by these operations.
 
-**Apply class:** `live` = enqueue on the existing bounded event queue (accepted ≠ already rendered); `swap` = construct/validate candidate off-thread, then D5 stop→swap→start/fade until #209 live replan is available; `control` = ordered non-RT service work without graph replacement; `query` = ordered read. **Latency:** `block` = delivered no earlier than next rendered block, no guaranteed wall time while stopped; `edit` = D5 graph-interruption gap ≤150 ms on a functioning audio device (processing time is separate); `device` = device reopen/retry may exceed 150 ms; `immediate` = ordered control-thread answer, no audio deadline.
+**Apply class:** `live` = enqueue on the existing bounded event queue (accepted ≠ already rendered); `swap` = construct/validate candidate off-thread, then live replan, else D5: mute → the running callback adopts the prepared graph at a block boundary (no device reopen) → fade in; only a stopped or lost stream restarts; `control` = ordered non-RT service work without graph replacement; `query` = ordered read. **Latency:** `block` = delivered no earlier than next rendered block, no guaranteed wall time while stopped; `edit` = D5 graph-interruption gap ≤150 ms on a functioning audio device (processing time is separate); `device` = device reopen/retry may exceed 150 ms; `immediate` = ordered control-thread answer, no audio deadline.
 
 | `type` | Payload in command (besides envelope) | Apply | Latency |
 |---|---|---|---|
@@ -81,7 +81,7 @@ Wire `type` is the `EngineClient` method name, except `ccMap.set`. Numbers are f
 | `noteOff` | `note:integer` 0..127 (never silently drop) | live, priority | block |
 | `panic` | `{}` | live, priority release-all | block |
 | `listAudioDevices` | `{}`; result `{devices: Device[]}` | query | immediate |
-| `selectAudioDevice` | `deviceId:string` (exact audio name; not the request `id`) | control / audio reopen | device |
+| `selectAudioDevice` | `deviceId:string` (audio `Device.id`; not the request `id`) | control / audio reopen | device |
 | `listMidiDevices` | `{}`; result `{devices: Device[]}` | query | immediate |
 | `setMidiEnabled` | `deviceId:string` (from `Device.id`), `on:boolean` | control / MIDI subscriptions | device |
 | `midiLearn` *(capability-gated)* | `armed:boolean`; result `{armed:boolean}` | control / transient observation | immediate |
@@ -108,7 +108,7 @@ UI `PatchV2` is the authority for saving: `format:"wirescape.native.patch"`, roo
 
 ## 6. Device catalogue, MIDI endpoint selection and persistence
 
-`Device` matches UI `EngineClient.Device`: `{id:string,name:string,kind:"audio"|"midi",enabled?:boolean,sampleRates?:number[]}`, with the additional MIDI `system_name` and optional audio `index` (informational only). `listAudioDevices` lists **PortAudio stereo-capable output** devices, not inputs; the persistent `id` is the exact device **name**, not a PortAudio index. If two current outputs share a name, selection by that ambiguous id refuses `duplicate`; no index is silently persisted. Only advertise actual supported sample rates; omit `sampleRates` when unknown.
+`Device` matches UI `EngineClient.Device`: `{id:string,name:string,kind:"audio"|"midi",enabled?:boolean,sampleRates?:number[]}`, with the additional MIDI `system_name` and optional audio `index` (informational only). `listAudioDevices` lists **PortAudio stereo-capable output** devices, not inputs; the persistent `id` is `"<host API>|<name>"`, with `#<n>` appended for the n-th (n ≥ 2) output sharing that host API and name in enumeration order (Windows lists each endpoint once per host API and repeats names inside one, e.g. `"Windows WDM-KS|Headphones ()#2"`), never a PortAudio index, which shifts on hot-plug. Audio devices also carry optional `hostApi` (display only). A stored pre-identity bare name is upgraded once when exactly one output has it; when several do it can never open, so the default output is used instead (Keel, 2026-11-09). Only advertise actual supported sample rates; omit `sampleRates` when unknown.
 
 `listMidiDevices` lists **libremidi input** endpoints with exact `name` and `system_name` (as `play --list-midi` prints). Stable UI id is `name + "|" + system_name` (never the volatile backend index), `enabled` reflects actual remembered selection and authorization. The `midi.in` instance `config` selects either:
 - `{}` or `{"endpoint":"all_enabled"}` = **all currently enabled** MIDI inputs; enabling another device includes it automatically. Both spellings are equivalent (`native/control/midi_host.cpp`); the UI writes back whichever form the patch already had and never normalises one into the other.

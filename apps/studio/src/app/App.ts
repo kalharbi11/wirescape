@@ -7,7 +7,7 @@ import { History } from '../patch/History';
 import type { Connection, PatchV2 } from '../patch/types';
 import { FakeEngine } from '../engine/FakeEngine';
 import { RealEngine } from '../engine/RealEngine';
-import { EngineRefusal, type SystemStatus, type EngineClient } from '../engine/EngineClient';
+import { EngineRefusal, type SystemStatus, type EngineClient, type Device } from '../engine/EngineClient';
 import { Ticker } from '../runtime/Ticker';
 import { PatchCanvas, type Selection } from '../canvas/PatchCanvas';
 import { CanvasPane } from '../panels/widgets/canvasBase';
@@ -411,7 +411,10 @@ export class App {
 
   // ---- patch lifecycle --------------------------------------------------
 
-  async loadPatch(patch: PatchV2, name = 'Untitled', forceSaveAs = false): Promise<void> {
+  async loadPatch(patch: PatchV2, name = 'Untitled', forceSaveAs = false, restoring = false): Promise<void> {
+    // What is showing (and, if it ran, still sounding) before this load.
+    const previous = restoring ? undefined : { patch: this.doc.toJSON(), name: this.patchName,
+      dirty: this.doc.dirty, bundled: this.bundledPatch, restoreHistory: this.history?.checkpoint() };
     this.ticker.resetTelemetry();
     this.doc.replace(patch);
     this.patchName = name;
@@ -439,7 +442,19 @@ export class App {
     this.pasteCount = 0;
     this.bundledPatch = forceSaveAs;
     try { await running; }
-    catch (e) { this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error'); }
+    catch (e) {
+      // The engine refused to switch (audio swap, busy) and kept the previous graph.
+      // Never leave this patch on screen while the previous one sounds and takes MIDI.
+      if (previous && e instanceof EngineRefusal && e.detail.engine &&
+          (e.detail.code === 'unavailable' || e.detail.code === 'busy')) {
+        this.toasts.show(`${name} could not start: ${e.message}. Still playing ${previous.name}.`, 'error');
+        await this.loadPatch(previous.patch, previous.name, previous.bundled, true);
+        previous.restoreHistory?.();
+        if (previous.dirty) { this.doc.markDirty(); this.refreshDirty(); }
+        return;
+      }
+      this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error');
+    }
   }
 
   // ---- system (phase 5) ---------------------------------------------------
@@ -965,7 +980,14 @@ export class App {
           engine.setSampleRate?.(Number(rates.value));
         }
       };
-      const sel = select(devices.map(d => ({ value: d.id, label: d.name })), currentId, v => {
+      // Windows repeats names across (and within) host APIs; the id tells them apart.
+      const repeats = (d: Device) => devices.filter(o => o.name === d.name).length > 1;
+      const label = (d: Device) => {
+        if (!repeats(d)) return d.name;
+        const n = /#(\d+)$/.exec(d.id)?.[1];
+        return `${d.name} — ${d.hostApi ?? 'audio'}${n ? ` ${n}` : ''}`;
+      };
+      const sel = select(devices.map(d => ({ value: d.id, label: label(d) })), currentId, v => {
         engine.selectAudioDevice(v);
         if (engine.setSampleRate) refreshRates(v);
       });
