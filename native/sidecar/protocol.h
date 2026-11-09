@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include <condition_variable>
-#include <memory>
 #include <deque>
 #include <functional>
 #include <istream>
+#include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
 #include <ostream>
