@@ -26,3 +26,23 @@ S1 will add 2×32 steps, two active mods, queued transport and a stopped
 Studio editor/Apply acknowledgement. No live-edit, seamless Apply, or
 finished instrument is claimed by this proof. Physical listening is
 owner-only.
+
+## Stopped configuration workflow (manual S0 / S1 UI contract)
+
+**Confirm global sequencer STOP has completed**, not merely been requested
+or queued. Edit an **authored draft** `module.config` while stopped; never
+change the render-owned module state directly. Apply by submitting a
+candidate through the existing off-render `loadGraph`/config reload
+transaction, then await the **native load ACK**. On success the new graph
+starts stopped; issue a fresh Start to play from step 1. On a native
+refusal retain the draft and report the refusal; **never start a rejected
+candidate**. Existing graph reload may interrupt/reset other modules,
+so seamless Apply and phase continuity are later work. S0 exposes this
+as a manual contract only: it **does not** provide a graphical editor,
+global STOP acknowledgement, or a native loaded/refused UI. Those
+belong to #432 (S1).
+
+The S0 config v1 restriction (one eight-step track) is persisted and
+must remain readable when S1 introduces two 32-step tracks. Any schema
+version migration/extension and true queued transport needs Keel T2
+review. Live per-step editing is deferred to S2 or explicitly S3.
