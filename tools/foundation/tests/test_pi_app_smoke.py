@@ -109,7 +109,7 @@ class PiAppSmokeTests(unittest.TestCase):
             calls.append(command)
             if env.get('WIRESCAPE_PI_APP_SMOKE'):
                 self.assertEqual(command[:2], ['/usr/bin/xvfb-run', '-a'])
-                self.assertEqual(env['WIRESCAPE_PI_DISPLAY_BACKEND'], 'xvfb')
+                self.assertEqual(env['WIRESCAPE_PI_DISPLAY_BACKEND'], 'x11')
                 return 0, json.dumps({'stats': {'expected': 1}})
             self.assertNotIn('xvfb-run', command)
             return 0, 'mock build'
@@ -120,6 +120,19 @@ class PiAppSmokeTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(result['display_backend'], 'xvfb')
         self.assertEqual(len(calls), 5)
+
+    def test_failed_playwright_json_reaches_bounded_sanitized_reason(self):
+        error = {'message': 'backend assertion token=private-word ' + str(self.root) + ' ' + 'x' * 5000}
+        output = json.dumps({'suites': [{'specs': [{'tests': [{'results': [{'errors': [error]}]}]}]}]})
+        def fake_run(command, cwd, env, seconds):
+            return (1, output) if env.get('WIRESCAPE_PI_APP_SMOKE') else (0, 'mock build')
+        with patch.object(smoke, 'run_child', side_effect=fake_run):
+            code, result = smoke.run(self.report, 900)
+        self.assertEqual(code, 1)
+        self.assertIn('backend assertion token=<redacted> <checkout>', result['reason'])
+        self.assertNotIn('private-word', result['reason'])
+        self.assertLess(len(result['reason']), 2100)
+        self.assertIn('xvfb-run: error: Xauthority missing', smoke.failure_detail('xvfb-run: error: Xauthority missing'))
 
     def test_success_real_test_count_profile_cleanup_and_source_provenance(self):
         created = []

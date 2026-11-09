@@ -87,6 +87,28 @@ def tool_versions() -> dict[str, str | None]:
     return info
 
 
+def failure_detail(output: str) -> str:
+    """Expose bounded structured errors, never a raw log/environment dump."""
+    messages = []
+    try:
+        pending = [json.loads(output)]
+        for _ in range(200):
+            if not pending or len(messages) >= 3:
+                break
+            item = pending.pop()
+            if not isinstance(item, dict):
+                continue
+            for error in item.get("errors", [])[:3]:
+                if isinstance(error, dict):
+                    messages.append(str(error.get("message") or error.get("value") or "Unknown Playwright error")[:1200])
+            for key in ("suites", "specs", "tests", "results"):
+                pending.extend(item.get(key, [])[:50])
+    except (ValueError, TypeError):
+        messages = [line[:1200] for line in output.splitlines()
+                    if line.startswith(("Error:", "xvfb-run:", "Cannot start Playwright:", "Owned smoke process group timed out"))][:3]
+    return sanitize("\n".join(messages))[:2000] or "No structured Playwright error; inspect playwright.log"
+
+
 def check_environment(artifacts: bool = True) -> tuple[list[str], str | None]:
     problems = []
     if platform.system() != "Linux" or platform.machine().lower() not in ("aarch64", "arm64"):
@@ -165,6 +187,7 @@ def run(report: Path, timeout: int) -> tuple[int, dict]:
             code, output = 127, f"Cannot start {name}: {error}"
         (report / f"{name}.log").write_text(sanitize(output[:3 * 1024 * 1024]), encoding="utf-8")
         result["stages"].append({"stage": name, "exit_code": code, "log": name + ".log"})
+        print(f"Pi app smoke stage {name}: exit {code}; log {name}.log", flush=True)
         if code:
             result["status"] = "failed" if code != 127 else "blocked"
             result["reason"] = f"{name} failed (exit {code}); inspect the stage log and fix the owner-managed prerequisite"
@@ -188,7 +211,7 @@ def run(report: Path, timeout: int) -> tuple[int, dict]:
     with tempfile.TemporaryDirectory(prefix="wirescape pi isolated profile ") as profile:
         env = {**os.environ, "WIRESCAPE_PI_APP_SMOKE": "1",
                "WIRESCAPE_TEST_STUB": "0", "WIRESCAPE_PI_PROFILE_DIR": profile,
-               "WIRESCAPE_PI_DISPLAY_BACKEND": backend,
+               "WIRESCAPE_PI_DISPLAY_BACKEND": "x11" if backend == "xvfb" else backend,
                "WIRESCAPE_REAL_ENGINE": str(REQUIRED["engine"])}
         try:
             code, output = run_child(command, ROOT / "apps/desktop", env,
@@ -200,7 +223,7 @@ def run(report: Path, timeout: int) -> tuple[int, dict]:
     result["stages"].append(stage)
     if code:
         result["status"] = "failed"
-        result["reason"] = "Real Electron/sidecar test failed or timed out; see playwright.log and failure traces"
+        result["reason"] = f"real-electron failed (exit {code}):\n" + failure_detail(output)
         return 1, result
     try:
         data = json.loads(output)
