@@ -65,6 +65,17 @@ export class App {
   private zoomLabel!: HTMLElement;
   private dirtyDot!: HTMLElement;
   private nameEl!: HTMLElement;
+  private draftLabel!: HTMLElement;
+  private openDraftButton!: HTMLButtonElement;
+  private applyDraftButton!: HTMLButtonElement;
+  private backToPlayingButton!: HTMLButtonElement;
+  private readonly draftEngine: FakeEngine;
+  private refusedDraft: { patch: PatchV2; name: string; bundled: boolean } | null = null;
+  private draftVisible = false;
+  private playingSnapshot: {
+    patch: PatchV2; name: string; bundled: boolean; dirty: boolean;
+    restoreHistory?: () => void;
+  } | null = null;
   private octaveEl!: HTMLElement;
   private lastStatus: SystemStatus | null = null;
   private fileInput!: HTMLInputElement;
@@ -89,6 +100,8 @@ export class App {
     this.engine = window.wirescape
       ? new RealEngine(window.wirescape, () => this.doc.toJSON(), registry)
       : new FakeEngine(registry);
+    // Never started: edits to a refused draft must not reach the playing graph.
+    this.draftEngine = new FakeEngine(registry);
     this.root = el('div', 'app');
     this.root.dataset.testid = 'app';
   }
@@ -135,11 +148,11 @@ export class App {
       onSelectionChange: s => this.onSelectionChange(s),
       rename: id => this.renameModule(id),
       engineConnect: c => {
-        this.engine.connect(c);
+        this.editEngine().connect(c);
         this.trackRollback(() => { this.doc.disconnect(c); this.canvas.shake(c.to.module); });
       },
       engineDisconnect: c => {
-        this.engine.disconnect(c);
+        this.editEngine().disconnect(c);
         this.trackRollback(() => { if (!this.doc.has(c)) this.doc.connect(c); });
       },
     });
@@ -203,7 +216,9 @@ export class App {
     this.dirtyDot.dataset.testid = 'dirty-dot';
     this.dirtyDot.title = 'Unsaved changes';
     const path = el('div', 'patch-path');
-    path.append(el('span', 'patch-prefix', 'PATCH /'), this.nameEl, this.dirtyDot);
+    this.draftLabel = el('span', 'patch-prefix', 'DRAFT · NOT RUNNING');
+    this.draftLabel.dataset.testid = 'draft-not-running';
+    path.append(el('span', 'patch-prefix', 'PATCH /'), this.nameEl, this.dirtyDot, this.draftLabel);
     left.append(menuBtn, path);
 
     const right = el('div', 'topbar-right');
@@ -253,7 +268,11 @@ export class App {
     this.redoBtn.title = 'Redo (Ctrl/Cmd + Shift + Z)';
     const history = el('div', 'zoom-group history-group');
     history.append(this.undoBtn, this.redoBtn);
+    this.openDraftButton = this.action('OPEN REFUSED DRAFT', () => this.openRefusedDraft(), 'open-refused-draft');
+    this.applyDraftButton = this.action('APPLY DRAFT', () => void this.applyRefusedDraft(), 'apply-refused-draft');
+    this.backToPlayingButton = this.action('BACK TO PLAYING', () => this.backToPlaying(), 'back-to-playing');
     tools.append(
+      this.openDraftButton, this.applyDraftButton, this.backToPlayingButton,
       keys,
       this.action('NEW', () => this.newPatch(), 'new-patch'),
       this.action('OPEN', () => void this.openPatchFile(), 'open-patch'),
@@ -265,6 +284,7 @@ export class App {
     // Keep zoom at the start of the scrollable mobile toolbar, after patches.
     right.append(starters, this.octaveEl, zoomGroup, history, tools);
     bar.append(left, right);
+    this.refreshDraftControls();
     return bar;
   }
 
@@ -310,7 +330,7 @@ export class App {
     this.history.onChange(() => this.refreshHistory());
     this.ticker.throttleHz = this.prefs.profile === 'pi' ? 30 : 0;
     this.ticker.start();
-    this.engine.onTelemetry(t => this.ticker.push(t));
+    this.engine.onTelemetry(t => { if (!this.draftVisible) this.ticker.push(t); });
     this.engine.onStatus(s => { this.announceStatus(this.lastStatus, s); this.lastStatus = s; this.statusBar.update(s); });
     this.engine.onRefusal?.(r => this.toasts.show(r.detail.message, 'error'));
     if (this.engine instanceof RealEngine) {
@@ -411,7 +431,90 @@ export class App {
 
   // ---- patch lifecycle --------------------------------------------------
 
+  /** Patch edits are simulated while the real sidecar keeps the previous graph running. */
+  private editEngine(): EngineClient {
+    return this.draftVisible ? this.draftEngine : this.engine;
+  }
+
+  private refreshDraftControls(): void {
+    const show = (button: HTMLButtonElement, visible: boolean) => {
+      button.hidden = !visible;
+      button.style.display = visible ? '' : 'none';
+    };
+    show(this.openDraftButton, !!this.refusedDraft && !this.draftVisible);
+    show(this.applyDraftButton, this.draftVisible);
+    show(this.backToPlayingButton, this.draftVisible);
+    this.draftLabel.hidden = !this.draftVisible;
+    this.draftLabel.style.display = this.draftVisible ? '' : 'none';
+    this.refreshDirty();
+  }
+
+  /** The playing patch is untouched: only the editor and its fake edit target change. */
+  private openRefusedDraft(): void {
+    if (!this.refusedDraft || this.draftVisible) return;
+    this.playingSnapshot = { patch: this.doc.toJSON(), name: this.patchName,
+      dirty: this.doc.dirty, bundled: this.bundledPatch, restoreHistory: this.history.checkpoint() };
+    const draft = this.refusedDraft;
+    this.draftVisible = true;
+    this.doc.replace(draft.patch);
+    this.patchName = draft.name;
+    this.nameEl.textContent = draft.name;
+    this.bundledPatch = draft.bundled;
+    this.maxModuleId = Math.max(0, ...draft.patch.modules.map(m => m.id));
+    void this.draftEngine.loadGraph(this.doc.toJSON());
+    this.doc.markDirty(); // A draft must never appear clean, even after Save.
+    this.history.reset();
+    this.ticker.resetTelemetry();
+    this.canvas.select({ kind: 'none' });
+    this.canvas.invalidateAnchors();
+    this.refreshDraftControls();
+  }
+
+  private backToPlaying(): void {
+    if (!this.draftVisible || !this.playingSnapshot) return;
+    this.refusedDraft = { patch: this.doc.toJSON(), name: this.patchName, bundled: this.bundledPatch };
+    const playing = this.playingSnapshot;
+    this.draftVisible = false;
+    this.playingSnapshot = null;
+    this.doc.replace(playing.patch);
+    this.patchName = playing.name;
+    this.nameEl.textContent = playing.name;
+    this.bundledPatch = playing.bundled;
+    this.maxModuleId = Math.max(0, ...playing.patch.modules.map(m => m.id));
+    this.doc.markClean();
+    if (playing.dirty) this.doc.markDirty();
+    this.history.reset();
+    playing.restoreHistory?.();
+    this.ticker.resetTelemetry();
+    this.canvas.select({ kind: 'none' });
+    this.canvas.invalidateAnchors();
+    this.refreshDraftControls();
+  }
+
+  private async applyRefusedDraft(): Promise<void> {
+    if (!this.draftVisible) return;
+    this.applyDraftButton.disabled = true;
+    try {
+      // Submit the actual edited document; do not overwrite it with the playing patch.
+      await this.engine.loadGraph(this.doc.toJSON());
+      this.draftVisible = false;
+      this.refusedDraft = null;
+      this.playingSnapshot = null;
+      this.doc.markDirty();
+      this.history.reset();
+      this.ticker.resetTelemetry();
+      this.autosave(true);
+      this.refreshDraftControls();
+      this.toasts.show(`${this.patchName} is now running.`);
+    } catch (e) {
+      this.toasts.show(e instanceof Error ? e.message : 'Draft could not run; still playing the previous patch.', 'error');
+    } finally {
+      this.applyDraftButton.disabled = false;
+    }
+  }
+
   async loadPatch(patch: PatchV2, name = 'Untitled', forceSaveAs = false, restoring = false): Promise<void> {
+    if (this.draftVisible) this.backToPlaying();
     // What is showing (and, if it ran, still sounding) before this load.
     const previous = restoring ? undefined : { patch: this.doc.toJSON(), name: this.patchName,
       dirty: this.doc.dirty, bundled: this.bundledPatch, restoreHistory: this.history?.checkpoint() };
@@ -441,16 +544,24 @@ export class App {
     this.autosave(true);
     this.pasteCount = 0;
     this.bundledPatch = forceSaveAs;
-    try { await running; }
-    catch (e) {
+    try {
+      await running;
+      if (!restoring) {
+        this.refusedDraft = null;
+        this.playingSnapshot = null;
+        this.refreshDraftControls();
+      }
+    } catch (e) {
       // The engine refused to switch (audio swap, busy) and kept the previous graph.
       // Never leave this patch on screen while the previous one sounds and takes MIDI.
       if (previous && e instanceof EngineRefusal && e.detail.engine &&
           (e.detail.code === 'unavailable' || e.detail.code === 'busy')) {
-        this.toasts.show(`${name} could not start: ${e.message}. Still playing ${previous.name}.`, 'error');
+        this.refusedDraft = { patch: this.doc.toJSON(), name, bundled: forceSaveAs };
+        this.toasts.show(`${name} could not start: ${e.message}. Still playing ${previous.name}. Open the refused draft to edit it.`, 'error');
         await this.loadPatch(previous.patch, previous.name, previous.bundled, true);
         previous.restoreHistory?.();
         if (previous.dirty) { this.doc.markDirty(); this.refreshDirty(); }
+        this.refreshDraftControls();
         return;
       }
       this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error');
@@ -519,7 +630,7 @@ export class App {
     this.canvas.select({ kind: 'none' });
     this.ticker.resetTelemetry();
     this.doc.replace({ ...p, ui: { ...(p.ui ?? {}), view } });
-    void this.engine.loadGraph(this.doc.toJSON()).catch(e =>
+    void this.editEngine().loadGraph(this.doc.toJSON()).catch(e =>
       this.toasts.show(e instanceof Error ? e.message : 'The snapshot could not run.', 'error'));
     requestAnimationFrame(() => this.canvas.invalidateAnchors());
     this.refreshDirty();
@@ -598,7 +709,7 @@ export class App {
     for (const m of clip.modules) {
       const id = this.allocateId();
       const params = m.parameters ?? {};
-      try { this.engine.addModule(id, m.module, params); }
+      try { this.editEngine().addModule(id, m.module, params); }
       catch { skipped.push(m.module); continue; }
       this.doc.addModule(m.module, params, m.pos[0] + dx, m.pos[1] + dy, id);
       this.trackRollback(() => this.doc.removeModule(id));
@@ -613,7 +724,7 @@ export class App {
       const nc: Connection = { ...c, from: { ...c.from, module: from }, to: { ...c.to, module: to } };
       if (this.doc.has(nc)) continue;
       this.doc.connect(nc);
-      try { this.engine.connect(nc); this.trackRollback(() => this.doc.disconnect(nc)); }
+      try { this.editEngine().connect(nc); this.trackRollback(() => this.doc.disconnect(nc)); }
       catch { this.doc.disconnect(nc); continue; }
       const col = clip.colors[connKey(c)];
       if (col) this.doc.setCableColor(connKey(nc), col);
@@ -669,7 +780,7 @@ export class App {
   }
 
   private refreshDirty(): void {
-    this.dirtyDot.classList.toggle('on', this.doc.dirty);
+    this.dirtyDot.classList.toggle('on', this.doc.dirty || this.draftVisible);
   }
 
   // ---- edits through the engine -----------------------------------------
@@ -682,7 +793,7 @@ export class App {
     const before = this.doc.param(moduleId, paramId);
     this.doc.setParam(moduleId, paramId, value);
     try {
-      this.engine.setParam(moduleId, paramId, value);
+      this.editEngine().setParam(moduleId, paramId, value);
       this.trackRollback(() => {
         const m = this.doc.modules.get(moduleId);
         if (before === undefined && m?.parameters) delete m.parameters[paramId];
@@ -705,9 +816,9 @@ export class App {
   private setMidiEndpoint(moduleId: number, endpoint: string, systemName?: string): void {
     const previous = this.doc.toJSON();
     this.doc.setModuleEndpoint(moduleId, endpoint, systemName);
-    void this.engine.loadGraph(this.doc.toJSON()).catch(err => {
+    void this.editEngine().loadGraph(this.doc.toJSON()).catch(err => {
       this.doc.replace(previous);
-      void this.engine.loadGraph(previous);
+      void this.editEngine().loadGraph(previous);
       this.toasts.show(err instanceof Error ? err.message : 'MIDI endpoint change was refused.', 'error');
     });
   }
@@ -715,7 +826,7 @@ export class App {
   private commitModAmount(c: Connection, amount: number, _commit: boolean): void {
     const previous = this.doc.connections.find(x => connKey(x) === connKey(c))?.amount;
     this.doc.setModAmount(c, amount);
-    this.engine.setModAmount(c, amount);
+    this.editEngine().setModAmount(c, amount);
     this.trackRollback(() => this.doc.setModAmount(c, previous ?? 0));
   }
 
@@ -743,7 +854,7 @@ export class App {
 
     const id = this.allocateId();
     try {
-      this.engine.addModule(id, type, params);
+      this.editEngine().addModule(id, type, params);
     } catch (err) {
       this.toasts.show(err instanceof EngineRefusal ? err.message : 'The engine refused that module.', 'error');
       return null;
@@ -830,7 +941,7 @@ export class App {
     const s = this.canvas.currentSelection;
     if (s.kind === 'cable') {
       this.doc.disconnect(s.c);
-      try { this.engine.disconnect(s.c); this.trackRollback(() => this.doc.connect(s.c)); }
+      try { this.editEngine().disconnect(s.c); this.trackRollback(() => this.doc.connect(s.c)); }
       catch { /* ignore */ }
       this.canvas.select({ kind: 'none' });
       this.toasts.show('Cable removed.');
@@ -842,7 +953,7 @@ export class App {
         const pos = this.doc.position(id), label = this.doc.label(id);
         const cables = this.doc.connections.filter(c => c.from.module === id || c.to.module === id).map(c => structuredClone(c));
         this.doc.removeModule(id);
-        this.engine.removeModule(id);
+        this.editEngine().removeModule(id);
         this.trackRollback(() => {
           this.doc.addModule(original.module, original.parameters ?? {}, pos[0], pos[1], id);
           Object.assign(this.doc.modules.get(id)!, original);
@@ -1252,13 +1363,13 @@ export class App {
 
   /** Never recycle numeric IDs within a loaded document on the real sidecar. */
   private allocateId(): number {
-    if (!(this.engine instanceof RealEngine)) return this.doc.nextId();
+    if (this.draftVisible || !(this.engine instanceof RealEngine)) return this.doc.nextId();
     this.maxModuleId = Math.max(this.maxModuleId, ...this.doc.modules.keys(), 0) + 1;
     return this.maxModuleId;
   }
 
   private trackRollback(undo: () => void): void {
-    if (this.engine instanceof RealEngine) this.engine.registerRollback(undo);
+    if (!this.draftVisible && this.engine instanceof RealEngine) this.engine.registerRollback(undo);
   }
 
   // ---- test hooks -------------------------------------------------------
@@ -1284,7 +1395,7 @@ export class App {
       addModule: (type: string) => this.addModuleCentred(type),
       connect: (c: Connection) => {
         this.doc.connect(c);
-        try { this.engine.connect(c); this.trackRollback(() => this.doc.disconnect(c)); }
+        try { this.editEngine().connect(c); this.trackRollback(() => this.doc.disconnect(c)); }
         catch (e) { this.doc.disconnect(c); throw e; }
       },
       deleteSelection: () => this.deleteSelection(),
