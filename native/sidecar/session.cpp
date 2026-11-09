@@ -420,7 +420,11 @@ void Session::commit(Json patch, bool new_namespace) {
     const auto period = std::chrono::microseconds(int64_t(1e6 * double(options_.block) / double(options_.rate)));
     if ((stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire)) {
         app_engine_begin_master_fade_out(active_);
-        const auto deadline = begun + std::max<std::chrono::microseconds>(kMuteBudget, 2 * period);
+        // Acknowledging a mute needs the in-flight block to finish, one fade block and one
+        // entirely silent block: two periods is the bare minimum with no scheduling margin,
+        // which a block-paced sink (Windows timer granularity) can miss. Stretch to three
+        // periods, matching the gap budget below; kMuteBudget is unchanged at normal blocks.
+        const auto deadline = begun + std::max<std::chrono::microseconds>(kMuteBudget, 3 * period);
         while (!app_engine_master_fade_silent(active_)) {
             // D6 may lose the stream during a refused replan or the D5 fade.
             // A callback that no longer renders cannot acknowledge a mute.
