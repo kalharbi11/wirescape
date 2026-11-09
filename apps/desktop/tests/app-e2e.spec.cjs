@@ -267,6 +267,8 @@ test('real sidecar: device-free ADSR and modulated cutoff telemetry carry numeri
     const patch = JSON.parse(fs.readFileSync(example, 'utf8'));
     patch.modules = patch.modules.filter(m => ![1, 2, 9].includes(m.id));
     patch.modules.push({ id: 1, module: 'host.keyboard', version: 1, parameters: { voices: 4 } });
+    // Avoid the original 20 Hz floor masking a valid negative LFO modulation.
+    patch.modules.find(m => m.id === 4).parameters.cutoff = 650;
     patch.connections = patch.connections.filter(c =>
       ![1, 2, 9].includes(c.from.module) && ![1, 2, 9].includes(c.to.module));
     patch.connections.push(
@@ -286,6 +288,15 @@ test('real sidecar: device-free ADSR and modulated cutoff telemetry carry numeri
       .at(-1).telemetry.effective['4'].cutoff);
     expect(cutoff).toBeGreaterThanOrEqual(20);
     expect(cutoff).toBeLessThanOrEqual(20000);
+    // Two same-generation native samples must actually differ: merely reading
+    // the stored base cutoff (650 Hz) would otherwise satisfy the range check.
+    await expect.poll(() => page.evaluate(() => {
+      const gen = window.__e2e.filter(m => m.ok === true && /^ui\d+$/.test(m.re ?? '')).at(-1)?.gen;
+      const values = window.__e2e.filter(m => m.type === 'telemetry' && m.gen === gen)
+        .map(m => m.telemetry?.effective?.['4']?.cutoff)
+        .filter(Number.isFinite);
+      return values.length > 1 ? Math.max(...values) - Math.min(...values) : 0;
+    }), { timeout: 10000 }).toBeGreaterThan(0.5);
     await page.evaluate(() => window.__wirescapeTest.noteOff(60));
     await expect.poll(() => page.evaluate(() => {
       const envelope = window.__e2e.filter(m =>
