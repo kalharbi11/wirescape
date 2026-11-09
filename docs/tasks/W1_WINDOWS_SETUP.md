@@ -3,7 +3,9 @@
 
 Claim: board #473 row 4. Keel's 2026-11-09 ruling on #436 supersedes the
 older install scope. This is a source build, **not** a downloadable installer.
-The accepted build SHA is the eventual merge commit of #463, not a guess.
+Keel's accepted #463 runtime merge SHA must be identified. The owner-run
+checkout also needs this setup script, so a combined SHA containing both is
+a review gate; do not guess or mislabel the runtime-only SHA.
 
 ## Read first
 - AGENTS.md, docs/WORKFLOW.md, #436 latest Keel ruling and handoffs.
