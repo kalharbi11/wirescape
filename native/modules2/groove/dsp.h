@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
-#if defined(__cppcheck__)
-// cppcheck's Qt library defines emit even for non-Qt translation units.
-// Keep the SDK event method visible to analysis; QT_NO_KEYWORDS only affects Qt headers.
+#ifdef emit
+// Qt and cppcheck's Qt model can define this keyword even in a non-Qt module.
+// The SDK uses emit as a C++ method name, so remove the conflicting macro before inclusion.
 #undef emit
 #endif
 #include "config.h"
