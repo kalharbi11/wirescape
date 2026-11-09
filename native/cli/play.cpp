@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "play.h"
+#include "../io/audio/portaudio_service.h"
+#include "midi_backend.h"
 #include "midi_host.h"
 #include "runtime_patch.h"
-#include "../io/audio/portaudio_service.h"
 #include "wirescape/output_policy.h"
 #include <algorithm>
 #include <atomic>
@@ -12,6 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -33,6 +35,56 @@ int wirescape_play(int argc,char**argv){
             throw std::runtime_error("--list-midi requires explicit confirmation with --confirm-midi");
         wirescape::midi::Host midi(true);
         for (const auto &endpoint : midi.endpoints()) std::cout << endpoint.name << "|" << endpoint.system_name << '\n';
+        return 0;
+    }
+    if (has("--monitor-midi")) {
+        // Owner diagnostic: opens one input through the engine's own MIDI backend and prints
+        // every message, bypassing the app, Settings and patch routing. Needs --confirm-midi.
+        if (!has("--confirm-midi"))
+            throw std::runtime_error("--monitor-midi requires explicit confirmation with --confirm-midi");
+        std::string wanted;
+        uint32_t seconds = 15;
+        for (int i = 2; i + 1 < argc; ++i) {
+            if (std::string(argv[i]) == "--monitor-midi") wanted = argv[i + 1];
+            if (std::string(argv[i]) == "--seconds") seconds = integer(argv[i + 1], 600);
+        }
+        auto backend = wirescape::midi::real_backend(true);
+        const auto endpoints = backend->endpoints();
+        auto found = std::find_if(endpoints.begin(), endpoints.end(), [&](const auto &e) {
+            return e.name == wanted || e.name + "|" + e.system_name == wanted;
+        });
+        if (found == endpoints.end()) throw std::runtime_error("No MIDI input named " + wanted + " (see --list-midi)");
+        struct Log {
+            std::mutex mutex;
+            std::vector<std::vector<uint8_t>> messages;
+        } log;
+        wirescape::midi::Callback callback;
+        callback.context = &log;
+        callback.message = [](void *context, const uint8_t *bytes, size_t size, uint64_t) {
+            auto &l = *static_cast<Log *>(context);
+            std::lock_guard<std::mutex> lock(l.mutex);
+            if (l.messages.size() < 4096) l.messages.emplace_back(bytes, bytes + size);
+        };
+        if (!backend->open(*found, callback)) throw std::runtime_error("Could not open " + found->name);
+        std::cout << "Listening to " << found->name << " for " << seconds << " s; press keys now." << '\n'
+                  << std::flush;
+        size_t total = 0;
+        for (uint32_t tick = 0; tick < seconds * 10; ++tick) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::vector<std::vector<uint8_t>> batch;
+            {
+                std::lock_guard<std::mutex> lock(log.mutex);
+                batch.swap(log.messages);
+            }
+            for (const auto &m : batch) {
+                ++total;
+                std::cout << "midi";
+                for (auto b : m) std::cout << ' ' << std::hex << int(b) << std::dec;
+                std::cout << '\n';
+            }
+        }
+        backend->close(*found);
+        std::cout << total << " messages received" << '\n' << std::flush;
         return 0;
     }
  std::string midiName;bool confirmMidi=false;

@@ -2,6 +2,7 @@
 #pragma once
 #include "app_engine.h"
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <stdexcept>
@@ -14,7 +15,7 @@ class ShutdownFailure : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 struct Device {
-    std::string name;
+    std::string id, name, host_api;
     int index = -1;
     bool is_default = false;
     std::string backend;
@@ -23,8 +24,19 @@ struct Device {
     bool supported = true;
     std::string unsupported_reason;
 };
+// Stable output identity. Windows exposes one endpoint per host API (MME, DirectSound,
+// WASAPI, WDM-KS) and repeats names even inside one host API, so the id is
+// "<host API>|<name>", with "#<n>" for the n-th repeat (n >= 2) of that pair in
+// enumeration order. Raw PortAudio indices shift on any hot-plug and are never ids.
+struct RawDevice {
+    std::string name, host_api;
+};
+std::vector<std::string> device_ids(const std::vector<RawDevice> &devices);
+// Resolves a selection to a position in `devices`: an exact id first, then a legacy
+// bare name only when exactly one device has it. Returns -1 when missing or ambiguous.
+int resolve_device(const std::vector<Device> &devices, const std::string &selection);
 struct StreamSelection {
-    std::string directory, name;
+    std::string directory, name; // name holds a device id (or a unique legacy name)
 };
 std::vector<Device> devices(const std::string &directory);
 // Control-owned stream. Context exclusively owns the engine until stop proves
@@ -38,6 +50,10 @@ class Stream {
            std::function<void()> stop_producers = {});
     ~Stream();
     EngineOwner stop();
+    // Hands `next` to the running callback at a block boundary without reopening the
+    // device. On success `next` holds the retired engine, which the callback no longer
+    // touches. False (deadline passed or no stream) leaves both engines unchanged.
+    bool exchange(EngineOwner &next, std::chrono::steady_clock::time_point deadline);
     bool running() const;
     double cpu_percent() const;
     uint64_t dropouts() const;

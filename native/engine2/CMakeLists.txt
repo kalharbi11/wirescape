@@ -83,6 +83,8 @@ endforeach()
 
 add_library(wirescape_catalog_dependencies INTERFACE)
 target_link_libraries(wirescape_catalog_dependencies INTERFACE wirescape_voice2)
+add_library(ws2_groove SHARED ../modules2/groove/module.cpp)
+target_link_libraries(ws2_groove PRIVATE wirescape_sdk2)
 add_library(ws2_host_keyboard SHARED ../modules2/host_keyboard/module.cpp)
 target_link_libraries(ws2_host_keyboard PRIVATE wirescape_sdk2 wirescape_voice2)
 
@@ -159,6 +161,8 @@ add_test(NAME abi2_module_cpu_probe_stress_smoke COMMAND abi2_module_cpu_probe -
 set_tests_properties(abi2_module_cpu_probe_stress_smoke PROPERTIES PASS_REGULAR_EXPRESSION "\"allocations\":0,\"faults\":0")
 add_test(NAME abi2_module_cpu_probe_poly_smoke COMMAND abi2_module_cpu_probe --module essentials.vco --seconds 0.2 --channels 8)
 set_tests_properties(abi2_module_cpu_probe_poly_smoke PROPERTIES PASS_REGULAR_EXPRESSION "\"channels\":8.*\"allocations\":0,\"faults\":0")
+add_test(NAME abi2_module_cpu_probe_spectral_smoke COMMAND abi2_module_cpu_probe --module sound.spectral --seconds 0.2 --param size=3 --param pitch=1 --alternate mode=0:1:32)
+set_tests_properties(abi2_module_cpu_probe_spectral_smoke PROPERTIES PASS_REGULAR_EXPRESSION "\"allocations\":0,\"faults\":0")
 add_test(NAME abi2_module_cpu_probe_unit COMMAND ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/../tools/foundation/tests/test_module_cpu_probe.py)
 
@@ -166,7 +170,7 @@ add_executable(abi2_host_keyboard_tests ../modules2/host_keyboard/tests.cpp ../t
 target_link_libraries(abi2_host_keyboard_tests PRIVATE wirescape_engine2 wirescape_voice2)
 add_test(NAME abi2_host_keyboard_tests COMMAND abi2_host_keyboard_tests)
 
-add_library(wirescape_audio_service STATIC ../io/audio/portaudio_service.cpp)
+add_library(wirescape_audio_service STATIC ../io/audio/portaudio_service.cpp ../io/audio/device_identity.cpp)
 target_link_libraries(wirescape_audio_service PUBLIC wirescape_app_engine PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
 target_link_libraries(wirescape_cli PRIVATE wirescape_runtime_document wirescape_audio_service)
 add_executable(audio_callback_live_midi_tests ../io/audio/callback_live_midi_tests.cpp ../tests2/allocation_watch.cpp)
@@ -208,3 +212,8 @@ if(TARGET wirescape_document)
 endif()
 add_subdirectory(../modules2/chaos_lite chaos_lite)
 add_subdirectory(../modules2/blend blend)
+add_subdirectory(../modules2/resonator resonator)
+add_subdirectory(../modules2/spectral spectral)
+add_subdirectory(../modules2/delay delay)
+add_subdirectory(../modules2/reverb reverb)
+add_subdirectory(../modules2/quantizer quantizer)

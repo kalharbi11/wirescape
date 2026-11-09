@@ -198,7 +198,7 @@ The CHAOS two-instance reference is a 120-second offline CPU render on the Pi at
 - `ws::Block`: `frames()`, `channels()`, `sample_rate()`, `frame_position()`, `in(i)`, `param(i)`, `out(i)`, `events()`, `events_in(port)`, `split(range, event)`, `emit(port, e)`, `transport()`.
 - Signal view: `channels()`, `constant()`, `connected()`, `ch(c)[i]`, `value(c, i)`, `row(c, scratch, frames)`. Output: `set_channels(n)`, `ch(c)` (writable), `mark_constant(bool)`, `channels()`.
 - Helpers (`native/sdk/signals.h`): `ws::Schmitt`, `ws::Trigger` (≥1 ms), `ws::Random` (`seed(instance, channel)`, `next()`, `bipolar()`, `save()`, `restore()`), `ws::LinearRamp`. `native/sdk/simd.h`: `ws::simd::f4` (load/store, `+ - *`). `native/sdk/fastmath.h`: `tan_small` only for |x| ≤ 0.25 rad. No global fast-math flags; keep `double` only where precision needs it.
-- Limits: 16 channels, 32 ports, 32 parameters, event payload ≤ 1,472 bytes.
+- Limits: 16 channels, 32 ports, 64 parameters (raised from 32 in #402; a module above 32 fails cleanly on older hosts), event payload ≤ 1,472 bytes.
 - Known SDK gaps (additive fixes planned after J9): no `Schmitt::high()`, no stepped-parameter helper (spell out `WS2_STEPPED|WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1`), no 64-bit `Writer`/`Reader` helpers, `Reader` can't report remaining bytes, `reset()` can't emit events (the host chokes notes on reset).
 - **Compatibility promise (from J-R2):** additive SDK changes only; a breaking change needs a migration note here and in the PR.
 
@@ -222,7 +222,7 @@ Many modules start as a working prototype (a JS AudioWorklet, an offline "render
 | Two sources picked from menus | Two signal inputs (`A`, `B`); an unpatched input reads silence. Mode menus become stepped parameters; continuous controls become modulatable parameters with CV. |
 | A stereo result `[L, R]` | Two outputs declared as a stereo pair (`stereo_pair`); channels stay voices (§5). |
 | Large audio history (STFT rings, delay lines, grain buffers) | Not saved in state. Save settings, positions, RNG and phase; on load the module restarts its analysis deterministically. The §12 state test then checks save → load → run equals a fresh instance on the same schedule (Keel, #302). |
-| Latency that depends on a parameter (FFT size) | Return the current value from `latency_frames()` (a relaxed atomic written in `process`); the engine reads it at plan build, so document that it updates on the next replan. |
+| Latency that depends on a parameter (FFT size) | Return the current value from `latency_frames()`, published atomically by `process` (relaxed ordering suffices for the reported count). The engine can query it on the control thread concurrently with `process`, refreshing latency on replan and at status ticks (at most 10 Hz). |
 | Display data (spectrograms, provenance tints, waveforms) | Not part of the module. Telemetry is Phase 3A; leave a note in `DESIGN.md`. |
 | Uses a helper the SDK lacks (an FFT, a resampler) | Write it inside the module folder as original code, or stop and ask (a new dependency is a stop, `AGENTS.md`). Promote to `native/sdk/` later only with a Keel ruling. |
 | Loads files (samples, impulse responses) | Not yet: modules can't do I/O. That waits for the sample buffer service (PLAN Track S3). Capture from a live input instead. |

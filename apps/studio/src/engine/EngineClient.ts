@@ -15,12 +15,24 @@ export interface Device {
   system_name?: string;
   /** Present for audio devices. */
   sampleRates?: number[];
+  /** Audio: PortAudio host API (e.g. "Windows WASAPI"); the id is `hostApi|name[#n]`. */
+  hostApi?: string;
   enabled?: boolean;
   kind: 'audio' | 'midi';
 }
 
 export type AudioState =
   | 'starting' | 'running' | 'no-device' | 'device-lost' | 'reconnecting';
+
+/** Transient engine MIDI CC observation. Sequence wraps at uint32; compare inequality only. */
+export interface MidiLearn {
+  armed: true;
+  seq?: string;
+  deviceId?: string;
+  channel?: number;
+  controller?: number;
+  value?: number;
+}
 
 export interface SystemStatus {
   audio: {
@@ -38,6 +50,8 @@ export interface SystemStatus {
     devices: Device[];
     /** deviceId -> 0..1 activity, decaying. */
     activity: Record<string, number>;
+    /** Only present while the engine is armed; no observation fields until first CC. */
+    learn?: MidiLearn;
   };
   /** Present only while a Clock module exists in the graph. */
   clock?: { bpm: number; running: boolean };
@@ -91,6 +105,8 @@ export interface Telemetry {
 export interface EngineError {
   code: 'unknown-module' | 'kind-mismatch' | 'duplicate' | 'not-found' | 'refused' | 'invalid' | 'busy' | 'limit' | 'unavailable';
   message: string;
+  /** The engine itself answered with this refusal (not a local supersede/disconnect). */
+  engine?: true;
 }
 
 /** Thrown/returned when the engine refuses an edit; the UI rolls back. */
@@ -127,6 +143,8 @@ export interface EngineClient {
   selectAudioDevice(id: string): void;
   listMidiDevices(): Promise<Device[]>;
   setMidiEnabled(id: string, on: boolean): void;
+  /** Capability-gated. Single engine-side armed observation, no DSP/document state. */
+  midiLearn?(armed: boolean): void;
 
   // ---- optional (phase 5): engines may omit these; the UI hides what's missing
   setSampleRate?(hz: number): void;

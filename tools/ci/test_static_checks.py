@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 import os
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -7,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import static_checks
+from tools.ci import static_checks
 
 ANALYSIS_UNITS = static_checks.analysis_units
 
@@ -18,7 +19,7 @@ class StaticChecksTests(unittest.TestCase):
     def setUp(self):
         def units(root, files):
             return [{"file": str(root / f), "directory": str(root),
-                     "command": "c++ -c " + f} for f in files]
+                     "command": "c++ -c " + f, "build": str(root / "build/static")} for f in files]
         mock = patch.object(static_checks, "analysis_units", side_effect=units)
         mock.start()
         self.addCleanup(mock.stop)
@@ -34,9 +35,43 @@ class StaticChecksTests(unittest.TestCase):
             deps = "test.o: #deps 2, deps mtime 1 (VALID)\n    " + str(root / "native/nested.h")
             deps += "\n    " + str(root / "native/catalog.inc") + "\n"
             with patch.object(static_checks.subprocess, "check_output", return_value=deps):
-                self.assertEqual(ANALYSIS_UNITS(root, {"native/nested.h": [], "native/catalog.inc": []}), entries)
+                self.assertEqual(ANALYSIS_UNITS(root, {"native/nested.h": [], "native/catalog.inc": []},
+                                                builds=("build/static",)), [{**e, "build": str(build)} for e in entries])
                 with self.assertRaisesRegex(ValueError, "No compiled owner"):
-                    ANALYSIS_UNITS(root, {"native/orphan.h": []})
+                    ANALYSIS_UNITS(root, {"native/orphan.h": []}, builds=("build/static",))
+
+    def test_multiple_builds_require_valid_databases_and_union_ownership(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            for name, source in (("static", "native/test.cpp"), ("static-web", "native/web/test.cpp")):
+                build = root / "build" / name
+                build.mkdir(parents=True)
+                entry = {"directory": str(build), "file": str(root / source),
+                         "command": "c++ -o test.o -c " + str(root / source)}
+                (build / "compile_commands.json").write_text(json.dumps([entry]))
+            with patch.object(static_checks.subprocess, "check_output", return_value="test.o: #deps 0 (VALID)\n"):
+                units = ANALYSIS_UNITS(root, {"native/web/test.cpp": []})
+                self.assertEqual([u["build"] for u in units], [str(root / "build/static-web")])
+                for stale in (0, 1):
+                    deps = ["test.o: #deps 0 (VALID)\n"] * 2
+                    deps[stale] = "test.o: #deps 0 (STALE)\n"
+                    with patch.object(static_checks.subprocess, "check_output", side_effect=deps):
+                        with self.assertRaisesRegex(ValueError, "Stale compiler dependencies"):
+                            ANALYSIS_UNITS(root, {"native/web/test.cpp": []})
+                (root / "build/static-web/compile_commands.json").unlink()
+                with self.assertRaises(FileNotFoundError):
+                    ANALYSIS_UNITS(root, {"native/test.cpp": []})
+
+    def test_tidy_selects_each_units_build(self):
+        entries = [{"file": "native/web/test.cpp", "directory": "/repo", "command": "c++ -c test.cpp",
+                    "build": "/repo/build/static-web"}]
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(static_checks, "analysis_units", return_value=entries), \
+                patch.object(static_checks.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
+            self.assertEqual(static_checks.run_checks(Path(tmp), DIFF, "unused"), 0)
+            self.assertEqual(run.call_args_list[0].args[0][1:3], ["-p", entries[0]["build"]])
+            project = json.loads((Path(tmp) / "build/static/cppcheck_changed.json").read_text())
+            self.assertNotIn("build", project[0])
 
     def test_missing_database_fails_closed_but_runs_other_tools(self):
         with tempfile.TemporaryDirectory() as tmp, \
@@ -96,6 +131,55 @@ class StaticChecksTests(unittest.TestCase):
         with patch.object(static_checks.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
             self.assertEqual(static_checks.run_checks(Path("."), diff, "tidy.py"), 0)
             self.assertEqual([c.args[0][0] for c in run.call_args_list], ["cppcheck", "actionlint"])
+
+
+    def baseline_fixture(self, root):
+        source = root / "native/modules2/macro_oscillator/CMakeLists.txt"
+        source.parent.mkdir(parents=True)
+        source.write_text("pinned source config")
+        data = {"schema": 1, "source_sha256": {
+            source.relative_to(root).as_posix(): hashlib.sha256(source.read_bytes()).hexdigest()},
+            "diagnostics": [{"path": "eurorack/plaits/test.h", "line": 10, "column": 2,
+                             "id": "uninitMemberVar", "message": "Existing vendor finding"}]}
+        (source.parent / "cppcheck-baseline.json").write_text(json.dumps(data))
+        return source
+
+    def test_only_exact_pinned_vendor_findings_are_baselined(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            self.baseline_fixture(root)
+            finding = "plaits/test.h:10:2: warning: Existing vendor finding [uninitMemberVar]"
+            for build in ("static", "static-web"):
+                output = str(root / ("build/" + build + "/_deps/macro_eurorack-src")) + "/" + finding
+                filtered, code, count = static_checks.pinned_cppcheck_baseline(root, output, 42)
+                self.assertEqual((filtered, code, count), ("", 0, 1))
+                # Crashes/non-findings exits are never converted into success.
+                self.assertEqual(static_checks.pinned_cppcheck_baseline(root, output, 1)[1], 1)
+                for changed in (output.replace(":10:", ":11:"),
+                                output.replace("Existing vendor", "New vendor"),
+                                output.replace("uninitMemberVar", "otherFinding"),
+                                output.replace("warning:", "error:"),
+                                output.replace("build/" + build + "/_deps/macro_eurorack-src", "native")):
+                    self.assertEqual(static_checks.pinned_cppcheck_baseline(root, changed, 42),
+                                     (changed, 42, 0))
+
+    def test_source_pin_change_invalidates_vendor_baseline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            source = self.baseline_fixture(root)
+            source.write_text("different dependency config")
+            with self.assertRaisesRegex(ValueError, "invalidated"):
+                static_checks.pinned_cppcheck_baseline(root, "", 0)
+
+    def test_mixed_vendor_and_first_party_findings_still_fail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            self.baseline_fixture(root)
+            vendor = str(root / "build/static/_deps/macro_eurorack-src/plaits/test.h")
+            known = vendor + ":10:2: warning: Existing vendor finding [uninitMemberVar]"
+            own = str(root / "native/test.h") + ":10:2: warning: Real defect [uninitMemberVar]"
+            filtered, code, count = static_checks.pinned_cppcheck_baseline(root, known + "\n" + own, 42)
+            self.assertEqual((filtered, code, count), (own, 42, 1))
 
 
 if __name__ == "__main__":

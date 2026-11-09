@@ -45,3 +45,39 @@ test('mode visibility retains parameter values and modulation cables', async ({ 
   await expect(depth).toBeVisible();
   expect((await state(page)).connections).toEqual(saved.connections);
 });
+
+test('Quantizer Custom notes retain saved values through scale changes and reload', async ({ page }) => {
+  await boot(page);
+  const notes = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`n${i}`, i % 2]));
+  await page.evaluate(parameters => window.__wirescapeTest.load({
+    format: 'wirescape.native.patch', version: 2,
+    modules: [{ id: 1, module: 'essentials.quantizer', parameters: { scale: 1, ...parameters } }],
+    connections: [],
+    ui: { positions: { 1: [100, 100] }, view: { x: 0, y: 0, zoom: 0.7 } },
+  }), notes);
+  const scale = page.getByTestId('select-1-scale');
+  const expectNotes = async (visible: boolean) => {
+    for (let i = 0; i < 12; ++i) {
+      const note = page.getByTestId(`number-1-n${i}`);
+      if (visible) await expect(note).toBeVisible();
+      else await expect(note).toBeHidden();
+    }
+  };
+  const expectSavedNotes = async () => {
+    const parameters = (await state(page)).modules[0].parameters;
+    for (const [id, value] of Object.entries(notes)) expect(parameters[id]).toBe(value);
+  };
+  await expectNotes(false); // Major
+  await scale.selectOption('13'); // Custom
+  await expectNotes(true);
+  await expectSavedNotes();
+  await scale.selectOption('1'); // Major
+  await expectNotes(false);
+  await expectSavedNotes();
+  const saved = await state(page);
+  await page.evaluate(patch => window.__wirescapeTest.load(patch), saved);
+  await expectNotes(false);
+  await scale.selectOption('13');
+  await expectNotes(true);
+  await expectSavedNotes();
+});

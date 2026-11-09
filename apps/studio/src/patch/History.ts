@@ -63,6 +63,21 @@ export class History {
     this.changed();
   }
 
+  /** Save the current document's history before a provisional patch load. */
+  checkpoint(): () => void {
+    this.flush();
+    const past = [...this.past], future = [...this.future], current = this.current;
+    return () => {
+      this.clearTimer();
+      this.pending = false;
+      this.finishingPointer = false;
+      this.past = [...past];
+      this.future = [...future];
+      this.current = current;
+      this.changed();
+    };
+  }
+
   get canUndo(): boolean { return this.past.length > 0 || (this.pending && this.snap() !== this.current); }
   get canRedo(): boolean { return this.future.length > 0; }
   get depth(): { past: number; future: number } { return { past: this.past.length, future: this.future.length }; }
