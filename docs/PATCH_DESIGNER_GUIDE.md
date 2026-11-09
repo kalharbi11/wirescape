@@ -103,6 +103,29 @@ setting blocker rather than pretending to merge.
 - Keep unknown fields when editing an export. Share only your own/licensed
   original patches; include GPL-3.0-only SPDX metadata for repository patches.
 
+## Proposed Groove S1(a) — native PR #451, not yet merged
+
+`sequencing.groove` S1(a) adds two synchronized tracks of up to32steps while
+retaining JSON config `version:1`, existing `run` and `t1_*` IDs. Existing S0
+patterns remain readable; reserved4×64 transient storage is not a four-track UI.
+Treat S1-only patches as requiring a build containing #451; check the actual
+native/WASM catalogue and deployed SHA before claiming availability on another host.
+Each track exposes `t1_*`/`t2_*` pitch, gate, mod1, mod2 and notes outputs.
+Mod1/mod2 hold authored0–1 values until the next note; each note output is mono.
+For notes wiring, connect `t1_notes` → one `essentials.vco.notes` event input and
+`t2_notes` → a second VCO's notes, then mix their audio into `essentials.output`.
+For CV wiring, use `t1_pitch` → VCO.pitch, `t1_gate` → VCA.gain_cv and
+VCO.audio → VCA.audio → Output.audio; T2 uses the corresponding `t2_*` ports.
+Route Output.audio explicitly to buses0/1 if a duplicated mono output is wanted.
+Controls are rising-edge requests: global `run`/`stop`/`reset`/`mute`, plus
+`t1_run`/`t1_stop`/`t1_mute` and T2 equivalents. STOP/track entry are queued to
+the shared32-step boundary; mute releases immediately while phase continues.
+Reload starts stopped even with saved high run. RESET does not invent a new start.
+The stopped editor/Apply workflow and authoritative completed-STOP/playhead
+observation are separate work: no live config editing or inferred STOP from a
+queued ACK, mute, silence or browser timer. Native/Pi tests do not certify owner
+listening, arbitrary whole-patch load or a deployed browser/editor implementation.
+
 ## Designer procedure
 
 1. Read this guide, patches/README and the actual module catalogue.

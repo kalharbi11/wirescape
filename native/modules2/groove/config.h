@@ -34,15 +34,15 @@ inline bool decode(const uint8_t *data, uint32_t bytes, Config &out) {
         if (!data || bytes != sizeof(next)) return false;
         std::memcpy(&next, data, bytes);
     }
-    if (next.version != 1 || !std::isfinite(next.bpm) || next.bpm < 20 || next.bpm > 300 ||
-        next.track_count < 1 || next.track_count > 2)
+    if (next.version != 1 || !std::isfinite(next.bpm) || next.bpm < 20 || next.bpm > 300 || next.track_count < 1 ||
+        next.track_count > 2)
         return false;
     for (const auto &t : next.tracks) {
         if (t.armed > 1 || t.mute > 1) return false;
         for (const auto &s : t.steps)
-            if (s.kind > Tie || s.key < 0 || s.key > 127 || !std::isfinite(s.velocity) ||
-                s.velocity < 0 || s.velocity > 1 || !std::isfinite(s.mod1) || s.mod1 < 0 ||
-                s.mod1 > 1 || !std::isfinite(s.mod2) || s.mod2 < 0 || s.mod2 > 1)
+            if (s.kind > Tie || s.key < 0 || s.key > 127 || !std::isfinite(s.velocity) || s.velocity < 0 ||
+                s.velocity > 1 || !std::isfinite(s.mod1) || s.mod1 < 0 || s.mod1 > 1 || !std::isfinite(s.mod2) ||
+                s.mod2 < 0 || s.mod2 > 1)
                 return false;
     }
     out = next;
