@@ -272,8 +272,13 @@ is carried in the route table so new/removed sources cannot race a separate list
 The sidecar now calls this seam for incremental edits while audio renders.
 A busy worker is retried three times at approximately 2 ms intervals, then
 refused without changing the accepted graph. Non-busy replan refusal and
-`loadGraph` retain the D5 fade/stop/swap/start path; stopped, not-yet-rendering
-and device-loss streams enter D5 directly. The null sink publishes render
+`loadGraph` use D5 in place: mute the live graph, hand the prepared candidate to
+the running render thread through a lock-free `audio::EngineSlot` (adopted at a
+block boundary by the PortAudio callback and the null sink alike), fade in, and
+destroy the retired graph on the control thread. The device is never reopened
+for a graph change, so Windows stream setup cannot break the 150 ms gap budget.
+Stopped, not-yet-rendering and device-loss streams keep the stop/swap/start
+path. Audio outputs are identified as `hostApi|name[#n]`. The null sink publishes render
 liveness to control. Only accepted swaps advance the protocol generation.
 
 ## Stdio engine sidecar (P1B)
