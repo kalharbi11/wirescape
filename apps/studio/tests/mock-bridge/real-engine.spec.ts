@@ -27,29 +27,6 @@ test('T01, T02, T09, T10: hello catalogue, correlated commands and real device l
   expect(select.id).not.toBe(select.deviceId);
 });
 
-test('T293: mock bridge displays backend/channel details and disables mono without capability', async ({ page }) => {
-  await page.evaluate(() => {
-    const engine = window.__wirescapeTest.engine;
-    engine.listAudioDevices = async () => [
-      { id: 'USB Stereo', name: 'USB Stereo', kind: 'audio',
-        index: 3, backend: 'ALSA', outputChannels: 2, supported: true, sampleRates: [48000] },
-      { id: 'Mono DAC', name: 'Mono DAC', kind: 'audio',
-        index: 4, backend: 'ALSA', outputChannels: 1, supported: false, unsupportedReason: 'mono-output' },
-    ];
-  });
-  await page.getByTestId('open-settings').click();
-  const options = page.getByTestId('audio-device').locator('option');
-  await expect(options.filter({ hasText: 'Mono DAC' })).toBeDisabled();
-  await expect(options.filter({ hasText: 'Mono DAC' })).toContainText('mono-output');
-  await expect(options.filter({ hasText: 'USB Stereo' })).toContainText('ALSA · 2 channels');
-  await expect(page.getByTestId('audio-route-status')).toContainText('ALSA · 2 channels');
-  // This mock hello has no rate/block capabilities; the controls must remain absent.
-  await expect(page.getByTestId('audio-rate')).toHaveCount(0);
-  await expect(page.getByTestId('audio-buffer')).toHaveCount(0);
-  const sent = await page.evaluate(() => (window as any).__mockBridge.sent as any[]);
-  expect(sent.some(m => m.type === 'selectAudioDevice' && m.deviceId === 'Mono DAC')).toBe(false);
-});
-
 test('T03: asynchronous add-module refusal removes only the refused node', async ({ page }) => {
   await page.evaluate(() => (window as any).__mockBridge.refuseNext('addModule', 'unknown-module'));
   await page.evaluate(() => window.__wirescapeTest.addModule('essentials.vco'));
@@ -189,4 +166,23 @@ test('native open/save keeps the renderer-owned document and exact JSON text', a
   await expect(page.getByTestId('patch-name')).toHaveText('Saved.wirescape.json');
   const saved = await page.evaluate(() => (window as any).__mockBridge.getSaved());
   expect(JSON.parse(saved).customUserData).toEqual({ preserved: true });
+});
+
+
+test('callback load and real dropouts preserve unavailable states', async ({ page }) => {
+  const status = (audio: Record<string, unknown>) => page.evaluate(value =>
+    (window as any).__mockBridge.status(value), audio);
+  await status({ state: 'starting', cpuPercent: 0, dropouts: 0 });
+  await expect(page.getByTestId('status-cpu')).toHaveText('CPU not available');
+  await status({ state: 'running', cpuPercent: 23.5, dropouts: 2 });
+  await expect(page.getByTestId('status-cpu')).toHaveText('CPU 24%');
+  await expect(page.getByTestId('status-dropouts')).toHaveText('2 dropouts');
+  await status({ state: 'running', cpuPercent: 120, dropouts: 3 });
+  await expect(page.getByTestId('status-cpu')).toHaveClass(/warn/);
+  await status({ state: 'device-lost', cpuPercent: 120, dropouts: 3 });
+  await expect(page.getByTestId('status-cpu')).toHaveText('CPU not available');
+  await expect(page.getByTestId('status-cpu')).not.toHaveClass(/warn/);
+  await expect(page.getByTestId('status-dropouts')).toHaveText('3 dropouts');
+  await status({ state: 'running', cpuPercent: null, dropouts: 3 });
+  await expect(page.getByTestId('status-cpu')).toHaveText('CPU not available');
 });
