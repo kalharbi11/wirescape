@@ -149,3 +149,22 @@ test('disconnect releases a draft switch waiting for an outstanding edit', async
   await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
   await expect(page.getByTestId('patch-name')).toHaveText('Refused B');
 });
+
+test('R2 guards reject future or malformed loads without losing the retained draft', async ({ page }) => {
+  const optional = { format: 'wirescape.native.patch', version: 2, future: refused.future };
+  await page.evaluate(() => (window as any).__mockBridge.refuseNext('loadGraph', 'busy'));
+  await page.evaluate(async p => window.__wirescapeTest.load(p, 'Optional B'), optional);
+  const before = await state(page);
+  const loads = await page.evaluate(() => (window as any).__mockBridge.sent.filter((m: any) => m.type === 'loadGraph').length);
+  for (const bad of [{ ...refused, version: 99 }, { ...refused, modules: [null] }]) {
+    expect(await page.evaluate(async p => {
+      try { await window.__wirescapeTest.load(p, 'Invalid C'); return false; } catch { return true; }
+    }, bad)).toBe(true);
+    expect(await state(page)).toEqual(before);
+    await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+  }
+  expect(await page.evaluate(() => (window as any).__mockBridge.sent.filter((m: any) => m.type === 'loadGraph').length)).toBe(loads);
+  await page.getByTestId('open-refused-draft').click();
+  await expect(page.getByTestId('patch-name')).toHaveText('Optional B');
+  expect((await state(page)).future).toEqual(refused.future);
+});

@@ -497,7 +497,7 @@ export class App {
       this.patchName = draft.name;
       this.nameEl.textContent = draft.name;
       this.bundledPatch = true; // Electron has one target; every view switch requires Save As.
-      this.maxModuleId = Math.max(0, ...draft.patch.modules.map(m => m.id));
+      this.maxModuleId = Math.max(0, ...(draft.patch.modules ?? []).map(m => m.id));
       void this.draftEngine.loadGraph(this.doc.toJSON());
       this.doc.markDirty(); // A draft must never appear clean, even after Save.
       this.history.reset();
@@ -520,7 +520,7 @@ export class App {
     this.patchName = playing.name;
     this.nameEl.textContent = playing.name;
     this.bundledPatch = true; // Never inherit the draft's native Save target.
-    this.maxModuleId = Math.max(0, ...playing.patch.modules.map(m => m.id));
+    this.maxModuleId = Math.max(0, ...(playing.patch.modules ?? []).map(m => m.id));
     this.doc.markClean();
     if (playing.dirty) this.doc.markDirty();
     this.history.reset();
@@ -578,7 +578,7 @@ export class App {
       this.doc.replace(patch);
       this.patchName = name;
       this.nameEl.textContent = name;
-      this.maxModuleId = Math.max(0, ...patch.modules.map(m => m.id));
+      this.maxModuleId = Math.max(0, ...(patch.modules ?? []).map(m => m.id));
       const running = this.engine.loadGraph(this.doc.toJSON());
       const v = patch.ui?.view;
       // Restoring/fitting the viewport is presentation, not a source-document edit.
