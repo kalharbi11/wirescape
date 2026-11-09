@@ -50,8 +50,34 @@ class PiAppSmokeTests(unittest.TestCase):
         header[18:20] = (62).to_bytes(2, 'little')
         file.write_bytes(header)
         self.assertFalse(smoke.arm64_elf(file))
+        # Incomplete/corrupt binary downloads must never raise IndexError.
+        for length in (0, 4, 5, 6, 19):
+            file.write_bytes(b'\\x7fELF' + b'\\x00' * max(0, length - 4)
+                             if length else b'')
+            self.assertFalse(smoke.arm64_elf(file), f'truncated ELF length={length}')
         file.unlink()
         self.assertFalse(smoke.arm64_elf(file))
+
+    def test_short_elf_writes_blocked_summary_instead_of_crashing(self):
+        self.objects['engine'].write_bytes(b'\\x7fELF')
+        # Simulate a fully provisioned Pi without starting any real process.
+        with patch.object(smoke, 'check_environment', side_effect=CHECK_ENVIRONMENT), \\
+             patch.object(smoke.platform, 'system', return_value='Linux'), \\
+             patch.object(smoke.platform, 'machine', return_value='aarch64'), \\
+             patch.object(smoke, 'clean_checkout', return_value=True), \\
+             patch.object(smoke.ctypes.util, 'find_library', return_value='portaudio'), \\
+             patch.object(smoke, 'tool_versions', return_value={}), \\
+             patch.object(smoke, 'run_child', return_value=(0, 'mock build')), \\
+             patch.object(smoke.subprocess, 'run', return_value=
+                          __import__('subprocess').CompletedProcess([], 0, '', '')), \\
+             patch.dict(os.environ, {'DISPLAY': ':99'}), \\
+             patch.object(sys, 'argv', ['app_smoke.py', '--report', str(self.report)]):
+            code = smoke.main()
+        self.assertEqual(code, 2)
+        summary = json.loads((self.report / 'summary.json').read_text())
+        self.assertEqual(summary['status'], 'blocked')
+        self.assertTrue(any('engine is not a Linux ARM64 ELF64 artifact' in msg
+                            for msg in summary['reason']))
 
     def test_wrong_platform_no_display_missing_artifacts_are_blocked(self):
         with patch.object(smoke, 'check_environment', side_effect=CHECK_ENVIRONMENT) as checker, \
