@@ -205,7 +205,17 @@ struct Sequencer {
                     players[t].muted = !players[t].muted;
                     if (effective_mute(t)) release(b, t, i);
                 }
-                if (rise[0]) {
+                // Within START precedence, apply track arming before global START.
+                // A simultaneous STOP always wins over START at its scope.
+                for (uint32_t t = 0; t < kTracks; ++t) {
+                    if (t >= pattern.track_count || !rise[4 + t * 3] || rise[5 + t * 3]) continue;
+                    auto &p = players[t];
+                    p.armed = true;
+                    if (!running) continue;
+                    if (p.playing) p.stop = false;
+                    else p.enter = true;
+                }
+                if (rise[0] && !rise[1]) {
                     if (running) stop_queued = false;
                     else {
                         running = true;
@@ -220,14 +230,6 @@ struct Sequencer {
                         }
                         started = true;
                     }
-                }
-                for (uint32_t t = 0; t < kTracks; ++t) {
-                    if (t >= pattern.track_count || !rise[4 + t * 3]) continue;
-                    auto &p = players[t];
-                    p.armed = true;
-                    if (!running) continue;
-                    if (p.playing) p.stop = false;
-                    else p.enter = true;
                 }
                 if (running && !started) {
                     phase += 1.;
