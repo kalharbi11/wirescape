@@ -53,43 +53,84 @@ Troubleshooting:
 - **Patch refused:** only native v1/v2 patches load. Unknown modules/state/config are reported; originals are never rewritten by `play`.
 
 
-## Wirescape standalone app on the Pi (Phase 1, owner only)
+## Wirescape standalone app: separate source preparation gates
 
-The standalone application is **Electron + Studio + wirescape-engine**; the
-earlier class-demo kiosk below is a separate, deferred Phase 0 workflow.
-Use Raspberry Pi OS 64-bit with a graphical desktop session. Install a current
-Node.js LTS and npm, C++ build tools, CMake, Ninja, Python 3, and the shared
-PortAudio runtime (`libportaudio2`). The first native configure may fetch pinned
-sources, and `npm ci` needs registry access. No device is opened by a build.
+The standalone app is Electron + Studio + the native `wirescape-engine`. Its
+source build is **not** a desktop install or a release. The owner starts the
+installation step only after the separate Windows test decision. Agents and
+the Pi runner do not install packages, alter sessions, open devices, or SSH.
 
-From a **clean** checkout, use an approved immutable SHA or `origin/main`:
+### 1. Check prerequisites (read-only and offline)
+
+On the Pi 5 with 64-bit Raspberry Pi OS, from the intended checkout:
+
+```sh
+python3 tools/pi/preflight.py --check-only
+```
+
+The command never fetches, checks out, builds, installs, launches Electron,
+or writes a report. It verifies Linux ARM64, compiler, Git, Python, CMake,
+Ninja, Node/npm, tracked npm lockfiles, libportaudio.so.2 and Electron
+shared-library prerequisites, disk/permissions, Git cleanliness, inherited
+Qt overrides, and stale cross-checkout/architecture CMake caches.
+Supported maintained Node LTS majors are **22, 24, and 26**. Legacy Qt
+runner tests have separate requirements; Qt is not required to build the
+source Electron app. A failure names an owner-managed action. Do not solve
+a failure by deleting the owner's cache or rewriting global environment.
+Use the distro's package manager manually for missing native libraries.
+
+### 2. Update and build the exact approved source
+
+From a clean checkout, with owner-approved immutable SHA:
 
 ```sh
 sh tools/pi/update-and-build.sh <accepted-commit-sha>
-sh tools/pi/install-desktop-entry.sh
+# optional bounded native concurrency override:
+sh tools/pi/update-and-build.sh <accepted-commit-sha> --jobs 4
 ```
 
-The update script fetches, detaches at the resolved commit, builds the Release
-engine (`build/native/wirescape-engine`), installs the pinned Studio and
-desktop npm dependencies and builds both. It stops on error and prints the
-owner's launch command. Subsequent builds reuse the native build directory.
-`install-desktop-entry.sh` is part of P1F (#253); it creates a **per-user**
-desktop entry and launcher, never a service or system-wide install. The
-launcher passes `--confirm-audio --confirm-midi` only when the owner starts
-the app. For device-free troubleshooting, launch from a terminal with
-`--null-audio` and **without** either `--confirm-*` flag.
+The historical one-argument ref invocation remains supported. It preflights
+before fetch, resolves the supplied ref, verifies the resulting exact SHA
+after detached checkout, preflights the selected source again, then calls
+the existing `tools/dev.py build --headless --config Release` driver
+(default **2** native jobs; explicit **1–4**). Studio and Desktop use their
+tracked lockfiles with `npm ci`. Native, Studio install/build, and
+Desktop install/build stages fail fast without running later stages.
 
-The engine's persisted device choices belong in `user_data/settings.json`
-(or the explicit `--settings` file), **not** in the patch document. App
-diagnostics reach the launching terminal or desktop session's journal; this
-update script does not create an application log. `~/.cache/wirescape/demo.log`
-belongs to the older `demo.sh` kiosk, not the Electron app. Saved patches
-remain wherever the native file dialog saved them.
+Generated, ignored diagnostics are local to
+`build_reports/pi-source-build/<sha>/`: stage logs (sanitized,
+size-bounded), per-stage JSON, and `summary.json` (resolved SHA,
+tool versions, architecture and stage outcomes). On failure, inspect the
+named stage log, repair the cause manually, then rerun the same SHA.
+Reports are not commits and are not evidence of real Pi execution by
+themselves. The first native configure may download pinned sources;
+`npm ci` requires registry access. The check-only command does not.
 
-When the desktop entry or engine is missing, confirm that #247 (sidecar) and
-#253 (desktop shell/launcher) are merged into the selected SHA and that
-`apps/studio/dist/index.html` and `apps/desktop/build/main.js` exist.
-Only the owner performs the physical audio/MIDI checks in `DEMO_CLASS.md` §6.
+### 3. Test and inspect evidence (devices off)
+
+```sh
+python3 tools/foundation/tests/test_pi_preflight.py
+python3 -m unittest discover -s tools/foundation/tests -p test_pi_update.py
+python3 -m unittest discover -s tools/foundation/tests -p test_build_parallel.py
+python3 tools/dev.py test
+```
+
+The private Pi runner must execute its task-specific `pi-run:` acceptance
+with `ci/pi-accept`; a hosted or mock x86 pass is not a Pi result.
+A missing Pi dependency is a BLOCKED setup step, not a skipped success.
+
+### 4. Owner-only installation and device launch (deferred)
+
+After the owner's Windows test and explicit go-ahead, the separate
+`tools/pi/install-desktop-entry.sh` can create a per-user desktop
+entry. It is **not** called by check-only or the source build. Only the owner
+invokes the launcher with `--confirm-audio --confirm-midi`. For device-free
+diagnostics, use a temporary native `--settings` path and `--null-audio`
+without either confirmation flag; see the app smoke task (#446).
+Device choices belong in the owner's `user_data/settings.json` unless
+explicitly redirected. The older `~/.cache/wirescape/demo.log` is for
+the retired class-demo kiosk, not Electron. See #247 and #253 if the
+native sidecar or desktop entry is absent.
 
 ## Class demo (owner only)
 
