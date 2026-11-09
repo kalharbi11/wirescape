@@ -303,6 +303,26 @@ static void test_s1_transport(AppEngine *cat) {
     check(graph.output_sample(1, 1, 0, 1) == 0.f && graph.output_sample(1, 6, 0, 1) == 0.f,
           "global queued STOP completes without an extra note");
 }
+static void test_s1_many_cycles(AppEngine *cat) {
+    std::string error;
+    Json config = dual_pattern();
+    config["bpm"] = 300;
+    auto e = load(patch(config), cat, 48000, error, true);
+    check(bool(e), "S1 300 BPM graph loads");
+    advance(e.get(), 1, 1);
+    run_command(e.get(), param_id(e.get(), 0), 1.f);
+    advance(e.get(), 1, 1);
+    advance(e.get(), 102u * 32u * 2400u, 256);
+    check(note_events(e.get()) >= 400, "102 native cycles retain bounded NOTE_ON/OFF activity");
+    run_command(e.get(), param_id(e.get(), 1), 1.f);
+    run_command(e.get(), param_id(e.get(), 2), 1.f); // RESET outranks STOP.
+    advance(e.get(), 1, 1);
+    check(app_engine_native(e.get()).output_sample(1, 1, 0, 0) == 0.f,
+          "same-frame RESET releases without retrigger");
+    advance(e.get(), 2400, 256);
+    check(app_engine_native(e.get()).output_sample(1, 1, 0, 15) == 1.f,
+          "RESET preserves running intent, resumes at step 1");
+}
 static void test_s1_refusals(AppEngine *cat) {
     const Json good = dual_pattern();
     std::string error;
@@ -332,6 +352,7 @@ int main() {
         test_refusals(cat.get());
         test_s1_refusals(cat.get());
         test_s1_transport(cat.get());
+        test_s1_many_cycles(cat.get());
         for (double rate : {44100., 48000., 96000.})
             for (uint32_t block : {1u, 17u, 64u, 128u, 256u}) test_rate_block(cat.get(), rate, block);
         std::puts("PASS Groove v1 config/refusal/save-reload/stopped/noalloc/32-step timing");
