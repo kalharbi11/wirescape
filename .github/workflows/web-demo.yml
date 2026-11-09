@@ -48,6 +48,15 @@ jobs:
           cmake -S native/web -B build/web-native -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build/web-native
           ctest --test-dir build/web-native --output-on-failure
+      - name: Record native telemetry timing
+        run: |
+          set -o pipefail
+          ctest --test-dir build/web-native -R '^web_engine_tests$' -V --no-tests=error | tee build/web-native/telemetry-timing.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-web-telemetry-timing-${{ github.sha }}
+          path: build/web-native/telemetry-timing.txt
+          if-no-files-found: error
       - name: Install Emscripten ${{ env.EMSDK_VERSION }}
         run: |
           git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"

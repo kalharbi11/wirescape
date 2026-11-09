@@ -17,9 +17,14 @@ export async function mockBridge(page: Page): Promise<void> {
     const refused: { type: string; code: string }[] = [];
     const held: { cmd: Message; session: string; gen: string }[] = [];
     const sent: Message[] = [];
+    let learnArmed = false, learnSeq = 0, learnPacket: Message | null = null;
     const session = () => 's' + sessionNo;
     const emit = (m: Message) => { for (const cb of listeners) cb(m); };
     const copy = (v: any) => JSON.parse(JSON.stringify(v));
+    const midiStatus = () => ({ devices: copy(midi), activity: {},
+      ...(learnArmed ? { learn: { armed: true, ...(learnPacket ?? {}) } } : {}) });
+    const emitStatus = (overrides: Message = {}) => emit({ v: 0, type: 'status', session: session(), gen: String(gen),
+      status: { audio: { ...copy(audioStatus), ...overrides }, midi: midiStatus() } });
     const reply = (cmd: Message, ok: boolean, response: Message = {}, s = session(), g = String(gen)) => {
       emit({ v: 0, session: s, re: cmd.id, ok, gen: g, ...response });
     };
@@ -28,9 +33,9 @@ export async function mockBridge(page: Page): Promise<void> {
         catalogue = await (await fetch('/wirescape_modules.json')).json();
       }
       emit({ v: 0, type: 'hello', session: session(), protocol: 0,
-        engine: { version: 'test', sha: 'abc1234' }, capabilities: [],
+        engine: { version: 'test', sha: 'abc1234' }, capabilities: ['midiLearn'],
         catalogue, audio: audioStatus,
-        midi: { devices: copy(midi), activity: {} } });
+        midi: midiStatus() });
     };
     const accept = (cmd: Message, s: string) => {
       if (s !== session()) return;
@@ -84,6 +89,14 @@ export async function mockBridge(page: Page): Promise<void> {
         }
         case 'listAudioDevices': reply(cmd, true, { result: { devices: copy(audio) } }, s); break;
         case 'listMidiDevices': reply(cmd, true, { result: { devices: copy(midi) } }, s); break;
+        case 'midiLearn':
+          if (typeof cmd.armed !== 'boolean') {
+            reply(cmd, false, { code: 'invalid', message: 'Invalid armed flag' }, s); break;
+          }
+          learnArmed = cmd.armed; learnPacket = null;
+          reply(cmd, true, { result: { armed: learnArmed } }, s);
+          emitStatus();
+          break;
         case 'setMidiEnabled':
           for (const d of midi) if (d.id === cmd.deviceId) d.enabled = cmd.on;
           reply(cmd, true, {}, s); break;
@@ -106,6 +119,7 @@ export async function mockBridge(page: Page): Promise<void> {
       emit({ v: 0, type: 'app.engineExited', exitCode: expected ? 0 : null,
         signal: null, expected });
       sessionNo++; gen = 0;
+      learnArmed = false; learnPacket = null;
       graph = { modules: [], connections: [] };
       setTimeout(() => void hello(), 250);
     };
@@ -133,8 +147,16 @@ export async function mockBridge(page: Page): Promise<void> {
       exit,
       devices: () => emit({ v: 0, type: 'devices', session: session(), gen: String(gen),
         audioDevices: copy(audio), midiDevices: copy(midi) }),
-      status: () => emit({ v: 0, type: 'status', session: session(), gen: String(gen),
-        status: { audio: copy(audioStatus), midi: { devices: copy(midi), activity: {} } } }),
+      status: emitStatus,
+      captureCc: (deviceId: string, channel: number, controller: number, value: number) => {
+        if (!learnArmed || !midi.some(d => d.id === deviceId && d.enabled) ||
+            !Number.isInteger(channel) || channel < 1 || channel > 16 ||
+            !Number.isInteger(controller) || controller < 0 || controller > 127 ||
+            !Number.isInteger(value) || value < 0 || value > 127) return;
+        learnSeq = (learnSeq + 1) >>> 0;
+        learnPacket = { seq: String(learnSeq), deviceId, channel, controller, value };
+        emitStatus();
+      },
       telemetry: (data: Message, atGen = String(gen)) => emit({ v: 0, type: 'telemetry', session: session(),
         gen: atGen, telemetry: { tick: 12, time: 0.4, effective: {}, phase: {},
           envelope: {}, meters: {}, scope: {}, eventActivity: {}, heldNotes: [], ...data } }),

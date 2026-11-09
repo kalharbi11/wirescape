@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
+#include "../document/telemetry_taps.h"
+#include "../io/audio/engine_slot.h"
 #include "../io/audio/portaudio_service.h"
 #include "devices.h"
 #include "midi_host.h"
-#include "../document/telemetry_taps.h"
 #include <array>
+#include <optional>
 #include <set>
 namespace wirescape::sidecar {
 struct Options {
@@ -15,9 +17,15 @@ struct Options {
 // The sink thread is the sole writer. Read only after it has joined.
 struct RenderHistogram {
     std::array<uint64_t, 201> bins{}; // 0..199%, plus >=200%
-    uint64_t blocks = 0, overruns = 0;
+    uint64_t blocks = 0, overruns = 0, faults = 0, previous_faults = 0;
     double max_percent = 0;
 
+    // Sample the existing Engine2 render-fault meter on the sink thread.
+    // A replan may reset the engine counter; retain all observed deltas.
+    void observe_faults(uint64_t current) noexcept {
+        faults += current >= previous_faults ? current - previous_faults : current;
+        previous_faults = current;
+    }
     void record(double percent, bool late) noexcept {
         ++bins[static_cast<size_t>(percent >= 200 ? 200 : percent)];
         ++blocks;
@@ -52,19 +60,23 @@ class Session {
     std::condition_variable sink_wake_;
     std::thread sink_;
     std::atomic<bool> stop_sink_{false}, sink_rendering_{false};
+    audio::EngineSlot sink_slot_; // null-sink twin of the PortAudio callback handoff
     std::atomic<double> cpu_{0};
     std::atomic<uint64_t> dropouts_{0};
     RenderHistogram bench_; // only sink thread records; joined before shutdown reads
     bool bench_reported_ = false;
     std::chrono::steady_clock::time_point started_ = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point audio_retry_{};
+    // Last cold audio enumeration (no open stream). A cold PortAudio init enumerates every
+    // host API on the command thread, so it runs at most every kColdEnumeration.
+    std::optional<std::chrono::steady_clock::time_point> cold_enumeration_;
     std::chrono::milliseconds audio_backoff_{100};
     void start_audio(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
     bool poll_audio(std::chrono::steady_clock::time_point, bool enumerated);
     void stop_audio();
     void start_midi();
     void persist();
-    bool refresh_devices();
+    bool refresh_devices(bool audio = true);
     Json execution(Json);
     void commit(Json, bool);
     Json apply(const Json &);

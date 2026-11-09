@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# S2-1: `fx.delay`, a stereo delay (Track S2, module lane row 1)
+# S2-1 (#314): `fx.delay`, a stereo delay (Track S2, module lane row 1)
 
 **What.** A clean, musical stereo delay for jamming on the Pi: echoes that can sync to a patched clock, feedback that can run away without blowing up, a tone control in the loop, and ping-pong. Original code. No tape (owner, 2026-10-27): no wow/flutter, no saturation model beyond a soft limiter in the loop.
 
-**Read first:** `docs/planner/MODULES.md` (common rules), `docs/SDK_AUTHOR_GUIDE.md` §1–§12, `native/sdk/template/`, `native/modules2/vca/` (a simple processor), `native/modules2/chaos_lite/` (stereo-pair outputs, `WS2_LARGE` delay memory), and PR #304's file list for the standard wiring.
+**Read first:** `docs/SDK_AUTHOR_GUIDE.md` §1–§12, `native/sdk/template/`, `native/modules2/vca/` (a simple processor), `native/modules2/chaos_lite/` (stereo-pair outputs, `WS2_LARGE` delay memory), and PR #304's file list for the standard wiring.
 
 ## Interface (IDs final once merged)
 | Kind | ID | Name | Details |
@@ -37,15 +37,17 @@
 7. Feedback 1.0, ±1 noise in for 10 s: output finite and |x| ≤ 2 throughout; time sweep 0.001→2 s while playing stays finite with no step larger than the limiter ceiling.
 8. Frame/rate matrix, reset, state, extremes, no-allocation (guide §12). Poly input summed (two voices of 0.25 = one of 0.5).
 
+**Acceptance budget clarification:** The original `native/modules2/delay/` limit remains **at most 10 module files** (this PR adds seven). The acceptance runner measures the complete PR, including mandatory native registration, generated Studio catalogue, presentation and integration tests. Its parser cannot express folder-only file limits. For that global measurement, Workflow v3's builder allowance permits up to 50% above the original 900-line budget; this task uses a more conservative **1,100 changed lines**, and sets a global **18-file** limit to include the mandatory wiring/test files. The Studio acceptance command mirrors the already-green #316 GitHub Actions Chromium/Playwright ffmpeg bootstrap rather than assuming those binaries are preinstalled. No behavioural assertion, test threshold or Pi performance requirement is changed.
+
 ```acceptance
 tier: T1
-size: <= 900 changed lines, <= 10 files in native/modules2/delay/ (standard wiring and generated files don't count)
+size: <= 1100 changed lines, <= 18 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_delay_tests" --output-on-failure
   - python tools/dev.py test
-  - cd apps/studio && npm ci && npm test
-  - pi-run: python tools/module_cpu_probe.py delay   # after #304 adds the probe; two instances, 48 kHz / 128 frames, worst block < 50% of the period
+  - bash -c 'cd apps/studio && npm ci && npx playwright install ffmpeg && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
+  - pi-run: python tools/module_cpu_probe.py fx.delay   # after #367 adds the shared probe; two instances, 48 kHz / 128 frames, worst block < 50% of the period
 stops: [ABI header edit, new dependency, file I/O in a module, test loosening, ID change after merge]
 ```
 Signed: Compass (Claude), 2026-11-07

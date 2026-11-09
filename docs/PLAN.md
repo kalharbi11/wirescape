@@ -1,36 +1,23 @@
 # Wirescape plan (v3: standalone app with the web UI)
 
-Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-07 (Compass).
+Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-09 (Compass; Keel added the Windows-test result).
 How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) live in git history; their results are summarised under "Where we are".
 
 ## Now
-- **Update 2026-11-07 (Compass): module lane.** Owner decision: a module-building lane runs now beside Phase 2 (Compass plans and reviews, Codex builds, Compass/subagents take small or stuck items). Board and queue: `docs/planner/MODULES.md`: Delay `fx.delay`, Quantizer `essentials.quantizer`, Reverb `fx.reverb`, Resonator `essentials.resonator` (CHAOS rebuild step R1), then Blend `sound.blend` after #304. It never preempts a #271 owner failure or a Phase 2 critical-path fix.
-- **Update 2026-11-06 evening (Compass).** Phase 1 code is complete: 1B sidecar (#247), 1C RealEngine (#249), 1F shell, the e2e smoke (#265) and 2E autostart (#264) are merged. Open: 1H conformance (#256), the 1E benchmark (#274), and the owner's **Test Session 1 (#271)**, which is waiting on the owner.
-- **Phase 2 runs now, in parallel with the owner's test** (owner decision, 2026-11-06). 2A-1 is merged (#209); 2A-2, 2B-a, 2D-a/b and 2F-a are in flight. The remaining sections are listed in `docs/tasks/P2_REMAINING.md`. Checkpoint A still comes after Test Session 1 and reviews Phase 2 as it stands.
-- **New parallel track S (Sound kit):** original modules ported from the owner's prototypes. **S1** = the Conjunctions two-source processes (`docs/tasks/S1_CONJUNCTIONS_MODULES.md`). GUTTUR is on hold (owner); the Sampler and the effects (EQ, compressor, delay, reverb) are listed but not started.
-- **Priority order:** (1) Test Session 1 results and any fixes; (2) Phase 2; (3) Track S in parallel, never blocking 1 or 2; (4) Checkpoint A after Test Session 1.
-- **Pi first.** Windows (#266) waits until after Test Session 1.
-- **Web demo (D14, `docs/tasks/W_WEB_DEMO.md`):** a separate lane led by Compass that never blocks Pi work. W-web-1 is the wasm engine, the bridge, CI and Pages. Follow-ups W-web-2..5 are Codex-sized.
+- **Update 2026-11-09 evening (Keel, owner report): first Windows install and test done.** The owner ran the new Electron app on the Windows laptop with real audio, the computer keyboard and a Launchkey; every starter patch switches and sounds. It needed #463 (host-API device ids, in-place D5 graph swap without reopening the device, Studio restores the playing patch when the engine refuses a switch); #463 merges first, after its cross-family T2 review. #436 W1 is now "encode the path that worked" (planned docs/WINDOWS_SETUP.md + `tools/windows/setup.ps1`). The owner tests the **Pi tomorrow**: #450, #452, then #453 (one accepted SHA) are tonight's priority. The owner's longer jam comes later. Claimable work: board issue **#473**.
+- **Update 2026-11-09 (Compass): owner pivot.** Qt Studio is retired permanently (D15). Getting the **new app onto the owner's Windows laptop** is the most valuable next step (#436 W1, the clean source bootstrap): it's the first time the owner plays the real product. The Pi stays the performance target and the place where acceptance happens; Pi setup follows Windows (#444–#446).
+- **Cleanup track (Phase 4, now parallel with Phase 2):** `docs/planner/CLEANUP.md`, packets R0–R7. R1 (Qt-free default build, PortAudio header move), R2 (patch-fixture coverage moves onto the Studio codec, D16) and R5 docs can start now; R3 deletes Qt after them; ABI1 retires afterwards as its own Keel track (D17).
+- **Finish before start (D18).** About 20 implementation PRs are open and most are drafts or handoff-ready. Until the open count is under 10, lanes finish and merge what they have before opening new modules or features. Existing claims continue. Merge first: Quantizer #323, the patch library #427, real-app evidence #442, Interleave #310, then the MIDI seam #381/#390 and #210.
+- **Sequencers: one at a time.** The 16-step upgrade (#401/#405/#410) lands first, then Groove S1 (#432, stopped-edit first, live edits in S2), then Chord (#403/#421). No new sequencer issues until Groove S1 merges.
+- **Priority order:** (1) owner-reported failures; (2) #436 W1 Windows bootstrap + cleanup R1/R2; (3) merging the open backlog (D18); (4) Phase 2 critical path; (5) module and sound lanes; (6) the web demo (D14).
+- **Owner sessions:** #271 runs on Windows first, once W1 works, then on the Pi. The checklists shrink as automated evidence lands (#383, #387).
 
-## Where we are (2026-11-07)
-**Works (verified):**
-- Native engine: ABI 2 `engine2` with 19 modules in the app catalogue: VCO, LFO, VCF, ADSR, VCA, Clock, Function Envelope, Ladder, Mixer, Noise, Output, Scale/Offset, Slew, Host Keyboard, CHAOS-lite, MIDI In, MIDI→CV, CC→CV, Macro Oscillator. Polyphony, feedback, normalized modulation.
-- Pi Release headless build of `~/wirescape-demo` (branch `demo` = #222 + #221) **passed** on 2026-11-07.
-- **Audible output on the Pi:** `Six_Essentials_Demo.json` via `--device pulse` (the CM477 selected in Pi OS), 48 kHz / 256: sound, CPU 1–2%, `xruns=0`, `faults=0`.
-- **M8 → engine:** with a local fix (P0D), `m8_2_subtractive.json` plays M8 notes 36/40/43/48 with correct pitch, CPU 5–6%, `xruns=0`. libremidi is connected to the M8 (`aconnect`: 24:0 → 129:0).
-- **CC → DSP:** CC21 (full 0–127) through `midi.cc_to_cv` drives VCA gain in a diagnostic patch copy.
-- Pi MIDI at the Linux level: Dirtywave M8 over USB (endpoint `M8 MIDI 1|M8:M8 MIDI 1`); `aseqdump` shows notes 36/40/43/48 and CC21 on MIDI channel 1.
-- Demo patches (#221): CHAOS, subtractive, Macro, with CC21–28 mapped. Launcher + `play --list-midi` (#222).
-- Web UI (`wirescape-ui` `main`): complete with `FakeEngine`; on the Pi it runs smoothly in Chromium (owner, 2026-11-07).
+## Where we are (2026-11-09)
+**Works (verified on `main`):** Phase 1 code is merged: the `wirescape-engine` sidecar, `RealEngine`, the Electron shell, autostart, patch codec and catalogue sync. Live replan (#209). 27 ABI2 modules in the app catalogue, including Delay, Reverb, Spectral, Blend, Resonator, Step Sequencer, Random Source and Groove S0. Telemetry with a measured LFO phase (#379), eight curated patches (#412), the device-free offline render and WAV evidence (#398), and the Windows sidecar pipe fix (#439, so the protocol tests now run on Windows). Pi headless audio and M8 MIDI were verified by the owner on 2026-11-07 (`docs/DEMO_CLASS.md` §1).
 
-**Unverified:**
-- The P0D fix on `main` (it exists only as the owner's local edit).
-- CC21 → filter cutoff audibility, the full CC21–28 set (CCH must be set to CC28 on the M8), and the CHAOS and Macro patches with the M8.
-- Note release and stuck notes under MIDI disconnect, and long-run stability with live MIDI.
+**Verified by the owner 2026-11-09:** the Electron app on Windows with real audio and MIDI (#463 branch). **Not yet verified by the owner:** the Electron app on the Pi, Settings device lists with the CM477 and M8, and live patching by ear (#271).
 
-**Missing:** the app shell, the engine sidecar, `RealEngine`, and real device lists in the UI. Live graph edits exist only in draft #209. The UI's Step Sequencer and Random Source aren't in the app catalogue.
-
-**Not the path:** Qt Studio. It's a native app with real device menus, but it's the old UI the owner is replacing. It stays frozen; the owner may use it as a hardware sanity check only.
+**Missing:** a one-command Windows setup (#436), any packaged build, OSC (#72), MIDI Learn (#287), the 60-minute Pi soak (#296), and Qt-free replacements for the stale quickstarts (R5).
 
 ## Target architecture
 ```
@@ -54,10 +41,15 @@ Wirescape app (Electron: native window, title bar, minimize/close, menus, F11 fu
 | D8 | CC mapping writes `midi.cc_to_cv` config rows (up to 8 per module; MIDI Learn adds a module when one is full). `ui.ccMap` stays only as a display hint. | The DSP already reads this layer. |
 | D9 | The engine sends its module catalogue and real device lists on start. The UI palette shows only modules the engine can run; unknown modules in a patch stay preserved and marked "not available". `public/wirescape_modules.json` is generated from native manifests, and CI checks for drift. | IDs stay in sync automatically. |
 | D10 | Pi first for acceptance; Windows allowed for faster smoke tests. Compiled-code sections need Pi runner evidence with fake devices. Each checkpoint includes one owner hardware check on the Pi. | Matches the owner's priority. |
-| D11 | Qt stays buildable and untouched until Phase 4 removes it. | No double work. |
+| D11 | ~~Qt stays buildable and untouched until Phase 4 removes it.~~ **Superseded 2026-11-09 by D15.** | Owner pivot (#437). |
 | D12 | Dependencies named here (no separate stop needed): **electron** (MIT) and, in Phase 4, **electron-builder** (MIT), both pinned in `apps/desktop/package.json`. Playwright's existing Electron support covers app tests. Anything else is still a stop. | Small, mainstream and cross-platform. |
 | D13 | Sidecar contingency (Compass, 2026-11-06): if #247 fails CI again after Keel's checklist, split 1B into **1B-1** (stdio protocol, session/gen, catalogue `hello`, null sink, fake MIDI, the D5 fade; everything CI can prove) and **1B-2** (PortAudio + real MIDI enumeration/selection and persistence). 1B-1 alone unblocks 1E on the null sink and #250. | Avoids a third attempt at one L-size T2 PR on the critical path; the device half is the part only the Pi and the owner can fully prove anyway. |
 | D14 | **Web demo** (Compass, 2026-11-07, owner request): a static showcase site, the real engine compiled to WebAssembly in an AudioWorklet behind the unchanged Studio UI (`native/web`, `apps/studio/src/web`, `.github/workflows/web-demo.yml`, GitHub Pages). Emscripten is the one named new build dependency (CI only, pinned). No MIDI, OSC, devices or files. It is not a product stage: D1 (Electron app) stands, and the web build never blocks Phases 1 to 4. | Lets professors and friends try Wirescape from a link. It reuses the real DSP and UI, and costs one T1 lane. |
+| D15 | **Qt is retired now** (owner, #437; Compass, 2026-11-09). No Qt fixes, no Qt fallback, no waiting for feature parity. MIDI and audio bugs belong to Studio + Electron + `wirescape-engine`. Old modules and sequencers may be redesigned rather than ported. Deletion follows dependency order (`docs/planner/CLEANUP.md` R1→R3), never by weakening a test. | One product; Qt costs agents time on every PR (#370, #416, #435). |
+| D16 | Old (v1) patch import lives in the **Studio patch codec** (`PatchDoc.ts` `migrateV1`, already there). The engine keeps reading v1 execution copies in `runtime_patch`. The QtCore document library goes once its fixtures are asserted against both (R2, Keel review). There is no new C++ document library; this replaces the old 4B. | D3: the UI owns the document. Avoids a second document editor in C++. |
+| D17 | **ABI1 retires after Qt**, as its own Keel-led T2 track (R6): the ABI1 bridge in engine2, `native/src/`, the 13 ABI1 modules in `native/modules/` and the ABI1 tests, with equivalence vectors and baselines frozen first. Folder renames (R7: `modules2`→`modules`, `engine2`→`engine`) wait for a quiet window. | A second module path inside the realtime core plus duplicate modules confuse agents and reviews. |
+| D18 | **Finish before start.** While 10 or more implementation PRs are open, no lane opens a new module or feature issue; it merges or closes what it has first. Existing claims continue. Only one sequencer effort at a time is in active build (16-step → Groove → Chord). | ~20 open PRs with few merging; throughput comes from merging, not from more parallel starts. |
+| D19 | **Git history is the archive.** No separate archive repo. `legacy/` and `docs/history/` leave the tree at tag `archive/qt-final`, done task files move to `docs/tasks/done/`, and `Wirescape-UI` is archived on GitHub. The read map is AGENTS → STATE → PLAN → task → ARCHITECTURE/specs. | Smaller search space and context; nothing is lost. |
 
 ## Phases
 
@@ -67,13 +59,13 @@ Each phase lists sections (letter blocks). Sections in a phase run in parallel u
 - [x] 0A Demo patches (#221): keep and merge after review. They are the Phase 1 test patches.
 - [x] 0B Pi demo launcher + `play --list-midi` (#222): merge the `play --list-midi` part and the player start. The browser/kiosk part of `demo.sh` stays as is but is deferred; don't extend it.
 - [x] 0C Owner hardware check (2026-11-07): partial pass (record: `docs/DEMO_CLASS.md` §1).
-- [x] **0D Live MIDI clock fix** (#237, merged 2026-11-06) (`docs/tasks/P0D_LIVE_MIDI_CLOCK.md`, T2, small): the headless audio callback renders with the live clock, plus a regression test. **Do first.** Phase 1's engine sidecar inherits it.
-- [x] **0E Audible demo CC mappings** (#240, merged 2026-11-06) (`docs/tasks/P0E_DEMO_CC_DEPTH.md`): CC21–28 sweep obvious ranges in all 3 patches, with an offline test that proves it. Parallel with Phase 1.
-- [ ] 0F Owner, run first in **Test Session 1** (`docs/planner/LANES.md`): rebuild from a clean checkout and verify all 3 patches × CC21–28 with the M8 (`docs/DEMO_CLASS.md` §5b). Hardware acceptance of Phase 0 needs all 24 combinations.
+- [x] **0D Live MIDI clock fix** (#237, merged 2026-11-06) (`docs/tasks/done/P0D_LIVE_MIDI_CLOCK.md`, T2, small): the headless audio callback renders with the live clock, plus a regression test. **Do first.** Phase 1's engine sidecar inherits it.
+- [x] **0E Audible demo CC mappings** (#240, merged 2026-11-06) (`docs/tasks/done/P0E_DEMO_CC_DEPTH.md`): CC21–28 sweep obvious ranges in all 3 patches, with an offline test that proves it. Parallel with Phase 1.
+- [ ] 0F Owner, run first in **Test Session 1** ([board #473](https://github.com/kalharbi11/wirescape/issues/473)): rebuild from a clean checkout and verify all 3 patches × CC21–28 with the M8 (`docs/DEMO_CLASS.md` §5b). Hardware acceptance of Phase 0 needs all 24 combinations.
 
 ### Phase 1: The standalone app with the real engine (Pi first, Windows works too)
 **1.0 comes first** (small, about half a day). 1A, 1D and 1G can start right away; 1B, 1C and 1F follow 1.0 and run in parallel.
-- [x] **1.0 Protocol v0** (#239, merged 2026-11-06) (`docs/tasks/P1_0_PROTOCOL.md`): the stdio protocol (D4), mapping every `EngineClient` call, `ack`/`refuse`/generation, the real device lists, status and telemetry v0, limits and the additive async-refusal extension.
+- [x] **1.0 Protocol v0** (#239, merged 2026-11-06) (`docs/tasks/done/P1_0_PROTOCOL.md`): the stdio protocol (D4), mapping every `EngineClient` call, `ack`/`refuse`/generation, the real device lists, status and telemetry v0, limits and the additive async-refusal extension.
 - [x] **1A UI import** (#238, merged) (`P1A_UI_IMPORT.md`): `apps/studio/` + a hosted `web` CI job.
 - [x] **1B `wirescape-engine` sidecar** (#247, merged) (`P1B_ENGINE_SIDECAR.md`, after 1.0): reuses `play`'s engine/MIDI/PortAudio code with the stdio protocol, **real audio and MIDI device lists and selection**, start at launch (D6), the D5 fallback swap and the catalogue (D9).
 - [x] **1C `RealEngine.ts`** (#249, merged) (`P1C_REAL_ENGINE.md`, after 1.0): `EngineClient` over the preload bridge, async refusal and rollback, restart and restore, and a mock bridge for Playwright.
@@ -108,18 +100,22 @@ The owner jams for 30 minutes on the Pi with the M8: live patching, patch switch
 ### Track S: Sound kit (parallel; original modules from the owner's prototypes)
 Runs beside Phases 2–3 and never blocks them. Every module follows `docs/SDK_AUTHOR_GUIDE.md` §15 (porting a prototype). New IDs only; no ABI change without a Keel ruling.
 - [ ] **S1 Conjunctions modules** (`docs/tasks/S1_CONJUNCTIONS_MODULES.md`): in order: Spectral (one FFT module, vocoder included), Blend, Cross Mod, Waveset, Shaper, Grains. Convolver waits for S3.
-- [ ] S2 Effects: **S2-1 Delay** (`docs/tasks/S2_1_DELAY.md`) and **S2-2 Reverb** (`docs/tasks/S2_2_REVERB.md`, original FDN) queued 2026-11-07; EQ and compressor/limiter later (research in `docs/reviews/EFFECTS_OPTIONS.md`).
-- [ ] S6 CHAOS rebuild, component first (`docs/planner/MODULES.md`): **R1 Resonator** (`docs/tasks/CHAOS_R1_RESONATOR.md`) queued; R2 Waveshaper after the owner hears R1; R3 a CHAOS starter patch from Essentials; R4 a subpatch once Phase 5 subpatches exist.
+- [ ] S2 Effects: **S2-1 Delay** (`docs/tasks/S2_1_DELAY.md`) and **S2-2 Reverb** (`docs/tasks/done/S2_2_REVERB.md`, original FDN) queued 2026-11-07; EQ and compressor/limiter later (research in `docs/reviews/EFFECTS_OPTIONS.md`).
+- [ ] S6 CHAOS rebuild, component first ([board #473](https://github.com/kalharbi11/wirescape/issues/473)): **R1 Resonator** (`docs/tasks/CHAOS_R1_RESONATOR.md`) queued; R2 Waveshaper after the owner hears R1; R3 a CHAOS starter patch from Essentials; R4 a subpatch once Phase 5 subpatches exist.
 - [ ] S3 Sample buffer service (SDK/engine, T2, Keel) and then the Sampler (start/loop CV, one-shot/gate/loop, reverse, 8 voices). Not started.
 - [ ] S4 GUTTUR throat voice. **On hold** (owner).
 - [ ] S5 Multichannel output + Quad Panner (needs a 4-output interface). Not started.
 
-### Phase 4: Windows packaging and Qt retirement
-- [ ] **4A Windows installer:** electron-builder package with the bundled engine and PortAudio DLL, a desktop shortcut, and an update check showing SHA/date (#188 semantics).
-- [ ] **4B Qt-free document library:** the lossless v2 writer and v1→v2 migration off QtCore, so the app can import old v1 files.
-- [ ] **4C Remove the Qt UI:** `native/ui/`, the QML, and the Qt CI and static-analysis context. Keep every engine and document test; the owner sets `allow-test-removal` for the Qt UI tests only. Update `ARCHITECTURE.md` and `STATUS.md`.
-- [ ] **4D Pi package:** a `.deb` or AppImage built on the Pi runner, so updates don't need a local rebuild.
-- [ ] **4E Laptop session** (the Windows half of J9 #45).
+### Phase 4: Windows install, Qt retirement and cleanup (runs now, beside Phase 2; owner pivot 2026-11-09)
+Sequence and file lists: `docs/planner/CLEANUP.md`.
+- [ ] **4A Windows source bootstrap** (#436 W1): one PowerShell entry point, Qt-free build, pinned PortAudio DLL, isolated profile, device-off smoke, then the owner's audio/MIDI launch.
+- [ ] **4B Qt decoupling** (R1 Qt-free default build + PortAudio move; R2 patch-fixture coverage onto the Studio codec, D16).
+- [ ] **4C Remove Qt** (R3): `native/ui/`, the QtCore document library, Qt CI and static contexts, the laptop runner's Qt mode. The owner sets `allow-test-removal` for Qt-only tests only.
+- [ ] **4D Tools and docs** (R4 `tools/dev.py` around Electron; R5 README, STATUS, a single read map, task archive, `legacy/` out of the tree).
+- [ ] **4E Windows package** (#436 W2): electron-builder (D12) with the engine, PortAudio and licences, a SHA manifest, a clean-VM install/uninstall, and an update check (#188 semantics).
+- [ ] **4F Pi setup and package** (#436 P1, #444–#446; then a `.deb` or AppImage built on the Pi runner).
+- [ ] **4G ABI1 retirement and renames** (R6, R7; Keel, T2).
+- [ ] **4H Laptop session** (the Windows half of J9 #45).
 
 ### ◆ Checkpoint C: Qt is gone, both platforms are packaged → Preview 0.7
 
@@ -128,7 +124,7 @@ Runs beside Phases 2–3 and never blocks them. Every module follows `docs/SDK_A
 2. Macro Oscillator (Plaits) signature panel polish and all 24 models checked.
 3. A CHAOS-lite custom panel (generic until the owner redesigns it).
 4. Dark theme (UI Q-C).
-5. Beta 0.8 musical core: Quantizer (pulled forward into the module lane, `docs/tasks/MOD_QUANTIZER.md`), a native Basic Sequencer, MIDI Out/Clock, MPE.
+5. Beta 0.8 musical core: Quantizer (pulled forward into the module lane, `docs/tasks/done/MOD_QUANTIZER.md`), a native Basic Sequencer, MIDI Out/Clock, MPE.
 6. Instruments: subpatches/macros, Channel Expander, CHAOS rebuild, a proper Plaits/Braids port.
 7. Portability and freeze: CLAP adapter, Daisy, ABI freeze (#44, #161), Windows mono perf #64, benchmark gate #91.
 8. A browser/LAN mode (open the UI from another device). Deferred; nothing in Phases 1–4 depends on it.
@@ -136,23 +132,6 @@ Runs beside Phases 2–3 and never blocks them. Every module follows `docs/SDK_A
 ## Checkpoints: how they work
 - There are three (A, B, C), spaced a phase apart. Each one: tag `checkpoint-<X>` on `main`, run `python tools/review_pack.py` for the phase, then hold one session (owner + planner-role agent, about 30 minutes) whose decisions are recorded at the top of this file.
 - **They don't stop work.** Sections of the next phase that don't depend on the review keep going. Only a High finding blocks, and only the sections it touches.
-
-## Open work at resume (apply once, then delete this table)
-| Item | Action |
-|---|---|
-| #209 / #186 live graph | Keep. It becomes 2A with ruling D7. |
-| #82 / #72 OSC | Keep. It becomes 3D (Qt presentation dropped). |
-| #210 / #163 MIDI controls | Keep. It becomes 2B. |
-| #200 / #140 audio output | Close the PR (Qt). Port its semantics and test ideas in 2C. |
-| #192 / #187 starters | Close. The UI already carries the six starters; the patch library is 2D. |
-| #204 / #178 stereo pairs | Close the PR. It becomes 3E. |
-| #181 / #180 module guide | Keep (T0 docs). Fix its link-scanner blocker. |
-| #161 / #159 portability | Park. It becomes Phase 5.7. |
-| #218 planner note | Close as superseded by this plan. |
-| #221 / #222 demo patches + launcher | Review and merge (Phase 0 rows above). |
-| Research #211–#217 | Close without merging; keep the branches. Phase 1 tasks link them. |
-| Issues #201 #198 #184 #183 #174 #167 #154 #152 #139 #136 #132 | Close: fixed on `main` or historical (#213 triage). |
-| #188 → 4A · #143 → 3A · #70 → 0C/1E · #164 → 2F · #45 → Checkpoints B + 4E · #182 → Checkpoint B | Relabel and link. Keep open. |
 
 ## Settled engineering decisions (unchanged; detail in `docs/specs/ABI2_PLAN.md`)
 | Area | Decision |
@@ -171,4 +150,4 @@ Runs beside Phases 2–3 and never blocks them. Every module follows `docs/SDK_A
 Wirescape is an open-source modular patching environment for music. Modules are easy for people and AI agents to build. Complex instruments work as well as simple utilities. Module DSP moves unchanged into plugins and Daisy-class hardware. MIDI, OSC and more plug in as services. The Pi 5 is the performance target.
 
 ## Document map
-`AGENTS.md` (rules) · `docs/WORKFLOW.md` (claim/sign/hand-off detail) · `docs/DEMO_CLASS.md` (Phase 0 record + owner audio/MIDI check) · `docs/specs/` (contract; the engine protocol from 1.0) · `docs/ARCHITECTURE.md` (built today) · `docs/STATUS.md` (evidence) · `docs/tasks/` · `docs/reviews/` · `docs/SDK_AUTHOR_GUIDE.md` · `docs/history/` and `legacy/` (frozen; don't read unless asked).
+`AGENTS.md` (rules) · `docs/WORKFLOW.md` (claim/sign/hand-off detail) · `docs/DEMO_CLASS.md` (Phase 0 record + owner audio/MIDI check) · `docs/specs/` (contract; the engine protocol from 1.0) · `docs/ARCHITECTURE.md` (built today) · `docs/STATUS.md` (evidence) · `docs/tasks/` · `docs/reviews/` · `docs/SDK_AUTHOR_GUIDE.md` · `docs/planner/CLEANUP.md` (Qt retirement sequence) · `docs/history/` and `legacy/` (frozen; leaving the tree under D19).

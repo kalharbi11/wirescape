@@ -1,0 +1,12 @@
+{
+  "code": "SPEC",
+  "sections": [
+    { "label": "01 / ENGINE", "params": ["mode", "size", "level"] },
+    { "label": "02 / MORPH", "params": ["morph", "curve", "pitch"] },
+    { "label": "03 / CROSS", "params": ["amount", "smooth"] },
+    { "label": "04 / COMBINE · INTERLEAVE", "params": ["b_level"] },
+    { "label": "05 / INTERLEAVE", "params": ["chunk_a", "chunk_b", "phase"] },
+    { "label": "06 / VOCODER", "params": ["bands", "flatten", "release", "noise"] }
+  ],
+  "modPorts": ["morph", "mode"]
+}

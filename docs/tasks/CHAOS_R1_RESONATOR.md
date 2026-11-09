@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# CHAOS-R1: `essentials.resonator`, the CHAOS body as a playable module (module lane row 4)
+# CHAOS-R1 #317: `essentials.resonator`, the CHAOS body as a playable module (module lane row 4)
 
-**What.** Step 1 of the CHAOS rebuild (`docs/planner/MODULES.md`, "CHAOS rebuild path"): CHAOS-lite's three-comb resonant body as its own polyphonic module. Strike it with the built-in exciter or feed it any audio, play its pitch from a keyboard: plucked strings, bars, metallic bodies, drones from noise. **Original code**: start from `native/modules2/chaos_lite/comb_body.h` (our own GPL code) by **copying and adapting into the new folder**. Don't edit `chaos_lite/`; its output must stay bit-identical (its tests pass unchanged). This is design A of `docs/design/ports/CHAOS_DECOMPOSITION.md` §3 "Comb Resonator", as a non-external module; there is no sst/Surge code and no `ports.` ID.
+**What.** Step 1 of the CHAOS rebuild ([board #473](https://github.com/kalharbi11/wirescape/issues/473), "CHAOS rebuild path"): CHAOS-lite's three-comb resonant body as its own polyphonic module. Strike it with the built-in exciter or feed it any audio, play its pitch from a keyboard: plucked strings, bars, metallic bodies, drones from noise. **Original code**: start from `native/modules2/chaos_lite/comb_body.h` (our own GPL code) by **copying and adapting into the new folder**. Don't edit `chaos_lite/`; its output must stay bit-identical (its tests pass unchanged). This is design A of `docs/design/ports/CHAOS_DECOMPOSITION.md` §3 "Comb Resonator", as a non-external module; there is no sst/Surge code and no `ports.` ID.
 
-**Read first:** `docs/planner/MODULES.md` (common rules), `docs/SDK_AUTHOR_GUIDE.md` §1–§12, `native/modules2/chaos_lite/` (`comb_body.h`, `dsp.h` prepare/memory, `tests.cpp`), `native/modules2/vcf/` (poly processor with pitch).
+**Read first:** `docs/SDK_AUTHOR_GUIDE.md` §1–§12, `native/modules2/chaos_lite/` (`comb_body.h`, `dsp.h` prepare/memory, `tests.cpp`), `native/modules2/vcf/` (poly processor with pitch).
 
 ## Interface (IDs final once merged)
 | Kind | ID | Name | Details |
@@ -39,15 +39,23 @@
 7. `chaos_lite` tests still pass unchanged (they run in `python tools/dev.py test`).
 8. Frame/rate matrix, reset, state, extremes, no-allocation (guide §12).
 
+The module-local budget remains **at most 10 files in `native/modules2/resonator/`**;
+standard wiring, generated catalogue, and this task metadata are excluded from
+that folder cap. The acceptance runner counts *all* changed files and lines,
+so the machine-readable bound of 17 files is equivalent for this PR (8 folder
+files, 8 standard wiring/generated/catalogue-test files, 1 task brief); the 800-line bound
+also counts wiring and is therefore stricter than the original folder-only
+budget. No behavioural acceptance test is changed.
+
 ```acceptance
 tier: T1
-size: <= 800 changed lines, <= 10 files in native/modules2/resonator/ (standard wiring and generated files don't count)
+size: <= 800 changed lines, <= 17 files
 must_pass:
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -R "abi2_resonator_tests|abi2_chaos_lite_tests" --output-on-failure
   - python tools/dev.py test
-  - cd apps/studio && npm ci && npm test
-  - pi-run: python tools/module_cpu_probe.py resonator   # after #304 adds the probe; two instances × 8 voices, 48 kHz / 128 frames, worst block < 50% of the period
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && WIRESCAPE_CHROMIUM="$(command -v chromium || command -v chromium-browser || command -v google-chrome)" npm test'
+  - pi-run: python tools/module_cpu_probe.py essentials.resonator --channels 8   # after #367 and #372 add the probe/channel option; two instances × 8 voices, 48 kHz / 128 frames, worst block < 50% of the period
 stops: [ABI header edit, new dependency, third-party code, edits to native/modules2/chaos_lite/, test loosening, ID change after merge]
 ```
 Signed: Compass (Claude), 2026-11-07

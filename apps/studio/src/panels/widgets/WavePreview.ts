@@ -42,7 +42,9 @@ export class WavePreview {
     this.root.append(this.pane.root);
     this.unbind = o.ticker.bind(o.moduleId, t => {
       const p = t.phase[o.moduleId];
-      this.phase = typeof p === 'number' && Number.isFinite(p) ? ((p % 1) + 1) % 1 : null;
+      this.phase = typeof p === 'number' && Number.isFinite(p) && p >= 0 && p < 1 ? p : null;
+      if (this.phase === null) delete this.root.dataset.phase;
+      else this.root.dataset.phase = String(this.phase);
       const out = t.outputs?.[`${o.moduleId}:control`];
       this.output = typeof out === 'number' && Number.isFinite(out) ? out : null;
       this.draw(t.time);
@@ -90,20 +92,32 @@ export class WavePreview {
     ctx.lineJoin = 'round';
     ctx.stroke();
 
+    // The rust dot is a measured position only, never a locally advanced cursor.
+    if (ph !== null) {
+      const value = lfoTraceValue(ph, 1, s.depth, s.offset);
+      const y = cy - Math.max(-1, Math.min(1, value)) * A;
+      ctx.beginPath();
+      ctx.arc(x1, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = pal.rust;
+      ctx.fill();
+    }
+
     this.updateReadout(time);
   }
 
   /** Live amplitude may update the label, never the phase-based trace. */
   private updateReadout(time: number): void {
-    if (time - this.lastText < 1 / 15 && time >= this.lastText) return;
-    this.lastText = time;
     if (this.phase === null) {
       this.readout.textContent = 'phase not available';
-    } else {
-      const s = this.o.shape();
-      const v = this.output ?? lfoTraceValue(this.phase, 1, s.depth, s.offset);
-      this.readout.textContent = `φ ${Math.round(this.phase * 360)}° ${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`;
+      return;
     }
+    if (time - this.lastText < 1 / 15 && time >= this.lastText) return;
+    this.lastText = time;
+    // An output value is shown only if the engine also reported that output.
+    const degrees = Math.round(this.phase * 360);
+    const v = this.output;
+    this.readout.textContent = v === null ? `φ ${degrees}°`
+      : `φ ${degrees}° ${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`;
   }
 
   destroy(): void { this.unbind(); this.pane.destroy(); }

@@ -157,6 +157,35 @@ jobs:
             Write-Output "::error::$detail"
             throw
           } finally { Stop-Transcript }
+      - name: Node 22 for Windows source setup
+        if: runner.os == 'Windows'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Windows source setup parse, read-only preflight and real app smoke
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tokens = $null; $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'tools/windows/setup.ps1'), [ref]$tokens, [ref]$errors)
+          if ($errors.Count) { throw ($errors | Out-String) }
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -version '[17.0,19.0)' -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($LASTEXITCODE -or !$vs) { throw 'VS 2022/2026 x64 toolchain missing' }
+          Import-Module (Join-Path $vs 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll')
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+          $source = (git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE) { throw 'Cannot resolve source SHA' }
+          $before = git status --porcelain --untracked-files=all
+          & ./tools/windows/setup.ps1 -CheckOnly -Ref $source
+          if ($LASTEXITCODE) { throw 'Windows preflight failed' }
+          $after = git status --porcelain --untracked-files=all
+          if (($before -join "`n") -ne ($after -join "`n")) { throw 'CheckOnly changed the worktree' }
+          python -m unittest discover -s tools/foundation/tests -p test_windows_setup.py -v
+          if ($LASTEXITCODE) { throw 'Windows output-isolation behavior tests failed' }
+          & ./tools/windows/setup.ps1 -Ref $source
+          if ($LASTEXITCODE) { throw 'Windows source setup/smoke failed' }
       - name: Build and test (devices stay off)
         run: |
           set -euo pipefail
@@ -165,7 +194,7 @@ jobs:
           if [[ '${{ matrix.os }}' == linux-arm64 ]]; then
             python tools/dev.py build --headless
           else
-            python tools/dev.py build
+            python tools/dev.py build --with-qt
             test -f build/native/ui/wirescape-ui-enabled.txt
           fi
           python tools/dev.py test
@@ -225,6 +254,25 @@ jobs:
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
               summary.write('\n'.join(summaries))
           PYTHON
+      - name: Bound offline render evidence artifacts
+        if: always() && matrix.os == 'linux-arm64'
+        run: |
+          python - <<'PYTHON'
+          from pathlib import Path
+          root = Path('build/native/render_evidence')
+          if root.exists():
+              size = sum(p.stat().st_size for p in root.rglob('*') if p.is_file())
+              print(f'render_evidence uncompressed bytes: {size}')
+              if size > 20 * 1024 * 1024:
+                  raise SystemExit('render_evidence exceeds 20 MiB budget')
+          PYTHON
+      - uses: actions/upload-artifact@v7
+        if: always() && matrix.os == 'linux-arm64'
+        with:
+          name: render-evidence-linux-arm64-${{ github.event.pull_request.head.sha || github.sha }}
+          path: build/**/render_evidence/
+          retention-days: 14
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v7
         if: always()
         with:

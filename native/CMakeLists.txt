@@ -3,18 +3,20 @@ project(WirescapeNative VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-# SDK discovery is local configuration, never a machine-specific tracked path.
-if(DEFINED ENV{WIRESCAPE_QT_DIR} AND NOT "$ENV{WIRESCAPE_QT_DIR}" STREQUAL "")
-  list(PREPEND CMAKE_PREFIX_PATH "$ENV{WIRESCAPE_QT_DIR}")
-elseif(NOT CMAKE_PREFIX_PATH AND NOT DEFINED ENV{CMAKE_PREFIX_PATH})
-  set(_wirescape_local_qt "${CMAKE_CURRENT_SOURCE_DIR}/../.tools/qt/6.10.3/msvc2022_64")
-  if(EXISTS "${_wirescape_local_qt}/lib/cmake/Qt6/Qt6Config.cmake")
-    list(PREPEND CMAKE_PREFIX_PATH "${_wirescape_local_qt}")
+option(WIRESCAPE_BUILD_UI "Build optional UI device bridge and Qt shell" OFF)
+# Qt SDK discovery is opt-in local configuration.
+if(WIRESCAPE_BUILD_UI)
+  if(DEFINED ENV{WIRESCAPE_QT_DIR} AND NOT "$ENV{WIRESCAPE_QT_DIR}" STREQUAL "")
+    list(PREPEND CMAKE_PREFIX_PATH "$ENV{WIRESCAPE_QT_DIR}")
+  elseif(NOT CMAKE_PREFIX_PATH AND NOT DEFINED ENV{CMAKE_PREFIX_PATH})
+    set(_wirescape_local_qt "${CMAKE_CURRENT_SOURCE_DIR}/../.tools/qt/6.10.3/msvc2022_64")
+    if(EXISTS "${_wirescape_local_qt}/lib/cmake/Qt6/Qt6Config.cmake")
+      list(PREPEND CMAKE_PREFIX_PATH "${_wirescape_local_qt}")
+    endif()
   endif()
 endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-option(WIRESCAPE_BUILD_UI "Build optional UI device bridge and Qt shell" ON)
 add_library(wirescape_engine SHARED src/engine.cpp)
 target_compile_definitions(wirescape_engine PRIVATE WS_ENGINE_BUILD)
 target_include_directories(wirescape_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -107,6 +109,8 @@ set_tests_properties(returned_filter_stress PROPERTIES TIMEOUT 30)
 
 # Isolated experimental ABI2 foundation; ABI1 app/engine/module sources stay unchanged.
 add_subdirectory(engine2)
+# Production ABI2 device-free renderer and behavioral CTests.
+add_subdirectory(tools/render)
 
 # Offline analysis tests only; real endpoint capture is always a manual command.
 add_subdirectory(tools/capture)
@@ -143,16 +147,12 @@ set_tests_properties(abi2_sidecar_protocol_tests PROPERTIES TIMEOUT 90)
 add_test(NAME sidecar_golden COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/sidecar/golden_tests.py
   $<TARGET_FILE:wirescape_engine_sidecar> ${CMAKE_CURRENT_SOURCE_DIR}/../tests/protocol/golden_v0.ndjson)
 set_tests_properties(sidecar_golden PROPERTIES TIMEOUT 180)
-if(WIN32)
-  # Windows-only skip for #266 (1B-2); Linux and the Pi treat exit 77 as a failure.
-  set_tests_properties(abi2_sidecar_protocol_tests sidecar_golden PROPERTIES SKIP_RETURN_CODE 77)
-endif()
 add_executable(sidecar_protocol_unit_tests sidecar/protocol_unit_tests.cpp sidecar/protocol.cpp sidecar/devices.cpp tests2/allocation_watch.cpp)
 target_link_libraries(sidecar_protocol_unit_tests PRIVATE wirescape_runtime_document wirescape_audio_service
   wirescape_midi_host nlohmann_json::nlohmann_json Threads::Threads)
 add_test(NAME abi2_sidecar_unit_tests COMMAND sidecar_protocol_unit_tests)
 set_tests_properties(abi2_sidecar_unit_tests PROPERTIES TIMEOUT 30)
-add_executable(sidecar_audio_recovery_tests sidecar/audio_recovery_tests.cpp sidecar/session.cpp
+add_executable(sidecar_audio_recovery_tests sidecar/audio_recovery_tests.cpp sidecar/session.cpp io/audio/device_identity.cpp
   sidecar/protocol.cpp sidecar/devices.cpp)
 target_include_directories(sidecar_audio_recovery_tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(sidecar_audio_recovery_tests PRIVATE WIRESCAPE_ENGINE_SHA="${engine_sha}")

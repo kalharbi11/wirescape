@@ -2,7 +2,6 @@
 """Process conformance: pipes, null sink and an explicitly fake device catalogue."""
 import atexit
 import json
-import os
 import queue
 import re
 import subprocess
@@ -13,12 +12,6 @@ import time
 from pathlib import Path
 
 BINARY, EXAMPLES = sys.argv[1:3]
-
-# Windows-only stdout stall is tracked in #266 (D13 split of #247); ctest reports SKIP.
-# Linux and the Pi run the full suite. WIRESCAPE_SIDECAR_WINDOWS=1 runs it on Windows too.
-if sys.platform == 'win32' and os.environ.get('WIRESCAPE_SIDECAR_WINDOWS') != '1':
-    print('SKIP: Windows sidecar protocol suite pending #266')
-    sys.exit(77)
 
 
 def strict_object(pairs):
@@ -154,6 +147,15 @@ def telemetry_when(engine, gen, predicate, timeout=8.0):
     raise AssertionError(f'no matching telemetry at gen {gen}: {engine.stderr()}')
 
 
+def learn_status_when(engine, predicate, timeout=4):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        message = engine.pushes.pop(0) if engine.pushes else engine.receive()
+        if message.get('type') == 'status' and predicate(message['status']['midi']):
+            return message['status']['midi']
+    raise AssertionError('No matching MIDI Learn status')
+
+
 def minimal():
     return dict(format='wirescape.native.patch', version=2,
                 modules=[dict(id=7, module='essentials.output')], connections=[],
@@ -168,6 +170,16 @@ def edge(kind, source, output, dest, port, **extra):
 with tempfile.TemporaryDirectory() as directory:
     settings = Path(directory) / 'settings.json'
     engine = Engine(settings, '--confirm-audio', '--confirm-midi')  # null overrides both
+    assert 'midiLearn' in engine.hello['capabilities']
+    assert 'learn' not in engine.hello['midi']
+    assert engine.call('midiLearn', armed=True)['result'] == {'armed': True}
+    assert learn_status_when(engine, lambda m: m.get('learn') == {'armed': True})['learn'] == {'armed': True}
+    assert engine.call('midiLearn', False, armed='yes')['code'] == 'invalid'
+    assert engine.call('midiLearn', armed=False)['result'] == {'armed': False}
+    assert 'learn' not in learn_status_when(engine, lambda m: 'learn' not in m)
+    assert engine.call('midiLearn', armed=True)['result'] == {'armed': True}
+    assert engine.call('midiLearn', armed=True)['result'] == {'armed': True}  # rearm resets timeout/observation
+    assert engine.call('midiLearn', armed=False)['result'] == {'armed': False}
     patch = minimal()
     original = json.dumps(patch)
     assert engine.call('loadGraph', patch=patch)['gen'] == '1'
@@ -309,6 +321,14 @@ with tempfile.TemporaryDirectory() as directory:
     telemetry_when(observed, first, lambda t:
                    'frequency' in t['effective'].get('9', {}) and
                    abs(t['effective']['9']['frequency'] - 440) > 0.01)
+    # B-wire: real channel-0 LFO phase must advance in the bounded range.
+    first_phase = telemetry_when(observed, first, lambda t:
+        isinstance(t['phase'].get('10'), (int, float)) and
+        0 <= t['phase']['10'] < 1)['phase']['10']
+    telemetry_when(observed, first, lambda t:
+        isinstance(t['phase'].get('10'), (int, float)) and
+        0 <= t['phase']['10'] < 1 and
+        abs(t['phase']['10'] - first_phase) > 0.005)
     observed.call('noteOn', note=60, velocity=0.8)
     telemetry_when(observed, first, lambda t: t['eventActivity'].get('12:notes') == 1)
     telemetry_when(observed, first, lambda t: t['envelope'].get('14', 0) > 0)
@@ -328,6 +348,9 @@ with tempfile.TemporaryDirectory() as directory:
     telemetry_when(observed, replaced, lambda t: t['envelope'].get('14', 1) <= 0.01)
     disconnected = observed.call('disconnect', connection=mod)['gen']
     telemetry_when(observed, disconnected, lambda t: t['effective'] == {})
+    # Replacing the graph must remove phase immediately, even with reused IDs.
+    no_lfo = observed.call('loadGraph', patch=minimal())['gen']
+    telemetry_when(observed, no_lfo, lambda t: t['phase'] == {})
     observed.close()
     restarted = Engine(settings)
     assert restarted.session != old_session
@@ -343,11 +366,11 @@ with tempfile.TemporaryDirectory() as directory:
              if line.startswith('bench ')]
     assert len(lines) == 1, lines
     match = re.fullmatch(
-        r'bench blocks=(\d+) p50=(\d+) p99=(\d+) max=(\d+(?:\.\d+)?(?:e[+-]?\d+)?) overruns=(\d+)',
+        r'bench blocks=(\d+) p50=(\d+) p99=(\d+) max=(\d+(?:\.\d+)?(?:e[+-]?\d+)?) overruns=(\d+) faults=(\d+)',
         lines[0])
     assert match, lines[0]
-    blocks, p50, p99, maximum, overruns = map(float, match.groups())
-    assert blocks > 0 and 0 <= p50 <= p99 <= maximum and overruns >= 0
+    blocks, p50, p99, maximum, overruns, faults = map(float, match.groups())
+    assert blocks > 0 and 0 <= p50 <= p99 <= maximum and overruns >= 0 and faults == 0
     # Long block periods cannot delay hello or EOF teardown. 8 kHz x 4096 frames is the
     # longest supported period (~512 ms); the engine refuses rates below 8 kHz.
     started = time.monotonic()
@@ -360,4 +383,14 @@ with tempfile.TemporaryDirectory() as directory:
     for flags in [('--unknown',), ('--rate', '0'), ('--block', '4097'), ('--device',), ('--bench-summary',)]:
         result = subprocess.run([BINARY, *flags], input=b'', capture_output=True, timeout=10)
         assert result.returncode != 0 and not result.stdout
-print('sidecar protocol process vectors passed (null audio, fake MIDI only)')
+# Real, short, device-free end-to-end benchmark ingestion on the production sidecar.
+harness = Path(__file__).resolve().parents[2] / 'tools' / 'sidecar_edit_soak.py'
+smoke = subprocess.run([sys.executable, str(harness), '--engine', BINARY,
+                        '--seconds', '2', '--seed', '278'], capture_output=True, text=True, timeout=30)
+assert smoke.returncode == 0, smoke.stderr[-1200:] + smoke.stdout[-1200:]
+summary = json.loads(smoke.stdout, object_pairs_hook=strict_object)
+metrics = summary.get('performance_evidence')
+assert summary['status'] == 'passed' and summary['seed'] == 278 and summary['seconds'] == 2
+assert isinstance(metrics, dict) and metrics['blocks'] >= 0.9 * 2 * 48000 / 256
+assert metrics['faults'] == 0 and metrics['overruns'] == 0
+print('sidecar protocol and two-second measured edit soak passed (null audio, fake MIDI only)')

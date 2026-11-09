@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { test, expect, type Page } from '@playwright/test';
+import { CURATED_PATCHES } from '../src/app/curated';
 
 const peak = (page: Page) => page.evaluate(() => (window as unknown as { __wirescapeWeb: { peak: number } }).__wirescapeWeb.peak);
 const send = (page: Page, cmd: Record<string, unknown>) => page.evaluate(c =>
@@ -21,6 +22,19 @@ test('web demo starts the wasm engine, loads the starter and makes sound', async
   await expect.poll(() => peak(page), { timeout: 15_000 }).toBeGreaterThan(0.001);
   await send(page, { v: 0, id: 'smoke-off', type: 'noteOff', note: 60 });
   expect(errors).toEqual([]);
+});
+
+
+// The clock and sequencer are self-running: no computer key or MIDI event is needed.
+test('web demo plays a curated step progression immediately after loading', async ({ page }) => {
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  const patch = CURATED_PATCHES.find(s => s.id === 'witching-hour')!;
+  await page.evaluate(({ patch, name }) =>
+    (window as any).__wirescapeTest.load(patch, name), { patch: patch.patch, name: patch.name });
+  await expect(page.getByTestId('patch-name')).toContainText('Witching Hour');
+  await expect.poll(() => peak(page), { timeout: 15_000 }).toBeGreaterThan(0.001);
 });
 
 test('web demo refuses MIDI modules without breaking the live patch', async ({ page }) => {
@@ -129,8 +143,9 @@ test('SHARE puts the patch in a link that opens the same patch', async ({ page, 
   await page.goto('./');
   await page.getByTestId('web-start').click();
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
-  await page.getByTestId('starter-select').selectOption('drone');
-  await expect.poll(() => modules(page)).toContain('2:essentials.noise');
+  const sequence = CURATED_PATCHES.find(p => p.id === 'witching-hour')!;
+  await page.evaluate(p => (window as any).__wirescapeTest.load(p.patch, p.name), sequence);
+  await expect.poll(() => modules(page)).toContain('2:example.step_sequencer');
   const expected = await modules(page);
   await page.getByTestId('share-patch').click();
   await expect.poll(() => page.evaluate(() => location.hash)).toMatch(/^#p=/);
@@ -142,9 +157,8 @@ test('SHARE puts the patch in a link that opens the same patch', async ({ page, 
   await expect.poll(() => modules(other)).toEqual(expected);
   await expect.poll(() => other.evaluate(() => location.hash)).toBe('');
   await expect(other.getByTestId('share-patch')).toBeVisible();
-  await other.keyboard.down('a');
+  // The shared sequencer must resume without a keyboard or MIDI event.
   await expect.poll(() => peak(other), { timeout: 15_000 }).toBeGreaterThan(0.001);
-  await other.keyboard.up('a');
 });
 
 test('a malformed shared link falls back to the normal start', async ({ page }) => {

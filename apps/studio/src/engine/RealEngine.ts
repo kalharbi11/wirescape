@@ -76,6 +76,7 @@ export class RealEngine implements EngineClient {
   private catalogueCbs = new Set<() => void>();
   setSampleRate?: (hz: number) => void;
   setBufferFrames?: (frames: number) => void;
+  midiLearn?: (armed: boolean) => void;
 
   constructor(
     private readonly bridge: WirescapeBridge,
@@ -163,6 +164,8 @@ export class RealEngine implements EngineClient {
         ? hz => this.control('setSampleRate', { hz }) : undefined;
       this.setBufferFrames = capabilities.includes('setBufferFrames')
         ? frames => this.control('setBufferFrames', { frames }) : undefined;
+      this.midiLearn = capabilities.includes('midiLearn')
+        ? armed => this.control('midiLearn', { armed }) : undefined;
       if (isRecord(message.catalogue) && Array.isArray(message.catalogue.modules)) {
         this.registry.replace(message.catalogue.modules as ModuleDescriptor[]);
         for (const cb of this.catalogueCbs) cb();
@@ -171,7 +174,9 @@ export class RealEngine implements EngineClient {
         this.midiDevices = Array.isArray(message.midi.devices) ? message.midi.devices as Device[] : [];
         this.emitStatus({ audio: message.audio as unknown as SystemStatus['audio'],
           midi: { devices: this.midiDevices, activity: isRecord(message.midi.activity)
-            ? message.midi.activity as Record<string, number> : {} } });
+            ? message.midi.activity as Record<string, number> : {},
+          ...(isRecord(message.midi.learn) ? { learn: message.midi.learn as unknown as
+            NonNullable<SystemStatus['midi']['learn']> } : {}) } });
       }
       if (resumeLoad) this.dispatchLoad();
       else if (wasRunning) {
@@ -211,6 +216,8 @@ export class RealEngine implements EngineClient {
     if (message.ok !== true) {
       const err = refusal(message.code, message.message);
       if (p.kind === 'load') {
+        // A refused loadGraph leaves the engine on its previous graph (sidecar rollback).
+        (err.detail as { engine?: true }).engine = true;
         if (p.revision === this.revision) {
           this.ready = false;
           this.queue = []; this.active = undefined;

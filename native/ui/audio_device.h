@@ -1,6 +1,6 @@
 #pragma once
+#include "../third_party/portaudio/portaudio.h"
 #include "wirescape/engine.h"
-#include "third_party/portaudio.h"
 #include <QLibrary>
 #include <QString>
 #include <QVariantList>

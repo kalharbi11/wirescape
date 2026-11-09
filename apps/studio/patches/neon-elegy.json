@@ -1,0 +1,254 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "08 · Neon Elegy",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 1108,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "essentials.clock",
+      "parameters": {
+        "bpm": 94,
+        "ticks_per_beat": 2,
+        "duty": 0.58,
+        "run": 1
+      },
+      "version": 2
+    },
+    {
+      "id": 2,
+      "module": "example.step_sequencer",
+      "parameters": {
+        "run": 1,
+        "length": 8,
+        "pitch1": -0.25,
+        "gate1": 1,
+        "vel1": 0.78,
+        "pitch2": 0,
+        "gate2": 1,
+        "vel2": 0.64,
+        "pitch3": 0.3333333333333333,
+        "gate3": 1,
+        "vel3": 0.84,
+        "pitch4": 0.5833333333333334,
+        "gate4": 1,
+        "vel4": 0.6,
+        "pitch5": -0.5833333333333334,
+        "gate5": 1,
+        "vel5": 0.83,
+        "pitch6": -0.25,
+        "gate6": 2,
+        "vel6": 0.83,
+        "pitch7": 0,
+        "gate7": 1,
+        "vel7": 0.71,
+        "pitch8": -0.4166666666666667,
+        "gate8": 0,
+        "vel8": 0.5
+      },
+      "version": 2
+    },
+    {
+      "id": 3,
+      "module": "ports.macro_oscillator",
+      "parameters": {
+        "model": 2,
+        "coarse": -12,
+        "harmonics": 0.38,
+        "timbre": 0.62,
+        "morph": 0.31,
+        "timbre_amount": 0.29,
+        "morph_amount": 0.24,
+        "decay": 0.3,
+        "lpg_colour": 0.59
+      },
+      "version": 1
+    },
+    {
+      "id": 4,
+      "module": "essentials.ladder",
+      "parameters": {
+        "cutoff": 3300,
+        "resonance": 0.24,
+        "drive": 0.12
+      },
+      "version": 2
+    },
+    {
+      "id": 5,
+      "module": "essentials.output",
+      "parameters": {},
+      "version": 2
+    },
+    {
+      "id": 6,
+      "module": "essentials.lfo",
+      "parameters": {
+        "rate": 0.093,
+        "depth": 0.72
+      },
+      "version": 2
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "clock"
+      },
+      "to": {
+        "module": 2,
+        "port": "clock"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 3,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "gate"
+      },
+      "to": {
+        "module": 3,
+        "port": "trigger"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "gate"
+      },
+      "to": {
+        "module": 3,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 3,
+        "port": "level"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "main"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 6,
+        "port": "control"
+      },
+      "to": {
+        "module": 3,
+        "port": "morph"
+      },
+      "amount": 0.16
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 6,
+        "port": "control"
+      },
+      "to": {
+        "module": 4,
+        "port": "cutoff"
+      },
+      "amount": 0.18
+    }
+  ],
+  "outputs": [
+    {
+      "module": 5,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 5,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        80,
+        80
+      ],
+      "2": [
+        740,
+        80
+      ],
+      "3": [
+        1640,
+        80
+      ],
+      "4": [
+        2260,
+        80
+      ],
+      "5": [
+        2720,
+        80
+      ],
+      "6": [
+        80,
+        1180
+      ]
+    },
+    "labels": {
+      "2": "A minor · eight steps",
+      "3": "FM engine · model 2",
+      "6": "Shifting harmonics"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

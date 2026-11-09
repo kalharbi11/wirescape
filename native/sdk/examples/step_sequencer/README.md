@@ -21,7 +21,7 @@ note unless the next step is a tie. A rising `reset` edge makes the next clock p
 | Param | `run` | 0..1, default 1, stepped | 0 releases the note and stops advancing; the position is kept. |
 | Param | `length` | 1..16, default 8 (legacy-safe), stepped | Number of steps played. |
 | Param | `pitch1`..`pitch16` | -2..2 oct, default 0 | Key = 60 + round(pitch * 12). |
-| Param | `gate1`..`gate16` | 0..2, default 1, stepped | 0 rest, 1 note, 2 tie. |
+| Param | `gate1`..`gate16` | 0..2, default 1 for steps 1–8 and 0 for 9–16, stepped | 0 rest, 1 note, 2 tie. |
 | Param | `vel1`..`vel16` | 0..1, default 0.8 | Note-on velocity. |
 
 50 parameters in all (requires the ABI2 64-parameter host from #404). Original slots 0–25 are unchanged. IDs are stable API and must never change. The pattern lives

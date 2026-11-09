@@ -60,7 +60,7 @@ struct Rig {
     const float* in_rows[2]{};
     ws2_signal ins[2]{};
     float values[kParams]{};
-    const float* value_rows[kParams]{};
+    const float *value_rows[kParams]{};
     ws2_signal params[kParams]{};
     float (&out)[4][16][kFrames] = buffers->out;
     float* out_rows[4][16]{};
@@ -105,12 +105,15 @@ struct Rig {
         }
     }
 
-    // All 16 steps are independently programmable; the first 8 retain their IDs.
-    void pattern16(const int (&semitones)[16], const int (&gates)[16], uint32_t length = 16) {
+    struct Pattern16 {
+        const int (&semitones)[16];
+        const int (&gates)[16];
+    };
+    void pattern16(const Pattern16 &pattern, uint32_t length = 16) {
         values[S::kLength] = static_cast<float>(length);
         for (uint32_t i = 0; i < 16; ++i) {
-            values[S::pitch_param(i)] = static_cast<float>(semitones[i]) / 12.f;
-            values[S::gate_param(i)] = static_cast<float>(gates[i]);
+            values[S::pitch_param(i)] = static_cast<float>(pattern.semitones[i]) / 12.f;
+            values[S::gate_param(i)] = static_cast<float>(pattern.gates[i]);
         }
     }
 
@@ -329,7 +332,8 @@ static void test_state() {
     auto truncated = bytes; truncated.pop_back();
     REQUIRE(load(f, truncated) == WS2_INVALID);
     REQUIRE(load(f, Bytes{}) == WS2_INVALID);
-    auto bad_step = bytes; bad_step[4] = 17;
+    auto bad_step = bytes;
+    bad_step[4] = 17;
     REQUIRE(load(f, bad_step) == WS2_INVALID);
     auto bad_velocity = bytes; bad_velocity[bad_velocity.size() - 1] = 0x7f;      // velocity becomes NaN/huge
     REQUIRE(load(f, bad_velocity) == WS2_INVALID);
@@ -339,7 +343,9 @@ static void test_state() {
 
 static void test_no_allocation() {
     Rig r;
-    r.pattern(kSemis, kNotes);
+    const int semis[16] = {0, 2, 4, 5, 7, 9, 11, 12, -12, -10, -8, -7, -5, -3, -1, 0};
+    const int gates[16] = {1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    r.pattern16({semis, gates});
     for (uint32_t i = 0; i < 256; ++i) { r.in[0][i] = Clock{}(i); r.in[1][i] = Resets{{100}}(i); }
     allocation_watch::Scope watch;
     for (int i = 0; i < 100; ++i) {
@@ -352,7 +358,8 @@ static void test_no_allocation() {
 
 static void test_extremes() {
     Rig r;
-    for (uint32_t s = 0; s < 16; ++s) {       // out-of-range parameters the module must tolerate
+    // Out-of-range parameters the module must tolerate.
+    for (uint32_t s = 0; s < 16; ++s) {
         r.values[S::pitch_param(s)] = (s % 2) ? 1e6f : -1e6f;
         r.values[S::gate_param(s)] = static_cast<float>(s) - 2.f;
         r.values[S::vel_param(s)] = (s % 2) ? 9.f : -9.f;
@@ -367,19 +374,36 @@ static void test_extremes() {
     std::puts("PASS finite outputs and valid events under extreme parameters");
 }
 
+static void test_legacy_length_default() {
+    Rig r; // An older patch may omit length; it must still wrap at eight.
+    REQUIRE(r.values[S::kLength] == 8.f);
+    for (uint32_t i = 8; i < 16; ++i) REQUIRE(r.values[S::gate_param(i)] == 0.f);
+    for (uint32_t i = 0; i < 16; ++i) {
+        r.values[S::pitch_param(i)] = static_cast<float>(static_cast<int>(i) - 8) / 12.f;
+    }
+    const Trace t = r.render(340, 64, Clock{}, Resets{});
+    const Events ons = only(t, WS2_NOTE_ON);
+    REQUIRE(ons.size() == 17);
+    for (size_t i = 0; i < ons.size(); ++i) {
+        REQUIRE(ons[i].frame == i * 20 && ons[i].key == 52 + static_cast<int>(i % 8));
+    }
+    check_balanced(t);
+    check_agreement(t);
+    std::puts("PASS legacy patches without length keep the eight-step default");
+}
 
 static void test_sixteen_steps_and_boundary_ties() {
     static_assert(kParams == 50, "append 24 new step parameters without renumbering");
-    static_assert(S::pitch_param(0) == 2 && S::vel_param(7) == 25 &&
-                  S::pitch_param(8) == 26 && S::vel_param(15) == 49, "stable parameter slots");
+    static_assert(S::pitch_param(0) == 2 && S::vel_param(7) == 25, "stable published parameter slots");
+    static_assert(S::pitch_param(8) == 26 && S::vel_param(15) == 49, "stable appended parameter slots");
     const int semis[16] = {0, 2, 4, 5, 7, 9, 11, 12, -12, -10, -8, -7, -5, -3, -1, 0};
     const int notes[16] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
     Rig r;
-    r.pattern16(semis, notes);
+    r.pattern16({semis, notes});
     r.values[S::vel_param(15)] = 0.37f; // exercise the final parameter slot (49)
     const Trace t = r.render(660, 64, Clock{}, Resets{});
     REQUIRE(t.events.size() == 66); // 33 notes across two cycles, matching clock falls
-    for (uint32_t i = 0; i < 33; ++i) {
+    for (size_t i = 0; i < 33; ++i) {
         REQUIRE(t.events[2 * i].type == WS2_NOTE_ON);
         REQUIRE(t.events[2 * i].frame == i * 20 && t.events[2 * i].key == 60 + semis[i % 16]);
         REQUIRE(t.events[2 * i].value == (i % 16 == 15 ? 0.37f : 0.8f));
@@ -391,11 +415,12 @@ static void test_sixteen_steps_and_boundary_ties() {
     // Tie over steps 8->9 and 16->1, even when the clock goes low between rises.
     const int ties[16] = {2, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 1};
     Rig tied;
-    tied.pattern16(semis, ties);
+    tied.pattern16({semis, ties});
     const Trace hold = tied.render(360, 17, Clock{}, Resets{});
-    const Ev expected[] = {
-        {WS2_NOTE_ON, 140, 0, 72, 0.8f}, {WS2_NOTE_OFF, 168, 0, 72, 0.f},
-        {WS2_NOTE_ON, 300, 1, 60, 0.8f}, {WS2_NOTE_OFF, 328, 1, 60, 0.f}};
+    const Ev expected[] = {{WS2_NOTE_ON, 140, 0, 72, 0.8f},
+                           {WS2_NOTE_OFF, 168, 0, 72, 0.f},
+                           {WS2_NOTE_ON, 300, 1, 60, 0.8f},
+                           {WS2_NOTE_OFF, 328, 1, 60, 0.f}};
     REQUIRE(is(hold.events, expected));
     REQUIRE(hold.gate[148] == 1 && hold.gate[167] == 1 && hold.gate[168] == 0);
     REQUIRE(hold.gate[308] == 1 && hold.gate[327] == 1 && hold.gate[328] == 0);
@@ -404,7 +429,7 @@ static void test_sixteen_steps_and_boundary_ties() {
     // Stop while step 16 is sounding: release immediately. Restart and reset on
     // the same clock edge: the legacy reset-wins rule must still play step 1.
     Rig stopped;
-    stopped.pattern16(semis, notes);
+    stopped.pattern16({semis, notes});
     Trace all = stopped.render(304, 17, Clock{}, Resets{});
     REQUIRE(all.events.back().type == WS2_NOTE_ON && all.events.back().frame == 300);
     stopped.values[S::kRun] = 0.f;
@@ -413,7 +438,7 @@ static void test_sixteen_steps_and_boundary_ties() {
     stopped.values[S::kRun] = 1.f;
     const Trace resumed = stopped.render(60, 17, Clock{}, Resets{{340}});
     bool step_one_on_reset = false;
-    for (const Ev& e : resumed.events) {
+    for (const Ev &e : resumed.events) {
         if (e.type == WS2_NOTE_ON && e.frame == 340 && e.key == 60) step_one_on_reset = true;
     }
     REQUIRE(step_one_on_reset);
@@ -429,21 +454,30 @@ static void test_sixteen_block_matrix_and_length_edits() {
     const int gates[16] = {1, 1, 2, 0, 1, 1, 0, 1, 1, 1, 2, 1, 0, 1, 1, 1};
     const Resets resets{{333, 499}};
     Rig one;
-    one.pattern16(semis, gates);
+    one.pattern16({semis, gates});
     const Trace expected = one.render(640, 640, Clock{23, 9}, resets);
     for (uint32_t size : {1u, 17u, 128u, 256u}) {
         Rig r;
-        r.pattern16(semis, gates);
+        r.pattern16({semis, gates});
         REQUIRE(r.render(640, size, Clock{23, 9}, resets) == expected);
     }
     for (double rate : {44100., 48000., 96000.}) {
         Rig r(rate);
-        r.pattern16(semis, gates);
+        r.pattern16({semis, gates});
         REQUIRE(r.render(640, 128, Clock{23, 9}, resets).events == expected.events);
     }
 
+    Rig grow;
+    grow.pattern16({semis, gates}, 8);
+    grow.render(145, 17, Clock{}, Resets{}); // just played the eighth step
+    grow.values[S::kLength] = 16.f;
+    const Events expanded = only(grow.render(60, 17, Clock{}, Resets{}), WS2_NOTE_ON);
+    REQUIRE(expanded.size() == 2);
+    REQUIRE(expanded[0].frame == 160 && expanded[0].key == 48);
+    REQUIRE(expanded[1].frame == 180 && expanded[1].key == 50);
+
     Rig edit;
-    edit.pattern16(semis, gates);
+    edit.pattern16({semis, gates});
     edit.render(225, 17, Clock{}, Resets{}); // 12th step was just played at frame 220
     edit.values[S::kLength] = 4;
     const Trace shortened = edit.render(95, 17, Clock{}, Resets{});
@@ -451,7 +485,7 @@ static void test_sixteen_block_matrix_and_length_edits() {
     // must come from the retained steps, never from the removed upper bank.
     const Events new_notes = only(shortened, WS2_NOTE_ON);
     REQUIRE(!new_notes.empty());
-    for (const Ev& e : new_notes) REQUIRE(e.key >= 60 && e.key <= 65);
+    for (const Ev &e : new_notes) REQUIRE(e.key >= 60 && e.key <= 65);
     REQUIRE(shortened.gate.size() == 95);
     std::puts("PASS 16-step block/rate matrix and live length shortening");
 }
@@ -459,20 +493,20 @@ static void test_sixteen_block_matrix_and_length_edits() {
 static void test_v1_v2_state_migration() {
     const int semis[16] = {0, 2, 4, 5, 7, 9, 11, 12, -12, -10, -8, -7, -5, -3, -1, 0};
     const int gates[16] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-    auto save = [](Rig& r) {
+    auto save = [](Rig &r) {
         Bytes data;
         ws2_writer w{sizeof(w), &data, sink};
         REQUIRE(r.d->save_state(r.state, &w) == WS2_OK);
         return data;
     };
-    auto load = [](Rig& r, Bytes& data) {
+    auto load = [](Rig &r, Bytes &data) {
         Source source_state{&data, 0};
         ws2_reader rd{sizeof(rd), &source_state, source, static_cast<uint32_t>(data.size())};
         return r.d->load_state(r.state, &rd);
     };
     Rig initial, resumed;
-    initial.pattern16(semis, gates);
-    resumed.pattern16(semis, gates);
+    initial.pattern16({semis, gates});
+    resumed.pattern16({semis, gates});
     initial.render(205, 17, Clock{}, Resets{}); // step 11 at frame 200
     Bytes state2 = save(initial);
     REQUIRE(state2[0] == 2);
@@ -485,7 +519,6 @@ static void test_v1_v2_state_migration() {
     Bytes wrong_legacy = state2;
     wrong_legacy[0] = 1;
     REQUIRE(load(resumed, wrong_legacy) == WS2_INVALID);
-    // A true v1 state stays loadable and produces the same subsequent trace.
     Rig old, upgraded;
     old.pattern(kSemis, kNotes, 8);
     upgraded.pattern(kSemis, kNotes, 8);
@@ -501,6 +534,7 @@ static void test_v1_v2_state_migration() {
 
 int main() {
     test_advance_and_wrap();
+    test_legacy_length_default();
     test_sixteen_steps_and_boundary_ties();
     test_sixteen_block_matrix_and_length_edits();
     test_v1_v2_state_migration();

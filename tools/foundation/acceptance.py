@@ -60,7 +60,8 @@ def parse(text):
 
 def find_task(root, issue):
     matches = []
-    for path in sorted((root / "docs/tasks").glob("*.md")):
+    directory = root / "docs/tasks"
+    for path in sorted([*directory.glob("*.md"), *(directory / "done").glob("*.md")]):
         title = next((line for line in path.read_text(encoding="utf-8").splitlines()
                       if line.startswith("# ")), "")
         if re.search(rf"#{int(issue)}\b", title):
@@ -71,12 +72,73 @@ def find_task(root, issue):
 
 
 
+def visible_closing_issues(body):
+    """Yield actual top-level closing lines, not Markdown examples or comments."""
+    fence = None
+    html_comment = False
+    continuation = False
+    for line in (body or "").splitlines():
+        if fence:
+            if re.fullmatch(r" {0,3}" + re.escape(fence[0]) +
+                            "{" + str(fence[1]) + r",}[ \t]*", line):
+                fence = None
+            continue
+        had_comment = html_comment or "<!--" in line
+        visible = []
+        cursor = 0
+        while cursor < len(line):
+            if html_comment:
+                position = line.find("-->", cursor)
+                if position < 0:
+                    break
+                html_comment = False
+                cursor = position + len("-->")
+            else:
+                position = line.find("<!--", cursor)
+                if position < 0:
+                    visible.append(line[cursor:])
+                    break
+                visible.append(line[cursor:position])
+                html_comment = True
+                cursor = position + len("<!--")
+        line = "".join(visible)
+        if not line.strip():
+            if not had_comment:
+                continuation = False
+            continue
+        if line.startswith(("    ", "\t")):
+            continue
+        opening = re.match(r" {0,3}(\x60{3,}|~{3,})", line)
+        if opening:
+            marker = opening.group(1)
+            fence = (marker[0], len(marker))
+            continue
+        if re.match(r" {0,3}>", line):
+            continuation = True
+            continue
+        # ATX headings end lazy quote/list continuation without a blank line.
+        if re.match(r"^#{1,6}(?:[ \t]|$)", line):
+            continuation = False
+        item = re.match(r" {0,3}(?:[-+*]|[0-9]{1,9}[.)])[ \t]+", line)
+        if item:
+            line = line[item.end():]
+            continuation = True
+        elif continuation:
+            continue
+        # A literal inline-code example is not a GitHub closing directive.
+        line = re.sub(r"(`+).*?\1", "", line)
+        if re.match(r"(?i)^\s*(?:for example|e\.g\.)\s*:", line):
+            continue
+        match = re.search(r"(?i)\bCloses[ \t]+#(\d+)\b", line)
+        if match:
+            yield int(match.group(1))
+
+
 def select_pr_task(root, pr_body):
     """Return (issue, task, note); fail closed for referenced unverified tasks."""
-    match = re.search(r"(?i)\bCloses\s+#(\d+)\b", pr_body or "")
-    if not match:
+    issue = next(visible_closing_issues(pr_body), None)
+    if issue is None:
         return None, None, "No Closes #N reference; acceptance not selected."
-    issue = int(match.group(1))
     if issue in LEGACY_EXCEPTIONS:
         return issue, None, (f"legacy exception — not verified: #{issue} "
                              f"({LEGACY_EXCEPTIONS[issue]}); this is not an acceptance pass")
