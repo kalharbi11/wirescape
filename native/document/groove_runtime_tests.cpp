@@ -46,9 +46,21 @@ static Json patch(Json config,bool cv=false) {
  }else p["connections"].push_back(cable(1,"t1_notes",2,"notes","event"));
  return p;
 }
-static Owner load(const Json &p,AppEngine *catalog,double rate,std::string &error){
+static Owner load(const Json &p,AppEngine *catalog,double rate,std::string &error,bool tap_notes=false){
  ws_engine_config cfg{sizeof(cfg),rate,256,64,2048};
- return Owner(wirescape::document::load_runtime_patch(p.dump(),catalog,cfg,error),app_engine_destroy);
+ std::vector<wirescape::engine2::Tap> taps;
+ if(tap_notes)taps.push_back({wirescape::engine2::Tap::EventOut,1,4,
+                              wirescape::engine2::Tap::First});
+ return Owner(wirescape::document::load_runtime_patch(
+   p.dump(),catalog,cfg,error,tap_notes?&taps:nullptr),app_engine_destroy);
+}
+static uint32_t note_events(AppEngine *engine){
+ float value=0;
+ uint32_t count=0;
+ uint64_t frame=0;
+ check(app_engine_native(engine).read_telemetry(&value,&count,1,frame)==1,
+       "native notes telemetry tap configured");
+ return count;
 }
 static uint32_t run_id(AppEngine *engine){
  for(uint32_t i=0;i<app_engine_module_count(engine);++i){
@@ -119,11 +131,12 @@ static void test_refusals(AppEngine *cat){
  // A saved run=1 parameter must never bypass the stopped-on-load rule.
  Json armed=patch(good);
  armed["modules"][0]["parameters"]["run"]=1;
- auto restored=load(armed,cat,48000,error);
+ auto restored=load(armed,cat,48000,error,true);
  check(bool(restored),"load saved high run parameter");
  const auto silent=trace(restored.get(),512,128);
  check(std::all_of(silent.begin(),silent.end(),[](float g){return g==0.f;}),
        "saved high run never causes an accidental note-on");
+ check(note_events(restored.get())==0,"saved run-high emits no notes");
  const auto id=run_id(restored.get());
  run_command(restored.get(),id,0.f);
  check(trace(restored.get(),1,1)[0]==0.f,"re-arm from saved high");
@@ -136,8 +149,8 @@ static void test_rate_block(AppEngine *cat,double rate,uint32_t block){
  auto saved=authored.dump(2);
  auto restored=Json::parse(saved);
  check(restored["modules"][0]["config"]==pattern(),"authored JSON is lossless across save/reload");
- auto live=load(authored,cat,rate,error);
- auto reload=load(restored,cat,rate,error);
+ auto live=load(authored,cat,rate,error,true);
+ auto reload=load(restored,cat,rate,error,true);
  check(bool(live)&&bool(reload),"structured pattern loads into real engine");
  check(trace(live.get(),block,block)[0]==0.f,"fresh patch starts stopped");
  check(trace(reload.get(),block,block)[0]==0.f,"reloaded patch starts stopped");
@@ -149,12 +162,15 @@ static void test_rate_block(AppEngine *cat,double rate,uint32_t block){
  const auto a=trace(live.get(),count,block);
  const auto b=trace(reload.get(),count,block);
  check(a==b,"native loop identical after serialized reload");
+ check(note_events(live.get())==7&&note_events(reload.get())==7,
+       "native note ON/OFF emitted on note/rest/wrap, not tie");
  const auto at=[&](int step){return a[static_cast<uint32_t>(std::ceil(period*step))];};
  check(a[0]==1.f&&at(1)==0.f&&at(2)==1.f&&at(3)==1.f&&
        at(4)==0.f&&at(5)==1.f&&at(6)==0.f&&at(8)==1.f,
        "note/rest/tie/wrap transition frames");
  run_command(live.get(),id,0.f);
  check(trace(live.get(),block,block)[0]==0.f,"stop releases active gate");
+ check(note_events(live.get())==8,"stop generates a matching native note-off");
  // Separate signal route: pitch -> VCO pitch; gate -> VCA gain.
  // Never attach quantized pitch CV and raw note events to the same VCO.
  auto cv=load(patch(pattern(),true),cat,rate,error);
