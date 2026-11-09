@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# #468: Qt retirement and R5c, with non-deleting golden preparation
+# #468: R3a Qt-free golden preservation; R3b Qt retirement follows
 
 Read first: `AGENTS.md`, issue #468/latest lead ruling, `docs/planner/CLEANUP.md`,
 `docs/tasks/R2_DOCUMENT_COVERAGE.md`, `native/tests/golden_render.cpp`,
@@ -7,10 +7,13 @@ Read first: `AGENTS.md`, issue #468/latest lead ruling, `docs/planner/CLEANUP.md
 
 ## Gates and scope
 
-This single R3 branch starts with the authorized non-deleting golden port.
-R1 (#464), W1 (#475) and R2 (#478) are merged; final current-main Windows,
-replacement proof, independent review and scoped labels still gate deletion/merge.
-No Qt/archive files, agent policy or archive tag change in the preparation.
+This branch/PR is the non-deleting R3a golden port under Keel's split ruling
+(issue #468, 2026-11-09). R1 (#464), W1 (#475) and R2 (#478) are merged.
+R3a may merge after independent T2 review, exact-head required checks and actual
+`golden_render_hashes`, `golden_event_stream` and `golden_serialization` passes on
+both linux-arm64 and windows-x64. Retain `Refs #468`; R3a does not close #468.
+No Qt/archive files, agent policy or archive tag change belongs in R3a.
+R3b carries deletion, retirement mapping, scoped labels and the archive tag.
 
 Keep `golden_render_hashes` and `golden_event_stream`: 48000 Hz/frames, block128,
 seed42; finite output and fault checks, two fresh render instances, SHA256 and
@@ -18,8 +21,10 @@ changed-event sensitivity. Preserve canonical little-endian float bits and every
 serialized event field, four bounded UMP words and unpadded payload bytes.
 Python's existing hashlib owns hashing; no added runtime/crypto dependency.
 The native serialization oracle uses an independent Python struct-packed vector.
-The old Qt renderer from the same immutable base can be supplied to
-`tools/golden.py check --compare-renderer PATH` for actual per-case hash equality.
+Before R3a merge, supply the old Qt renderer from the same immutable source tree
+to `tools/golden.py check --compare-renderer PATH` and record actual per-case hash
+equality plus both renderer/source revisions. Same-build repeatability is a
+different assertion; no old-vs-new pass is inferred from it.
 
 ## Exact final deletion manifest and budget
 
@@ -54,27 +59,33 @@ Keep Qt-free `app_document_soak` and both product golden CTests.
 Final R5c records the owner's actual expanded Lead routing authority narrowly;
 independent review, safety, compatibility and exact correctness/performance gates stay.
 Root applies scoped allow-protected/allow-test-removal only after the mapping review.
-Before merge tag the reviewed current-main last-Qt/archive base as immutable
-lightweight `archive/qt-final` once, containing the actual prerequisite merge SHAs.
+Immediately before R3b merges, Codex Lead may create the immutable annotated
+`archive/qt-final` tag on its exact current-main merge parent, containing the
+actual prerequisite merge SHAs (Keel's latest ruling supersedes lightweight).
 Private Pi Qt-mode removal is a separate PR under this same issue.
 
 ```acceptance
 tier: T2
-size: <= 30808 changed lines, <= 234 files
+size: <= 800 changed lines, <= 12 files
 must_pass:
   - python -m unittest tools.foundation.tests.test_golden -v
   - python tools/dev.py build --headless
   - ctest --test-dir build/native --output-on-failure --no-tests=error -R '^golden_(render_hashes|event_stream|serialization)$'
   - python tools/dev.py test
-  - bash -lc '! git grep -n "find_package(Qt6" -- native'
   - ci: guard
-  - ci: linux-arm64
-  - ci: windows-x64
+  - ci: linux-arm64 including all three golden CTests on the exact head
+  - ci: windows-x64 including all three golden CTests on the exact head
   - ci: sanitizers
-stops: [product test loss, threshold change, new dependency, ABI/runtime protocol edit, unreviewed retirement, tag movement]
+  - ci: actual frozen Qt vs Qt-free per-case hash comparison from the same immutable source tree, with both revisions recorded
+stops: [Qt or archive deletion in R3a, product test loss, hash/settings rebaseline, threshold change, new dependency, ABI/runtime protocol edit, tag creation in R3a]
 ```
 
-The no-Qt grep deliberately remains unsatisfied during non-deleting preparation.
-A preparation report is not final R3 acceptance, deletion authorization or approval.
+This acceptance block governs R3a only. Before R3b is claimed, restore the final
+30808-line/234-file manifest cap (recomputed if needed), retain the 800/12 authored
+cap, require a no-Qt-installed build/full test and the final no-Qt grep:
+`bash -lc '! git grep -n "find_package(Qt6" -- native'`. Keep all existing required
+check names. R3a's green report is not deletion authorization or final R3 completion.
+A same-build hash equality report alone is not an executed frozen-Qt comparison;
+record any actual `--compare-renderer` result separately with both source revisions.
 
 Signed: Codex Lead (Codex, delegated R3 golden-port builder), 2026-11-09.
