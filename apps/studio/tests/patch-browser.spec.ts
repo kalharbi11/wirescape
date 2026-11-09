@@ -3,21 +3,34 @@ import { test, expect } from '@playwright/test';
 import { boot, state } from './helpers';
 import { mockBridge } from './mock-bridge/bridge';
 
-test('browser lists preserved test bundles and eight curated read-only patches and loads through existing graph path', async ({ page }) => {
+test('browser preserves built-in test bundles separately from editable shared patches', async ({ page }) => {
   await boot(page);
   await page.getByTestId('open-patch-browser').click();
-  await expect(page.getByTestId('patch-browser').locator('[data-testid^="bundled-patch-"]')).toHaveCount(17);
+  await expect(page.getByTestId('patch-browser').locator('[data-testid^="bundled-patch-"]')).toHaveCount(9);
   await page.getByTestId('bundled-patch-0').click();
   await expect(page.getByTestId('patch-browser')).toBeHidden();
   expect((await state(page)).modules.length).toBeGreaterThan(0);
 });
 
-test('curated patches are accessible in the read-only browser without changing session bundles', async ({ page }) => {
+test('shared JSON library loads read-only without editing the current patch on a failed fetch', async ({ page }) => {
+  const patch = { format: 'wirescape.native.patch', version: 2, name: 'Uploaded study',
+    modules: [{ id: 1, module: 'essentials.vco' }, { id: 2, module: 'essentials.output' }],
+    connections: [{ kind: 'signal', from: { module: 1, port: 'audio' }, to: { module: 2, port: 'audio' } }],
+    outputs: [{ module: 2, port: 'audio', bus_channel: 0 }] };
+  await page.route('**/patches/index.json', route => route.fulfill({
+    json: { patches: [{ id: 'uploaded-study', name: 'Uploaded study', patch }] },
+  }));
   await boot(page);
+  await page.getByTestId('starter-select').selectOption('uploaded-study');
+  await expect(page.getByTestId('patch-name')).toHaveText('Uploaded study');
   await page.getByTestId('open-patch-browser').click();
-  await page.getByTestId('bundled-patch-6').click(); // six preserved Qt bundles precede curated patches
-  await expect(page.getByTestId('patch-name')).toContainText('Hollow Chapel');
-  expect((await state(page)).modules.some((m: { module: string }) => m.module === 'essentials.chaos_lite')).toBe(true);
+  await page.getByTestId('shared-patch-uploaded-study').click();
+  expect((await state(page)).modules).toEqual(patch.modules);
+  const before = await state(page);
+  await page.route('**/patches/index.json', route => route.abort());
+  await page.getByTestId('open-patch-browser').click();
+  await expect(page.getByTestId('patch-browser')).toContainText('Shared patch library is unavailable.');
+  expect((await state(page)).modules).toEqual(before.modules);
 });
 
 test('user selection round-trips unknown fields; bundled Save creates a copy', async ({ page }) => {

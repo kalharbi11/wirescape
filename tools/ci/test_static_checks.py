@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 import os
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -130,6 +131,55 @@ class StaticChecksTests(unittest.TestCase):
         with patch.object(static_checks.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
             self.assertEqual(static_checks.run_checks(Path("."), diff, "tidy.py"), 0)
             self.assertEqual([c.args[0][0] for c in run.call_args_list], ["cppcheck", "actionlint"])
+
+
+    def baseline_fixture(self, root):
+        source = root / "native/modules2/macro_oscillator/CMakeLists.txt"
+        source.parent.mkdir(parents=True)
+        source.write_text("pinned source config")
+        data = {"schema": 1, "source_sha256": {
+            source.relative_to(root).as_posix(): hashlib.sha256(source.read_bytes()).hexdigest()},
+            "diagnostics": [{"path": "eurorack/plaits/test.h", "line": 10, "column": 2,
+                             "id": "uninitMemberVar", "message": "Existing vendor finding"}]}
+        (source.parent / "cppcheck-baseline.json").write_text(json.dumps(data))
+        return source
+
+    def test_only_exact_pinned_vendor_findings_are_baselined(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            self.baseline_fixture(root)
+            finding = "plaits/test.h:10:2: warning: Existing vendor finding [uninitMemberVar]"
+            for build in ("static", "static-web"):
+                output = str(root / ("build/" + build + "/_deps/macro_eurorack-src")) + "/" + finding
+                filtered, code, count = static_checks.pinned_cppcheck_baseline(root, output, 42)
+                self.assertEqual((filtered, code, count), ("", 0, 1))
+                # Crashes/non-findings exits are never converted into success.
+                self.assertEqual(static_checks.pinned_cppcheck_baseline(root, output, 1)[1], 1)
+                for changed in (output.replace(":10:", ":11:"),
+                                output.replace("Existing vendor", "New vendor"),
+                                output.replace("uninitMemberVar", "otherFinding"),
+                                output.replace("warning:", "error:"),
+                                output.replace("build/" + build + "/_deps/macro_eurorack-src", "native")):
+                    self.assertEqual(static_checks.pinned_cppcheck_baseline(root, changed, 42),
+                                     (changed, 42, 0))
+
+    def test_source_pin_change_invalidates_vendor_baseline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            source = self.baseline_fixture(root)
+            source.write_text("different dependency config")
+            with self.assertRaisesRegex(ValueError, "invalidated"):
+                static_checks.pinned_cppcheck_baseline(root, "", 0)
+
+    def test_mixed_vendor_and_first_party_findings_still_fail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            self.baseline_fixture(root)
+            vendor = str(root / "build/static/_deps/macro_eurorack-src/plaits/test.h")
+            known = vendor + ":10:2: warning: Existing vendor finding [uninitMemberVar]"
+            own = str(root / "native/test.h") + ":10:2: warning: Real defect [uninitMemberVar]"
+            filtered, code, count = static_checks.pinned_cppcheck_baseline(root, known + "\n" + own, 42)
+            self.assertEqual((filtered, code, count), (own, 42, 1))
 
 
 if __name__ == "__main__":
