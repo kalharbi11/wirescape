@@ -11,7 +11,8 @@ baseline and tests. No synthesis changes, source pin updates or blanket suppress
 
 Review: T2 reporting/baseline policy and protected tools/ci authorization by Keel.
 Codex Lead cannot grant allow-protected. Do not merge before that authorization
-and cross-family review. Required Linux/Windows/sanitizers and exact Static pass;
+and cross-family review. Windows acceptance requires an executed windows-x64 job,
+not a skipped suite. Required Linux/Windows/sanitizers and exact Static pass;
 Pi native Macro tests required for reset lifetime annotation. Real hardware is not required for
 this storage-lifetime/reporting correction.
 
