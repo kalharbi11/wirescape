@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -30,6 +31,7 @@ class PiPreflightTests(unittest.TestCase):
                           for name in ("git", "c++", "cmake", "ninja", "node", "npm", "python")}
         self.patches = [
             patch.object(preflight, "versions", return_value=self.tool_info),
+            patch.object(preflight, "discover_toolchain", return_value={"generator": "Ninja"}),
             patch.object(preflight.platform, "system", return_value="Linux"),
             patch.object(preflight.platform, "machine", return_value="aarch64"),
             patch.object(preflight.ctypes.util, "find_library", return_value="libpresent.so.1"),
@@ -74,15 +76,64 @@ class PiPreflightTests(unittest.TestCase):
         self.assertIn("cache:build/CMakeCache.txt", self.failures())
         self.assertTrue(cache.is_file())
 
-    def test_cmake_notfound_is_not_real_qt_contamination(self):
-        (self.root / "build").mkdir()
-        cache = self.root / "build/CMakeCache.txt"
+    def own_cache(self):
+        (self.root / "build/native").mkdir(parents=True, exist_ok=True)
+        cache = self.root / "build/native/CMakeCache.txt"
         cache.write_text(
             "CMAKE_HOME_DIRECTORY:INTERNAL=" + str((self.root / "native").resolve()) + "\n"
             "CMAKE_SYSTEM_PROCESSOR:STRING=aarch64\n"
+            "CMAKE_GENERATOR:INTERNAL=Ninja\n"
+            "WIRESCAPE_BUILD_UI:BOOL=OFF\n"
             "Qt6_DIR:PATH=Qt6_DIR-NOTFOUND\n"
         )
-        self.assertNotIn("cache:build/CMakeCache.txt", self.failures())
+        return cache
+
+    def test_own_headless_ninja_cache_passes_and_notfound_is_not_qt(self):
+        cache = self.own_cache()
+        before = cache.read_bytes()
+        self.assertNotIn("cache:build/native/CMakeCache.txt", self.failures())
+        self.assertEqual(cache.read_bytes(), before)
+
+    def test_wrong_generator_or_ui_enabled_cache_is_rejected(self):
+        cache = self.own_cache()
+        original = cache.read_text()
+        for changed in (
+            original.replace("CMAKE_GENERATOR:INTERNAL=Ninja", "CMAKE_GENERATOR:INTERNAL=Unix Makefiles"),
+            original.replace("WIRESCAPE_BUILD_UI:BOOL=OFF", "WIRESCAPE_BUILD_UI:BOOL=ON"),
+            original.replace("Qt6_DIR:PATH=Qt6_DIR-NOTFOUND", "Qt6_DIR:PATH=/old/qt"),
+            original.replace("CMAKE_SYSTEM_PROCESSOR:STRING=aarch64", "CMAKE_SYSTEM_PROCESSOR:STRING=x86_64"),
+            original.replace(str((self.root / "native").resolve()), "/other/checkout/native"),
+        ):
+            with self.subTest(cache=changed.splitlines()[-2:]):
+                cache.write_text(changed)
+                self.assertIn("cache:build/native/CMakeCache.txt", self.failures())
+                self.assertEqual(cache.read_text(), changed)
+
+    def test_first_check_only_process_creates_no_bytecode_or_reports(self):
+        # Snapshot before importing the entrypoint in a fresh interpreter.
+        # An in-process snapshot cannot detect helpers.__pycache__ from import.
+        source = ROOT / "tools"
+        pi = self.root / "tools/pi"
+        foundation = self.root / "tools/foundation"
+        pi.mkdir(parents=True)
+        foundation.mkdir(parents=True)
+        shutil.copy2(source / "pi/preflight.py", pi / "preflight.py")
+        shutil.copy2(source / "foundation/helpers.py", foundation / "helpers.py")
+        before = {str(p.relative_to(self.root)): p.read_bytes()
+                  for p in self.root.rglob("*") if p.is_file()}
+        env = os.environ.copy()
+        env.pop("PYTHONDONTWRITEBYTECODE", None)
+        env.pop("PYTHONPYCACHEPREFIX", None)
+        result = subprocess.run(
+            [sys.executable, str(pi / "preflight.py"), "--check-only", "--root", str(self.root)],
+            cwd=self.root, env=env, text=True, capture_output=True, timeout=30, check=False)
+        self.assertNotEqual(result.returncode, 0)  # non-Pi fixture is blocked, not passed
+        self.assertIn("Preflight:", result.stdout)
+        after = {str(p.relative_to(self.root)): p.read_bytes()
+                 for p in self.root.rglob("*") if p.is_file()}
+        self.assertEqual(after, before)
+        self.assertFalse((foundation / "__pycache__").exists())
+        self.assertFalse((self.root / "build_reports").exists())
 
     def test_inherited_qt_state_is_rejected_without_modifying_env(self):
         with patch.dict(os.environ, {"QT_PLUGIN_PATH": "/old/qt"}):
