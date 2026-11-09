@@ -450,6 +450,22 @@ export class App {
     this.refreshDirty();
   }
 
+  /** Reframe the newly displayed document without changing its saved viewport. */
+  private restoreDraftView(): void {
+    const ui = this.doc.ui;
+    const view = ui.view;
+    const restore = () => {
+      if (this.doc.ui !== ui) return;
+      const before = this.doc.ui.view;
+      if (view?.zoom) this.canvas.viewport.setView(view.x, view.y, view.zoom);
+      else this.canvas.fit();
+      if (before === undefined) delete this.doc.ui.view;
+      else this.doc.ui.view = before;
+    };
+    if (view?.zoom) restore();
+    else requestAnimationFrame(restore);
+  }
+
   /** The playing patch is untouched: only the editor and its fake edit target change. */
   private openRefusedDraft(): void {
     if (!this.refusedDraft || this.draftVisible) return;
@@ -467,6 +483,7 @@ export class App {
     this.history.reset();
     this.ticker.resetTelemetry();
     this.canvas.select({ kind: 'none' });
+    this.restoreDraftView();
     this.canvas.invalidateAnchors();
     this.refreshDraftControls();
   }
@@ -488,6 +505,7 @@ export class App {
     playing.restoreHistory?.();
     this.ticker.resetTelemetry();
     this.canvas.select({ kind: 'none' });
+    this.restoreDraftView();
     this.canvas.invalidateAnchors();
     this.refreshDraftControls();
   }
