@@ -29,7 +29,7 @@ Live heads and completed evidence govern; queued, stale and missing results neve
   exact-head Pi evidence and the common accepted SHA remain pending.
 - Owner confirmed Xvfb/xauth installed; #452 has ci/pi-retry after that fix.
   One accepted SHA must contain #463/#450/#452 and pass combined device-off ARM64 smoke.
-- #475 W1 e8 head: earlier CMake identity failure fixed; preserve confinement/DLL
+- #475 W1 e8e9779: earlier CMake identity failure fixed; preserve confinement/DLL
   validation. Executed real Windows device-off setup smoke remains a merge gate.
 
 ## Active cleanup and rulings
