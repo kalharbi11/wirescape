@@ -3,8 +3,10 @@
 
 **Status: source preparation; NOT an accepted reinstall or downloadable installer.**
 Follow #436 and #463. Only after #463 merges and the exact source revision passes
-native/Windows, Studio, Electron and required CI can its full 40-character
-**merge SHA** be entered below. No accepted Windows SHA is asserted here.
+native/Windows, Studio, Electron and required CI can an exact accepted SHA
+be entered below. The **#463 runtime merge commit alone predates this W1
+script**: a runnable owner checkout must include both #463 and this W1 PR.
+Ask Keel to confirm the combined source SHA before owner use. None is yet accepted.
 
 ## Preserve the old installation
 Use a **separate clean Git checkout**, preferably
@@ -27,7 +29,7 @@ Run these commands from the **fresh** checkout, never an old app directory:
 
 ```powershell
 .\tools\windows\setup.ps1 -CheckOnly
-# After #463 merges and the accepted exact SHA is formally recorded:
+# After #463 and W1 merge, and their combined SHA is formally accepted:
 $AcceptedSha = '<reviewed full 40-character merge SHA>'
 git fetch origin
 if ($LASTEXITCODE -ne 0) { throw 'Fetch failed' }
