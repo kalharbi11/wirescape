@@ -112,8 +112,8 @@ No GitHub credentials/live sync in this implementation. Future428stays separate.
 - Quantizer323is already implemented and independently reviewed at0acdad4;
   native/Windows/sanitizers/Studio/WASM/task PASS there. Root corrected2format-only
   count-assertion wraps at385ad20. Exact385ad20 acceptance/required/Web/WASM green; static red and current-head delta
-  review remain. SDK64 #4206bf66ea selected commands/required/static reviewed green,
-  merge held for explicit owner permission after auto-review rejection; no duplicate DSP.
+  review remain. SDK64 #420 MERGED84f926b via gate after signed approval;
+  selected commands/required/static reviewed green. No duplicate DSP.
 - Chord406 + Notes→CV423: Keel source/note identity/capacity/expression/channel
   ruling still required.423Medium baseline repair is executable docs work:
   directMIDI baseline native only, supported non-midi note source for WASM.
