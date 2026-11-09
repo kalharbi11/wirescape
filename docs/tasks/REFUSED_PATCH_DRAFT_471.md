@@ -15,7 +15,7 @@ On a real engine `loadGraph` refusal with `unavailable` or `busy`, keep the prev
 
 No realtime, protocol, device, or patch-format changes. Do not replace `selectAudioDevice` or #463's graph-rollback semantics. Preserve #478's ingress validation when integrating main.
 
-Lead ruling (2026-11-09): <=750/8 includes UI-only RealEngine edit settlement,
+Lead ruling (2026-11-09): <=800/9 includes UI-only RealEngine edit settlement,
 deferred canvas confirmation ownership, adversarial bridge regressions and actual
 Electron file-target preservation. All mutation entry points and pending reads
 must respect the immutable Apply candidate; no native/protocol change.
@@ -23,12 +23,14 @@ Native Save must return before any file request while any document load or Apply
 is busy, including ordinary non-draft loads. Delayed successful and refused B
 loads while A plays must issue no save until completion; afterward Save captures
 only the selected document. The actual Electron A/B regression must preserve both
-files through the pending load and refusal.
+files through the pending load and refusal. The existing failed bundle-reset
+regression must defer Save while loading, then still require Save As and serialize
+the selected bundled document after the load settles.
 
 ## Acceptance
 ```acceptance
 tier: T1
-size: <= 750 changed lines, <= 8 files
+size: <= 800 changed lines, <= 9 files
 must_pass:
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npx playwright test tests/mock-bridge/refused-draft.spec.ts'
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
