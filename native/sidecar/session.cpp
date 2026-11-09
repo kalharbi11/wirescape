@@ -125,6 +125,7 @@ Json catalogue(AppEngine *engine) {
 Options parse_options(int argc, char **argv) {
     Options o;
     o.directory = std::filesystem::absolute(argv[0]).parent_path().string();
+    bool cli_rate = false, cli_block = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--confirm-audio") o.audio = true;
@@ -141,10 +142,42 @@ Options parse_options(int argc, char **argv) {
                 need(v.find_first_not_of("0123456789") == std::string::npos);
                 auto n = std::stoull(v);
                 need(n > 0 && n <= (arg == "--block" ? 4096 : UINT32_MAX));
-                if (arg == "--block") o.block = uint32_t(n);
-                else o.rate = uint32_t(n);
+                if (arg == "--block") {
+                    o.block = uint32_t(n);
+                    cli_block = true;
+                } else {
+                    o.rate = uint32_t(n);
+                    cli_rate = true;
+                }
             }
         } else throw Refusal("invalid", "Unknown startup flag");
+    }
+    // Explicit CLI rate/block always win for this invocation; persisted choices
+    // apply only when their corresponding command-line option is absent.
+    if (!cli_rate || !cli_block) {
+        try {
+            std::ifstream in(o.settings, std::ios::binary);
+            if (in) {
+                std::string bytes(LineLimit + 1, '\\0');
+                in.read(bytes.data(), std::streamsize(bytes.size()));
+                bytes.resize(size_t(in.gcount()));
+                const auto settings = strict_json(bytes);
+                if (settings.contains("audio") && settings["audio"].is_object()) {
+                    const auto &audio = settings["audio"];
+                    if (!cli_rate && audio.contains("sampleRate") && audio["sampleRate"].is_number_integer()) {
+                        const auto value = audio["sampleRate"].get<int64_t>();
+                        if (value == 44100 || value == 48000 || value == 96000) o.rate = uint32_t(value);
+                    }
+                    if (!cli_block && audio.contains("bufferFrames") && audio["bufferFrames"].is_number_integer()) {
+                        const auto value = audio["bufferFrames"].get<int64_t>();
+                        if (value == 64 || value == 128 || value == 256 || value == 512 || value == 1024)
+                            o.block = uint32_t(value);
+                    }
+                }
+            }
+        } catch (...) {
+            // An invalid preferences file must not override explicit startup flags.
+        }
     }
     need(!o.bench_summary || o.null_audio, "invalid", "--bench-summary requires --null-audio");
     if (o.null_audio) o.audio = o.midi = false;
@@ -473,8 +506,86 @@ Json Session::apply(const Json &command) {
     auto type = command.at("type").get<std::string>();
     if (type == "listAudioDevices") return {{"devices", audio_devices_}};
     if (type == "listMidiDevices") return {{"devices", midi_devices_}};
-    if (type == "setOsc" || type == "setSampleRate" || type == "setBufferFrames")
-        throw Refusal("unavailable", "Capability not available");
+    if (type == "setOsc") throw Refusal("unavailable", "Capability not available");
+    if (type == "setSampleRate" || type == "setBufferFrames") {
+        const bool rate_change = type == "setSampleRate";
+        const auto value = integer(command.at(rate_change ? "hz" : "frames"));
+        const std::array<uint32_t, 3> rates{44100, 48000, 96000};
+        const std::array<uint32_t, 5> blocks{64, 128, 256, 512, 1024};
+        need(rate_change ? std::find(rates.begin(), rates.end(), value) != rates.end()
+                         : std::find(blocks.begin(), blocks.end(), value) != blocks.end(),
+             "invalid", "Rate or buffer size is outside the supported set");
+        need(options_.audio || options_.null_audio, "unavailable", "Audio access not authorized");
+        const uint32_t next_rate = rate_change ? value : options_.rate;
+        const uint32_t next_block = rate_change ? options_.block : value;
+        if (options_.audio) {
+            need(stream_ && stream_->running(), "unavailable", "No active audio stream");
+            const auto count = std::count_if(audio_devices_.begin(), audio_devices_.end(),
+                                             [&](const Json &d) { return d.at("id") == device_; });
+            need(count == 1, "unavailable", "Selected audio output is missing or ambiguous");
+            const auto entry = std::find_if(audio_devices_.begin(), audio_devices_.end(),
+                                            [&](const Json &d) { return d.at("id") == device_; });
+            need(entry->value("supported", true), "unavailable", "Audio output is unsupported");
+            need(entry->contains("sampleRates") &&
+                     std::find((*entry)["sampleRates"].begin(), (*entry)["sampleRates"].end(), Json(next_rate)) !=
+                         (*entry)["sampleRates"].end(),
+                 "unavailable", "Selected audio device does not support this sample rate");
+        } else {
+            need(sink_.joinable(), "unavailable", "No active null-audio stream");
+        }
+        if (next_rate == options_.rate && next_block == options_.block) return nullptr;
+
+        // Control thread only. Quiesce the old stream before preparing a new
+        // runnable graph, retaining the document and selected MIDI endpoints.
+        const auto old_config = config_;
+        const auto old_rate = options_.rate, old_block = options_.block;
+        const auto old_preferences = preferences_;
+        midi_->stop();
+        app_engine_panic(active_); // release held notes before replacing DSP state
+        stop_audio();
+        auto previous = std::move(engine_);
+        try {
+            ws_engine_config next_config = config_;
+            next_config.sample_rate = next_rate;
+            next_config.max_block_frames = next_block;
+            std::string error;
+            document::telemetry::Sampler next_telemetry(document::telemetry::plan(patch_, catalogue_.get()));
+            audio::EngineOwner prepared(document::load_runtime_patch(
+                                            patch_.dump(), catalogue_.get(), next_config, error,
+                                            &next_telemetry.taps()), app_engine_destroy);
+            need(bool(prepared), "unavailable", "Graph cannot prepare at requested stream configuration");
+            app_engine_prepare_master_fade_in(prepared.get());
+            engine_ = std::move(prepared);
+            active_ = engine_.get();
+            config_ = next_config;
+            options_.rate = next_rate;
+            options_.block = next_block;
+            start_audio();
+            need(!options_.audio || (stream_ && stream_->running()),
+                 "unavailable", "Audio device refused the new stream");
+            start_midi();
+            preferences_["audio"]["sampleRate"] = next_rate;
+            preferences_["audio"]["bufferFrames"] = next_block;
+            persist(); // only after the replacement stream is running
+            ++generation_;
+            keyboard_.fill(false);
+            telemetry_.swap(next_telemetry);
+            return nullptr;
+        } catch (...) {
+            midi_->stop();
+            stop_audio();
+            engine_ = std::move(previous);
+            active_ = engine_.get();
+            config_ = old_config;
+            options_.rate = old_rate;
+            options_.block = old_block;
+            preferences_ = old_preferences;
+            app_engine_prepare_master_fade_in(active_);
+            start_audio();
+            start_midi();
+            throw Refusal("unavailable", "Stream change refused; previous configuration restored");
+        }
+    }
     if (type == "selectAudioDevice") {
         need(command.at("deviceId").is_string());
         auto id = command.at("deviceId").get<std::string>();
@@ -482,6 +593,10 @@ Json Session::apply(const Json &command) {
                                    [&](const Json &d) { return d.at("id") == id; });
         need(count > 0, "not-found", "No such audio output");
         need(count == 1, "duplicate", "Ambiguous audio output name");
+        auto found = std::find_if(audio_devices_.begin(), audio_devices_.end(),
+                                  [&](const Json &d) { return d.at("id") == id; });
+        if (!found->value("supported", true))
+            throw Refusal("refused", found->value("unsupportedReason", std::string("rate-unsupported")).c_str());
         need(options_.audio || options_.null_audio, "unavailable", "Audio device access is not authorized");
         auto old_device = device_;
         midi_->stop();
@@ -698,7 +813,7 @@ Json Session::hello() const {
             {"type", "hello"},
             {"protocol", 0},
             {"engine", {{"version", "0.1.0"}, {"sha", WIRESCAPE_ENGINE_SHA}}},
-            {"capabilities", Json::array()},
+            {"capabilities", Json::array({"setSampleRate", "setBufferFrames"})},
             {"catalogue", catalogue(catalogue_.get())},
             {"audio", audio_status()},
             {"midi", midi_status()}};
