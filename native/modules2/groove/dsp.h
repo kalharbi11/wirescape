@@ -118,12 +118,17 @@ struct Sequencer {
     }
     bool effective_mute(uint32_t t) const { return muted || players[t].muted; }
 
+    void release_step(ws::Block &b, uint32_t t, uint32_t i) {
+        const auto &p = players[t];
+        if (!p.playing || effective_mute(t)) return;
+        const auto &row = pattern.tracks[t].steps[step];
+        if (row.kind != Tie || !p.sounding.on) release(b, t, i);
+    }
     void trigger(ws::Block &b, uint32_t t, uint32_t i) {
         auto &p = players[t];
         if (!p.playing || effective_mute(t)) return;
         const auto &row = pattern.tracks[t].steps[step];
         if (row.kind == Tie && p.sounding.on) return;
-        release(b, t, i);
         if (row.kind != Note || row.velocity <= 0.f || !flush(b, t, i)) return;
         const NoteState note{true, next_id, row.key};
         if (!emit(b, t, WS2_NOTE_ON, i, note, row.velocity)) return;
@@ -134,6 +139,10 @@ struct Sequencer {
         p.mod2 = row.mod2;
     }
 
+    void trigger_all(ws::Block &b, uint32_t i) {
+        for (uint32_t t = 0; t < kTracks; ++t) release_step(b, t, i);
+        for (uint32_t t = 0; t < kTracks; ++t) trigger(b, t, i);
+    }
     bool edge(const ws::Block &b, uint32_t p, uint32_t i) {
         const bool high = b.param(p).value(0, i) > 0.5f;
         const bool rise = observed[p] && high && !control_high[p];
@@ -226,8 +235,8 @@ struct Sequencer {
                             auto &p = players[t];
                             p.playing = t < pattern.track_count && p.armed;
                             p.enter = p.stop = false;
-                            trigger(b, t, i);
                         }
+                        trigger_all(b, i);
                         started = true;
                     }
                 }
@@ -242,8 +251,7 @@ struct Sequencer {
                             step = (step + 1) % kSteps;
                             if (step == 0) boundary(b, i);
                         }
-                        if (running)
-                            for (uint32_t t = 0; t < kTracks; ++t) trigger(b, t, i);
+                        if (running) trigger_all(b, i);
                     }
                 }
             }
