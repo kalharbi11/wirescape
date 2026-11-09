@@ -166,6 +166,10 @@ int main() {
                 cmd.update(payload);
                 return s.reply({cmd, {}, {}});
             };
+            auto hello = s.hello();
+            check(hello["audioDevices"].size() == 3 &&
+                      hello["capabilities"] == Json::array({"setSampleRate", "setBufferFrames"}),
+                  "hello must expose the supported device catalogue and methods");
             auto listed = call("list", "listAudioDevices")["result"]["devices"];
             check(listed.size() == 3 && listed[0]["backend"] == "FakeAudio" &&
                       listed[0]["outputChannels"] == 2 && listed[0]["supported"] == true,
@@ -177,6 +181,13 @@ int main() {
             const auto playing = fake::engine;
             auto missing = call("missing", "selectAudioDevice", {{"deviceId", "outdated-id"}});
             auto mono = call("mono", "selectAudioDevice", {{"deviceId", "Mono DAC"}});
+            fake::outputs.push_back(fake::outputs.front()); // volatile index is never a disambiguator
+            s.poll();
+            auto duplicate = call("duplicate", "selectAudioDevice", {{"deviceId", "USB Stereo"}});
+            check(duplicate["code"] == "duplicate" && fake::stopped == stopped,
+                  "duplicate IDs must be refused before stopping the old stream");
+            fake::outputs.pop_back();
+            s.poll();
             check(missing["ok"] == false && missing["code"] == "not-found" &&
                       mono["ok"] == false && mono["code"] == "refused" && mono["message"] == "mono-output" &&
                       fake::stopped == stopped && fake::engine == playing && audio(s)["deviceId"] == "USB Stereo",
