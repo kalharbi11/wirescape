@@ -90,6 +90,12 @@ $summary = Join-Path $logs 'summary.txt'
 try {
     $paSrc = Join-Path $tools 'portaudio-src'
     $paBuild = Join-Path $tools 'portaudio-build'
+    foreach ($dir in @($paSrc,$paBuild)) {
+        if ((Test-Path -LiteralPath $dir) -and
+            ((Get-Item -LiteralPath $dir -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw "Refusing redirected dependency/build directory: $dir"
+        }
+    }
     if (-not (Test-Path -LiteralPath $paSrc)) {
         Run git @('clone','https://github.com/PortAudio/portaudio.git',$paSrc)
         Run git @('-C',$paSrc,'checkout','--detach',$paSha)
