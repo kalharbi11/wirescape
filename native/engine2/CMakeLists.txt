@@ -170,7 +170,7 @@ add_executable(abi2_host_keyboard_tests ../modules2/host_keyboard/tests.cpp ../t
 target_link_libraries(abi2_host_keyboard_tests PRIVATE wirescape_engine2 wirescape_voice2)
 add_test(NAME abi2_host_keyboard_tests COMMAND abi2_host_keyboard_tests)
 
-add_library(wirescape_audio_service STATIC ../io/audio/portaudio_service.cpp)
+add_library(wirescape_audio_service STATIC ../io/audio/portaudio_service.cpp ../io/audio/device_identity.cpp)
 target_link_libraries(wirescape_audio_service PUBLIC wirescape_app_engine PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
 target_link_libraries(wirescape_cli PRIVATE wirescape_runtime_document wirescape_audio_service)
 add_executable(audio_callback_live_midi_tests ../io/audio/callback_live_midi_tests.cpp ../tests2/allocation_watch.cpp)

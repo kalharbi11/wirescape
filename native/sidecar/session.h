@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
+#include <optional>
 #include "../io/audio/portaudio_service.h"
 #include "devices.h"
 #include "midi_host.h"
@@ -64,13 +65,16 @@ class Session {
     bool bench_reported_ = false;
     std::chrono::steady_clock::time_point started_ = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point audio_retry_{};
+    // Last cold audio enumeration (no open stream). A cold PortAudio init enumerates every
+    // host API on the command thread, so it runs at most every kColdEnumeration.
+    std::optional<std::chrono::steady_clock::time_point> cold_enumeration_;
     std::chrono::milliseconds audio_backoff_{100};
     void start_audio(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
     bool poll_audio(std::chrono::steady_clock::time_point, bool enumerated);
     void stop_audio();
     void start_midi();
     void persist();
-    bool refresh_devices();
+    bool refresh_devices(bool audio = true);
     Json execution(Json);
     void commit(Json, bool);
     Json apply(const Json &);

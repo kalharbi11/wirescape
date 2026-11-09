@@ -187,7 +187,7 @@ Json audio_devices(const std::string &directory, bool fake) {
     auto result = Json::array();
     if (fake) return Json::array({{{"id", "USB Stereo"}, {"name", "USB Stereo"}, {"kind", "audio"}, {"index", 3}}});
     for (const auto &d : audio::devices(directory))
-        result.push_back({{"id", d.name}, {"name", d.name}, {"kind", "audio"}, {"index", d.index}});
+        result.push_back({{"id", d.id}, {"name", d.name}, {"hostApi", d.host_api}, {"kind", "audio"}, {"index", d.index}});
     return result;
 }
 Json midi_devices(const MidiDeviceListing &listing, bool authorized) {

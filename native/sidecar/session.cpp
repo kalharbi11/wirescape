@@ -224,9 +224,21 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
         try {
             // Resolve the default only before any identity has been selected.
             // A remembered/missing output must never be replaced by the default.
-            if (device_.empty())
-                for (const auto &d : audio::devices(options_.directory))
-                    if (d.is_default) device_ = d.name;
+            if (device_.empty() || device_.find('|') == std::string::npos) {
+                const auto list = audio::devices(options_.directory);
+                if (!device_.empty()) {
+                    // Pre-identity settings stored a bare name. Upgrade a unique name to its id;
+                    // a name Windows repeats across host APIs can never open, so use the default.
+                    const auto named = std::count_if(list.begin(), list.end(),
+                                                     [&](const audio::Device &d) { return d.name == device_; });
+                    const int found = audio::resolve_device(list, device_);
+                    if (found >= 0) device_ = list[size_t(found)].id;
+                    else if (named > 1) device_.clear();
+                }
+                if (device_.empty())
+                    for (const auto &d : list)
+                        if (d.is_default) device_ = d.id;
+            }
             need(!device_.empty(), "unavailable", "No selected audio output");
             stream_ = std::make_unique<audio::Stream>(engine_, audio::StreamSelection{options_.directory, device_},
                                                       options_.rate, options_.block, [this] { midi_->stop(); });
@@ -293,13 +305,13 @@ void Session::start_midi() {
     std::string error;
     need(midi_->start(active_, patch_.dump(), error), "unavailable", "Cannot start MIDI subscriptions");
 }
-bool Session::refresh_devices() {
-    bool enumerated = true;
-    try {
-        audio_devices_ = audio_devices(options_.directory, options_.null_audio);
-    } catch (...) {
-        enumerated = false; // Keep the last successful list; failure is not disappearance.
-    }
+bool Session::refresh_devices(bool audio) {
+    bool enumerated = audio;
+    if (audio) try {
+            audio_devices_ = audio_devices(options_.directory, options_.null_audio);
+        } catch (...) {
+            enumerated = false; // Keep the last successful list; failure is not disappearance.
+        }
     midi_devices_ = midi_devices({observer_->observed(), midi_->enabled()}, options_.midi || options_.null_audio);
     return enumerated;
 }
@@ -810,7 +822,13 @@ bool Session::poll(std::chrono::steady_clock::time_point now) {
     observer_->expire_learning(now);
     auto old_audio = audio_devices_, old_midi = midi_devices_;
     if (midi_->enabled().empty()) observer_->endpoints();
-    const auto enumerated = refresh_devices();
+    // With a stream open, PortAudio is already initialised and enumeration is cheap.
+    // Without one, every call is a cold init, so space them out.
+    constexpr std::chrono::seconds kColdEnumeration{2};
+    const bool warm = stream_ != nullptr || !options_.audio;
+    const bool cold_due = !cold_enumeration_ || now - *cold_enumeration_ >= kColdEnumeration;
+    if (!warm && cold_due) cold_enumeration_ = now;
+    const auto enumerated = refresh_devices(warm || cold_due);
     auto changed = poll_audio(now, enumerated);
     return changed || old_audio != audio_devices_ || old_midi != midi_devices_;
 }

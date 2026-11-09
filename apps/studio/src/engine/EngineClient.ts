@@ -15,6 +15,8 @@ export interface Device {
   system_name?: string;
   /** Present for audio devices. */
   sampleRates?: number[];
+  /** Audio: PortAudio host API (e.g. "Windows WASAPI"); the id is `hostApi|name[#n]`. */
+  hostApi?: string;
   enabled?: boolean;
   kind: 'audio' | 'midi';
 }

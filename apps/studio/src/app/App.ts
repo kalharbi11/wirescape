@@ -7,7 +7,7 @@ import { History } from '../patch/History';
 import type { Connection, PatchV2 } from '../patch/types';
 import { FakeEngine } from '../engine/FakeEngine';
 import { RealEngine } from '../engine/RealEngine';
-import { EngineRefusal, type SystemStatus, type EngineClient } from '../engine/EngineClient';
+import { EngineRefusal, type SystemStatus, type EngineClient, type Device } from '../engine/EngineClient';
 import { Ticker } from '../runtime/Ticker';
 import { PatchCanvas, type Selection } from '../canvas/PatchCanvas';
 import { CanvasPane } from '../panels/widgets/canvasBase';
@@ -965,7 +965,14 @@ export class App {
           engine.setSampleRate?.(Number(rates.value));
         }
       };
-      const sel = select(devices.map(d => ({ value: d.id, label: d.name })), currentId, v => {
+      // Windows repeats names across (and within) host APIs; the id tells them apart.
+      const repeats = (d: Device) => devices.filter(o => o.name === d.name).length > 1;
+      const label = (d: Device) => {
+        if (!repeats(d)) return d.name;
+        const n = /#(\d+)$/.exec(d.id)?.[1];
+        return `${d.name} — ${d.hostApi ?? 'audio'}${n ? ` ${n}` : ''}`;
+      };
+      const sel = select(devices.map(d => ({ value: d.id, label: label(d) })), currentId, v => {
         engine.selectAudioDevice(v);
         if (engine.setSampleRate) refreshRates(v);
       });

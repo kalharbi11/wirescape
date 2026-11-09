@@ -22,7 +22,7 @@ struct Backend {
  void* library=nullptr;
  decltype(&Pa_Initialize) initialize=nullptr;decltype(&Pa_Terminate) terminate=nullptr;
  decltype(&Pa_GetDeviceCount) count=nullptr;decltype(&Pa_GetDeviceInfo) info=nullptr;
- decltype(&Pa_GetDefaultOutputDevice) default_device=nullptr;decltype(&Pa_GetErrorText) text=nullptr;
+ decltype(&Pa_GetDefaultOutputDevice) default_device=nullptr;decltype(&Pa_GetHostApiInfo) host_api=nullptr;decltype(&Pa_GetErrorText) text=nullptr;
  decltype(&Pa_OpenStream) open=nullptr;decltype(&Pa_StartStream) start=nullptr;
  decltype(&Pa_StopStream) stop=nullptr;decltype(&Pa_AbortStream) abort=nullptr;
  decltype(&Pa_CloseStream) close=nullptr;decltype(&Pa_IsStreamActive) active=nullptr;
@@ -45,7 +45,7 @@ struct Backend {
   if(!library)throw std::runtime_error("PortAudio unavailable: install libportaudio2 on Linux or place the DLL beside the runner");
   // Resident through process exit, including a broken-backend shutdown path.
 #define LOAD(member,name) symbol(member,name)
-  LOAD(initialize,"Pa_Initialize");LOAD(terminate,"Pa_Terminate");LOAD(count,"Pa_GetDeviceCount");LOAD(info,"Pa_GetDeviceInfo");LOAD(default_device,"Pa_GetDefaultOutputDevice");LOAD(text,"Pa_GetErrorText");LOAD(open,"Pa_OpenStream");LOAD(start,"Pa_StartStream");LOAD(stop,"Pa_StopStream");LOAD(abort,"Pa_AbortStream");LOAD(close,"Pa_CloseStream");LOAD(active,"Pa_IsStreamActive");LOAD(load,"Pa_GetStreamCpuLoad");
+  LOAD(initialize,"Pa_Initialize");LOAD(terminate,"Pa_Terminate");LOAD(count,"Pa_GetDeviceCount");LOAD(info,"Pa_GetDeviceInfo");LOAD(default_device,"Pa_GetDefaultOutputDevice");LOAD(host_api,"Pa_GetHostApiInfo");LOAD(text,"Pa_GetErrorText");LOAD(open,"Pa_OpenStream");LOAD(start,"Pa_StartStream");LOAD(stop,"Pa_StopStream");LOAD(abort,"Pa_AbortStream");LOAD(close,"Pa_CloseStream");LOAD(active,"Pa_IsStreamActive");LOAD(load,"Pa_GetStreamCpuLoad");
 #undef LOAD
   check(initialize());initialized=true;
  }
@@ -76,17 +76,35 @@ int callback(const void *, void *output, unsigned long frames, const PaStreamCal
     return ok ? paContinue : paAbort;
 }
 } // namespace
-void list_devices(const std::string&directory){Backend b(directory);int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&d->maxOutputChannels>=2)std::cout<<i<<": "<<d->name<<" ("<<d->defaultSampleRate<<" Hz default)\n";}}
-std::vector<Device> devices(const std::string &directory) {
-    Backend b(directory);
-    std::vector<Device> result;
+namespace {
+std::vector<Device> enumerate(Backend &b) {
     int count = b.count();
     b.check(count);
+    const int fallback = b.default_device();
+    std::vector<RawDevice> raw;
+    std::vector<Device> result;
     for (int i = 0; i < count; ++i) {
         const auto *d = b.info(i);
-        if (d && d->maxOutputChannels >= 2) result.push_back({d->name, i, i == b.default_device()});
+        if (!d || d->maxOutputChannels < 2) continue;
+        const auto *api = b.host_api(d->hostApi);
+        const std::string host = api && api->name ? api->name : "Audio";
+        raw.push_back({d->name, host});
+        result.push_back({{}, d->name, host, i, i == fallback});
     }
+    auto ids = device_ids(raw);
+    for (size_t i = 0; i < result.size(); ++i) result[i].id = std::move(ids[i]);
     return result;
+}
+} // namespace
+void list_devices(const std::string &directory) {
+    Backend b(directory);
+    for (const auto &d : enumerate(b))
+        std::cout << d.index << ": " << d.id << (d.is_default ? "  [default]" : "") << " ("
+                  << b.info(d.index)->defaultSampleRate << " Hz default)\n";
+}
+std::vector<Device> devices(const std::string &directory) {
+    Backend b(directory);
+    return enumerate(b);
 }
 struct Stream::Impl {
     std::unique_ptr<Backend> backend;
@@ -99,16 +117,10 @@ struct Stream::Impl {
         auto &b = *backend;
         int device = b.default_device();
         if (!selection.name.empty()) {
-            device = paNoDevice;
-            int count = b.count();
-            b.check(count);
-            for (int i = 0; i < count; ++i) {
-                const auto *d = b.info(i);
-                if (d && selection.name == d->name) {
-                    if (device != paNoDevice) throw std::runtime_error("Ambiguous audio device name");
-                    device = i;
-                }
-            }
+            const auto list = enumerate(b);
+            const int found = resolve_device(list, selection.name);
+            if (found < 0) throw std::runtime_error("No unique audio device matches the selection");
+            device = list[size_t(found)].index;
         }
         const auto *info = device >= 0 ? b.info(device) : nullptr;
         if (!info || info->maxOutputChannels < 2) throw std::runtime_error("No matching stereo output device");
@@ -176,7 +188,7 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block);context->stop_producers=stop_producers;int device=b.default_device();
  context->rate = rate;
  if(!name.empty()){size_t consumed=0;try{device=std::stoi(name,&consumed);}catch(const std::exception&){consumed=0;}if(consumed!=name.size()){
-   device=paNoDevice;int count=b.count();b.check(count);for(int i=0;i<count;++i){const auto*d=b.info(i);if(d&&name==d->name){device=i;break;}}
+   const auto list=enumerate(b);const int found=resolve_device(list,name);device=found<0?paNoDevice:list[size_t(found)].index;
  }}
  const auto*info=device>=0?b.info(device):nullptr;if(!info||info->maxOutputChannels<2)throw std::runtime_error("No matching stereo output device");
  PaStreamParameters output{device,2,paFloat32,info->defaultLowOutputLatency,nullptr};PaStream*stream=nullptr;
