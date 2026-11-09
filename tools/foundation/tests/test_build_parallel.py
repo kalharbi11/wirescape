@@ -24,10 +24,9 @@ class BuildParallelTests(unittest.TestCase):
                      patch.object(dev, "BUILD_DIR", root / "build"), \
                      patch.object(dev, "_base_record", return_value={"source": {}}), \
                      patch.object(dev, "_cmake_and_generator", return_value=("cmake", "Ninja", "x64")), \
-                     patch.object(dev, "_qt_prefix", return_value=None), \
                      patch.object(dev, "run_logged", side_effect=[{"exit_code": 0}, {"exit_code": 7}]) as run, \
                      patch.object(dev, "_save_record"), patch.object(dev, "_print_record"):
-                    args = argparse.Namespace(config="Release", qt_prefix=None, headless=True, json=False)
+                    args = argparse.Namespace(config="Release", headless=True, json=False)
                     self.assertEqual(dev.command_build(args), 7)
                 command = run.call_args_list[1].args[0]
                 expected = ["--parallel", limit] if limit else ["--parallel"]
