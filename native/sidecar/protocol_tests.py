@@ -14,12 +14,6 @@ from pathlib import Path
 
 BINARY, EXAMPLES = sys.argv[1:3]
 
-# Windows-only stdout stall is tracked in #266 (D13 split of #247); ctest reports SKIP.
-# Linux and the Pi run the full suite. WIRESCAPE_SIDECAR_WINDOWS=1 runs it on Windows too.
-if sys.platform == 'win32' and os.environ.get('WIRESCAPE_SIDECAR_WINDOWS') != '1':
-    print('SKIP: Windows sidecar protocol suite pending #266')
-    sys.exit(77)
-
 
 def strict_object(pairs):
     result = {}
