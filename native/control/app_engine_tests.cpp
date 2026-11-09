@@ -16,8 +16,8 @@ using App=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
 static App make(){ws_engine_config c{sizeof(c),48000,128,32,2048};App e(app_engine_create(&c),app_engine_destroy);check(bool(e),"create app engine");return e;}
 static void shim(const char*library){
     auto source = make();
-    check(app_engine_module_count(source.get()) == 27,
-          "Twenty-five builtins (including Groove) plus the two SDK sources");
+    check(app_engine_module_count(source.get()) == 28,
+          "Twenty-six builtins (including Groove and Quantizer) plus the two SDK sources");
     for (auto *native : wirescape::app::builtin_modules()) {
         const ws_module_descriptor *metadata = nullptr;
         for (uint32_t i = 0; i < app_engine_module_count(source.get()); ++i) {
