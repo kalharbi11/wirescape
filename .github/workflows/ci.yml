@@ -225,6 +225,25 @@ jobs:
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
               summary.write('\n'.join(summaries))
           PYTHON
+      - name: Bound offline render evidence artifacts
+        if: always() && matrix.os == 'linux-arm64'
+        run: |
+          python - <<'PYTHON'
+          from pathlib import Path
+          root = Path('build/native/render_evidence')
+          if root.exists():
+              size = sum(p.stat().st_size for p in root.rglob('*') if p.is_file())
+              print(f'render_evidence uncompressed bytes: {size}')
+              if size > 20 * 1024 * 1024:
+                  raise SystemExit('render_evidence exceeds 20 MiB budget')
+          PYTHON
+      - uses: actions/upload-artifact@v7
+        if: always() && matrix.os == 'linux-arm64'
+        with:
+          name: render-evidence-linux-arm64-${{ github.event.pull_request.head.sha || github.sha }}
+          path: build/**/render_evidence/
+          retention-days: 14
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v7
         if: always()
         with:

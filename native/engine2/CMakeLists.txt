@@ -83,6 +83,8 @@ endforeach()
 
 add_library(wirescape_catalog_dependencies INTERFACE)
 target_link_libraries(wirescape_catalog_dependencies INTERFACE wirescape_voice2)
+add_library(ws2_groove SHARED ../modules2/groove/module.cpp)
+target_link_libraries(ws2_groove PRIVATE wirescape_sdk2)
 add_library(ws2_host_keyboard SHARED ../modules2/host_keyboard/module.cpp)
 target_link_libraries(ws2_host_keyboard PRIVATE wirescape_sdk2 wirescape_voice2)
 
@@ -213,3 +215,4 @@ add_subdirectory(../modules2/blend blend)
 add_subdirectory(../modules2/resonator resonator)
 add_subdirectory(../modules2/spectral spectral)
 add_subdirectory(../modules2/delay delay)
+add_subdirectory(../modules2/reverb reverb)
