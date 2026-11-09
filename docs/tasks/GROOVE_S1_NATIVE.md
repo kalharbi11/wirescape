@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# #432 Groove S1(a): independent native two-track instrument
+# #454 Groove S1(a): independent native two-track instrument
 
 Keel preauthorized `docs/tasks/GROOVE_S1*.md` in #432 comment 6731562789.
-S0 #430 is merged; Studio stopped editor is separate S1(b).
+S0 #430 is merged; parent #432 retains the separate S1(b) Studio editor.
 ## Read first
 AGENTS.md; #432 ruling/handoff; docs/PLAN.md Now/Decisions; docs/sequencer/{README,GROOVE}.md;
 docs/SDK_AUTHOR_GUIDE.md §§7–12; native/modules2/groove/{config.h,dsp.h,module.json};
