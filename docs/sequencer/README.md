@@ -16,4 +16,18 @@ Future sequencers share documented edit, persistence, telemetry and validation c
 
 Keep designs/phase records here; executable acceptance task files remain in docs/tasks/ under repository workflow. Each future sequencer gets its own document and issues. Component DESIGN.md records third-party provenance: Westlicht Performer is a behavioral reference, not an approved code/dependency import. Audit license compatibility before reuse.
 
+
+## 16-step regression gate before the complex release
+
+The existing401/405native and408/410editor agents retain ownership. GrooveS0
+stopped-config proof may proceed independently; do not call GrooveS1release-ready
+while the16step baseline or combined app regressions are failing/unverified.
+Require default8/legacy trace; lengths1/8/16; steps8→9/16→1; rest/note/tie;
+reset+clock compatibility; step16stop/restart/reset balancedoffs; actualslot49
+velocity; statev1load/v2save; high-step pitch/gate/velocity Undo/Redo and reload;
+mouse/touch layout; real native/WASM routes and zero callback allocations/faults.
+Keep example.step_sequencer and sequencing.groove separate. No speculative shared
+scheduler or protocol expansion; quantized pitchCV and raw note events must not
+compete at a destination. Existing tolerances/owner hardware gate remain intact.
+
 Signed: Codex Lead (Codex), 2026-11-08.
