@@ -56,14 +56,15 @@ cd ../..
 The engine loads `libportaudio64bit.dll` from **its own folder**. Reuse your
 existing, known-good copy from the old checkout:
 ```powershell
-Copy-Item ..\wirescape-qt-old\.tools\portaudio\libportaudio64bit.dll build\native\Release\
+$exe = Get-ChildItem build\native -Recurse -Filter wirescape-engine.exe | Select-Object -First 1
+Copy-Item ..\wirescape-qt-old\.tools\portaudio\libportaudio64bit.dll $exe.DirectoryName
 ```
 (If it lived elsewhere before, copy it from there. Don't download a new one
 for this test.)
 
 ## 5. Check it is clean, then launch
 ```powershell
-Test-Path build\native\Release\wirescape-engine.exe          # True
+Get-ChildItem build\native -Recurse -Filter wirescape-engine.exe   # one file listed
 Get-ChildItem build -Recurse -Filter 'Qt6*.dll' | Measure-Object | % Count   # 0
 .\tools\windows\Wirescape.cmd
 ```
@@ -82,7 +83,7 @@ cd apps/studio; npm ci; npm run build; cd ../desktop; npm ci; npm run build; cd 
 - `doctor`/build says no compiler or generator: reopen PowerShell after the
   Build Tools install, or use "Developer PowerShell for VS 2022".
 - App opens but no sound / "PortAudio unavailable": step 4's DLL is missing
-  from `build\native\Release\`.
+  from the folder holding `wirescape-engine.exe`.
 - "Build wirescape-engine before launching": step 3's engine build did not finish.
 - Paste the last ~30 lines of the error into issue #436.
 
