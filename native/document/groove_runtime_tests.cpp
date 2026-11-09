@@ -250,6 +250,12 @@ static void advance(AppEngine *e, uint32_t frames, uint32_t block) {
             allocated = watch.allocations();
         }
         check(status == WS_OK && allocated == 0, "S1 render is bounded and allocation-free");
+        wirescape::engine2::Outgoing out;
+        while (app_engine_native(e).pop_egress(out))
+            check(out.node == 1 && (out.port == 4 || out.port == 9) &&
+                      (out.event.type == WS2_NOTE_ON || out.event.type == WS2_NOTE_OFF) &&
+                      out.event.note_id > 0 && out.event.key >= 0 && out.event.key <= 127 &&
+                      out.frame < app_engine_native(e).meter().frame, "egress identity");
         done += n;
     }
 }
