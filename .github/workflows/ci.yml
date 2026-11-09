@@ -165,7 +165,7 @@ jobs:
           if [[ '${{ matrix.os }}' == linux-arm64 ]]; then
             python tools/dev.py build --headless
           else
-            python tools/dev.py build
+            python tools/dev.py build --with-qt
             test -f build/native/ui/wirescape-ui-enabled.txt
           fi
           python tools/dev.py test

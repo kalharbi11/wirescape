@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "portaudio_service.h"
-#include "../../ui/third_party/portaudio.h"
+#include "../../third_party/portaudio/portaudio.h"
 #include "callback_render.h"
 #include "engine_slot.h"
 #include "wirescape/output_policy.h"
