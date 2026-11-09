@@ -107,11 +107,11 @@ test('native File intents and open/save round-trip never expose a filesystem pat
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: filepath });
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filepath] });
     }, file);
-    const saved = await page.evaluate(() => window.wirescape.savePatch('{"unknown":true}\n', { saveAs: true }));
+    const saved = await page.evaluate(() => window.wirescape.savePatch('{"format":"wirescape.native.patch","version":2,"modules":[],"connections":[],"unknown":true}\n', { saveAs: true }));
     expect(saved).toEqual({ name: 'patch.json' });
-    expect(fs.readFileSync(file, 'utf8')).toBe('{"unknown":true}\n');
+    expect(fs.readFileSync(file, 'utf8')).toBe('{"format":"wirescape.native.patch","version":2,"modules":[],"connections":[],"unknown":true}\n');
     expect(await page.evaluate(() => window.wirescape.openPatch()))
-      .toEqual({ text: '{"unknown":true}\n', name: 'patch.json' });
+      .toEqual({ text: '{"format":"wirescape.native.patch","version":2,"modules":[],"connections":[],"unknown":true}\n', name: 'patch.json' });
     await page.evaluate(() => {
       window.__intents = [];
       window.wirescape.onMessage(message => window.__intents.push(message));
@@ -121,7 +121,7 @@ test('native File intents and open/save round-trip never expose a filesystem pat
       Menu.getApplicationMenu().getMenuItemById('save-patch').click();
       Menu.getApplicationMenu().getMenuItemById('save-as').click();
     });
-    await expect.poll(() => page.evaluate(() => window.__intents.filter(v => v.type.startsWith('app.menu'))))
+    await expect.poll(() => page.evaluate(() => window.__intents.filter(v => typeof v.type === 'string' && v.type.startsWith('app.menu'))))
       .toEqual([
         { v: 0, type: 'app.menuOpenPatch' },
         { v: 0, type: 'app.menuSavePatch', saveAs: false },
@@ -165,9 +165,9 @@ test('patch dialogs create the user patch folder lazily and retain the selected 
     await app.evaluate(({ dialog }, filename) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: filename });
     }, selected);
-    expect(await page.evaluate(() => window.wirescape.savePatch('{"unknown":42}\n', { saveAs: true })))
+    expect(await page.evaluate(() => window.wirescape.savePatch('{"format":"wirescape.native.patch","version":2,"modules":[],"connections":[],"unknown":42}\n', { saveAs: true })))
       .toEqual({ name: 'selected.json' });
-    expect(fs.readFileSync(selected, 'utf8')).toBe('{"unknown":42}\n');
+    expect(fs.readFileSync(selected, 'utf8')).toBe('{"format":"wirescape.native.patch","version":2,"modules":[],"connections":[],"unknown":42}\n');
     await app.evaluate(({ dialog }) => {
       dialog.showSaveDialog = async (_window, options) => {
         globalThis.__patchDefaults.push(options.defaultPath);
@@ -178,8 +178,8 @@ test('patch dialogs create the user patch folder lazily and retain the selected 
     expect(await page.evaluate(() => window.wirescape.savePatch('{}', { saveAs: true }))).toBeNull();
     expect(await app.evaluate(() => globalThis.__patchDefaults.slice(-2))).toEqual([selected, selected]);
     // Cancelled Open/Save As must not redirect a subsequent plain Save.
-    await page.evaluate(() => window.wirescape.savePatch('{"unknown":43}\n'));
-    expect(fs.readFileSync(selected, 'utf8')).toBe('{"unknown":43}\n');
+    await page.evaluate(() => window.wirescape.savePatch('{"format":"wirescape.native.patch","version":2,"modules":[],"connections":[],"unknown":43}\n'));
+    expect(fs.readFileSync(selected, 'utf8')).toBe('{"format":"wirescape.native.patch","version":2,"modules":[],"connections":[],"unknown":43}\n');
     expect(fs.readFileSync(preserved, 'utf8')).toBe('{"unknown":"keep me"}\n');
   } finally {
     await app.close();
@@ -234,9 +234,10 @@ test('patch library keeps paths private, bounds reads and detaches bundled save 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'wirescape-library-'));
   const patches = path.join(root, 'patches');
   fs.mkdirSync(patches);
-  fs.writeFileSync(path.join(patches, 'Song.json'), '{"future":42}');
+  fs.writeFileSync(path.join(patches, 'Song.json'), '{"format":"wirescape.native.patch","version":2,"future":42}');
   fs.writeFileSync(path.join(patches, 'Huge.json'), 'x'.repeat(2097153));
   fs.writeFileSync(path.join(patches, 'Bad.json'), Buffer.from([255]));
+  fs.writeFileSync(path.join(patches, 'Future.json'), '{"format":"wirescape.native.patch","version":99}');
   let app;
   try {
     app = await launch();
@@ -249,8 +250,8 @@ test('patch library keeps paths private, bounds reads and detaches bundled save 
     expect(JSON.parse(listed.text)).toContain('Song.json');
     expect(listed.text).not.toContain(root);
     expect(await page.evaluate(() => window.wirescape.openPatch({ library: 'read', name: 'Song.json' })))
-      .toEqual({ name: 'Song.json', text: '{"future":42}' });
-    for (const name of ['../Song.json', 'Huge.json', 'Bad.json']) {
+      .toEqual({ name: 'Song.json', text: '{"format":"wirescape.native.patch","version":2,"future":42}' });
+    for (const name of ['../Song.json', 'Huge.json', 'Bad.json', 'Future.json']) {
       expect(await page.evaluate(async name => {
         try { await window.wirescape.openPatch({ library: 'read', name }); return false; } catch { return true; }
       }, name)).toBe(true);
@@ -271,11 +272,109 @@ test('patch library keeps paths private, bounds reads and detaches bundled save 
         return { canceled: false, filePath: paths.output };
       };
     }, { output, expectedDefault });
-    await page.evaluate(() => window.wirescape.savePatch('{"copy":true}', { saveAs: true }));
-    expect(fs.readFileSync(output, 'utf8')).toBe('{"copy":true}');
-    expect(fs.readFileSync(path.join(patches, 'Song.json'), 'utf8')).toBe('{"future":42}');
+    await page.evaluate(() => window.wirescape.savePatch('{"format":"wirescape.native.patch","version":2,"modules":[],"connections":[],"copy":true}', { saveAs: true }));
+    expect(fs.readFileSync(output, 'utf8')).toBe('{"format":"wirescape.native.patch","version":2,"modules":[],"connections":[],"copy":true}');
+    expect(fs.readFileSync(path.join(patches, 'Song.json'), 'utf8')).toBe('{"format":"wirescape.native.patch","version":2,"future":42}');
   } finally {
     if (app) await app.close().catch(() => {});
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('unsupported opens never rebind Save and unsupported targets are never overwritten', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wirescape-refused-file-'));
+  const good = path.join(dir, 'good.json'), rejected = path.join(dir, 'rejected.json');
+  const native = unknown => JSON.stringify({ format: 'wirescape.native.patch', version: 2,
+    modules: [], connections: [], unknown }) + '\n';
+  fs.writeFileSync(good, native('original'));
+  const app = await launch();
+  try {
+    const page = await app.firstWindow();
+    await app.evaluate(({ dialog }, filename) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filename] });
+    }, good);
+    await page.evaluate(() => window.wirescape.openPatch());
+    const fixture = path.resolve(__dirname, '../../../native/tests/fixtures/legacy_documents');
+    const invalid = fs.readdirSync(fixture).map(name => fs.readFileSync(path.join(fixture, name), 'utf8'));
+    invalid.push('{broken', '[]', native(false).replace('"version":2', '"version":99'),
+      native(false).replace('"unknown":false', '"unknown":1,"\\u0075nknown":2'),
+      native(false).replace('"unknown":false', '"unknown":[{"a":1,"a":2}]'), ' '.repeat(2097153));
+    const base = JSON.parse(native(false));
+    const malformed = [{ modules: [{ id: 'bad', module: 'vendor.x' }] },
+      { modules: [{ id: 1, module: 'x' }, { id: 1, module: 'y' }] }, { modules: [null] },
+      { modules: [{ id: 1, module: null }] }, { connections: [null] },
+    { ui: 4 }, { ui: { positions: 'bad' } }, { ui: { view: [] } }, { ui: { labels: false } },
+    { ui: { cableColors: null } },
+      { connections: [{ kind: 'future', from: { module: 1, port: 'a' }, to: { module: 99, port: 'b' } }] },
+      { connections: [{ kind: 'signal', from: { module: 'bad', port: 'a' }, to: { module: 99, port: 'b' } }] },
+      { version: 1, modules: undefined }, { version: 1, connections: undefined },
+      { version: 1, modules: [{ id: 1, type: null }] },
+    { version: 1, modules: [{ id: 1, type: 'essentials.vco', values: 4 }] },
+      { version: 1, connections: [{ kind: 'audio', fromNode: 1, fromPort: 'a', toNode: 99 }] }];
+    invalid.push(...malformed.map(change => JSON.stringify({ ...base, ...change })));
+    for (const bytes of invalid) {
+      fs.writeFileSync(rejected, bytes);
+      await app.evaluate(({ dialog }, filename) => {
+        dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filename] });
+        dialog.showSaveDialog = async () => ({ canceled: false, filePath: filename });
+      }, rejected);
+      await expect(page.evaluate(() => window.wirescape.openPatch())).rejects.toThrow('Could not read');
+      await page.evaluate(text => window.wirescape.savePatch(text), native('still on good'));
+      expect(fs.readFileSync(good, 'utf8')).toBe(native('still on good'));
+      await expect(page.evaluate(text => window.wirescape.savePatch(text, { saveAs: true }), native('new')))
+        .rejects.toThrow('Refusing to overwrite');
+      expect(fs.readFileSync(rejected, 'utf8')).toBe(bytes);
+    }
+    const opaque = JSON.stringify({ ...base, modules: [{ id: 1, module: 'vendor.future', opaque: true }],
+      connections: [{ kind: 'signal', from: { module: 1, port: 'future' }, to: { module: 99, port: 'missing' }, vendor: 42 }] });
+    fs.writeFileSync(rejected, opaque);
+    expect((await page.evaluate(() => window.wirescape.openPatch())).text).toBe(opaque);
+    await page.evaluate(text => window.wirescape.savePatch(text), opaque);
+    expect(fs.readFileSync(rejected, 'utf8')).toBe(opaque);
+    expect(fs.readdirSync(dir).some(name => name.endsWith('.tmp') || name.endsWith('.v1.json'))).toBe(false);
+  } finally { await app.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('v1 Save and Save As publish exact no-clobber backups and atomic v2 documents', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wirescape-v1-backup-'));
+  const file = path.join(dir, 'source.json'), second = path.join(dir, 'copy.json');
+  const original = ' \n' + JSON.stringify({ format: 'wirescape.native.patch', version: 1,
+    modules: [], connections: [], outputNode: 0, vendor: { untouched: true } }) + '\n';
+  fs.writeFileSync(file, original);
+  const migrated = JSON.stringify({ format: 'wirescape.native.patch', version: 2,
+    modules: [], connections: [], preserved: JSON.parse(original), vendor: { untouched: true } }) + '\n';
+  const app = await launch();
+  try {
+    const page = await app.firstWindow();
+    await app.evaluate(({ dialog }, filename) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filename] });
+    }, file);
+    await page.evaluate(() => window.wirescape.openPatch());
+    const backup = path.join(dir, 'source.v1.json');
+    fs.mkdirSync(backup);
+    await expect(page.evaluate(text => window.wirescape.savePatch(text), migrated))
+      .rejects.toThrow('Could not create original patch backup; target was kept');
+    expect(fs.readFileSync(file, 'utf8')).toBe(original);
+    fs.rmdirSync(backup);
+    await page.evaluate(text => window.wirescape.savePatch(text), migrated);
+    expect(fs.readFileSync(backup, 'utf8')).toBe(original);
+    expect(fs.readFileSync(file, 'utf8')).toBe(migrated);
+    fs.writeFileSync(backup, 'existing backup');
+    await page.evaluate(text => window.wirescape.savePatch(text), migrated);
+    expect(fs.readFileSync(backup, 'utf8')).toBe('existing backup');
+    await app.evaluate(({ dialog }, filename) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: filename });
+    }, second);
+    await page.evaluate(text => window.wirescape.savePatch(text, { saveAs: true }), migrated);
+    expect(fs.readFileSync(path.join(dir, 'copy.v1.json'), 'utf8')).toBe(original);
+    expect(fs.readFileSync(second, 'utf8')).toBe(migrated);
+    await app.evaluate(({ dialog }, filename) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filename] });
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: filename + '.new.json' });
+    }, second);
+    await page.evaluate(() => window.wirescape.openPatch());
+    await page.evaluate(text => window.wirescape.savePatch(text, { saveAs: true }), migrated);
+    expect(fs.existsSync(second + '.new.v1.json')).toBe(false);
+    expect(fs.readdirSync(dir).filter(name => name.endsWith('.tmp'))).toEqual([]);
+  } finally { await app.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });

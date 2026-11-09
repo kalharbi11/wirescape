@@ -197,19 +197,11 @@ add_library(app_legacy_fixture SHARED ../control/app_legacy_fixture.cpp)
 target_include_directories(app_legacy_fixture PRIVATE ../include)
 add_dependencies(app_engine_tests app_legacy_fixture)
 add_test(NAME app_engine_tests COMMAND app_engine_tests $<TARGET_FILE:app_legacy_fixture>)
-if(TARGET wirescape_document)
-  target_link_libraries(wirescape_soak PRIVATE wirescape_document)
-  target_compile_definitions(wirescape_soak PRIVATE WS_SOAK_DOCUMENT)
-  add_test(NAME app_document_soak COMMAND wirescape_soak --patch
-    "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json" --rate 48000 --block 128 --seconds 0.01)
-  set_tests_properties(app_document_soak PROPERTIES TIMEOUT 15)
-  # wirescape_soak links QtCore through wirescape_document; Windows needs its DLL directory on PATH.
-  if(WIN32)
-    find_package(Qt6 6.5 QUIET COMPONENTS Core)
-    set_tests_properties(abi2_soak_smoke abi2_soak_cli app_document_soak PROPERTIES
-      ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
-  endif()
-endif()
+# Document soak uses the same Qt-free execution copy as the sidecar.
+target_link_libraries(wirescape_soak PRIVATE wirescape_runtime_document)
+add_test(NAME app_document_soak COMMAND wirescape_soak --patch
+  "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json" --rate 48000 --block 128 --seconds 0.01)
+set_tests_properties(app_document_soak PROPERTIES TIMEOUT 15)
 add_subdirectory(../modules2/chaos_lite chaos_lite)
 add_subdirectory(../modules2/blend blend)
 add_subdirectory(../modules2/resonator resonator)

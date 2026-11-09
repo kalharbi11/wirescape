@@ -419,7 +419,7 @@ export class App {
     this.doc.replace(patch);
     this.patchName = name;
     this.nameEl.textContent = name;
-    this.maxModuleId = Math.max(0, ...patch.modules.map(m => m.id));
+    this.maxModuleId = Math.max(0, ...(patch.modules ?? []).map(m => m.id));
     const running = this.engine.loadGraph(this.doc.toJSON());
     const v = patch.ui?.view;
     // Restoring/fitting the viewport is presentation, not a source-document edit.
