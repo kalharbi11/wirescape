@@ -1,6 +1,6 @@
 # Wirescape communication modules plan: MIDI, OSC, UDP, Monitor
 
-**Status:** approved direction from the user, October 26, 2026. This is Track C, scheduled in `docs/PLAN.md` (milestones M4–M5). It **depends on `docs/specs/ABI2_PLAN.md` phase B3**: event ports and outputs, message events, the ingress registry, egress, transport, state and config-dependent ports. Don't build it on ABI 1, and don't put strings or packets into float buffers. This file replaces the design details of the MIDI, OSC, UDP and Monitor rows in `docs/ROADMAP.md`, while keeping their acceptance intent. Update that table when C1 finishes.
+**Status:** approved direction from the user, October 26, 2026. This is Track C, scheduled in `docs/PLAN.md` (milestones M4–M5). It **depends on `docs/specs/ABI2_PLAN.md` phase B3**: event ports and outputs, message events, the ingress registry, egress, transport, state and config-dependent ports. Don't build it on ABI 1, and don't put strings or packets into float buffers. This file replaces the design details of the MIDI, OSC, UDP and Monitor rows in `docs/PLAN.md`, while keeping their acceptance intent. Update that table when C1 finishes.
 
 `AGENTS.md` rules apply:
 - No real devices or audio unless an explicit flag is given and the user authorizes it.
@@ -292,7 +292,7 @@ Each phase lists its deliverables, then the **acceptance** criteria.
   - Reconnect matrix with the fake backend.
   - A long offline session.
   - Build-guide pages for writing new endpoint services.
-  - Update `docs/ROADMAP.md` and `docs/STATUS.md`.
+  - Update `docs/PLAN.md` and `docs/STATUS.md`.
 - **Acceptance:** `check --package` green, CI green, and a handoff comment. No claim about real-device stability beyond what the probes actually ran.
 
 **C7 (future, not scheduled):**

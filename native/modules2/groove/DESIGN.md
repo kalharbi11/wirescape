@@ -1,13 +1,12 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Groove foundation provenance and review
+# Groove S1 native design
 
-Original portable C++17 module. No third-party source imported.
-Westlicht Performer is a behavioral inspiration only, not a dependency.
-
-Proposed v1 JSON structure is a T2 config/format contract requiring Keel
-review (#430). The existing quiescent runtime_module_config adapter serializes
-to a transient bounded host structure; only JSON is persisted. No ABI/SDK
-header or host protocol changes. Fixed-capacity render-owned state has no
-allocations, locks, JSON or I/O in process/reset. S0 is an eight-step proof
-that S1 can extend to 32 steps per track. Transport semantics and live
-editing require separately reviewed later phases.
+Original C++17, no imported third-party code; Westlicht Performer is only
+a behavioral reference. Keel contract: #432 comment 6731562789.
+Persist additive version-1 JSON, not validated 4×64 POD; refuse unknowns.
+Two tracks share audio-frame 32-step clock with per-track sounding/pending
+notes. Failed NOTE_OFF retries before new ON; gates and mods follow admitted
+notes. Initial high is baseline. RESET > STOP > MUTE > START > tick.
+Render/reset avoid allocation, locks, JSON, logging and I/O.
+No authoritative completed-STOP/playhead in the existing native telemetry
+seam; Keel ruling requested before S1(b) UI.

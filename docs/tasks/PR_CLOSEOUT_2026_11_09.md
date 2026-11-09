@@ -40,7 +40,7 @@ D18 says finish before start: merge or close what's open before any new module o
 - Fix authored static formatting. Run the three task-specific Pi probes (`ci/pi-accept`) on the exact head, then get an independent T1 review and update the patch-guide limitation. Interleave first. If Vocoder holds up the release, split it out with stable slots, as in the queue rules.
 
 ## Lane F: real-app evidence (#442, then #296)
-- #442: add case 4 per Keel's ruling on #386. That's a Studio mock-bridge spec driving `status.audio.state` running → device-lost → reconnecting → running through `RealEngine`, plus a citation of the native `audio_recovery_tests` CTest. No new hooks. Add `docs/tasks/T386_ELECTRON_E2E.md` (now named), mark the PR ready and get a T1 review.
+- #442: add case 4 per Keel's ruling on #386. That's a Studio mock-bridge spec driving `status.audio.state` running → device-lost → reconnecting → running through `RealEngine`, plus a citation of the native `audio_recovery_tests` CTest. No new hooks. Add `docs/tasks/done/T386_ELECTRON_E2E.md` (now named), mark the PR ready and get a T1 review.
 - #296 private 3600 s fake-device edit soak: unchanged, still owned by the private-runner lane.
 
 ## Lane G: engine T2 (#400, #399/#293)

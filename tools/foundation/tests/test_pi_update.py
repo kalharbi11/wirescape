@@ -42,7 +42,23 @@ esac
 """)
         self.add_fake("python3", r"""#!/bin/sh
 if [ "$1" = "-" ]; then shift; exec "$WS_REAL_PYTHON" - "$@"; fi
-printf 'python3 %s\n' "$*" >> "$WS_LOG"
+case "$1" in
+  */tools/pi/preflight.py)
+    case " $* " in
+      *" --check-only "*)
+        printf 'preflight --check-only\n' >> "$WS_LOG"
+        [ "$WS_FAIL_PREFLIGHT" != 1 ]; exit $? ;;
+      *" --run-stage "*)
+        case " $* " in
+          *" --run-stage studio-"*) cd "$WS_ROOT/apps/studio" ;;
+          *" --run-stage desktop-"*) cd "$WS_ROOT/apps/desktop" ;;
+        esac
+        while [ "$1" != '--' ]; do shift; done
+        shift
+        "$@"; exit $? ;;
+    esac ;;
+esac
+printf 'python3 %s (jobs=%s)\n' "$*" "$CMAKE_BUILD_PARALLEL_LEVEL" >> "$WS_LOG"
 [ "$WS_FAIL_BUILD" != 1 ]
 """)
         self.add_fake("npm", r"""#!/bin/sh
@@ -61,6 +77,7 @@ esac
             "PATH": str(self.bin) + os.pathsep + os.environ.get("PATH", ""),
             "WS_LOG": str(self.log),
             "WS_SHA": SHA,
+            "WS_ROOT": str(self.root),
             "WS_REAL_PYTHON": sys.executable,
         }
 
@@ -88,6 +105,8 @@ esac
         self.assertLess(checkout, build)
         self.assertLess(build, npm)
         self.assertIn("tools/dev.py build --headless --config Release", calls[build])
+        self.assertEqual(calls.count("preflight --check-only"), 2)
+        self.assertIn("jobs=2", calls[build])
         self.assertEqual(sum(line.startswith("npm ") and line.endswith(" : ci") for line in calls), 2)
         self.assertEqual(sum("run build" in line for line in calls), 2)
         self.assertIn(SHA, done.stdout)
@@ -107,6 +126,26 @@ esac
         self.assertNotEqual(done.returncode, 0)
         self.assertNotIn("npm ", self.log.read_text())
         self.assertNotIn("To launch", done.stdout)
+
+    def test_preflight_failure_never_fetches(self):
+        done = self.run_update("main", WS_FAIL_PREFLIGHT="1")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertNotIn("fetch ", self.log.read_text())
+
+    def test_npm_stage_failure_stops_before_desktop_and_preserves_code(self):
+        done = self.run_update(SHA, WS_FAIL_NPM="1")
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("Stage studio-build failed", done.stderr)
+        self.assertNotIn("apps/desktop", self.log.read_text())
+
+    def test_bounded_jobs_override_and_bad_limit(self):
+        done = self.run_update(SHA, "--jobs", "4")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("jobs=4", self.log.read_text())
+        self.log.write_text("")
+        for value in ("0", "5", "-1", "many"):
+            self.assertEqual(self.run_update(SHA, "--jobs", value).returncode, 2)
+            self.assertEqual(self.log.read_text(), "")
 
     def test_invalid_ref_and_arguments_never_call_git(self):
         for args in ((), ("--help",), ("main..other",), ("main", "extra")):

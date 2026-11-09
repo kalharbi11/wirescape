@@ -27,6 +27,7 @@
     "pressure": "signal",
     "bend": "signal",
     "mod": "signal",
-    "notes": "event"
+    "notes": "event",
+    "last_note": "signal"
   }
 }

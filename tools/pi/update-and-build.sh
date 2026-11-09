@@ -4,22 +4,29 @@
 set -eu
 
 usage() {
-    echo "Usage: tools/pi/update-and-build.sh <commit-sha|origin/branch|tag>" >&2
+    echo "Usage: tools/pi/update-and-build.sh <commit-sha|origin/branch|tag> [--jobs 1..4]" >&2
     exit 2
 }
-[ "$#" -eq 1 ] || usage
+[ "$#" -eq 1 ] || { [ "$#" -eq 3 ] && [ "$2" = '--jobs' ]; } || usage
 ref=$1
+jobs=2
+if [ "$#" -eq 3 ]; then jobs=$3; fi
+case "$jobs" in 1|2|3|4) ;; *) usage ;; esac
 # This is a Git revision, not a command-line option or rev-parse expression.
 case "$ref" in
     ''|-*|*'..'*|*' '*|*'~'*|*'^'*|*':'*|*'@{'*|*'\'*|*'?'*|*'*'*|*'['*) usage ;;
 esac
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-# Do not silently discard the owner's edits or switch a dirty worktree.
+# Preserve the owner's edits and caches; preflight is read-only and offline.
 if [ -n "$(git -C "$root" status --porcelain)" ]; then
     echo "Working tree is not clean; save or commit changes before updating." >&2
     exit 1
 fi
+python3 "$root/tools/pi/preflight.py" --check-only --root "$root" || {
+    echo "Preflight blocked before fetch; fix the reported prerequisites and retry." >&2
+    exit 1
+}
 
 echo "Fetching origin and resolving $ref..."
 git -C "$root" fetch --prune origin
@@ -30,25 +37,45 @@ if [ "$actual" != "$sha" ]; then
     echo "Checked-out revision differs from requested revision." >&2
     exit 1
 fi
-printf 'Building exact revision %s\n' "$sha"
+# The selected revision may have different dependency pins and requirements.
+python3 "$root/tools/pi/preflight.py" --check-only --root "$root" || {
+    echo "Selected SHA $sha failed preflight; no build attempted." >&2
+    exit 1
+}
 
+report="$root/build_reports/pi-source-build/$sha"
+mkdir -p "$report"
+export CMAKE_BUILD_PARALLEL_LEVEL="$jobs"
 cd "$root"
-python3 tools/dev.py build --headless --config Release
+echo "Building exact revision $sha with $jobs native jobs; logs in $report"
+
+stage() {
+    name=$1
+    shift
+    python3 "$root/tools/pi/preflight.py" --root "$root" --run-stage "$name" --report-dir "$report" -- "$@" || {
+        rc=$?
+        echo "Stage $name failed (exit $rc). See $report/$name.log and summary.json; repair and rerun this exact revision." >&2
+        exit "$rc"
+    }
+}
+
+stage native python3 tools/dev.py build --headless --config Release
 if [ ! -x "$root/build/native/wirescape-engine" ]; then
-    echo "Missing build/native/wirescape-engine after Release build." >&2
+    echo "Stage native failed: missing build/native/wirescape-engine after Release build; inspect $report/native.log" >&2
     exit 1
 fi
-
-(cd "$root/apps/studio" && npm ci && npm run build)
-(cd "$root/apps/desktop" && npm ci && npm run build)
+stage studio-ci npm ci
+stage studio-build npm run build
+stage desktop-ci npm ci
+stage desktop-build npm run build
 
 if [ ! -f "$root/apps/studio/dist/index.html" ] ||
    [ ! -f "$root/apps/desktop/build/main.js" ]; then
-    echo "Desktop/UI build outputs are missing." >&2
+    echo "Stage desktop-build failed: missing UI outputs; see $report/desktop-build.log" >&2
     exit 1
 fi
 
-echo "Built $sha (no audio/MIDI device opened)."
+echo "Built $sha (no audio/MIDI device opened). Report: $report/summary.json"
 echo "To launch with the owner's device consent:"
 python3 - "$root" <<'PY'
 import shlex
