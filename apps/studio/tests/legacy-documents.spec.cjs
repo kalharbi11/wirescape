@@ -38,7 +38,8 @@ test('native future/invalid envelopes and containers refuse atomically', () => {
 test('native v1 migration retains structural collisions and unknown payloads', () => {
   const source = { format: 'wirescape.native.patch', version: 1, outputNode: 1,
     modules: [{ id: 1, type: 'essentials.vco', values: { 0: 220, 999: { opaque: true } },
-      vendor: [1, 'nested'], preserved: 'original collision' }], connections: [],
+      vendor: [1, 'nested'], preserved: 'original collision' }],
+    connections: [{ kind: 'control', fromNode: 1, fromPort: 'vendor.out', toNode: 99, toPort: 'vendor.in', vendor: true }],
     vendor: { retain: true }, preserved: 'top collision' };
   const migrated = PatchDoc.from(source).toJSON();
   expect(migrated.version).toBe(2);
@@ -47,6 +48,8 @@ test('native v1 migration retains structural collisions and unknown payloads', (
   expect(migrated.modules[0].preserved).toEqual(source.modules[0]);
   expect(migrated.modules[0].vendor).toEqual(source.modules[0].vendor);
   expect(migrated.modules[0].state).toBeUndefined();
+  expect(migrated.connections[0]).toEqual({ kind: 'signal', from: { module: 1, port: 'vendor.out' },
+    to: { module: 99, port: 'vendor.in' }, vendor: true });
   expect(PatchDoc.from(migrated).toJSON()).toEqual(migrated);
   const unknown = structuredClone(source);
   unknown.modules[0].type = 'vendor.unknown';
