@@ -1,55 +1,59 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-08, Codex Lead four-agent execution checkpoint.
-Pi first; #271 hardware sign-off remains open and failures preempt features.
-Use current heads/latest handoffs; no queued/stale/missing evidence counted passed.
+**Updated:** 2026-11-09, Codex Lead review outside #439/Pi installation.
+Pi first; #271 hardware failures preempt features. No queued result is a pass.
 
-## Actual lead actions
-- MERGED #379 measured LFO phase at07fb277: static/required/Studio/WASM green,
-  independent review carried per Keel's explicit main-only/#417 conditional ruling.
-- MERGED #412 eight curated patches at3af48ae: stereo/layout repairs independently
-  re-reviewed; guard/Linux/Windows/sanitizers/static/Web/WASM engine+site green.
-- Shared STARTERS/read-only browser includes all8 in Studio and Pi/Windows Electron.
-  Native stereo render assertions and real WASM smoke pass; no hardware listening claimed.
-- Main Web-demo run42532299999 at3af48ae running: deployment/live NOT yet verified.
-  Previous good deployment42509218198 atb4ec649 remains historical.
-- #345 Delay already merged; native catalogue25. #422/#424 runbook/checkpoints merged.
-- Closed stale conflicting STATE-only #419; no feature work lost.
-- #398 actual job128870645680: five render CTests PASS; only local failure553>500lines.
-  Lead pushed task-only3f12baa, cap560/10files within existing documented scope allowance.
-  No audio threshold changed. T1 review posted; fresh acceptance/required/static still running.
-  Earlier780e280 task-specific pi5/accept PASS, docs-only carry rules apply.
+## Groove S1 first
+- #451 native S1(a) stays with existing builder; child #454 owns acceptance.
+- Lead31e0aa8 fixes controls0..9; catalogue/conformance now PASS. Linux/Windows
+  fail102cycles: nominal fixture must drain egress between blocks, not raise caps.
+- Mandatory saturated NOTE_OFF retry/reload-pending + note identity tests missing;
+  add separate deliberate saturation fixture, format, rerun accept454/Pi/T1.
+- S1(b) functional editor waits designer + Keel authoritative completed STOP/
+  playhead contract (#4326732415072); no inferred state/invented wire fields.
+- Keep v1, 4x64 transient POD, stable IDs, stopped Apply.
 
-## Authority / invariant gates
-- Codex Lead T0/T1 and named docs/tasks/** /STATE; realT2 needs cross-family review.
-- Required guard/Linux/Windows/sanitizers AND task evidence; no threshold/test weakening.
-- No devices/SSH/LAN or force-push/main writes; preserve IDs/unknown document data.
-- Electron main sole automatic restarter. Gate-v4 exact-head signed approvals.
-- No CI polling; gates/runners wait. Owner hardware and subjective listening stay separate.
+## Other reviewed agent work
+- #405960ec61 native16step -> #410e151680 UI: existing owner, preserve curated
+  exports/default8/statev1; fix cppcheck emit macro + tests.cpp:376 formatting,
+  fresh native/Studio/Pi acceptance then UI integration.
+- #3906a8be72 Learn seam: hosted CI/static/Web/WASM green; Keel current-head
+  helper-refactor T2 review still needed. #287 waits actual381 merge.
+- #210df81486: required Linux/Windows/sanitizers + private Pi PASS; independent
+  T1 inspection no correctness finding. Authored formatting +803cppcheck triage
+  remain; do not classify whole static red as inherited. Continue same branch.
+- #441ea39c09 OSC inventory selected acceptance/static/Linux/sanitizers PASS;
+  correct stale pre-v4 approval request; protected path also named on440.
+  #82 is oldQt/CLI, not Electron proof. Keel owner/lifecycle/consent/Monitor
+  contract gates runtime. Existing osc.in/monitor IDs; localhost/offLAN.
+- #420 SDK64 MERGED84f926b via gate after signed approval; source checks passed.
+- Owner enabled #427 auto-merge; newhead464c042 needs integration review/gates.
+  Still OPEN, not deployed. Coordinate existing conflict resolver, no duplicate
+  branch. After merge verify main deployment/live8patches/upload-update-delete.
+- #323385ad20: previous acceptance/required/Web/WASM PASS; current main conflict
+  needs normal integration, inherited keyboard-parser classification, new review.
+- #31083a4b05 is already based on main: integrate without rewrite; Interleave
+  first; current T1 review no High/Medium, hosted PASS; actual3Pi probes pending.
+- #398 render evidence MERGED. #4421716e2a: hosted3cases green; Keel safe
+  recovery injection ruling before fourth case; #296
+  actual3600s fake-device edit-soak missing. #387 reduction waits evidence.
+- #4006dcc370 latency: scoped formatting then T2. #43824787c6: Macro baseline
+  required Windows/static green; final Keel reset-lifetime disposition remains.
+- Chord406/Notes423 identity/channel/off/expression/capacity Keel ruling pending;
+  docs-only optional acceptance is not selected evidence. #399 contract gated.
+- #456 refreshes STATE/CLAIMABLE/FOUR_AGENTS; fixes455task discovery; latest393
+  handoff governs. #439 and Pi installation/setup remain out of scope.
 
-## Same four chats: direct continuation briefs posted on #383
-- Agent1 comment6728284272: #405 native16step -> #410 UI, then #420 SDK64 conflict repair.
-  Format authored sequencer files; fix actual Studio acceptance; keep statev1/default8.
-  UI old fixture y1000vs660 mismatch + native builtin/conformance failures are real.
-  Preserve new curated STARTERS/fixtures; regenerate from actual exports after native merge.
-- Agent2 comment6728284868: sequential #348 Reverb -> #323 Quantizer -> #310 Spectral B.
-  Normal main merges, retain Delay/all descriptors, Python-generated catalogues, fresh
-  native/Studio/WASM and task-specific Pi where required, independent T1.
-- Agent3 comment6728287573: #390 Learn seam + #210 controls -> #287 UI after actual seam merge.
-  Task13file allowance already fixed; helper refactor needs Claude review after integration.
-  #399 routes after a slot frees and Keel rules. No invented wire fields.
-- Agent4 comment6728288196: #398 evidence -> #386 real-sidecar e2e; #296 private edit-soak lane.
-  Actual private PR not yet present. Fixed3900s lane only, Claude T2, actual3600s evidence.
-  #387 checklist reduction only after385/386/296 evidence; no owner gate waived.
-- Canonical copy-ready file: docs/tasks/FOUR_AGENTS_2026_11_08.md.
-  Max3active/chat, oneissue/branch/PR, existing ownership respected, exact-head signed handoff.
+## Pi preparation (owner authorized; installation after Windows test)
+- READY #445 preflight/logs: docs/tasks/PI_SOURCE_PREFLIGHT.md; no auto-install.
+- READY #446 ARM64 Electron/profile smoke: docs/tasks/PI_APP_SMOKE.md; reuse #386.
+- Queue/evidence: #444, docs/tasks/PI_SETUP_QUEUE.md; parent #436, related #235.
+- Pi nightly42560014392 pending; actual source SHA/results required, not green.
+- #101 baseline pending; #274 display/#296 soak/#271 hardware stay separate.
 
-## Retained Keel batch / later work
-- #415a9b7a00 green but new heading-boundary review candidate after lazy quote/list.
-- #4006dcc370 authored format79+233 diagnostics; repair first, then Claude T2 review.
-- #390a77b7f0 callback helper; #399781eda6 mono/backend/stream-restart contract.
-- #406a2a73c5/#4239591bd0 Chord/Notes→CV fan-in identity/channel/off/expression/capacity.
-  Three/four-note first, fifth optional; existing MIDI→CV already defaults4/supports16.
-- #408 task path explicitly authorized. #310 base304 merged; retarget main without rewrite.
-- Owner new chats/schedules not needed. #82 OSC and Windows packaging/hardware stay later.
+## Permanent gates
+- Required guard/Linux/Windows/sanitizers + task/Studio/WASM/Pi as applicable.
+- T1 different-session; T2 cross-family. No IDs/unknown data/threshold changes.
+- No force-push/main writes/devices/SSH/LAN; Electron sole automatic restarter.
+- No CI polling/schedules. Handoff exact heads, actual evidence and blockers.
