@@ -5,14 +5,14 @@ Groove head8d254cf passes required/native/Pi checks; Static exposes inherited re
 
 Read AGENTS.md, issue435/handoff, native/modules2/macro_oscillator/DESIGN.md,
 tools/ci/{static_checks,test_static_checks}.py and exact Static log128948170118.
-Bounded change: raw dead-storage reset clarification; exact known-vendor diagnostic
+Bounded change: documented dead-storage reset lifetime; exact known-vendor diagnostic
 baseline and tests. No synthesis changes, source pin updates or blanket suppression.
-Stack on #433 / task/430-groove-foundation until it merges; then retarget main.
+#433 is merged; base this PR on main and preserve its accepted emit fix.
 
 Review: T2 reporting/baseline policy and protected tools/ci authorization by Keel.
 Codex Lead cannot grant allow-protected. Do not merge before that authorization
 and cross-family review. Required Linux/Windows/sanitizers and exact Static pass;
-Pi native Macro tests required for reset edit. Real hardware is not required for
+Pi native Macro tests required for reset lifetime annotation. Real hardware is not required for
 this storage-lifetime/reporting correction.
 
 Rollback: revert baseline/helper/tests/docs/reset edit together. Original full

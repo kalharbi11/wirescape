@@ -76,11 +76,11 @@ struct MacroOscillator {
             auto &ch = channels[c];
             ch.rng = static_cast<uint32_t>(seed ^ (seed >> 32) ^ (uint64_t(c + 1) * 0x9e3779b9u));
             RngScope scope(ch.rng);
-            void *storage = ch.voice;
             ch.voice->~Voice();
-            // The Voice lifetime has ended; clear raw storage, then reconstruct it.
-            std::memset(storage, 0, sizeof(plaits::Voice));
-            ch.voice = new (storage) plaits::Voice();
+            // Voice was destroyed above; this clears dead storage before reconstruction.
+            // cppcheck-suppress memsetClass
+            std::memset(ch.voice, 0, sizeof(plaits::Voice));
+            new (ch.voice) plaits::Voice();
             std::memset(ch.memory, 0, 16384);
             stmlib::BufferAllocator allocator(ch.memory, 16384);
             ch.voice->Init(&allocator);

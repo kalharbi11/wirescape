@@ -107,6 +107,8 @@ set_tests_properties(returned_filter_stress PROPERTIES TIMEOUT 30)
 
 # Isolated experimental ABI2 foundation; ABI1 app/engine/module sources stay unchanged.
 add_subdirectory(engine2)
+# Production ABI2 device-free renderer and behavioral CTests.
+add_subdirectory(tools/render)
 
 # Offline analysis tests only; real endpoint capture is always a manual command.
 add_subdirectory(tools/capture)
