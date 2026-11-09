@@ -26,34 +26,74 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--profile-dir') {
     const chosen = argv[++i];
     if (!chosen || !path.isAbsolute(chosen)) throw new Error('--profile-dir requires an absolute directory');
+    if (isolatedProfile !== null) throw new Error('--profile-dir must be supplied only once');
     isolatedProfile = path.resolve(chosen);
   }
   else if (a === '--confirm-audio' || a === '--confirm-midi' || a === '--null-audio') engineArgs.push(a);
   else if (ENGINE_FLAGS_WITH_VALUE.has(a)) engineArgs.push(a, argv[++i]);
 }
 // Opt-in source/test profile: configure both Electron paths before app readiness.
-// Do not infer Electron paths from Chromium's --user-data-dir.
+// Fail closed on duplicate settings flags and symlinked paths; the engine uses
+// the LAST --settings, so validating only the first would leak outside profile.
 if (isolatedProfile !== null) {
   const profile = isolatedProfile;
+  // Check existing ancestors BEFORE creating anything through a symlink.
+  let ancestor = profile;
+  while (!fs.existsSync(ancestor)) {
+    const parent = path.dirname(ancestor);
+    if (parent === ancestor) throw new Error('Invalid profile directory');
+    ancestor = parent;
+  }
+  if (fs.realpathSync(ancestor) !== ancestor)
+    throw new Error('Profile directory must not contain a symlinked ancestor');
   fs.mkdirSync(profile, { recursive: true, mode: 0o700 });
   if (fs.realpathSync(profile) !== profile) throw new Error('Profile directory must not be a symlink');
   const userData = path.join(profile, 'userData');
   const sessionData = path.join(profile, 'sessionData');
   for (const dir of [userData, sessionData]) {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    if (fs.lstatSync(dir).isSymbolicLink() || !fs.statSync(dir).isDirectory())
+    if (fs.lstatSync(dir).isSymbolicLink() || !fs.statSync(dir).isDirectory() ||
+        fs.realpathSync(dir) !== dir)
       throw new Error('Invalid profile subdirectory');
   }
+  const positions: number[] = [];
+  for (let i = 0; i < engineArgs.length; i++) {
+    if (engineArgs[i] === '--settings') {
+      positions.push(i);
+      i++; // Skip this flag's value; reject missing/relative values below.
+    }
+  }
+  if (positions.length > 1) throw new Error('Duplicate --settings in isolated profile');
+  const settingsIndex = positions.length ? positions[0] : -1;
+  const requested = settingsIndex === -1 ?
+    path.join(profile, 'native-settings.json') : engineArgs[settingsIndex + 1];
+  if (!requested || !path.isAbsolute(requested))
+    throw new Error('Isolated native --settings must be an absolute file path');
+  const selected = path.resolve(requested);
+  if (!selected.startsWith(profile + path.sep))
+    throw new Error('Native settings must stay within the isolated profile');
+
+  // The file may not yet exist. Resolve its nearest existing parent, so an
+  // inside-looking path through a symlink cannot write to an outside directory.
+  let settingsParent = path.dirname(selected);
+  while (!fs.existsSync(settingsParent)) {
+    const parent = path.dirname(settingsParent);
+    if (parent === settingsParent) throw new Error('Invalid native settings parent');
+    settingsParent = parent;
+  }
+  const realParent = path.resolve(fs.realpathSync(settingsParent),
+    path.relative(settingsParent, path.dirname(selected)));
+  if (realParent !== profile && !realParent.startsWith(profile + path.sep))
+    throw new Error('Native settings parent escapes the isolated profile');
+  if (fs.existsSync(selected) &&
+      (fs.lstatSync(selected).isSymbolicLink() ||
+       fs.realpathSync(selected) !== path.join(realParent, path.basename(selected))))
+    throw new Error('Native settings file must not be a symlink');
+
   app.setPath('userData', userData);
   app.setPath('sessionData', sessionData);
-  const settingsIndex = engineArgs.indexOf('--settings');
-  if (settingsIndex === -1) engineArgs.push('--settings', path.join(profile, 'native-settings.json'));
-  else {
-    const selected = path.resolve(engineArgs[settingsIndex + 1]);
-    if (!selected.startsWith(profile + path.sep) ||
-        (fs.existsSync(selected) && fs.lstatSync(selected).isSymbolicLink()))
-      throw new Error('Native settings must stay within the isolated profile');
-  }
+  if (settingsIndex === -1) engineArgs.push('--settings', selected);
+  else engineArgs[settingsIndex + 1] = selected;
 }
 let window: BrowserWindow | null = null;
 const UI_DIR = path.resolve(__dirname, '../../studio/dist');
