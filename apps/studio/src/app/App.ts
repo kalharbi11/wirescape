@@ -566,9 +566,10 @@ export class App {
   async loadPatch(patch: PatchV2, name = 'Untitled', forceSaveAs = true, restoring = false): Promise<void> {
     if (this.documentBusy && !restoring) return;
     if (this.draftVisible) this.backToPlaying();
-    if (!restoring) this.beginDocumentOperation();
+    const coordinated = this.engine instanceof RealEngine;
+    if (!restoring && coordinated) this.beginDocumentOperation();
     try {
-      await this.settlePlayingEdits();
+      if (coordinated) await this.settlePlayingEdits();
       ++this.viewEpoch;
       // What is showing (and, if it ran, still sounding) before this load.
       const previous = restoring ? undefined : { patch: this.doc.toJSON(), name: this.patchName,
@@ -621,7 +622,7 @@ export class App {
         }
         this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error');
       }
-    } finally { if (!restoring) this.endDocumentOperation(); }
+    } finally { if (!restoring && coordinated) this.endDocumentOperation(); }
   }
 
   // ---- system (phase 5) ---------------------------------------------------
@@ -1447,11 +1448,11 @@ export class App {
   }
 
   private async savePatchFile(saveAs = false): Promise<void> {
-    if (this.documentBusy) return;
+    if (this.documentBusy && this.draftVisible) return;
     if (!window.wirescape) { this.exportPatch(); return; }
     const request = ++this.readEpoch, view = this.viewEpoch;
     try {
-      const result = await window.wirescape.savePatch(JSON.stringify(this.doc.toJSON(), null, 2), { saveAs: saveAs || this.bundledPatch });
+      const result = await window.wirescape.savePatch(JSON.stringify(this.doc.toJSON(), null, 2), { saveAs: saveAs || this.bundledPatch || this.documentBusy });
       if (this.documentBusy || request !== this.readEpoch || view !== this.viewEpoch) {
         this.bundledPatch = true; return; // A late Save may bind main, never this different view.
       }
