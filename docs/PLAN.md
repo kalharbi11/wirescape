@@ -1,23 +1,22 @@
 # Wirescape plan (v3: standalone app with the web UI)
 
-Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-09 (Compass; Keel added the Windows-test result).
+Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-09 late (Compass + Keel check-in).
 How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) live in git history; their results are summarised under "Where we are".
 
 ## Now
-- **Update 2026-11-09 evening (Keel, owner report): first Windows install and test done.** The owner ran the new Electron app on the Windows laptop with real audio, the computer keyboard and a Launchkey; every starter patch switches and sounds. It needed #463 (host-API device ids, in-place D5 graph swap without reopening the device, Studio restores the playing patch when the engine refuses a switch); #463 merges first, after its cross-family T2 review. #436 W1 is now "encode the path that worked" (planned docs/WINDOWS_SETUP.md + `tools/windows/setup.ps1`). The owner tests the **Pi tomorrow**: #450, #452, then #453 (one accepted SHA) are tonight's priority. The owner's longer jam comes later. Claimable work: board issue **#473**.
-- **Update 2026-11-09 (Compass): owner pivot.** Qt Studio is retired permanently (D15). Getting the **new app onto the owner's Windows laptop** is the most valuable next step (#436 W1, the clean source bootstrap): it's the first time the owner plays the real product. The Pi stays the performance target and the place where acceptance happens; Pi setup follows Windows (#444–#446).
-- **Cleanup track (Phase 4, now parallel with Phase 2):** `docs/planner/CLEANUP.md`, packets R0–R7. R1 (Qt-free default build, PortAudio header move), R2 (patch-fixture coverage moves onto the Studio codec, D16) and R5 docs can start now; R3 deletes Qt after them; ABI1 retires afterwards as its own Keel track (D17).
-- **Finish before start (D18).** About 20 implementation PRs are open and most are drafts or handoff-ready. Until the open count is under 10, lanes finish and merge what they have before opening new modules or features. Existing claims continue. Merge first: Quantizer #323, the patch library #427, real-app evidence #442, Interleave #310, then the MIDI seam #381/#390 and #210.
-- **Sequencers: one at a time.** The 16-step upgrade (#401/#405/#410) lands first, then Groove S1 (#432, stopped-edit first, live edits in S2), then Chord (#403/#421). No new sequencer issues until Groove S1 merges.
-- **Priority order:** (1) owner-reported failures; (2) #436 W1 Windows bootstrap + cleanup R1/R2; (3) merging the open backlog (D18); (4) Phase 2 critical path; (5) module and sound lanes; (6) the web demo (D14).
-- **Owner sessions:** #271 runs on Windows first, once W1 works, then on the Pi. The checklists shrink as automated evidence lands (#383, #387).
+- **Update 2026-11-09 late (Compass + Keel check-in).** Merged today: #463 Windows real audio, R1 #476, R2 #478, W1 #475, R5b #479, R5a docs #477, 16-step native #405 and UI #410, Interleave/Vocoder #310, the Groove study #458, Groove S1(a) native #451, MIDI patchable controls #210, latency reporting #400, real-app evidence #442, and the Pi chain #450 + #452. 17 finished issues were closed. D18's numeric trigger is below ten, but the owner's subsequent instruction is to clear the remaining PRs before new feature starts. Seven closeout PRs remain after #486 merged as `1e20242`; this planner refresh is one of them.
+- **1. The owner's Pi session (critical path).** #486 merged `1e20242` after all required checks and repaired the combined MIDI/Groove test compile collision. `main` contains #463 + #450 + #452. #453 pins one accepted SHA under #483 (its exact docs-only head runs `pi5/accept`: preflight + real ARM64 Electron smoke). Then the owner follows the fresh-install guide from #453 and the Pi part of #271. Nothing else takes Pi runner time before this.
+- **2. Finish what's open:** #399 device routes/rate refusal (blocked on Keel's High: rate probing in the periodic enumeration), #461 Groove saturation tests, #480 refused-patch draft (#471), then R3 #482 (R3a goldens, then R3b deletion, rulings on #468) → R4 #481.
+- **3. Held until owner-requested closeout completes (then in this order, one lane each):** (a) **MIDI Learn UI #287**: #210 merged, so CC learn → `cc_to_cv` rows is the most playable win for the owner's Launchkey/M8; (b) **Groove S1(b)** playhead + stopped editor under #432; (c) **OSC slice A #72** (T2, Keel). Chord (#403/#421) still waits for Groove S1(b). Sound lane: CHAOS R2 waits for the owner to hear the Resonator.
+- **Priority order:** (1) owner-reported failures; (2) the Pi session; (3) the open PRs above; (4) Qt cleanup R3/R4; (5) the next starts in item 3; (6) module and sound lanes; (7) the web demo (D14).
+- **Owner sessions:** Windows first session done (#463). Next: the Pi session (#453/#483 + #271 Pi part). The longer jam (Checkpoint B) comes after #399 and #287 land.
 
 ## Where we are (2026-11-09)
-**Works (verified on `main`):** Phase 1 code is merged: the `wirescape-engine` sidecar, `RealEngine`, the Electron shell, autostart, patch codec and catalogue sync. Live replan (#209). 27 ABI2 modules in the app catalogue, including Delay, Reverb, Spectral, Blend, Resonator, Step Sequencer, Random Source and Groove S0. Telemetry with a measured LFO phase (#379), eight curated patches (#412), the device-free offline render and WAV evidence (#398), and the Windows sidecar pipe fix (#439, so the protocol tests now run on Windows). Pi headless audio and M8 MIDI were verified by the owner on 2026-11-07 (`docs/DEMO_CLASS.md` §1).
+**Works (verified on `main`):** Phase 1 code is merged: the `wirescape-engine` sidecar, `RealEngine`, the Electron shell, autostart, patch codec and catalogue sync. Live replan (#209). 28 ABI2 modules in the app catalogue, including Quantizer, Delay, Reverb, Spectral (with Interleave/Vocoder), Blend, Resonator, the 16-step Step Sequencer, Random Source and Groove (S1 native dual 32-step tracks). Telemetry with a measured LFO phase (#379), eight curated patches (#412), the device-free offline render and WAV evidence (#398), and the Windows sidecar pipe fix (#439, so the protocol tests now run on Windows). Pi headless audio and M8 MIDI were verified by the owner on 2026-11-07 (`docs/DEMO_CLASS.md` §1).
 
 **Verified by the owner 2026-11-09:** the Electron app on Windows with real audio and MIDI (#463 branch). **Not yet verified by the owner:** the Electron app on the Pi, Settings device lists with the CM477 and M8, and live patching by ear (#271).
 
-**Missing:** a one-command Windows setup (#436), any packaged build, OSC (#72), MIDI Learn (#287), the 60-minute Pi soak (#296), and Qt-free replacements for the stale quickstarts (R5).
+**Missing:** any packaged build (W1 source setup merged in #475; W2 package not started), OSC (#72), MIDI Learn (#287), the 60-minute Pi soak (#296), and the Groove S1(b) editor. Pi app automation exists (#450 preflight, #452 real ARM64 Electron smoke); an accepted owner SHA is pending (#483).
 
 ## Target architecture
 ```
@@ -100,16 +99,16 @@ The owner jams for 30 minutes on the Pi with the M8: live patching, patch switch
 ### Track S: Sound kit (parallel; original modules from the owner's prototypes)
 Runs beside Phases 2–3 and never blocks them. Every module follows `docs/SDK_AUTHOR_GUIDE.md` §15 (porting a prototype). New IDs only; no ABI change without a Keel ruling.
 - [ ] **S1 Conjunctions modules** (`docs/tasks/S1_CONJUNCTIONS_MODULES.md`): in order: Spectral (one FFT module, vocoder included), Blend, Cross Mod, Waveset, Shaper, Grains. Convolver waits for S3.
-- [ ] S2 Effects: **S2-1 Delay** (`docs/tasks/S2_1_DELAY.md`) and **S2-2 Reverb** (`docs/tasks/done/S2_2_REVERB.md`, original FDN) queued 2026-11-07; EQ and compressor/limiter later (research in `docs/reviews/EFFECTS_OPTIONS.md`).
-- [ ] S6 CHAOS rebuild, component first ([board #473](https://github.com/kalharbi11/wirescape/issues/473)): **R1 Resonator** (`docs/tasks/CHAOS_R1_RESONATOR.md`) queued; R2 Waveshaper after the owner hears R1; R3 a CHAOS starter patch from Essentials; R4 a subpatch once Phase 5 subpatches exist.
+- [ ] S2 Effects: **S2-1 Delay** (#345, merged) and **S2-2 Reverb** (merged, original FDN); EQ and compressor/limiter later (research in `docs/reviews/EFFECTS_OPTIONS.md`).
+- [ ] S6 CHAOS rebuild, component first ([board #473](https://github.com/kalharbi11/wirescape/issues/473)): **R1 Resonator** (#344, merged); R2 Waveshaper after the owner hears R1; R3 a CHAOS starter patch from Essentials; R4 a subpatch once Phase 5 subpatches exist.
 - [ ] S3 Sample buffer service (SDK/engine, T2, Keel) and then the Sampler (start/loop CV, one-shot/gate/loop, reverse, 8 voices). Not started.
 - [ ] S4 GUTTUR throat voice. **On hold** (owner).
 - [ ] S5 Multichannel output + Quad Panner (needs a 4-output interface). Not started.
 
 ### Phase 4: Windows install, Qt retirement and cleanup (runs now, beside Phase 2; owner pivot 2026-11-09)
 Sequence and file lists: `docs/planner/CLEANUP.md`.
-- [ ] **4A Windows source bootstrap** (#436 W1): one PowerShell entry point, Qt-free build, pinned PortAudio DLL, isolated profile, device-off smoke, then the owner's audio/MIDI launch.
-- [ ] **4B Qt decoupling** (R1 Qt-free default build + PortAudio move; R2 patch-fixture coverage onto the Studio codec, D16).
+- [x] **4A Windows source bootstrap** (#436 W1, merged #475; the owner's first session ran on #463): one PowerShell entry point, Qt-free build, pinned PortAudio DLL, isolated profile, device-off smoke, then the owner's audio/MIDI launch.
+- [x] **4B Qt decoupling** (merged: R1 #476, R2 #478. R1 Qt-free default build + PortAudio move; R2 patch-fixture coverage onto the Studio codec, D16).
 - [ ] **4C Remove Qt** (R3): `native/ui/`, the QtCore document library, Qt CI and static contexts, the laptop runner's Qt mode. The owner sets `allow-test-removal` for Qt-only tests only.
 - [ ] **4D Tools and docs** (R4 `tools/dev.py` around Electron; R5 README, STATUS, a single read map, task archive, `legacy/` out of the tree).
 - [ ] **4E Windows package** (#436 W2): electron-builder (D12) with the engine, PortAudio and licences, a SHA manifest, a clean-VM install/uninstall, and an update check (#188 semantics).
