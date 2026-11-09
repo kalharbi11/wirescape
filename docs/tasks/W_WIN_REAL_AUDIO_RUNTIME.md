@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Windows real-audio runtime: device identity, D5 swap, UI/engine agreement
+# #462: Windows real-audio runtime: device identity, D5 swap, UI/engine agreement
 
 Source: the owner's Windows hardware test, 2026-11-09, at `c14751a` (PR #439 head,
 squash-merged as `659b960`). The build and 90/90 native tests passed; the catalogue drift that
@@ -146,10 +146,10 @@ sound. Drag knobs for 30 s: there is no "Event queue full". Repeat once at `--bl
 
 ```acceptance
 tier: T2
-size: <= 900 changed lines, <= 16 files (or two PRs A/B within it)
+size: <= 900 changed lines, <= 21 files
 must_pass:
   - ctest --test-dir build/native --output-on-failure --no-tests=error -R '^(abi2_sidecar_unit_tests|abi2_sidecar_protocol_tests|sidecar_golden|abi2_sidecar_audio_recovery_tests)$'
-  - cd apps/studio && npm ci && npm test
+  - bash -lc 'cd apps/studio && npm ci && npm test'
   - ci: guard
   - ci: linux-arm64
   - ci: windows-x64
