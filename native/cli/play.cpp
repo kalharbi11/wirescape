@@ -66,7 +66,7 @@ int wirescape_play(int argc,char**argv){
             if (l.messages.size() < 4096) l.messages.emplace_back(bytes, bytes + size);
         };
         if (!backend->open(*found, callback)) throw std::runtime_error("Could not open " + found->name);
-        std::cout << "Listening to " << found->name << " for " << seconds << " s; press keys now." << std::endl;
+        std::cout << "Listening to " << found->name << " for " << seconds << " s; press keys now." << '\n' << std::flush;
         size_t total = 0;
         for (uint32_t tick = 0; tick < seconds * 10; ++tick) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -83,7 +83,7 @@ int wirescape_play(int argc,char**argv){
             }
         }
         backend->close(*found);
-        std::cout << total << " messages received" << std::endl;
+        std::cout << total << " messages received" << '\n' << std::flush;
         return 0;
     }
  std::string midiName;bool confirmMidi=false;
