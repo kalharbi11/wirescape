@@ -3625,6 +3625,86 @@
     "freeze": 6,
     "mix": 7
    }
+  },
+  {
+   "id": "sequencing.groove",
+   "name": "Groove (S0)",
+   "category": "Sequencer",
+   "ports": [
+    {
+     "id": "t1_pitch",
+     "name": "T1 Pitch",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "pitch",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t1_gate",
+     "name": "T1 Gate",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "gate",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t1_mod1",
+     "name": "T1 Mod 1",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t1_mod2",
+     "name": "T1 Mod 2",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t1_notes",
+     "name": "T1 Notes",
+     "direction": "output",
+     "kind": "event",
+     "hint": "ev_notes",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [
+    {
+     "id": "run",
+     "name": "Run (edge)",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Stopped"
+      },
+      {
+       "value": 1,
+       "label": "Running"
+      }
+     ]
+    }
+   ],
+   "version": 1,
+   "legacy_parameters": {
+    "run": 0
+   }
   }
  ]
 }
