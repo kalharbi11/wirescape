@@ -87,7 +87,8 @@ class WindowsOutputIsolation(unittest.TestCase):
         for relative in outputs:
             with self.subTest(relative=relative), tempfile.TemporaryDirectory() as directory:
                 root, old = Path(directory) / "fresh", Path(directory) / "old-install"
-                root.mkdir(); old.mkdir()
+                root.mkdir()
+                old.mkdir()
                 sentinel = old / "saved-patch.json"
                 sentinel.write_text("preserve", encoding="utf-8")
                 redirected = root / relative

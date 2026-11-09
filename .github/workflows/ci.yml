@@ -171,8 +171,8 @@ jobs:
           [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'tools/windows/setup.ps1'), [ref]$tokens, [ref]$errors)
           if ($errors.Count) { throw ($errors | Out-String) }
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vs = & $vswhere -version '[17.0,18.0)' -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if ($LASTEXITCODE -or !$vs) { throw 'VS 2022 x64 toolchain missing' }
+          $vs = & $vswhere -latest -version '[17.0,19.0)' -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($LASTEXITCODE -or !$vs) { throw 'VS 2022/2026 x64 toolchain missing' }
           Import-Module (Join-Path $vs 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll')
           Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
           $source = (git rev-parse HEAD).Trim()

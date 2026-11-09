@@ -38,20 +38,24 @@ function Run([string]$exe, [string[]]$parameters) {
 function Preflight {
     Assert-GeneratedOutputs
     if (-not [Environment]::Is64BitProcess -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64') {
-        throw 'Use Windows x64 Developer PowerShell for VS 2022.'
+        throw 'Use Windows x64 Developer PowerShell for VS 2022/2026.'
     }
     foreach ($tool in @('git','py','cmake','ninja','node','npm','cl.exe')) {
         if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
-            throw "$tool missing. Install the x64 tool and reopen VS 2022 Developer PowerShell."
+            throw "$tool missing. Install the x64 tool and reopen VS 2022/2026 Developer PowerShell."
         }
     }
-    if (-not $env:WindowsSdkDir) { throw 'Windows SDK not active; open VS 2022 x64 Developer PowerShell.' }
+    if (-not $env:WindowsSdkDir) { throw 'Windows SDK not active; open VS 2022/2026 x64 Developer PowerShell.' }
     $vswhere = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio\Installer\vswhere.exe'
-    if (-not (Test-Path -LiteralPath $vswhere)) { throw 'VS 2022 C++ Build Tools missing.' }
-    $vs = & $vswhere -version '[17.0,18.0)' -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-    if ($LASTEXITCODE -ne 0 -or -not $vs) { throw 'Install VS 2022 C++ x64 workload and Windows SDK.' }
-    $py = & py -3.12 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor} {sys.maxsize > 2**32}")'
+    if (-not (Test-Path -LiteralPath $vswhere)) { throw 'VS 2022/2026 C++ Build Tools missing.' }
+    $vs = & $vswhere -latest -version '[17.0,19.0)' -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if ($LASTEXITCODE -ne 0 -or -not $vs) { throw 'Install VS 2022/2026 C++ x64 workload and Windows SDK.' }
+    $py = & py -3.12 -c "import sys; print(str(sys.version_info.major)+'.'+str(sys.version_info.minor)+' '+str(sys.maxsize > 2**32))"
     if ($LASTEXITCODE -ne 0 -or $py -ne '3.12 True') { throw 'Python 3.12 x64 with py launcher required.' }
+    $script:generator = & py -3.12 -B -c "import sys; sys.path.insert(0, sys.argv[1]); from foundation.helpers import discover_toolchain; print(discover_toolchain()['generator'])" (Join-Path $root 'tools')
+    if ($LASTEXITCODE -ne 0 -or $script:generator -notmatch '^Visual Studio (17 2022|18 2026)$') {
+        throw 'A supported VS 2022/2026 x64 C++ generator is required.'
+    }
     $nodeVersion = & node --version
     $nodeArch = & node -p 'process.arch'
     if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v22\.' -or $nodeArch -ne 'x64') {
@@ -130,7 +134,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or $paHead -ne $paSha -or $paDirty) {
         throw 'PortAudio source pin/cleanliness mismatch; do not reuse old DLL.'
     }
-    Run cmake @('-S',$paSrc,'-B',$paBuild,'-G','Visual Studio 17 2022','-A','x64',
+    Run cmake @('-S',$paSrc,'-B',$paBuild,'-G',$script:generator,'-A','x64',
         '-DCMAKE_POLICY_VERSION_MINIMUM=3.5','-DPA_BUILD_SHARED=ON','-DPA_BUILD_STATIC=OFF',
         '-DPA_BUILD_TESTS=OFF','-DPA_BUILD_EXAMPLES=OFF','-DPA_USE_ASIO=OFF')
     Assert-GeneratedOutputs
@@ -150,7 +154,7 @@ try {
     } finally { $reader.Dispose() }
     Assert-GeneratedOutputs
     Run cmake @('-S',(Join-Path $root 'native'),'-B',(Join-Path $root 'build\native'),
-        '-G','Visual Studio 17 2022','-A','x64','-DWIRESCAPE_BUILD_UI=OFF')
+        '-G',$script:generator,'-A','x64','-DWIRESCAPE_BUILD_UI=OFF')
     Run cmake @('--build',(Join-Path $root 'build\native'),'--config','Release','--parallel','2')
     $engine = Join-Path $root 'build\native\Release\wirescape-engine.exe'
     if (-not (Test-Path -LiteralPath $engine)) { throw 'Sidecar executable missing.' }

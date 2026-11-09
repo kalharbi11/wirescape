@@ -18,7 +18,7 @@ the old checkout. This is the app with the Studio renderer and
 `wirescape-engine`, not the old Qt Studio.
 
 ## Requirements (owner-managed)
-Windows x64 and Developer PowerShell for VS 2022 with MSVC x64 C++ workload and
+Windows x64 and Developer PowerShell for VS 2022/2026 with MSVC x64 C++ workload and
 Windows SDK; Git, Python 3.12 x64 with `py`, Node.js 22 LTS x64 and npm, CMake,
 Ninja; GitHub and PortAudio upstream reachability for the actual build.
 Install missing tools separately using their official sources; the script

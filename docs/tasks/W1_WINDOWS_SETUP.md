@@ -21,7 +21,7 @@ an owner-accepted installation SHA.
   checked prerequisites and source SHA, pinned PortAudio and device-off
   verification before any owner-authorized real device launch.
 - tools/windows/setup.ps1: read-only -CheckOnly, explicit full SHA,
-  preflight for Win x64 + VS 2022 x64 C++ and SDK, Python 3.12, Node 22,
+  preflight for Win x64 + VS 2022/2026 x64 C++ and SDK, Python 3.12, Node 22,
   Git/CMake/Ninja/npm; fail closed on dirty/mismatched checkout/cache.
   On explicit build only, compile native and both npm apps, stage and verify
   pinned PortAudio, execute real non-skipped protocol tests, and attempt
