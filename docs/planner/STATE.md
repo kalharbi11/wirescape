@@ -1,45 +1,41 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-09, Keel open-PR closeout. Owner-reported failures preempt everything.
+**Updated:** 2026-11-09 evening, Keel. Owner-reported failures preempt everything.
 No queued, stale or missing result counts as a pass. Live heads and handoffs govern.
 
-## Now: finish before start (D18, Compass #437)
-- Canonical queue: `docs/tasks/PR_CLOSEOUT_2026_11_09.md` (lanes A–J). It replaces
-  the READY list in `CLAIMABLE_2026_11_09.md`. No new module/feature issues until the
-  open count is under 10. Compass's D15–D19 + `docs/planner/CLEANUP.md` are on branch
-  `claude/hopeful-hopper-wh0id2` (#437). Cleanup R1–R7 starts after the closeout.
-- Open: 14 PRs (down from 22). Merge order: #427, #323, #400, #442, #310, #210,
-  #405 → #410, #451 → playhead PR, then #399, #458, the Pi PRs and #453.
+## Now
+- **Claimable work lives on GitHub: board issue #473.** Free agents take the first
+  unclaimed ready row and claim on that row's issue. Codex Lead keeps the board ticked.
+  Per-PR rulings: `docs/tasks/PR_CLOSEOUT_2026_11_09.md`. Plan: D15–D19 in `docs/PLAN.md`,
+  sequence in `docs/planner/CLEANUP.md` (R0 merged; R1 #464, R2 #465, R5 #466/#467 open now;
+  R3 #468, R4 #469, R6 #470 blocked).
+- **Windows:** owner's first install and test passed on the #463 branch (real audio,
+  keyboard, Launchkey, all starters switch). #463 (T2, Keel-authored) needs the Codex
+  cross-family review (claimed), CI and `ci/pi`, then merge. Anything touching
+  `native/sidecar` or `native/io/audio` (#399, #472) merges main after it.
+  #436 W1 = `docs/WINDOWS_SETUP.md` + `tools/windows/setup.ps1` at #463's merge SHA.
+- **Pi tomorrow (owner):** #450 → #452 → #453 with one accepted SHA. Owner installs
+  Node 22 and `xvfb` on the Pi first.
+- Open PRs: 15 (D18 still in force: no new module/feature issues until under 10).
 
 ## Keel today (2026-11-09)
-- Merged #456, #438 (merge commit), #441, #390 (T2 final at 6a8be72; #287 unblocked).
-- Closed #82 (Qt OSC; port from branch), #443 (empty), #406 and #423 (parked per D18).
-- #427: main merged → `486d6b9`, approval posted; the gate merges on green.
-- #323: helper merging main (catalogue union); T1 review stands; static is inherited.
-- #400 T2: no High/Medium; conditional approval after a formatting-only head.
-- Rulings: #432 Groove `t1_pos`/`t2_pos` + `playhead` telemetry, capability
-  `telemetry.playhead`; #386 case 4 = native fake-service CTest + Studio mock-bridge
-  state sequence (no test hooks); #293 optional device fields, mono disabled,
-  rate/block stream-only restart with rollback, id-only identity; #72 OSC host in the
-  sidecar Session, `--confirm-lan`, `status.osc`, `monitor` telemetry (slice A is T1).
-- Static rule: fix authored formatting on changed hunks; cppcheck on untouched lines
-  is inherited and Codex Lead merges past it (delegation c). No new suppressions.
+- Merged #456, #438, #441, #390, #459, #323 (Quantizer, 3ed2a14 after catalogue union),
+  and Compass's R0 decisions. #427 merged by the gate.
+- Closed #82, #443, #406, #423 (parked), #188 (Qt launcher, superseded by #436).
+- Rulings: #432 playhead seam, #386 case 4, #293 devices, #72 OSC, #400 conditional
+  approval, #472 rate-mismatch refusal (`rate-unsupported`, never `reconnecting`).
+- Static rule: fix authored formatting on changed hunks; cppcheck on untouched lines is
+  inherited and Codex Lead merges past it (delegation c). No new suppressions.
 
 ## Keel owes next session
-- T2 cross-family reviews when ready: Groove playhead PR, #399/#293 implementation,
-  OSC slices B/C, #296 private soak review. Chord/Notes→CV ruling when Chord is next.
-- R2 (document coverage swap) review and R6 (ABI1 retirement) lead, after the closeout.
-- Low: the `module2.h` `latency_frames` comment should state the threading rule (label-only).
-
-## Pi preparation (after the Windows test)
-- #450: fix the cache false positive and read-only `--check-only`. Owner installs Node 22.
-- #452: short-header tests; `xvfb-run` smoke, else reported blocked. Owner installs xvfb.
-- #453 guide updates to one accepted SHA after both merge (renamed PI_SETUP in R5).
-- #101 baseline; #274 display, #296 soak and #271 hardware stay separate.
+- T2 cross-family reviews: Groove playhead PR, #399 + #472, R2 #465 coverage table,
+  R3 #468, OSC slices B/C, #296 soak. Lead R6 #470 after R3. Set the `archive/qt-final`
+  tag on R3's base commit before it merges.
+- Low: `module2.h` `latency_frames` comment states the threading rule (label-only).
 
 ## Sequencers (one at a time)
-- 16-step #405 → #410, then Groove S1 #451 → playhead PR → S1(b) editor, then Chord.
+- 16-step #405 → #410, then Groove S1 #451/#461 → playhead PR → S1(b) editor, then Chord.
 
 ## Permanent gates
 - Required guard/Linux/Windows/sanitizers + task/Studio/WASM/Pi as applicable.
