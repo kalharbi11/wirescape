@@ -42,8 +42,9 @@ Rollback removes module registration/adapter/catalogue/test as one unit,
 and unavailable; never silently discard data.
 
 ```acceptance
+# Keel 2026-11-09: 15 -> 18 files for three required catalogue-count test updates.
 tier: T2
-size: <= 850 changed lines, <= 18 files (Keel 2026-11-09: +3 required catalogue-count test updates)
+size: <= 850 changed lines, <= 18 files
 must_pass:
   - ctest --test-dir build/native -R 'groove|runtime_module_config|ui_catalogue_sync' --output-on-failure
   - ci: guard
