@@ -200,6 +200,15 @@ def stage_run(root: Path, report_dir: Path, stage: str, command: list[str], time
                     log.write("Stage timed out; owned process group terminated.\n")
         except OSError as exc:
             log.write(sanitize(f"Cannot start stage: {exc}\n", root))
+    expected_output = {
+        "native": root / "build/native/wirescape-engine",
+        "studio-build": root / "apps/studio/dist/index.html",
+        "desktop-build": root / "apps/desktop/build/main.js",
+    }.get(stage)
+    if code == 0 and expected_output and not expected_output.is_file():
+        code = 1
+        with log_path.open("a", encoding="utf-8") as log:
+            log.write("Expected stage artifact is missing; refusing a false success.\n")
     rc, sha = git(root, "rev-parse", "HEAD")
     if re.fullmatch(r"[0-9a-f]{40}", report_dir.name) and (rc != 0 or sha != report_dir.name):
         code = 1
