@@ -149,7 +149,11 @@ marked **DRAFT · NOT RUNNING**; edits there do not alter the playing graph.
 APPLY DRAFT retries the edited document, while BACK TO PLAYING returns to the
 sound currently running. A further refusal keeps the draft. Save/export may
 store a draft, but saving it does **not** make it run. Unknown patch fields are
-preserved. This is not a workaround for unavailable modules or devices.
+preserved. Switching between draft and playing views makes the next Save ask
+for its target, so one document cannot inherit the other's file. Apply waits for
+prior playing edits to settle and holds an immutable submitted document; menus,
+shortcuts and earlier reads cannot change it during acknowledgement. This is not
+a workaround for unavailable modules or devices.
 
 To bulk copy from a downloaded checkout into that actual local directory:
 ```sh

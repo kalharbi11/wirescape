@@ -15,13 +15,18 @@ On a real engine `loadGraph` refusal with `unavailable` or `busy`, keep the prev
 
 No realtime, protocol, device, or patch-format changes. Do not replace `selectAudioDevice` or #463's graph-rollback semantics. Preserve #478's ingress validation when integrating main.
 
+Lead ruling (2026-11-09): <=750/8 includes UI-only RealEngine edit settlement,
+deferred canvas confirmation ownership, adversarial bridge regressions and actual
+Electron file-target preservation. All mutation entry points and pending reads
+must respect the immutable Apply candidate; no native/protocol change.
+
 ## Acceptance
 ```acceptance
 tier: T1
-size: <= 450 changed lines, <= 5 files
+size: <= 750 changed lines, <= 8 files
 must_pass:
-  - sh -c 'cd apps/studio && npx playwright test tests/mock-bridge/refused-draft.spec.ts'
-  - sh -c 'cd apps/studio && npm test'
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npx playwright test tests/mock-bridge/refused-draft.spec.ts'
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
 stops: [new dependency, engine/protocol edit, format change, test weakening, size budget exceeded]
 ```
 
