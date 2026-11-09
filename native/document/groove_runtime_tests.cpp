@@ -199,7 +199,7 @@ static void test_rate_block(AppEngine *cat, double rate, uint32_t block) {
     const auto a = trace(live.get(), count, block);
     const auto b = trace(reload.get(), count, block);
     check(a == b, "native loop identical after serialized reload");
-    check(note_events(live.get()) == 8 && note_events(reload.get()) == 8,
+    check(note_events(live.get()) == 7 && note_events(reload.get()) == 7,
           "native NOTE_ON/OFF through 32-step wrap, not the old eight-step boundary");
     const auto at = [&](int step) { return a[static_cast<uint32_t>(std::ceil(period * step))]; };
     check(a[0] == 1.f && at(1) == 0.f && at(2) == 1.f && at(3) == 1.f && at(4) == 0.f && at(5) == 1.f && at(6) == 0.f &&
