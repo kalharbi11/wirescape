@@ -3,9 +3,10 @@
 // Reproduce cppcheck Qt model\'s empty keyword without assuming analyzer-specific defines.
 #define emit
 #include "../modules2/groove/dsp.h"
-#ifdef emit
-#error Groove must remove the conflicting Qt keyword before including the SDK
+#ifndef emit
+#error Groove must restore the caller's Qt keyword macro after including the SDK
 #endif
+#undef emit
 #include "../tests2/allocation_watch.h"
 #include "runtime_patch.h"
 #include <algorithm>
@@ -150,7 +151,7 @@ static void test_refusals(AppEngine *cat) {
             bad["tracks"][0]["steps"][1]["extra"] = 1;
             break;
         case 6:
-            bad["tracks"][0]["steps"].push_back({{"kind", "rest"}});
+            while (bad["tracks"][0]["steps"].size() <= 32) bad["tracks"][0]["steps"].push_back({{"kind", "rest"}});
             break;
         case 7:
             bad["unknown"] = true;
@@ -193,19 +194,22 @@ static void test_rate_block(AppEngine *cat, double rate, uint32_t block) {
     run_command(live.get(), id, 1.f);
     run_command(reload.get(), id, 1.f);
     const double period = rate / 8.; // 120 BPM sixteenth note
-    const uint32_t count = static_cast<uint32_t>(std::ceil(period * 8)) + 2;
+    const uint32_t count = static_cast<uint32_t>(std::ceil(period * 32)) + 2;
     const auto a = trace(live.get(), count, block);
     const auto b = trace(reload.get(), count, block);
     check(a == b, "native loop identical after serialized reload");
-    check(note_events(live.get()) == 7 && note_events(reload.get()) == 7,
-          "native note ON/OFF emitted on note/rest/wrap, not tie");
+    check(note_events(live.get()) == 8 && note_events(reload.get()) == 8,
+          "native NOTE_ON/OFF through 32-step wrap, not the old eight-step boundary");
     const auto at = [&](int step) { return a[static_cast<uint32_t>(std::ceil(period * step))]; };
     check(a[0] == 1.f && at(1) == 0.f && at(2) == 1.f && at(3) == 1.f && at(4) == 0.f && at(5) == 1.f && at(6) == 0.f &&
-              at(8) == 1.f,
+              at(8) == 0.f && at(31) == 0.f && at(32) == 1.f,
           "note/rest/tie/wrap transition frames");
-    run_command(live.get(), id, 0.f);
-    check(trace(live.get(), block, block)[0] == 0.f, "stop releases active gate");
-    check(note_events(live.get()) == 8, "stop generates a matching native note-off");
+    // S1 stop queues to the next common 32-step boundary, never acts as S0 run-low.
+    const uint32_t stop = app_engine_module(live.get(), 0)->parameters[1].id;
+    run_command(live.get(), stop, 1.f);
+    check(trace(live.get(), 1, 1)[0] == 1.f, "queued STOP does not truncate step 1");
+    const auto until_stop = trace(live.get(), static_cast<uint32_t>(std::ceil(period * 32)) + 2, block);
+    check(until_stop.back() == 0.f, "stop completes at the next 32-step boundary");
     // Separate signal route: pitch -> VCO pitch; gate -> VCA gain.
     // Never attach quantized pitch CV and raw note events to the same VCO.
     auto cv = load(patch(pattern(), true), cat, rate, error);
@@ -222,9 +226,9 @@ int main() {
         test_refusals(cat.get());
         for (double rate : {44100., 48000., 96000.})
             for (uint32_t block : {1u, 17u, 64u, 128u, 256u}) test_rate_block(cat.get(), rate, block);
-        std::puts("PASS Groove S0 native config/refusal/save-reload/stopped/noalloc/timing");
+        std::puts("PASS Groove v1 config/refusal/save-reload/stopped/noalloc/32-step timing");
     } catch (const std::exception &e) {
-        std::fprintf(stderr, "FAIL Groove S0: %s\n", e.what());
+        std::fprintf(stderr, "FAIL Groove v1/S1: %s\n", e.what());
         return 1;
     }
 }
