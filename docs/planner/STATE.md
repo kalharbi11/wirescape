@@ -8,7 +8,7 @@ No queued, stale or missing result counts as a pass. Live heads and handoffs gov
 - **Claimable work lives on GitHub: board issue #473.** Free agents take the first
   unclaimed ready row and claim on that row's issue. Codex Lead keeps the board ticked.
   Per-PR rulings: `docs/tasks/PR_CLOSEOUT_2026_11_09.md`. Plan: D15–D19 in `docs/PLAN.md`,
-  sequence in `docs/planner/CLEANUP.md` (R0 merged; R1 #464, R2 #465, R5 #466/#467 open now;
+  sequence in `docs/planner/CLEANUP.md` (R0 #474; R1 #464, R2 #465, R5 #466/#467 open now;
   R3 #468, R4 #469, R6 #470 blocked).
 - **Windows:** owner's first install and test passed on the #463 branch (real audio,
   keyboard, Launchkey, all starters switch). #463 cross-family source review is complete
@@ -18,11 +18,11 @@ No queued, stale or missing result counts as a pass. Live heads and handoffs gov
   #436 W1 = `docs/WINDOWS_SETUP.md` + `tools/windows/setup.ps1` at #463's merge SHA.
 - **Pi tomorrow (owner):** #450 → #452 → #453 with one accepted SHA. Owner installs
   Node 22 and `xvfb` on the Pi first; runner is rebooting and actual Pi jobs remain queued.
-- Open PRs: 15 (D18 still in force: no new module/feature issues until under 10).
+- Open PRs: 14 (D18 still in force: no new module/feature issues until under 10).
 
 ## Keel today (2026-11-09)
 - Merged #456, #438, #441, #390, #459, #323 (Quantizer, 3ed2a14 after catalogue union),
-  and Compass's R0 decisions. #427 merged by the gate.
+  and #427 (gate). Compass's R0 decisions remain in #474 until it merges.
 - #442 merged 32e7ba4: independent T1, exact-head required/task/Web checks passed.
 - Closed #82, #443, #406, #423 (parked), #188 (Qt launcher, superseded by #436).
 - Rulings: #432 playhead seam, #386 case 4, #293 devices, #72 OSC, #400 conditional
