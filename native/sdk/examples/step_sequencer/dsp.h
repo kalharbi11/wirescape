@@ -2,6 +2,10 @@
 // example.step_sequencer: 16-step pitch/gate/velocity sequencer that drives CV and note events.
 // Teaching module: shows edge detection, a state machine, event output and "never strand a note-off".
 #pragma once
+#ifdef emit
+// Qt and cppcheck may define emit; SDK Block::emit must remain a method name.
+#undef emit
+#endif
 #include "wirescape_sdk.h"
 
 // Per-step parameter triple. Parameter IDs are API: pitch1..pitch16, gate1..gate16, vel1..vel16
@@ -9,7 +13,7 @@
 // gate: 0 = rest, 1 = note, 2 = tie (previous note keeps sounding, no new note).
 #define WS_STEP(n) \
     ws::param("pitch" #n, "Pitch " #n, -2, 2, 0, "oct", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 3 * (n) - 1), \
-    ws::param("gate" #n, "Gate " #n, 0, 2, 1, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 3 * (n), 4, 1), \
+    ws::param("gate" #n, "Gate " #n, 0, 2, (n) <= 8 ? 1 : 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 3 * (n), 4, 1), \
     ws::param("vel" #n, "Velocity " #n, 0, 1, 0.8f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 3 * (n) + 1)
 
 struct StepSequencer {
