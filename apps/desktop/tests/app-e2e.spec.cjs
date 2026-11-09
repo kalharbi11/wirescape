@@ -156,3 +156,142 @@ test('real sidecar: hello, devices, native patch, live knob, cable D5 and crash 
     await app.close().catch(() => {});
   }
 });
+
+/** Reuse the production Electron/sidecar harness with isolated profiles. */
+async function launchRealE2e(profile) {
+  const app = await electron.launch({
+    executablePath: electronPath,
+    args: ['--no-sandbox', '--user-data-dir=' + path.join(scratch, profile),
+      desktop, '--engine', executable, '--null-audio',
+      '--settings', path.join(scratch, profile + '-settings.json')],
+    env: { ...process.env, WIRESCAPE_TEST_STUB: '0' }
+  });
+  const page = await app.firstWindow();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
+  await page.evaluate(() => {
+    window.__e2e = [];
+    window.wirescape.onMessage(message => window.__e2e.push(message));
+  });
+  return { app, page };
+}
+
+async function connectWithReply(page, connection) {
+  return page.evaluate(c => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { off(); reject(new Error('Missing graph-edit reply')); }, 8000);
+    const off = window.wirescape.onMessage(m => {
+      if (typeof m.ok !== 'boolean' || !/^ui\d+$/.test(m.re ?? '')) return;
+      clearTimeout(timer); off(); resolve(m);
+    });
+    try { window.__wirescapeTest.connect(c); }
+    catch (e) { clearTimeout(timer); off(); reject(e); }
+  }), connection);
+}
+
+test('real sidecar: Save, quit and reopen preserve unknown document bytes', async () => {
+  test.setTimeout(90000);
+  const filename = path.join(scratch, 'evidence-roundtrip.json');
+  const patch = JSON.parse(fs.readFileSync(example, 'utf8'));
+  patch.future_unknown = { tag: 'retain', data: [true, 42, 'untouched'] };
+  patch.modules.find(m => m.id === 3).future_module = { revision: 17, opaque: 'kept' };
+  const first = await launchRealE2e('save-first');
+  let bytes;
+  try {
+    await first.page.evaluate(doc => window.__wirescapeTest.load(doc, 'Evidence roundtrip'), patch);
+    await first.app.evaluate(({ dialog }, file) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
+    }, filename);
+    await first.app.evaluate(({ Menu }) =>
+      Menu.getApplicationMenu().getMenuItemById('save-as').click());
+    await expect.poll(() => fs.existsSync(filename)).toBe(true);
+    bytes = fs.readFileSync(filename, 'utf8');
+    expect(JSON.parse(bytes).future_unknown).toEqual(patch.future_unknown);
+    expect(JSON.parse(bytes).modules.find(m => m.id === 3).future_module)
+      .toEqual(patch.modules.find(m => m.id === 3).future_module);
+  } finally { await first.app.close().catch(() => {}); }
+
+  const reopened = await launchRealE2e('save-reopened');
+  try {
+    await reopened.app.evaluate(({ dialog }, file) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
+    }, filename);
+    await reopened.app.evaluate(({ Menu }) =>
+      Menu.getApplicationMenu().getMenuItemById('open-patch').click());
+    await expect(reopened.page.getByTestId('patch-name')).toHaveText('evidence-roundtrip.json');
+    await expect.poll(() => reopened.page.evaluate(() =>
+      window.__wirescapeTest.state().future_unknown?.tag)).toBe('retain');
+    const after = await reopened.page.evaluate(() =>
+      JSON.stringify(window.__wirescapeTest.state(), null, 2));
+    expect(after).toBe(bytes); // Exact persisted serialization, not a hash or normalized subset.
+    await expect(reopened.page.getByTestId('status-engine')).toHaveText('engine: real');
+  } finally { await reopened.app.close().catch(() => {}); }
+});
+
+test('real sidecar: refused unknown-port connection rolls back and leaves graph usable', async () => {
+  test.setTimeout(90000);
+  const { app, page } = await launchRealE2e('rejected-port');
+  try {
+    const patch = JSON.parse(fs.readFileSync(example, 'utf8'));
+    await page.evaluate(doc => window.__wirescapeTest.load(doc, 'Rollback graph'), patch);
+    const before = await page.evaluate(() => window.__wirescapeTest.state());
+    const gen = await page.evaluate(() => window.__e2e.filter(m =>
+      m.ok === true && /^ui\d+$/.test(m.re ?? '')).at(-1)?.gen);
+    expect(gen).toMatch(/^\d+$/);
+    const bad = { kind: 'signal', from: { module: 3, port: 'audio' },
+      to: { module: 5, port: 'nonexistent-input' } };
+    const rejected = await connectWithReply(page, bad);
+    expect(rejected.ok).toBe(false);
+    expect(rejected.code).toBe('not-found');
+    expect(rejected.gen).toBe(gen);
+    await expect.poll(() => page.evaluate(() =>
+      JSON.stringify(window.__wirescapeTest.state().connections)))
+      .toBe(JSON.stringify(before.connections));
+
+    // A legal graph swap after the refusal proves the engine did not retain the bad edge.
+    const legal = { kind: 'modulation', from: { module: 7, port: 'control' },
+      to: { module: 6, port: 'release' }, amount: 0.05 };
+    const accepted = await connectWithReply(page, legal);
+    expect(accepted.ok).toBe(true);
+    expect(Number(accepted.gen)).toBeGreaterThan(Number(gen));
+    await expect.poll(() => page.evaluate(() => window.__wirescapeTest.state().connections
+      .some(c => c.kind === 'modulation' && c.from.module === 7 && c.to.module === 6 &&
+        c.to.port === 'release'))).toBe(true);
+  } finally { await app.close().catch(() => {}); }
+});
+
+test('real sidecar: device-free ADSR and modulated cutoff telemetry carry numeric values', async () => {
+  test.setTimeout(90000);
+  const { app, page } = await launchRealE2e('telemetry-values');
+  try {
+    // Sidecar noteOn targets host.keyboard; the class demo's midi.in is not an injection seam.
+    const patch = JSON.parse(fs.readFileSync(example, 'utf8'));
+    patch.modules = patch.modules.filter(m => ![1, 2, 9].includes(m.id));
+    patch.modules.push({ id: 1, module: 'host.keyboard', version: 1, parameters: { voices: 4 } });
+    patch.connections = patch.connections.filter(c =>
+      ![1, 2, 9].includes(c.from.module) && ![1, 2, 9].includes(c.to.module));
+    patch.connections.push(
+      { kind: 'signal', from: { module: 1, port: 'pitch' }, to: { module: 3, port: 'pitch' } },
+      { kind: 'signal', from: { module: 1, port: 'gate' }, to: { module: 6, port: 'gate' } }
+    );
+    await page.evaluate(doc => window.__wirescapeTest.load(doc, 'Native telemetry'), patch);
+    await expect.poll(() => page.evaluate(() => window.__e2e.some(m =>
+      m.type === 'telemetry' && Number.isFinite(m.telemetry?.effective?.['4']?.cutoff))))
+      .toBe(true);
+    await page.evaluate(() => window.__wirescapeTest.noteOn(60, 0.8));
+    await expect.poll(() => page.evaluate(() => window.__e2e.some(m =>
+      m.type === 'telemetry' && Number(m.telemetry?.envelope?.['6']) > 0.1 &&
+      Number(m.telemetry.envelope['6']) <= 1))).toBe(true);
+    const cutoff = await page.evaluate(() => window.__e2e.filter(m =>
+      m.type === 'telemetry' && Number.isFinite(m.telemetry?.effective?.['4']?.cutoff))
+      .at(-1).telemetry.effective['4'].cutoff);
+    expect(cutoff).toBeGreaterThanOrEqual(20);
+    expect(cutoff).toBeLessThanOrEqual(20000);
+    await page.evaluate(() => window.__wirescapeTest.noteOff(60));
+    await expect.poll(() => page.evaluate(() => {
+      const envelope = window.__e2e.filter(m =>
+        m.type === 'telemetry' && Number.isFinite(m.telemetry?.envelope?.['6']))
+        .at(-1)?.telemetry.envelope['6'];
+      return envelope === undefined ? 1 : envelope;
+    })).toBeLessThan(0.05);
+  } finally { await app.close().catch(() => {}); }
+});
