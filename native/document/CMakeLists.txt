@@ -45,6 +45,17 @@ add_executable(runtime_module_config_tests runtime_module_config_tests.cpp)
 target_link_libraries(runtime_module_config_tests PRIVATE nlohmann_json::nlohmann_json)
 add_test(NAME runtime_module_config_tests COMMAND runtime_module_config_tests)
 
+# Product audio/event goldens run even when Qt inspection tools are unavailable.
+add_executable(golden_render ../tests/golden_render.cpp)
+target_link_libraries(golden_render PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
+add_test(NAME golden_render_hashes COMMAND "${Python3_EXECUTABLE}"
+  "${PROJECT_SOURCE_DIR}/../tools/golden.py" check --renderer $<TARGET_FILE:golden_render>)
+add_test(NAME golden_event_stream COMMAND "${Python3_EXECUTABLE}"
+  "${PROJECT_SOURCE_DIR}/../tools/golden.py" event-self-test --renderer $<TARGET_FILE:golden_render>)
+add_test(NAME golden_serialization COMMAND "${Python3_EXECUTABLE}"
+  "${PROJECT_SOURCE_DIR}/../tools/golden.py" serialization-self-test --renderer $<TARGET_FILE:golden_render>)
+set_tests_properties(golden_render_hashes golden_event_stream golden_serialization PROPERTIES TIMEOUT 60)
+
 find_package(Qt6 6.5 QUIET COMPONENTS Core)
 if(NOT TARGET Qt6::Core)
   message(STATUS "Qt Core unavailable: document inspection tests disabled")
@@ -77,13 +88,4 @@ target_link_libraries(app_patch_tests PRIVATE wirescape_document)
 add_test(NAME abi2_app_patch_tests COMMAND app_patch_tests $<TARGET_FILE_DIR:ws_noise> "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json"
   "${PROJECT_SOURCE_DIR}/tests/fixtures/legacy_documents")
 set_tests_properties(abi2_app_patch_tests PROPERTIES
-  ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-add_executable(golden_render ../tests/golden_render.cpp)
-target_link_libraries(golden_render PRIVATE wirescape_document)
-target_compile_definitions(golden_render PRIVATE QT_NO_KEYWORDS)
-add_test(NAME golden_render_hashes COMMAND "${Python3_EXECUTABLE}"
-  "${PROJECT_SOURCE_DIR}/../tools/golden.py" check --renderer $<TARGET_FILE:golden_render>)
-add_test(NAME golden_event_stream COMMAND golden_render --event-self-test)
-set_tests_properties(golden_render_hashes golden_event_stream PROPERTIES TIMEOUT 60
   ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
