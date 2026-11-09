@@ -375,10 +375,10 @@ static void test_extremes() {
     std::puts("PASS finite outputs and valid events under extreme parameters");
 }
 
-
 static void test_legacy_length_default() {
     Rig r; // An older patch may omit length; it must still wrap at eight.
     REQUIRE(r.values[S::kLength] == 8.f);
+    for (uint32_t i = 8; i < 16; ++i) REQUIRE(r.values[S::gate_param(i)] == 0.f);
     for (uint32_t i = 0; i < 16; ++i) {
         r.values[S::pitch_param(i)] = static_cast<float>(static_cast<int>(i) - 8) / 12.f;
     }
