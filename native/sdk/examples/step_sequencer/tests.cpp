@@ -105,7 +105,6 @@ struct Rig {
         }
     }
 
-    // A named pattern prevents accidentally exchanging pitch and gate arrays.
     struct Pattern16 {
         const int (&semitones)[16];
         const int (&gates)[16];
@@ -520,7 +519,6 @@ static void test_v1_v2_state_migration() {
     Bytes wrong_legacy = state2;
     wrong_legacy[0] = 1;
     REQUIRE(load(resumed, wrong_legacy) == WS2_INVALID);
-    // A true v1 state stays loadable and produces the same subsequent trace.
     Rig old, upgraded;
     old.pattern(kSemis, kNotes, 8);
     upgraded.pattern(kSemis, kNotes, 8);
