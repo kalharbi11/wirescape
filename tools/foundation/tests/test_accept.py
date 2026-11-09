@@ -151,6 +151,22 @@ class AcceptanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "found 2"):
             acceptance.find_task(self.root, 85)
 
+    def test_archived_task_discovery_and_pr_selection(self):
+        directory = self.root / "docs/tasks/done"
+        directory.mkdir(parents=True)
+        archived = directory / "old.md"
+        archived.write_text(task(["python -c 'pass'"]))
+        self.assertEqual(acceptance.find_task(self.root, 85), archived)
+        self.assertEqual(acceptance.select_pr_task(self.root, "Closes #85"), (85, archived, ""))
+        (directory.parent / "current.md").write_text(task(["python -c 'pass'"]))
+        with self.assertRaisesRegex(ValueError, "found 2"):
+            acceptance.find_task(self.root, 85)
+
+    def test_task_discovery_reports_missing_with_archive_present(self):
+        (self.root / "docs/tasks/done").mkdir(parents=True)
+        with self.assertRaisesRegex(ValueError, "found 0"):
+            acceptance.find_task(self.root, 85)
+
     def test_pr_selection_optional_without_closes(self):
         issue, task_path, message = acceptance.select_pr_task(self.root, "Fix tests")
         self.assertIsNone(issue)

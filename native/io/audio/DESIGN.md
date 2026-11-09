@@ -2,7 +2,7 @@
 # Audio service
 
 Original Wirescape service code, GPL-3.0-only. Uses the existing PortAudio API
-header (`native/ui/third_party/portaudio.h`, upstream MIT licence in that header)
+header (`native/third_party/portaudio/portaudio.h`, upstream MIT licence in that header)
 without copying or modifying DSP. Loads the user's installed PortAudio binary:
 `libportaudio.so.2` on Linux (ALSA host API), the existing DLL names on Windows.
 No new PortAudio sources or revision are fetched; this is a runtime system library.

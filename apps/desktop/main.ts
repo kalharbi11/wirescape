@@ -263,7 +263,7 @@ async function libraryPatch(request: unknown): Promise<{ text: string; name: str
   try {
     if (!request || typeof request !== 'object') throw new Error();
     const { library, name } = request as { library: unknown; name?: unknown };
-    if (library === 'reset') { patchPath = null; return null; }
+    if (library === 'reset') { patchPath = null; originalV1 = undefined; return null; }
     if (library !== 'list' && library !== 'read') throw new Error();
     const directory = path.join(app.getPath('userData'), 'patches');
     await fs.promises.mkdir(directory, { recursive: true, mode: 0o700 });
@@ -284,20 +284,94 @@ async function libraryPatch(request: unknown): Promise<{ text: string; name: str
     const filename = path.join(root, name);
     if ((await fs.promises.lstat(filename)).isSymbolicLink() ||
         path.dirname(await fs.promises.realpath(filename)) !== root) throw new Error();
-    const handle = await fs.promises.open(filename, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
-    let text: string;
-    try {
-      if (!(await handle.stat()).isFile()) throw new Error();
-      const bytes = Buffer.allocUnsafe(LIMIT + 1);
-      const { bytesRead } = await handle.read(bytes, 0, LIMIT + 1, 0);
-      if (bytesRead > LIMIT) throw new Error();
-      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, bytesRead));
-    } finally { await handle.close(); }
+    const source = await readNativeFile(filename);
     patchPath = filename;
-    return { name, text };
+    originalV1 = source.value.version === 1
+      ? { bytes: source.bytes, object: JSON.stringify(source.value) } : undefined;
+    return { name, text: source.text };
   } catch { throw new Error('Could not access user patch (JSON files, 2 MiB maximum)'); }
 }
 
+// File identity is bound only after a supported native document has been read.
+// The renderer remains the editable-document owner; these checks only guard I/O.
+let originalV1: { bytes: Buffer; object: string } | undefined;
+function nativeFile(text: string): { version: number; preserved?: unknown } {
+  const value = JSON.parse(text);
+  if (!value || value.format !== 'wirescape.native.patch' || ![1, 2].includes(value.version) ||
+      (value.modules !== undefined && !Array.isArray(value.modules)) ||
+      (value.connections !== undefined && !Array.isArray(value.connections))) throw new Error('Unsupported patch');
+  const object = (item: unknown): boolean => !!item && typeof item === 'object' && !Array.isArray(item);
+  if (value.ui !== undefined && (!object(value.ui) ||
+      ['positions', 'view', 'labels', 'cableColors'].some(key => value.ui[key] !== undefined && !object(value.ui[key])))) {
+    throw new Error('Invalid patch UI containers');
+  }
+  const v1 = value.version === 1;
+  if (v1 && (!Array.isArray(value.modules) || !Array.isArray(value.connections))) throw new Error('Invalid v1 patch');
+  const ids = new Set<number>();
+  for (const m of value.modules ?? []) {
+    if (!m || !Number.isSafeInteger(m.id) || m.id <= 0 || ids.has(m.id) ||
+        typeof (v1 ? m.type : m.module) !== 'string' ||
+        (v1 && m.values != null && typeof m.values !== 'object')) throw new Error('Invalid patch module');
+    ids.add(m.id);
+  }
+  const endpoint = (e: any): boolean => !!e && Number.isSafeInteger(e.module) && e.module > 0 && typeof e.port === 'string';
+  for (const c of value.connections ?? []) {
+    const readable = c && (v1
+      ? ['audio', 'control', 'signal', 'modulation', 'event'].includes(c.kind) &&
+        Number.isSafeInteger(c.fromNode) && c.fromNode > 0 && typeof c.fromPort === 'string' &&
+        Number.isSafeInteger(c.toNode) && c.toNode > 0 && typeof c.toPort === 'string'
+      : ['signal', 'modulation', 'event'].includes(c.kind) && endpoint(c.from) && endpoint(c.to));
+    if (!readable) throw new Error('Invalid patch connection');
+  }
+  // JSON.parse accepts duplicate keys. Refuse them before any open/save binding;
+  // decoded keys detect escaped aliases, including nested objects inside arrays.
+  const stack: (Set<string> | null)[] = [];
+  const tokens = /"(?:\\[\s\S]|[^"\\])*"|[{}[\]]/g;
+  for (const token of text.matchAll(tokens)) {
+    const word = token[0];
+    if (word === '{' || word === '[') {
+      if (stack.length >= 64) throw new Error('Patch nesting limit');
+      stack.push(word === '{' ? new Set() : null);
+    } else if (word === '}' || word === ']') stack.pop();
+    else {
+      let end = token.index! + word.length;
+      while (/\s/.test(text[end] ?? '') && end < text.length) end++;
+      if (text[end] === ':') {
+        const keys = stack[stack.length - 1]!;
+        const key = JSON.parse(word) as string;
+        if (keys.has(key)) throw new Error('Duplicate patch key');
+        keys.add(key);
+      }
+    }
+  }
+  return value;
+}
+async function readNativeFile(filename: string): Promise<{ bytes: Buffer; text: string; value: ReturnType<typeof nativeFile> }> {
+  const handle = await fs.promises.open(filename, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+  let bytes: Buffer;
+  try {
+    if (!(await handle.stat()).isFile()) throw new Error('Invalid patch file');
+    bytes = Buffer.allocUnsafe(LIMIT + 1);
+    const { bytesRead } = await handle.read(bytes, 0, LIMIT + 1, 0);
+    if (bytesRead > LIMIT) throw new Error('Patch exceeds 2 MiB limit');
+    bytes = bytes.subarray(0, bytesRead);
+  } finally { await handle.close(); }
+  const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  return { bytes, text, value: nativeFile(text) };
+}
+async function backupV1(filename: string, bytes: Buffer): Promise<void> {
+  const parsed = path.parse(filename);
+  const backup = path.join(parsed.dir, parsed.name + '.v1' + parsed.ext);
+  const staged = backup + '.' + randomUUID() + '.tmp';
+  try {
+    await fs.promises.writeFile(staged, bytes, { flag: 'wx', mode: 0o600 });
+    try { await fs.promises.link(staged, backup); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST' ||
+          !(await fs.promises.lstat(backup)).isFile()) throw error;
+    }
+  } finally { await fs.promises.rm(staged, { force: true }).catch(() => {}); }
+}
 async function openPatch(): Promise<{ text: string; name: string } | null> {
   if (!window) throw new Error('Window unavailable');
   const result = await dialog.showOpenDialog(window, {
@@ -307,18 +381,12 @@ async function openPatch(): Promise<{ text: string; name: string } | null> {
   if (result.canceled || !result.filePaths.length) return null;
   try {
     const filename = result.filePaths[0];
-    const handle = await fs.promises.open(filename, 'r');
-    let bytes: Buffer;
-    try {
-      bytes = Buffer.allocUnsafe(LIMIT + 1);
-      const { bytesRead } = await handle.read(bytes, 0, LIMIT + 1, 0);
-      if (bytesRead > LIMIT) throw new Error('Patch exceeds 2 MiB limit');
-      bytes = bytes.subarray(0, bytesRead);
-    } finally { await handle.close(); }
-    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const source = await readNativeFile(filename);
     patchPath = filename;
-    return { text, name: path.basename(filename) };
-  } catch { throw new Error('Could not read UTF-8 patch (2 MiB maximum)'); }
+    originalV1 = source.value.version === 1
+      ? { bytes: source.bytes, object: JSON.stringify(source.value) } : undefined;
+    return { text: source.text, name: path.basename(filename) };
+  } catch { throw new Error('Could not read a supported UTF-8 native patch (2 MiB maximum)'); }
 }
 async function savePatch(input: unknown): Promise<{ name: string } | null> {
   if (!window || !input || typeof input !== 'object') throw new Error('Invalid patch');
@@ -334,6 +402,14 @@ async function savePatch(input: unknown): Promise<{ name: string } | null> {
     if (result.canceled || !result.filePath) return null;
     filename = result.filePath;
   }
+  const output = nativeFile(text);
+  let previous: Awaited<ReturnType<typeof readNativeFile>> | undefined;
+  try { previous = await readNativeFile(filename); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Refusing to overwrite an unsupported patch'); }
+  const original = previous?.value.version === 1 ? previous.bytes
+    : originalV1 && JSON.stringify(output.preserved) === originalV1.object ? originalV1.bytes : undefined;
+  try { if (original) await backupV1(filename, original); }
+  catch { throw new Error('Could not create original patch backup; target was kept'); }
   const temp = path.join(path.dirname(filename), '.' + path.basename(filename) + '.' + randomUUID() + '.tmp');
   try {
     await fs.promises.writeFile(temp, text, { flag: 'wx', mode: 0o600 });
