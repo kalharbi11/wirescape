@@ -17,6 +17,11 @@ struct Device {
     std::string name;
     int index = -1;
     bool is_default = false;
+    std::string backend;
+    int output_channels = 2;
+    std::vector<uint32_t> sample_rates{44100, 48000, 96000};
+    bool supported = true;
+    std::string unsupported_reason;
 };
 struct StreamSelection {
     std::string directory, name;
