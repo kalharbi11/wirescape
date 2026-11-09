@@ -13,6 +13,12 @@
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
+
+// The multimedia timer declarations require Windows' base types first.
+#include <timeapi.h>
+#if defined(_MSC_VER)
+#pragma comment(lib, "winmm.lib")
+#endif
 #endif
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
@@ -239,6 +245,14 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
         sink_ = std::thread(
             [this, left = std::vector<float>(options_.block), right = std::vector<float>(options_.block)]() mutable {
                 float *rows[] = {left.data(), right.data()};
+#ifdef _WIN32
+                // The default ~15.6 ms Windows timer tick is longer than a block period, so
+                // block-paced waits always wake late. Request 1 ms only while the sink runs.
+                struct TimerResolution {
+                    TimerResolution() { timeBeginPeriod(1); }
+                    ~TimerResolution() { timeEndPeriod(1); }
+                } resolution;
+#endif
                 auto next = std::chrono::steady_clock::now();
                 sink_rendering_.store(true, std::memory_order_release);
                 while (!stop_sink_.load()) {
@@ -420,7 +434,11 @@ void Session::commit(Json patch, bool new_namespace) {
     const auto period = std::chrono::microseconds(int64_t(1e6 * double(options_.block) / double(options_.rate)));
     if ((stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire)) {
         app_engine_begin_master_fade_out(active_);
-        const auto deadline = begun + std::max<std::chrono::microseconds>(kMuteBudget, 2 * period);
+        // Acknowledging a mute needs the in-flight block to finish, one fade block and one
+        // entirely silent block: two periods is the bare minimum with no scheduling margin,
+        // which a block-paced sink (Windows timer granularity) can miss. Stretch to three
+        // periods, matching the gap budget below; kMuteBudget is unchanged at normal blocks.
+        const auto deadline = begun + std::max<std::chrono::microseconds>(kMuteBudget, 3 * period);
         while (!app_engine_master_fade_silent(active_)) {
             // D6 may lose the stream during a refused replan or the D5 fade.
             // A callback that no longer renders cannot acknowledge a mute.

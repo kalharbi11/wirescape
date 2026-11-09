@@ -114,6 +114,46 @@ int run_tests() {
         check(request.error == (i == 256 ? "busy" : ""));
     }
     transport.finish();
+    // The stream-backed test adapter must parse raw-pipe-sized chunks without
+    // splitting or corrupting a newline-delimited request at 64 KiB boundaries.
+    const std::string large_payload(65540, 'x');
+    const std::string long_line = "{\"v\":0,\"id\":\"long\",\"type\":\"panic\",\"pad\":\"" + large_payload + "\"}\n";
+    std::istringstream chunked_input(long_line + "{\"v\":0,\"id\":\"second\",\"type\":\"panic\"}\n" +
+                                     std::string(LineLimit + 1, 'x') + "\n");
+    std::ostringstream chunked_output;
+    Transport chunked(chunked_input, chunked_output);
+    chunked.start();
+    Request first_chunk, second_chunk, excess_chunk;
+    check(chunked.next(first_chunk, std::chrono::seconds(5)));
+    check(first_chunk.error.empty() && first_chunk.value["id"] == "long");
+    check(first_chunk.value["pad"].get<std::string>() == large_payload);
+    chunked.complete(first_chunk);
+    check(chunked.next(second_chunk, std::chrono::seconds(5)));
+    check(second_chunk.error.empty() && second_chunk.value["id"] == "second");
+    chunked.complete(second_chunk);
+    check(chunked.next(excess_chunk, std::chrono::seconds(5)));
+    check(excess_chunk.error == "limit");
+    chunked.finish();
+
+    // Coalescing must inspect the message before moving it into its slot.
+    // MSVC evaluates JSON's by-value assignment argument before the left-hand
+    // conditional expression, exposing a value() call on a moved-from null.
+    std::istringstream coalesced_input("");
+    std::ostringstream coalesced_output;
+    Transport coalesced(coalesced_input, coalesced_output);
+    coalesced.send({{"type", "status"}, {"probe", 0}}, true);
+    coalesced.send({{"type", "status"}, {"probe", 1}}, true);
+    coalesced.send({{"type", "telemetry"}, {"probe", 2}}, true);
+    coalesced.start();
+    coalesced.finish();
+    std::istringstream coalesced_messages(coalesced_output.str());
+    std::string message;
+    check(bool(std::getline(coalesced_messages, message)));
+    check(strict_json(message) == Json({{"type", "status"}, {"probe", 1}}));
+    check(bool(std::getline(coalesced_messages, message)));
+    check(strict_json(message) == Json({{"type", "telemetry"}, {"probe", 2}}));
+    check(!std::getline(coalesced_messages, message));
+
     ObservedMidi fake(true, false);
     auto endpoints = fake.endpoints();
     check(endpoints.size() == 1);
