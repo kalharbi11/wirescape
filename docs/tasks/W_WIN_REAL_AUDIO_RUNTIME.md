@@ -13,6 +13,13 @@ Native code is all in a `swap`/device path with fake-backend tests; it needs a
 cross-family (Codex/ChatGPT) T2 review and the owner's Windows run below. RC5 is closed:
 the owner pressed Restart engine (`engine-exit code=0 expected=true`), no crash.
 
+**Owner Windows result (2026-11-09, PR #463 head):** `play --list-devices` shows unique
+host-API ids (e.g. `Windows WDM-KS|Headphones ()#4`) and a real default
+(`MME|Headphones (Realtek(R) Audio)`). In the app, with `--confirm-audio --confirm-midi`
+at 48 kHz/256, the WASAPI headphones are selectable and every starter patch switches and
+sounds. The computer keyboard and Launchkey MIDI work. This is first-session evidence; the owner
+continues extended testing. Still owed: CI on the exact head, the cross-family T2 review, `ci/pi`.
+
 ## Root causes (from the code, matched to the owner's logs)
 
 **RC1. Device identity is the bare PortAudio name, and Windows repeats names.**

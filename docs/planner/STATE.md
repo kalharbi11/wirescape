@@ -4,10 +4,17 @@
 **Updated:** 2026-11-09, Keel open-PR closeout. Owner-reported failures preempt everything.
 No queued, stale or missing result counts as a pass. Live heads and handoffs govern.
 
-## Owner Windows test (2026-11-09): preempts the queue
-- `docs/tasks/W_WIN_REAL_AUDIO_RUNTIME.md`: 4 root causes (name identity, PortAudio re-init
-  per open, D5 reopens the device so every real-audio `loadGraph` misses 150 ms, Studio keeps
-  the refused patch). T2; PR A (identity + single init) first. Do not touch budgets or ring size.
+## Owner Windows test (2026-11-09): fixed in PR #463 (issue #462)
+- Root causes: name-only device ids (Windows repeats names per host API), every
+  real-audio `loadGraph` reopened the device inside the 150 ms gap budget, and Studio kept
+  a refused patch on screen. Fix: `hostApi|name[#n]` ids, D5 in place via `EngineSlot`,
+  Studio rollback. Budgets and ring sizes unchanged.
+- **Owner confirmed on Windows:** WASAPI headphones, all starter patches switch and sound,
+  keyboard and Launchkey MIDI work. Extended testing continues.
+- #463 owes: CI on the exact head, a Codex/ChatGPT T2 review (`EngineSlot` ordering,
+  `Session::commit` rollback ownership), and `ci/pi`. Then Keel or Codex Lead merges.
+- Windows setup gotcha: shared-mode WASAPI opens only at the device rate (48 kHz here);
+  close Ableton or take it off exclusive mode before testing.
 
 ## Now: finish before start (D18, Compass #437)
 - Canonical queue: `docs/tasks/PR_CLOSEOUT_2026_11_09.md` (lanes A–J). It replaces
