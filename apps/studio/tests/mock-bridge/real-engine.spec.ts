@@ -27,6 +27,29 @@ test('T01, T02, T09, T10: hello catalogue, correlated commands and real device l
   expect(select.id).not.toBe(select.deviceId);
 });
 
+test('T293: mock bridge displays backend/channel details and disables mono without capability', async ({ page }) => {
+  await page.evaluate(() => {
+    const engine = window.__wirescapeTest.engine;
+    engine.listAudioDevices = async () => [
+      { id: 'USB Stereo', name: 'USB Stereo', kind: 'audio',
+        index: 3, backend: 'ALSA', outputChannels: 2, supported: true, sampleRates: [48000] },
+      { id: 'Mono DAC', name: 'Mono DAC', kind: 'audio',
+        index: 4, backend: 'ALSA', outputChannels: 1, supported: false, unsupportedReason: 'mono-output' },
+    ];
+  });
+  await page.getByTestId('open-settings').click();
+  const options = page.getByTestId('audio-device').locator('option');
+  await expect(options.filter({ hasText: 'Mono DAC' })).toBeDisabled();
+  await expect(options.filter({ hasText: 'Mono DAC' })).toContainText('mono-output');
+  await expect(options.filter({ hasText: 'USB Stereo' })).toContainText('ALSA · 2 channels');
+  await expect(page.getByTestId('audio-route-status')).toContainText('ALSA · 2 channels');
+  // This mock hello has no rate/block capabilities; the controls must remain absent.
+  await expect(page.getByTestId('audio-rate')).toHaveCount(0);
+  await expect(page.getByTestId('audio-buffer')).toHaveCount(0);
+  const sent = await page.evaluate(() => (window as any).__mockBridge.sent as any[]);
+  expect(sent.some(m => m.type === 'selectAudioDevice' && m.deviceId === 'Mono DAC')).toBe(false);
+});
+
 test('T03: asynchronous add-module refusal removes only the refused node', async ({ page }) => {
   await page.evaluate(() => (window as any).__mockBridge.refuseNext('addModule', 'unknown-module'));
   await page.evaluate(() => window.__wirescapeTest.addModule('essentials.vco'));
