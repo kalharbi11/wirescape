@@ -1,31 +1,38 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Groove S0 module
+# Groove S1(a) native module
 
-`sequencing.groove` is a native **configuration proof**, not the S1 instrument.
-Authored v2 patch `modules[].config` must be
-`{"version":1,"bpm":120,"tracks":[{"steps":[{"kind":"note","key":60,"velocity":0.8},{"kind":"rest"}]}]}`.
-One track with 1–8 sixteenth-note steps at 20–300 BPM is accepted.
+ `sequencing.groove` is a two-track 32-sixteenth-step native instrument.
+Authored v2 patch `modules[].config` remains version 1:
+`{"version":1,"bpm":120,"tracks":[{"steps":[{"kind":"note","key":60,"velocity":0.8,"mod1":0.25,"mod2":0.75},{"kind":"rest"}]}]}`.
+One or two tracks of 1–32 authored steps are accepted; missing steps pad
+with rests, both tracks share the same 32-step boundary and 20–300 BPM.
+Optional per-track `armed` (true), `mute` (false), step `mod1`/`mod2`
+(0..1, default 0). Saved S0 patterns remain valid.
 Kinds are note, rest, tie; a note has integer MIDI key 0–127 and velocity
 0–1. Velocity zero suppresses the note; ties sustain the previous note;
 a tie without a sounding note is a rest. Steps loop. Unknown keys,
 unsupported versions and invalid values are refused before activation.
 
-S0 output slots are `t1_pitch` (V/oct, C4=0), `t1_gate` (0/1),
-`t1_mod1` and `t1_mod2` (zero during S0), `t1_notes` (matched
-NOTE_ON/OFF). The single scalar `run` parameter is a temporary
-rising-edge proof control, not S1's queued transport. A fresh load is
-always stopped, including a saved `run=1`; a new low→high edge starts
-step 1. Falling edge releases notes. Reset releases via host choke.
-Pitch holds the last note, gate drops on stop and mod outputs are zero.
-If NOTE_OFF delivery fails, it is retried before another note can begin.
+S0 output slots remain `t1_pitch` (V/oct, C4=0), `t1_gate` (0/1),
+`t1_mod1`, `t1_mod2` (sample-and-hold 0..1), `t1_notes` (matched
+NOTE_ON/OFF). Five new slots append `t2_pitch/gate/mod1/mod2/notes`.
+Both mods latch on admitted NOTE_ON; rest/tie/stop/reset hold pitch/mods.
+A fresh load is always stopped, including saved `run=1`; only a fresh
+low→high edge starts step 1. Pending NOTE_OFF blocks new NOTE_ON.
+
+Scalar IDs: `run` 0, `stop` 1, `reset` 2, `mute` 3,
+`t1_run/stop/mute` 4/5/6, `t2_run/stop/mute` 7/8/9.
+All are rising-edge commands after first-sample baseline. Global/track
+STOP queues until the shared step-32 boundary; START arms/queues;
+MUTE releases immediately without losing phase; RESET releases and
+clears queues. Priority RESET > STOP > MUTE > START > step advance.
+All same-frame releases occur before any new NOTE_ON.
 
 The patch stores structured JSON, never the internal C++ byte layout.
 The runtime adapter parses off the render thread. Stopping this module
 does **not** authorize mutating a graph whose render callback is active.
-S1 will add 2×32 steps, two active mods, queued transport and a stopped
-Studio editor/Apply acknowledgement. No live-edit, seamless Apply, or
-finished instrument is claimed by this proof. Physical listening is
-owner-only.
+The Studio editor and native authoritative STOP/playhead observation are
+S1(b) work. No live-edit, seamless Apply or physical listening is claimed.
 
 ## Stopped configuration workflow (manual S0 / S1 UI contract)
 
@@ -37,12 +44,9 @@ transaction, then await the **native load ACK**. On success the new graph
 starts stopped; issue a fresh Start to play from step 1. On a native
 refusal retain the draft and report the refusal; **never start a rejected
 candidate**. Existing graph reload may interrupt/reset other modules,
-so seamless Apply and phase continuity are later work. S0 exposes this
-as a manual contract only: it **does not** provide a graphical editor,
-global STOP acknowledgement, or a native loaded/refused UI. Those
-belong to #432 (S1).
+so seamless Apply and phase continuity are later work. S1(a) still exposes only this manual contract: the graphical editor,
+global STOP acknowledgement and truthful native playhead are S1(b).
 
-The S0 config v1 restriction (one eight-step track) is persisted and
-must remain readable when S1 introduces two 32-step tracks. Any schema
-version migration/extension and true queued transport needs Keel T2
-review. Live per-step editing is deferred to S2 or explicitly S3.
+Version 1 config is extended additively without changing old field meaning.
+The validated 4×64 internal POD is transient and never serialized.
+Live per-step editing is deferred to S2 or explicitly S3.
