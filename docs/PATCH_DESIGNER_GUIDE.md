@@ -103,7 +103,7 @@ setting blocker rather than pretending to merge.
 - Keep unknown fields when editing an export. Share only your own/licensed
   original patches; include GPL-3.0-only SPDX metadata for repository patches.
 
-## Proposed Groove S1(a) — native PR #451, not yet merged
+## Groove S1(a) build compatibility (PR #451)
 
 `sequencing.groove` S1(a) adds two synchronized tracks of up to32steps while
 retaining JSON config `version:1`, existing `run` and `t1_*` IDs. Existing S0
