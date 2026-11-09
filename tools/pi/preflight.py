@@ -67,7 +67,7 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
     node_version = tools["node"].get("version") or ""
     parsed = re.search(r"\bv?(\d+)\.\d+\.\d+", node_version)
     check("Node maintained LTS", bool(parsed and int(parsed.group(1)) in NODE_LTS),
-          "Install a maintained Node.js LTS (22, 24, or 26) with matching npm; do not use an odd or EOL major.")
+          f"Detected {node_version or 'unavailable'}. Owner: install a maintained Node.js LTS (22, 24, or 26) with matching npm; rerun preflight.")
     for lock in ("apps/studio/package-lock.json", "apps/desktop/package-lock.json"):
         check(lock, (root / lock).is_file(), f"Restore tracked {lock} from the exact source revision; run npm ci, never npm install.")
     for lib, package in REQUIRED_LIBS.items():
@@ -114,9 +114,12 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
         match_arch = re.search(r"^CMAKE_SYSTEM_PROCESSOR:[^=]*=(.*)$", contents, re.M)
         same_source = bool(match and Path(match.group(1)).resolve() == expected)
         same_arch = not match_arch or match_arch.group(1).lower() in ("aarch64", "arm64")
-        qt_cache = bool(re.search(r"^(Qt6_DIR|CMAKE_PREFIX_PATH):[^=]*=\S+", contents, re.M))
+        qt_values = re.findall(r"^(?:Qt6_DIR|CMAKE_PREFIX_PATH):[^=]*=(.*)$", contents, re.M)
+        qt_cache = any(v.strip() and not v.strip().endswith("-NOTFOUND")
+                       for v in qt_values)
         check(f"cache:{cache.relative_to(root)}", same_source and same_arch and not qt_cache,
-              "Stale/Qt-tainted CMake cache from another source or architecture. Owner: move the build directory aside; do not delete it automatically.")
+              "Cache source/architecture mismatch or Qt override. Owner: move the build directory aside "
+              "(do not delete it), then rerun; inspect CMAKE_HOME_DIRECTORY and CMAKE_SYSTEM_PROCESSOR.")
     return checks, {"sha": sha if rc == 0 else None, "architecture": arch, "tools": tools}
 
 
