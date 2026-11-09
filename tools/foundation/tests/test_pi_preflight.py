@@ -100,6 +100,21 @@ class PiPreflightTests(unittest.TestCase):
         self.assertEqual(code, 124)
         self.assertIn("timed out", (report / "native.log").read_text())
 
+    @unittest.skipIf(os.name == "nt", "Pi source-build stage runner uses POSIX process groups")
+    def test_success_provenance_and_missing_artifact_are_not_confused(self):
+        report = self.root / "build_reports" / SHA
+        cmd = [sys.executable, "-c", "print('synthetic build complete')"]
+        self.assertEqual(preflight.stage_run(self.root, report, "native", cmd, 10), 1)
+        engine = self.root / "build/native/wirescape-engine"
+        engine.parent.mkdir(parents=True)
+        engine.write_text("mock executable")
+        self.assertEqual(preflight.stage_run(self.root, report, "native", cmd, 10), 0)
+        summary = json.loads((report / "summary.json").read_text())
+        self.assertEqual(summary["source_sha"], SHA)
+        self.assertEqual(summary["architecture"], "aarch64")
+        self.assertEqual(summary["stages"]["native"]["exit_code"], 0)
+        self.assertEqual(summary["stages"]["studio-build"]["status"], "not-run")
+
     def test_no_device_flags_and_no_external_reports(self):
         self.assertEqual(preflight.stage_run(self.root, self.root / "elsewhere", "native", ["true"], 1), 2)
         self.assertEqual(preflight.stage_run(self.root, self.root / "build_reports", "native", ["engine", "--confirm-audio"], 1), 2)
