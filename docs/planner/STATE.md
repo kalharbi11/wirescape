@@ -26,9 +26,10 @@ Pi first; #271 hardware failures preempt features. No queued result is a pass.
 - #441ea39c09 OSC T0 current-host inventory exists; finish its review/gates.
   #82 is oldQt/CLI, not Electron proof. Keel owner/lifecycle/consent/Monitor
   contract gates runtime. Existing osc.in/monitor IDs; localhost/offLAN.
-- #4206bf66ea SDK64 and #4271207e40 patch rollout: selected commands, required
-  jobs/static + independent reviews checked. Auto-merge tool rejected for lack
-  of explicit owner merge permission; approval tokens removed, hold for owner.
+- #420 SDK64 MERGED84f926b via gate after signed approval; source checks passed.
+- #4271207e40 patch rollout: selected commands/required/static + reviews checked.
+  Auto-merge tool rejected for lack of explicit owner permission; approval token
+  removed, hold for owner. Post-merge deployment/live not yet established.
 - #323385ad20 Quantizer: acceptance/required/Web/WASM green, static red; need
   diagnostic classification and narrow current-head delta review before ready.
 - #31083a4b05 is already based on main: integrate without rewrite; Interleave
