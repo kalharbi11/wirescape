@@ -98,7 +98,8 @@ export class App {
     if (detectSlowDevice() && this.prefs.profile === 'normal') this.prefs.profile = 'pi';
     applyPrefs(this.prefs);
     this.engine = window.wirescape
-      ? new RealEngine(window.wirescape, () => this.doc.toJSON(), registry)
+      ? new RealEngine(window.wirescape, () => this.draftVisible && this.playingSnapshot
+        ? this.playingSnapshot.patch : this.doc.toJSON(), registry)
       : new FakeEngine(registry);
     // Never started: edits to a refused draft must not reach the playing graph.
     this.draftEngine = new FakeEngine(registry);
