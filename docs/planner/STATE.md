@@ -1,10 +1,12 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-09, Codex Lead priorities/reviews/claimable queue.
-Pi first; #271 hardware sign-off still open, reported failures preempt features.
-Live heads/handoffs govern; no queued/stale/missing result is passed.
+**Updated:** 2026-11-09, Compass decisions on top; Codex Lead queue below.
+Windows-first setup, Pi performance target; owner failures preempt. No stale result passes.
 
+## Compass 2026-11-09: D15-D19 in docs/PLAN.md; sequence in docs/planner/CLEANUP.md
+- Qt is retired now (#437); no Qt fixes. Order: R1 Qt-free build, R2 fixtures onto codec, R3 delete.
+- Top: Windows bootstrap #436 W1, then Pi #444-#446. Finish before start (10+ open PRs: no new).
 ## Owner priorities and latest Compass/Keel
 - Interleave higher priority than Vocoder. OSC now active independent work.
 - MIDI seam/controls can progress; LearnUI waits actual seam merge.
@@ -27,7 +29,6 @@ Live heads/handoffs govern; no queued/stale/missing result is passed.
   remain despite successful source UI/WASM evidence. Preserve owner fast-lane rule.
 - 398render evidence has independent T1 and780e280fiveCTest/Pi PASS; task-only
   cap repair3f12baa needs final gates. 296actual3600s private edit soak still missing.
-- 415selector and431Groove docs actually merged; don't repeat those tasks.
 
 ## New-agent queue (claim before editing; continue branches)
 - Canonical: docs/tasks/CLAIMABLE_2026_11_09.md; index393 refreshed.
