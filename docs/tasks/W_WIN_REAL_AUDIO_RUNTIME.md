@@ -13,26 +13,29 @@ They are not independent bugs.
 `native/sidecar/devices.cpp` `audio_devices()` uses `id = name`; `portaudio_service.cpp`
 `Stream::Impl` matches by name and throws "Ambiguous audio device name" when a name appears
 more than once. Windows PortAudio lists every endpoint once per host API (MME, DirectSound,
-WASAPI, WDM-KS), so "Headphones (Realtek(R) Audio)" appears 3–4 times. Effects:
+WASAPI, WDM-KS), so "Headphones (Realtek(R) Audio)" appears 3–4 times. Owner listing 2026-11-09: 26 stereo
+  outputs, and names repeat **within one host API** as well (WDM-KS `Headphones ()` ×4,
+  `Speakers ()` ×3). Effects:
 - Selecting most outputs fails with `duplicate` / "Ambiguous audio output name".
 - **First launch:** `start_audio()` sets `device_` to the default device's *name*. That name is
   repeated, so every open fails, and the session stays in `reconnecting` with
   `deviceId: null` until the user picks a unique name (Sound Mapper / Primary Sound Driver).
   The log line `boot-to-audio-running-ms=473443` is that 7-minute wait.
 
-**RC2. Every stream (re)open re-initialises PortAudio, which takes about 800 ms on this machine.**
-Each `audio::Stream` builds a fresh `Backend` (`Pa_Initialize`), and `retire()` calls
-`Pa_Terminate`. A cold `Pa_Initialize` enumerates all four Windows host APIs. The owner's logs
-show `boot-to-first-hello` ≈ 170–200 ms and `boot-to-audio-running` ≈ 970–1040 ms, so one
-open costs about 800 ms. `refresh_devices()` also builds a `Backend` on every 100 ms poll. That
-is a full re-enumeration on the command thread whenever no stream is open (for example while
-reconnecting).
+**RC2. The device enumerator runs on the command thread on every poll.** Each `audio::Stream`
+and each `refresh_devices()` builds a fresh `Backend` (`Pa_Initialize`/`Pa_Terminate`). The owner
+measured a whole `wirescape_cli play --list-devices` run (process start + init + enumeration +
+terminate) at **96 ms**. So re-initialising is *not* the main swap cost; this corrects Keel's
+earlier ~800 ms estimate. It still costs up to ~90 ms on the command thread every 100 ms
+poll while no stream is open. The ~800 ms from hello to `running` is mostly stream open/start
+plus the first measured callback (MME Sound Mapper, 44.1 kHz default device at 48 kHz). Ruling 3 stands
+because it is cheap; RC3 is the real fix.
 
 **RC3. `loadGraph` always takes the D5 path, which closes and reopens the audio device, all within a 150 ms gap budget.**
 `Session::commit(new_namespace=true)` never uses live replan. With real audio it runs
 mute → `stop_audio()` (Pa_Stop/Close/Terminate) → `start_audio()` (cold Pa_Initialize + Open + Start)
-→ waits for the fade-in, with `kGapBudget = 150 ms` measured from `begun`. With RC2's ~800 ms
-open, **every patch switch on real Windows audio is refused** with "Audio swap exceeded gap
+→ waits for the fade-in, with `kGapBudget = 150 ms` measured from `begun`. Init (≤ ~90 ms) plus
+Pa_Stop (MME drains queued buffers) plus open/start plus the first callback cannot fit, so **every patch switch on real Windows audio is refused** with "Audio swap exceeded gap
 budget" and rolls back to the previous engine, which costs another ~800 ms of silence. The
 `--null-audio` sink never closes a device, so CI cannot see this.
 
@@ -52,13 +55,15 @@ Fixing RC1–RC3 fixes this. It is not a capacity problem: **do not enlarge the 
 
 ## Keel rulings (T2)
 1. **Identity (supersedes the #293 "id = name" assumption, keeps "id-only identity").**
-   The audio device `id` is `"<host API name>|<device name>"` (for example
-   `"Windows WASAPI|Headphones (Realtek(R) Audio)"`). It is unique by construction and stable
-   across restarts. Do not use the PortAudio index; it is not stable. `name` stays the human
-   name. Add `hostApi` as an optional additive field. The UI shows `name — hostApi` only when
-   two entries share a name. A stored legacy bare-name `audioDeviceId` is resolved once: if
-   exactly one device has that name, upgrade it; otherwise use the default. Never stay in a
-   permanent reconnect because of an old name.
+   The audio device `id` is `"<host API name>|<device name>"`. When the same name occurs more than once
+   within one host API, add `#<n>` (its 1-based order among those entries in PortAudio order),
+   for example `"Windows WDM-KS|Headphones ()#2"`. Do **not** use the raw PortAudio index: indices
+   shift whenever any device (inputs included) is added or removed, which would break
+   the saved `audioDeviceId`. `name` stays the human name. Add `hostApi` as an optional additive field.
+   The UI shows `name — hostApi` when two entries share a name. A stored legacy bare-name
+   `audioDeviceId` is resolved once: if exactly one device has that name, upgrade it; otherwise
+   use the default. Never stay in a permanent reconnect because of an old name.
+   Hiding host APIs from the list (e.g. WDM-KS) is a product question for Compass, not part of this task.
 2. **Default device:** resolve `Pa_GetDefaultOutputDevice()` to that device's composite id. Never
    resolve it to a name.
 3. **One PortAudio initialisation per session.** Hold a single process-lifetime `Backend` in the
@@ -81,6 +86,21 @@ Fixing RC1–RC3 fixes this. It is not a capacity problem: **do not enlarge the 
    "open anyway (not running)" draft. It must never show B as clean while A sounds. When
    the engine is not ready (`reconnecting`, `no-device`), loading still succeeds and the
    status bar says the engine is silent.
+
+**Rejected alternative (VS Code agent, 2026-11-09):** start the gap timer after the old stream
+stops. The budget measures *audible* silence. Moving the start point loosens a threshold
+(an AGENTS.md stop), and the ~1 s silence on every patch switch would still be there.
+The agent's other option, live replan, is the right direction, but `app_engine_replan` carries
+module state across matching IDs. A `loadGraph` is a new ID namespace, so it needs a
+"fresh namespace" replan with no state carried over. That variant is an acceptable
+way to implement ruling 4 instead of a separate `Stream::exchange`.
+
+**RC5 (open). The engine process exited at least once.** Studio shows `ENGINE: RESTARTING`
+only after `app.engineExited`, at startup before the first hello (`RealEngine.ts`), or after a
+manual restart. A refusal never causes it, so the owner's second screenshot shows the
+sidecar exiting, or being restarted, around a device selection. Desktop `main.ts` did not log
+the exit code; it now logs `engine-exit code=… signal=…` on stderr. A Windows code of
+`3221225477` (0xC0000005) means a crash; investigate that before closing this task.
 
 ## Scope
 `native/io/audio/portaudio_service.{h,cpp}`, `native/sidecar/{session.cpp,session.h,devices.cpp}`,
