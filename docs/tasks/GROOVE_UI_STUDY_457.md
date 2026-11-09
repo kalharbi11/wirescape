@@ -16,8 +16,7 @@ never committed; independent source/visual T1 review and exact-head CI precede m
 tier: T1
 size: <= 900 changed lines, <= 6 files
 must_pass:
-  - npm --prefix apps/studio ci --no-audit --no-fund
-  - node --test apps/studio/tests-node/groove-study.test.mjs
+  - bash -c 'npm --prefix apps/studio ci --no-audit --no-fund && node --test apps/studio/tests-node/groove-study.test.mjs'
   - python -m unittest discover -s tools/foundation/tests -p test_doc_links.py
   - ci: guard
   - ci: linux-arm64
