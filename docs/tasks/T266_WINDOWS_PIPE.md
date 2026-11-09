@@ -21,7 +21,8 @@ Keel's ruling in issue #266 authorizes removing the production iostream transpor
 
 ```acceptance
 tier: T2
-size: <= 400 changed lines, <= 8 files
+# Keel 2026-11-09: +1 file (session.cpp D5 mute stretch) per #266 ruling.
+size: <= 400 changed lines, <= 9 files
 must_pass:
   - ctest --test-dir build/native --output-on-failure --no-tests=error -R '^(abi2_sidecar_unit_tests|abi2_sidecar_protocol_tests|sidecar_golden)$'
   - ci: guard
