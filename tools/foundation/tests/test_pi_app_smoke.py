@@ -107,12 +107,13 @@ class PiAppSmokeTests(unittest.TestCase):
         def fake_run(command, cwd, env, seconds):
             calls.append(command)
             if env.get('WIRESCAPE_PI_APP_SMOKE'):
-                self.assertEqual(command[:2], ['/usr/bin/node', '-a'])
+                self.assertEqual(command[:2], ['/usr/bin/xvfb-run', '-a'])
                 self.assertEqual(env['WIRESCAPE_PI_DISPLAY_BACKEND'], 'xvfb')
                 return 0, json.dumps({'stats': {'expected': 1}})
             self.assertNotIn('xvfb-run', command)
             return 0, 'mock build'
         with patch.object(smoke, 'check_environment', return_value=([], 'xvfb')), \
+             patch.object(smoke.shutil, 'which', side_effect=lambda name: '/usr/bin/' + name), \
              patch.object(smoke, 'run_child', side_effect=fake_run):
             code, result = smoke.run(self.report, 900)
         self.assertEqual(code, 0)
