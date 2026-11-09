@@ -186,3 +186,66 @@ test('callback load and real dropouts preserve unavailable states', async ({ pag
   await status({ state: 'running', cpuPercent: null, dropouts: 3 });
   await expect(page.getByTestId('status-cpu')).toHaveText('CPU not available');
 });
+
+test('a patch switch the engine refuses puts the still-playing patch back on screen', async ({ page }) => {
+  const patch = (name: string, module: string) => ({ format: 'wirescape.native.patch', version: 2, name,
+    modules: [{ id: 1, module }, { id: 2, module: 'essentials.output' }],
+    connections: [{ kind: 'signal', from: { module: 1, port: 'audio' }, to: { module: 2, port: 'audio' } }],
+    outputs: [{ module: 2, port: 'audio', bus_channel: 0 }] });
+  await page.evaluate(p => window.__wirescapeTest.load(p, 'Playing'), patch('Playing', 'essentials.vco'));
+  await expect.poll(async () =>
+    (await page.evaluate(() => (window as any).__mockBridge.getGraph())).modules[0]?.module).toBe('essentials.vco');
+  // The sidecar refuses the D5 swap (e.g. audio gap budget) and keeps the previous graph.
+  await page.evaluate(() => (window as any).__mockBridge.refuseNext('loadGraph', 'unavailable'));
+  await page.evaluate(p => window.__wirescapeTest.load(p, 'Refused'), patch('Refused', 'essentials.noise'));
+  await expect(page.getByTestId('patch-name')).toHaveText('Playing');
+  await expect.poll(async () => (await state(page)).modules[0]?.module).toBe('essentials.vco');
+  await expect(page.getByText(/Refused could not start: Scripted unavailable\. Still playing Playing\./)).toBeVisible();
+  await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
+});
+
+for (const code of ['unavailable', 'busy']) {
+  test(`a ${code} patch refusal preserves Undo, Redo and unsaved edits`, async ({ page }) => {
+    const patch = (module: string) => ({ format: 'wirescape.native.patch', version: 2,
+      modules: [{ id: 1, module }, { id: 2, module: 'essentials.output' }],
+      connections: [{ kind: 'signal', from: { module: 1, port: 'audio' }, to: { module: 2, port: 'audio' } }],
+      outputs: [{ module: 2, port: 'audio', bus_channel: 0 }] });
+    await page.evaluate(p => window.__wirescapeTest.load(p, 'Playing'), patch('essentials.vco'));
+    await page.evaluate(() => {
+      const api = window.__wirescapeTest;
+      api.commitParam(1, 'frequency', 220, true); api.flushHistory();
+      api.commitParam(1, 'frequency', 880, true); api.flushHistory();
+      api.undo();
+    });
+    const before = await page.evaluate(() => window.__wirescapeTest.historyDepth());
+    expect(before.past).toBeGreaterThan(0);
+    expect(before.future).toBe(1);
+    await page.evaluate(value => (window as any).__mockBridge.refuseNext('loadGraph', value), code);
+    await page.evaluate(p => window.__wirescapeTest.load(p, 'Refused'), patch('essentials.noise'));
+    await expect(page.getByTestId('patch-name')).toHaveText('Playing');
+    expect(await page.evaluate(() => window.__wirescapeTest.doc.dirty)).toBe(true);
+    expect(await page.evaluate(() => window.__wirescapeTest.historyDepth())).toEqual(before);
+    expect(await page.evaluate(() => window.__wirescapeTest.doc.param(1, 'frequency'))).toBe(220);
+    await page.evaluate(() => window.__wirescapeTest.redo());
+    expect(await page.evaluate(() => window.__wirescapeTest.doc.param(1, 'frequency'))).toBe(880);
+    await page.evaluate(() => window.__wirescapeTest.undo());
+    expect(await page.evaluate(() => window.__wirescapeTest.doc.param(1, 'frequency'))).toBe(220);
+  });
+}
+
+test('a refused patch load commits a pending gesture to the restored history', async ({ page }) => {
+  const patch = { format: 'wirescape.native.patch', version: 2,
+    modules: [{ id: 1, module: 'essentials.vco' }, { id: 2, module: 'essentials.output' }],
+    connections: [{ kind: 'signal', from: { module: 1, port: 'audio' }, to: { module: 2, port: 'audio' } }],
+    outputs: [{ module: 2, port: 'audio', bus_channel: 0 }] };
+  await page.evaluate(p => window.__wirescapeTest.load(p, 'Playing'), patch);
+  await page.evaluate(async p => {
+    window.__wirescapeTest.commitParam(1, 'frequency', 880, true);
+    (window as any).__mockBridge.refuseNext('loadGraph', 'unavailable');
+    await window.__wirescapeTest.load(p, 'Refused');
+  }, { ...patch, modules: [{ id: 1, module: 'essentials.noise' }, patch.modules[1]!] });
+  expect(await page.evaluate(() => window.__wirescapeTest.doc.param(1, 'frequency'))).toBe(880);
+  expect((await page.evaluate(() => window.__wirescapeTest.historyDepth())).past).toBe(1);
+  await page.evaluate(() => window.__wirescapeTest.undo());
+  expect(await page.evaluate(() => window.__wirescapeTest.doc.param(1, 'frequency'))).not.toBe(880);
+});

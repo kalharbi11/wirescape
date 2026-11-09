@@ -246,6 +246,8 @@ function startEngine(): void {
   child.stderr.on('data', (data: Buffer) => console.error('wirescape-engine:', data.toString('utf8').slice(0, 2048)));
   child.on('error', err => console.error('wirescape-engine spawn:', err.message));
   child.once('close', (code, signal) => {
+    // One line per exit so an owner log separates crashes (e.g. 3221225477) from restarts.
+    console.error(`engine-exit code=${code} signal=${signal} expected=${state.expected}`);
     if (active !== state) return;
     active = null;
     engineReady = false;
