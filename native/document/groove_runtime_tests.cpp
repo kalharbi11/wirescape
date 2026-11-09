@@ -320,8 +320,7 @@ static void test_s1_many_cycles(AppEngine *cat) {
     check(app_engine_native(e.get()).output_sample(1, 1, 0, 0) == 0.f,
           "same-frame RESET releases without retrigger");
     advance(e.get(), 2400, 256);
-    check(app_engine_native(e.get()).output_sample(1, 1, 0, 15) == 1.f,
-          "RESET preserves running intent, resumes at step 1");
+    check(last(e.get(), 1) == 1.f, "RESET preserves running intent, resumes at step 1");
 }
 static void test_s1_refusals(AppEngine *cat) {
     const Json good = dual_pattern();
