@@ -53,3 +53,12 @@ Use current heads/latest handoffs; no queued/stale/missing evidence counted pass
   Three/four-note first, fifth optional; existing MIDI→CV already defaults4/supports16.
 - #408 task path explicitly authorized. #310 base304 merged; retarget main without rewrite.
 - Owner new chats/schedules not needed. #82 OSC and Windows packaging/hardware stay later.
+
+## Owner-requested sequencer lane (Codex Lead, 2026-11-08)
+- #429 roadmap / #431 docs PR establishes docs/sequencer/ shared guidance.
+- #430 is the builder start: prove stopped config/loading, then the playable instrument.
+- Curated order: S0 config proof, S1 stopped-edit two-track release, S2 live editing,
+  S3 memories/chains, S4 timing/four tracks/long gates, S5 scenes; generative work is separate.
+- Preserve existing sequencer/Chord ownership and #271 priorities. Proposed contracts need
+  Keel review; no runtime changes or native/Pi acceptance claimed by the documentation PR.
+- Copy-ready prompt: docs/sequencer/AGENT_PROMPT.md on task/429-sequencer-roadmap.
