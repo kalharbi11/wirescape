@@ -315,7 +315,7 @@ int main() {
                                   {"id", "old-graph"},
                                   {"type", "setParam"},
                                   {"moduleId", 2},
-                                  {"paramId", "frequency"},
+                                  {"paramId", "rate"},
                                   {"value", 4}},
                                  {},
                                  {}});
