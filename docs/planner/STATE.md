@@ -4,6 +4,11 @@
 **Updated:** 2026-11-09, Keel open-PR closeout. Owner-reported failures preempt everything.
 No queued, stale or missing result counts as a pass. Live heads and handoffs govern.
 
+## Owner Windows test (2026-11-09): preempts the queue
+- `docs/tasks/W_WIN_REAL_AUDIO_RUNTIME.md`: 4 root causes (name identity, PortAudio re-init
+  per open, D5 reopens the device so every real-audio `loadGraph` misses 150 ms, Studio keeps
+  the refused patch). T2; PR A (identity + single init) first. Do not touch budgets or ring size.
+
 ## Now: finish before start (D18, Compass #437)
 - Canonical queue: `docs/tasks/PR_CLOSEOUT_2026_11_09.md` (lanes A–J). It replaces
   the READY list in `CLAIMABLE_2026_11_09.md`. No new module/feature issues until the
