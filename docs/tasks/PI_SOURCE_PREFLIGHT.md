@@ -48,9 +48,14 @@ Missing Pi prerequisites remain BLOCKED; mock/cloud success cannot cover them.
 
 Signed: Codex Lead (Codex), 2026-11-08 America/New_York.
 
+Lead closeout ruling (#445, 2026-11-09): the640-line allowance covers only
+the observed system-QtCore cache false positive, strict canonical package
+validation, bounded sanitized mismatch diagnostics and regressions. Foreign
+cache, SDK, environment and explicit headless checks remain mandatory.
+
 ```acceptance
 tier: T1
-size: <= 600 changed lines, <= 8 files
+size: <= 640 changed lines, <= 8 files
 must_pass:
   - python tools/foundation/tests/test_pi_preflight.py
   - python -m unittest discover -s tools/foundation/tests -p test_pi_update.py

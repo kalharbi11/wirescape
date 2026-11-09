@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#include "dsp.h"
-#include <cstring>
-#include <tuple>
-#include "../../io/midi/module_test_support.h"
 #include "../../engine2/engine2.h"
-#include "../midi_in/dsp.h"
-#include "../midi_cc_to_cv/dsp.h"
-#include "../vco/dsp.h"
-#include "../vcf/dsp.h"
+#include "../../io/midi/module_test_support.h"
 #include "../adsr/dsp.h"
-#include "../vca/dsp.h"
+#include "../midi_cc_to_cv/dsp.h"
+#include "../midi_in/dsp.h"
 #include "../output/dsp.h"
+#include "../vca/dsp.h"
+#include "../vcf/dsp.h"
+#include "../vco/dsp.h"
+#include "dsp.h"
+#include <chrono>
+#include <cstdio>
+#include <cstring>
+#include <thread>
+#include <tuple>
 using namespace wirescape; using namespace midi;
 static void basic_and_steal() {
     MidiRig<MidiToCv> r; r.values[0] = 3;
@@ -207,16 +210,186 @@ static void full_endpoint_channel_matrix() {
     for (uint32_t voice = 0; voice < 4; ++voice) REQUIRE(r.sample(1, voice) == 0);
 }
 
+static void last_note_mono_hold_and_restore() {
+    MidiRig<MidiToCv> r;
+    REQUIRE(r.d->output_count == 9);
+    const char *ids[] = {"pitch", "gate", "velocity", "aftertouch", "pressure", "bend", "mod", "notes", "last_note"};
+    for (uint32_t i = 0; i < 9; ++i) REQUIRE(std::strcmp(r.d->outputs[i].id, ids[i]) == 0);
+    r.values[0] = 4;
+    r.run();
+    REQUIRE(r.outputs[8].channels == 1 && r.sample(8) == 0);
+    r.run({midi1(0x90, 72, 127, 2), midi1(0x91, 67, 110, 8)});
+    REQUIRE(r.sample(8, 0, 1) == 0);
+    REQUIRE(r.sample(8, 0, 3) == 1.f);
+    REQUIRE(r.sample(8, 0, 9) == float(67 - 60) / 12.f);
+    REQUIRE(r.outputs[0].channels == 4); // mono history independent of poly outputs
+    r.run({midi1(0xe1, 0, 0), midi1(0x81, 67, 0), source_choke(1)});
+    REQUIRE(r.sample(8) == float(67 - 60) / 12.f); // note off, bend and source choke hold
+    r.values[8] = 1;                               // channel 1 only
+    r.run({midi1(0x91, 90, 127)});                 // channel 2 is rejected
+    REQUIRE(r.sample(8) == float(67 - 60) / 12.f);
+    r.run({midi1(0x90, 48, 127)});
+    REQUIRE(r.sample(8) == -1.f);
+    r.run({midi1(0x90, 48, 0), source_choke(UINT32_MAX)});
+    REQUIRE(r.sample(8) == -1.f);
+    Bytes bytes;
+    ws2_writer writer{sizeof(writer), &bytes, sink};
+    REQUIRE(r.d->save_state(r.instance, &writer) == WS2_OK);
+    Source ctx{&bytes, 0};
+    ws2_reader reader{sizeof(reader), &ctx, source, uint32_t(bytes.size())};
+    REQUIRE(r.d->load_state(r.instance, &reader) == WS2_OK);
+    r.run();
+    REQUIRE(r.sample(8) == 0); // restart/restore never persists transient last note
+}
+static void last_note_acceptance_modes_and_limits() {
+    for (uint32_t mode = 0; mode < 4; ++mode)
+        for (uint32_t priority = 0; priority < 3; ++priority) {
+            MidiRig<MidiToCv> r;
+            r.values[1] = float(mode);
+            r.values[3] = float(priority);
+            r.run({midi1(0x90, 60, 127, 1), midi2(0x90, 72, 0xffff0000u, 3), midi1(0x90, 48, 127, 5)});
+            REQUIRE(r.sample(8, 0, 2) == 0 && r.sample(8, 0, 4) == 1 && r.sample(8, 0, 6) == -1);
+            if (mode == 3) REQUIRE(r.sample(0) == (priority == 2 ? 1.f : -1.f));
+            r.values[8] = 1;
+            r.run({midi1(0x91, 96, 127), midi1(0x90, 96, 0)});
+            REQUIRE(r.sample(8) == -1); // filtered channel and MIDI1 velocity-zero off are not accepted attacks
+            r.run({midi2(0x90, 84, 0)});
+            REQUIRE(r.sample(8) == 2); // MIDI2 zero velocity remains a valid NoteOn
+            r.run({source_choke()});
+            REQUIRE(r.sample(8) == 2);
+        }
+    // An accepted held note need not sound, and output-queue refusal is not input refusal.
+    MidiRig<MidiToCv> blocked;
+    blocked.values[1] = 3;
+    blocked.values[3] = 1;
+    blocked.event_limit = 0;
+    blocked.run({midi1(0x90, 60, 127), midi1(0x90, 72, 127, 1)});
+    REQUIRE(blocked.emitted.empty() && blocked.sample(0) == 0 && blocked.sample(8) == 1);
+    blocked.event_limit = 20000;
+    blocked.run({source_choke()});
+    // Mono retains all128 held notes. A rejected duplicate of the sounding key must not replace last_note.
+    MidiRig<MidiToCv> mono;
+    mono.values[1] = 3;
+    mono.values[3] = 1;
+    for (uint32_t i = 0; i < 127; ++i) mono.run({midi1(0x90, 60, 127)});
+    mono.run({midi1(0x90, 72, 127)});
+    REQUIRE(mono.sample(0) == 0 && mono.sample(8) == 1);
+    mono.run({midi1(0x90, 60, 127)});
+    REQUIRE(mono.sample(8) == 1);
+    mono.run({midi1(0x80, 60, 0), midi1(0x90, 84, 127, 1)});
+    REQUIRE(mono.sample(8) == 2);
+    mono.run({source_choke()});
+    // Rotate also bounds anonymous activations even though stolen voices leave only4 held records.
+    MidiRig<MidiToCv> rotate;
+    for (uint32_t i = 0; i < 124; ++i) rotate.run({midi1(0x90, 20, 127)});
+    for (uint8_t key : {60, 64, 67, 72}) rotate.run({midi1(0x90, key, 127)});
+    REQUIRE(rotate.sample(8) == 1);
+    rotate.run({midi1(0x90, 60, 127)});
+    REQUIRE(rotate.sample(8) == 1); // matching an active voice does not make a rejected attack accepted
+    rotate.run({midi1(0x80, 20, 0), midi1(0x90, 84, 127, 1)});
+    REQUIRE(rotate.sample(8) == 2);
+    rotate.run({source_choke()});
+}
 static void metadata_contract() {
     REQUIRE(MidiToCv::params.size() == 9);
     for (const auto& parameter : MidiToCv::params) REQUIRE(std::strcmp(parameter.id, "retrigger") != 0);
     REQUIRE(MidiToCv::params[5].legacy_index == 6);
     REQUIRE(MidiToCv::params[8].legacy_index == 9);
 }
-int main() {
+// This is a synthetic-MIDI fixture, not the oscillator-only poly8 soak. It
+// exercises normal MIDI/event and CC/signal cables through the real wrappers.
+static void coordinator_poly_soak(uint32_t seconds, bool paced) {
+    using namespace engine2;
+    constexpr uint32_t block = 128, rate = 48000, voices = 8;
+    Config config;
+    config.max_block = block;
+    config.sample_rate = rate;
+    Engine e(config);
+    const auto producer = uint32_t(e.register_producer());
+    REQUIRE(e.add_node(1, ws::Module<MidiIn>::descriptor()));
+    REQUIRE(e.add_node(2, ws::Module<MidiToCv>::descriptor()));
+    REQUIRE(e.add_node(3, ws::Module<ws2ports::Vco>::descriptor()));
+    REQUIRE(e.add_node(4, ws::Module<ws2ports::Adsr>::descriptor()));
+    REQUIRE(e.add_node(5, ws::Module<ws2ports::Vca>::descriptor()));
+    REQUIRE(e.add_node(6, ws::Module<ws2ports::Output>::descriptor()));
+    CcConfiguration cc;
+    cc.rows[0].smoothing_ms = 0;
+    std::vector<uint8_t> cc_bytes(sizeof(cc));
+    std::memcpy(cc_bytes.data(), &cc, sizeof(cc));
+    REQUIRE(e.add_node(7, ws::Module<CcToCv>::descriptor(), cc_bytes));
+    REQUIRE(e.add_node(8, ws::Module<ws2ports::Vca>::descriptor()));
+    const uint32_t edges[][4] = {{1, 0, 2, 0}, {1, 0, 7, 0}, {2, 0, 3, 0}, {2, 1, 4, 0}, {3, 0, 5, 0},
+                                 {4, 0, 5, 1}, {5, 0, 8, 0}, {7, 0, 8, 1}, {8, 0, 6, 0}};
+    for (const auto &edge : edges) REQUIRE(e.connect(edge[0], edge[1], edge[2], edge[3]));
+    REQUIRE(e.output(6, 0, 0) && e.set_parameter(2, 0, voices) && e.prepare());
+    float data[block]{};
+    float *output[]{data};
+    uint64_t attacks = 0, releases = 0, chords = 0, allocations = 0;
+    double peak = 0;
+    uint8_t cc_value = 0;
+    const uint32_t blocks = seconds * rate / block;
+    const auto start = std::chrono::steady_clock::now();
+    auto send = [&](const ws2_event &event) {
+        REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, event, e.meter().frame) == WS2_OK);
+    };
+    for (uint32_t b = 0; b < blocks; ++b) {
+        const auto phase = b % 64;
+        {
+            allocation_watch::Scope watch;
+            if (phase == 0) {
+                ++chords;
+                cc_value = uint8_t(chords % 2 ? 127 : 32);
+                for (uint32_t c = 0; c < voices; ++c) send(midi1(0x90, uint8_t(48 + c), 100, 0, c % 2 + 1));
+                send(midi1(0xb0, 1, cc_value));
+            } else if (phase == 32) send(source_choke(1));
+            else if (phase == 48)
+                for (uint32_t c = 1; c < voices; c += 2) send(midi1(0x80, uint8_t(48 + c), 0, 0, 2));
+            // The final block must leave no held note, including a partial cycle.
+            if (b + 1 == blocks) send(source_choke(UINT32_MAX));
+            REQUIRE(e.render(output, 1, block) == WS2_OK);
+            allocations += watch.allocations();
+        }
+        REQUIRE(e.output_channels(2, 0) == voices && e.output_channels(5, 0) == voices);
+        uint32_t held = 0;
+        for (uint32_t c = 0; c < voices; ++c) held += e.output_sample(2, 1, c, block - 1) == 1;
+        REQUIRE(held == (b + 1 == blocks ? 0u : phase < 32 ? 8u : phase < 48 ? 4u : 0u));
+        REQUIRE(e.output_sample(7, 0, 0, block - 1) == float(cc_value) / 127.f);
+        for (float sample : data) {
+            REQUIRE(std::isfinite(sample));
+            peak = std::max(peak, double(std::abs(sample)));
+        }
+        Outgoing item;
+        while (e.pop_egress(item))
+            if (item.node == 2 && item.port == 7) {
+                attacks += item.event.type == WS2_NOTE_ON;
+                releases += item.event.type == WS2_NOTE_OFF || item.event.type == WS2_NOTE_CHOKE;
+            }
+        if (paced)
+            std::this_thread::sleep_until(start +
+                                          std::chrono::nanoseconds(uint64_t(b + 1) * block * 1000000000ULL / rate));
+    }
+    const auto meter = e.meter();
+    REQUIRE(attacks == chords * voices && releases == attacks && peak > 0);
+    REQUIRE(allocations == 0 && meter.faults == 0 && meter.dropped == 0 && meter.ring_full == 0);
+    REQUIRE(meter.frame == uint64_t(blocks) * block);
+    std::printf(
+        "synthetic-midi-poly: seconds=%u frames=%llu notes=%llu releases=%llu allocations=%llu faults=%llu peak=%g\n",
+        seconds, static_cast<unsigned long long>(meter.frame), static_cast<unsigned long long>(attacks),
+        static_cast<unsigned long long>(releases), static_cast<unsigned long long>(allocations),
+        static_cast<unsigned long long>(meter.faults), peak);
+}
+int main(int argc, char **argv) {
+    if (argc == 2 && std::strcmp(argv[1], "--soak") == 0) {
+        coordinator_poly_soak(60, true);
+        return 0;
+    }
+    REQUIRE(argc == 1);
+    coordinator_poly_soak(1, false);
     full_endpoint_channel_matrix();
     metadata_contract();
     basic_and_steal();
+    last_note_mono_hold_and_restore();
+    last_note_acceptance_modes_and_limits();
     sustain_bend_expression();
     modes_state_and_bounds();
     graph_fixtures();

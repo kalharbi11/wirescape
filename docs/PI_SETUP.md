@@ -53,43 +53,37 @@ Troubleshooting:
 - **Patch refused:** only native v1/v2 patches load. Unknown modules/state/config are reported; originals are never rewritten by `play`.
 
 
-## Wirescape standalone app on the Pi (Phase 1, owner only)
+## Standalone Electron app: source preparation (not installation)
 
-The standalone application is **Electron + Studio + wirescape-engine**; the
-earlier class-demo kiosk below is a separate, deferred Phase 0 workflow.
-Use Raspberry Pi OS 64-bit with a graphical desktop session. Install a current
-Node.js LTS and npm, C++ build tools, CMake, Ninja, Python 3, and the shared
-PortAudio runtime (`libportaudio2`). The first native configure may fetch pinned
-sources, and `npm ci` needs registry access. No device is opened by a build.
+Electron + Studio + `wirescape-engine` source build is **not** an installer. Installation follows the owner's Windows test; agents/Pi CI never install, alter sessions, SSH or open devices.
 
-From a **clean** checkout, use an approved immutable SHA or `origin/main`:
+### 1. Check (offline, read-only)
+
+`python3 tools/pi/preflight.py --check-only` verifies ARM64, tools, lockfiles, PortAudio/Electron libraries, disk, Git, Qt overrides and CMake caches. Node LTS **22/24/26** is required; the Pi runner's Node 20.19.2 needs **owner-managed Node 22** (nvm/NodeSource) to match CI. Qt is unnecessary. No network, fetch, build, report or cache deletion; resolve failures manually.
+
+### 2. Build approved source SHA
 
 ```sh
 sh tools/pi/update-and-build.sh <accepted-commit-sha>
-sh tools/pi/install-desktop-entry.sh
+sh tools/pi/update-and-build.sh <accepted-commit-sha> --jobs 4  # optional 1–4
 ```
 
-The update script fetches, detaches at the resolved commit, builds the Release
-engine (`build/native/wirescape-engine`), installs the pinned Studio and
-desktop npm dependencies and builds both. It stops on error and prints the
-owner's launch command. Subsequent builds reuse the native build directory.
-`install-desktop-entry.sh` is part of P1F (#253); it creates a **per-user**
-desktop entry and launcher, never a service or system-wide install. The
-launcher passes `--confirm-audio --confirm-midi` only when the owner starts
-the app. For device-free troubleshooting, launch from a terminal with
-`--null-audio` and **without** either `--confirm-*` flag.
+Preserves positional refs, clean-tree checks, before/after checkout preflight and exact detached SHA; uses `tools/dev.py` headless (default **2** jobs) and locked Studio/Desktop `npm ci`. Build/npm may fetch; check-only cannot. Ignored `build_reports/pi-source-build/<sha>/` contains sanitized logs, stage results and SHA/tool provenance. Fail fast; inspect logs and retry SHA.
 
-The engine's persisted device choices belong in `user_data/settings.json`
-(or the explicit `--settings` file), **not** in the patch document. App
-diagnostics reach the launching terminal or desktop session's journal; this
-update script does not create an application log. `~/.cache/wirescape/demo.log`
-belongs to the older `demo.sh` kiosk, not the Electron app. Saved patches
-remain wherever the native file dialog saved them.
+### 3. Test (devices off)
 
-When the desktop entry or engine is missing, confirm that #247 (sidecar) and
-#253 (desktop shell/launcher) are merged into the selected SHA and that
-`apps/studio/dist/index.html` and `apps/desktop/build/main.js` exist.
-Only the owner performs the physical audio/MIDI checks in `DEMO_CLASS.md` §6.
+```sh
+python3 tools/foundation/tests/test_pi_preflight.py
+python3 -m unittest discover -s tools/foundation/tests -p test_pi_update.py
+python3 -m unittest discover -s tools/foundation/tests -p test_build_parallel.py
+python3 tools/dev.py test
+```
+
+Only actual exact-head private `pi5/accept` proves `pi-run:`; missing prerequisites are BLOCKED, not passes; cloud mocks are not Pi evidence.
+
+### 4. Owner-only installation/launch (deferred)
+
+After Windows approval, only the owner invokes `tools/pi/install-desktop-entry.sh` and launches with `--confirm-audio --confirm-midi`. Device-free smoke uses temporary `--settings` and `--null-audio` (#446); normal choices remain in `user_data/settings.json`. Neither check nor build installs/opens devices.
 
 ## Class demo (owner only)
 
