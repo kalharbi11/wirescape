@@ -20,16 +20,16 @@ SHA = "1234567890abcdef1234567890abcdef12345678"
 
 class PiPreflightTests(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(prefix="pi preflight path with spaces ")
-        self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        temp = tempfile.TemporaryDirectory(prefix="pi preflight path with spaces ")
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
         for app in ("studio", "desktop"):
             folder = self.root / "apps" / app
             folder.mkdir(parents=True)
             (folder / "package-lock.json").write_text("{}")
         self.tool_info = {name: {"available": True, "version": "v24.10.0" if name == "node" else "1.0"}
                           for name in ("git", "c++", "cmake", "ninja", "node", "npm", "python")}
-        self.patches = [
+        mocks = [
             patch.object(preflight, "versions", return_value=self.tool_info),
             patch.object(preflight, "discover_toolchain", return_value={"generator": "Ninja"}),
             patch.object(preflight.platform, "system", return_value="Linux"),
@@ -38,11 +38,11 @@ class PiPreflightTests(unittest.TestCase):
             patch.object(preflight.shutil, "disk_usage", return_value=shutil._ntuple_diskusage(10**10, 10**9, 9*10**9)),
             patch.object(preflight.os, "access", return_value=True),
             patch.object(preflight, "git", side_effect=lambda root, *args: (0, SHA) if args[0] == "rev-parse" else (0, "")),
-            patch.dict(os.environ, {key: "" for key in ("CMAKE_PREFIX_PATH", "Qt6_DIR", "QT_PLUGIN_PATH", "QML2_IMPORT_PATH", "WIRESCAPE_QT_DIR")}),
+            patch.dict(os.environ, {k: "" for k in ("CMAKE_PREFIX_PATH", "Qt6_DIR", "QT_PLUGIN_PATH", "QML2_IMPORT_PATH", "WIRESCAPE_QT_DIR")}),
         ]
-        for p in self.patches:
-            p.start()
-            self.addCleanup(p.stop)
+        for mock in mocks:
+            mock.start()
+            self.addCleanup(mock.stop)
 
     def failures(self):
         return {name for name, ok, _ in preflight.inspect(self.root)[0] if not ok}
@@ -79,13 +79,9 @@ class PiPreflightTests(unittest.TestCase):
     def own_cache(self):
         (self.root / "build/native").mkdir(parents=True, exist_ok=True)
         cache = self.root / "build/native/CMakeCache.txt"
-        cache.write_text(
-            "CMAKE_HOME_DIRECTORY:INTERNAL=" + str((self.root / "native").resolve()) + "\n"
-            "CMAKE_SYSTEM_PROCESSOR:STRING=aarch64\n"
-            "CMAKE_GENERATOR:INTERNAL=Ninja\n"
-            "WIRESCAPE_BUILD_UI:BOOL=OFF\n"
-            "Qt6_DIR:PATH=Qt6_DIR-NOTFOUND\n"
-        )
+        cache.write_text("CMAKE_HOME_DIRECTORY:INTERNAL=" + str((self.root / "native").resolve()) +
+                         "\nCMAKE_SYSTEM_PROCESSOR:STRING=aarch64\nCMAKE_GENERATOR:INTERNAL=Ninja"
+                         "\nWIRESCAPE_BUILD_UI:BOOL=OFF\nQt6_DIR:PATH=Qt6_DIR-NOTFOUND\n")
         return cache
 
     def test_own_headless_ninja_cache_passes_and_notfound_is_not_qt(self):
@@ -97,42 +93,37 @@ class PiPreflightTests(unittest.TestCase):
     def test_wrong_generator_or_ui_enabled_cache_is_rejected(self):
         cache = self.own_cache()
         original = cache.read_text()
-        for changed in (
-            original.replace("CMAKE_GENERATOR:INTERNAL=Ninja", "CMAKE_GENERATOR:INTERNAL=Unix Makefiles"),
-            original.replace("WIRESCAPE_BUILD_UI:BOOL=OFF", "WIRESCAPE_BUILD_UI:BOOL=ON"),
-            original.replace("Qt6_DIR:PATH=Qt6_DIR-NOTFOUND", "Qt6_DIR:PATH=/old/qt"),
-            original.replace("CMAKE_SYSTEM_PROCESSOR:STRING=aarch64", "CMAKE_SYSTEM_PROCESSOR:STRING=x86_64"),
-            original.replace(str((self.root / "native").resolve()), "/other/checkout/native"),
-        ):
-            with self.subTest(cache=changed.splitlines()[-2:]):
+        cases = (
+            ("Ninja", "Unix Makefiles"), ("WIRESCAPE_BUILD_UI:BOOL=OFF", "WIRESCAPE_BUILD_UI:BOOL=ON"),
+            ("Qt6_DIR-NOTFOUND", "/old/qt"), ("aarch64", "x86_64"),
+            (str((self.root / "native").resolve()), "/other/checkout/native"),
+        )
+        for old, new in cases:
+            with self.subTest(old=old, new=new):
+                changed = original.replace(old, new)
                 cache.write_text(changed)
                 self.assertIn("cache:build/native/CMakeCache.txt", self.failures())
                 self.assertEqual(cache.read_text(), changed)
 
     def test_first_check_only_process_creates_no_bytecode_or_reports(self):
-        # Snapshot before importing the entrypoint in a fresh interpreter.
-        # An in-process snapshot cannot detect helpers.__pycache__ from import.
-        source = ROOT / "tools"
-        pi = self.root / "tools/pi"
-        foundation = self.root / "tools/foundation"
-        pi.mkdir(parents=True)
-        foundation.mkdir(parents=True)
-        shutil.copy2(source / "pi/preflight.py", pi / "preflight.py")
-        shutil.copy2(source / "foundation/helpers.py", foundation / "helpers.py")
-        before = {str(p.relative_to(self.root)): p.read_bytes()
-                  for p in self.root.rglob("*") if p.is_file()}
-        env = os.environ.copy()
-        env.pop("PYTHONDONTWRITEBYTECODE", None)
-        env.pop("PYTHONPYCACHEPREFIX", None)
+        # Snapshot before any fresh-process helper import, including blocked exits.
+        source, tools = ROOT / "tools", self.root / "tools"
+        for folder, filename in (("pi", "preflight.py"), ("foundation", "helpers.py")):
+            dest = tools / folder
+            dest.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source / folder / filename, dest / filename)
+        snapshot = lambda: {str(p.relative_to(self.root)): p.read_bytes()
+                            for p in self.root.rglob("*") if p.is_file()}
+        before = snapshot()
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("PYTHONDONTWRITEBYTECODE", "PYTHONPYCACHEPREFIX")}
         result = subprocess.run(
-            [sys.executable, str(pi / "preflight.py"), "--check-only", "--root", str(self.root)],
+            [sys.executable, str(tools / "pi/preflight.py"), "--check-only", "--root", str(self.root)],
             cwd=self.root, env=env, text=True, capture_output=True, timeout=30, check=False)
-        self.assertNotEqual(result.returncode, 0)  # non-Pi fixture is blocked, not passed
+        self.assertNotEqual(result.returncode, 0)  # x86 fixture is blocked
         self.assertIn("Preflight:", result.stdout)
-        after = {str(p.relative_to(self.root)): p.read_bytes()
-                 for p in self.root.rglob("*") if p.is_file()}
-        self.assertEqual(after, before)
-        self.assertFalse((foundation / "__pycache__").exists())
+        self.assertEqual(snapshot(), before)
+        self.assertFalse((tools / "foundation/__pycache__").exists())
         self.assertFalse((self.root / "build_reports").exists())
 
     def test_inherited_qt_state_is_rejected_without_modifying_env(self):
