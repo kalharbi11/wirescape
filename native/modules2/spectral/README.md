@@ -43,6 +43,21 @@ Joins two sources, **A** and **B**, in the frequency domain. One streaming STFT 
 
 Controls other than `level` are read once per hop (every N/4 samples); the overlap-add smooths the steps. The interleave schedule runs on the frame clock in every mode, so a CV switch into Interleave lands mid-cycle rather than restarting it.
 
+## Patch-guide limitations
+Modes 6 (Interleave) and 7 (Vocoder), and parameter slots 9–15, are implemented
+on draft PR #310 but are **not available on `main` until that PR merges**. A
+patch that uses either mode requires a build containing PR B; do not present
+such patches as compatible with older builds supporting only modes 0–5.
+Existing modes 0–5 and v1 state remain compatible with the new implementation.
+
+Interleave switches whole STFT frames on the N/4 hop clock, not at arbitrary
+sample positions. Phase-vocoder phase continuity may smear sharp attacks;
+Source phase switches more directly. State v2 restores the chunk schedule, not
+input rings or overlap-add audio history, so an in-progress sound must be
+reanalyzed after loading. Target-device CPU and subjective audio suitability
+still require the three task-specific Pi probes and owner listening; hosted
+CI alone is not that evidence.
+
 ## Latency
 `latency_frames()` returns the current FFT size N (for example 2048 frames = 42.7 ms at 48 kHz). The engine reads it when it builds the plan, before any parameter arrives, so it shows the default size's latency until the next replan after a `size` change (Keel, #302). Changing `size` lets the old frames fade out (0.75 N), then the new size fades in.
 
