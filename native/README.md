@@ -1,24 +1,27 @@
 # Wirescape native foundation
 
-Experimental native engine and Qt Quick app alongside the preserved legacy build.
+The native engine builds without Qt by default. The retained Qt app is opt-in until cleanup R3.
 
 Start from the repository root:
 
 ```powershell
 python tools/dev.py build
 python tools/dev.py test
+
+# Retained Qt app and coverage, explicitly requested:
+python tools/dev.py build --with-qt
 python tools/dev.py ui-test
 python tools/dev.py launch
 ```
 
-Qt is optional for headless builds: `python tools/dev.py build --headless`.
+`python tools/dev.py build --headless` is a compatible spelling of the Qt-free default.
 Use a C++17 compiler, CMake 3.20+, and Qt 6.5+ Core/Gui/Qml/Quick/QuickControls2 plus Test for the app and its checks. The current local SDK is Qt 6.10.3 for MSVC x64. Linux/ARM portability is a target, not yet a verified result.
 
 Each Essentials directory has its own source, manifest, and CMake entry. Shared libraries export `ws_module_entry`, defined by `include/wirescape/module.h`. Host construction/preparation allocates buffers; processing uses the prepared mono graph and bounded timestamp queue. The ABI remains experimental.
 
 The app opens with a sine VCO → VCA → Output patch, with ADSR controlling VCA gain. Audio stays off until explicitly started. The native PortAudio adapter loads a backend library beside the executable or from `WIRESCAPE_PORTAUDIO`; no Python callback is involved. An installed backend does not establish live-audio validation.
 
-See `docs/STATUS.md` for exact verified results, limitations, and the next bounded task. See `docs/history/FOUNDATION_WORKFLOW.md` for build/report commands. The project retains its root GPL license; vendored PortAudio header licensing is in `ui/third_party/PORTAUDIO_LICENSE.txt`.
+See `docs/STATUS.md` for exact verified results, limitations, and the next bounded task. See `docs/history/FOUNDATION_WORKFLOW.md` for build/report commands. The project retains its root GPL license; vendored PortAudio header licensing is in `third_party/portaudio/PORTAUDIO_LICENSE.txt`.
 
 
 ## Current control contract
