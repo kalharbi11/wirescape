@@ -154,7 +154,7 @@ struct Sequencer {
             auto &p = players[t];
             if (p.stop) {
                 release(b, t, i);
-                p.playing = p.stop = p.enter = false;
+                p.playing = p.armed = p.stop = p.enter = false;
             } else if (p.enter) {
                 p.playing = true;
                 p.enter = false;
