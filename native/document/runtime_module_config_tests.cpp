@@ -36,10 +36,10 @@ int main() try {
  CHECK(runtime_module_config("midi.in",nlohmann::json::parse(R"({"endpoint":"Controller","system_name":"system"})")).empty());
  bool malformed=false;try{encode("{");}catch(const nlohmann::json::parse_error&){malformed=true;}CHECK(malformed);
  auto groove = [](const char *s) { return runtime_module_config("sequencing.groove", nlohmann::json::parse(s)); };
- const auto old = groove(
+ const auto groove_old = groove(
      R"({"version":1,"bpm":120,"tracks":[{"steps":[{"kind":"note","key":60,"velocity":0.5},{"kind":"tie"},{"kind":"rest"}]}]})");
  groove::Config g;
- CHECK(groove::decode(old.data(), static_cast<uint32_t>(old.size()), g));
+ CHECK(groove::decode(groove_old.data(), static_cast<uint32_t>(groove_old.size()), g));
  CHECK(g.track_count == 1 && g.tracks[0].steps[0].kind == groove::Note && g.tracks[0].steps[1].kind == groove::Tie &&
        g.tracks[0].steps[3].kind == groove::Rest);
  CHECK(g.tracks[0].steps[0].mod1 == 0 && g.tracks[0].steps[0].mod2 == 0);
