@@ -7,11 +7,36 @@ $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $paSha = '147dd722548358763a8b649b3e4b41dfffbcfbb6'
 
+# BEGIN OUTPUT GUARD (also executed directly by the filesystem regressions)
+function Assert-GeneratedOutputs {
+    $base = [IO.Path]::GetFullPath($root).TrimEnd('\','/')
+    foreach ($relative in @('.tools', '.tools/windows-setup',
+        '.tools/windows-setup/npm-cache', '.tools/windows-setup/electron-cache',
+        '.tools/windows-setup/portaudio-src', '.tools/windows-setup/portaudio-build',
+        'build_reports', 'build_reports/windows-setup', 'build_reports/windows-setup/electron-smoke',
+        'build', 'build/native',
+        'apps/studio/node_modules', 'apps/studio/dist',
+        'apps/desktop/node_modules', 'apps/desktop/build')) {
+        $current = [IO.Path]::GetFullPath((Join-Path $base $relative))
+        while ($true) {
+            if ((Test-Path -LiteralPath $current) -and
+                ((Get-Item -LiteralPath $current -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+                throw "Refusing redirected output path: $current"
+            }
+            if ($current -eq $base) { break }
+            $current = Split-Path -Parent $current
+            if (-not $current) { throw 'Output path escaped the repository root.' }
+        }
+    }
+}
+# END OUTPUT GUARD
+
 function Run([string]$exe, [string[]]$parameters) {
     & $exe @parameters
     if ($LASTEXITCODE -ne 0) { throw "$exe failed (exit $LASTEXITCODE). Do not reuse old build outputs." }
 }
 function Preflight {
+    Assert-GeneratedOutputs
     if (-not [Environment]::Is64BitProcess -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64') {
         throw 'Use Windows x64 Developer PowerShell for VS 2022.'
     }
@@ -108,6 +133,7 @@ try {
     Run cmake @('-S',$paSrc,'-B',$paBuild,'-G','Visual Studio 17 2022','-A','x64',
         '-DCMAKE_POLICY_VERSION_MINIMUM=3.5','-DPA_BUILD_SHARED=ON','-DPA_BUILD_STATIC=OFF',
         '-DPA_BUILD_TESTS=OFF','-DPA_BUILD_EXAMPLES=OFF','-DPA_USE_ASIO=OFF')
+    Assert-GeneratedOutputs
     Run cmake @('--build',$paBuild,'--config','Release','--parallel','2')
     $dll = Join-Path $paBuild 'Release\portaudio_x64.dll'
     if (-not (Test-Path -LiteralPath $dll)) { throw 'Pinned PortAudio DLL missing.' }
@@ -122,6 +148,7 @@ try {
             throw 'PortAudio DLL is not x64.'
         }
     } finally { $reader.Dispose() }
+    Assert-GeneratedOutputs
     Run cmake @('-S',(Join-Path $root 'native'),'-B',(Join-Path $root 'build\native'),
         '-G','Visual Studio 17 2022','-A','x64','-DWIRESCAPE_BUILD_UI=OFF')
     Run cmake @('--build',(Join-Path $root 'build\native'),'--config','Release','--parallel','2')
@@ -134,12 +161,17 @@ try {
         throw 'Staged PortAudio hash mismatch.'
     }
     @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","status=native-built") | Set-Content -LiteralPath $summary
-    $output = & ctest --test-dir (Join-Path $root 'build\native') -C Release --output-on-failure --no-tests=error -R '^(abi2_sidecar_unit_tests|abi2_sidecar_protocol_tests|sidecar_golden)$' 2>&1
+    $output = & ctest --test-dir (Join-Path $root 'build\native') -C Release --output-on-failure --no-tests=error -R '^(abi2_sidecar_unit_tests|abi2_sidecar_protocol_tests|sidecar_golden|abi2_sidecar_audio_recovery_tests)$' 2>&1
     $exit = $LASTEXITCODE
     $output | Out-File -LiteralPath (Join-Path $logs 'protocol-tests.log') -Encoding utf8
     if ($exit -ne 0 -or (($output -join [Environment]::NewLine) -match '(?im)\b(Skipped|Not Run)\b')) {
         throw 'Native protocol tests failed or skipped. Inspect protocol-tests.log.'
     }
+    # Loading the library and resolving exports does not initialize PortAudio or devices.
+    Run py @('-3.12','-c',
+        "import ctypes,sys; lib=ctypes.WinDLL(sys.argv[1]); [getattr(lib,n) for n in ('Pa_Initialize','Pa_Terminate','Pa_GetDeviceCount','Pa_GetHostApiInfo','Pa_OpenStream','Pa_StartStream','Pa_StopStream','Pa_CloseStream')]",
+        $runtime)
+    Assert-GeneratedOutputs
     Run npm @('--prefix',(Join-Path $root 'apps\studio'),'ci')
     Run npm @('--prefix',(Join-Path $root 'apps\studio'),'run','build')
     Run npm @('--prefix',(Join-Path $root 'apps\desktop'),'ci')
@@ -153,41 +185,13 @@ try {
         Write-Host 'Native/Studio/Desktop PASS; Electron live window/round-trip NOT run.'
         return
     }
-    # Explicit Electron app-path isolation BEFORE importing the desktop main.
-    $profile = Join-Path $tools ('session-' + [Guid]::NewGuid().ToString('N'))
-    $env:WIRESCAPE_SETUP_PROFILE = $profile
-    $wrapper = Join-Path $tools 'isolated-electron.cjs'
-    @'
-const { app } = require('electron');
-const fs = require('node:fs');
-const path = require('node:path');
-const base = process.env.WIRESCAPE_SETUP_PROFILE;
-if (!base || !path.isAbsolute(base)) throw new Error('Fresh profile required');
-for (const [key, suffix] of [['userData','user'],['sessionData','session']]) {
-  const dir = path.join(base, suffix);
-  fs.mkdirSync(dir, {recursive:true});
-  app.setPath(key, dir);
-}
-require(path.join(process.cwd(), 'apps', 'desktop', 'build', 'main.js'));
-'@ | Set-Content -LiteralPath $wrapper -Encoding utf8
-    $electron = Join-Path $root 'apps\desktop\node_modules\electron\dist\electron.exe'
-    if (-not (Test-Path -LiteralPath $electron)) { throw 'Electron.exe missing.' }
-    $settings = Join-Path $profile 'native-settings.json'
-    $stderr = Join-Path $logs 'electron-stderr.log'
-    $stdout = Join-Path $logs 'electron-stdout.log'
-    $argsString = ('"{0}" --engine "{1}" --null-audio --settings "{2}"' -f $wrapper,$engine,$settings)
-    $child = Start-Process -FilePath $electron -WorkingDirectory $root -ArgumentList $argsString -PassThru -RedirectStandardError $stderr -RedirectStandardOutput $stdout
-    try { [void]$child.WaitForExit(30000) }
-    finally {
-        if (-not $child.HasExited) { & taskkill.exe /PID $child.Id /T /F | Out-Null }
-        [void]$child.WaitForExit(5000)
-    }
-    if (-not (Test-Path -LiteralPath $stderr) -or
-        -not (Select-String -LiteralPath $stderr -SimpleMatch 'boot-to-first-hello-ms=' -Quiet)) {
-        throw 'Electron sidecar hello not observed; inspect electron-stderr.log.'
-    }
-    Write-Host 'Real hello observed device-off; UI/window/command round trip still require separate acceptance.'
-    @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","status=hello-only-ui-not-verified") | Set-Content -LiteralPath $summary
+    # Real production Electron/preload/sidecar, isolated profiles, no devices.
+    $env:WIRESCAPE_SETUP_ROOT = $root
+    $env:WIRESCAPE_REAL_ENGINE = $engine
+    Run node @((Join-Path $root 'apps\studio\node_modules\playwright\cli.js'),
+        'test','--config',(Join-Path $root 'apps\desktop\playwright.config.cjs'),
+        'windows-setup.spec.cjs','--output',(Join-Path $logs 'electron-smoke'))
+    @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","status=windows-device-off-smoke-passed") | Set-Content -LiteralPath $summary
 } catch {
     Write-Error "W1 failed: $($_.Exception.Message). Local diagnostic directory: $logs."
     throw

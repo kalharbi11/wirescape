@@ -5,7 +5,9 @@ Claim: board #473 row 4. Keel's 2026-11-09 ruling on #436 supersedes the
 older install scope. This is a source build, **not** a downloadable installer.
 Keel's accepted #463 runtime merge SHA must be identified. The owner-run
 checkout also needs this setup script, so a combined SHA containing both is
-a review gate; do not guess or mislabel the runtime-only SHA.
+a review gate; do not guess or mislabel the runtime-only SHA. CI may execute
+its immutable candidate HEAD with -Ref for device-off validation; that is not
+an owner-accepted installation SHA.
 
 ## Read first
 - AGENTS.md, docs/WORKFLOW.md, #436 latest Keel ruling and handoffs.
@@ -43,10 +45,11 @@ Signed: ChatGPT (GPT-6 Windows W1 source-setup builder), 2026-11-09
 
 ```acceptance
 tier: T1
-size: <= 650 changed lines, <= 4 files
+size: <= 800 changed lines, <= 6 files
 must_pass:
   - python -m unittest discover -s tools/foundation/tests -p test_windows_setup.py
   - ci: guard, linux-arm64, windows-x64 and sanitizers green on final head
-  - ci: Windows PowerShell syntax, setup.ps1 -CheckOnly and native protocol tests execute without SKIP
+  - ci: Windows PowerShell syntax, read-only CheckOnly and native protocol tests execute without SKIP
+  - ci: Windows W1 real Electron UI-ready, correlated native command/patch roundtrip and graceful shutdown execute unskipped
 stops: [new dependency, protected CI edit, silent install, device use, false-positive smoke, test relaxation]
 ```

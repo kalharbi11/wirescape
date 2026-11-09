@@ -6,7 +6,8 @@ Follow #436 and #463. Only after #463 merges and the exact source revision passe
 native/Windows, Studio, Electron and required CI can an exact accepted SHA
 be entered below. The **#463 runtime merge commit alone predates this W1
 script**: a runnable owner checkout must include both #463 and this W1 PR.
-Ask Keel to confirm the combined source SHA before owner use. None is yet accepted.
+Codex Lead confirms the combined source SHA after validation, before owner use. None is yet accepted. CI may validate its own immutable candidate SHA with
+`-Ref`; a candidate CI run does not declare an owner-accepted installation.
 
 ## Preserve the old installation
 Use a **separate clean Git checkout**, preferably
@@ -45,19 +46,24 @@ if ($LASTEXITCODE -ne 0) { throw 'Checkout failed' }
 write reports, install, configure, build, or contact the network. The
 non-check path rejects dirty and mismatched source/cache, isolates only the
 current PowerShell process environment, builds Qt-free native + Studio +
-Desktop, and stages a fresh x64 PortAudio DLL from the same pinned
+Desktop, and stages, loads without initializing devices, and resolves the required exports
+of a fresh x64 PortAudio DLL from the same pinned
 `147dd722548358763a8b649b3e4b41dfffbcfbb6` commit as CI.
 Build evidence is local under `build_reports/windows-setup/summary.txt` and
-`protocol-tests.log`; PortAudio and temporary profiles stay in
-`.tools/windows-setup/`. Do not upload logs containing machine-specific paths.
+`protocol-tests.log`; PortAudio/caches stay in `.tools/windows-setup/`.
+The smoke uses a unique temporary profile, removed after shutdown, and stores
+failed-test artifacts under the diagnostic directory. Do not upload logs
+containing machine-specific paths.
 
 Tests must actually execute, not be skipped. After the native suites pass,
 the optional Electron probe launches with `--null-audio`, temporary native
 `--settings`, and explicit isolated Electron `userData` and `sessionData`.
-It checks for an actual sidecar hello and kills its owned process tree after
-30 seconds. **This probe alone does not certify the visible window, UI-ready
-state, patch round-trip, or clean user-initiated shutdown.** Those require a
-real executed Windows acceptance report; until then W1 is blocked.
+It runs the Windows Playwright real-Electron harness, requires the visible
+window/UI-ready state and native command/patch roundtrip, preserves opaque patch
+data, closes Electron gracefully, and verifies its native child has exited.
+Both redirected output paths and their existing ancestors are refused before
+writing. Windows CI also executes these checks and filesystem-junction regressions.
+Until an actual Windows acceptance report passes, W1 remains blocked.
 
 ## Owner launch and limitations
 Once all W1/CI gates pass, the owner may intentionally test real audio/MIDI;
