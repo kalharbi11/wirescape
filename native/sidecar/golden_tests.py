@@ -2,7 +2,6 @@
 """Replay the shared protocol v0 transcript against the real null-audio sidecar."""
 import json
 import math
-import os
 from pathlib import Path
 import queue
 import subprocess
