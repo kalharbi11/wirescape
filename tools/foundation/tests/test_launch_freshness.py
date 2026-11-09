@@ -46,20 +46,32 @@ class LaunchFreshnessTests(unittest.TestCase):
                 records = []
                 with patch.object(dev, 'ROOT', root), patch.object(dev, 'BUILD_DIR', build):
                     metadata = self.certify()
-                    if change == 'native_source': (root/'native/source.cpp').write_bytes(b'changed')
-                    elif change == 'desktop_source': (root/'apps/desktop/main.ts').write_bytes(b'changed')
-                    elif change == 'engine': engine.write_bytes(b'changed')
-                    elif change == 'artifact': (root/'apps/desktop/build/main.js').write_bytes(b'changed')
-                    elif change == 'electron': dev._electron_executable().write_bytes(b'changed')
-                    elif change == 'missing_entry': (root/'apps/desktop/build/preload.js').unlink()
+                    if change == 'native_source':
+                        (root/'native/source.cpp').write_bytes(b'changed')
+                    elif change == 'desktop_source':
+                        (root/'apps/desktop/main.ts').write_bytes(b'changed')
+                    elif change == 'engine':
+                        engine.write_bytes(b'changed')
+                    elif change == 'artifact':
+                        (root/'apps/desktop/build/main.js').write_bytes(b'changed')
+                    elif change == 'electron':
+                        dev._electron_executable().write_bytes(b'changed')
+                    elif change == 'missing_entry':
+                        (root/'apps/desktop/build/preload.js').unlink()
                     elif change in ('config', 'headless', 'unstable', 'missing_digest'):
-                        if change == 'config': metadata['configuration'] = 'Debug'
-                        elif change == 'headless': metadata['desktop_verified'] = False
-                        elif change == 'unstable': metadata['source_stable'] = False
-                        else: metadata['binaries'] = {}
+                        if change == 'config':
+                            metadata['configuration'] = 'Debug'
+                        elif change == 'headless':
+                            metadata['desktop_verified'] = False
+                        elif change == 'unstable':
+                            metadata['source_stable'] = False
+                        else:
+                            metadata['binaries'] = {}
                         (build/'build-metadata.json').write_text(json.dumps(metadata))
-                    elif change == 'missing': (build/'build-metadata.json').unlink()
-                    elif change == 'corrupt': (build/'build-metadata.json').write_text('not json')
+                    elif change == 'missing':
+                        (build/'build-metadata.json').unlink()
+                    elif change == 'corrupt':
+                        (build/'build-metadata.json').write_text('not json')
                     # Mock only the GUI child; leave provenance's git subprocess real.
                     original = dev.subprocess.Popen
                     def child(command, **kwargs):
@@ -74,8 +86,10 @@ class LaunchFreshnessTests(unittest.TestCase):
                     self.assertEqual(code, 0 if change == 'matching' else 2)
                     gui = [call for call in spawn.call_args_list if call.args[0][0] != 'git']
                     self.assertEqual(len(gui), 1 if change == 'matching' else 0)
-                    if change != 'matching': self.assertIn('python tools/dev.py build --config Release', records[-1]['summary'])
-                    else: self.assertEqual(records[-1]['status'], 'started')  # Not a GUI-readiness claim.
+                    if change != 'matching':
+                        self.assertIn('python tools/dev.py build --config Release', records[-1]['summary'])
+                    else:
+                        self.assertEqual(records[-1]['status'], 'started')  # Not a GUI-readiness claim.
 
     def test_all_four_device_consent_combinations_use_separate_argv(self):
         for flags in ([], ['--confirm-audio'], ['--confirm-midi'], ['--confirm-audio', '--confirm-midi']):
@@ -119,8 +133,10 @@ class LaunchFreshnessTests(unittest.TestCase):
                 build, _ = self.tree(root)
                 with patch.object(dev, 'ROOT', root), patch.object(dev, 'BUILD_DIR', build):
                     before = dev._desktop_inventory()
-                    if missing: (root/'apps/desktop/build/main.js').unlink()
-                    if changed: (root/'apps/desktop/main.ts').write_bytes(b'changed')
+                    if missing:
+                        (root/'apps/desktop/build/main.js').unlink()
+                    if changed:
+                        (root/'apps/desktop/main.ts').write_bytes(b'changed')
                     metadata, stable = dev._refresh_build_metadata('Release', dev.source_provenance(root), built, before)
                 self.assertIs(stable, not changed)
                 self.assertIs(metadata['desktop_verified'], built and not missing and not changed)
@@ -138,7 +154,8 @@ class LaunchFreshnessTests(unittest.TestCase):
     def test_retired_qt_commands_are_not_accepted(self):
         with contextlib.redirect_stderr(io.StringIO()):
             for command in ('ui-test', 'startup-test', 'package', 'updates'):
-                with self.assertRaises(SystemExit): dev.make_parser().parse_args([command])
+                with self.assertRaises(SystemExit):
+                    dev.make_parser().parse_args([command])
 
 
 if __name__ == '__main__':

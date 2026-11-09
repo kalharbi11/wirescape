@@ -8,9 +8,9 @@ from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import dev
+from foundation.helpers import run_logged, source_provenance
 TEMP_ROOT = Path(__file__).resolve().parents[3] / "build_reports/foundation"
 TEMP_ROOT.mkdir(parents=True, exist_ok=True)
-from foundation.helpers import run_logged, source_provenance
 
 
 class ReportingTests(unittest.TestCase):
@@ -94,7 +94,9 @@ class ReportingTests(unittest.TestCase):
 
     def test_artifact_inventory_only_records_binary_artifacts(self):
         with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as folder:
-            root = Path(folder); build = root/'build'; build.mkdir()
+            root = Path(folder)
+            build = root/'build'
+            build.mkdir()
             for name in ("native_engine_tests.exe", "native_engine_tests.lastbuildstate", "wirescape_cli", "ws_filter.dll", "libws2_filter.so", "wirescape-engine", "notes.txt"):
                 (build/name).write_bytes(b"x")
             with patch.object(dev, "BUILD_DIR", build):
@@ -106,7 +108,9 @@ class ReportingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as folder:
             root=Path(folder)
             def save(record):
-                path=root/'check.json'; path.write_text(json.dumps(record)); return path
+                path=root/'check.json'
+                path.write_text(json.dumps(record))
+                return path
             with patch.object(dev, 'REPORT_DIR', root), patch.object(dev, '_base_record', return_value={'action':'check'}), \
                  patch.object(dev, '_save_record', side_effect=save), patch.object(dev, '_unique_report_path', side_effect=lambda stem,suffix: root/(stem+suffix)), \
                  patch.object(dev.unittest.defaultTestLoader, 'discover', return_value=unittest.TestSuite()), \
@@ -143,8 +147,11 @@ class ReportingTests(unittest.TestCase):
 
     def test_fingerprint_tracks_untracked_source_and_excludes_caches(self):
         with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as folder:
-            root = Path(folder); (root/'native').mkdir(); (root/'tools/__pycache__').mkdir(parents=True)
-            source = root/'native/module.cpp'; source.write_text('one')
+            root = Path(folder)
+            (root/'native').mkdir()
+            (root/'tools/__pycache__').mkdir(parents=True)
+            source = root/'native/module.cpp'
+            source.write_text('one')
             a = source_provenance(root)
             (root/'tools/__pycache__/a.pyc').write_bytes(b'cache')
             self.assertEqual(a['sha256'], source_provenance(root)['sha256'])
@@ -153,13 +160,17 @@ class ReportingTests(unittest.TestCase):
 
     def test_cached_native_cache_and_flat_artifacts_refresh(self):
         with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as folder:
-            root = Path(folder); build = root/'build'; build.mkdir()
+            root = Path(folder)
+            build = root/'build'
+            build.mkdir()
             (build/'CMakeCache.txt').write_text("CMAKE_BUILD_TYPE:STRING=Release\n")
             (build/'wirescape_cli').write_bytes(b"cli")
             (build/'libwirescape_engine.so').write_bytes(b"engine")
             (build/'libws_mixer.so').write_bytes(b"module")
             (build/'native_engine_tests').write_bytes(b"test")
-            native = root/'native'; native.mkdir(); (native/'a.cpp').write_text('source')
+            native = root/'native'
+            native.mkdir()
+            (native/'a.cpp').write_text('source')
             with patch.object(dev, 'ROOT', root), patch.object(dev, 'BUILD_DIR', build):
                 metadata, stable = dev._refresh_build_metadata('Release', source_provenance(root))
             self.assertTrue(stable)
@@ -171,9 +182,14 @@ class ReportingTests(unittest.TestCase):
 
     def test_source_change_detection(self):
         with tempfile.TemporaryDirectory(dir=TEMP_ROOT) as folder:
-            root = Path(folder); build = root/'build'; build.mkdir()
-            (root/'native').mkdir(); source=root/'native/a.cpp'; source.write_text('before')
-            before=source_provenance(root); source.write_text('during')
+            root = Path(folder)
+            build = root/'build'
+            build.mkdir()
+            (root/'native').mkdir()
+            source=root/'native/a.cpp'
+            source.write_text('before')
+            before=source_provenance(root)
+            source.write_text('during')
             with patch.object(dev, 'ROOT', root), patch.object(dev, 'BUILD_DIR', build):
                 metadata, stable=dev._refresh_build_metadata('Debug', before)
             self.assertFalse(stable)
