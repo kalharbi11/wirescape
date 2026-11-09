@@ -3,7 +3,7 @@
 
 Owner: Codex. T1 feature; first implementation-branch commit is this task file. Keel's #290 ruling (6706057275) supersedes the original DSP Learn/writeback scope.
 Extend the shipped modules so MIDI remains patchable through ordinary ABI2 wires.
-The whole issue, including this document, stays within 900 changed lines/14 files.
+The whole issue, including this document, stays within 900 changed lines/15 files.
 
 ## Authority and read first
 
@@ -107,8 +107,9 @@ merely to create this task file.
 
 ```acceptance
 tier: T1
-size: <= 900 changed lines, <= 14 files
+size: <= 900 changed lines, <= 15 files
 must_pass:
+  - python tools/gen_ui_catalogue.py --check
   - python tools/dev.py build --headless
   - ctest --test-dir build/native -C Release -R "^(abi2_midi_.*_tests|midi_host_tests|runtime_module_config_tests|abi2_runtime_patch_tests)$" --no-tests=error --output-on-failure
   - ctest --test-dir build/native -C Release -R "^abi2_midi_(to_cv|cc_to_cv|service)_tests$" --no-tests=error --output-on-failure

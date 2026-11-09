@@ -93,6 +93,16 @@ setting blocker rather than pretending to merge.
   Chord, Notes→CV, Quantizer or16steps exist: inspect actual catalogue.
 - Start poly keyboard patches at3–4voices. MIDI→CV supports polyphony in desktop,
   but raw MIDI input and generated note events are different kinds.
+- Desktop/native MIDI: wire `midi.in.midi` to `midi.to_cv.midi`; append-only
+  `last_note` output (index 8) can drive `essentials.vco.pitch` as a mono held,
+  unbent V/oct value (0=C4). It follows accepted NoteOn, survives release/choke,
+  and resets to 0 on reset/restore; poly pitch/gate outputs keep their behavior.
+- CC range wiring: `midi.in.midi` → `midi.cc_to_cv.midi`, then `cc1` → a CV input.
+  For row 1 use `config.rows[0]` with `controller:21`, `min:0`, `max:1`.
+  Finite optional endpoints override the matching bipolar default; inverted and
+  constant ranges are valid, existing smoothing still applies, and JSON persists
+  the mapping. MIDI modules remain unavailable in the WebAssembly host; use
+  `host.keyboard` in browser patches. MIDI Learn stays separate UI-owned work.
 - Pitch CV0=C4, +1=one octave; VCO base frequency matters. Signals and events
   are different cables. Modulation targets parameter IDs with amounts[-1,1].
 - Every audible chain reaches explicit output routes. An autoplay patch needs
