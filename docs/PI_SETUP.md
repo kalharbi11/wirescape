@@ -55,17 +55,11 @@ Troubleshooting:
 
 ## Standalone Electron app: source preparation (not installation)
 
-Electron + Studio + `wirescape-engine` source build is **not** an installer.
-Installation follows the owner's Windows test; agents/Pi CI never install,
-alter sessions, SSH or open devices.
+Electron + Studio + `wirescape-engine` source build is **not** an installer. Installation follows the owner's Windows test; agents/Pi CI never install, alter sessions, SSH or open devices.
 
 ### 1. Check (offline, read-only)
 
-`python3 tools/pi/preflight.py --check-only` verifies ARM64, tools, lockfiles,
-PortAudio/Electron libraries, disk, Git, Qt overrides and CMake caches.
-Node LTS **22/24/26** is required; the Pi runner's Node 20.19.2 needs
-**owner-managed Node 22** (nvm/NodeSource) to match CI. Qt is unnecessary.
-No network, fetch, build, report or cache deletion; resolve failures manually.
+`python3 tools/pi/preflight.py --check-only` verifies ARM64, tools, lockfiles, PortAudio/Electron libraries, disk, Git, Qt overrides and CMake caches. Node LTS **22/24/26** is required; the Pi runner's Node 20.19.2 needs **owner-managed Node 22** (nvm/NodeSource) to match CI. Qt is unnecessary. No network, fetch, build, report or cache deletion; resolve failures manually.
 
 ### 2. Build approved source SHA
 
@@ -74,11 +68,7 @@ sh tools/pi/update-and-build.sh <accepted-commit-sha>
 sh tools/pi/update-and-build.sh <accepted-commit-sha> --jobs 4  # optional 1–4
 ```
 
-Preserves positional refs, clean-tree checks, before/after checkout preflight
-and exact detached SHA; uses `tools/dev.py` headless (default **2** jobs)
-and locked Studio/Desktop `npm ci`. Build/npm may fetch; check-only cannot.
-Ignored `build_reports/pi-source-build/<sha>/` contains sanitized logs,
-stage results and SHA/tool provenance. Fail fast; inspect logs and retry SHA.
+Preserves positional refs, clean-tree checks, before/after checkout preflight and exact detached SHA; uses `tools/dev.py` headless (default **2** jobs) and locked Studio/Desktop `npm ci`. Build/npm may fetch; check-only cannot. Ignored `build_reports/pi-source-build/<sha>/` contains sanitized logs, stage results and SHA/tool provenance. Fail fast; inspect logs and retry SHA.
 
 ### 3. Test (devices off)
 
@@ -89,15 +79,11 @@ python3 -m unittest discover -s tools/foundation/tests -p test_build_parallel.py
 python3 tools/dev.py test
 ```
 
-Only actual exact-head private `pi5/accept` proves `pi-run:`; missing
-prerequisites are BLOCKED, not passes; cloud mocks are not Pi evidence.
+Only actual exact-head private `pi5/accept` proves `pi-run:`; missing prerequisites are BLOCKED, not passes; cloud mocks are not Pi evidence.
 
 ### 4. Owner-only installation/launch (deferred)
 
-After Windows approval, only the owner invokes `tools/pi/install-desktop-entry.sh`
-and launches with `--confirm-audio --confirm-midi`. Device-free smoke uses
-temporary `--settings` and `--null-audio` (#446); normal choices remain
-in `user_data/settings.json`. Neither check nor build installs/opens devices.
+After Windows approval, only the owner invokes `tools/pi/install-desktop-entry.sh` and launches with `--confirm-audio --confirm-midi`. Device-free smoke uses temporary `--settings` and `--null-audio` (#446); normal choices remain in `user_data/settings.json`. Neither check nor build installs/opens devices.
 
 ## Class demo (owner only)
 
