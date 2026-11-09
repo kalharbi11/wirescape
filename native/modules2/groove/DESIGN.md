@@ -1,15 +1,12 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Groove S1 native design
 
-Original portable C++17; no imported third-party code (Westlicht Performer
-is only a behavioral reference). Keel contract: #432 comment 6731562789.
-
-Save additive version-1 JSON, never the validated 4×64 control-side POD.
-Unknown fields refuse; Studio retains authored draft on refusal.
-Two players share one audio-frame 32-step clock and hold separate
-sounding/pending releases. Retry NOTE_OFF before admitting another ON;
-gates mirror admitted notes, mods latch only on ON. First high param
-samples are baselines; RESET > STOP > MUTE > START > step.
-No process/reset allocation, locks, JSON, logging or I/O.
-Native completed-STOP/playhead telemetry is **not** exposed by the
-existing generic seam: Keel decision requested before S1(b).
+Original C++17, no imported third-party code; Westlicht Performer is only
+a behavioral reference. Keel contract: #432 comment 6731562789.
+Persist additive version-1 JSON, not validated 4×64 POD; refuse unknowns.
+Two tracks share audio-frame 32-step clock with per-track sounding/pending
+notes. Failed NOTE_OFF retries before new ON; gates and mods follow admitted
+notes. Initial high is baseline. RESET > STOP > MUTE > START > tick.
+Render/reset avoid allocation, locks, JSON, logging and I/O.
+No authoritative completed-STOP/playhead in the existing native telemetry
+seam; Keel ruling requested before S1(b) UI.
