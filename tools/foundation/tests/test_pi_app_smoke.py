@@ -21,7 +21,8 @@ class PiAppSmokeTests(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory(prefix='pi smoke fixture with spaces ')
         self.addCleanup(tmp.cleanup)
-        self.root = Path(tmp.name)
+        # Match production ROOT resolution, including Windows temp short-name aliases.
+        self.root = Path(tmp.name).resolve()
         self.report = self.root / 'build_reports/pi-app-smoke'
         self.report.mkdir(parents=True)
         self.objects = {
