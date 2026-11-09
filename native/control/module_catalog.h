@@ -7,6 +7,7 @@
 #include "../modules2/delay/dsp.h"
 #include "../modules2/function_envelope/dsp.h"
 #include "../modules2/host_keyboard/dsp.h"
+#include "../modules2/groove/dsp.h"
 #include "../modules2/ladder/dsp.h"
 #include "../modules2/lfo/dsp.h"
 #include "../modules2/macro_oscillator/dsp.h"
