@@ -110,7 +110,7 @@ struct Rig {
         const int (&semitones)[16];
         const int (&gates)[16];
     };
-    void pattern16(Pattern16 pattern, uint32_t length = 16) {
+    void pattern16(const Pattern16& pattern, uint32_t length = 16) {
         values[S::kLength] = static_cast<float>(length);
         for (uint32_t i = 0; i < 16; ++i) {
             values[S::pitch_param(i)] = static_cast<float>(pattern.semitones[i]) / 12.f;
