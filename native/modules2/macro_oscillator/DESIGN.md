@@ -134,3 +134,23 @@ creates both. No instrumentation is removed or suppressed.
 
 The placement-owned reference fixture is explicitly non-copyable. New module C++
 files follow clang-format18; no unrelated existing files were reformatted.
+
+## Static analysis of the pinned sources (issue #435)
+Reset destroys each Voice before clearing its raw storage and stores the pointer
+returned by placement construction. Zeroing, reconstruction and Init retain their
+order and storage size; no live polymorphic object is byte-cleared.
+
+cppcheck-baseline.json records 400 exact historical vendor reports seen twice in
+the native/web compile databases (Static run42551565660/job128948170118). These
+are existing findings, not a declaration that every possible usage is safe:
+many constructors intentionally defer setup to Init, while template filter
+branches generate missing-return/uninitialized-value reports. New reports must
+still be investigated. The first-party wrapper is never eligible for baselining.
+
+The static runner recognizes only exact vendor path/line/column/check/message
+matches. A manifest hashes source-pin configuration, RNG adapter and all existing
+portability patches; changes invalidate the baseline pending review. The full
+report remains in a collapsed CI log group. Tool failures, changed/new vendor
+warnings and all first-party warnings still fail. This changes reporting of
+inherited warnings only; upstream DSP, pins, tests and sanitizer settings stay
+unchanged. Baseline additions require the same T2 analysis-policy review.
