@@ -48,10 +48,11 @@ class PiPreflightTests(unittest.TestCase):
         return {name for name, ok, _ in preflight.inspect(self.root)[0] if not ok}
 
     def test_check_only_is_read_only_even_with_spaces(self):
-        before = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+        snapshot = lambda: {str(p.relative_to(self.root)): p.read_bytes()
+                            for p in self.root.rglob("*") if p.is_file()}
+        before = snapshot()
         self.assertEqual(preflight.preflight(self.root), 0)
-        after = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
-        self.assertEqual(before, after)
+        self.assertEqual(before, snapshot())
         self.assertFalse((self.root / "build_reports").exists())
 
     def test_wrong_architecture_and_missing_compiler(self):
@@ -115,8 +116,8 @@ class PiPreflightTests(unittest.TestCase):
         snapshot = lambda: {str(p.relative_to(self.root)): p.read_bytes()
                             for p in self.root.rglob("*") if p.is_file()}
         before = snapshot()
-        env = {k: v for k, v in os.environ.items()
-               if k not in ("PYTHONDONTWRITEBYTECODE", "PYTHONPYCACHEPREFIX")}
+        env = {k: v for k, v in os.environ.items() if k not in
+               ("PYTHONDONTWRITEBYTECODE", "PYTHONPYCACHEPREFIX")}
         result = subprocess.run(
             [sys.executable, str(tools / "pi/preflight.py"), "--check-only", "--root", str(self.root)],
             cwd=self.root, env=env, text=True, capture_output=True, timeout=30, check=False)
