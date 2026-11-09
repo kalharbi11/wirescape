@@ -43,7 +43,7 @@ and unavailable; never silently discard data.
 
 ```acceptance
 tier: T2
-size: <= 850 changed lines, <= 15 files
+size: <= 850 changed lines, <= 18 files (Keel 2026-11-09: +3 required catalogue-count test updates)
 must_pass:
   - ctest --test-dir build/native -R 'groove|runtime_module_config|ui_catalogue_sync' --output-on-failure
   - ci: guard
