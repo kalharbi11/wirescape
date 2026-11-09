@@ -12,7 +12,35 @@ int main() try {
  for(const char*s:{R"({"rows":[{"channel":17}]})",R"({"rows":[{"controller":32,"fourteen_bit":true}]})",R"({"rows":[{"controller":1.5}]})",R"({"rows":[{"fourteen_bit":1}]})",R"({"rows":[{"smoothing_ms":-1}]})",R"({"rows":[{"unknown":1}]})",R"({"rows":[{},{},{},{},{},{},{},{},{}]})"}){bool rejected=false;try{encode(s);}catch(const std::exception&){rejected=true;}CHECK(rejected);}
  CHECK(runtime_module_config("midi.in",nlohmann::json::parse(R"({"endpoint":"Controller","system_name":"system"})")).empty());
  bool malformed=false;try{encode("{");}catch(const nlohmann::json::parse_error&){malformed=true;}CHECK(malformed);
- std::puts("PASS bounded typed MIDI configuration and invalid row rejection");
+ auto groove = [](const char *s) { return runtime_module_config("sequencing.groove", nlohmann::json::parse(s)); };
+ const auto old = groove(
+     R"({"version":1,"bpm":120,"tracks":[{"steps":[{"kind":"note","key":60,"velocity":0.5},{"kind":"tie"},{"kind":"rest"}]}]})");
+ groove::Config g;
+ CHECK(groove::decode(old.data(), static_cast<uint32_t>(old.size()), g));
+ CHECK(g.track_count == 1 && g.tracks[0].steps[0].kind == groove::Note && g.tracks[0].steps[1].kind == groove::Tie &&
+       g.tracks[0].steps[3].kind == groove::Rest);
+ CHECK(g.tracks[0].steps[0].mod1 == 0 && g.tracks[0].steps[0].mod2 == 0);
+ const auto expanded = groove(
+     R"({"version":1,"bpm":123,"tracks":[{"mute":true,"armed":false,"steps":[{"kind":"note","key":71,"velocity":0.8,"mod1":0.25,"mod2":0.75}]},{"steps":[{"kind":"note","key":48,"velocity":1,"mod1":1,"mod2":0}]}]})");
+ CHECK(groove::decode(expanded.data(), static_cast<uint32_t>(expanded.size()), g));
+ CHECK(g.track_count == 2 && g.tracks[0].armed == 0 && g.tracks[0].mute == 1 && g.tracks[0].steps[0].mod1 == .25f &&
+       g.tracks[0].steps[0].mod2 == .75f);
+ CHECK(g.tracks[0].steps[31].kind == groove::Rest && g.tracks[1].steps[31].kind == groove::Rest);
+ for (const char *bad :
+      {R"({"version":1,"bpm":120,"tracks":[{"steps":[{"kind":"rest","unexpected":2}]}]})",
+       R"({"version":1,"bpm":120,"tracks":[{"steps":[{"kind":"note","key":60,"velocity":1,"mod1":2}]}]})",
+       R"({"version":1,"bpm":120,"tracks":[{"armed":1,"steps":[{"kind":"rest"}]}]})",
+       R"({"version":1,"bpm":120,"tracks":[{"steps":[{"kind":"rest","key":60}]}]})",
+       R"({"version":1,"bpm":120,"tracks":[]})"}) {
+     bool rejected = false;
+     try {
+         groove(bad);
+     } catch (const std::exception &) {
+         rejected = true;
+     }
+     CHECK(rejected);
+ }
+ std::puts("PASS bounded typed MIDI and Groove configurations and invalid row rejection");
 } catch(const std::exception& error) {
  std::fprintf(stderr,"FAIL runtime module configuration: %s\n",error.what());return EXIT_FAILURE;
 } catch(...) {

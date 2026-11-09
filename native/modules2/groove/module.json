@@ -1,12 +1,21 @@
 {
   "schema_version": 2,
   "id": "sequencing.groove",
-  "name": "Groove (S0)",
+  "name": "Groove",
   "abi_version": 2,
   "library": "ws2_groove",
-  "description": "One-track stopped structured-configuration proof (S0)",
+  "description": "Two synchronized 32-step tracks, pitch/gate/notes, two sample-and-hold modulation lanes, and queued transport",
   "parameters": {
-    "run": 0
+    "run": 0,
+    "stop": 1,
+    "reset": 2,
+    "mute": 3,
+    "t1_run": 4,
+    "t1_stop": 5,
+    "t1_mute": 6,
+    "t2_run": 7,
+    "t2_stop": 8,
+    "t2_mute": 9
   },
   "inputs": {},
   "outputs": {
@@ -14,7 +23,12 @@
     "t1_gate": "signal",
     "t1_mod1": "signal",
     "t1_mod2": "signal",
-    "t1_notes": "event"
+    "t1_notes": "event",
+    "t2_pitch": "signal",
+    "t2_gate": "signal",
+    "t2_mod1": "signal",
+    "t2_mod2": "signal",
+    "t2_notes": "event"
   },
   "license": "GPL-3.0-only"
 }

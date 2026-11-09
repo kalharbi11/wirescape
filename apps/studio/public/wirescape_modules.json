@@ -4161,7 +4161,7 @@
   },
   {
    "id": "sequencing.groove",
-   "name": "Groove (S0)",
+   "name": "Groove",
    "category": "Sequencer",
    "ports": [
     {
@@ -4208,12 +4208,57 @@
      "hint": "ev_notes",
      "poly": "poly",
      "stereo_pair": null
+    },
+    {
+     "id": "t2_pitch",
+     "name": "T2 Pitch",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "pitch",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_gate",
+     "name": "T2 Gate",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "gate",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_mod1",
+     "name": "T2 Mod 1",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_mod2",
+     "name": "T2 Mod 2",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_notes",
+     "name": "T2 Notes",
+     "direction": "output",
+     "kind": "event",
+     "hint": "ev_notes",
+     "poly": "poly",
+     "stereo_pair": null
     }
    ],
    "parameters": [
     {
      "id": "run",
-     "name": "Run (edge)",
+     "name": "Start",
      "minimum": 0,
      "maximum": 1,
      "default": 0,
@@ -4221,22 +4266,129 @@
      "taper": "linear",
      "step": 1,
      "decimals": 0,
-     "modulatable": false,
-     "choices": [
-      {
-       "value": 0,
-       "label": "Stopped"
-      },
-      {
-       "value": 1,
-       "label": "Running"
-      }
-     ]
+     "modulatable": false
+    },
+    {
+     "id": "stop",
+     "name": "Stop",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "reset",
+     "name": "Reset",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "mute",
+     "name": "Mute",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "t1_run",
+     "name": "T1 Start",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "t1_stop",
+     "name": "T1 Stop",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "t1_mute",
+     "name": "T1 Mute",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "t2_run",
+     "name": "T2 Start",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "t2_stop",
+     "name": "T2 Stop",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "t2_mute",
+     "name": "T2 Mute",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
     }
    ],
-   "version": 1,
+   "version": 2,
    "legacy_parameters": {
-    "run": 0
+    "run": 0,
+    "stop": 1,
+    "reset": 2,
+    "mute": 3,
+    "t1_run": 4,
+    "t1_stop": 5,
+    "t1_mute": 6,
+    "t2_run": 7,
+    "t2_stop": 8,
+    "t2_mute": 9
    }
   },
   {
