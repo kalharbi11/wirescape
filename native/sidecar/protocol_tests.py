@@ -2,7 +2,6 @@
 """Process conformance: pipes, null sink and an explicitly fake device catalogue."""
 import atexit
 import json
-import os
 import queue
 import re
 import subprocess
@@ -13,12 +12,6 @@ import time
 from pathlib import Path
 
 BINARY, EXAMPLES = sys.argv[1:3]
-
-# Windows-only stdout stall is tracked in #266 (D13 split of #247); ctest reports SKIP.
-# Linux and the Pi run the full suite. WIRESCAPE_SIDECAR_WINDOWS=1 runs it on Windows too.
-if sys.platform == 'win32' and os.environ.get('WIRESCAPE_SIDECAR_WINDOWS') != '1':
-    print('SKIP: Windows sidecar protocol suite pending #266')
-    sys.exit(77)
 
 
 def strict_object(pairs):
@@ -154,6 +147,15 @@ def telemetry_when(engine, gen, predicate, timeout=8.0):
     raise AssertionError(f'no matching telemetry at gen {gen}: {engine.stderr()}')
 
 
+def learn_status_when(engine, predicate, timeout=4):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        message = engine.pushes.pop(0) if engine.pushes else engine.receive()
+        if message.get('type') == 'status' and predicate(message['status']['midi']):
+            return message['status']['midi']
+    raise AssertionError('No matching MIDI Learn status')
+
+
 def minimal():
     return dict(format='wirescape.native.patch', version=2,
                 modules=[dict(id=7, module='essentials.output')], connections=[],
@@ -168,6 +170,16 @@ def edge(kind, source, output, dest, port, **extra):
 with tempfile.TemporaryDirectory() as directory:
     settings = Path(directory) / 'settings.json'
     engine = Engine(settings, '--confirm-audio', '--confirm-midi')  # null overrides both
+    assert 'midiLearn' in engine.hello['capabilities']
+    assert 'learn' not in engine.hello['midi']
+    assert engine.call('midiLearn', armed=True)['result'] == {'armed': True}
+    assert learn_status_when(engine, lambda m: m.get('learn') == {'armed': True})['learn'] == {'armed': True}
+    assert engine.call('midiLearn', False, armed='yes')['code'] == 'invalid'
+    assert engine.call('midiLearn', armed=False)['result'] == {'armed': False}
+    assert 'learn' not in learn_status_when(engine, lambda m: 'learn' not in m)
+    assert engine.call('midiLearn', armed=True)['result'] == {'armed': True}
+    assert engine.call('midiLearn', armed=True)['result'] == {'armed': True}  # rearm resets timeout/observation
+    assert engine.call('midiLearn', armed=False)['result'] == {'armed': False}
     patch = minimal()
     original = json.dumps(patch)
     assert engine.call('loadGraph', patch=patch)['gen'] == '1'

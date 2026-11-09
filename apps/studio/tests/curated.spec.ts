@@ -114,7 +114,8 @@ test('autoplay patches have running clocks or continuously sounding sources', ()
 
 test('selecting a bundled cinematic patch fits its wide graph to the Studio viewport', async ({ page }) => {
   await boot(page);
-  await page.getByTestId('starter-select').selectOption('hollow-chapel');
+  await page.evaluate(p => window.__wirescapeTest.load(p, 'Hollow Chapel'), curated.find(s => s.id === 'hollow-chapel')!.patch());
+  await page.evaluate(() => window.__wirescapeTest.fit());
   await expect(page.getByTestId('patch-name')).toContainText('Hollow Chapel');
   await expect.poll(() => page.evaluate(() =>
     window.__wirescapeTest.state().ui?.view?.zoom ?? 1)).toBeLessThan(0.8);

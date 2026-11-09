@@ -134,3 +134,24 @@ creates both. No instrumentation is removed or suppressed.
 
 The placement-owned reference fixture is explicitly non-copyable. New module C++
 files follow clang-format18; no unrelated existing files were reformatted.
+
+## Static analysis of the pinned sources (issue #435)
+Reset retains the original destructor, byte-clear, placement construction and Init
+sequence. A narrow cppcheck memsetClass annotation documents that Voice's lifetime
+has ended before its storage is cleared. This is not a live-polymorphic-object
+memset. A raw-pointer rewrite attempted in1bba9f9 failed reset-repeatability on
+ARM64; it was removed without changing any render/reference tests.
+
+cppcheck-baseline.json records400 exact historical vendor reports seen twice in
+native/web compile databases (Static run42551565660/job128948170118). These are
+existing findings, not a declaration that every possible usage is safe. Many
+constructors defer setup to Init, while template filter branches produce
+missing-return/uninitialized-value reports. New reports still need investigation.
+First-party paths are never eligible for the vendor baseline.
+
+The runner recognizes only exact vendor path/line/column/check/message matches.
+A manifest hashes source-pin configuration, RNG adapter and portability patches;
+changes invalidate the baseline pending review. Full output remains in a collapsed
+CI log group. Tool failures and changed/new reports still fail. Upstream DSP,
+pins, native tests and sanitizer settings stay unchanged. Baseline additions
+require T2 analysis-policy review.
