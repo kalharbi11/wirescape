@@ -254,7 +254,7 @@ test.describe('kit controls', () => {
     }
   });
 
-  test('13. Macro models show pinned names, fit four phone columns and keep numeric values', async ({ page }) => {
+  test('12. Macro models show pinned names, fit four phone columns and keep numeric values', async ({ page }) => {
     await boot(page);
     await loadMods(page, [[1, 'ports.macro_oscillator', 300, 100]]);
     const bank = page.getByTestId('models-1');
@@ -279,7 +279,7 @@ test.describe('kit controls', () => {
     expect(layout.overflow).toBe(false);
   });
 
-  test('12. motion on add and delete', async ({ page }) => {
+  test('13. motion on add and delete', async ({ page }) => {
     await boot(page);
     await page.getByTestId('library-item-essentials.vco').click();
     const n = await page.evaluate(() => {
