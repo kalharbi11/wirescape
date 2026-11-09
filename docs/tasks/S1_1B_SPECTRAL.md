@@ -19,3 +19,15 @@ must_pass:
   - pi-run: python tools/module_cpu_probe.py sound.spectral --param size=3 --param pitch=1 --alternate mode=0:7:32
 stops: [ABI header edit, new dependency, file I/O in a module, test loosening]
 ```
+
+## Current-main synchronization and evidence gate (2026-11-08)
+
+PR #310 now targets `main`. Its integration merge `939bb80` preserved the
+current 27-module catalogue and the accepted cppcheck/allocator test fixes;
+the intended Interleave/Vocoder diff remains nine task-scoped files.
+The retarget happened after that branch push, and repository CI triggers on
+`pull_request.synchronize`, not on PR base-edit events. This documentation
+synchronization requests a fresh exact-head run without altering DSP.
+Earlier-head test results are not new-head acceptance. Keep the draft open
+until the tests above, Windows/Linux/static, task-specific Pi probes and an
+independent T1 review all cover the eventual head.
