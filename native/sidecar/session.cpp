@@ -224,9 +224,21 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
         try {
             // Resolve the default only before any identity has been selected.
             // A remembered/missing output must never be replaced by the default.
-            if (device_.empty())
-                for (const auto &d : audio::devices(options_.directory))
-                    if (d.is_default) device_ = d.name;
+            if (device_.empty() || device_.find('|') == std::string::npos) {
+                const auto list = audio::devices(options_.directory);
+                if (!device_.empty()) {
+                    // Pre-identity settings stored a bare name. Upgrade a unique name to its id;
+                    // a name Windows repeats across host APIs can never open, so use the default.
+                    const auto named = std::count_if(list.begin(), list.end(),
+                                                     [&](const audio::Device &d) { return d.name == device_; });
+                    const int found = audio::resolve_device(list, device_);
+                    if (found >= 0) device_ = list[size_t(found)].id;
+                    else if (named > 1) device_.clear();
+                }
+                if (device_.empty())
+                    for (const auto &d : list)
+                        if (d.is_default) device_ = d.id;
+            }
             need(!device_.empty(), "unavailable", "No selected audio output");
             stream_ = std::make_unique<audio::Stream>(engine_, audio::StreamSelection{options_.directory, device_},
                                                       options_.rate, options_.block, [this] { midi_->stop(); });
@@ -242,8 +254,9 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
         }
     } else {
         active_ = engine_.get();
-        sink_ = std::thread(
-            [this, left = std::vector<float>(options_.block), right = std::vector<float>(options_.block)]() mutable {
+        sink_ =
+            std::thread([this, live = active_, left = std::vector<float>(options_.block),
+                         right = std::vector<float>(options_.block)]() mutable {
                 float *rows[] = {left.data(), right.data()};
 #ifdef _WIN32
                 // The default ~15.6 ms Windows timer tick is longer than a block period, so
@@ -256,10 +269,11 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
                 auto next = std::chrono::steady_clock::now();
                 sink_rendering_.store(true, std::memory_order_release);
                 while (!stop_sink_.load()) {
+                    live = sink_slot_.adopt(live); // same block-boundary handoff as the PortAudio callback
                     auto before = std::chrono::steady_clock::now();
-                    const int render = app_engine_render_live(active_, rows, 2, options_.block, app_engine_clock_ns());
+                    const int render = app_engine_render_live(live, rows, 2, options_.block, app_engine_clock_ns());
                     if (options_.bench_summary) {
-                        bench_.observe_faults(app_engine_native(active_).meter().faults);
+                        bench_.observe_faults(app_engine_native(live).meter().faults);
                         if (render != WS_OK) ++bench_.faults;
                     }
                     if (render != WS_OK) break;
@@ -293,13 +307,13 @@ void Session::start_midi() {
     std::string error;
     need(midi_->start(active_, patch_.dump(), error), "unavailable", "Cannot start MIDI subscriptions");
 }
-bool Session::refresh_devices() {
-    bool enumerated = true;
-    try {
-        audio_devices_ = audio_devices(options_.directory, options_.null_audio);
-    } catch (...) {
-        enumerated = false; // Keep the last successful list; failure is not disappearance.
-    }
+bool Session::refresh_devices(bool audio) {
+    bool enumerated = audio;
+    if (audio) try {
+            audio_devices_ = audio_devices(options_.directory, options_.null_audio);
+        } catch (...) {
+            enumerated = false; // Keep the last successful list; failure is not disappearance.
+        }
     midi_devices_ = midi_devices({observer_->observed(), midi_->enabled()}, options_.midi || options_.null_audio);
     return enumerated;
 }
@@ -432,7 +446,19 @@ void Session::commit(Json patch, bool new_namespace) {
     const auto begun = std::chrono::steady_clock::now();
     // D5 budgets (see kMuteBudget/kGapBudget); they stretch only when a block period is longer.
     const auto period = std::chrono::microseconds(int64_t(1e6 * double(options_.block) / double(options_.rate)));
-    if ((stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire)) {
+    const auto gap_budget = std::max<std::chrono::microseconds>(kGapBudget, 3 * period);
+    auto output_live = [&] {
+        return (stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire);
+    };
+    // Hands an engine to the running render thread at a block boundary. On success `e`
+    // owns the retired engine, which the render thread no longer touches.
+    auto exchange = [&](audio::EngineOwner &e, std::chrono::steady_clock::time_point deadline) {
+        if (stream_) return stream_->exchange(e, deadline);
+        if (!sink_slot_.offer(e.get(), deadline)) return false;
+        std::swap(engine_, e);
+        return true;
+    };
+    if (output_live()) {
         app_engine_begin_master_fade_out(active_);
         // Acknowledging a mute needs the in-flight block to finish, one fade block and one
         // entirely silent block: two periods is the bare minimum with no scheduling margin,
@@ -442,8 +468,7 @@ void Session::commit(Json patch, bool new_namespace) {
         while (!app_engine_master_fade_silent(active_)) {
             // D6 may lose the stream during a refused replan or the D5 fade.
             // A callback that no longer renders cannot acknowledge a mute.
-            if ((stream_ && !stream_->running()) || (!stream_ && !sink_rendering_.load(std::memory_order_acquire)))
-                break;
+            if (!output_live()) break;
             if (std::chrono::steady_clock::now() >= deadline) {
                 app_engine_resume_master_fade(active_);
                 throw Refusal("unavailable", "Audio mute did not complete");
@@ -455,37 +480,72 @@ void Session::commit(Json patch, bool new_namespace) {
     try {
         midi_->stop();
         app_engine_panic(active_);
-        stop_audio();
     } catch (...) {
         app_engine_resume_master_fade(active_);
         throw;
     }
-    auto previous = std::move(engine_);
     auto old_patch = patch_;
-    engine_ = std::move(candidate);
-    active_ = engine_.get();
-    patch_.swap(patch); // No allocation after the quiescent graph replacement.
-    try {
-        start_audio();
-        start_midi();
-        if (stream_ || sink_.joinable()) {
-            const auto deadline = begun + std::max<std::chrono::microseconds>(kGapBudget, 3 * period);
+    if (output_live()) {
+        // In place: the device stays open and the render thread adopts the faded-in
+        // candidate, so the gap is a few block periods. Reopening a Windows device
+        // cannot fit the gap budget, so the stream is never restarted here.
+        AppEngine *const previous = active_, *const next = candidate.get();
+        if (!exchange(candidate, begun + gap_budget)) {
+            app_engine_resume_master_fade(active_);
+            start_midi();
+            throw Refusal("unavailable", "Audio swap exceeded gap budget");
+        }
+        active_ = next; // `candidate` now owns the retired graph; it is destroyed below.
+        patch_.swap(patch);
+        try {
+            start_midi();
             while (!app_engine_master_fade_in_started(active_)) {
-                if (std::chrono::steady_clock::now() >= deadline)
+                if (std::chrono::steady_clock::now() >= begun + gap_budget)
                     throw Refusal("unavailable", "Audio swap exceeded gap budget");
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
+        } catch (...) {
+            midi_->stop();
+            patch_ = old_patch;
+            app_engine_prepare_master_fade_in(previous);
+            if (exchange(candidate, std::chrono::steady_clock::now() + gap_budget)) {
+                active_ = previous;
+            } else { // The render thread stalled: restore the previous graph the slow way.
+                stop_audio();
+                engine_ = std::move(candidate);
+                active_ = engine_.get();
+                start_audio();
+            }
+            start_midi();
+            throw;
         }
-    } catch (...) {
-        midi_->stop();
+    } else {
         stop_audio();
-        engine_ = std::move(previous);
+        auto previous = std::move(engine_);
+        engine_ = std::move(candidate);
         active_ = engine_.get();
-        patch_ = old_patch;
-        app_engine_prepare_master_fade_in(active_);
-        start_audio();
-        start_midi();
-        throw;
+        patch_.swap(patch); // No allocation after the quiescent graph replacement.
+        try {
+            start_audio();
+            start_midi();
+            if (stream_ || sink_.joinable()) {
+                while (!app_engine_master_fade_in_started(active_)) {
+                    if (std::chrono::steady_clock::now() >= begun + gap_budget)
+                        throw Refusal("unavailable", "Audio swap exceeded gap budget");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+            }
+        } catch (...) {
+            midi_->stop();
+            stop_audio();
+            engine_ = std::move(previous);
+            active_ = engine_.get();
+            patch_ = old_patch;
+            app_engine_prepare_master_fade_in(active_);
+            start_audio();
+            start_midi();
+            throw;
+        }
     }
     ++generation_;
     keyboard_.fill(false);
@@ -746,6 +806,8 @@ Json Session::hello() const {
             {"midi", midi_status()}};
 }
 Json Session::status() const {
+    // The caller is the existing 100ms control-thread status tick, never render.
+    if (active_) app_engine_native(active_).refresh_latency();
     auto value = base();
     value["type"] = "status";
     value["status"] = {{"audio", audio_status()}, {"midi", midi_status()}};
@@ -810,7 +872,13 @@ bool Session::poll(std::chrono::steady_clock::time_point now) {
     observer_->expire_learning(now);
     auto old_audio = audio_devices_, old_midi = midi_devices_;
     if (midi_->enabled().empty()) observer_->endpoints();
-    const auto enumerated = refresh_devices();
+    // With a stream open, PortAudio is already initialised and enumeration is cheap.
+    // Without one, every call is a cold init, so space them out.
+    constexpr std::chrono::seconds kColdEnumeration{2};
+    const bool warm = stream_ != nullptr || !options_.audio;
+    const bool cold_due = !cold_enumeration_ || now - *cold_enumeration_ >= kColdEnumeration;
+    if (!warm && cold_due) cold_enumeration_ = now;
+    const auto enumerated = refresh_devices(warm || cold_due);
     auto changed = poll_audio(now, enumerated);
     return changed || old_audio != audio_devices_ || old_midi != midi_devices_;
 }
