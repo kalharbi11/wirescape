@@ -103,13 +103,13 @@ setting blocker rather than pretending to merge.
 - Keep unknown fields when editing an export. Share only your own/licensed
   original patches; include GPL-3.0-only SPDX metadata for repository patches.
 
-## Proposed Spectral modes — PR #310, not yet merged
+## Spectral mode compatibility (PR #310)
 
-`sound.spectral` on older/main builds supports modes0–5. PR #310 appends
+`sound.spectral` on older builds supports modes0–5. Builds including PR #310 append
 **6 Interleave** and **7 Vocoder**, retaining existing IDs and slots0–8.
-Until it merges, patches using either mode or slots9–15 require that PR's build;
-do not advertise them as compatible with older native or web deployments. After
-merge, check the actual native/WASM catalogue and deployed SHA before publishing.
+Patches using either mode or slots9–15 require PR #310 or a newer build;
+do not advertise them as compatible with older native or web deployments. Check
+the actual native/WASM catalogue and deployed SHA before publishing.
 The implementation shares native DSP with the web build, but a native/Pi probe
 does not certify a particular deployed browser build or subjective sound quality.
 
