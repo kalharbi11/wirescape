@@ -966,17 +966,12 @@ export class App {
         return;
       }
       const currentId = this.lastStatus?.audio.deviceId ?? '';
-      // Optional v0 fields are additive. Legacy EngineClient implementations
-      // may omit them, so keep the existing shared interface unchanged.
-      type AudioDetail = (typeof devices)[number] & {
-        backend?: string; outputChannels?: number; supported?: boolean; unsupportedReason?: string;
-      };
-      const routes = devices as AudioDetail[];
+      const routes = devices;
       // A missing or duplicate remembered identity must not select the first device.
       const count = (id: string) => routes.filter(d => d.id === id).length;
-      const usable = (d: AudioDetail) => count(d.id) === 1 && d.supported !== false;
-      const details = (d: AudioDetail) => [
-        d.backend, d.outputChannels === undefined ? undefined : `${d.outputChannels} channels`,
+      const usable = (d: Device) => count(d.id) === 1 && d.supported !== false;
+      const details = (d: Device) => [
+        d.backend ?? d.hostApi, d.outputChannels === undefined ? undefined : `${d.outputChannels} channels`,
       ].filter(Boolean).join(' · ');
       const current = routes.find(d => d.id === currentId && usable(d));
       const placeholder = currentId
@@ -987,6 +982,14 @@ export class App {
         : `${placeholder}. Select an available output explicitly.`);
       route.dataset.testid = 'audio-route-status';
       audioFields.append(route);
+      if (this.lastStatus?.audio.reason === 'rate-unsupported') {
+        const hz = current?.defaultSampleRate;
+        const message = el('div', 'muted', hz
+          ? `This device only runs at ${hz / 1000} kHz in shared mode.`
+          : 'This device does not support the requested sample rate. Choose a supported rate.');
+        message.dataset.testid = 'audio-rate-reason';
+        audioFields.append(message);
+      }
       const rates = select([], '', v => engine.setSampleRate?.(Number(v)));
       rates.dataset.testid = 'audio-rate';
       const refreshRates = (deviceId: string) => {
@@ -1003,9 +1006,15 @@ export class App {
         rates.disabled = !dev || rates.options.length === 0;
       };
       let buffer: HTMLSelectElement | undefined;
+      const label = (d: Device) => {
+        const repeated = routes.filter(o => o.name === d.name).length > 1;
+        const ordinal = /#(\d+)$/.exec(d.id)?.[1];
+        const identity = repeated ? ` — ${d.hostApi ?? d.backend ?? 'audio'}${ordinal ? ` ${ordinal}` : ''}` : '';
+        return `${d.name}${identity}${details(d) ? ` · ${details(d)}` : ''}${d.supported === false ? ` — unavailable: ${d.unsupportedReason ?? 'unsupported'}` : ''}`;
+      };
       const choices = routes.map(d => ({
         value: d.id,
-        label: `${d.name}${details(d) ? ` · ${details(d)}` : ''}${d.supported === false ? ` — unavailable: ${d.unsupportedReason ?? 'unsupported'}` : ''}`,
+        label: label(d),
       }));
       if (!current) choices.unshift({ value: '', label: placeholder });
       const sel = select(choices, current?.id ?? '', v => {

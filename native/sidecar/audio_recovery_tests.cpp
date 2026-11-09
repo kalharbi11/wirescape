@@ -11,6 +11,7 @@ std::vector<wirescape::audio::Device> outputs;
 std::vector<std::string> attempts;
 bool active = true, refuse = false, enumeration_throws = false, render = false;
 uint32_t rejected_rate = 0;
+std::string rate_refused_id;
 int stopped = 0, exchanges = 0;
 AppEngine *engine = nullptr;
 }
@@ -35,8 +36,9 @@ Stream::Stream(EngineOwner &owner, const StreamSelection &selection, double rate
                std::function<void()> producers)
     : impl_(std::make_unique<Impl>()) {
     fake::attempts.push_back(selection.name);
-    if (resolve_device(fake::outputs, selection.name) < 0 || fake::refuse || uint32_t(rate) == fake::rejected_rate)
+    if (resolve_device(fake::outputs, selection.name) < 0 || fake::refuse)
         throw std::runtime_error("fake unavailable/ambiguous output");
+    if (uint32_t(rate) == fake::rejected_rate || selection.name == fake::rate_refused_id) throw RateUnsupported();
     impl_->engine = std::move(owner);
     impl_->producers = std::move(producers);
     fake::engine = impl_->engine.get();
@@ -181,9 +183,10 @@ int main() {
         options.settings = (root / "stream-contract.json").string();
         fake::attempts.clear();
         fake::stopped = 0;
-        fake::outputs = {{"USB Stereo", "USB Stereo", "FakeAudio", 3, true, "FakeAudio", 2, {44100, 48000, 96000}, true, ""},
-                         {"Mono DAC", "Mono DAC", "FakeAudio", 4, false, "FakeAudio", 1, {}, false, "mono-output"},
-                         {"No Output", "No Output", "FakeAudio", 5, false, "FakeAudio", 0, {}, false, "no-output"}};
+        fake::outputs = {
+            {"USB Stereo", "USB Stereo", "FakeAudio", 3, true, "FakeAudio", 2, {44100, 48000, 96000}, true, ""},
+            {"Mono DAC", "Mono DAC", "FakeAudio", 4, false, "FakeAudio", 1, {}, false, "mono-output"},
+            {"No Output", "No Output", "FakeAudio", 5, false, "FakeAudio", 0, {}, false, "no-output"}};
         {
             Session s(options);
             s.start();
@@ -199,8 +202,8 @@ int main() {
                       hello["capabilities"] == Json::array({"midiLearn", "setSampleRate", "setBufferFrames"}),
                   "hello must expose the supported device catalogue and methods");
             auto listed = call("list", "listAudioDevices")["result"]["devices"];
-            check(listed.size() == 3 && listed[0]["backend"] == "FakeAudio" &&
-                      listed[0]["outputChannels"] == 2 && listed[0]["supported"] == true,
+            check(listed.size() == 3 && listed[0]["backend"] == "FakeAudio" && listed[0]["outputChannels"] == 2 &&
+                      listed[0]["supported"] == true,
                   "backend/channels must be reported honestly");
             check(listed[1]["supported"] == false && listed[1]["unsupportedReason"] == "mono-output" &&
                       listed[2]["unsupportedReason"] == "no-output",
@@ -216,21 +219,21 @@ int main() {
                   "duplicate IDs must be refused before stopping the old stream");
             fake::outputs.pop_back();
             s.poll();
-            check(missing["ok"] == false && missing["code"] == "not-found" &&
-                      mono["ok"] == false && mono["code"] == "refused" && mono["message"] == "mono-output" &&
-                      fake::stopped == stopped && fake::engine == playing && audio(s)["deviceId"] == "USB Stereo",
+            check(missing["ok"] == false && missing["code"] == "not-found" && mono["ok"] == false &&
+                      mono["code"] == "refused" && mono["message"] == "mono-output" && fake::stopped == stopped &&
+                      fake::engine == playing && audio(s)["deviceId"] == "USB Stereo",
                   "stale/mono refusal must not interrupt the active route");
             auto invalid_rate = call("bad", "setSampleRate", {{"hz", 32000}});
             auto invalid_frames = call("bad-block", "setBufferFrames", {{"frames", 33}});
-            check(invalid_rate["code"] == "invalid" && invalid_frames["code"] == "invalid" &&
-                      fake::stopped == stopped, "out-of-set settings must not stop the stream");
+            check(invalid_rate["code"] == "invalid" && invalid_frames["code"] == "invalid" && fake::stopped == stopped,
+                  "out-of-set settings must not stop the stream");
             auto rate = call("rate", "setSampleRate", {{"hz", 44100}});
             check(rate["ok"] == true && rate["gen"] == "1" && audio(s)["state"] == "running" &&
                       audio(s)["sampleRate"] == 44100 && audio(s)["bufferFrames"] == 256,
                   "rate ack requires a running new stream");
             auto frames = call("frames", "setBufferFrames", {{"frames", 128}});
-            check(frames["ok"] == true && frames["gen"] == "2" &&
-                      audio(s)["sampleRate"] == 44100 && audio(s)["bufferFrames"] == 128,
+            check(frames["ok"] == true && frames["gen"] == "2" && audio(s)["sampleRate"] == 44100 &&
+                      audio(s)["bufferFrames"] == 128,
                   "buffer restart must keep selected rate");
             std::ifstream saved(options.settings);
             Json prefs;
@@ -240,17 +243,54 @@ int main() {
             fake::rejected_rate = 96000;
             const auto gen = s.status()["gen"];
             auto unavailable = call("fail", "setSampleRate", {{"hz", 96000}});
-            check(unavailable["ok"] == false && unavailable["code"] == "unavailable" &&
-                      s.status()["gen"] == gen && audio(s)["sampleRate"] == 44100 &&
-                      audio(s)["bufferFrames"] == 128 && audio(s)["state"] == "running" &&
-                      audio(s)["deviceId"] == "USB Stereo", "failure must roll back to the playing route");
+            check(unavailable["ok"] == false && unavailable["code"] == "refused" &&
+                      unavailable["message"] == "rate-unsupported" && audio(s)["reason"] == "rate-unsupported" &&
+                      s.status()["gen"] == gen && audio(s)["sampleRate"] == 44100 && audio(s)["bufferFrames"] == 128 &&
+                      audio(s)["state"] == "running" && audio(s)["deviceId"] == "USB Stereo",
+                  "failure must roll back to the playing route");
             fake::rejected_rate = 0;
             std::ifstream saved_after(options.settings);
             Json after;
             saved_after >> after;
             check(after["audio"] == prefs["audio"], "rejected stream config must not persist");
+            fake::outputs.push_back({"Rate DAC", "Rate DAC", "FakeAudio", 6, false});
+            s.poll();
+            fake::rate_refused_id = "Rate DAC";
+            auto route_rate = call("route-rate", "selectAudioDevice", {{"deviceId", "Rate DAC"}});
+            check(route_rate["code"] == "refused" && route_rate["message"] == "rate-unsupported" &&
+                      audio(s)["deviceId"] == "USB Stereo" && audio(s)["state"] == "running" &&
+                      audio(s)["reason"] == "rate-unsupported",
+                  "rate-refused selection restores the old route");
+            const auto opened = fake::attempts.size();
+            s.poll(std::chrono::steady_clock::now() + 10s);
+            check(fake::attempts.size() == opened, "rate refusal must never retry the rejected route");
+            fake::rate_refused_id.clear();
+            fake::active = false;
+            const auto lost = std::chrono::steady_clock::now() + 20s;
+            s.poll(lost);
+            check(audio(s)["state"] == "device-lost" && !audio(s).contains("reason"),
+                  "real device loss supersedes a previous refused setting");
+            s.poll(lost + 100ms);
+            check(audio(s)["state"] == "running", "real device loss still reconnects the remembered route");
             s.shutdown();
         }
+        // An unsupported startup rate is a stable refusal, recoverable by an explicit rate choice.
+        options.settings = (root / "startup-rate.json").string();
+        fake::rejected_rate = options.rate;
+        fake::attempts.clear();
+        {
+            Session s(options);
+            s.start();
+            check(audio(s)["state"] == "no-device" && audio(s)["reason"] == "rate-unsupported",
+                  "startup rate mismatch is not reconnecting");
+            const auto opened = fake::attempts.size();
+            s.poll(std::chrono::steady_clock::now() + 10s);
+            check(fake::attempts.size() == opened, "startup rate refusal never spins retries");
+            auto fixed = s.reply({{{"v", 0}, {"id", "fix-rate"}, {"type", "setSampleRate"}, {"hz", 44100}}, {}, {}});
+            check(fixed["ok"] == true && audio(s)["state"] == "running" && !audio(s).contains("reason"),
+                  "explicit supported rate recovers without changing identity");
+        }
+        fake::rejected_rate = 0;
         // Windows lists one endpoint per host API and repeats names inside one host API.
         check(wirescape::audio::device_ids({{"Headphones", "MME"},
                                             {"Headphones", "Windows WASAPI"},

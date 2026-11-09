@@ -23,9 +23,10 @@ struct Backend {
  void* library=nullptr;
  decltype(&Pa_Initialize) initialize=nullptr;decltype(&Pa_Terminate) terminate=nullptr;
  decltype(&Pa_GetDeviceCount) count=nullptr;decltype(&Pa_GetDeviceInfo) info=nullptr;
- decltype(&Pa_GetHostApiInfo) host_api=nullptr;
- decltype(&Pa_IsFormatSupported) format_supported=nullptr;
- decltype(&Pa_GetDefaultOutputDevice) default_device=nullptr;decltype(&Pa_GetErrorText) text=nullptr;
+ decltype(&Pa_GetHostApiInfo) host_api = nullptr;
+ decltype(&Pa_IsFormatSupported) format_supported = nullptr;
+ decltype(&Pa_GetDefaultOutputDevice) default_device = nullptr;
+ decltype(&Pa_GetErrorText) text = nullptr;
  decltype(&Pa_OpenStream) open=nullptr;decltype(&Pa_StartStream) start=nullptr;
  decltype(&Pa_StopStream) stop=nullptr;decltype(&Pa_AbortStream) abort=nullptr;
  decltype(&Pa_CloseStream) close=nullptr;decltype(&Pa_IsStreamActive) active=nullptr;
@@ -48,12 +49,29 @@ struct Backend {
   if(!library)throw std::runtime_error("PortAudio unavailable: install libportaudio2 on Linux or place the DLL beside the runner");
   // Resident through process exit, including a broken-backend shutdown path.
 #define LOAD(member,name) symbol(member,name)
-  LOAD(initialize,"Pa_Initialize");LOAD(terminate,"Pa_Terminate");LOAD(count,"Pa_GetDeviceCount");LOAD(info,"Pa_GetDeviceInfo");LOAD(host_api,"Pa_GetHostApiInfo");LOAD(format_supported,"Pa_IsFormatSupported");LOAD(default_device,"Pa_GetDefaultOutputDevice");LOAD(text,"Pa_GetErrorText");LOAD(open,"Pa_OpenStream");LOAD(start,"Pa_StartStream");LOAD(stop,"Pa_StopStream");LOAD(abort,"Pa_AbortStream");LOAD(close,"Pa_CloseStream");LOAD(active,"Pa_IsStreamActive");LOAD(load,"Pa_GetStreamCpuLoad");
+  LOAD(initialize, "Pa_Initialize");
+  LOAD(terminate, "Pa_Terminate");
+  LOAD(count, "Pa_GetDeviceCount");
+  LOAD(info, "Pa_GetDeviceInfo");
+  LOAD(host_api, "Pa_GetHostApiInfo");
+  LOAD(format_supported, "Pa_IsFormatSupported");
+  LOAD(default_device, "Pa_GetDefaultOutputDevice");
+  LOAD(text, "Pa_GetErrorText");
+  LOAD(open, "Pa_OpenStream");
+  LOAD(start, "Pa_StartStream");
+  LOAD(stop, "Pa_StopStream");
+  LOAD(abort, "Pa_AbortStream");
+  LOAD(close, "Pa_CloseStream");
+  LOAD(active, "Pa_IsStreamActive");
+  LOAD(load, "Pa_GetStreamCpuLoad");
 #undef LOAD
   check(initialize());initialized=true;
  }
  ~Backend(){if(initialized)terminate();}
- void check(PaError result){if(result<0)throw std::runtime_error(text(result));}
+ void check(PaError result) {
+     if (result == paInvalidSampleRate) throw RateUnsupported();
+     if (result < 0) throw std::runtime_error(text(result));
+ }
 };
 struct Context {
     std::function<void()> stop_producers;
@@ -99,9 +117,9 @@ std::vector<Device> enumerate(Backend &b) {
         entry.index = i;
         entry.is_default = i == fallback;
         entry.output_channels = d->maxOutputChannels;
+        entry.default_sample_rate = d->defaultSampleRate;
         if (const auto *api = b.host_api(d->hostApi)) entry.backend = api->name ? api->name : "Audio";
         entry.host_api = entry.backend.empty() ? "Audio" : entry.backend;
-        raw.push_back({entry.name, entry.host_api});
         entry.sample_rates.clear();
         if (d->maxOutputChannels >= 2) {
             PaStreamParameters output{i, 2, paFloat32, d->defaultLowOutputLatency, nullptr};
@@ -110,10 +128,14 @@ std::vector<Device> enumerate(Backend &b) {
         }
         entry.supported = d->maxOutputChannels >= 2 && !entry.sample_rates.empty();
         if (!entry.supported)
-            entry.unsupported_reason = d->maxOutputChannels == 0 ? "no-output" :
-                                       d->maxOutputChannels == 1 ? "mono-output" : "rate-unsupported";
+            entry.unsupported_reason = d->maxOutputChannels == 0   ? "no-output"
+                                       : d->maxOutputChannels == 1 ? "mono-output"
+                                                                   : "rate-unsupported";
         result.push_back(std::move(entry));
     }
+    // Preserve all published stereo-output ids when adding disabled mono/input entries.
+    std::stable_partition(result.begin(), result.end(), [](const Device &d) { return d.output_channels >= 2; });
+    for (const auto &d : result) raw.push_back({d.name, d.host_api});
     auto ids = device_ids(raw);
     for (size_t i = 0; i < result.size(); ++i) result[i].id = std::move(ids[i]);
     return result;
@@ -150,7 +172,7 @@ struct Stream::Impl {
         if (info->maxOutputChannels < 2)
             throw std::runtime_error(info->maxOutputChannels == 0 ? "no-output" : "mono-output");
         PaStreamParameters output{device, 2, paFloat32, info->defaultLowOutputLatency, nullptr};
-        if (b.format_supported(nullptr, &output, rate) < 0) throw std::runtime_error("rate-unsupported");
+        b.check(b.format_supported(nullptr, &output, rate));
         context = std::make_unique<Context>(EngineOwner(nullptr, app_engine_destroy), block);
         context->rate = rate;
         context->stop_producers = std::move(producers);

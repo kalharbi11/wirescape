@@ -14,6 +14,10 @@ class ShutdownFailure : public std::runtime_error {
   public:
     using std::runtime_error::runtime_error;
 };
+class RateUnsupported : public std::runtime_error {
+  public:
+    RateUnsupported() : std::runtime_error("rate-unsupported") {}
+};
 struct Device {
     std::string id, name, host_api;
     int index = -1;
@@ -23,6 +27,7 @@ struct Device {
     std::vector<uint32_t> sample_rates{44100, 48000, 96000};
     bool supported = true;
     std::string unsupported_reason;
+    double default_sample_rate = 0;
 };
 // Stable output identity. Windows exposes one endpoint per host API (MME, DirectSound,
 // WASAPI, WDM-KS) and repeats names even inside one host API, so the id is

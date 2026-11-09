@@ -185,15 +185,33 @@ Json ObservedMidi::held() const {
 }
 Json audio_devices(const std::string &directory, bool fake) {
     auto result = Json::array();
-    if (fake) return Json::array({{{"id", "USB Stereo"}, {"name", "USB Stereo"}, {"kind", "audio"},
-                                    {"index", 3}, {"backend", "FakeAudio"}, {"outputChannels", 2},
-                                    {"sampleRates", Json::array({44100, 48000, 96000})}, {"supported", true}},
-                                   {{"id", "Mono DAC"}, {"name", "Mono DAC"}, {"kind", "audio"},
-                                    {"index", 4}, {"backend", "FakeAudio"}, {"outputChannels", 1},
-                                    {"supported", false}, {"unsupportedReason", "mono-output"}}});
+    if (fake)
+        return Json::array({{{"id", "USB Stereo"},
+                             {"name", "USB Stereo"},
+                             {"kind", "audio"},
+                             {"index", 3},
+                             {"backend", "FakeAudio"},
+                             {"outputChannels", 2},
+                             {"sampleRates", Json::array({44100, 48000, 96000})},
+                             {"supported", true}},
+                            {{"id", "Mono DAC"},
+                             {"name", "Mono DAC"},
+                             {"kind", "audio"},
+                             {"index", 4},
+                             {"backend", "FakeAudio"},
+                             {"outputChannels", 1},
+                             {"supported", false},
+                             {"unsupportedReason", "mono-output"}}});
     for (const auto &d : audio::devices(directory)) {
-        Json entry = {{"id", d.id}, {"name", d.name}, {"kind", "audio"}, {"index", d.index},
-                      {"hostApi", d.host_api}, {"backend", d.backend}, {"outputChannels", d.output_channels}, {"supported", d.supported}};
+        Json entry = {{"id", d.id},
+                      {"name", d.name},
+                      {"kind", "audio"},
+                      {"index", d.index},
+                      {"hostApi", d.host_api},
+                      {"backend", d.backend},
+                      {"outputChannels", d.output_channels},
+                      {"supported", d.supported}};
+        if (d.default_sample_rate > 0) entry["defaultSampleRate"] = d.default_sample_rate;
         if (!d.sample_rates.empty()) entry["sampleRates"] = d.sample_rates;
         if (!d.supported) entry["unsupportedReason"] = d.unsupported_reason;
         result.push_back(std::move(entry));

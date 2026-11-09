@@ -26,11 +26,16 @@ Read `AGENTS.md`, #293 and its latest Codex Lead handoff, `docs/tasks/P2_REMAINI
 - Do not change ABI, IDs, wire format, dependencies, thresholds or protected
   spec paths without explicit authorization. Real device access is owner-only.
 
+Codex Lead owner-delegated ruling (2026-11-09): include #472 typed rate-error
+refusal, optional default rate/status reason, and regression coverage in this
+existing coordinated PR; <=850 lines/12 files includes session/EngineClient
+state declarations. Preserve #463 EngineSlot/history and existing wire names.
+
 ## Focused checks
 
 ```acceptance
 tier: T2
-size: <= 650 changed lines, <= 10 files
+size: <= 850 changed lines, <= 12 files
 must_pass:
   - ctest --test-dir build/native -R "audio|sidecar_" --output-on-failure --no-tests=error
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser="$(command -v chromium || command -v chromium-browser || command -v google-chrome)" && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npx playwright test tests/system.spec.ts --grep "audio route"'

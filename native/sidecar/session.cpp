@@ -253,6 +253,7 @@ void Session::shutdown() {
 }
 void Session::start_audio(std::chrono::steady_clock::time_point now) {
     stop_sink_.store(false);
+    audio_reason_.clear();
     if (options_.audio) {
         try {
             // Resolve the default only before any identity has been selected.
@@ -277,6 +278,9 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
                                                       options_.rate, options_.block, [this] { midi_->stop(); });
             audio_state_ = "running";
             audio_backoff_ = std::chrono::milliseconds(100);
+        } catch (const audio::RateUnsupported &) {
+            audio_state_ = "no-device";
+            audio_reason_ = "rate-unsupported"; // invalid rates are refusals, never retry loops
         } catch (const audio::ShutdownFailure &) {
             throw;
         } catch (const std::exception &) {
@@ -587,6 +591,10 @@ void Session::commit(Json patch, bool new_namespace) {
     std::cerr << "commit path=d5 gen=" << generation_ << '\n';
 }
 Json Session::apply(const Json &command) {
+    auto refuse_rate = [&]() {
+        audio_reason_ = "rate-unsupported";
+        throw Refusal("refused", "rate-unsupported");
+    };
     auto type = command.at("type").get<std::string>();
     if (type == "listAudioDevices") return {{"devices", audio_devices_}};
     if (type == "listMidiDevices") return {{"devices", midi_devices_}};
@@ -609,17 +617,18 @@ Json Session::apply(const Json &command) {
         const uint32_t next_rate = rate_change ? value : options_.rate;
         const uint32_t next_block = rate_change ? options_.block : value;
         if (options_.audio) {
-            need(stream_ && stream_->running(), "unavailable", "No active audio stream");
+            need((stream_ && stream_->running()) || audio_reason_ == "rate-unsupported", "unavailable",
+                 "No active audio stream");
             const auto count = std::count_if(audio_devices_.begin(), audio_devices_.end(),
                                              [&](const Json &d) { return d.at("id") == device_; });
             need(count == 1, "unavailable", "Selected audio output is missing or ambiguous");
             const auto entry = std::find_if(audio_devices_.begin(), audio_devices_.end(),
                                             [&](const Json &d) { return d.at("id") == device_; });
             need(entry->value("supported", true), "unavailable", "Audio output is unsupported");
-            need(entry->contains("sampleRates") &&
-                     std::find((*entry)["sampleRates"].begin(), (*entry)["sampleRates"].end(), Json(next_rate)) !=
-                         (*entry)["sampleRates"].end(),
-                 "unavailable", "Selected audio device does not support this sample rate");
+            if (entry->contains("sampleRates") &&
+                std::find((*entry)["sampleRates"].begin(), (*entry)["sampleRates"].end(), Json(next_rate)) ==
+                    (*entry)["sampleRates"].end())
+                refuse_rate();
         } else {
             need(sink_.joinable(), "unavailable", "No active null-audio stream");
         }
@@ -639,10 +648,11 @@ Json Session::apply(const Json &command) {
             next_config.sample_rate = next_rate;
             next_config.max_block_frames = next_block;
             std::string error;
-            document::telemetry::Sampler next_telemetry(document::telemetry::plan(patch_, catalogue_.get()));
-            audio::EngineOwner prepared(document::load_runtime_patch(
-                                            patch_.dump(), catalogue_.get(), next_config, error,
-                                            &next_telemetry.taps()), app_engine_destroy);
+            document::telemetry::Sampler next_telemetry(
+                document::telemetry::plan(patch_, catalogue_.get(), /*phase_enabled=*/true));
+            audio::EngineOwner prepared(document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config,
+                                                                     error, &next_telemetry.taps()),
+                                        app_engine_destroy);
             need(bool(prepared), "unavailable", "Graph cannot prepare at requested stream configuration");
             app_engine_prepare_master_fade_in(prepared.get());
             engine_ = std::move(prepared);
@@ -651,8 +661,8 @@ Json Session::apply(const Json &command) {
             options_.rate = next_rate;
             options_.block = next_block;
             start_audio();
-            need(!options_.audio || (stream_ && stream_->running()),
-                 "unavailable", "Audio device refused the new stream");
+            need(!options_.audio || (stream_ && stream_->running()), "unavailable",
+                 "Audio device refused the new stream");
             start_midi();
             preferences_["audio"]["sampleRate"] = next_rate;
             preferences_["audio"]["bufferFrames"] = next_block;
@@ -662,6 +672,7 @@ Json Session::apply(const Json &command) {
             telemetry_.swap(next_telemetry);
             return nullptr;
         } catch (...) {
+            const bool rate_refused = audio_reason_ == "rate-unsupported";
             midi_->stop();
             stop_audio();
             engine_ = std::move(previous);
@@ -673,6 +684,7 @@ Json Session::apply(const Json &command) {
             app_engine_prepare_master_fade_in(active_);
             start_audio();
             start_midi();
+            if (rate_refused) refuse_rate();
             throw Refusal("unavailable", "Stream change refused; previous configuration restored");
         }
     }
@@ -683,10 +695,15 @@ Json Session::apply(const Json &command) {
                                    [&](const Json &d) { return d.at("id") == id; });
         need(count > 0, "not-found", "No such audio output");
         need(count == 1, "duplicate", "Ambiguous audio output name");
-        auto found = std::find_if(audio_devices_.begin(), audio_devices_.end(),
-                                  [&](const Json &d) { return d.at("id") == id; });
-        if (!found->value("supported", true))
-            throw Refusal("refused", found->value("unsupportedReason", std::string("rate-unsupported")).c_str());
+        auto found =
+            std::find_if(audio_devices_.begin(), audio_devices_.end(), [&](const Json &d) { return d.at("id") == id; });
+        if (!found->value("supported", true)) {
+            if (found->value("unsupportedReason", std::string{}) == "rate-unsupported") refuse_rate();
+            throw Refusal("refused", found->value("unsupportedReason", std::string("unsupported")).c_str());
+        }
+        if (found->contains("sampleRates") && std::find((*found)["sampleRates"].begin(), (*found)["sampleRates"].end(),
+                                                        Json(options_.rate)) == (*found)["sampleRates"].end())
+            refuse_rate();
         need(options_.audio || options_.null_audio, "unavailable", "Audio device access is not authorized");
         auto old_device = device_;
         midi_->stop();
@@ -698,11 +715,13 @@ Json Session::apply(const Json &command) {
             start_midi();
             persist();
         } catch (...) {
+            const bool rate_refused = audio_reason_ == "rate-unsupported";
             midi_->stop();
             stop_audio();
             device_ = old_device;
             start_audio();
             start_midi();
+            if (rate_refused) refuse_rate();
             throw;
         }
         refresh_devices();
@@ -901,6 +920,7 @@ Json Session::audio_status() const {
                    {"latencyMs", 2. * options_.block / options_.rate * 1000},
                    {"cpuPercent", measured ? cpu : 0},
                    {"dropouts", dropouts_.load() + (stream_ ? stream_->dropouts() : 0)}};
+    if (!audio_reason_.empty()) result["reason"] = audio_reason_;
     return result;
 }
 Json Session::midi_status() const {
@@ -973,10 +993,12 @@ bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumera
     if (stream_ && (!stream_->running() || (enumerated && matches == 0))) {
         midi_->stop();
         stop_audio();
+        audio_reason_.clear(); // genuine device loss supersedes a prior refused setting
         audio_state_ = "device-lost";
         audio_backoff_ = std::chrono::milliseconds(100);
         audio_retry_ = now + audio_backoff_;
     } else if (!stream_) {
+        if (audio_reason_ == "rate-unsupported") return false;
         if (audio_state_ == "device-lost") audio_state_ = "reconnecting";
         if (now < audio_retry_) return previous != audio_state_;
         start_audio(now);

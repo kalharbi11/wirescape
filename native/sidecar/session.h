@@ -51,7 +51,7 @@ class Session {
     ObservedMidi *observer_ = nullptr;
     std::unique_ptr<midi::Host> midi_;
     Json patch_, preferences_ = Json::object(), audio_devices_, midi_devices_;
-    std::string token_, device_, audio_state_ = "no-device";
+    std::string token_, device_, audio_state_ = "no-device", audio_reason_;
     uint64_t generation_ = 0, tick_ = 0;
     std::set<uint32_t> used_ids_;
     document::telemetry::Sampler telemetry_;

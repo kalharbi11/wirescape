@@ -117,6 +117,23 @@ test.describe('system', () => {
     expect(wire.some(m => m.type === 'selectAudioDevice' && m.deviceId === 'Mono DAC')).toBe(false);
   });
 
+  test('audio route: rate refusal names the shared-mode rate without restarting', async ({ page }) => {
+    await mockBridge(page);
+    await boot(page);
+    await page.evaluate(() => {
+      (window as any).__mockBridge.status({ reason: 'rate-unsupported' });
+      window.__wirescapeTest.engine.listAudioDevices = async () => [{
+        id: 'USB Stereo', name: 'USB Stereo', kind: 'audio', backend: 'Windows WASAPI',
+        sampleRates: [48000], defaultSampleRate: 48000,
+      }];
+    });
+    await page.getByTestId('open-settings').click();
+    await expect(page.getByTestId('audio-rate-reason')).toHaveText('This device only runs at 48 kHz in shared mode.');
+    await expect(page.getByTestId('status-audio')).toHaveText('RUNNING');
+    const wire = await page.evaluate(() => (window as any).__mockBridge.sent as any[]);
+    expect(wire.some(m => ['selectAudioDevice', 'setSampleRate', 'app.restartEngine'].includes(m.type))).toBe(false);
+  });
+
   test('audio route: stale remembered identity never silently selects the first output', async ({ page }) => {
     await boot(page);
     await page.evaluate(() => {
