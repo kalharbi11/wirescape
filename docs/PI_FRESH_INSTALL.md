@@ -6,43 +6,38 @@ prepared and tested now; owner installation stays after the Windows test and
 owner go-ahead. This guide covers Electron + Studio + `wirescape-engine` on
 64-bit Raspberry Pi OS. It does not provide a packaged installer.
 
-The source-build tools are in [#450](https://github.com/kalharbi11/wirescape/pull/450)
-and the isolated app smoke is in
-[#452](https://github.com/kalharbi11/wirescape/pull/452). #463, #450 and #452 must all be merged and verified
-at **one full source SHA** before the commands below become an
-owner-ready recipe. Do not mix their separate branch build outputs.
+The source-build tools merged in
+[#450](https://github.com/kalharbi11/wirescape/pull/450) (`fcf38b9`), and
+the isolated app smoke merged in
+[#452](https://github.com/kalharbi11/wirescape/pull/452) (`20aabc0`).
+The #463 runtime fixes are also on main. They must pass preflight and the
+real ARM64 app smoke at **one combined source revision** before this becomes
+an owner-ready recipe. Do not mix their separate branch build outputs.
 
 ## Current preparation status (2026-11-09)
 
-The owner's first Windows session is complete; its runtime fixes are in #463.
-Codex Lead integrated current main into the existing Pi branches. #450's repaired
-preflight/updater/parallel tests pass 13 + 7 + 1 on cloud x86. #452's profile
-isolation and short-ELF defects have fixes and committed regressions; its portable
-profile guards pass 4/4 and orchestration mocks pass 10/10. It now wraps only the
-owned app-test process in an already installed `xvfb-run -a` when no display is
-configured. Missing display and Xvfb still block; no agent provisions the runner.
+The owner's first Windows session is complete. The owner confirmed Node
+22.23.4/npm 10.9.9 and Xvfb/xauth for the Pi runner. The cache/read-only,
+profile/settings-path and short-ELF review findings have been repaired.
 
-These are source/static/mock checks, not an accepted ARM64 app run. Final-head
-hosted checks and actual Pi evidence remain pending. Keep the SHA guard below
-until a common main commit contains #463, #450 and #452 and passes the Pi smoke.
+| Gate | Actual evidence | Limit |
+|---|---|---|
+| #450 preflight | [`1074cfa`: 28 passed, zero blocked](https://github.com/kalharbi11/wirescape/pull/450#issuecomment-6741944378) | Separate PR head |
+| #452 app smoke | [`e6df3d2`: ARM64 Electron + native device-off smoke passed](https://github.com/kalharbi11/wirescape/pull/452#issuecomment-6746232670) | Functional display only; separate PR head |
+| Combined #463 + #450 + #452 source | Pending #483 on the existing #453 branch | No accepted SHA yet |
+| Physical display, sound and MIDI | Owner-only and pending | Xvfb cannot certify physical display performance |
 
-## Historical review evidence
+Keep the SHA guard below. #453 must integrate current main, including the
+combined-main test compile repair #485/#486, and obtain actual `pi5/accept`
+for both preflight and app smoke. Under
+[Keel's ruling](https://github.com/kalharbi11/wirescape/pull/453#issuecomment-6746264774),
+a passing docs-only head certifies its identical non-doc main parent; only then
+may that full main-parent SHA replace the placeholder. Queued, failed,
+old-head or partial results are not acceptance.
 
-| Gate | Earlier evidence (superseded for readiness) |
-|---|---|
-| Preflight, updater and build-job tests | 11 + 7 + 1 passed in a complete cloud checkout of `15ccb578c84eb2ebbf894670c082dc5acbbe44e3`; mocked, not Pi evidence |
-| App smoke orchestration tests | 7 passed at `53c1fe7ea77d1c1d4a5e5ff6f32b22516a912e04`; mocked |
-| Studio build and desktop TypeScript | Passed at the same #452 head on cloud x86; no ARM64 Electron launch claimed |
-| Independent review | Changes requested: cache/read-only checks in #450; settings-path isolation and malformed-ELF reporting in #452 |
-| Actual Pi prerequisite check | Earlier `51eee4d` run failed Node LTS and cache checks; Keel identified the own-cache failure as a detector false positive |
-| Actual combined ARM64 app test | Not verified at a combined source SHA; separate green build statuses do not cover it |
-| Physical display, sound and MIDI | Owner-only and pending; Xvfb cannot certify physical display performance |
-
-[Review and evidence notes](reviews/PI_SETUP_READINESS.md) record exact heads,
-reproductions and remaining work. The older Pi evidence is
-[here](https://github.com/kalharbi11/wirescape/pull/450#issuecomment-6732414300);
-[Keel's ruling](https://github.com/kalharbi11/wirescape/pull/450#issuecomment-6732522458)
-keeps the Node check strict and requires fixing the cache detector.
+[Review and evidence notes](reviews/PI_SETUP_READINESS.md) retain historical
+failures and their disposition; neither those failures nor cloud mocks replace
+the required combined run.
 
 ## 1. Inventory and preserve the old installation
 
@@ -72,7 +67,7 @@ failed prerequisite check.
 
 Use a C++17 compiler, Git, Python (3.12 recommended), pkg-config, CMake 4.2.3,
 Ninja 1.13.0, and Node **22 LTS** with its matching npm, following CI and Keel's
-ruling. The proposed preflight also accepts maintained LTS majors 24/26; use
+ruling. The preflight also accepts maintained LTS majors 24/26; use
 22 for this first test. An older runner Node version is an environment blocker,
 not a reason to relax the check.
 
@@ -152,9 +147,8 @@ python3 tools/pi/preflight.py --check-only
 sh tools/pi/update-and-build.sh "$AcceptedSha"
 ```
 
-Preflight is intended to be offline and read-only; the first-import write found
-in review must be fixed before readiness. A blocked result means stop and follow
-the named recovery step. The updater fetches and verifies this exact revision,
+Preflight is offline and read-only; the earlier first-import write was repaired
+in merged #450. A blocked result means stop and follow the named recovery step. The updater fetches and verifies this exact revision,
 checks prerequisites again, builds the Qt-free Release engine, runs locked npm
 installs, then builds Studio and Desktop. It defaults to **two** native build
 jobs; use `--jobs 1` on the updater if memory is constrained. Never use an
@@ -167,15 +161,15 @@ The printed real-device launch command is for a later owner decision.
 
 A genuine own cache must match this checkout's normalized `native/` path,
 architecture and generator, with Qt UI disabled. Do not move a runner-generated
-cache merely because an older preflight reports it as stale. Fix the detector
-first. If a cache truly belongs to another checkout or architecture, inspect it
+cache based on an obsolete detector failure; use the merged preflight's predicates. If a cache truly belongs to another checkout or architecture, inspect it
 and preserve it under a different name before rebuilding; never auto-delete it.
 
 ## 5. Test the actual app with an isolated temporary profile
 
 Use the Pi's existing graphical desktop terminal. Check that `DISPLAY` (X11)
-or `WAYLAND_DISPLAY` is available. An existing Xvfb session can verify function;
-the smoke does not install/start a display server or alter a desktop session.
+or `WAYLAND_DISPLAY` is available. If neither exists, the smoke can wrap its owned
+app-test child in already installed `xvfb-run -a`. It does not install Xvfb or
+alter an existing desktop session; missing display support remains blocked.
 
 ```sh
 python3 tools/dev.py test
@@ -193,8 +187,8 @@ Require `summary.json` to name the accepted SHA, `status: passed`, ARM64, the
 actual display backend and binary hashes, with **one expected test and zero
 unexpected, skipped or flaky tests**. Inspect stage logs and Playwright output
 under `build_reports/pi-app-smoke/`. Missing display/libraries, wrong ELF,
-timeout or skipped tests are blockers. These checks still need actual Pi
-execution after the review findings are fixed.
+timeout or skipped tests are blockers. The separate #452 run passed; the
+combined selected source still requires this actual Pi execution.
 
 For hosted PR evidence, both `ci/pi` and `ci/pi-accept` are required. Check
 `pi5` and `pi5/accept` on the **current full SHA**. A queued run, an old-head
@@ -206,7 +200,7 @@ require collaborator access. Never SSH into the Pi for agent validation.
 After the automated gates pass, a deliberate owner launch can retain test
 patches in a fresh profile. Use exactly one settings destination; normally
 omit `--settings` so the profile option selects its own native settings file.
-The path-validation review finding in #452 must be fixed first.
+Merged #452 validates that the settings destination stays inside this profile.
 
 ```sh
 Profile="$Root/.tools/owner-first-run-profile"
@@ -242,3 +236,4 @@ terminal discards the temporary environment choices. The guide does not certify
 an idempotent installer or clean-machine distribution.
 
 Signed: Codex (Pi readiness reviewer and owner-guide builder), 2026-11-08 America/New_York.
+Updated: Codex (delegated Pi guide repair cooperator), 2026-11-09.
