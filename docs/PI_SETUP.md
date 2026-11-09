@@ -53,60 +53,45 @@ Troubleshooting:
 - **Patch refused:** only native v1/v2 patches load. Unknown modules/state/config are reported; originals are never rewritten by `play`.
 
 
-## Wirescape standalone app: separate source preparation gates
+## Standalone Electron app: source preparation (not installation)
 
-The standalone app is Electron + Studio + the native `wirescape-engine`. Its
-source build is **not** a desktop install or a release. The owner starts the
-installation step only after the separate Windows test decision. Agents and
-the Pi runner do not install packages, alter sessions, open devices, or SSH.
+This builds Electron + Studio + `wirescape-engine` from source, **not** a
+distributable installer. The owner defers installation until the Windows test;
+agents and Pi CI never install packages, alter sessions, SSH or open devices.
 
-### 1. Check prerequisites (read-only and offline)
-
-On the Pi 5 with 64-bit Raspberry Pi OS, from the intended checkout:
+### 1. Check prerequisites — offline, read-only
 
 ```sh
 python3 tools/pi/preflight.py --check-only
 ```
 
-The command never fetches, checks out, builds, installs, launches Electron,
-or writes a report. It verifies Linux ARM64, compiler, Git, Python, CMake,
-Ninja, Node/npm, tracked npm lockfiles, libportaudio.so.2 and Electron
-shared-library prerequisites, disk/permissions, Git cleanliness, inherited
-Qt overrides, and stale cross-checkout/architecture CMake caches.
-Supported maintained Node LTS majors are **22, 24, and 26**. Legacy Qt
-runner tests have separate requirements; Qt is not required to build the
-source Electron app. A failure names an owner-managed action. Do not solve
-a failure by deleting the owner's cache or rewriting global environment.
-Use the distro's package manager manually for missing native libraries.
+Checks ARM64, Git/compiler/Python/CMake/Ninja, Node/npm, lockfiles,
+PortAudio/Electron libraries, disk/permissions, clean Git, Qt environment and
+foreign/Qt-enabled CMake caches. Maintained Node LTS: **22, 24, 26**; use
+**Node 22** to match CI. On the Pi runner, Node 20.19.2 is a known
+owner-managed prerequisite: install/select Node 22 LTS via nvm or NodeSource
+before rerunning `pi5/accept`. Qt is not needed for this Electron build.
+No network, fetch, checkout, build, report, installation or cache deletion
+occurs. Resolve failures manually without changing global owner settings.
 
-### 2. Update and build the exact approved source
-
-From a clean checkout, with owner-approved immutable SHA:
+### 2. Build approved source SHA
 
 ```sh
 sh tools/pi/update-and-build.sh <accepted-commit-sha>
-# optional bounded native concurrency override:
-sh tools/pi/update-and-build.sh <accepted-commit-sha> --jobs 4
+sh tools/pi/update-and-build.sh <accepted-commit-sha> --jobs 4  # optional, 1–4
 ```
 
-The historical one-argument ref invocation remains supported. It preflights
-before fetch, resolves the supplied ref, verifies the resulting exact SHA
-after detached checkout, preflights the selected source again, then calls
-the existing `tools/dev.py build --headless --config Release` driver
-(default **2** native jobs; explicit **1–4**). Studio and Desktop use their
-tracked lockfiles with `npm ci`. Native, Studio install/build, and
-Desktop install/build stages fail fast without running later stages.
+The one-argument ref form remains supported. The updater checks the clean
+tree, preflights before fetch and after verified detached checkout, then
+reuses `tools/dev.py build --headless --config Release` (default **2** jobs).
+Studio/Desktop use pinned `npm ci`; stages fail fast. Build/install stages
+may fetch pinned sources or npm packages; check-only never does.
+Ignored reports: `build_reports/pi-source-build/<sha>/` (sanitized bounded
+logs, per-stage JSON, `summary.json` with SHA, tools and outcomes). Inspect
+the named failed stage log and retry the same SHA; a report alone is not Pi
+execution evidence.
 
-Generated, ignored diagnostics are local to
-`build_reports/pi-source-build/<sha>/`: stage logs (sanitized,
-size-bounded), per-stage JSON, and `summary.json` (resolved SHA,
-tool versions, architecture and stage outcomes). On failure, inspect the
-named stage log, repair the cause manually, then rerun the same SHA.
-Reports are not commits and are not evidence of real Pi execution by
-themselves. The first native configure may download pinned sources;
-`npm ci` requires registry access. The check-only command does not.
-
-### 3. Test and inspect evidence (devices off)
+### 3. Test (devices off)
 
 ```sh
 python3 tools/foundation/tests/test_pi_preflight.py
@@ -115,22 +100,18 @@ python3 -m unittest discover -s tools/foundation/tests -p test_build_parallel.py
 python3 tools/dev.py test
 ```
 
-The private Pi runner must execute its task-specific `pi-run:` acceptance
-with `ci/pi-accept`; a hosted or mock x86 pass is not a Pi result.
-A missing Pi dependency is a BLOCKED setup step, not a skipped success.
+Task-specific Pi `pi-run:` needs actual exact-head `ci/pi-accept` results.
+A missing prerequisite is BLOCKED, not a skipped success; cloud mocks are
+not Pi evidence.
 
-### 4. Owner-only installation and device launch (deferred)
+### 4. Owner-only installation and launch — deferred
 
-After the owner's Windows test and explicit go-ahead, the separate
-`tools/pi/install-desktop-entry.sh` can create a per-user desktop
-entry. It is **not** called by check-only or the source build. Only the owner
-invokes the launcher with `--confirm-audio --confirm-midi`. For device-free
-diagnostics, use a temporary native `--settings` path and `--null-audio`
-without either confirmation flag; see the app smoke task (#446).
-Device choices belong in the owner's `user_data/settings.json` unless
-explicitly redirected. The older `~/.cache/wirescape/demo.log` is for
-the retired class-demo kiosk, not Electron. See #247 and #253 if the
-native sidecar or desktop entry is absent.
+After the Windows test and owner approval, the owner may invoke
+`tools/pi/install-desktop-entry.sh` and launch with
+`--confirm-audio --confirm-midi`. Neither check nor build installs or opens
+devices. For device-free app diagnostics use temporary `--settings` and
+`--null-audio` (#446). Normal choices remain in
+`user_data/settings.json`; old demo kiosk logs are not Electron logs.
 
 ## Class demo (owner only)
 
