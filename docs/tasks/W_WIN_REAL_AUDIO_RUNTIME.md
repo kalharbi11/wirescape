@@ -149,7 +149,7 @@ tier: T2
 size: <= 900 changed lines, <= 22 files
 must_pass:
   - ctest --test-dir build/native --output-on-failure --no-tests=error -R '^(abi2_sidecar_unit_tests|abi2_sidecar_protocol_tests|sidecar_golden|abi2_sidecar_audio_recovery_tests)$'
-  - bash -lc 'cd apps/studio && npm ci && npm test'
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
   - ci: guard
   - ci: linux-arm64
   - ci: windows-x64
