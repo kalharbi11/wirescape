@@ -24,6 +24,8 @@ sys.dont_write_bytecode = True
 from helpers import discover_toolchain, tool_version  # noqa: E402
 
 NODE_LTS = {22, 24, 26}  # Maintained even-numbered LTS releases in Nov 2026.
+SYSTEM_QT_DIRS = tuple(Path(p) / "cmake/Qt6" for p in
+                       ("/usr/lib", "/usr/lib64", "/usr/lib/aarch64-linux-gnu"))
 REQUIRED_LIBS = {
     "portaudio": "libportaudio2", "nss3": "libnss3", "gtk-3": "libgtk-3-0t64",
     "atk-1.0": "libatk1.0-0t64", "atk-bridge-2.0": "libatk-bridge2.0-0t64",
@@ -121,14 +123,21 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
         cache_arch = values.get("CMAKE_SYSTEM_PROCESSOR", "").lower()
         same_arch = not cache_arch or cache_arch in ("aarch64", "arm64")
         same_generator = bool(expected_generator and values.get("CMAKE_GENERATOR") == expected_generator)
-        qt_cache = any(values.get(key, "") and not values[key].endswith("-NOTFOUND")
-                       for key in ("Qt6_DIR", "CMAKE_PREFIX_PATH"))
-        ui_enabled = values.get("WIRESCAPE_BUILD_UI", "").upper() in ("ON", "TRUE", "YES", "1")
+        qt_value = values.get("Qt6_DIR", "")
+        qt = Path(qt_value).resolve()
+        config = qt / "Qt6Config.cmake"
+        system_qt = qt in SYSTEM_QT_DIRS and config.is_file() and config.resolve().parent == qt
+        qt_cache = bool(values.get("CMAKE_PREFIX_PATH")) or bool(qt_value and not qt_value.endswith("-NOTFOUND") and not system_qt)
+        ui_off = values.get("WIRESCAPE_BUILD_UI", "").upper() in ("OFF", "FALSE", "NO", "0")
+        predicates = {"source": same_source, "architecture": same_arch, "generator": same_generator,
+                      "Qt": not qt_cache, "UI-off": ui_off}
+        failed = ",".join(key for key, ok in predicates.items() if not ok)
+        detail = "; ".join(f"{key}={sanitize(values.get(key, '<missing>')[:160], root)}" for key in
+                           ("CMAKE_HOME_DIRECTORY", "CMAKE_SYSTEM_PROCESSOR", "CMAKE_GENERATOR",
+                            "Qt6_DIR", "CMAKE_PREFIX_PATH", "WIRESCAPE_BUILD_UI"))
         check(f"cache:{cache.relative_to(root).as_posix()}",
-              same_source and same_arch and same_generator and not qt_cache and not ui_enabled,
-              "Cache source/architecture/generator or Qt UI mismatch. Inspect CMAKE_HOME_DIRECTORY, "
-              "CMAKE_SYSTEM_PROCESSOR, CMAKE_GENERATOR, WIRESCAPE_BUILD_UI; move incompatible "
-              "build directory aside, never delete it automatically.")
+              all(predicates.values()), f"Cache mismatch ({failed}): {detail}; "
+              "move incompatible build directory aside, never delete it automatically.")
     return checks, {"sha": sha if rc == 0 else None, "architecture": arch, "tools": tools}
 
 

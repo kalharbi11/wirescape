@@ -92,12 +92,30 @@ class PiPreflightTests(unittest.TestCase):
         self.assertNotIn("cache:build/native/CMakeCache.txt", self.failures())
         self.assertEqual(cache.read_bytes(), before)
 
+    def test_own_headless_system_qtcore_cache_and_symlink_escape(self):
+        cache = self.own_cache()
+        qt = (self.root / 'usr/lib/aarch64-linux-gnu/cmake/Qt6').resolve()
+        qt.mkdir(parents=True)
+        config = qt / 'Qt6Config.cmake'
+        config.write_text('# discovered QtCore package')
+        cache.write_text(cache.read_text().replace('Qt6_DIR-NOTFOUND', str(qt)))
+        with patch.object(preflight, 'SYSTEM_QT_DIRS', (qt,)):
+            self.assertNotIn('cache:build/native/CMakeCache.txt', self.failures())
+            if os.name != 'nt':
+                foreign = self.root / 'foreign-Qt6Config.cmake'
+                foreign.write_text('# foreign SDK')
+                config.unlink()
+                config.symlink_to(foreign)
+                self.assertIn('cache:build/native/CMakeCache.txt', self.failures())
+
     def test_wrong_generator_or_ui_enabled_cache_is_rejected(self):
         cache = self.own_cache()
         original = cache.read_text()
         cases = (
             ("Ninja", "Unix Makefiles"), ("WIRESCAPE_BUILD_UI:BOOL=OFF", "WIRESCAPE_BUILD_UI:BOOL=ON"),
             ("Qt6_DIR-NOTFOUND", "/old/qt"), ("aarch64", "x86_64"),
+            ("Qt6_DIR:PATH=Qt6_DIR-NOTFOUND", "CMAKE_PREFIX_PATH:STRING=token=private-word"),
+            ("WIRESCAPE_BUILD_UI:BOOL=OFF", ""),
             (str((self.root / "native").resolve()), "/other/checkout/native"),
         )
         for old, new in cases:
@@ -106,6 +124,10 @@ class PiPreflightTests(unittest.TestCase):
                 cache.write_text(changed)
                 self.assertIn("cache:build/native/CMakeCache.txt", self.failures())
                 self.assertEqual(cache.read_text(), changed)
+                reason = next(row[2] for row in preflight.inspect(self.root)[0]
+                              if row[0] == 'cache:build/native/CMakeCache.txt')
+                self.assertIn('Cache mismatch (', reason)
+                self.assertNotIn('private-word', reason)
 
     def test_first_check_only_process_creates_no_bytecode_or_reports(self):
         # Snapshot before any fresh-process helper import, including blocked exits.
