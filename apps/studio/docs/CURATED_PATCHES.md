@@ -42,7 +42,7 @@ For headphone listening, start with a low output volume.
   remain available for historical session regression checks.
 - The three **Class demo** patches in `native/examples/class_demo_*.json` are
   preserved unchanged. They were created for the owner's Pi/M8 test sessions
-  (see `docs/tasks/P0A_DEMO_PATCHES.md` and `docs/DEMO_CLASS.md`).
+  (see `docs/tasks/done/P0A_DEMO_PATCHES.md` and `docs/DEMO_CLASS.md`).
 - **Keyboard voice** remains the default Studio patch because the browser
   audio smoke test depends on it.
 - Five old generic interactive starters (**Two-source drone**, **Clocked random**,

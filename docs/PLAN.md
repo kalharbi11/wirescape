@@ -59,13 +59,13 @@ Each phase lists sections (letter blocks). Sections in a phase run in parallel u
 - [x] 0A Demo patches (#221): keep and merge after review. They are the Phase 1 test patches.
 - [x] 0B Pi demo launcher + `play --list-midi` (#222): merge the `play --list-midi` part and the player start. The browser/kiosk part of `demo.sh` stays as is but is deferred; don't extend it.
 - [x] 0C Owner hardware check (2026-11-07): partial pass (record: `docs/DEMO_CLASS.md` §1).
-- [x] **0D Live MIDI clock fix** (#237, merged 2026-11-06) (`docs/tasks/P0D_LIVE_MIDI_CLOCK.md`, T2, small): the headless audio callback renders with the live clock, plus a regression test. **Do first.** Phase 1's engine sidecar inherits it.
-- [x] **0E Audible demo CC mappings** (#240, merged 2026-11-06) (`docs/tasks/P0E_DEMO_CC_DEPTH.md`): CC21–28 sweep obvious ranges in all 3 patches, with an offline test that proves it. Parallel with Phase 1.
-- [ ] 0F Owner, run first in **Test Session 1** (`docs/planner/LANES.md`): rebuild from a clean checkout and verify all 3 patches × CC21–28 with the M8 (`docs/DEMO_CLASS.md` §5b). Hardware acceptance of Phase 0 needs all 24 combinations.
+- [x] **0D Live MIDI clock fix** (#237, merged 2026-11-06) (`docs/tasks/done/P0D_LIVE_MIDI_CLOCK.md`, T2, small): the headless audio callback renders with the live clock, plus a regression test. **Do first.** Phase 1's engine sidecar inherits it.
+- [x] **0E Audible demo CC mappings** (#240, merged 2026-11-06) (`docs/tasks/done/P0E_DEMO_CC_DEPTH.md`): CC21–28 sweep obvious ranges in all 3 patches, with an offline test that proves it. Parallel with Phase 1.
+- [ ] 0F Owner, run first in **Test Session 1** ([board #473](https://github.com/kalharbi11/wirescape/issues/473)): rebuild from a clean checkout and verify all 3 patches × CC21–28 with the M8 (`docs/DEMO_CLASS.md` §5b). Hardware acceptance of Phase 0 needs all 24 combinations.
 
 ### Phase 1: The standalone app with the real engine (Pi first, Windows works too)
 **1.0 comes first** (small, about half a day). 1A, 1D and 1G can start right away; 1B, 1C and 1F follow 1.0 and run in parallel.
-- [x] **1.0 Protocol v0** (#239, merged 2026-11-06) (`docs/tasks/P1_0_PROTOCOL.md`): the stdio protocol (D4), mapping every `EngineClient` call, `ack`/`refuse`/generation, the real device lists, status and telemetry v0, limits and the additive async-refusal extension.
+- [x] **1.0 Protocol v0** (#239, merged 2026-11-06) (`docs/tasks/done/P1_0_PROTOCOL.md`): the stdio protocol (D4), mapping every `EngineClient` call, `ack`/`refuse`/generation, the real device lists, status and telemetry v0, limits and the additive async-refusal extension.
 - [x] **1A UI import** (#238, merged) (`P1A_UI_IMPORT.md`): `apps/studio/` + a hosted `web` CI job.
 - [x] **1B `wirescape-engine` sidecar** (#247, merged) (`P1B_ENGINE_SIDECAR.md`, after 1.0): reuses `play`'s engine/MIDI/PortAudio code with the stdio protocol, **real audio and MIDI device lists and selection**, start at launch (D6), the D5 fallback swap and the catalogue (D9).
 - [x] **1C `RealEngine.ts`** (#249, merged) (`P1C_REAL_ENGINE.md`, after 1.0): `EngineClient` over the preload bridge, async refusal and rollback, restart and restore, and a mock bridge for Playwright.
@@ -100,8 +100,8 @@ The owner jams for 30 minutes on the Pi with the M8: live patching, patch switch
 ### Track S: Sound kit (parallel; original modules from the owner's prototypes)
 Runs beside Phases 2–3 and never blocks them. Every module follows `docs/SDK_AUTHOR_GUIDE.md` §15 (porting a prototype). New IDs only; no ABI change without a Keel ruling.
 - [ ] **S1 Conjunctions modules** (`docs/tasks/S1_CONJUNCTIONS_MODULES.md`): in order: Spectral (one FFT module, vocoder included), Blend, Cross Mod, Waveset, Shaper, Grains. Convolver waits for S3.
-- [ ] S2 Effects: **S2-1 Delay** (`docs/tasks/S2_1_DELAY.md`) and **S2-2 Reverb** (`docs/tasks/S2_2_REVERB.md`, original FDN) queued 2026-11-07; EQ and compressor/limiter later (research in `docs/reviews/EFFECTS_OPTIONS.md`).
-- [ ] S6 CHAOS rebuild, component first (`docs/planner/MODULES.md`): **R1 Resonator** (`docs/tasks/CHAOS_R1_RESONATOR.md`) queued; R2 Waveshaper after the owner hears R1; R3 a CHAOS starter patch from Essentials; R4 a subpatch once Phase 5 subpatches exist.
+- [ ] S2 Effects: **S2-1 Delay** (`docs/tasks/S2_1_DELAY.md`) and **S2-2 Reverb** (`docs/tasks/done/S2_2_REVERB.md`, original FDN) queued 2026-11-07; EQ and compressor/limiter later (research in `docs/reviews/EFFECTS_OPTIONS.md`).
+- [ ] S6 CHAOS rebuild, component first ([board #473](https://github.com/kalharbi11/wirescape/issues/473)): **R1 Resonator** (`docs/tasks/CHAOS_R1_RESONATOR.md`) queued; R2 Waveshaper after the owner hears R1; R3 a CHAOS starter patch from Essentials; R4 a subpatch once Phase 5 subpatches exist.
 - [ ] S3 Sample buffer service (SDK/engine, T2, Keel) and then the Sampler (start/loop CV, one-shot/gate/loop, reverse, 8 voices). Not started.
 - [ ] S4 GUTTUR throat voice. **On hold** (owner).
 - [ ] S5 Multichannel output + Quad Panner (needs a 4-output interface). Not started.
@@ -124,7 +124,7 @@ Sequence and file lists: `docs/planner/CLEANUP.md`.
 2. Macro Oscillator (Plaits) signature panel polish and all 24 models checked.
 3. A CHAOS-lite custom panel (generic until the owner redesigns it).
 4. Dark theme (UI Q-C).
-5. Beta 0.8 musical core: Quantizer (pulled forward into the module lane, `docs/tasks/MOD_QUANTIZER.md`), a native Basic Sequencer, MIDI Out/Clock, MPE.
+5. Beta 0.8 musical core: Quantizer (pulled forward into the module lane, `docs/tasks/done/MOD_QUANTIZER.md`), a native Basic Sequencer, MIDI Out/Clock, MPE.
 6. Instruments: subpatches/macros, Channel Expander, CHAOS rebuild, a proper Plaits/Braids port.
 7. Portability and freeze: CLAP adapter, Daisy, ABI freeze (#44, #161), Windows mono perf #64, benchmark gate #91.
 8. A browser/LAN mode (open the UI from another device). Deferred; nothing in Phases 1–4 depends on it.

@@ -4,7 +4,9 @@
 Claim work on [board #473](https://github.com/kalharbi11/wirescape/issues/473) and
 read the issue's latest handoff before its task. This index reflects the issue
 state verified for #467 on 2026-11-09. Completed tasks live in done/; acceptance
-resolves both folders and refuses duplicate issue titles across them.
+resolves both folders and refuses duplicate issue titles across them. Archived
+files retain their completed contents; historical path references may require
+the corresponding Git revision.
 
 ## Open issues and mixed parent/child references
 
