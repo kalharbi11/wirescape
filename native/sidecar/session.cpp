@@ -12,8 +12,10 @@
 #include <stdexcept>
 #ifdef _WIN32
 #define NOMINMAX
-#include <timeapi.h>
 #include <windows.h>
+
+// The multimedia timer declarations require Windows' base types first.
+#include <timeapi.h>
 #if defined(_MSC_VER)
 #pragma comment(lib, "winmm.lib")
 #endif
