@@ -15,31 +15,31 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 - #474 R0 merged83b381a; #442 real-app evidence merged32e7ba4.
 - #400 latency reporting merged9a1d2f5 after Keel review, exact-head required/task
   green and pinned LLVM18 formatting proof; no Pi requirement for reporting-only scope.
-- #463 Windows runtime: cross-family source review complete. All hosted checks passed
-  a6168ed. Actual Pi build/accept passed31b909a; only a CLI whitespace wrap differed,
-  verified token/tree equivalent. Lead recorded that bounded evidence transfer.
-- #463 now integrates current main normally; only STATE conflicted, native merged cleanly.
-  Fresh integration checks/evidence remain before actual merge. Then #399/#472/#471
-  owners merge main. No claim that an untested integration head passed on Pi.
+- #463 Windows runtime merged3fa0d3a after cross-family review and integration gates.
+  Pi build/accept passed31b909a; the later CLI whitespace wrap was verified token/tree
+  equivalent. The lead recorded that bounded evidence transfer, not a new Pi run.
+- #399/#472/#471 must merge the actual #463 main before their final review.
 
 ## Owner evidence and setup
 - Windows first session on #463: WASAPI headphones, all starters switch and sound,
   computer keyboard and Launchkey MIDI work at48k/256. Extended testing remains.
 - Shared WASAPI needs the device rate and another DAW must release the device.
 - Pi runnerpi5 is online and executing private poll42565126954; no duplicate dispatch.
-- Pi chain #45052ade08 -> #452926a5e5 -> #453d0c45ca: source reviewed,
-  repaired Windows/static checks, actual final target evidence/combined SHA pending.
+- Pi chain #450 74c5ee2 -> #452 98755f4 -> #453 558e52d: main integrated;
+  exact-head Pi evidence and the common accepted SHA remain pending.
 - Owner installs Node22/xvfb where required. One accepted SHA must contain actual
   #463/#450/#452 merges and pass combined device-off ARM64 app smoke.
-- #475 W1 Windows setup: existing builder plus delegated repair reviewer; fix generated
-  output junction escapes, DLL load/export validation and executed Windows smoke.
+- #475 W1 d19e33e: preserve output/junction confinement and DLL validation;
+  executed Windows device-off setup smoke remains a merge gate.
 
 ## Active cleanup and rulings
-- #464/#476 R1 Qt-free build: source reviewed; header/license exact renames.
+- #464/#476 R1 5685881: source reviewed; header/license exact renames.
   Size2800/14 accounts for2618 unchanged moved lines, not a test threshold change.
-- #466/#477 R5a docs: independent wording review complete, hosted gates pending.
-- #465 R2: real unsupported/future Studio ingress data-loss guard and Electron
-  overwrite/v1-backup protections; independent review/full tests required.
+- #466/#477 R5a docs: wording reviewed; main/STATE refresh awaits final hosted gates.
+- #465/#478 R2 352791c: unsupported/future Studio ingress guard and Electron
+  overwrite/v1-backup protections implemented; independent review/final gates apply.
+- #467/#479 archives100 verified closed tasks with identical hashes; final integration
+  gates pending. PLANNER_HANDOFF deletion is deferred to R5c to preserve AGENTS links.
 - Qt-only inspector behavior is explicitly retired; supported compatibility and real
   persistence guarantees must be mapped in R2 table before R3 deletes tests.
 - R3 #468 waits R1/R2/W1 and archive/qt-final on its base; R4 #469 follows R3;
