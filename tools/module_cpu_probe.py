@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Offline Pi CPU acceptance for one built-in module (Track S): two instances, 48 kHz / 128 frames.
+"""Offline Pi CPU acceptance for any built-in module: two instances, 48 kHz / 128 frames.
 
 Runs build/native/abi2_module_cpu_probe (Qt-free, device-free, deterministic inputs: a saw into A,
 seeded noise into B) and passes when the worst block is under half the period with zero
-allocations and zero faults. Usage: python tools/module_cpu_probe.py sound.spectral [--seconds S]
-[--param id=value ...] [--alternate id=a:b:blocks]: settings select a worst case (a heavy mode,
+allocations and zero faults. Usage: python tools/module_cpu_probe.py sound.blend [--seconds S]
+[--channels 1..16] [--param id=value ...] [--alternate id=a:b:blocks]: settings select a worst case (a heavy mode,
 the largest FFT, a parameter flipped every K blocks); the pass rule is the same.
 """
 import argparse
@@ -25,14 +25,16 @@ def parse_line(output):
     raise ValueError('probe printed no module_cpu_probe line')
 
 
-def validate_result(result, module, seconds):
+def validate_result(result, module, seconds, channels=1):
     try:
         worst = float(result['render_ns']['max'])
         p99 = float(result['render_ns']['p99'])
         peak = float(result['peak'])
         valid = (result['module'] == module and result['instances'] == INSTANCES
                  and result['sample_rate'] == RATE and result['block'] == BLOCK
-                 and float(result['seconds']) == float(seconds) and result['blocks'] > 0
+                 and result['channels'] == channels
+                 and float(result['seconds']) == float(seconds)
+                 and result['blocks'] == int(float(seconds) * RATE) // BLOCK and result['blocks'] > 0
                  and result['allocations'] == 0 and result['faults'] == 0
                  and math.isfinite(peak) and peak > 0 and math.isfinite(p99) and 0 <= p99 <= worst
                  and math.isfinite(worst) and worst < 1e9 * BLOCK / RATE * .5)
@@ -45,13 +47,14 @@ def validate_result(result, module, seconds):
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('module', help='built-in module ID, e.g. sound.spectral')
+    parser.add_argument('module', help='built-in module ID, e.g. sound.blend')
     parser.add_argument('--seconds', type=float, default=60.0)
+    parser.add_argument('--channels', type=int, choices=range(1, 17), default=1)
     parser.add_argument('--param', action='append', default=[], help='id=value (repeatable)')
     parser.add_argument('--alternate', help='id=a:b:blocks, flip a parameter every K blocks')
     args = parser.parse_args(argv)
-    if not args.seconds > 0:
-        parser.error('--seconds must be positive')
+    if not math.isfinite(args.seconds) or args.seconds < BLOCK / RATE:
+        parser.error('--seconds must be finite and cover at least one block')
     for setting in args.param:
         if '=' not in setting or setting.startswith('='):
             parser.error('--param needs id=value')
@@ -65,7 +68,7 @@ def main(argv=None):
     root = Path(__file__).resolve().parents[1]
     binary = root / 'build/native' / ('abi2_module_cpu_probe.exe' if sys.platform == 'win32' else 'abi2_module_cpu_probe')
     command = [str(binary), '--module', args.module, '--instances', str(INSTANCES), '--rate', str(RATE),
-               '--block', str(BLOCK), '--seconds', str(args.seconds)]
+               '--block', str(BLOCK), '--seconds', str(args.seconds), '--channels', str(args.channels)]
     for setting in args.param:
         command += ['--param', setting]
     if args.alternate:
@@ -75,7 +78,7 @@ def main(argv=None):
         raise RuntimeError(run.stderr[-4000:] or run.stdout[-4000:] or 'module CPU probe failed')
     result = parse_line(run.stdout)
     print(PREFIX + json.dumps(result))
-    validate_result(result, args.module, args.seconds)
+    validate_result(result, args.module, args.seconds, args.channels)
     return 0
 
 

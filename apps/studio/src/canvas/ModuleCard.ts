@@ -112,7 +112,10 @@ export class ModuleCard {
 
     let coreEl: HTMLElement;
     if (d) {
-      this.panel = new Panel(o.host, o.moduleId, d, o.override);
+      this.panel = new Panel(o.host, o.moduleId, d, o.override, () => {
+        this.measure();
+        o.onPortsChanged?.();
+      });
       coreEl = this.panel.root;
       this.width = this.panel.layout.width;
       this.minHeight = this.panel.layout.minHeight;

@@ -1,51 +1,51 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-Keep this under 60 lines. Rewrite it at the end of each lead session; history lives in git.
+**Updated:** 2026-11-09, Codex Lead priorities/reviews/claimable queue.
+Pi first; #271 hardware sign-off still open, reported failures preempt features.
+Live heads/handoffs govern; no queued/stale/missing result is passed.
 
-**Updated:** 2026-11-06 ~12:50 UTC by Keel (seventh pass). **Owner priority: get the Pi working fully. Windows waits.**
+## Owner priorities and latest Compass/Keel
+- Interleave higher priority than Vocoder. OSC now active independent work.
+- MIDI seam/controls can progress; LearnUI waits actual seam merge.
+- Existing agents keep16step405/410and Groove430; no duplicate sequencer claims.
+- Compass/Keel431review approved stopped-edit playable Groove first, live editsS2.
+- Keel430binding: sequencing.groove separate ID; versioned JSON config -> fixed
+  4track/64step POD quiescent adapter; fail-closed, unknown editable data preserved.
+- S0mayproceed independently. S1release-ready requires stable16step/combined regressions.
+- Existing params/inputs only, no new protocol/ABI; load stopped, release on replacement,
+  step1restart, bounded2MiB. Shared helper extraction needs a real second use.
 
-## Where things stand
-- **Merged today:** P1B sidecar (#247), Pi appliance (#264), e2e smoke (#265), **2A live edits (#209, `6e92eed`)**. Phase 1 code is complete except 1H (#250/#256) and the 1E benchmark.
-- **Test Session 1 = #271**, expanded (owner can't test yet): builds `origin/main`; ★ A M8 patches, B app (+save round trip), C robustness (engine kill, M8/audio unplug, panic), D1 chrt/top; ☆ D2 block 128/64, D3 owner-run contention benchmark (Phase 1 perf gate; needs #274), D4 30-min MIDI soak, E boot-to-sound (#264), F seamless edits (needs #273), G new modules (needs #263). **Keel keeps the PR table at the top of #271 current.**
-- Closed done issues #260, #233, #231, #227.
-- Known non-required red: `cortex-m7` / portability probe (#159). `static` is informational.
+## Actual implemented / pending
+- Reverb348MERGED c39af7b; catalogue26. Delay/Spectral/Blend/Resonator retained.
+- Telemetry379MERGED07fb277; eight curated patches412MERGED3af48ae.
+- Quantizer323prepared0acdad4 with27modules; independent review no High/Medium.
+  Exact native/task/Windows/sanitizers/Studio/WASM PASS; static had2authored
+  assertion-wrap errors + inherited keyboard parser. Root fixed ONLY wraps385ad20.
+  Fresh checks/integration required; not merged or a second DSP implementation.
+- 427public patch folder/design guide is NOT merged. Final main reconciliation/gates
+  remain despite successful source UI/WASM evidence. Preserve owner fast-lane rule.
+- 398render evidence has independent T1 and780e280fiveCTest/Pi PASS; task-only
+  cap repair3f12baa needs final gates. 296actual3600s private edit soak still missing.
+- 415selector and431Groove docs actually merged; don't repeat those tasks.
 
-## Open lanes (all have active builders as of 12:40)
-1. **#274** (#258 bench summary): Keel T2 done, no High; needs the line format in `native/sidecar/DESIGN.md`, green + `pi5`, then Keel merges.
-2. **#273** (#267 live replan in sidecar): Keel T2 done, no High; Medium = stderr `commit path=live|d5 gen=N` + process-test asserts. Then merge (unlocks #271 F).
-3. **#256** (#250 1H): Keel ruled the 4 fixture/engine conflicts (category is an engine bug; fake M8, null-device status are engine-correct; T11/T13 fixture fixes, protected-path line on #250); budget 11 files.
-4. **#263** (#259 modules): Keel T1-approved `dcefcf2`, auto-merging.
-5. **#266** 1B-2 Windows raw-handle transport: not started; after Test Session 1.
+## New-agent queue (claim before editing; continue branches)
+- Canonical: docs/tasks/CLAIMABLE_2026_11_09.md; index393 refreshed.
+- READY305/310Interleave-first: main retarget/integration, phase/chunks/state/WASM/Pi.
+  Keep ASan tail fix and actual hop-boundary stress; Vocoder polish follows.
+- READY381/390 +290/210: reconcile main, fake/native/UMP/poly/CC evidence.
+  Keel final helper-refactor look;287UI after actual381merge. No duplicate seam.
+- READY72/82OSC: current-host inventory/task first, reuse portable services/tests;
+  no staleQt feature merge. Keel new host ownership/protocol decision before invention.
+- READY385/398 ->386 +296: render integrity/provenance and actual private soak.
+- READY307/400: repair authored79+233format diagnostics, then exact T2 Claude review.
+- READY426/427: existing rollout branch reconciliation and final selected acceptance.
+- Audio399and Notes423have bounded task fixes; semantic contracts remain Keel stops.
 
-## Phase 1 sign-off needs
-#271 owner results (A, B, C), 1H green, contention benchmark (#271 D3 or the Pi runner; zero overruns, p99 < 50% period). Then Compass runs Checkpoint A.
-
-## Compass decisions (2026-11-06 check-in)
-- Agreed: P0F is folded into Test Session 1; PLAN "Now" and 0F updated. 0E, 1D, 1G ticked; #250 is plan item **1H**.
-- **D13 sidecar contingency:** if #247 is red again after Keel's checklist, split it into 1B-1 (protocol, null sink, fake MIDI, fade: everything CI proves) and 1B-2 (PortAudio + real MIDI devices). No third attempt at the full L PR.
-- Electron (D1) reconfirmed. Board: closed #70 (done) and #140 (Qt; semantics → 2C); `phase/2`–`phase/5` labels on parked items (labels 3–5 created).
-
-## Rulings this session
-- **Crash restarts:** Electron main is the only automatic restarter; a renderer request never resets the crash-loop budget.
-- **#247 slow fixture:** supported rates only (8 kHz floor kept); D5 deadlines scale with the block period, and 150 ms holds at normal blocks.
-- **T02 / D3:** imported documents round-trip unchanged; only UI-authored content carries synthesized fields.
-- **Test Session 1 vs benchmark:** the owner sitting doesn't wait for the benchmark; the owner's D3 run counts as the contention evidence (runner has no display).
-- **#256 golden transcript:** illustrative device values; checker asserts shapes/order/gen/§7 invariants, literal only for session-independent values.
-- **#209 scope:** sidecar wiring is #267; it retries a busy MIDI try-lock (bounded) and uses D5 directly when audio isn't rendering.
-- **Benchmark source:** null-sink histogram + `--bench-summary` stderr line (#258); no protocol change.
-
-## Waiting on the owner
-- **#271 Test Session 1** on the Pi (one sitting). Then post results in #271.
-
-## Next lead sessions
-- Keel: triage #271 results (engine faults → issue per failure); T2-review #258, #267, #256 native, #266; merge when green.
-- Compass: Checkpoint A agenda after Test Session 1; triage the owner's results.
-
-## Standing rules from the owner
-- Don't plan agent assignment; the owner and their managers assign. Keep sections parallel where possible.
-- Pi first (Windows allowed for faster smoke tests); touchscreen, Plaits polish and a CHAOS custom panel go to Phase 5.
-- No browser/kiosk stage: the product is a standalone app window with the web UI inside.
-- Real-device tests are the owner's; the Pi runner and the laptop run offline tests only.
-- Checkpoints are spread out and don't stop work.
-- Leads save usage: delegate mechanics (Codex or a subagent), don't poll, ask the owner only for approvals and hardware checks.
+## Permanent gates
+- Required guard/Linux/Windows/sanitizers PLUS task/Studio/WASM/Pi as applicable.
+- T1different-session review; T2cross-family. Keep allIDs/unknown patch data.
+- No force-push/main write, devices/SSH/LAN, suppression or threshold weakening.
+- Electron sole automatic restarter; defaultlocalhost/offLAN; no invented wirefields.
+- Update patch-design limitations in capability integration PRs per owner mandate.
+- No CI polling/schedules. Handoff exact head, real evidence and remaining blockers.

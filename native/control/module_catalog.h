@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include "../modules2/adsr/dsp.h"
+#include "../modules2/blend/dsp.h"
 #include "../modules2/chaos_lite/dsp.h"
 #include "../modules2/clock/dsp.h"
+#include "../modules2/delay/dsp.h"
 #include "../modules2/function_envelope/dsp.h"
+#include "../modules2/groove/dsp.h"
 #include "../modules2/host_keyboard/dsp.h"
 #include "../modules2/ladder/dsp.h"
 #include "../modules2/lfo/dsp.h"
@@ -14,6 +17,8 @@
 #include "../modules2/mixer/dsp.h"
 #include "../modules2/noise/dsp.h"
 #include "../modules2/output/dsp.h"
+#include "../modules2/resonator/dsp.h"
+#include "../modules2/reverb/dsp.h"
 #include "../modules2/scale_offset/dsp.h"
 #include "../modules2/slew/dsp.h"
 #include "../modules2/spectral/dsp.h"

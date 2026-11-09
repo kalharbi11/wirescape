@@ -32,6 +32,135 @@ static void matrix(){
  guard->input[0][0][0]=std::numeric_limits<float>::quiet_NaN();VERIFY(guard->d->process(guard->state,&guard->process)==WS2_INVALID);VERIFY(guard->outs[0].flags&WS2_CONSTANT);VERIFY(guard->output[0][0][0]==0);
  std::printf("PASS %zu DSP matrix cases, reset/determinism, scalar VCA, VCF counter, nullable/stop/locate transport\n",std::size(descriptors)*27);
 }
+
+static void lfo_phase() {
+    const auto *d = descriptors[1];
+    VERIFY(d->output_count == 2);
+    VERIFY(!std::strcmp(d->outputs[0].id, "control") && !std::strcmp(d->outputs[1].id, "phase"));
+    VERIFY(d->outputs[1].kind == WS2_SIGNAL && d->outputs[1].hint == WS2_CV_UNI);
+    VERIFY(d->param_count == 5);
+    const char *ids[] = {"rate", "depth", "offset", "sync", "beats"};
+    for (uint32_t i = 0; i < 5; ++i) {
+        VERIFY(!std::strcmp(d->params[i].id, ids[i]));
+        VERIFY(d->params[i].legacy_index == i);
+    }
+
+    auto f = std::make_unique<DspFixture>(d, 48000, 4);
+    f->pars[0].channels = 4;
+    constexpr double tau = 6.283185307179586476925286766559;
+    const float rates[4] = {5.f, 10.f, 15.f, 20.f};
+    double reference[4]{};
+    float previous[4]{};
+    uint32_t wraps[4]{};
+    for (uint32_t c = 0; c < 4; ++c) f->parameter[0][c][0] = rates[c];
+
+    // Verify every sample against the pre-existing control formula, including its update order.
+    for (uint32_t block = 0; block < 21; ++block) {
+        f->run(256);
+        for (uint32_t c = 0; c < 4; ++c) {
+            VERIFY(f->outs[0].channels == 4 && f->outs[1].channels == 4);
+            for (uint32_t i = 0; i < 256; ++i) {
+                const float actual = f->output[1][c][i];
+                VERIFY(actual >= 0.f && actual < 1.f);
+                if ((block || i) && actual < previous[c]) ++wraps[c];
+                const float control = static_cast<float>(std::sin(reference[c]) * 1.f + 0.f);
+                uint32_t expected_bits = 0;
+                uint32_t actual_bits = 0;
+                std::memcpy(&expected_bits, &control, sizeof(control));
+                std::memcpy(&actual_bits, &f->output[0][c][i], sizeof(control));
+                VERIFY(expected_bits == actual_bits);
+                VERIFY(std::abs(actual - static_cast<float>(reference[c] / tau)) < 1e-6f);
+                reference[c] += tau * rates[c] / 48000.;
+                if (reference[c] >= tau) reference[c] = std::fmod(reference[c], tau);
+                previous[c] = actual;
+            }
+        }
+    }
+    VERIFY(wraps[0] == 0 && wraps[1] == 1 && wraps[2] == 1 && wraps[3] == 2);
+
+    // Depth and offset affect only control; phase must continue running.
+    f->reset();
+    f->parameter[1][0][0] = 0;
+    f->parameter[2][0][0] = .25f;
+    f->run(256);
+    for (uint32_t c = 0; c < 4; ++c) {
+        for (uint32_t i = 0; i < 256; ++i) VERIFY(f->output[0][c][i] == .25f);
+        VERIFY(f->output[1][c][255] > f->output[1][c][0]);
+    }
+
+    // Each voice's beats/cycle parameter controls its transport-synced phase.
+    ws2_transport t{sizeof(t), WS2_PLAYING, 120, .25, 0, 4, 4, 0, 0};
+    f->process.transport = &t;
+    f->parameter[3][0][0] = 1;
+    f->pars[4].channels = 4;
+    const float beats[4] = {1.f, 2.f, 4.f, 8.f};
+    for (uint32_t c = 0; c < 4; ++c) f->parameter[4][c][0] = beats[c];
+    f->run(17);
+    for (uint32_t c = 0; c < 4; ++c) {
+        for (uint32_t i = 0; i < 17; ++i) {
+            const double position = .25 + double(i) * 120. / (60. * 48000.);
+            const double cycles = position / beats[c];
+            VERIFY(std::abs(f->output[1][c][i] - float(cycles - std::floor(cycles))) < 1e-6f);
+        }
+    }
+
+    // A stopped transport holds the located phase, including negative beat positions.
+    t.flags = 0;
+    t.beat = -.25;
+    f->run(17);
+    for (uint32_t c = 0; c < 4; ++c) {
+        for (uint32_t i = 0; i < 17; ++i) {
+            const double cycles = -.25 / double(beats[c]);
+            VERIFY(std::abs(f->output[1][c][i] - float(cycles - std::floor(cycles))) < 1e-6f);
+        }
+    }
+    std::puts("PASS LFO phase: IDs, per-voice ramp/wrap, bit-exact control, depth zero, sync/locate/stop");
+}
+struct VcoTrackingInput {
+    bool cable;
+    float pitch;
+    int midi = -1;
+};
+static double measured_vco_hz(VcoTrackingInput input) {
+    auto f = std::make_unique<DspFixture>(descriptors[0]);
+    f->ins[0].flags = input.cable ? WS2_CONNECTED : 0;
+    f->ins[1].flags = 0; // No FM; frequency remains the unchanged 220 Hz default.
+    std::fill_n(f->input[0][0], 256, input.pitch);
+    ws2_event on{};
+    if (input.midi >= 0) {
+        on.struct_size = sizeof(on);
+        on.type = WS2_NOTE_ON;
+        on.key = input.midi;
+        on.channel = 0;
+        on.value = 1;
+        f->process.events = {sizeof(ws2_event_list), 1, &on};
+    }
+    float previous = 0;
+    uint32_t rising = 0;
+    for (uint32_t first = 0; first < 48000; first += 256) {
+        const uint32_t count = std::min(256u, 48000 - first);
+        f->run(count);
+        f->process.events.count = 0;
+        for (uint32_t i = 0; i < count; ++i) {
+            const float sample = f->output[0][0][i];
+            if (previous <= 0 && sample > 0) ++rising;
+            previous = sample;
+        }
+    }
+    return rising; // Cycles over exactly 1 second, +/- 1 Hz resolution.
+}
+static void vco_keyboard_tracking() {
+    const double c4 = measured_vco_hz({true, 0.f});
+    const double a4 = measured_vco_hz({true, .75f});
+    const double octave = measured_vco_hz({true, 1.f});
+    VERIFY(std::abs(c4 - 261.6255653) < 2);
+    VERIFY(std::abs(a4 - 440) < 2);
+    VERIFY(std::abs(octave / c4 - 2) < .02);
+    VERIFY(std::abs(measured_vco_hz({false, 0.f, 60}) - 261.6255653) < 2);
+    VERIFY(std::abs(measured_vco_hz({false, 0.f, 69}) - 440) < 2);
+    VERIFY(std::abs(measured_vco_hz({false, 0.f, 127}) - 12543.853951) < 2);
+    std::puts("PASS VCO pitch CV (0=C4, 0.75=A4, 1=octave) and MIDI 60/69/127 tracking");
+}
 static void vca_broadcast(){
  for(uint32_t frames:{1u,4u,17u,256u}){
   auto f=std::make_unique<DspFixture>(descriptors[4],48000,4);
@@ -82,8 +211,27 @@ static void equivalence(const char*directory,const char*report){
 }
 static void noalloc(){for(auto*d:descriptors){auto f=std::make_unique<DspFixture>(d,48000,16);allocation_watch::Scope watch;for(int i=0;i<16;++i){f->run(17);f->reset();}VERIFY(watch.allocations()==0);}std::puts("PASS zero new/new[]/aligned-new in static SDK/DSP process/reset");}
 #endif
-int main(int argc,char**argv){matrix();vca_exact();vca_broadcast();
-#ifndef WS2_PORTABLE_TEST
- noalloc();if(argc==3)equivalence(argv[1],argv[2]);
+int main(int argc, char **argv) {
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+    try {
 #endif
+        matrix();
+        vco_keyboard_tracking();
+        vca_exact();
+        vca_broadcast();
+        lfo_phase();
+#ifndef WS2_PORTABLE_TEST
+        noalloc();
+        if (argc == 3) equivalence(argv[1], argv[2]);
+#else
+    (void)argc;
+    (void)argv;
+#endif
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+    } catch (...) {
+        std::fputs("Unexpected exception in module tests\n", stderr);
+        return 1;
+    }
+#endif
+    return 0;
 }

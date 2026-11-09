@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "session.h"
 #include "runtime_patch.h"
+#include "wirescape_sidecar_categories.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -116,7 +117,7 @@ Json catalogue(AppEngine *engine) {
             params.push_back(value);
         }
         result.push_back(
-            {{"id", d->id}, {"name", d->name}, {"category", "Native"}, {"ports", ports}, {"parameters", params}});
+            {{"id", d->id}, {"name", d->name}, {"category", wirescape_sidecar_category(d->id)}, {"ports", ports}, {"parameters", params}});
     }
     return {{"modules", result}};
 }
@@ -129,6 +130,7 @@ Options parse_options(int argc, char **argv) {
         if (arg == "--confirm-audio") o.audio = true;
         else if (arg == "--confirm-midi") o.midi = true;
         else if (arg == "--null-audio") o.null_audio = true;
+        else if (arg == "--bench-summary") o.bench_summary = true;
         else if (arg == "--device" || arg == "--settings" || arg == "--rate" || arg == "--block") {
             need(++i < argc);
             std::string v = argv[i];
@@ -144,6 +146,7 @@ Options parse_options(int argc, char **argv) {
             }
         } else throw Refusal("invalid", "Unknown startup flag");
     }
+    need(!o.bench_summary || o.null_audio, "invalid", "--bench-summary requires --null-audio");
     if (o.null_audio) o.audio = o.midi = false;
     return o;
 }
@@ -180,24 +183,11 @@ Session::Session(Options options)
     active_ = engine_.get();
     refresh_devices();
     device_ = options_.device.empty() ? preferences_.value("audioDeviceId", std::string{}) : options_.device;
-    if (options_.audio) {
-        auto found = std::count_if(audio_devices_.begin(), audio_devices_.end(),
-                                   [&](const Json &d) { return d["id"] == device_; });
-        if (!device_.empty() && found == 0) {
-            fallback_ = device_;
-            device_.clear();
-            audio_state_ = "starting";
-        }
-        if (device_.empty()) {
-            for (const auto &d : audio::devices(options_.directory))
-                if (d.is_default) device_ = d.name;
-        }
-    }
     if (options_.audio) audio_state_ = "starting";
 }
-void Session::start() {
+void Session::start(std::chrono::steady_clock::time_point now) {
     try {
-        start_audio();
+        start_audio(now);
         start_midi();
         if (stream_) persist();
     } catch (...) {
@@ -215,18 +205,33 @@ Session::~Session() {
 void Session::shutdown() {
     midi_->stop();
     stop_audio();
+    if (options_.bench_summary && !bench_reported_) {
+        bench_reported_ = true;
+        std::cerr << "bench blocks=" << bench_.blocks << " p50=" << bench_.percentile(50)
+                  << " p99=" << bench_.percentile(99) << " max=" << bench_.max_percent
+                  << " overruns=" << bench_.overruns << " faults=" << bench_.faults << '\n';
+    }
 }
-void Session::start_audio() {
+void Session::start_audio(std::chrono::steady_clock::time_point now) {
     stop_sink_.store(false);
     if (options_.audio) {
         try {
+            // Resolve the default only before any identity has been selected.
+            // A remembered/missing output must never be replaced by the default.
+            if (device_.empty())
+                for (const auto &d : audio::devices(options_.directory))
+                    if (d.is_default) device_ = d.name;
+            need(!device_.empty(), "unavailable", "No selected audio output");
             stream_ = std::make_unique<audio::Stream>(engine_, audio::StreamSelection{options_.directory, device_},
                                                       options_.rate, options_.block, [this] { midi_->stop(); });
             audio_state_ = "running";
+            audio_backoff_ = std::chrono::milliseconds(100);
         } catch (const audio::ShutdownFailure &) {
             throw;
         } catch (const std::exception &) {
-            audio_state_ = "no-device";
+            audio_state_ = device_.empty() ? "no-device" : "reconnecting";
+            audio_retry_ = now + audio_backoff_;
+            audio_backoff_ = std::min(audio_backoff_ * 2, std::chrono::milliseconds(5000));
             if (!engine_) throw;
         }
     } else {
@@ -235,16 +240,26 @@ void Session::start_audio() {
             [this, left = std::vector<float>(options_.block), right = std::vector<float>(options_.block)]() mutable {
                 float *rows[] = {left.data(), right.data()};
                 auto next = std::chrono::steady_clock::now();
+                sink_rendering_.store(true, std::memory_order_release);
                 while (!stop_sink_.load()) {
                     auto before = std::chrono::steady_clock::now();
-                    if (app_engine_render_live(active_, rows, 2, options_.block, app_engine_clock_ns()) != WS_OK) break;
-                    double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - before).count();
-                    cpu_.store(elapsed * options_.rate / options_.block * 100);
+                    const int render = app_engine_render_live(active_, rows, 2, options_.block, app_engine_clock_ns());
+                    if (options_.bench_summary) {
+                        bench_.observe_faults(app_engine_native(active_).meter().faults);
+                        if (render != WS_OK) ++bench_.faults;
+                    }
+                    if (render != WS_OK) break;
+                    auto after = std::chrono::steady_clock::now();
+                    double percent = std::chrono::duration<double>(after - before).count() *
+                                     options_.rate / options_.block * 100;
+                    cpu_.store(percent);
                     next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                         std::chrono::duration<double>(double(options_.block) / options_.rate));
+                    if (options_.bench_summary) bench_.record(percent, after > next);
                     std::unique_lock<std::mutex> lock(sink_mutex_);
                     sink_wake_.wait_until(lock, next, [this] { return stop_sink_.load(); });
                 }
+                sink_rendering_.store(false, std::memory_order_release);
             });
     }
 }
@@ -252,9 +267,10 @@ void Session::stop_audio() {
     stop_sink_.store(true);
     sink_wake_.notify_all();
     if (sink_.joinable()) sink_.join();
+    sink_rendering_.store(false, std::memory_order_release);
     if (stream_) {
-        dropouts_.fetch_add(stream_->dropouts());
         engine_ = stream_->stop();
+        dropouts_.fetch_add(stream_->dropouts()); // include the final callback after stop joins
         stream_.reset();
     }
     cpu_.store(0);
@@ -263,13 +279,15 @@ void Session::start_midi() {
     std::string error;
     need(midi_->start(active_, patch_.dump(), error), "unavailable", "Cannot start MIDI subscriptions");
 }
-void Session::refresh_devices() {
+bool Session::refresh_devices() {
+    bool enumerated = true;
     try {
         audio_devices_ = audio_devices(options_.directory, options_.null_audio);
     } catch (...) {
-        audio_devices_ = Json::array();
+        enumerated = false; // Keep the last successful list; failure is not disappearance.
     }
     midi_devices_ = midi_devices({observer_->observed(), midi_->enabled()}, options_.midi || options_.null_audio);
+    return enumerated;
 }
 void Session::persist() {
     auto preferences = preferences_;
@@ -366,18 +384,48 @@ Json Session::execution(Json patch) {
 void Session::commit(Json patch, bool new_namespace) {
     patch = execution(std::move(patch));
     std::string error;
-    audio::EngineOwner candidate(document::load_runtime_patch(patch.dump(), catalogue_.get(), config_, error),
+    const auto patch_bytes = patch.dump();
+    // Stage metadata and cursor storage before any live graph swap.
+    document::telemetry::Sampler next_telemetry(
+        document::telemetry::plan(patch, catalogue_.get(), /*phase_enabled=*/true));
+    audio::EngineOwner candidate(document::load_runtime_patch(patch_bytes, catalogue_.get(), config_, error,
+                                                             &next_telemetry.taps()),
                                  app_engine_destroy);
     need(bool(candidate), "refused", "Graph configuration or state refused");
-    // D5 fallback: old graph keeps rendering through the linear fade-out.
+    // Stage all potentially throwing document/ID work before accepting a live graph.
+    std::set<uint32_t> ids = new_namespace ? std::set<uint32_t>{} : used_ids_;
+    for (const auto &m : patch["modules"]) ids.insert(integer(m["id"]));
+    const bool rendering = (stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire);
+    if (!new_namespace && rendering) {
+        const uint64_t timeout_ns = 3ULL * options_.block * 1000000000ULL / options_.rate;
+        // A busy MIDI dispatch is transient; a graph refusal is not. Never stop for busy.
+        for (unsigned attempt = 0; attempt < 4; ++attempt) {
+            if (midi_->replan(candidate.get(), patch_bytes, timeout_ns, error)) {
+                patch_.swap(patch);
+                used_ids_.swap(ids);
+                telemetry_.swap(next_telemetry); // Engine2 counts restart at every replan.
+                ++generation_;
+                std::cerr << "commit path=live gen=" << generation_ << '\n';
+                return;
+            }
+            if (error != "MIDI worker busy") break;
+            if (attempt == 3) throw Refusal("busy", "MIDI worker busy; graph unchanged");
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+    }
+    // D5 directly for loadGraph, stopped/lost streams and non-busy replan refusal.
     // The candidate was fully prepared above, so validation refusal is untouched.
     const auto begun = std::chrono::steady_clock::now();
     // D5 budgets (see kMuteBudget/kGapBudget); they stretch only when a block period is longer.
     const auto period = std::chrono::microseconds(int64_t(1e6 * double(options_.block) / double(options_.rate)));
-    if (stream_ || sink_.joinable()) {
+    if ((stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire)) {
         app_engine_begin_master_fade_out(active_);
         const auto deadline = begun + std::max<std::chrono::microseconds>(kMuteBudget, 2 * period);
         while (!app_engine_master_fade_silent(active_)) {
+            // D6 may lose the stream during a refused replan or the D5 fade.
+            // A callback that no longer renders cannot acknowledge a mute.
+            if ((stream_ && !stream_->running()) || (!stream_ && !sink_rendering_.load(std::memory_order_acquire)))
+                break;
             if (std::chrono::steady_clock::now() >= deadline) {
                 app_engine_resume_master_fade(active_);
                 throw Refusal("unavailable", "Audio mute did not complete");
@@ -398,7 +446,7 @@ void Session::commit(Json patch, bool new_namespace) {
     auto old_patch = patch_;
     engine_ = std::move(candidate);
     active_ = engine_.get();
-    patch_ = patch;
+    patch_.swap(patch); // No allocation after the quiescent graph replacement.
     try {
         start_audio();
         start_midi();
@@ -423,8 +471,9 @@ void Session::commit(Json patch, bool new_namespace) {
     }
     ++generation_;
     keyboard_.fill(false);
-    if (new_namespace) used_ids_.clear();
-    for (auto &m : patch_["modules"]) used_ids_.insert(integer(m["id"]));
+    used_ids_.swap(ids);
+    telemetry_.swap(next_telemetry); // D5 also resets all last-seen event counts.
+    std::cerr << "commit path=d5 gen=" << generation_ << '\n';
 }
 Json Session::apply(const Json &command) {
     auto type = command.at("type").get<std::string>();
@@ -638,15 +687,21 @@ Json Session::reply(const Request &request) {
 }
 Json Session::audio_status() const {
     auto selected = stream_ && stream_->running();
-    Json result = {{"state", audio_state_},
+    const double cpu = selected ? stream_->cpu_percent() : 0;
+    // An opened stream has no measured load until its first callback completes.
+    // A zero-frame callback also leaves load unavailable, so it stays starting.
+    const bool measured = std::isfinite(cpu) && cpu >= 0;
+    auto state = audio_state_;
+    if (options_.audio && stream_ && !selected) state = "device-lost";
+    else if (selected && !measured) state = "starting";
+    Json result = {{"state", state},
                    {"deviceId", selected ? Json(device_) : Json(nullptr)},
                    {"deviceName", selected ? Json(device_) : Json(nullptr)},
                    {"sampleRate", options_.rate},
                    {"bufferFrames", options_.block},
                    {"latencyMs", 2. * options_.block / options_.rate * 1000},
-                   {"cpuPercent", selected ? stream_->cpu_percent() : 0},
+                   {"cpuPercent", measured ? cpu : 0},
                    {"dropouts", dropouts_.load() + (stream_ ? stream_->dropouts() : 0)}};
-    if (!fallback_.empty()) result["fallbackFrom"] = fallback_;
     return result;
 }
 Json Session::midi_status() const { return {{"devices", midi_devices_}, {"activity", observer_->activity()}}; }
@@ -688,8 +743,9 @@ Json Session::telemetry() {
                       {"time", std::chrono::duration<double>(std::chrono::steady_clock::now() - started_).count()},
                       {"meters", meters},
                       {"heldNotes", held}};
-    for (const char *key : {"effective", "phase", "envelope", "scope", "eventActivity"})
-        telemetry[key] = Json::object();
+    telemetry["scope"] = Json::object();
+    auto snapshot = telemetry_.sample(active_);
+    telemetry.update(snapshot);
     auto value = base();
     value["type"] = "telemetry";
     value["telemetry"] = telemetry;
@@ -702,19 +758,30 @@ Json Session::devices() {
     value["midiDevices"] = midi_devices_;
     return value;
 }
-bool Session::poll() {
-    auto old_audio = audio_devices_, old_midi = midi_devices_;
-    if (midi_->enabled().empty()) observer_->endpoints();
-    refresh_devices();
-    if (options_.audio && stream_ && !stream_->running()) {
+bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumerated) {
+    if (!options_.audio) return false;
+    auto previous = audio_state_;
+    const auto matches = std::count_if(audio_devices_.begin(), audio_devices_.end(),
+                                       [&](const Json &d) { return d.at("id") == device_; });
+    if (stream_ && (!stream_->running() || (enumerated && matches == 0))) {
         midi_->stop();
         stop_audio();
         audio_state_ = "device-lost";
-    } else if (options_.audio && !stream_) {
-        audio_state_ = "reconnecting";
-        start_audio();
+        audio_backoff_ = std::chrono::milliseconds(100);
+        audio_retry_ = now + audio_backoff_;
+    } else if (!stream_) {
+        if (audio_state_ == "device-lost") audio_state_ = "reconnecting";
+        if (now < audio_retry_) return previous != audio_state_;
+        start_audio(now);
         if (stream_) start_midi();
     }
-    return old_audio != audio_devices_ || old_midi != midi_devices_;
+    return previous != audio_state_;
+}
+bool Session::poll(std::chrono::steady_clock::time_point now) {
+    auto old_audio = audio_devices_, old_midi = midi_devices_;
+    if (midi_->enabled().empty()) observer_->endpoints();
+    const auto enumerated = refresh_devices();
+    auto changed = poll_audio(now, enumerated);
+    return changed || old_audio != audio_devices_ || old_midi != midi_devices_;
 }
 } // namespace wirescape::sidecar

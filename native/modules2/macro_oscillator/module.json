@@ -26,7 +26,8 @@
     "timbre_cv": "signal",
     "morph_cv": "signal",
     "trigger": "signal",
-    "level": "signal"
+    "level": "signal",
+    "gate": "signal"
   },
   "outputs": {
     "main": "signal",

@@ -37,6 +37,12 @@ screenshots and traces as artifacts. The old UI-repository workflows live under
 `apps/studio/tools/ci-reference/` as inactive reference, including its Pi job;
 no public-repository workflow targets the Pi.
 
+The Qt-free MIDI service uses its existing acquisition worker to detect endpoint
+loss/return. Saved system identities keep same-name ports separate; source-only
+chokes precede reconnect callbacks. Sidecar device pushes reflect worker snapshots
+while enabled selections remain remembered. Fake hot-plug tests cover these paths
+without opening hardware; no audio-thread polling or new protocol command is used.
+
 ## Active application: ABI1
 
 - `native/include/wirescape/module.h`: experimental C module boundary; immutable descriptors,
@@ -263,7 +269,12 @@ a candidate. A control-thread try-lock excludes only MIDI worker dispatch during
 replan; backend callbacks keep their rings and audio never takes this lock. A busy
 worker or refused candidate preserves both graph and routes. Keyboard conversion
 is carried in the route table so new/removed sources cannot race a separate list.
-This seam is not yet connected to the sidecar (#267, 2A-2).
+The sidecar now calls this seam for incremental edits while audio renders.
+A busy worker is retried three times at approximately 2 ms intervals, then
+refused without changing the accepted graph. Non-busy replan refusal and
+`loadGraph` retain the D5 fade/stop/swap/start path; stopped, not-yet-rendering
+and device-loss streams enter D5 directly. The null sink publishes render
+liveness to control. Only accepted swaps advance the protocol generation.
 
 ## Stdio engine sidecar (P1B)
 
@@ -273,3 +284,12 @@ uses the existing AppEngine/PortAudio callback and MIDI host. Null mode runs a
 paced discard sink and fake endpoints without device access. The UI owns saved
 documents; sidecar candidates are disposable execution copies. Details and
 shutdown ownership are in `native/sidecar/DESIGN.md`.
+
+Audio loss leaves the same graph and remembered output identity owned by the
+control thread. Stream retirement retains the existing quarantine-on-unsafe-stop
+policy. Reopen attempts use 100 ms exponential backoff capped at five seconds;
+only a fresh preference-free startup may select the default. A missing remembered
+output reports `reconnecting`, never a substitute. Loss reports `device-lost`
+before retrying; failed enumeration does not retire a healthy stream. Device-free regressions link a
+fake implementation of the existing audio service boundary and advance poll time
+explicitly; production callbacks perform no recovery, enumeration or allocation.

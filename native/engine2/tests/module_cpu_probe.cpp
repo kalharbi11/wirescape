@@ -6,6 +6,7 @@
 //   module_cpu_probe {"module":..., "render_ns":{"max":..,"p99":..}, "allocations":.., ...}
 #include "../../tests2/allocation_watch.h"
 #include "module_catalog.h"
+#include "module_cpu_probe_output.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -20,6 +21,8 @@ namespace {
 struct Arena {
     std::vector<unsigned char> bytes;
     size_t used = 0;
+    // Fixed ws2_host allocator signature; size/alignment order is defined by the ABI.
+    // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
     static void *WS2_CALL alloc(void *context, size_t size, size_t alignment, uint32_t) {
         auto &a = *static_cast<Arena *>(context);
         const uintptr_t base = reinterpret_cast<uintptr_t>(a.bytes.data());
@@ -55,7 +58,7 @@ int fail(const char *message) {
 
 int main(int argc, char **argv) {
     std::string id;
-    uint32_t instances = 2, block = 128;
+    uint32_t instances = 2, block = 128, channels = 1;
     double rate = 48000, seconds = 60;
     uint64_t seed = 42;
     std::vector<std::pair<std::string, float>> settings;
@@ -68,7 +71,11 @@ int main(int argc, char **argv) {
         else if (key == "--instances") instances = uint32_t(std::stoul(value));
         else if (key == "--rate") rate = std::stod(value);
         else if (key == "--block") block = uint32_t(std::stoul(value));
-        else if (key == "--seconds") seconds = std::stod(value);
+        else if (key == "--channels") {
+            const unsigned long count = std::stoul(value);
+            if (count < 1 || count > 16) return fail("--channels must be in 1..16");
+            channels = static_cast<uint32_t>(count);
+        } else if (key == "--seconds") seconds = std::stod(value);
         else if (key == "--seed") seed = std::stoull(value);
         else if (key == "--param") {
             const size_t eq = value.find('=');
@@ -87,7 +94,8 @@ int main(int argc, char **argv) {
         } else return fail("unknown argument");
     }
     if (id.empty() || !instances || instances > 16 || !block || block > 4096 || !(rate >= 8000) || !(seconds > 0))
-        return fail("usage: --module ID [--instances N] [--rate HZ] [--block FRAMES] [--seconds S] [--seed N]");
+        return fail("usage: --module ID [--instances N] [--rate HZ] [--block FRAMES] "
+                    "[--seconds S] [--seed N] [--channels 1..16]");
     const ws2_descriptor *d = nullptr;
     for (const ws2_descriptor *m : wirescape::app::builtin_modules())
         if (id == m->id) d = m;
@@ -102,8 +110,8 @@ int main(int argc, char **argv) {
     const int alternate = alternate_id.empty() ? -1 : param_index(alternate_id);
     if (!alternate_id.empty() && alternate < 0) return fail("--alternate names an unknown parameter");
 
-    constexpr uint32_t channels = 16;
-    const ws2_config config{sizeof(ws2_config), rate, block, channels, seed, nullptr, 0};
+    constexpr uint32_t capacity = 16;
+    const ws2_config config{sizeof(ws2_config), rate, block, capacity, seed, nullptr, 0};
     ws2_memory memory{sizeof(ws2_memory), 0, 0, 0};
     if (d->memory_requirements(&config, &memory) != WS2_OK) return fail("memory_requirements failed");
     std::vector<std::unique_ptr<Instance>> all;
@@ -115,12 +123,12 @@ int main(int argc, char **argv) {
         x->arena.bytes.resize(memory.fast_bytes + memory.large_bytes + (1u << 20));
         x->self = d->create(&x->host);
         if (!x->self || d->prepare(x->self, &config, &x->host) != WS2_OK) return fail("create/prepare failed");
-        x->out_store.assign(size_t(d->output_count) * channels, std::vector<float>(block));
+        x->out_store.assign(size_t(d->output_count) * capacity, std::vector<float>(block));
         x->out_rows.resize(d->output_count);
         for (uint32_t o = 0; o < d->output_count; ++o) {
-            for (uint32_t c = 0; c < channels; ++c)
-                x->out_rows[o].push_back(x->out_store[size_t(o) * channels + c].data());
-            x->outputs.push_back({sizeof(ws2_signal_out), x->out_rows[o].data(), 1, 0, channels});
+            for (uint32_t c = 0; c < capacity; ++c)
+                x->out_rows[o].push_back(x->out_store[size_t(o) * capacity + c].data());
+            x->outputs.push_back({sizeof(ws2_signal_out), x->out_rows[o].data(), 1, 0, capacity});
         }
         x->in_rows.resize(d->input_count);
         for (uint32_t p = 0; p < d->input_count; ++p) {
@@ -141,7 +149,7 @@ int main(int argc, char **argv) {
         c.struct_size = sizeof(c);
         c.frames = block;
         c.sample_rate = rate;
-        c.channels = 1;
+        c.channels = channels;
         c.input_count = d->input_count;
         c.output_count = d->output_count;
         c.param_count = d->param_count;
@@ -155,7 +163,8 @@ int main(int argc, char **argv) {
 
     const size_t blocks = frames_total / block;
     std::vector<int64_t> ns(blocks);
-    double phase = 0, peak = 0;
+    double phase = 0;
+    module_cpu_probe::OutputEvidence output_evidence;
     uint32_t lcg = uint32_t(seed) * 2654435761u + 1u;
     size_t allocations = 0, faults = 0;
     for (size_t k = 0; k < blocks; ++k) {
@@ -178,22 +187,22 @@ int main(int argc, char **argv) {
             allocations += watch.allocations();
         }
         ns[k] = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
-        for (auto &x : all)
-            for (uint32_t o = 0; o < d->output_count; ++o) {
-                const uint32_t frames = (x->outputs[o].flags & WS2_CONSTANT) ? 1 : block;
-                for (uint32_t i = 0; i < frames; ++i) peak = std::max(peak, double(std::abs(x->out_rows[o][0][i])));
-            }
+        for (auto &x : all) {
+            for (uint32_t o = 0; o < d->output_count; ++o) output_evidence.scan(x->outputs[o], {block, capacity});
+        }
     }
     for (auto &x : all) d->destroy(x->self);
     std::vector<int64_t> sorted = ns;
     std::sort(sorted.begin(), sorted.end());
     const int64_t worst = sorted.empty() ? 0 : sorted.back();
     const int64_t p99 = sorted.empty() ? 0 : sorted[std::min(sorted.size() - 1, size_t(double(sorted.size()) * .99))];
-    std::printf("module_cpu_probe {\"module\":\"%s\",\"instances\":%u,\"sample_rate\":%.0f,\"block\":%u,\"seconds\":%g,"
+    std::printf("module_cpu_probe {\"module\":\"%s\",\"instances\":%u,\"sample_rate\":%.0f,"
+                "\"block\":%u,\"channels\":%u,\"seconds\":%g,"
                 "\"blocks\":%zu,\"render_ns\":{\"max\":%lld,\"p99\":%lld},\"period_ns\":%.0f,\"allocations\":%zu,"
                 "\"faults\":%zu,\"peak\":%.6g,\"params\":\"%s\",\"alternate\":\"%s\"}\n",
-                id.c_str(), instances, rate, block, seconds, blocks, (long long)worst, (long long)p99,
-                1e9 * block / rate, allocations, faults, peak, settings_text.c_str(),
+                id.c_str(), instances, rate, block, channels, seconds, blocks, (long long)worst, (long long)p99,
+                1e9 * block / rate, allocations, faults + output_evidence.faults, output_evidence.peak,
+                settings_text.c_str(),
                 alternate_id.empty() ? ""
                                      : (alternate_id + "=" + std::to_string(alternate_a) + ":" +
                                         std::to_string(alternate_b) + ":" + std::to_string(alternate_every))

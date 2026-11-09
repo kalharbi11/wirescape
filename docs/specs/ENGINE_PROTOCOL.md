@@ -123,10 +123,11 @@ Engine persists selected audio `id`, enabled MIDI `(name,system_name)` pairs and
 - `audio`: `{state,deviceId,deviceName,sampleRate,bufferFrames,latencyMs,cpuPercent,dropouts}`. `deviceId`/`deviceName` are `null` without an active output. `sampleRate` and `bufferFrames` are configured actual values; `latencyMs` is the UI's **calculated round-trip estimate** `2*bufferFrames/sampleRate*1000` (not a measured driver round trip). `cpuPercent` is measured callback wall-time / block duration ×100; `dropouts` is the real cumulative xrun/dropout count. When no callback is running, CPU is 0 (no callback work) and the UI displays **“not available”** for CPU/latency instead of interpreting that as measured device performance. Never invent a device, CPU sample or dropout.
 - `midi`: `{devices:Device[],activity:{[deviceId]:number}}`, only observed input activity with 0..1 decaying amplitude. No events means `{}`. Omit optional `clock` unless a running Clock source has a real observed BPM/run state. Omit `osc` in v0 and hide OSC settings.
 
-`telemetry` at **at most 30 Hz**, latest-sample-wins when the receiver is slow, has `{v:0,session,type:"telemetry",gen,telemetry:Telemetry}`. Its required `Telemetry` keys match `EngineClient.ts`: `tick` (monotonic observation counter), `time` (actual seconds since engine startup), `effective:{}`, `phase:{}`, `envelope:{}`, `meters:{}`, `scope:{}`, `eventActivity:{}`, `heldNotes:[]`; optional `outputs` is **omitted**. For v0:
+`telemetry` at **at most 30 Hz**, latest-sample-wins when the receiver is slow, has `{v:0,session,type:"telemetry",gen,telemetry:Telemetry}`. Its required `Telemetry` keys match `EngineClient.ts`: `tick` (monotonic observation counter), `time` (actual seconds since engine startup), `effective:{}`, `phase:{}`, `envelope:{}`, `meters:{}`, `scope:{}`, `eventActivity:{}`, `heldNotes:[]`. Optional `outputs` (`"id:port"` → last sample, channel 0, of a cabled signal output) is ratified: web emits it; sidecar may omit it. For v0:
 - `meters` contains **only observed** `essentials.output` module IDs, keyed as JSON decimal object keys, with measured `[left,right]` linear levels 0..1+ (clipping >1). No generic mixer/other-meter simulation. Missing module meter entry means **“not available”**.
 - `heldNotes` is an accurate snapshot of note numbers still held (MIDI ingress and renderer keyboard), not a synthetic piano demo.
-- `effective`, `phase`, `envelope`, `scope`, `eventActivity` are **empty objects** in v0; `RealEngine` must not fake values, interpolate nonexistent phase/envelope or invent waveforms. `scope` remains `{}`; if a future capability transmits it as JSON number arrays, `RealEngine` converts each to `Float32Array` for the UI. Empty fields render as **“not available”/hidden**, never as zero-valued traces. `effective` deltas are empty until they can be measured, not a cache of knob guesses.
+- `effective[id][param]` is the actual last-frame rendered post-modulation parameter value in plain units, present **only** for parameters with modulation cables (including amount zero). `envelope[id]` is the measured last-frame `envelope` output of ADSR or Function Envelope, reduced by maximum across voices and clamped to 0..1. `phase[id]` is the measured channel-0 0..1 `phase` output of an LFO when the B-wire capability is installed; until then it is `{}`. `eventActivity["id:port"]` is a pulse for an event output whose cumulative count advanced since the previous observed frame (`1` on advancement, else the previous activity ×0.6, omitted below 0.05). Counts and cursors reset on **every successful graph commit**, including live replan and D5. A burst between reads produces a single pulse, not one flash per event.
+- These four maps are **complete snapshots**, not deltas or tombstones. Clients replace them on every telemetry message; absent means unavailable/no activity. When no render frame advanced since the last sample (stopped, parked or lost), all four are `{}`. The outer `gen` identifies the graph that installed the taps, and older generations are ignored by Studio. `scope` remains `{}` in the sidecar; if it is transmitted as JSON number arrays, `RealEngine` converts each to `Float32Array`. No value is guessed or interpolated.
 - Realtime produces only preallocated bounded atomics/snapshots. Non-RT sampler packages JSON; no callback serialization, heap allocation or unbounded copying. Never let slow IPC block the render thread. Missing/unsupported metrics are absent or empty as above; the adapter may not replace them with plausible demo numbers.
 
 ## 8. `EngineClient` refusal, ordering and reconciliation
@@ -216,7 +217,7 @@ Each line below is a standalone JSON wire line. `>` denotes renderer→engine st
 
 **T11 — device notification is unthrottled and tied to real enumeration.**
 ```text
-< {"v":0,"session":"s1","type":"devices","gen":"4","audioDevices":[{"id":"USB Stereo","name":"USB Stereo","kind":"audio","index":3}],"midiDevices":[]}
+< {"v":0,"session":"s1","type":"devices","gen":"4","audioDevices":[{"id":"USB Stereo","name":"USB Stereo","kind":"audio","index":3}],"midiDevices":[{"id":"M8 MIDI 1|M8:M8 MIDI 1","name":"M8 MIDI 1","system_name":"M8:M8 MIDI 1","kind":"midi","enabled":false}]}
 ```
 
 **T12 — CC row write is a graph swap (precondition: node 12 is `midi.cc_to_cv`).**
@@ -225,11 +226,13 @@ Each line below is a standalone JSON wire line. `>` denotes renderer→engine st
 < {"v":0,"session":"s1","re":"r12","ok":true,"gen":"5"}
 ```
 
-**T13 — status and measured-only telemetry (empty unsupported fields, never fake scope; precondition: a fake-backend MIDI note 60 is currently held).**
+**T13 — status and measured-only telemetry (empty unsupported fields, never fake scope).**
 ```text
 < {"v":0,"session":"s1","type":"status","gen":"5","status":{"audio":{"state":"running","deviceId":"USB Stereo","deviceName":"USB Stereo","sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":2.1,"dropouts":0},"midi":{"devices":[],"activity":{}}}}
-< {"v":0,"session":"s1","type":"telemetry","gen":"5","telemetry":{"tick":12,"time":0.4,"effective":{},"phase":{},"envelope":{},"meters":{"7":[0.1,0.1]},"scope":{},"eventActivity":{},"heldNotes":[60]}}
+< {"v":0,"session":"s1","type":"telemetry","gen":"5","telemetry":{"tick":12,"time":0.4,"effective":{},"phase":{},"envelope":{},"meters":{"7":[0.1,0.1]},"scope":{},"eventActivity":{},"heldNotes":[]}}
 ```
+
+Device values in T09/T13 illustrate a real device; `--null-audio` reports `no-device` with null ids.
 
 **T14 — malformed JSON and overload never kill the process or mutate the graph.**
 ```text

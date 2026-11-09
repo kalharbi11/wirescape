@@ -76,13 +76,11 @@ export class Ticker {
   }
 
   push(t: Telemetry): void {
-    // Effective parameters arrive as deltas. Retain updates even if another
-    // telemetry packet arrives before a draw, or a card is off screen.
-    const effective = { ...this.latest?.effective };
-    for (const [id, values] of Object.entries(t.effective)) {
-      effective[Number(id)] = { ...effective[Number(id)], ...values };
-    }
-    this.latest = { ...t, effective };
+    // Complete snapshots: an absent key is unavailable, never a retained value.
+    this.latest = {
+      ...t, effective: t.effective ?? {}, phase: t.phase ?? {},
+      envelope: t.envelope ?? {}, eventActivity: t.eventActivity ?? {},
+    };
   }
 
   /** A graph replacement starts a new telemetry epoch, even if IDs repeat. */

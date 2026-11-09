@@ -3,7 +3,8 @@ import type { ModuleParam } from '../../modules/types';
 import type { Connection } from '../../patch/types';
 import type { Ticker } from '../../runtime/Ticker';
 import type { KnobTier } from '../layouts';
-import { formatValue, formatRange, normToValue, valueToNorm, parseTyped, displayValue } from '../../modules/registry';
+import { formatValue, formatRange, normToValue, valueToNorm, parseTyped, displayValue, quantize } from '../../modules/registry';
+import { C0_HZ, G9_HZ, noteAndCents, formatBaseHz, formatVcoTune, parseVcoTune } from '../../modules/musicalPitch';
 import { el, svgEl } from '../../app/dom';
 import { attachParamInfo, type InfoSource } from './InfoBox';
 
@@ -36,6 +37,9 @@ export interface KnobOptions {
   /** The colour the user picked for this cable. */
   cableColor(c: Connection): string;
   ticker: Ticker;
+  /** Visual-only: never changes the native descriptor or the saved parameter. */
+  musical?: 'vco' | 'macro-coarse';
+  pitchConnected?(): boolean;
 }
 
 /**
@@ -52,6 +56,9 @@ export class Knob {
   private readonly valArc: SVGPathElement;
   private readonly modArc: SVGPathElement;
   private readonly readout: HTMLButtonElement;
+  private readonly labelEl: HTMLElement;
+  private readonly travel: ModuleParam;
+  private pitchWasConnected = false;
   private readonly liveEl: HTMLElement;
   private readonly chips: HTMLElement | null;
   private unbind: () => void;
@@ -62,6 +69,10 @@ export class Knob {
 
   constructor(private readonly o: KnobOptions) {
     const p = o.param;
+    this.travel = o.musical === 'vco'
+      ? { ...p, taper: 'log', minimum: C0_HZ, maximum: G9_HZ } : p;
+    this.pitchWasConnected = !!o.pitchConnected?.();
+    const travel = this.travel;
     const g = TIERS[o.tier];
     this.live = o.getValue();
 
@@ -80,7 +91,7 @@ export class Knob {
     const og = `transform-origin:${c}px ${c}px`;
 
     // Ticks and scale labels (L: minor + major + labels; M: major only).
-    const marks = scaleMarks(p, o.tier);
+    const marks = scaleMarks(travel, o.tier);
     if (g.mn) {
       let d = '';
       for (let i = 0; i <= 50; i++) d += radial(c, g.tk0, g.tk0 + g.mn, ang(i / 50));
@@ -95,7 +106,8 @@ export class Knob {
       for (const n of marks) {
         const [x, y] = pol(c, g.lab, ang(n));
         const t = svgEl('text', { x: x.toFixed(1), y: y.toFixed(1), class: 'tl' });
-        t.textContent = shortLabel(p, normToValue(p, n));
+        t.textContent = o.musical === 'vco' && (n === 0 || n === 1)
+          ? (n === 0 ? 'C0' : 'G9') : shortLabel(travel, normToValue(travel, n));
         svg.append(t);
       }
     }
@@ -133,13 +145,19 @@ export class Knob {
     this.dial.type = 'button';
     this.dial.setAttribute('role', 'slider');
     this.dial.setAttribute('aria-label', p.name);
-    this.dial.setAttribute('aria-valuemin', String(p.minimum));
-    this.dial.setAttribute('aria-valuemax', String(p.maximum));
+    this.dial.setAttribute('aria-valuemin', String(travel.minimum));
+    this.dial.setAttribute('aria-valuemax', String(travel.maximum));
+    if (o.musical === 'vco') {
+      this.dial.setAttribute('aria-description',
+        'Dial travel is C0 to G9. Saved values outside the dial stay unchanged; ' +
+        'activate the value readout to type any value from 0.01 to 20,000 Hz.');
+    }
     wrap.append(svg, this.dial);
 
     // Readout: name, value (the value you set), live value, source chips (L).
     const labels = el('div', 'knob-labels');
-    labels.append(el('div', 'control-label', p.name));
+    this.labelEl = el('div', 'control-label', p.name);
+    labels.append(this.labelEl);
     this.readout = el('button', 'control-readout') as HTMLButtonElement;
     this.readout.type = 'button';
     this.readout.dataset.testid = `readout-${o.moduleId}-${p.id}`;
@@ -167,15 +185,19 @@ export class Knob {
         sample: () => this.o.sourceValue(m),
         contribution: () => pct((m.amount ?? 0) * this.o.sourceValue(m)),
       })),
-      sum: () => pct(valueToNorm(p, this.live) - valueToNorm(p, this.o.getValue())),
-      result: () => text(p, this.live),
+      sum: () => pct(valueToNorm(this.travel, this.live) - valueToNorm(this.travel, this.o.getValue())),
+      result: () => this.shown(this.live),
     }, o.ticker, `info-${o.moduleId}-${p.id}`);
 
     this.refresh();
     this.unbind = o.ticker.bind(o.moduleId, t => {
-      const v = t.effective[o.moduleId]?.[p.id];
-      if (v === undefined || v === this.live) return;
+      // Connections can change without a parameter write; refresh the Tune label.
+      if (o.pitchConnected && o.pitchConnected() !== this.pitchWasConnected) this.refresh();
+      const effective = t.effective[o.moduleId]?.[p.id];
+      const v = effective ?? this.o.getValue();
+      if (v === this.live) return;
       this.live = v;
+      if (effective === undefined) this.lastText = 0; // clear stale live text in this tick
       this.paintLive();
     });
   }
@@ -184,7 +206,11 @@ export class Knob {
 
   /** Re-read base value and modulation and repaint everything. */
   refresh(): void {
-    const p = this.o.param;
+    const p = this.travel;
+    this.pitchWasConnected = !!this.o.pitchConnected?.();
+    const name = this.o.musical === 'vco' && this.pitchWasConnected ? 'Tune' : this.o.param.name;
+    this.labelEl.textContent = name;
+    this.dial.setAttribute('aria-label', name);
     const base = this.o.getValue();
     const n = valueToNorm(p, base);
 
@@ -216,25 +242,32 @@ export class Knob {
   /** Per-frame path: one transform; the live text at most ~14 Hz (Pi rules 1, 5). */
   private paintLive(): void {
     if (!this.mods.length) return;
-    const p = this.o.param;
-    this.marker.style.transform = `rotate(${ang(valueToNorm(p, this.live))}deg)`;
+    this.marker.style.transform = `rotate(${ang(valueToNorm(this.travel, this.live))}deg)`;
     this.root.dataset.live = String(round(this.live));
     const now = performance.now();
     if (now - this.lastText > 70) {
       this.lastText = now;
-      this.liveEl.textContent = `→ ${text(p, this.live)}`;
+      this.liveEl.textContent = `→ ${this.shown(this.live)}`;
     }
   }
 
   private paintBase(base: number): void {
-    this.readout.textContent = text(this.o.param, base);
-    this.dial.setAttribute('aria-valuenow', String(round(base)));
+    this.readout.textContent = this.shown(base);
+    // ARIA's numeric value must stay within dial travel; valuetext retains the
+    // actual selected Hz (or Tune), including saved values beyond the dial.
+    const ariaNow = this.o.musical === 'vco'
+      ? Math.min(this.travel.maximum, Math.max(this.travel.minimum, base)) : round(base);
+    this.dial.setAttribute('aria-valuenow', String(ariaNow));
     this.dial.setAttribute('aria-valuetext', this.readout.textContent);
   }
 
   private updateTooltip(base: number): void {
     const p = this.o.param;
-    const lines = [`${p.name}  ${text(p, base)}`, `Range ${formatRange(p)}`];
+    const name = this.labelEl.textContent;
+    const range = this.o.musical === 'vco'
+      ? 'Dial C0–G9 (log); saved/typed values beyond the dial remain unchanged'
+      : `Range ${formatRange(p)}`;
+    const lines = [`${name}  ${this.shown(base)}`, range];
     if (this.mods.length) {
       lines.push(`Modulated by ${this.mods.map(c => `${this.o.describeSource(c)} (${pct(c.amount ?? 0)})`).join(', ')}`);
     } else if (p.modulatable) {
@@ -244,10 +277,18 @@ export class Knob {
     this.dial.title = lines.join('\n');
   }
 
+  private shown(value: number): string {
+    if (this.o.musical === 'vco') {
+      return this.pitchWasConnected ? formatVcoTune(value) : formatBaseHz(value);
+    }
+    if (this.o.musical === 'macro-coarse') return noteAndCents(60 + value);
+    return text(this.o.param, value);
+  }
+
   // ---- gestures ---------------------------------------------------------
 
   private attachDrag(): void {
-    const p = this.o.param;
+    const p = this.travel;
     this.dial.addEventListener('pointerdown', e => {
       if (e.button !== 0) return;
       e.preventDefault(); e.stopPropagation();
@@ -279,7 +320,7 @@ export class Knob {
   }
 
   private attachKeys(): void {
-    const p = this.o.param;
+    const p = this.travel;
     this.dial.addEventListener('keydown', e => {
       const keys = ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'Home', 'End', 'PageUp', 'PageDown'];
       if (!keys.includes(e.key)) return;
@@ -301,7 +342,7 @@ export class Knob {
   }
 
   private attachWheel(): void {
-    const p = this.o.param;
+    const p = this.travel;
     this.dial.addEventListener('wheel', e => {
       e.preventDefault(); e.stopPropagation();
       const n = valueToNorm(p, this.o.getValue());
@@ -314,7 +355,8 @@ export class Knob {
   private promptValue(): void {
     const p = this.o.param;
     const input = el('input', 'readout-input') as HTMLInputElement;
-    input.value = displayValue(p, this.o.getValue());
+    input.value = this.o.musical === 'vco' && this.pitchWasConnected
+      ? formatVcoTune(this.o.getValue()) : displayValue(p, this.o.getValue());
     input.dataset.testid = `readout-input-${this.o.moduleId}-${p.id}`;
     input.setAttribute('aria-label', `${p.name} value`);
     this.readout.replaceWith(input);
@@ -324,7 +366,8 @@ export class Knob {
       if (done) return;
       done = true;
       if (apply) {
-        const v = parseTyped(p, input.value, this.o.getValue());
+        const tuned = this.o.musical === 'vco' && this.pitchWasConnected ? parseVcoTune(input.value) : null;
+        const v = tuned === null ? parseTyped(p, input.value, this.o.getValue()) : quantize(p, tuned);
         if (v !== null) this.o.setValue(v, true);
       }
       input.replaceWith(this.readout);

@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
+#include <cmath>
+// Strict C++17/newlib may omit this non-standard constant used by pinned Plaits.
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 #include "plaits/dsp/voice.h"
 #include "rng_scope.hpp"
 #include "wirescape_sdk.h"
@@ -14,7 +19,8 @@ struct MacroOscillator {
                                        ws::port("timbre_cv", "Timbre", WS2_CV_BI),
                                        ws::port("morph_cv", "Morph", WS2_CV_BI),
                                        ws::port("trigger", "Trigger", WS2_GATE),
-                                       ws::port("level", "Level", WS2_CV_UNI)};
+                                       ws::port("level", "Level", WS2_CV_UNI),
+                                       ws::port("gate", "Gate", WS2_GATE)};
     static constexpr std::array outputs{ws::port("main", "Main", WS2_AUDIO), ws::port("aux", "Aux", WS2_AUDIO)};
     static constexpr uint32_t flags = WS2_MODULATABLE | WS2_AUTOMATABLE | WS2_PER_VOICE;
     static constexpr std::array params{
@@ -44,13 +50,13 @@ struct MacroOscillator {
         ws2_memory m{};
         m.struct_size = sizeof(m);
         m.alignment = 32;
-        m.fast_bytes = std::min(c.max_channels, 8u) * (sizeof(plaits::Voice) + 32);
-        m.large_bytes = std::min(c.max_channels, 8u) * 16384;
+        m.fast_bytes = std::min<uint32_t>(c.max_channels, 8u) * (sizeof(plaits::Voice) + 32);
+        m.large_bytes = static_cast<size_t>(std::min<uint32_t>(c.max_channels, 8u)) * 16384;
         return m;
     }
     bool prepare(const ws::Setup &setup) {
         if (setup.sample_rate() != 48000) return false;
-        capacity = std::min(setup.max_channels(), 8u);
+        capacity = std::min<uint32_t>(setup.max_channels(), 8u);
         seed = setup.config.seed;
         for (uint32_t c = 0; c < capacity; ++c) {
             void *object = setup.alloc(sizeof(plaits::Voice), 32, WS2_FAST);
@@ -117,13 +123,23 @@ struct MacroOscillator {
                     ch.modulation.harmonics = std::clamp(b.in(3).value(c, i), -1.f, 1.f);
                     ch.modulation.timbre = std::clamp(b.in(4).value(c, i), -1.f, 1.f);
                     ch.modulation.morph = std::clamp(b.in(5).value(c, i), -1.f, 1.f);
-                    ch.modulation.trigger = std::clamp(b.in(6).value(c, i), 0.f, 1.f);
-                    ch.modulation.level = std::clamp(b.in(7).value(c, i), 0.f, 1.f);
+                    // The additive gate feeds Plaits' existing strike and LPG paths.
+                    // With no gate cable, preserve the legacy values and flags exactly.
+                    const bool gate_connected = b.in(8).connected();
+                    const bool level_connected = b.in(7).connected();
+                    const float trigger = std::clamp(b.in(6).value(c, i), 0.f, 1.f);
+                    const float gate = gate_connected ? std::clamp(b.in(8).value(c, i), 0.f, 1.f) : 0.f;
+                    ch.modulation.trigger = gate_connected ? std::max(trigger, gate) : trigger;
+                    if (gate_connected && !level_connected) {
+                        ch.modulation.level = gate;
+                    } else {
+                        ch.modulation.level = std::clamp(b.in(7).value(c, i), 0.f, 1.f);
+                    }
                     ch.modulation.frequency_patched = b.in(2).connected();
                     ch.modulation.timbre_patched = b.in(4).connected();
                     ch.modulation.morph_patched = b.in(5).connected();
-                    ch.modulation.trigger_patched = b.in(6).connected();
-                    ch.modulation.level_patched = b.in(7).connected();
+                    ch.modulation.trigger_patched = b.in(6).connected() || gate_connected;
+                    ch.modulation.level_patched = level_connected || gate_connected;
                 }
                 if (++ch.fill == 12) {
                     RngScope scope(ch.rng);

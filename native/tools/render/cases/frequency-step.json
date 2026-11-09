@@ -1,0 +1,12 @@
+{
+  "SPDX-License-Identifier":"GPL-3.0-only","name":"Frame-exact VCO frequency step","rate":48000,"block":128,"seconds":4,"seed":7,"peak_limit":1.1,
+  "patch":{"format":"wirescape.native.patch","version":2,"settings":{"seed":7},"name":"Evidence: VCO step",
+    "modules":[{"id":1,"module":"essentials.vco","version":2,"parameters":{"frequency":220}},
+               {"id":2,"module":"essentials.output","version":2,"parameters":{}}],
+    "connections":[{"kind":"signal","from":{"module":1,"port":"audio"},"to":{"module":2,"port":"audio"}}],
+    "outputs":[{"module":2,"port":"audio","bus_channel":0},{"module":2,"port":"audio","bus_channel":1}]
+  },
+  "events":[{"frame":96000,"type":"setParam","node":1,"parameter":"frequency","value":440}],
+  "windows":[{"kind":"active","start":10000,"end":80000},{"kind":"active","start":110000,"end":170000}],
+  "frequencies":[{"start":48000,"end":90000,"hz":220},{"start":110000,"end":160000,"hz":440}]
+}

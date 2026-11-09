@@ -31,6 +31,8 @@ test('macro models select, undo and persist through patch reload', async ({ page
   await expect(page.getByTestId('knob-1-harmonics')).toHaveClass(/tier-L/);
   await expect(page.getByTestId('knob-1-timbre')).toHaveClass(/tier-M/);
   await expect(page.getByTestId('knob-1-fm_amount')).toHaveClass(/tier-S/);
+  await expect(page.getByTestId('port-1-input-gate')).toBeVisible();
+  await expect(page.getByTestId('port-1-input-trigger')).toBeVisible();
 });
 
 test('macro model bank works with keyboard and touch targets fit the card', async ({ page }) => {

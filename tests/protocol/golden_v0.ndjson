@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Golden v0 protocol transcript, derived from ENGINE_PROTOCOL.md T01-T15.
+# > engine stdin; < engine stdout; @ Electron main/renderer IPC (not engine stdin).
+# session:* is any consistent opaque session per process; gen:+1 advances on commit;
+# gen:= means equal to the last committed gen; first hello starts generation 0.
+# message:* and time:* allow diagnostic wording and observed timing to vary.
+# T07 and T12 need the explicit setup commands inserted below.
+
+# T01
+< {"v":0,"session":"*","type":"hello","protocol":0,"engine":{"version":"*","sha":"*"},"capabilities":[],"catalogue":{"modules":[{"id":"essentials.output","name":"Output","category":"I/O","ports":[{"id":"audio","name":"Audio","direction":"input","kind":"signal","hint":"audio","poly":"sum","stereo_pair":null},{"id":"audio","name":"Audio","direction":"output","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null}],"parameters":[]},{"id":"essentials.vco","name":"VCO","category":"Oscillator","ports":[{"id":"pitch","name":"Pitch","direction":"input","kind":"signal","hint":"pitch","poly":"poly","stereo_pair":null},{"id":"fm","name":"FM Hz","direction":"input","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null},{"id":"notes","name":"Notes","direction":"input","kind":"event","hint":"ev_notes","poly":"poly","stereo_pair":null},{"id":"audio","name":"Audio","direction":"output","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null}],"parameters":[{"id":"frequency","name":"Frequency","minimum":0.01,"maximum":20000,"default":220,"unit":"Hz","taper":"linear","step":0,"decimals":3,"modulatable":true}]}]},"audio":{"state":"no-device","deviceId":null,"deviceName":null,"sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":0,"dropouts":0},"midi":{"devices":[],"activity":{}}}
+
+# T02
+> {"v":0,"id":"r2","type":"loadGraph","patch":{"format":"wirescape.native.patch","version":2,"modules":[{"id":7,"module":"essentials.output"}],"connections":[],"ui":{"labels":{"7":"Out"}}}}
+< {"v":0,"session":"*","re":"r2","ok":true,"gen":"+1"}
+
+# T03
+> {"v":0,"id":"r3","type":"addModule","moduleId":8,"moduleType":"absent.vco"}
+< {"v":0,"session":"*","re":"r3","ok":false,"code":"unknown-module","message":"*","gen":"="}
+
+# T04
+> {"v":0,"id":"r4a","type":"addModule","moduleId":9,"moduleType":"essentials.vco","params":{"frequency":220}}
+< {"v":0,"session":"*","re":"r4a","ok":true,"gen":"+1"}
+> {"v":0,"id":"r4b","type":"connect","connection":{"kind":"signal","from":{"module":9,"port":"audio"},"to":{"module":7,"port":"audio"}}}
+< {"v":0,"session":"*","re":"r4b","ok":true,"gen":"+1"}
+
+# T05
+> {"v":0,"id":"r5","type":"connect","connection":{"kind":"event","from":{"module":9,"port":"audio"},"to":{"module":7,"port":"audio"}}}
+< {"v":0,"session":"*","re":"r5","ok":false,"code":"kind-mismatch","message":"*","gen":"="}
+
+# T06
+> {"v":0,"id":"r6","type":"setParam","moduleId":9,"paramId":"frequency","value":440}
+< {"v":0,"session":"*","re":"r6","ok":true,"gen":"="}
+
+# T07
+# Setup: LFO source and a modulation edge must exist before setModAmount.
+> {"v":0,"id":"pre7a","type":"addModule","moduleId":10,"moduleType":"essentials.lfo"}
+< {"v":0,"session":"*","re":"pre7a","ok":true,"gen":"+1"}
+> {"v":0,"id":"pre7b","type":"connect","connection":{"kind":"modulation","from":{"module":10,"port":"control"},"to":{"module":9,"port":"frequency"},"amount":0.2}}
+< {"v":0,"session":"*","re":"pre7b","ok":true,"gen":"+1"}
+> {"v":0,"id":"r7","type":"setModAmount","connection":{"kind":"modulation","from":{"module":10,"port":"control"},"to":{"module":9,"port":"frequency"},"amount":0.2},"amount":-0.5}
+< {"v":0,"session":"*","re":"r7","ok":true,"gen":"+1"}
+
+# T08
+> {"v":0,"id":"r8a","type":"noteOn","note":60,"velocity":0.8}
+< {"v":0,"session":"*","re":"r8a","ok":true,"gen":"="}
+> {"v":0,"id":"r8b","type":"noteOff","note":60}
+< {"v":0,"session":"*","re":"r8b","ok":true,"gen":"="}
+> {"v":0,"id":"r8c","type":"panic"}
+< {"v":0,"session":"*","re":"r8c","ok":true,"gen":"="}
+
+# T09
+> {"v":0,"id":"r9","type":"listAudioDevices"}
+< {"v":0,"session":"*","re":"r9","ok":true,"gen":"=","result":{"devices":[{"id":"USB Stereo","name":"USB Stereo","kind":"audio","index":3}]}}
+> {"v":0,"id":"r9b","type":"selectAudioDevice","deviceId":"USB Stereo"}
+< {"v":0,"session":"*","re":"r9b","ok":true,"gen":"="}
+
+# T10
+> {"v":0,"id":"r10a","type":"listMidiDevices"}
+< {"v":0,"session":"*","re":"r10a","ok":true,"gen":"=","result":{"devices":[{"id":"M8 MIDI 1|M8:M8 MIDI 1","name":"M8 MIDI 1","system_name":"M8:M8 MIDI 1","kind":"midi","enabled":true}]}}
+> {"v":0,"id":"r10b","type":"setMidiEnabled","deviceId":"M8 MIDI 1|M8:M8 MIDI 1","on":false}
+< {"v":0,"session":"*","re":"r10b","ok":true,"gen":"="}
+
+# T11
+< {"v":0,"session":"*","type":"devices","gen":"=","audioDevices":[{"id":"USB Stereo","name":"USB Stereo","kind":"audio","index":3}],"midiDevices":[{"id":"M8 MIDI 1|M8:M8 MIDI 1","name":"M8 MIDI 1","system_name":"M8:M8 MIDI 1","kind":"midi","enabled":false}]}
+
+# T12
+# Setup: CC row target must exist before ccMap.set.
+> {"v":0,"id":"pre12","type":"addModule","moduleId":12,"moduleType":"midi.cc_to_cv"}
+< {"v":0,"session":"*","re":"pre12","ok":true,"gen":"+1"}
+> {"v":0,"id":"r12","type":"ccMap.set","moduleId":12,"row":0,"mapping":{"channel":0,"controller":21,"fourteen_bit":false,"bipolar":false,"smoothing_ms":10}}
+< {"v":0,"session":"*","re":"r12","ok":true,"gen":"+1"}
+
+# T13
+< {"v":0,"session":"*","type":"status","gen":"=","status":{"audio":{"state":"running","deviceId":"USB Stereo","deviceName":"USB Stereo","sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":2.1,"dropouts":0},"midi":{"devices":[],"activity":{}}}}
+< {"v":0,"session":"*","type":"telemetry","gen":"=","telemetry":{"tick":12,"time":"*","effective":{},"phase":{},"envelope":{},"meters":{"7":[0.1,0.1]},"scope":{},"eventActivity":{},"heldNotes":[]}}
+
+# T14
+> {"v":0,"id":"r14",BROKEN
+< {"v":0,"session":"*","re":null,"ok":false,"code":"invalid","message":"*","gen":"="}
+> {"v":0,"id":"r14b","type":"setParam","moduleId":9,"paramId":"frequency","value":440}
+< {"v":0,"session":"*","re":"r14b","ok":false,"code":"busy","message":"*","gen":"="}
+
+# T15
+@ {"v":0,"id":"a15","type":"app.restartEngine"}
+@ {"v":0,"re":"a15","ok":true,"gen":"0"}
+@ {"v":0,"type":"app.engineExited","exitCode":0,"signal":null,"expected":true}
+< {"v":0,"session":"*","type":"hello","protocol":0,"engine":{"version":"*","sha":"*"},"capabilities":[],"catalogue":{"modules":[{"id":"essentials.output","name":"Output","category":"I/O","ports":[{"id":"audio","name":"Audio","direction":"input","kind":"signal","hint":"audio","poly":"sum","stereo_pair":null},{"id":"audio","name":"Audio","direction":"output","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null}],"parameters":[]},{"id":"essentials.vco","name":"VCO","category":"Oscillator","ports":[{"id":"pitch","name":"Pitch","direction":"input","kind":"signal","hint":"pitch","poly":"poly","stereo_pair":null},{"id":"fm","name":"FM Hz","direction":"input","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null},{"id":"notes","name":"Notes","direction":"input","kind":"event","hint":"ev_notes","poly":"poly","stereo_pair":null},{"id":"audio","name":"Audio","direction":"output","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null}],"parameters":[{"id":"frequency","name":"Frequency","minimum":0.01,"maximum":20000,"default":220,"unit":"Hz","taper":"linear","step":0,"decimals":3,"modulatable":true}]}]},"audio":{"state":"no-device","deviceId":null,"deviceName":null,"sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":0,"dropouts":0},"midi":{"devices":[],"activity":{}}}
+> {"v":0,"id":"r15","type":"loadGraph","patch":{"format":"wirescape.native.patch","version":2,"modules":[{"id":7,"module":"essentials.output"}],"connections":[]}}
+< {"v":0,"session":"*","re":"r15","ok":true,"gen":"+1"}
+
