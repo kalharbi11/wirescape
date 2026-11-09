@@ -143,7 +143,8 @@ test('SHARE puts the patch in a link that opens the same patch', async ({ page, 
   await page.goto('./');
   await page.getByTestId('web-start').click();
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
-  await page.getByTestId('starter-select').selectOption('witching-hour');
+  const sequence = CURATED_PATCHES.find(p => p.id === 'witching-hour')!;
+  await page.evaluate(p => (window as any).__wirescapeTest.load(p.patch, p.name), sequence);
   await expect.poll(() => modules(page)).toContain('2:example.step_sequencer');
   const expected = await modules(page);
   await page.getByTestId('share-patch').click();
