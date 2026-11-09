@@ -55,6 +55,7 @@ export class FakeEngine implements EngineClient {
   };
   private osc: OscStatus = { enabled: false, port: 9000, allowNetwork: false, recent: [] };
 
+  private learnSequence = 0;
   private status: SystemStatus = {
     audio: {
       state: 'starting', deviceId: 'hw:0', deviceName: 'Built-in Audio',
@@ -229,6 +230,20 @@ export class FakeEngine implements EngineClient {
   setMidiEnabled(id: string, on: boolean): void {
     const d = this.midiDevices.find(d => d.id === id);
     if (d) { d.enabled = on; this.pushStatus(); }
+  }
+
+  midiLearn(armed: boolean): void {
+    this.status.midi.learn = armed ? { armed: true } : undefined;
+    this.pushStatus();
+  }
+
+  /** Fake-only event injection for Learn UI tests; not a wire command. */
+  emitMidiCc(deviceId: string, channel: number, controller: number, value: number): void {
+    if (!this.status.midi.learn?.armed || !this.midiDevices.some(d => d.id === deviceId && d.enabled)) return;
+    this.learnSequence = (this.learnSequence + 1) >>> 0;
+    this.status.midi.learn = { armed: true, seq: String(this.learnSequence),
+      deviceId, channel, controller, value };
+    this.pushStatus();
   }
 
   setBufferFrames(frames: number): void { this.setBuffer(frames); }
@@ -663,7 +678,8 @@ export class FakeEngine implements EngineClient {
     }
     return {
       audio: { ...this.status.audio },
-      midi: { devices: this.midiDevices.map(d => ({ ...d })), activity },
+      midi: { devices: this.midiDevices.map(d => ({ ...d })), activity,
+        ...(this.status.midi.learn ? { learn: { ...this.status.midi.learn } } : {}) },
       osc: { ...this.osc, recent: this.osc.recent.map(m => ({ ...m, args: [...m.args] })) },
       ...(clockNode
         ? { clock: { bpm: clockNode.params.bpm ?? 120, running: (clockNode.params.run ?? 1) >= 0.5 } }
