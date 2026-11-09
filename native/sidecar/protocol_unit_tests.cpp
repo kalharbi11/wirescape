@@ -147,13 +147,13 @@ int run_tests() {
     coalesced.send({{"type", "telemetry"}, {"probe", 2}}, true);
     coalesced.start();
     coalesced.finish();
-    std::istringstream messages(coalesced_output.str());
+    std::istringstream coalesced_messages(coalesced_output.str());
     std::string message;
-    check(bool(std::getline(messages, message)));
+    check(bool(std::getline(coalesced_messages, message)));
     check(strict_json(message) == Json({{"type", "status"}, {"probe", 1}}));
-    check(bool(std::getline(messages, message)));
+    check(bool(std::getline(coalesced_messages, message)));
     check(strict_json(message) == Json({{"type", "telemetry"}, {"probe", 2}}));
-    check(!std::getline(messages, message));
+    check(!std::getline(coalesced_messages, message));
 
     ObservedMidi fake(true, false);
     auto endpoints = fake.endpoints();
