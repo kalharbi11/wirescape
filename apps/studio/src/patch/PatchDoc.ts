@@ -41,6 +41,8 @@ export class PatchDoc {
 
   get dirty(): boolean { return this._dirty; }
   markClean(): void { this._dirty = false; }
+  /** Restores the unsaved state of a document that was put back after a refused load. */
+  markDirty(): void { this._dirty = true; }
 
   on(cb: Listener): () => void { this.listeners.add(cb); return () => this.listeners.delete(cb); }
   private emit(e: PatchEvent): void {

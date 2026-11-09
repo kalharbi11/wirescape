@@ -2,7 +2,6 @@
 """Replay the shared protocol v0 transcript against the real null-audio sidecar."""
 import json
 import math
-import os
 from pathlib import Path
 import queue
 import subprocess
@@ -497,9 +496,6 @@ def replay(binary, fixture):
 def main():
     if len(sys.argv) != 3:
         raise SystemExit('usage: golden_tests.py <wirescape-engine> <golden_v0.ndjson>')
-    if sys.platform == 'win32' and os.environ.get('WIRESCAPE_SIDECAR_WINDOWS') != '1':
-        print('SKIP: Windows sidecar stdout stall pending #266')
-        return 77
     replay(sys.argv[1], sys.argv[2])
     return 0
 

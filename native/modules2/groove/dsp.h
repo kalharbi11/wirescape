@@ -17,11 +17,15 @@ struct Sequencer {
     static constexpr std::array<ws2_port, 0> inputs{};
     // S0 t1 slots are permanent. t3/t4 slots are reserved but not declared.
     static constexpr std::array outputs{
-        ws::port("t1_pitch", "T1 Pitch", WS2_PITCH), ws::port("t1_gate", "T1 Gate", WS2_GATE),
-        ws::port("t1_mod1", "T1 Mod 1", WS2_CV_BI), ws::port("t1_mod2", "T1 Mod 2", WS2_CV_BI),
+        ws::port("t1_pitch", "T1 Pitch", WS2_PITCH),
+        ws::port("t1_gate", "T1 Gate", WS2_GATE),
+        ws::port("t1_mod1", "T1 Mod 1", WS2_CV_BI),
+        ws::port("t1_mod2", "T1 Mod 2", WS2_CV_BI),
         ws::port("t1_notes", "T1 Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT),
-        ws::port("t2_pitch", "T2 Pitch", WS2_PITCH), ws::port("t2_gate", "T2 Gate", WS2_GATE),
-        ws::port("t2_mod1", "T2 Mod 1", WS2_CV_BI), ws::port("t2_mod2", "T2 Mod 2", WS2_CV_BI),
+        ws::port("t2_pitch", "T2 Pitch", WS2_PITCH),
+        ws::port("t2_gate", "T2 Gate", WS2_GATE),
+        ws::port("t2_mod1", "T2 Mod 1", WS2_CV_BI),
+        ws::port("t2_mod2", "T2 Mod 2", WS2_CV_BI),
         ws::port("t2_notes", "T2 Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
     // All controls are rising-edge requests, including the published S0 run ID.
     static constexpr std::array params{
@@ -175,8 +179,8 @@ struct Sequencer {
             const uint32_t base = t * 5;
             for (uint32_t p = 0; p < 4; ++p) {
                 b.out(base + p).set_channels(1);
-                const bool constant = t >= pattern.track_count ||
-                    (p == 2 && !mod1_active[t]) || (p == 3 && !mod2_active[t]);
+                const bool constant =
+                    t >= pattern.track_count || (p == 2 && !mod1_active[t]) || (p == 3 && !mod2_active[t]);
                 b.out(base + p).mark_constant(constant);
             }
             b.out(base + 4).set_channels(0);

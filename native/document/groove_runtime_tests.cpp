@@ -253,9 +253,9 @@ static void advance(AppEngine *e, uint32_t frames, uint32_t block) {
         wirescape::engine2::Outgoing out;
         while (app_engine_native(e).pop_egress(out))
             check(out.node == 1 && (out.port == 4 || out.port == 9) &&
-                      (out.event.type == WS2_NOTE_ON || out.event.type == WS2_NOTE_OFF) &&
-                      out.event.note_id > 0 && out.event.key >= 0 && out.event.key <= 127 &&
-                      out.frame < app_engine_native(e).meter().frame, "egress identity");
+                      (out.event.type == WS2_NOTE_ON || out.event.type == WS2_NOTE_OFF) && out.event.note_id > 0 &&
+                      out.event.key >= 0 && out.event.key <= 127 && out.frame < app_engine_native(e).meter().frame,
+                  "egress identity");
         done += n;
     }
 }
@@ -288,8 +288,8 @@ static void test_s1_transport(AppEngine *cat) {
     check(graph.output_sample(1, 6, 0, 0) == 1.f, "track STOP is not immediate");
     run_command(e.get(), param_id(e.get(), 6), 1.f); // T1 mute immediate.
     advance(e.get(), 1, 1);
-    check(graph.output_sample(1, 1, 0, 0) == 0.f &&
-              graph.output_sample(1, 6, 0, 0) == 1.f, "independent mute releases only T1");
+    check(graph.output_sample(1, 1, 0, 0) == 0.f && graph.output_sample(1, 6, 0, 0) == 1.f,
+          "independent mute releases only T1");
     check(graph.output_sample(1, 2, 0, 0) == .25f, "muted track holds modulation");
     // Long-run synchronization and a queued track STOP at the shared wrap.
     advance(e.get(), 32 * 6000 + 2, 256);
@@ -323,8 +323,7 @@ static void test_s1_many_cycles(AppEngine *cat) {
     run_command(e.get(), param_id(e.get(), 1), 1.f);
     run_command(e.get(), param_id(e.get(), 2), 1.f); // RESET outranks STOP.
     advance(e.get(), 1, 1);
-    check(app_engine_native(e.get()).output_sample(1, 1, 0, 0) == 0.f,
-          "same-frame RESET releases without retrigger");
+    check(app_engine_native(e.get()).output_sample(1, 1, 0, 0) == 0.f, "same-frame RESET releases without retrigger");
     advance(e.get(), 2400, 256);
     check(last(e.get(), 1) == 1.f, "RESET preserves running intent, resumes at step 1");
 }
@@ -403,15 +402,33 @@ static void test_s1_refusals(AppEngine *cat) {
     for (int c = 0; c < 9; ++c) {
         Json invalid = good;
         switch (c) {
-        case 0: invalid["tracks"][0]["steps"][0]["mod1"] = 1.1; break;
-        case 1: invalid["tracks"][1]["steps"][0]["mod2"] = -0.1; break;
-        case 2: invalid["tracks"][0]["armed"] = 1; break;
-        case 3: invalid["tracks"][1]["mute"] = "no"; break;
-        case 4: invalid["tracks"][0]["steps"][0]["extra"] = true; break;
-        case 5: invalid["tracks"][0]["anything"] = 2; break;
-        case 6: invalid["tracks"].push_back(invalid["tracks"][0]); break;
-        case 7: invalid["tracks"][0]["steps"][1]["key"] = 60; break;
-        default: invalid["tracks"][0]["steps"][0]["velocity"] = 1.5; break;
+        case 0:
+            invalid["tracks"][0]["steps"][0]["mod1"] = 1.1;
+            break;
+        case 1:
+            invalid["tracks"][1]["steps"][0]["mod2"] = -0.1;
+            break;
+        case 2:
+            invalid["tracks"][0]["armed"] = 1;
+            break;
+        case 3:
+            invalid["tracks"][1]["mute"] = "no";
+            break;
+        case 4:
+            invalid["tracks"][0]["steps"][0]["extra"] = true;
+            break;
+        case 5:
+            invalid["tracks"][0]["anything"] = 2;
+            break;
+        case 6:
+            invalid["tracks"].push_back(invalid["tracks"][0]);
+            break;
+        case 7:
+            invalid["tracks"][0]["steps"][1]["key"] = 60;
+            break;
+        default:
+            invalid["tracks"][0]["steps"][0]["velocity"] = 1.5;
+            break;
         }
         check(!load(patch(invalid), cat, 48000, error), "S1 invalid native config refused");
         check(!error.empty(), "S1 refused candidate explains why");

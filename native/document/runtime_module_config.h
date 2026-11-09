@@ -21,8 +21,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,const n
                  value.at("bpm").get<double>() >= 20 && value.at("bpm").get<double>() <= 300,
              "Groove BPM outside range");
      const auto &tracks = value.at("tracks");
-     require(tracks.is_array() && tracks.size() >= 1 && tracks.size() <= 2,
-             "Groove requires one or two tracks");
+     require(tracks.is_array() && tracks.size() >= 1 && tracks.size() <= 2, "Groove requires one or two tracks");
      Config config;
      config.bpm = static_cast<float>(value.at("bpm").get<double>());
      config.track_count = static_cast<uint32_t>(tracks.size());
@@ -30,8 +29,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,const n
          const auto &track = tracks[t];
          require(track.is_object() && track.contains("steps"), "Invalid Groove track");
          for (auto it = track.begin(); it != track.end(); ++it)
-             require(it.key() == "steps" || it.key() == "mute" || it.key() == "armed",
-                     "Unknown Groove track setting");
+             require(it.key() == "steps" || it.key() == "mute" || it.key() == "armed", "Unknown Groove track setting");
          auto &native = config.tracks[t];
          if (track.contains("mute")) {
              require(track.at("mute").is_boolean(), "Groove mute must be boolean");
@@ -42,12 +40,10 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,const n
              native.armed = track.at("armed").get<bool>() ? 1u : 0u;
          }
          const auto &steps = track.at("steps");
-         require(steps.is_array() && steps.size() >= 1 && steps.size() <= 32,
-                 "Groove requires 1..32 steps per track");
+         require(steps.is_array() && steps.size() >= 1 && steps.size() <= 32, "Groove requires 1..32 steps per track");
          for (size_t i = 0; i < steps.size(); ++i) {
              const auto &s = steps[i];
-             require(s.is_object() && s.contains("kind") && s.at("kind").is_string(),
-                     "Invalid Groove step");
+             require(s.is_object() && s.contains("kind") && s.at("kind").is_string(), "Invalid Groove step");
              const auto kind = s.at("kind").get<std::string>();
              require(kind == "note" || kind == "rest" || kind == "tie", "Unknown Groove step kind");
              for (auto it = s.begin(); it != s.end(); ++it)
@@ -58,7 +54,8 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,const n
              row.kind = kind == "note" ? Note : kind == "tie" ? Tie : Rest;
              if (kind == "note") {
                  require(s.contains("key") && s.contains("velocity") && s.at("key").is_number_integer() &&
-                             s.at("velocity").is_number(), "Invalid Groove note");
+                             s.at("velocity").is_number(),
+                         "Invalid Groove note");
                  const auto key = s.at("key").get<int64_t>();
                  const auto velocity = s.at("velocity").get<double>();
                  require(key >= 0 && key <= 127 && std::isfinite(velocity) && velocity >= 0 && velocity <= 1,
@@ -69,8 +66,8 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,const n
              for (const char *name : {"mod1", "mod2"}) {
                  if (!s.contains(name)) continue;
                  const auto &v = s.at(name);
-                 require(v.is_number() && std::isfinite(v.get<double>()) &&
-                             v.get<double>() >= 0 && v.get<double>() <= 1,
+                 require(v.is_number() && std::isfinite(v.get<double>()) && v.get<double>() >= 0 &&
+                             v.get<double>() <= 1,
                          "Groove modulation outside range");
                  (std::string(name) == "mod1" ? row.mod1 : row.mod2) = static_cast<float>(v.get<double>());
              }

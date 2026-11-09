@@ -112,6 +112,82 @@ static void cv_new_ports(){
  VERIFY(covered==17); // mixer 2, noise 1, output 0, scale 2, slew 2, clock 4, envelope 3, ladder 3
 }
 
+// Test-only 64-param SDK module: distinct IDs, real SDK prepare/process and high-index views.
+struct Param64Probe {
+    static constexpr ws::Info info{"test.param64", "Parameter cap probe", 1};
+    static constexpr std::array<ws2_port, 0> inputs{};
+    static constexpr std::array outputs{ws::port("out", "Out", WS2_CV_UNI)};
+    static constexpr auto ids = [] {
+        std::array<std::array<char, 4>, WS2_MAX_PARAMS> names{};
+        for (uint32_t i = 0; i < WS2_MAX_PARAMS; ++i) {
+            names[i][0] = 'p';
+            names[i][1] = static_cast<char>('0' + i / 10);
+            names[i][2] = static_cast<char>('0' + i % 10);
+            names[i][3] = '\0';
+        }
+        return names;
+    }();
+    static constexpr auto params = [] {
+        std::array<ws2_param, WS2_MAX_PARAMS> values{};
+        constexpr uint32_t flags = WS2_STEPPED | WS2_AUTOMATABLE;
+        for (uint32_t i = 0; i < WS2_MAX_PARAMS; ++i)
+            values[i] = ws::param(ids[i].data(), "Value", 0, 1, 0, "", flags, WS2_LINEAR, 0, 4, 1);
+        return values;
+    }();
+    void prepare(const ws::Setup &) {}
+    void reset() {}
+    void process(ws::Block &b) {
+        b.out(0).set_channels(1);
+        b.out(0).mark_constant(false);
+        const auto a = b.param(0).ch(0), z31 = b.param(31).ch(0);
+        const auto z32 = b.param(32).ch(0), z63 = b.param(63).ch(0);
+        auto *out = b.out(0).ch(0);
+        for (uint32_t i = 0; i < b.frames(); ++i) out[i] = 0.125f * (a[i] + z31[i] + z32[i] + z63[i]);
+    }
+};
+
+static void param64_sdk() {
+    const auto *d = ws::Module<Param64Probe>::descriptor();
+    VERIFY(d->param_count == WS2_MAX_PARAMS);
+    for (uint32_t i = 0; i < d->param_count; ++i) {
+        VERIFY(std::strlen(d->params[i].id) == 3);
+        for (uint32_t j = 0; j < i; ++j) VERIFY(std::strcmp(d->params[i].id, d->params[j].id) != 0);
+    }
+    Engine e;
+    VERIFY(e.add_node(1, d));
+    VERIFY(e.output(1, 0, 0));
+    VERIFY(e.register_producer() == 0);
+    VERIFY(e.prepare()); // invokes the SDK descriptor's real prepare callback
+    auto push = [&](uint32_t index, uint64_t frame) {
+        ws2_event event{};
+        event.struct_size = sizeof(event);
+        event.type = WS2_PARAM;
+        event.index = index;
+        event.channel = -1;
+        event.value = 1.f;
+        VERIFY(e.enqueue(0, 1, WS2_DIRECT_PORT, event, frame) == WS2_OK);
+    };
+    push(0, 0);
+    push(31, 0);
+    push(32, 0);
+    float samples[128]{};
+    float *rows[]{samples};
+    {
+        allocation_watch::Scope watch;
+        VERIFY(e.render(rows, 1, 128) == WS2_OK);
+        VERIFY(watch.allocations() == 0);
+    }
+    for (float sample : samples) VERIFY(sample == 0.375f);
+    push(63, 133); // sample-accurate high-index event at offset 5 of the next block
+    {
+        allocation_watch::Scope watch;
+        VERIFY(e.render(rows, 1, 128) == WS2_OK);
+        VERIFY(watch.allocations() == 0);
+    }
+    for (uint32_t i = 0; i < 128; ++i) VERIFY(samples[i] == (i < 5 ? 0.375f : 0.5f));
+    VERIFY(e.meter().faults == 0);
+}
+
 static void param_cap() {
     // #402: the host accepts up to WS2_MAX_PARAMS (64) parameters and rejects one more.
     static_assert(WS2_MAX_PARAMS == 64u, "parameter cap");
@@ -135,5 +211,6 @@ int main() {
     cv();
     cv_new_ports();
     param_cap();
+    param64_sdk();
     std::puts("PASS existing-port behavior regressions and every continuous D7 parameter");
 }
