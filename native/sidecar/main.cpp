@@ -13,6 +13,7 @@ int main(int argc, char **argv) {
         transport.send(session.hello());
         transport.start();
         transport.wait_hello(); // strictly before render/pacing and device startup
+        try {
         session.start();
         auto status = std::chrono::steady_clock::now(), telemetry = status, devices = status;
         for (;;) {
@@ -43,6 +44,13 @@ int main(int argc, char **argv) {
             }
         }
         session.shutdown();
+        } catch (const std::exception &e) {
+            // Report the original control error before Transport's destructor
+            // waits for stdin EOF and its shutdown watchdog can terminate us.
+            std::cerr << "wirescape-engine control failure: " << e.what() << '\n';
+            std::cerr.flush();
+            throw;
+        }
         transport.finish();
         return 0;
     } catch (const std::exception &e) {
