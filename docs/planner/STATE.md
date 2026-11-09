@@ -1,46 +1,53 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-09, Codex Lead merge-captain handoff. Owner-reported failures preempt everything.
-No queued, stale or missing result counts as a pass. Live heads and handoffs govern.
+**Updated:** 2026-11-09, Codex Lead. Owner failures preempt features.
+Live heads and completed evidence govern; queued, stale and missing results never pass.
 
-## Now
-- **Claimable work lives on GitHub: board issue #473.** Free agents take the first
-  unclaimed ready row and claim on that row's issue. Codex Lead keeps the board ticked.
-  Per-PR rulings: `docs/tasks/PR_CLOSEOUT_2026_11_09.md`. Plan: D15–D19 in `docs/PLAN.md`,
-  sequence in `docs/planner/CLEANUP.md` (R0 #474; R1 #464, R2 #465, R5 #466/#467 open now;
-  R3 #468, R4 #469, R6 #470 blocked).
-- **Windows:** owner's first install and test passed on the #463 branch (real audio,
-  keyboard, Launchkey, all starters switch). #463 cross-family source review is complete
-  at 31b909a (final explicit-flush fix recheck pending). Prior a30 required/task/Web
-  checks passed; final CI/Pi remain gates. Anything touching
-  `native/sidecar` or `native/io/audio` (#399, #472) merges main after it.
-  #436 W1 = `docs/WINDOWS_SETUP.md` + `tools/windows/setup.ps1` at #463's merge SHA.
-- **Pi tomorrow (owner):** #450 → #452 → #453 with one accepted SHA. Owner installs
-  Node 22 and `xvfb` on the Pi first; runner is rebooting and actual Pi jobs remain queued.
-- Open PRs: 14 (D18 still in force: no new module/feature issues until under 10).
+## Authority and queue
+- Board #473 is the claim source. D18 holds while 10+ implementation PRs are open.
+- Owner explicitly delegated Codex Lead authority to revise rulings, unblock agents,
+  approve and merge; Keel availability alone does not block. Record decisions on issues.
+- Keep independent review, actual evidence, realtime safety, IDs and unknown data.
+- PLAN D15–D19 and CLEANUP govern scope. No new module/feature issues in this window.
 
-## Keel today (2026-11-09)
-- Merged #456, #438, #441, #390, #459, #323 (Quantizer, 3ed2a14 after catalogue union),
-  and #427 (gate). Compass's R0 decisions remain in #474 until it merges.
-- #442 merged 32e7ba4: independent T1, exact-head required/task/Web checks passed.
-- Closed #82, #443, #406, #423 (parked), #188 (Qt launcher, superseded by #436).
-- Rulings: #432 playhead seam, #386 case 4, #293 devices, #72 OSC, #400 conditional
-  approval, #472 rate-mismatch refusal (`rate-unsupported`, never `reconnecting`).
-- Static rule: fix authored formatting on changed hunks; cppcheck on untouched lines is
-  inherited and Codex Lead merges past it (delegation c). No new suppressions.
+## Merged / current lead gates
+- #474 R0 merged83b381a; #442 real-app evidence merged32e7ba4.
+- #400 latency reporting merged9a1d2f5 after Keel review, exact-head required/task
+  green and pinned LLVM18 formatting proof; no Pi requirement for reporting-only scope.
+- #463 Windows runtime: cross-family source review complete. All hosted checks passed
+  a6168ed. Actual Pi build/accept passed31b909a; only a CLI whitespace wrap differed,
+  verified token/tree equivalent. Lead recorded that bounded evidence transfer.
+- #463 now integrates current main normally; only STATE conflicted, native merged cleanly.
+  Fresh integration checks/evidence remain before actual merge. Then #399/#472/#471
+  owners merge main. No claim that an untested integration head passed on Pi.
 
-## Keel owes next session
-- T2 cross-family reviews: Groove playhead PR, #399 + #472, R2 #465 coverage table,
-  R3 #468, OSC slices B/C, #296 soak. Lead R6 #470 after R3. Set the `archive/qt-final`
-  tag on R3's base commit before it merges.
-- Low: `module2.h` `latency_frames` comment states the threading rule (label-only).
+## Owner evidence and setup
+- Windows first session on #463: WASAPI headphones, all starters switch and sound,
+  computer keyboard and Launchkey MIDI work at48k/256. Extended testing remains.
+- Shared WASAPI needs the device rate and another DAW must release the device.
+- Pi runnerpi5 is online and executing private poll42565126954; no duplicate dispatch.
+- Pi chain #45052ade08 -> #452926a5e5 -> #453d0c45ca: source reviewed,
+  repaired Windows/static checks, actual final target evidence/combined SHA pending.
+- Owner installs Node22/xvfb where required. One accepted SHA must contain actual
+  #463/#450/#452 merges and pass combined device-off ARM64 app smoke.
+- #475 W1 Windows setup: existing builder plus delegated repair reviewer; fix generated
+  output junction escapes, DLL load/export validation and executed Windows smoke.
 
-## Sequencers (one at a time)
-- 16-step #405 → #410, then Groove S1 #451/#461 → playhead PR → S1(b) editor, then Chord.
+## Active cleanup and rulings
+- #464/#476 R1 Qt-free build: source reviewed; header/license exact renames.
+  Size2800/14 accounts for2618 unchanged moved lines, not a test threshold change.
+- #466/#477 R5a docs: independent wording review complete, hosted gates pending.
+- #465 R2: real unsupported/future Studio ingress data-loss guard and Electron
+  overwrite/v1-backup protections; independent review/full tests required.
+- Qt-only inspector behavior is explicitly retired; supported compatibility and real
+  persistence guarantees must be mapped in R2 table before R3 deletes tests.
+- R3 #468 waits R1/R2/W1 and archive/qt-final on its base; R4 #469 follows R3;
+  R6 #470 remains separate ABI1 retirement. No Qt tests or ABI1 deleted yet.
 
-## Permanent gates
-- Required guard/Linux/Windows/sanitizers + task/Studio/WASM/Pi as applicable.
-- T1 different-session; T2 cross-family. No ID, unknown-data or threshold changes.
-- No force-push, main writes, devices/SSH/LAN; Electron is the sole automatic restarter.
-- No CI polling/schedules. Handoffs give exact heads, actual evidence and blockers.
+## Retained builders / permanent gates
+- #405 -> #410; #451/#461 -> playhead -> editor; #210 MIDI; #310 Interleave;
+  #458 study reconnect/task fixes. Existing builders retain branches; see board.
+- Required guard/Linux/Windows/sanitizers + task/Web/WASM/Pi as applicable.
+- No force-push, direct main commits, device/SSH access, suppression or threshold weakening.
+- #271 owner hardware, #274 display/performance and #296 actual3600s soak remain separate.

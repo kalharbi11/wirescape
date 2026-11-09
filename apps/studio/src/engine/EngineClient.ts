@@ -15,6 +15,8 @@ export interface Device {
   system_name?: string;
   /** Present for audio devices. */
   sampleRates?: number[];
+  /** Audio: PortAudio host API (e.g. "Windows WASAPI"); the id is `hostApi|name[#n]`. */
+  hostApi?: string;
   enabled?: boolean;
   kind: 'audio' | 'midi';
 }
@@ -103,6 +105,8 @@ export interface Telemetry {
 export interface EngineError {
   code: 'unknown-module' | 'kind-mismatch' | 'duplicate' | 'not-found' | 'refused' | 'invalid' | 'busy' | 'limit' | 'unavailable';
   message: string;
+  /** The engine itself answered with this refusal (not a local supersede/disconnect). */
+  engine?: true;
 }
 
 /** Thrown/returned when the engine refuses an edit; the UI rolls back. */
