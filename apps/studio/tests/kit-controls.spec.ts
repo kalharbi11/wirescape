@@ -254,6 +254,31 @@ test.describe('kit controls', () => {
     }
   });
 
+  test('13. Macro models show pinned names, fit four phone columns and keep numeric values', async ({ page }) => {
+    await boot(page);
+    await loadMods(page, [[1, 'ports.macro_oscillator', 300, 100]]);
+    const bank = page.getByTestId('models-1');
+    await expect(bank.locator('.model-button')).toHaveCount(24);
+    await expect(page.getByTestId('model-1-7')).toContainText('Chiptune');
+    await expect(page.getByTestId('model-1-12')).toContainText('Additive');
+    await expect(page.getByTestId('model-1-15')).toHaveAttribute('title', 'Speech synthesis');
+    await page.getByTestId('model-1-15').click();
+    expect(await param(page, 1, 'model')).toBe(15);
+    await expect(page.getByTestId('model-1-15')).toHaveAttribute('aria-checked', 'true');
+    await expect(bank.locator('.control-label')).toContainText('Speech synthesis · model 15');
+    await page.setViewportSize({ width: 390, height: 844 });
+    const layout = await bank.evaluate(root => {
+      const grid = root.querySelector<HTMLElement>('.model-grid')!;
+      const buttons = [...grid.querySelectorAll<HTMLElement>('.model-button')];
+      return {
+        columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+        overflow: buttons.some(b => b.scrollWidth > b.clientWidth + 1 || b.scrollHeight > b.clientHeight + 1),
+      };
+    });
+    expect(layout.columns).toBe(4);
+    expect(layout.overflow).toBe(false);
+  });
+
   test('12. motion on add and delete', async ({ page }) => {
     await boot(page);
     await page.getByTestId('library-item-essentials.vco').click();
