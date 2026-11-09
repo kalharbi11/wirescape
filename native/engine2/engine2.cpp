@@ -148,7 +148,7 @@ struct Engine::Impl {
     std::vector<std::unique_ptr<Node>>nodes;std::vector<Edge>edges;std::vector<Component>components;
     std::vector<std::pair<uint32_t,Node*>>node_table;
     std::array<uint32_t,32>bus_latency{};
-    std::vector<uint32_t>distance;
+    std::vector<uint32_t> distance;
     std::vector<Bus>buses;std::array<std::unique_ptr<Producer>,32>producers;
     uint32_t producer_count=0,dropped_connections=0;
     std::unique_ptr<Producer>egress;
@@ -300,22 +300,24 @@ bool Engine::Impl::finish_prepare() {
 }
 
 void Engine::Impl::recompute_latency() noexcept {
-    std::fill(distance.begin(),distance.end(),0);
+    std::fill(distance.begin(), distance.end(), 0);
     bus_latency.fill(0);
-    uint32_t maximum=0;
-    for(auto&component:components)for(auto*n:component.nodes){
-        uint32_t upstream=0;
-        for(auto&e:edges)if(!e.removed&&!e.back&&e.kind==0&&e.destination==n)
-            upstream=std::max(upstream,distance[e.source->index]);
-        distance[n->index]=static_cast<uint32_t>(std::min<uint64_t>(UINT32_MAX,uint64_t(upstream)+n->latency));
+    uint32_t maximum = 0;
+    for (auto &component : components)
+        for (auto *n : component.nodes) {
+            uint32_t upstream = 0;
+            for (auto &e : edges)
+                if (!e.removed && !e.back && e.kind == 0 && e.destination == n)
+                    upstream = std::max(upstream, distance[e.source->index]);
+            distance[n->index] = static_cast<uint32_t>(std::min<uint64_t>(UINT32_MAX, uint64_t(upstream) + n->latency));
+        }
+    for (const auto &bus : buses) {
+        auto *n = find(bus.node);
+        if (!n) continue;
+        bus_latency[bus.channel] = std::max(bus_latency[bus.channel], distance[n->index]);
+        maximum = std::max(maximum, bus_latency[bus.channel]);
     }
-    for(const auto&bus:buses){
-        auto*n=find(bus.node);
-        if(!n)continue;
-        bus_latency[bus.channel]=std::max(bus_latency[bus.channel],distance[n->index]);
-        maximum=std::max(maximum,bus_latency[bus.channel]);
-    }
-    latency.store(maximum,std::memory_order_relaxed);
+    latency.store(maximum, std::memory_order_relaxed);
 }
 
 bool Engine::Impl::topology() {
@@ -875,10 +877,10 @@ float Engine::output_sample(uint32_t node,uint32_t port,uint32_t channel,uint32_
 uint32_t Engine::feedback_edges()const{return p_->feedback_count;}
 
 void Engine::refresh_latency() noexcept {
-    auto&p=*p_;
-    if(!p.prepared)return;
-    for(auto&n:p.nodes)if(n->d&&n->instance)
-        n->latency=n->d->latency_frames(n->instance);
+    auto &p = *p_;
+    if (!p.prepared) return;
+    for (auto &n : p.nodes)
+        if (n->d && n->instance) n->latency = n->d->latency_frames(n->instance);
     p.recompute_latency();
 }
 uint32_t Engine::latency_frames(uint32_t bus)const{return bus<p_->bus_latency.size()?p_->bus_latency[bus]:0;}
