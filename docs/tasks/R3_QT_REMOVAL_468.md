@@ -22,7 +22,11 @@ serialized event field, four bounded UMP words and unpadded payload bytes.
 Python's existing hashlib owns hashing; no added runtime/crypto dependency.
 The native serialization oracle uses an independent Python struct-packed vector.
 Before R3a merge, supply the old Qt renderer from the same immutable source tree
-to `tools/golden.py check --compare-renderer PATH` and record actual per-case hash
+to the current engine/catalogue using the temporary guarded target in
+`python tools/compare_golden_qt.py --qt-prefix PATH_TO_QT` (Windows CI already
+provisions Qt). It verifies frozen blob8c136f28872a38024345427433afa905dbb1e318
+from pre-port16e49e9302d3a3ceddaca1b52fe0fa963125ce4d without committing a duplicate
+source. Existing `tools/golden.py check --compare-renderer PATH` asserts per-case hash
 equality plus both renderer/source revisions. Same-build repeatability is a
 different assertion; no old-vs-new pass is inferred from it.
 
