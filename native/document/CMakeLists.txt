@@ -10,6 +10,10 @@ target_include_directories(wirescape_runtime_document PUBLIC ${CMAKE_CURRENT_SOU
 target_link_libraries(wirescape_runtime_document PUBLIC wirescape_app_engine PRIVATE nlohmann_json::nlohmann_json)
 
 
+add_executable(groove_runtime_tests groove_runtime_tests.cpp ../tests2/allocation_watch.cpp)
+target_link_libraries(groove_runtime_tests PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
+add_test(NAME groove_runtime_tests COMMAND groove_runtime_tests)
+set_tests_properties(groove_runtime_tests PROPERTIES TIMEOUT 60)
 add_executable(runtime_patch_tests runtime_patch_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(runtime_patch_tests PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
 add_test(NAME abi2_runtime_patch_tests COMMAND runtime_patch_tests "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
