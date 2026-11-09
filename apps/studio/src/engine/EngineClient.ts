@@ -13,7 +13,14 @@ export interface Device {
   name: string;
   /** MIDI: OS endpoint name; id is `name|system_name`. */
   system_name?: string;
-  /** Present for audio devices. */
+  /** Optional additive PortAudio route details (protocol v0). */
+  backend?: string;
+  outputChannels?: number;
+  supported?: boolean;
+  unsupportedReason?: 'mono-output' | 'no-output' | 'rate-unsupported';
+  /** Volatile enumeration index: never a route identity. */
+  index?: number;
+  /** Present only when confirmed by the backend. */
   sampleRates?: number[];
   enabled?: boolean;
   kind: 'audio' | 'midi';
