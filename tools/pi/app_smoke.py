@@ -68,6 +68,23 @@ def sanitize(output: str) -> str:
     return output.replace(home, "<home>") if home != "/" else output
 
 
+def tool_versions() -> dict[str, str | None]:
+    info = {"python": platform.python_version()}
+    for tool in ("node", "npm", "cmake", "c++", "git"):
+        binary = shutil.which(tool)
+        if not binary:
+            info[tool] = None
+            continue
+        try:
+            version = subprocess.run([binary, "--version"], capture_output=True,
+                                     text=True, timeout=10)
+            lines = version.stdout.strip().splitlines()
+            info[tool] = lines[0] if version.returncode == 0 and lines else None
+        except (OSError, subprocess.TimeoutExpired):
+            info[tool] = None
+    return info
+
+
 def check_environment(artifacts: bool = True) -> tuple[list[str], str | None]:
     problems = []
     if platform.system() != "Linux" or platform.machine().lower() not in ("aarch64", "arm64"):
@@ -121,6 +138,7 @@ def run(report: Path, timeout: int) -> tuple[int, dict]:
     started = time.monotonic()
     result = {"status": "blocked", "source_sha": git_sha(),
               "architecture": platform.machine(), "platform": platform.system(),
+              "versions": tool_versions(),
               "display_backend": None, "stages": [], "reason": None}
     problems, backend = check_environment(artifacts=False)
     result["display_backend"] = backend
