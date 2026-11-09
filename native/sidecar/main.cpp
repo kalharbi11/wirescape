@@ -2,24 +2,14 @@
 #include "session.h"
 #include <csignal>
 #include <iostream>
-#ifdef _WIN32
-#include <fcntl.h>
-#include <io.h>
-#endif
 int main(int argc, char **argv) {
-#ifdef _WIN32
-    _setmode(_fileno(stdin), _O_BINARY);
-    _setmode(_fileno(stdout), _O_BINARY);
-#else
+#ifndef _WIN32
     std::signal(SIGPIPE, SIG_IGN);
 #endif
-    // cin is tied to cout by default: every read on the reader thread would flush cout,
-    // racing the writer thread on the same stream (undefined; it stalls on MSVC).
-    std::cin.tie(nullptr);
     try {
         auto options = wirescape::sidecar::parse_options(argc, argv);
         wirescape::sidecar::Session session(std::move(options));
-        wirescape::sidecar::Transport transport(std::cin, std::cout);
+        wirescape::sidecar::Transport transport;
         transport.send(session.hello());
         transport.start();
         transport.wait_hello(); // strictly before render/pacing and device startup
