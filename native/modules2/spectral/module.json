@@ -4,7 +4,7 @@
   "id": "sound.spectral",
   "name": "Spectral",
   "library": "ws2_spectral",
-  "description": "Two-source STFT processes: morph, cross-synthesis, max, mean, min, A minus B.",
+  "description": "Two-source STFT processes: morph, cross-synthesis, max, mean, min, A minus B, interleave, vocoder.",
   "license": "GPL-3.0-only",
   "parameters": {
     "mode": 0,
@@ -15,7 +15,14 @@
     "amount": 5,
     "smooth": 6,
     "b_level": 7,
-    "level": 8
+    "level": 8,
+    "chunk_a": 9,
+    "chunk_b": 10,
+    "phase": 11,
+    "bands": 12,
+    "flatten": 13,
+    "release": 14,
+    "noise": 15
   },
   "inputs": {
     "a": "signal",
