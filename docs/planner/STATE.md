@@ -1,15 +1,15 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-09 late, Compass + Keel (Claude) check-in. Owner failures preempt features.
+**Updated:** 2026-11-09 late, Compass + Keel check-in; Codex Lead closeout refresh. Owner failures preempt features.
 Live heads and completed evidence govern; queued, stale and missing results never pass.
 
 ## Authority and queue
 - Board #473 is the claim source. Codex Lead keeps it current and holds the owner's
   delegation to approve/merge after independent review and evidence (T2 still needs Claude).
-- **D18 is lifted:** 6 PRs open. It re-arms automatically at 10+ implementation PRs.
-- Next starts, one lane each, in order: MIDI Learn UI #287 → Groove S1(b) playhead +
-  stopped editor (#432) → OSC slice A #72 (T2). Chord #403/#421 waits for S1(b).
+- Owner's subsequent instruction holds new starts until remaining PRs close, even below10.
+- Eight closeout PRs include main compile repair486 and this planner refresh484.
+- Later: Learn287 → Groove432 → OSC72; Chord403/421 still waits for S1(b).
 
 ## Merged 2026-11-09 (main `605da43`)
 - #463 Windows runtime, #400 latency, #442 real-app evidence, #474 PLAN D15–D19.
@@ -23,7 +23,9 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 - Windows first session on #463: WASAPI headphones, starters switch and sound,
   computer keyboard and Launchkey work at 48k/256. Shared WASAPI needs the device rate.
 - Pi runner: Node 22.23.4 / npm 10.9.9 and Xvfb/xauth installed by the owner.
-- **#483 / #453:** merge main into #453, `Closes #483`, `ci/pi` + `ci/pi-accept`. When the
+- First merge486's reviewed fixture-name repair after exact required/task checks;
+  main605da43 currently fails compilation from colliding MIDI/Groove test locals.
+- **#483 / #453:** repair the PI_SETUP first-run bypass, merge fixed main into #453, `Closes #483`, `ci/pi` + `ci/pi-accept`. When the
   docs-only exact head passes preflight + app smoke, pin its main parent as `AcceptedSha`
   in docs/PI_FRESH_INSTALL.md (Keel evidence-transfer ruling on #483), then merge.
 - Then the owner session: PI_FRESH_INSTALL sections 1–6 + the Pi part of #271.
@@ -31,12 +33,15 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 ## Open PRs and rulings
 - #399 device routes/rate refusal (T2): **Keel High**: `Pa_IsFormatSupported` runs in
   every warm poll enumeration; on ALSA the active hw device is busy, so the running
-  output is marked unsupported. Fix: classify probe errors (only paInvalidSampleRate
-  = unsupported), no probing in warm polls, never re-probe the active device. Blocked.
-- #461 Groove saturation/replan tests (T0): existing builder; merge on green + Pi.
-- #480 refused-patch draft (#471): three review Mediums; Codex Lead repairing.
-- #482 R3: Keel rulings on #468: golden port approved in principle (no hash
-  rebaseline), split R3a goldens / R3b deletion; allow-test-removal after a
+  output is marked unsupported. Scoped cooperator repairs probe classification/cache,
+  warm polling and three Static findings, with focused tests; Claude re-review remains.
+- #461 Groove saturation/replan tests (T0): root integrates fixed main, retains reviewed
+  two-file delta; final required/task/Pi disposition follows.
+- #480 refused draft: f72ce9f fixes the last Save-during-load Medium with delayed
+  bridge/Electron file tests; independent source review passed, hosted gates pending.
+- #482 R3a:73ad9b1 splits nondeleting acceptance per Keel. Actual frozen-Qt comparison
+  remains required: repeatability alone is not cross-renderer equality. No hash
+  rebaseline. R3b deletion and allow-test-removal require a
   test-to-replacement table; Codex Lead tags `archive/qt-final` (annotated) on
   R3b's merge parent, once.
 - #481 R4 follows R3. R6 ABI1 #470 is Keel's, after R3.
