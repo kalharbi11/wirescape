@@ -146,7 +146,7 @@ sound. Drag knobs for 30 s: there is no "Event queue full". Repeat once at `--bl
 
 ```acceptance
 tier: T2
-size: <= 900 changed lines, <= 21 files
+size: <= 900 changed lines, <= 22 files
 must_pass:
   - ctest --test-dir build/native --output-on-failure --no-tests=error -R '^(abi2_sidecar_unit_tests|abi2_sidecar_protocol_tests|sidecar_golden|abi2_sidecar_audio_recovery_tests)$'
   - bash -lc 'cd apps/studio && npm ci && npm test'
@@ -154,7 +154,8 @@ must_pass:
   - ci: linux-arm64
   - ci: windows-x64
   - ci: sanitizers
-  - pi: sidecar device-free protocol + offline play
+  - pi-run: ctest --test-dir build/native --output-on-failure --no-tests=error -R '^(abi2_sidecar_unit_tests|abi2_sidecar_protocol_tests|sidecar_golden|abi2_sidecar_audio_recovery_tests)$'
+  - pi-run: build/native/wirescape_cli play native/examples/Six_Essentials_Demo.json --rate 48000 --block 256 --seconds 1 --output build/pi-462-offline.wav
 stops: [changed kMuteBudget/kGapBudget or ring capacity, allocation/lock/free in callback, protocol field removal or rename, device access in tests, new dependency]
 ```
 
