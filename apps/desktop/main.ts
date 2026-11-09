@@ -17,13 +17,43 @@ const ENGINE_FLAGS_WITH_VALUE = new Set(['--device', '--block', '--rate', '--set
 const argv = process.argv.slice(1);
 let enginePath: string | undefined;
 let initialFullscreen = false;
+let isolatedProfile: string | null = null;
 const engineArgs: string[] = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--engine') enginePath = argv[++i];
   else if (a === '--fullscreen') initialFullscreen = true;
+  else if (a === '--profile-dir') {
+    const chosen = argv[++i];
+    if (!chosen || !path.isAbsolute(chosen)) throw new Error('--profile-dir requires an absolute directory');
+    isolatedProfile = path.resolve(chosen);
+  }
   else if (a === '--confirm-audio' || a === '--confirm-midi' || a === '--null-audio') engineArgs.push(a);
   else if (ENGINE_FLAGS_WITH_VALUE.has(a)) engineArgs.push(a, argv[++i]);
+}
+// Opt-in source/test profile: configure both Electron paths before app readiness.
+// Do not infer Electron paths from Chromium's --user-data-dir.
+if (isolatedProfile !== null) {
+  const profile = isolatedProfile;
+  fs.mkdirSync(profile, { recursive: true, mode: 0o700 });
+  if (fs.realpathSync(profile) !== profile) throw new Error('Profile directory must not be a symlink');
+  const userData = path.join(profile, 'userData');
+  const sessionData = path.join(profile, 'sessionData');
+  for (const dir of [userData, sessionData]) {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    if (fs.lstatSync(dir).isSymbolicLink() || !fs.statSync(dir).isDirectory())
+      throw new Error('Invalid profile subdirectory');
+  }
+  app.setPath('userData', userData);
+  app.setPath('sessionData', sessionData);
+  const settingsIndex = engineArgs.indexOf('--settings');
+  if (settingsIndex === -1) engineArgs.push('--settings', path.join(profile, 'native-settings.json'));
+  else {
+    const selected = path.resolve(engineArgs[settingsIndex + 1]);
+    if (!selected.startsWith(profile + path.sep) ||
+        (fs.existsSync(selected) && fs.lstatSync(selected).isSymbolicLink()))
+      throw new Error('Native settings must stay within the isolated profile');
+  }
 }
 let window: BrowserWindow | null = null;
 const UI_DIR = path.resolve(__dirname, '../../studio/dist');
