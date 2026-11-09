@@ -1,21 +1,32 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Contributing to Wirescape
 
-Thanks for helping. Wirescape is built by people and AI agents together, under the same rules.
+People and AI agents use the same [workflow and engineering rules](AGENTS.md).
+The product is Electron + Studio + the native `wirescape-engine`; start with
+[the source-build quickstart](README.md). [Board #473](https://github.com/kalharbi11/wirescape/issues/473)
+and the latest issue handoffs govern current claims. Finish existing work before
+starting features while the plan's D18 limit applies.
 
-1. **Read `AGENTS.md` first.** It has the read map, work rules and engineering rules. They apply to humans too.
-2. **One issue, one branch, one PR.** Use the branch name `task/<issue#>-<slug>` and put `Closes #<issue#>` in the PR description. Open an issue before large work.
-3. **Sign your commits** (Developer Certificate of Origin): `git commit -s`. By signing, you certify you have the right to submit the code under the project's licences (https://developercertificate.org/).
-4. **Tests and CI.** Every change ships tests. Run `python tools/dev.py test` locally. CI must be green before review.
-5. **Licences.** Add an SPDX header to new files. SDK and ABI paths are MIT; everything else is GPL-3.0. Record any third-party source, its pinned revision and its licence in the module's `DESIGN.md`.
-6. **New modules.** Use the experimental SDK template (`native/sdk/template/`) and `docs/SDK_AUTHOR_GUIDE.md`. The ABI 2 contract is not frozen yet; expect changes until milestone M2.
-7. **Never commit** fonts, personal data, binaries, credentials or machine-specific absolute paths.
+1. Claim the issue before editing. Use one `task/<issue#>-<slug>` branch and one
+   PR with `Closes #<issue#>`. Open it as a draft until its acceptance is green.
+2. Read the named task file and its acceptance block, then the relevant spec.
+   Use [the SDK guide](docs/SDK_AUTHOR_GUIDE.md) for modules; keep existing module,
+   port and parameter IDs and preserve unknown patch data.
+3. Build with `python tools/dev.py build --headless --config Release` and test
+   with `python tools/dev.py test --config Release` (`python3` on the Pi).
+   Run the task's `python tools/dev.py accept <issue#>` commands as well.
+   Studio tests use `npm ci && npm test` in `apps/studio`; they require Chromium
+   and Playwright's FFmpeg, as provisioned in the Web workflow.
+4. Keep automated audio/MIDI tests on fake devices or the null sink. Physical
+   checks are owner-run, behind explicit confirmation. Never use an old install
+   or generated artefact as evidence for a different source revision.
+5. Sign commits with `git commit -s` under the [DCO](https://developercertificate.org/).
+   Add SPDX headers to new files; SDK/ABI 2/voice paths are MIT and application
+   code is GPL-3.0. Record third-party revisions and licences in `DESIGN.md`.
+6. Post exact-head evidence and a signed handoff. Independent review and required
+   CI/task/Pi checks must pass before merge. External/incomplete checks are not passes.
 
-Pull requests from forks need maintainer approval before CI runs.
-
-Optional local hooks: install `pre-commit` in your development virtual environment,
-then run `pre-commit install` and `pre-commit run --all-files`. These local hooks
-inspect the Git index: SPDX is required only for new files, binary/private rules
-match CI, and protected paths produce a local warning while CI still enforces
-authorization. Staged C++ lines require `clang-format` (version 18 in CI) and are
-checked without rewriting files or including unstaged edits. A clean index passes
-without checking old SPDX headers or reformatting existing code.
+Never commit generated assets, binaries, fonts, credentials, user data or
+machine-specific paths. Optional hooks use `pre-commit install` and
+`pre-commit run --all-files`; changed C++ lines use LLVM18 formatting. Hooks
+warn about protected paths locally, while CI enforces their authorization.
