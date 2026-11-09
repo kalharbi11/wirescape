@@ -31,9 +31,13 @@ int main(int argc, char **argv) {
                 auto reply = session.reply(request);
                 transport.send(reply);
                 transport.complete(request);
-                if (reply.value("ok", false) && request.value.contains("type") &&
-                    (request.value["type"] == "selectAudioDevice" || request.value["type"] == "setMidiEnabled"))
-                    transport.send(session.devices());
+                if (reply.value("ok", false) && request.value.contains("type")) {
+                    const auto &type = request.value["type"];
+                    if (type == "setSampleRate" || type == "setBufferFrames")
+                        transport.send(session.status()); // ack already queued; then the updated stream status
+                    if (type == "selectAudioDevice" || type == "setMidiEnabled")
+                        transport.send(session.devices());
+                }
             }
             if (transport.eof()) break;
             auto now = std::chrono::steady_clock::now();
