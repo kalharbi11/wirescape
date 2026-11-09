@@ -85,10 +85,14 @@ if (isolatedProfile !== null) {
     path.relative(settingsParent, path.dirname(selected)));
   if (realParent !== profile && !realParent.startsWith(profile + path.sep))
     throw new Error('Native settings parent escapes the isolated profile');
-  if (fs.existsSync(selected) &&
-      (fs.lstatSync(selected).isSymbolicLink() ||
-       fs.realpathSync(selected) !== path.join(realParent, path.basename(selected))))
-    throw new Error('Native settings file must not be a symlink');
+  // lstat also catches dangling symlinks, which existsSync would miss.
+  try {
+    if (fs.lstatSync(selected).isSymbolicLink() ||
+        fs.realpathSync(selected) !== path.join(realParent, path.basename(selected)))
+      throw new Error('Native settings file must not be a symlink');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
 
   app.setPath('userData', userData);
   app.setPath('sessionData', sessionData);
