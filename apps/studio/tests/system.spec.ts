@@ -97,7 +97,7 @@ test.describe('system', () => {
     await boot(page);
     await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
     await page.evaluate(() => {
-      const e = window.__wirescapeTest.engine;
+      const e = window.__wirescapeTest.engine as any;
       e.listAudioDevices = async () => [
         { id: 'USB Stereo', name: 'USB Stereo', kind: 'audio', index: 3,
           backend: 'ALSA', outputChannels: 2, supported: true, sampleRates: [48000] },
