@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 .model-bank { width: 100%; min-width: 0; }
 .model-bank > .control-label { margin-bottom: 10px; overflow-wrap: anywhere; }
-.model-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+.model-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 5px; }
+@media (max-width: 600px) { .model-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+[data-hit="touch"] .model-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .model-button {
   appearance: none; min-width: 0; min-height: 44px; padding: 5px 2px;
   border: 1px solid var(--hair); border-radius: 10px; background: transparent;
