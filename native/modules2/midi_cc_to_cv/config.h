@@ -46,9 +46,12 @@ inline bool cc_configuration(const uint8_t* data, uint32_t bytes, CcConfiguratio
             std::memcpy(&legacy, data, sizeof(legacy));
             config = CcConfiguration{};
             for (size_t i = 0; i < config.rows.size(); ++i) {
-                auto& row = config.rows[i]; const auto& old = legacy.rows[i];
-                row.channel = old.channel; row.controller = old.controller;
-                row.fourteen_bit = old.fourteen_bit; row.bipolar = old.bipolar;
+                auto &row = config.rows[i];
+                const auto &old = legacy.rows[i];
+                row.channel = old.channel;
+                row.controller = old.controller;
+                row.fourteen_bit = old.fourteen_bit;
+                row.bipolar = old.bipolar;
                 row.smoothing_ms = old.smoothing_ms;
             }
         } else if (version == 2 && bytes == sizeof(config)) {
@@ -56,12 +59,11 @@ inline bool cc_configuration(const uint8_t* data, uint32_t bytes, CcConfiguratio
         } else return false;
     }
     if (config.version != 2) return false;
-    for (const auto& row : config.rows)
-        if (row.channel > 16 || row.controller > 127 || row.fourteen_bit > 1 ||
-            row.bipolar > 1 || row.has_min > 1 || row.has_max > 1 ||
-            (row.fourteen_bit && row.controller > 31) ||
-            !std::isfinite(row.smoothing_ms) || row.smoothing_ms < 0 || row.smoothing_ms > 2000 ||
-            !std::isfinite(row.min) || !std::isfinite(row.max)) return false;
+    for (const auto &row : config.rows)
+        if (row.channel > 16 || row.controller > 127 || row.fourteen_bit > 1 || row.bipolar > 1 || row.has_min > 1 ||
+            row.has_max > 1 || (row.fourteen_bit && row.controller > 31) || !std::isfinite(row.smoothing_ms) ||
+            row.smoothing_ms < 0 || row.smoothing_ms > 2000 || !std::isfinite(row.min) || !std::isfinite(row.max))
+            return false;
     return true;
 }
 } // namespace wirescape::midi

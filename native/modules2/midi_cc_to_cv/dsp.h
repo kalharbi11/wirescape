@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
-#include "wirescape_sdk.h"
 #include "config.h"
+#include "wirescape_sdk.h"
 #include <algorithm>
 #include <limits>
 namespace wirescape::midi {
@@ -32,7 +32,16 @@ struct CcToCv {
         for (uint32_t i = 0; i < rows.size(); ++i) rows[i].coefficient = config.rows[i].smoothing_ms > 0 ? 1. - std::exp(-1000. / (config.rows[i].smoothing_ms * s.sample_rate())) : 1.;
         return true;
     }
-    void reset() { sources = {}; dropped = 0; for (uint32_t i = 0; i < rows.size(); ++i) { const double k = rows[i].coefficient; rows[i] = {}; rows[i].coefficient = k; rows[i].current = rows[i].target = config.rows[i].minimum(); } }
+    void reset() {
+        sources = {};
+        dropped = 0;
+        for (uint32_t i = 0; i < rows.size(); ++i) {
+            const double k = rows[i].coefficient;
+            rows[i] = {};
+            rows[i].coefficient = k;
+            rows[i].current = rows[i].target = config.rows[i].minimum();
+        }
+    }
     void event(const ws2_event& e) {
         if (e.type == WS2_NOTE_CHOKE) {
             for (uint32_t t = 0; t < sources.size(); ++t) if (sources[t].used && (e.source_id == UINT32_MAX || sources[t].id == e.source_id)) { sources[t] = {}; for (auto& row : rows) row.msb[t] = row.lsb[t] = 0; }
@@ -61,12 +70,12 @@ struct CcToCv {
         for (uint32_t p = 0; p < 8; ++p) { b.out(p).set_channels(1); b.out(p).mark_constant(false); }
         b.split([&](uint32_t first, uint32_t end) {
             for (uint32_t p = 0; p < 8; ++p) for (uint32_t i = first; i < end; ++i) {
-                auto& row = rows[p];
-                // A convex update avoids intermediate overflow for inverted finite endpoints.
-                row.current = (1. - row.coefficient) * row.current + row.coefficient * row.target;
-                if (std::abs(row.current - row.target) < 1e-7) row.current = row.target;
-                const double limit = double(std::numeric_limits<float>::max());
-                b.out(p).ch(0)[i] = float(std::clamp(row.current, -limit, limit));
+                    auto &row = rows[p];
+                    // A convex update avoids intermediate overflow for inverted finite endpoints.
+                    row.current = (1. - row.coefficient) * row.current + row.coefficient * row.target;
+                    if (std::abs(row.current - row.target) < 1e-7) row.current = row.target;
+                    const double limit = double(std::numeric_limits<float>::max());
+                    b.out(p).ch(0)[i] = float(std::clamp(row.current, -limit, limit));
             }
         }, [&](const ws2_event& e) { event(e); });
     }

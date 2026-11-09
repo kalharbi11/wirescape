@@ -69,28 +69,36 @@ int main(int argc,char**argv){try{
  bad=patch;bad["modules"][0]["inactive"]=true;check(!load(bad.dump()),"inactive module refused");bad=patch;bad["modules"][0]["id"]=1.5;check(!load(bad.dump()),"fractional ID refused");
  bad=patch;bad["settings"]["max_channels"]=17;check(!load(bad.dump()),"channel limit");bad=patch;bad["modules"][0]["config"]={{"unknown",1}};check(!load(bad.dump()),"unsupported nonempty config fails closed");
  bad=patch;bad["settings"]["sample_rate"]="48000";check(!load(bad.dump()),"sample rate type");
- auto ccpatch=Json::parse(R"({"format":"wirescape.native.patch","version":2,"settings":{},
+ auto ccpatch = Json::parse(R"({"format":"wirescape.native.patch","version":2,"settings":{},
   "modules":[{"id":200,"module":"midi.cc_to_cv","version":1,
     "config":{"rows":[{"channel":1,"controller":21,"bipolar":true,"min":3.5,"max":-2.25}]}},
     {"id":201,"module":"essentials.output","version":1}],
   "connections":[],"outputs":[{"module":201,"port":"audio","bus_channel":0}],
   "ui":{"opaque":{"keep":"lossless"}}})");
- auto ccfirst=load(ccpatch.dump());check(bool(ccfirst),"CC native range patch load");
- const auto saved=ccpatch.dump();auto reloaded=Json::parse(saved);
- check(reloaded["modules"][0]["config"]["rows"][0]["min"]==3.5 &&
-       reloaded["modules"][0]["config"]["rows"][0]["max"]==-2.25 &&
-       reloaded["modules"][0]["config"]["rows"][0]["bipolar"]==true &&
-       reloaded["ui"]["opaque"]["keep"]=="lossless","CC JSON round-trip preserves rows/unknown UI");
- auto ccsecond=load(reloaded.dump());check(bool(ccsecond),"CC native range patch reload");
- bad=reloaded;bad["modules"][0]["config"]["rows"][0]["min"]="3.5";
- check(!load(bad.dump()),"CC nonnumber minimum refused");
- bad=reloaded;bad["modules"][0]["config"]["rows"][0]["max"]="not finite";
- check(!load(bad.dump()),"CC nonnumber maximum refused");
+ auto ccfirst = load(ccpatch.dump());
+ check(bool(ccfirst), "CC native range patch load");
+ const auto saved = ccpatch.dump();
+ auto reloaded = Json::parse(saved);
+ check(reloaded["modules"][0]["config"]["rows"][0]["min"] == 3.5 &&
+           reloaded["modules"][0]["config"]["rows"][0]["max"] == -2.25 &&
+           reloaded["modules"][0]["config"]["rows"][0]["bipolar"] == true &&
+           reloaded["ui"]["opaque"]["keep"] == "lossless",
+       "CC JSON round-trip preserves rows/unknown UI");
+ auto ccsecond = load(reloaded.dump());
+ check(bool(ccsecond), "CC native range patch reload");
+ bad = reloaded;
+ bad["modules"][0]["config"]["rows"][0]["min"] = "3.5";
+ check(!load(bad.dump()), "CC nonnumber minimum refused");
+ bad = reloaded;
+ bad["modules"][0]["config"]["rows"][0]["max"] = "not finite";
+ check(!load(bad.dump()), "CC nonnumber maximum refused");
  float stable[128]{};
- {allocation_watch::Scope scope;
-  check(app_engine_render(ccfirst.get(),stable,128)==WS_OK &&
-        app_engine_render(ccsecond.get(),stable,128)==WS_OK &&
-        scope.allocations()==0,"refusal leaves previously loaded graphs usable");}
+ {
+     allocation_watch::Scope scope;
+     check(app_engine_render(ccfirst.get(), stable, 128) == WS_OK &&
+               app_engine_render(ccsecond.get(), stable, 128) == WS_OK && scope.allocations() == 0,
+           "refusal leaves previously loaded graphs usable");
+ }
 
  check(!load(std::string(wirescape::document::RuntimePatchLimit+1,' ')),"document size limit");check(!load("[]"),"root type");
  std::cout<<"runtime loader v1/v2, validation, noalloc pass\n";

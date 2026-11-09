@@ -25,42 +25,51 @@ static void full_endpoint_channel_matrix() {
 }
 static void ranges_and_legacy_config() {
     CcConfiguration cfg;
-    for (auto& row : cfg.rows) row.smoothing_ms = 0;
-    cfg.rows[0].min = 4; cfg.rows[0].max = -2; cfg.rows[0].has_min = cfg.rows[0].has_max = 1;
-    cfg.rows[1].bipolar = 1; cfg.rows[1].max = 2.5; cfg.rows[1].has_max = 1;
-    cfg.rows[2].min = .25; cfg.rows[2].has_min = 1;
+    for (auto &row : cfg.rows) row.smoothing_ms = 0;
+    cfg.rows[0].min = 4;
+    cfg.rows[0].max = -2;
+    cfg.rows[0].has_min = cfg.rows[0].has_max = 1;
+    cfg.rows[1].bipolar = 1;
+    cfg.rows[1].max = 2.5;
+    cfg.rows[1].has_max = 1;
+    cfg.rows[2].min = .25;
+    cfg.rows[2].has_min = 1;
     cfg.rows[3].min = cfg.rows[3].max = 0.75;
     cfg.rows[3].has_min = cfg.rows[3].has_max = 1;
-    MidiRig<CcToCv> rig(reinterpret_cast<const uint8_t*>(&cfg), sizeof(cfg));
+    MidiRig<CcToCv> rig(reinterpret_cast<const uint8_t *>(&cfg), sizeof(cfg));
     rig.run();
     REQUIRE(rig.sample(0) == 4 && rig.sample(1) == -1 && rig.sample(2) == .25f);
     REQUIRE(rig.sample(3) == .75f);
-    rig.run({midi1(0xb0, 1, 127), midi1(0xb0, 2, 127),
-             midi1(0xb0, 3, 127), midi1(0xb0, 4, 127)});
+    rig.run({midi1(0xb0, 1, 127), midi1(0xb0, 2, 127), midi1(0xb0, 3, 127), midi1(0xb0, 4, 127)});
     REQUIRE(rig.sample(0) == -2 && rig.sample(1) == 2.5f);
     REQUIRE(rig.sample(2) == 1 && rig.sample(3) == .75f);
-    rig.run({midi1(0xb0, 1, 0), midi1(0xb0, 2, 0),
-             midi1(0xb0, 3, 0), midi1(0xb0, 4, 0)});
+    rig.run({midi1(0xb0, 1, 0), midi1(0xb0, 2, 0), midi1(0xb0, 3, 0), midi1(0xb0, 4, 0)});
     REQUIRE(rig.sample(0) == 4 && rig.sample(1) == -1 && rig.sample(2) == .25f);
     rig.run({midi2(0xb0, 1, 0x80000000u)});
     REQUIRE(std::abs(rig.sample(0) - 1.f) < 0.000001f); // inverted MIDI2 midpoint
     CcConfigurationV1 old;
-    old.rows[0].bipolar = 1; old.rows[1].controller = 77;
+    old.rows[0].bipolar = 1;
+    old.rows[1].controller = 77;
     CcConfiguration upgraded;
-    REQUIRE(cc_configuration(reinterpret_cast<const uint8_t*>(&old), sizeof(old), upgraded));
-    REQUIRE(upgraded.version == 2 && upgraded.rows[0].minimum() == -1 &&
-            upgraded.rows[0].maximum() == 1 && upgraded.rows[1].controller == 77);
-    MidiRig<CcToCv> legacy(reinterpret_cast<const uint8_t*>(&old), sizeof(old));
-    legacy.run(); REQUIRE(legacy.sample(0) == -1);
-    CcConfiguration invalid = cfg; invalid.rows[0].min = std::numeric_limits<double>::infinity();
-    REQUIRE(!cc_configuration(reinterpret_cast<const uint8_t*>(&invalid), sizeof(invalid), invalid));
-    invalid = cfg; invalid.rows[0].max = std::numeric_limits<double>::quiet_NaN();
-    REQUIRE(!cc_configuration(reinterpret_cast<const uint8_t*>(&invalid), sizeof(invalid), invalid));
-    invalid = cfg; invalid.rows[0].has_min = 2;
-    REQUIRE(!cc_configuration(reinterpret_cast<const uint8_t*>(&invalid), sizeof(invalid), invalid));
+    REQUIRE(cc_configuration(reinterpret_cast<const uint8_t *>(&old), sizeof(old), upgraded));
+    REQUIRE(upgraded.version == 2 && upgraded.rows[0].minimum() == -1 && upgraded.rows[0].maximum() == 1 &&
+            upgraded.rows[1].controller == 77);
+    MidiRig<CcToCv> legacy(reinterpret_cast<const uint8_t *>(&old), sizeof(old));
+    legacy.run();
+    REQUIRE(legacy.sample(0) == -1);
+    CcConfiguration invalid = cfg;
+    invalid.rows[0].min = std::numeric_limits<double>::infinity();
+    REQUIRE(!cc_configuration(reinterpret_cast<const uint8_t *>(&invalid), sizeof(invalid), invalid));
+    invalid = cfg;
+    invalid.rows[0].max = std::numeric_limits<double>::quiet_NaN();
+    REQUIRE(!cc_configuration(reinterpret_cast<const uint8_t *>(&invalid), sizeof(invalid), invalid));
+    invalid = cfg;
+    invalid.rows[0].has_min = 2;
+    REQUIRE(!cc_configuration(reinterpret_cast<const uint8_t *>(&invalid), sizeof(invalid), invalid));
     // Smoothing still converges inside the endpoint range.
-    CcConfiguration smooth = cfg; smooth.rows[0].smoothing_ms = 10;
-    MidiRig<CcToCv> slow(reinterpret_cast<const uint8_t*>(&smooth), sizeof(smooth));
+    CcConfiguration smooth = cfg;
+    smooth.rows[0].smoothing_ms = 10;
+    MidiRig<CcToCv> slow(reinterpret_cast<const uint8_t *>(&smooth), sizeof(smooth));
     slow.run({midi1(0xb0, 1, 127)});
     REQUIRE(slow.sample(0) < 4 && slow.sample(0) > -2);
     for (int i = 0; i < 64; ++i) slow.run({}, 256);

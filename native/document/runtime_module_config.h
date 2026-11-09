@@ -75,11 +75,18 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,const n
     require(v.is_boolean(),"CC toggles must be boolean");if(key=="fourteen_bit")r.fourteen_bit=v.get<bool>();else r.bipolar=v.get<bool>();
    }else if(key=="smoothing_ms"){
     require(v.is_number(),"CC smoothing must be numeric");double n=v.get<double>();require(std::isfinite(n)&&n>=0&&n<=2000,"CC smoothing outside range");r.smoothing_ms=static_cast<float>(n);
-   }else if(key=="min"||key=="max"){
-    require(v.is_number(),"CC range endpoints must be numbers");double n=v.get<double>();
-    require(std::isfinite(n),"CC range endpoints must be finite");
-    if(key=="min"){r.min=n;r.has_min=1;}else{r.max=n;r.has_max=1;}
-   }else require(false,"Unknown CC row setting");
+   } else if (key == "min" || key == "max") {
+       require(v.is_number(), "CC range endpoints must be numbers");
+       double n = v.get<double>();
+       require(std::isfinite(n), "CC range endpoints must be finite");
+       if (key == "min") {
+           r.min = n;
+           r.has_min = 1;
+       } else {
+           r.max = n;
+           r.has_max = 1;
+       }
+   } else require(false, "Unknown CC row setting");
   }
  }
  require(wirescape::midi::cc_configuration(nullptr,0,config),"Invalid CC row combination");
