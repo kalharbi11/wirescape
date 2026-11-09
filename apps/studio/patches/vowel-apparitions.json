@@ -1,0 +1,265 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "04 · Vowel Apparitions",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 1104,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "host.keyboard",
+      "parameters": {
+        "voices": 4
+      },
+      "version": 1
+    },
+    {
+      "id": 2,
+      "module": "ports.macro_oscillator",
+      "parameters": {
+        "model": 7,
+        "coarse": -12,
+        "harmonics": 0.44,
+        "timbre": 0.53,
+        "morph": 0.37,
+        "timbre_amount": 0.36,
+        "morph_amount": 0.27,
+        "decay": 0.72,
+        "lpg_colour": 0.47
+      },
+      "version": 1
+    },
+    {
+      "id": 3,
+      "module": "essentials.vcf",
+      "parameters": {
+        "cutoff": 2700,
+        "resonance": 0.33
+      },
+      "version": 2
+    },
+    {
+      "id": 4,
+      "module": "essentials.vca",
+      "parameters": {
+        "gain": 0.68
+      },
+      "version": 2
+    },
+    {
+      "id": 5,
+      "module": "essentials.output",
+      "parameters": {},
+      "version": 2
+    },
+    {
+      "id": 6,
+      "module": "essentials.adsr",
+      "parameters": {
+        "attack": 0.8,
+        "decay": 1.7,
+        "sustain": 0.64,
+        "release": 4.8
+      },
+      "version": 2
+    },
+    {
+      "id": 7,
+      "module": "essentials.lfo",
+      "parameters": {
+        "rate": 0.082,
+        "depth": 0.65
+      },
+      "version": 2
+    },
+    {
+      "id": 8,
+      "module": "essentials.lfo",
+      "parameters": {
+        "rate": 0.031,
+        "depth": 0.71
+      },
+      "version": 2
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 2,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 2,
+        "port": "trigger"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 2,
+        "port": "level"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 6,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "main"
+      },
+      "to": {
+        "module": 3,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "low12"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 4,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 7,
+        "port": "control"
+      },
+      "to": {
+        "module": 2,
+        "port": "morph"
+      },
+      "amount": 0.19
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 8,
+        "port": "control"
+      },
+      "to": {
+        "module": 3,
+        "port": "cutoff"
+      },
+      "amount": 0.2
+    }
+  ],
+  "outputs": [
+    {
+      "module": 5,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 5,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        80,
+        80
+      ],
+      "2": [
+        740,
+        80
+      ],
+      "3": [
+        1400,
+        80
+      ],
+      "4": [
+        2060,
+        80
+      ],
+      "5": [
+        2720,
+        80
+      ],
+      "6": [
+        80,
+        1180
+      ],
+      "7": [
+        740,
+        1180
+      ],
+      "8": [
+        2060,
+        1180
+      ]
+    },
+    "labels": {
+      "2": "Vocal engine · model 7",
+      "6": "Long breath",
+      "7": "Vowel drift",
+      "8": "Independent filter breath"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

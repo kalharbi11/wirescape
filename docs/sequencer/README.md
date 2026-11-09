@@ -4,6 +4,7 @@ Shared home for Groove and future conventional/generative sequencers. This is a 
 
 - [Groove roadmap and compatibility gates](GROOVE.md)
 - [Build-agent handoff](AGENT_PROMPT.md)
+- [Groove S1 UI designer brief](UI_DESIGN_BRIEF.md): design-only study alongside native S1 work, with HTML/CSS deliverables and editing-state examples.
 
 ## Shared expectations
 Studio owns editable musical data; native DSP owns playback. Keep authored patterns separate from transient playhead, held notes and queued performance actions. Persist musical settings; load stopped by default, with no accidental note-on. Preserve unknown patch data and validate executable configuration.
