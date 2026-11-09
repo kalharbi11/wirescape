@@ -33,7 +33,7 @@ class WindowsSetupContract(unittest.TestCase):
 
     def test_full_sha_and_clean_checkout_are_required(self):
         self.assertIn("^[0-9a-fA-F]{40}$", SCRIPT)
-        self.assertIn("status --porcelain", SCRIPT)
+        self.assertIn("--no-optional-locks -C $root status --porcelain", SCRIPT)
         self.assertIn("CMAKE_HOME_DIRECTORY:INTERNAL=", SCRIPT)
         self.assertIn("WIRESCAPE_BUILD_UI:BOOL=OFF", SCRIPT)
         self.assertIn("if ($Ref -notmatch", SCRIPT)

@@ -65,7 +65,7 @@ function Preflight {
     if ($Ref -and ($Ref -notmatch '^[0-9a-fA-F]{40}$' -or $actual -ne $Ref.ToLowerInvariant())) {
         throw "Source does not match supplied accepted SHA; actual=$actual"
     }
-    $dirty = & git -C $root status --porcelain
+    $dirty = & git --no-optional-locks -C $root status --porcelain
     if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'Source worktree is dirty; preserve your changes.' }
     $cache = Join-Path $root 'build\native\CMakeCache.txt'
     if (Test-Path -LiteralPath $cache) {
