@@ -224,7 +224,11 @@ test.describe('the catalogue', () => {
       return out;
     });
 
-    expect(report).toHaveLength(22);
+    expect(report).toHaveLength(28);
+    expect(report.some(r => r.id === 'essentials.quantizer')).toBe(true);
+    expect(report.some(r => r.id === 'sequencing.groove')).toBe(true);
+    expect(report.some(r => r.id === 'fx.delay')).toBe(true);
+    expect(report.some(r => r.id === 'fx.reverb')).toBe(true);
     for (const r of report) {
       expect(r.ports, `${r.id} should render its ports`).toBeGreaterThan(0);
       if (r.params > 0) {

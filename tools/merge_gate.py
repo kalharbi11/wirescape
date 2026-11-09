@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Decide whether a PR may get GitHub auto-merge (docs/WORKFLOW.md §3b).
+"""Decide whether a PR may get GitHub auto-merge (docs/WORKFLOW.md §4).
 
-Agents that can only label and comment use this through .github/workflows/merge_gate.yml:
-the workflow enables auto-merge when this prints "ok", and GitHub still waits for the
-required checks. Only comments by the repository owner count as approvals, and each
-approval must name the first 7 characters of the current head SHA.
+The gate only accepts owner-authored exact-head standalone approvals and never
+bypasses the required GitHub checks. New approvals must be signed in the same
+comment; legacy named approvals remain valid during the 30-day migration.
 """
 import argparse
 import fnmatch
@@ -15,16 +14,15 @@ import re
 import subprocess
 import sys
 
-# Paths only Claude may approve: the guard's label-only list plus CI and specs.
-CLAUDE_PATHS = ('AGENTS.md', 'CLAUDE.md', 'tools/ci/**', '.github/**', 'docs/specs/**', 'docs/PLAN.md',
-                'native/include/wirescape/*.h', 'LICENSE*', 'LICENSES/**', 'docs/history/**', 'legacy/**',
-                'tools/merge_gate.py')
-# Merge-control and contract paths: a Claude-authored change here also needs an independent ChatGPT line.
-CONTROL_PATHS = ('tools/merge_gate.py', 'tools/ci/**', '.github/**', 'native/include/wirescape/*.h')
+# These paths require an approval regardless of tier. The separate guard checks
+# allow-protected and the issue's "Protected path named:" authorization.
+PROTECTED_PATHS = ('AGENTS.md', 'CLAUDE.md', 'tools/ci/**', '.github/**', 'docs/specs/**', 'docs/PLAN.md',
+                   'native/include/wirescape/*.h', 'LICENSE*', 'LICENSES/**', 'docs/history/**', 'legacy/**',
+                   'tools/merge_gate.py')
 CLAUDE_OK = 'claude: approved for auto-merge'
 CODEX_OK = 'codex: approved for auto-merge'
 CHATGPT_OK = 'chatgpt: approved for auto-merge'
-PREREVIEW_OK = 'chatgpt: pre-review passed'
+PREREVIEW_OK = 'chatgpt: pre-review passed'  # Historical pre-review is not an approval.
 
 
 def approval_lines(body):
@@ -63,14 +61,38 @@ def approval_lines(body):
             continuation = True
             continue
         if not continuation:
-            yield line.rstrip().lower()
+            yield line.rstrip()
 
 
 def approved(comments, owner, phrase, sha7):
-    """Require the owner and the exact current-head approval line specified by the task."""
-    wanted = f'{phrase} {sha7}'.lower()
+    """Retain exact-head, standalone, owner-authored legacy approval parsing."""
+    wanted = f'{phrase} {sha7}'.casefold()
     return any(c.get('user', {}).get('login') == owner
-               and wanted in approval_lines(c.get('body')) for c in comments)
+               and any(line.casefold() == wanted for line in approval_lines(c.get('body')))
+               for c in comments)
+
+
+def signed_approval(comments, owner, sha7):
+    """Return the signer for a current-head neutral approval, or None.
+
+    Both the approval and a later signature must be standalone and visible in
+    the SAME owner-authored comment. A signature on a different comment (or in
+    a quote, list, code fence or HTML comment) cannot grant approval.
+    """
+    wanted = f'Approved for merge {sha7}'.casefold()
+    for comment in comments:
+        if comment.get('user', {}).get('login') != owner:
+            continue
+        lines = list(approval_lines(comment.get('body')))
+        for index, line in enumerate(lines):
+            if line.casefold() != wanted:
+                continue
+            for following in lines[index + 1:]:
+                signature = re.fullmatch(r'Signed:[ \t]+(.+),[ \t]+\d{4}-\d{2}-\d{2}[ \t]*',
+                                         following, flags=re.IGNORECASE)
+                if signature and signature.group(1).strip():
+                    return signature.group(1).strip()
+    return None
 
 
 def matching(files, rules):
@@ -78,7 +100,7 @@ def matching(files, rules):
 
 
 def decide(pr, files, comments, owner):
-    """Return (ok, reason). Rules: docs/WORKFLOW.md §3 (approvals v3)."""
+    """Return (ok, reason). T1/T2 and protected PRs need owner approval."""
     labels = {label['name'] for label in pr.get('labels', [])}
     if pr.get('state') != 'open' or pr.get('draft'):
         return False, 'PR is closed or a draft'
@@ -89,27 +111,25 @@ def decide(pr, files, comments, owner):
     if 'status/blocked' in labels:
         return False, 'status/blocked is set'
     sha7 = pr['head']['sha'][:7]
-    says = lambda phrase: approved(comments, owner, phrase, sha7)
-    claude_only = matching(files, CLAUDE_PATHS)
-    if claude_only or 'milestone-review' in labels:
-        if not says(CLAUDE_OK):
-            return False, f'needs "Claude: approved for auto-merge {sha7}" ({", ".join(claude_only) or "milestone-review"})'
-        control = matching(files, CONTROL_PATHS)
-        if control and pr['head'].get('ref', '').startswith('claude/') and not says(CHATGPT_OK):
-            return False, f'Claude-authored control change needs "ChatGPT: approved for auto-merge {sha7}" too'
-        return True, f'Claude approved {sha7}'
-    if says(CLAUDE_OK):
-        return True, f'Claude approved {sha7}'
-    if 'tier/T2' in labels:
-        if says(CHATGPT_OK):
-            return True, f'ChatGPT approved {sha7}'
-        return False, f'T2 needs "ChatGPT: approved for auto-merge {sha7}" or a Claude line'
-    if 'tier/T1' in labels:
-        for phrase, who in ((CHATGPT_OK, 'ChatGPT'), (PREREVIEW_OK, 'ChatGPT pre-review'), (CODEX_OK, 'Codex')):
-            if says(phrase):
-                return True, f'T1: {who} approved {sha7}'
-        return False, f'T1 needs "Codex: approved for auto-merge {sha7}" (or a ChatGPT/Claude line)'
-    return True, 'T0: ready label and required checks'
+    protected = matching(files, PROTECTED_PATHS)
+    if not (protected or 'milestone-review' in labels or
+            'tier/T1' in labels or 'tier/T2' in labels):
+        return True, 'T0: ready label and required checks'
+
+    signer = signed_approval(comments, owner, sha7)
+    if signer:
+        return True, f'Approved for merge {sha7}; Signed: {signer}'
+
+    # Old owner-authored lines remain valid for 30 days; removal is a follow-up,
+    # not a timer that would break existing in-flight approvals without review.
+    for phrase, name in ((CLAUDE_OK, 'Claude'), (CHATGPT_OK, 'ChatGPT'), (CODEX_OK, 'Codex')):
+        if approved(comments, owner, phrase, sha7):
+            return True, f'Legacy {name} approved {sha7}'
+
+    requirement = ', '.join(protected) if protected else (
+        'milestone-review' if 'milestone-review' in labels else
+        'T2' if 'tier/T2' in labels else 'T1')
+    return False, f'needs owner-authored "Approved for merge {sha7}" and Signed: line ({requirement})'
 
 
 def gh_json(path):

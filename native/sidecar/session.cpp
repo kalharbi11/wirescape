@@ -13,6 +13,12 @@
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
+
+// The multimedia timer declarations require Windows' base types first.
+#include <timeapi.h>
+#if defined(_MSC_VER)
+#pragma comment(lib, "winmm.lib")
+#endif
 #endif
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
@@ -209,7 +215,7 @@ void Session::shutdown() {
         bench_reported_ = true;
         std::cerr << "bench blocks=" << bench_.blocks << " p50=" << bench_.percentile(50)
                   << " p99=" << bench_.percentile(99) << " max=" << bench_.max_percent
-                  << " overruns=" << bench_.overruns << '\n';
+                  << " overruns=" << bench_.overruns << " faults=" << bench_.faults << '\n';
     }
 }
 void Session::start_audio(std::chrono::steady_clock::time_point now) {
@@ -239,11 +245,24 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
         sink_ = std::thread(
             [this, left = std::vector<float>(options_.block), right = std::vector<float>(options_.block)]() mutable {
                 float *rows[] = {left.data(), right.data()};
+#ifdef _WIN32
+                // The default ~15.6 ms Windows timer tick is longer than a block period, so
+                // block-paced waits always wake late. Request 1 ms only while the sink runs.
+                struct TimerResolution {
+                    TimerResolution() { timeBeginPeriod(1); }
+                    ~TimerResolution() { timeEndPeriod(1); }
+                } resolution;
+#endif
                 auto next = std::chrono::steady_clock::now();
                 sink_rendering_.store(true, std::memory_order_release);
                 while (!stop_sink_.load()) {
                     auto before = std::chrono::steady_clock::now();
-                    if (app_engine_render_live(active_, rows, 2, options_.block, app_engine_clock_ns()) != WS_OK) break;
+                    const int render = app_engine_render_live(active_, rows, 2, options_.block, app_engine_clock_ns());
+                    if (options_.bench_summary) {
+                        bench_.observe_faults(app_engine_native(active_).meter().faults);
+                        if (render != WS_OK) ++bench_.faults;
+                    }
+                    if (render != WS_OK) break;
                     auto after = std::chrono::steady_clock::now();
                     double percent = std::chrono::duration<double>(after - before).count() *
                                      options_.rate / options_.block * 100;
@@ -264,8 +283,8 @@ void Session::stop_audio() {
     if (sink_.joinable()) sink_.join();
     sink_rendering_.store(false, std::memory_order_release);
     if (stream_) {
-        dropouts_.fetch_add(stream_->dropouts());
         engine_ = stream_->stop();
+        dropouts_.fetch_add(stream_->dropouts()); // include the final callback after stop joins
         stream_.reset();
     }
     cpu_.store(0);
@@ -381,7 +400,8 @@ void Session::commit(Json patch, bool new_namespace) {
     std::string error;
     const auto patch_bytes = patch.dump();
     // Stage metadata and cursor storage before any live graph swap.
-    document::telemetry::Sampler next_telemetry(document::telemetry::plan(patch, catalogue_.get()));
+    document::telemetry::Sampler next_telemetry(
+        document::telemetry::plan(patch, catalogue_.get(), /*phase_enabled=*/true));
     audio::EngineOwner candidate(document::load_runtime_patch(patch_bytes, catalogue_.get(), config_, error,
                                                              &next_telemetry.taps()),
                                  app_engine_destroy);
@@ -414,7 +434,11 @@ void Session::commit(Json patch, bool new_namespace) {
     const auto period = std::chrono::microseconds(int64_t(1e6 * double(options_.block) / double(options_.rate)));
     if ((stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire)) {
         app_engine_begin_master_fade_out(active_);
-        const auto deadline = begun + std::max<std::chrono::microseconds>(kMuteBudget, 2 * period);
+        // Acknowledging a mute needs the in-flight block to finish, one fade block and one
+        // entirely silent block: two periods is the bare minimum with no scheduling margin,
+        // which a block-paced sink (Windows timer granularity) can miss. Stretch to three
+        // periods, matching the gap budget below; kMuteBudget is unchanged at normal blocks.
+        const auto deadline = begun + std::max<std::chrono::microseconds>(kMuteBudget, 3 * period);
         while (!app_engine_master_fade_silent(active_)) {
             // D6 may lose the stream during a refused replan or the D5 fade.
             // A callback that no longer renders cannot acknowledge a mute.
@@ -473,6 +497,12 @@ Json Session::apply(const Json &command) {
     auto type = command.at("type").get<std::string>();
     if (type == "listAudioDevices") return {{"devices", audio_devices_}};
     if (type == "listMidiDevices") return {{"devices", midi_devices_}};
+    if (type == "midiLearn") {
+        need(command.at("armed").is_boolean());
+        const bool armed = command.at("armed").get<bool>();
+        observer_->arm_learning(armed);
+        return {{"armed", armed}};
+    }
     if (type == "setOsc" || type == "setSampleRate" || type == "setBufferFrames")
         throw Refusal("unavailable", "Capability not available");
     if (type == "selectAudioDevice") {
@@ -681,24 +711,36 @@ Json Session::reply(const Request &request) {
 }
 Json Session::audio_status() const {
     auto selected = stream_ && stream_->running();
-    Json result = {{"state", options_.audio && stream_ && !selected ? "device-lost" : audio_state_},
+    const double cpu = selected ? stream_->cpu_percent() : 0;
+    // An opened stream has no measured load until its first callback completes.
+    // A zero-frame callback also leaves load unavailable, so it stays starting.
+    const bool measured = std::isfinite(cpu) && cpu >= 0;
+    auto state = audio_state_;
+    if (options_.audio && stream_ && !selected) state = "device-lost";
+    else if (selected && !measured) state = "starting";
+    Json result = {{"state", state},
                    {"deviceId", selected ? Json(device_) : Json(nullptr)},
                    {"deviceName", selected ? Json(device_) : Json(nullptr)},
                    {"sampleRate", options_.rate},
                    {"bufferFrames", options_.block},
                    {"latencyMs", 2. * options_.block / options_.rate * 1000},
-                   {"cpuPercent", selected ? stream_->cpu_percent() : 0},
+                   {"cpuPercent", measured ? cpu : 0},
                    {"dropouts", dropouts_.load() + (stream_ ? stream_->dropouts() : 0)}};
     return result;
 }
-Json Session::midi_status() const { return {{"devices", midi_devices_}, {"activity", observer_->activity()}}; }
+Json Session::midi_status() const {
+    Json result = {{"devices", midi_devices_}, {"activity", observer_->activity()}};
+    auto learn = observer_->learning();
+    if (!learn.is_null()) result["learn"] = std::move(learn);
+    return result;
+}
 Json Session::hello() const {
     return {{"v", 0},
             {"session", token_},
             {"type", "hello"},
             {"protocol", 0},
             {"engine", {{"version", "0.1.0"}, {"sha", WIRESCAPE_ENGINE_SHA}}},
-            {"capabilities", Json::array()},
+            {"capabilities", Json::array({"midiLearn"})},
             {"catalogue", catalogue(catalogue_.get())},
             {"audio", audio_status()},
             {"midi", midi_status()}};
@@ -767,6 +809,7 @@ bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumera
     return previous != audio_state_;
 }
 bool Session::poll(std::chrono::steady_clock::time_point now) {
+    observer_->expire_learning(now);
     auto old_audio = audio_devices_, old_midi = midi_devices_;
     if (midi_->enabled().empty()) observer_->endpoints();
     const auto enumerated = refresh_devices();

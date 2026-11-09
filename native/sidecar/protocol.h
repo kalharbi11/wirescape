@@ -4,6 +4,7 @@
 #include <deque>
 #include <functional>
 #include <istream>
+#include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
 #include <ostream>
@@ -18,9 +19,10 @@ struct Request {
 };
 Json strict_json(const std::string &);
 // Reader never owns engine state. Writer alone serializes stdout.
+// Production uses platform-native pipe handles; tests use stream-backed pipes.
+class Pipe;
 class Transport {
-    std::istream &input_;
-    std::ostream &output_;
+    std::unique_ptr<Pipe> pipe_;
     std::mutex mutex_;
     std::condition_variable ready_, writable_;
     std::deque<Request> commands_;
@@ -35,6 +37,7 @@ class Transport {
     void monitor();
 
   public:
+    Transport();
     Transport(std::istream &, std::ostream &);
     ~Transport();
     void start();

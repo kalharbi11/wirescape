@@ -1,50 +1,48 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-Keep this under 60 lines. History lives in git.
+**Updated:** 2026-11-09, Keel open-PR closeout. Owner-reported failures preempt everything.
+No queued, stale or missing result counts as a pass. Live heads and handoffs govern.
 
-**Updated:** 2026-11-08 by Codex Lead; retains Compass/Keel rulings.
-Pi first. Phase 2 and modules run beside owner Test Session 1; any #271 failure preempts other work.
+## Now: finish before start (D18, Compass #437)
+- Canonical queue: `docs/tasks/PR_CLOSEOUT_2026_11_09.md` (lanes A–J). It replaces
+  the READY list in `CLAIMABLE_2026_11_09.md`. No new module/feature issues until the
+  open count is under 10. Compass's D15–D19 + `docs/planner/CLEANUP.md` are on branch
+  `claude/hopeful-hopper-wh0id2` (#437). Cleanup R1–R7 starts after the closeout.
+- Open: 14 PRs (down from 22). Merge order: #427, #323, #400, #442, #310, #210,
+  #405 → #410, #451 → playhead PR, then #399, #458, the Pi PRs and #453.
 
-## Delegation (new, AGENTS.md 2026-11-08)
-- Codex Lead now merges stuck-but-green reviewed PRs, merges past inherited static/cortex-m7 reds,
-  applies Claude conditional approvals once their evidence is posted, decides Pi need for module/UI PRs,
-  and writes `Protected path named:` lines for docs/tasks/** and STATE.md. Modules and their DSP are T1.
-- Claude is needed only for real T2 (engine2 core, protocol/spec, patch format, ABI/SDK headers, CI/merge
-  control) and plan/scope changes. Batch them: one `Keel: T2 batch` comment, so one session clears them all.
+## Keel today (2026-11-09)
+- Merged #456, #438 (merge commit), #441, #390 (T2 final at 6a8be72; #287 unblocked).
+- Closed #82 (Qt OSC; port from branch), #443 (empty), #406 and #423 (parked per D18).
+- #427: main merged → `486d6b9`, approval posted; the gate merges on green.
+- #323: helper merging main (catalogue union); T1 review stands; static is inherited.
+- #400 T2: no High/Medium; conditional approval after a formatting-only head.
+- Rulings: #432 Groove `t1_pos`/`t2_pos` + `playhead` telemetry, capability
+  `telemetry.playhead`; #386 case 4 = native fake-service CTest + Studio mock-bridge
+  state sequence (no test hooks); #293 optional device fields, mono disabled,
+  rate/block stream-only restart with rollback, id-only identity; #72 OSC host in the
+  sidecar Session, `--confirm-lan`, `status.osc`, `monitor` telemetry (slice A is T1).
+- Static rule: fix authored formatting on changed hunks; cppcheck on untouched lines
+  is inherited and Codex Lead merges past it (delegation c). No new suppressions.
 
-## Done this session (11-08)
-- Merged #367 (shared CPU probe). Closed #181/#180 (superseded by docs/SDK_AUTHOR_GUIDE.md); closed #374 (folded in here).
-- #301 audio recovery and #371 emit rename merged. Codex Lead merged approved #368 at963384a; required checks/Pi pass.
-- Ruling: the #368 Pi 64-tap/no-tap comparison moves into #292 (callback load); it doesn't block A2.
+## Keel owes next session
+- T2 cross-family reviews when ready: Groove playhead PR, #399/#293 implementation,
+  OSC slices B/C, #296 private soak review. Chord/Notes→CV ruling when Chord is next.
+- R2 (document coverage swap) review and R6 (ABI1 retirement) lead, after the closeout.
+- Low: the `module2.h` `latency_frames` comment should state the threading rule (label-only).
 
-## Telemetry #350
-- #369 A3 now targets main; telemetry agent integrates and collects final native/wasm/site evidence.
-- #359 sidecar start gate is met by #368 merge; owner combined Electron/web visual check waits for B-wire.
-- Keep: reset event cursors on every commit; first post-edit burst must pulse; never fake phase.
+## Pi preparation (after the Windows test)
+- #450: fix the cache false positive and read-only `--check-only`. Owner installs Node 22.
+- #452: short-header tests; `xvfb-run` smoke, else reported blocked. Owner installs xvfb.
+- #453 guide updates to one accepted SHA after both merge (renamed PI_SETUP in R5).
+- #101 baseline; #274 display, #296 soak and #271 hardware stay separate.
 
-## Modules (all T1 now; Codex Lead owns)
-- #304 Spectral: conflicts with merged #367. Drop its private probe copy, use the shared tools/module_cpu_probe, rerun pi5/accept.
-- #373 at852a1ce: independent review and native/acceptance pass; Windows requested; static tool-download504 remains.
-- #348/#345 shared-probe integrations pushed; #344 waits for #373 poly probe. Keep module-specific exact-head Pi evidence.
-- Delay Web passed158 browser tests then Electron download504; one retry. Reverb/Resonator CodeQL download504 retried once.
-- #346 integrated main ataf01a60; local351-case DSP matrix/tracking/LFO checks pass; conflict review/new CI pending.
-- #310 Spectral Interleave/Vocoder: stacked on #304.
+## Sequencers (one at a time)
+- 16-step #405 → #410, then Groove S1 #451 → playhead PR → S1(b) editor, then Chord.
 
-## Phase 2 engine queue
-- #293 routes is available after #301. #292 in #378 atbce9bd0; format fixes pushed, final T2/CI/Pi pending.
-- #296 blocked: runner600s/1800s paths cannot certify3600s edit soak; bench/fault evidence also missing. Keel batch in #376.
-- #290/#210 controls: under the existing Keel Nov7 ruling; #210 has pi5/accept on d715bb4, needs review + merge.
-- #287 Learn: blocked for raw-CC observation contract (status.midi.activity lacks CC identity/value). T2: Keel batch.
-- #82 J5 OSC (phase 3, T2): parked until Phase 3; it needs a Claude review then.
-
-## Owner-requested three-agent handoff (#376)
-- Paste-ready lanes: docs/tasks/BUILD_LEAD_2026_11_08.md; three chats, maximum three active items each.
-- Three chats keep at most three active items each; current handoffs and contract batch are on #376.
-
-## Retained rules
-- Tests/CI never open audio/MIDI/LAN. No agent SSH to Pi/laptop; private runner supplies Pi evidence.
-- Missing metrics never count as zero; queued or prior-head results never count as current evidence.
-- Required checks: guard, linux-arm64, windows-x64, sanitizers. static is diff-scoped and often red from inherited code.
-- Keep documents lossless, Electron main sole automatic restarter, unknown data preserved.
-- Don't poll CI. Gates and runner do the waiting. No weakening tests/thresholds.
+## Permanent gates
+- Required guard/Linux/Windows/sanitizers + task/Studio/WASM/Pi as applicable.
+- T1 different-session; T2 cross-family. No ID, unknown-data or threshold changes.
+- No force-push, main writes, devices/SSH/LAN; Electron is the sole automatic restarter.
+- No CI polling/schedules. Handoffs give exact heads, actual evidence and blockers.

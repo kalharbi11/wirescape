@@ -1,0 +1,18 @@
+{
+  "SPDX-License-Identifier":"GPL-3.0-only","name":"sound.blend selects 220 then 440 Hz source","rate":48000,"block":128,"seconds":4,"seed":7,"peak_limit":1.5,
+  "patch":{"format":"wirescape.native.patch","version":2,"settings":{"seed":7},"name":"Evidence: sound.blend",
+    "modules":[{"id":1,"module":"essentials.vco","version":2,"parameters":{"frequency":220}},
+               {"id":2,"module":"essentials.vco","version":2,"parameters":{"frequency":440}},
+               {"id":3,"module":"sound.blend","version":1,"parameters":{"mode":0,"balance":0}},
+               {"id":4,"module":"essentials.output","version":2,"parameters":{}}],
+    "connections":[
+      {"kind":"signal","from":{"module":1,"port":"audio"},"to":{"module":3,"port":"a"}},
+      {"kind":"signal","from":{"module":2,"port":"audio"},"to":{"module":3,"port":"b"}},
+      {"kind":"signal","from":{"module":3,"port":"audio"},"to":{"module":4,"port":"audio"}}
+    ],
+    "outputs":[{"module":4,"port":"audio","bus_channel":0},{"module":4,"port":"audio","bus_channel":1}]
+  },
+  "events":[{"frame":96000,"type":"setParam","node":3,"parameter":"balance","value":1}],
+  "windows":[{"kind":"active","start":10000,"end":90000},{"kind":"active","start":110000,"end":175000}],
+  "frequencies":[{"start":40000,"end":90000,"hz":220},{"start":115000,"end":165000,"hz":440}]
+}

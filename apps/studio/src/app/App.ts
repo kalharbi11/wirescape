@@ -20,7 +20,9 @@ import { ComputerKeyboard, isTyping } from './Keyboard';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
-import { STARTERS, DEFAULT_STARTER } from './starters';
+import { STARTERS, DEFAULT_STARTER, type Starter } from './starters';
+import { CURATED_PATCHES } from './curated';
+import { sharedPatches } from './SharedPatches';
 import { playableStarters } from '../web/starters';
 import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } from '../theme/theme';
 import { el } from './dom';
@@ -71,6 +73,10 @@ export class App {
   private redoBtn!: HTMLButtonElement;
   private clip: Clip | null = null;
   private starterSelect?: HTMLSelectElement;
+  private publishedStarters: Starter[] = [];
+  private get selectableStarters(): Starter[] {
+    return [...STARTERS.filter(s => !CURATED_PATCHES.some(p => p.id === s.id)), ...this.publishedStarters];
+  }
   private pasteCount = 0;
 
   constructor(
@@ -211,7 +217,7 @@ export class App {
     this.starterSelect = starters;
     this.fillStarters();
     starters.addEventListener('change', () => {
-      const s = STARTERS.find(x => x.id === starters.value);
+      const s = this.selectableStarters.find(x => x.id === starters.value);
       if (s) { void this.loadBundledPatch(s.patch(), s.name); this.toasts.show(`${s.name} loaded.`); }
       starters.value = '';
     });
@@ -274,7 +280,7 @@ export class App {
     const select = this.starterSelect;
     if (!select) return;
     while (select.options.length > 1) select.remove(1);
-    const list = window.wirescape?.web ? playableStarters(STARTERS, this.registry) : STARTERS;
+    const list = window.wirescape?.web ? playableStarters(this.selectableStarters, this.registry) : this.selectableStarters;
     for (const s of list) {
       const o = document.createElement('option');
       o.value = s.id; o.textContent = s.name; o.title = s.note;
@@ -293,6 +299,13 @@ export class App {
   // ---- startup ----------------------------------------------------------
 
   private async startup(): Promise<void> {
+    try {
+      this.publishedStarters = (await sharedPatches()).map(e => ({
+        id: e.id, name: e.name, note: 'Shared patch · read only',
+        patch: () => structuredClone(e.patch),
+      }));
+    } catch { /* Offline/missing library must not block saved patches or the default voice. */ }
+    this.fillStarters();
     this.history = new History(this.doc, p => this.restoreSnapshot(p));
     this.history.onChange(() => this.refreshHistory());
     this.ticker.throttleHz = this.prefs.profile === 'pi' ? 30 : 0;
@@ -1114,7 +1127,14 @@ export class App {
   private async loadBundledPatch(patch: PatchV2, name: string): Promise<void> {
     try { await window.wirescape?.openPatch({ library: 'reset' }); }
     catch { /* Save As below protects the previous native target if reset fails. */ }
-    await this.loadPatch(patch, name, true);
+    const loading = this.loadPatch(patch, name, true);
+    const loadedUi = this.doc.ui;
+    await loading;
+    // The wide, multi-row bundled graphs should open fully framed, not at 100%
+    // on their first leftmost module. Imported user patches keep their saved view.
+    requestAnimationFrame(() => {
+      if (this.doc.ui === loadedUi) this.canvas.fit();
+    });
   }
 
   private async openPatchBrowser(): Promise<void> {
@@ -1144,6 +1164,21 @@ export class App {
       const button = this.action(item.name + ' · read only', () => void choose(async () => item, true), `bundled-patch-${i}`);
       body.append(button);
     }
+    body.append(el('h3', 'settings-group', 'SHARED PATCHES'));
+    const shared = el('div');
+    const sharedStatus = el('p', 'muted', 'Loading shared patches…');
+    shared.append(sharedStatus);
+    body.append(shared);
+    void sharedPatches().then(entries => {
+      if (!shared.isConnected) return;
+      const available = entries.filter(e => e.patch.modules.every(m => this.registry.has(m.module)));
+      sharedStatus.textContent = available.length ? '' : 'No shared patches for this engine.';
+      for (const entry of available) shared.append(this.action(entry.name + ' · read only',
+        () => void choose(async () => ({ name: entry.name, patch: structuredClone(entry.patch) }), true),
+        'shared-patch-' + entry.id));
+    }).catch(() => {
+      if (shared.isConnected) sharedStatus.textContent = 'Shared patch library is unavailable.';
+    });
     body.append(el('h3', 'settings-group', 'USER PATCHES'));
     const users = el('div');
     body.append(users);
@@ -1220,7 +1255,7 @@ export class App {
       ticker: this.ticker,
       canvas: this.canvas,
       registry: this.registry,
-      starters: STARTERS,
+      starters: this.selectableStarters,
       setPref: (p: Partial<Preferences>) => this.setPref(p),
       zoomTo: (s: number) => this.canvas.viewport.zoomTo(s),
       fit: () => this.canvas.fit(),
