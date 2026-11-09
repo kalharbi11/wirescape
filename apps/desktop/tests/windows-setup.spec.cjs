@@ -35,10 +35,17 @@ require(${JSON.stringify(path.join(root, 'apps/desktop/build/main.js'))});\n`);
     await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
     const appPaths = await app.evaluate(({ app }) => [app.getPath('userData'), app.getPath('sessionData')]);
     expect(appPaths).toEqual([path.join(scratch, 'user'), path.join(scratch, 'session')]);
-    const children = execFileSync('powershell.exe', ['-NoProfile', '-Command',
-      `Get-CimInstance Win32_Process -Filter 'ParentProcessId = ${app.process().pid}' | Where-Object { $_.ExecutablePath -eq $env:WIRESCAPE_REAL_ENGINE } | Select-Object -ExpandProperty ProcessId`],
-      { encoding: 'utf8', timeout: 10000, env: { ...process.env, WIRESCAPE_REAL_ENGINE: engine } }).trim().split(/\s+/).filter(Boolean);
-    expect(children).toHaveLength(1); nativePid = Number(children[0]);
+    // On Windows the launcher handle need not identify Electron's actual main process.
+    const mainPid = await app.evaluate(() => process.pid);
+    const rows = JSON.parse(execFileSync('powershell.exe', ['-NoProfile', '-Command',
+      `[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process -Filter 'ParentProcessId = ${mainPid}' | Select-Object ProcessId,ParentProcessId,ExecutablePath)`],
+      { encoding: 'utf8', timeout: 10000 }).trim());
+    const normalizeExecutable = value => path.win32.resolve(value).toLowerCase();
+    const children = rows.filter(child => child.ExecutablePath &&
+      normalizeExecutable(child.ExecutablePath) === normalizeExecutable(engine));
+    expect(children, JSON.stringify({ mainPid, launcherPid: app.process().pid,
+      expected: engine, children: rows })).toHaveLength(1);
+    nativePid = Number(children[0].ProcessId);
     await page.evaluate(() => window.__wirescapeTest.load({ format: 'wirescape.native.patch', version: 2,
       modules: [{ id: 1, module: 'essentials.output' }], connections: [],
       outputs: [{ module: 1, port: 'audio', bus_channel: 0 }], w1_unknown: { retained: true } }, 'W1 roundtrip'));
