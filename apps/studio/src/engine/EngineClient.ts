@@ -22,6 +22,16 @@ export interface Device {
 export type AudioState =
   | 'starting' | 'running' | 'no-device' | 'device-lost' | 'reconnecting';
 
+/** Transient engine MIDI CC observation. Sequence wraps at uint32; compare inequality only. */
+export interface MidiLearn {
+  armed: true;
+  seq?: string;
+  deviceId?: string;
+  channel?: number;
+  controller?: number;
+  value?: number;
+}
+
 export interface SystemStatus {
   audio: {
     state: AudioState;
@@ -38,6 +48,8 @@ export interface SystemStatus {
     devices: Device[];
     /** deviceId -> 0..1 activity, decaying. */
     activity: Record<string, number>;
+    /** Only present while the engine is armed; no observation fields until first CC. */
+    learn?: MidiLearn;
   };
   /** Present only while a Clock module exists in the graph. */
   clock?: { bpm: number; running: boolean };
@@ -127,6 +139,8 @@ export interface EngineClient {
   selectAudioDevice(id: string): void;
   listMidiDevices(): Promise<Device[]>;
   setMidiEnabled(id: string, on: boolean): void;
+  /** Capability-gated. Single engine-side armed observation, no DSP/document state. */
+  midiLearn?(armed: boolean): void;
 
   // ---- optional (phase 5): engines may omit these; the UI hides what's missing
   setSampleRate?(hz: number): void;

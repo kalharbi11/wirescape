@@ -1,0 +1,27 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "fx.reverb",
+  "name": "Reverb",
+  "library": "ws2_reverb",
+  "description": "Original eight-line stereo FDN reverb with freeze.",
+  "license": "GPL-3.0-only",
+  "parameters": {
+    "size": 0,
+    "decay": 1,
+    "damping": 2,
+    "predelay": 3,
+    "width": 4,
+    "motion": 5,
+    "freeze": 6,
+    "mix": 7
+  },
+  "inputs": {
+    "left": "signal",
+    "right": "signal"
+  },
+  "outputs": {
+    "left": "signal",
+    "right": "signal"
+  }
+}
