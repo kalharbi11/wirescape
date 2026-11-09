@@ -136,6 +136,25 @@ int run_tests() {
     check(excess_chunk.error == "limit");
     chunked.finish();
 
+    // Coalescing must inspect the message before moving it into its slot.
+    // MSVC evaluates JSON's by-value assignment argument before the left-hand
+    // conditional expression, exposing a value() call on a moved-from null.
+    std::istringstream coalesced_input("");
+    std::ostringstream coalesced_output;
+    Transport coalesced(coalesced_input, coalesced_output);
+    coalesced.send({{"type", "status"}, {"probe", 0}}, true);
+    coalesced.send({{"type", "status"}, {"probe", 1}}, true);
+    coalesced.send({{"type", "telemetry"}, {"probe", 2}}, true);
+    coalesced.start();
+    coalesced.finish();
+    std::istringstream messages(coalesced_output.str());
+    std::string message;
+    check(bool(std::getline(messages, message)));
+    check(strict_json(message) == Json({{"type", "status"}, {"probe", 1}}));
+    check(bool(std::getline(messages, message)));
+    check(strict_json(message) == Json({{"type", "telemetry"}, {"probe", 2}}));
+    check(!std::getline(messages, message));
+
     ObservedMidi fake(true, false);
     auto endpoints = fake.endpoints();
     check(endpoints.size() == 1);

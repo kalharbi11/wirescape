@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <set>
@@ -64,9 +63,6 @@ class RawPipe final : public Pipe {
 #ifdef _WIN32
     HANDLE input_ = GetStdHandle(STD_INPUT_HANDLE);
     HANDLE output_ = GetStdHandle(STD_OUTPUT_HANDLE);
-    // Opt-in, control-thread diagnostics for #266; never write to protocol stdout.
-    const bool trace_ = std::getenv("WIRESCAPE_PIPE_TRACE") != nullptr;
-    size_t read_call_ = 0, write_call_ = 0;
 #endif
 
   public:
@@ -74,14 +70,9 @@ class RawPipe final : public Pipe {
 #ifdef _WIN32
         if (!input_ || input_ == INVALID_HANDLE_VALUE) return -1;
         DWORD received = 0;
-        const auto call = ++read_call_;
-        if (trace_) std::fprintf(stderr, "pipe ReadFile begin call=%zu tid=%lu requested=%zu\n",
-                                 call, GetCurrentThreadId(), capacity);
-        const auto ok = ReadFile(input_, data, static_cast<DWORD>(capacity), &received, nullptr);
-        const auto error = ok ? ERROR_SUCCESS : GetLastError();
-        if (trace_) std::fprintf(stderr, "pipe ReadFile end call=%zu received=%lu error=%lu\n",
-                                 call, received, error);
-        if (!ok) return error == ERROR_BROKEN_PIPE ? 0 : -1;
+        if (!ReadFile(input_, data, static_cast<DWORD>(capacity), &received, nullptr)) {
+            return GetLastError() == ERROR_BROKEN_PIPE ? 0 : -1;
+        }
         return static_cast<std::ptrdiff_t>(received);
 #else
         for (;;) {
@@ -98,14 +89,7 @@ class RawPipe final : public Pipe {
             if (!output_ || output_ == INVALID_HANDLE_VALUE) return false;
             DWORD count = 0;
             const auto chunk = static_cast<DWORD>(std::min<size_t>(length - written, 65536));
-            const auto call = ++write_call_;
-            if (trace_) std::fprintf(stderr, "pipe WriteFile begin call=%zu tid=%lu offset=%zu total=%zu requested=%lu\n",
-                                     call, GetCurrentThreadId(), written, length, chunk);
-            const auto ok = WriteFile(output_, data + written, chunk, &count, nullptr);
-            const auto error = ok ? ERROR_SUCCESS : GetLastError();
-            if (trace_) std::fprintf(stderr, "pipe WriteFile end call=%zu written=%lu error=%lu\n",
-                                     call, count, error);
-            if (!ok || count == 0) return false;
+            if (!WriteFile(output_, data + written, chunk, &count, nullptr) || count == 0) return false;
             written += count;
 #else
             const auto count = ::write(STDOUT_FILENO, data + written, length - written);
@@ -207,7 +191,10 @@ size_t Transport::pending() {
 void Transport::send(Json value, bool coalesce) {
     std::unique_lock<std::mutex> lock(mutex_);
     if (coalesce) {
-        (value.value("type", "") == "status" ? status_ : telemetry_) = std::move(value);
+        // Select the slot before move-assignment can consume value. MSVC may
+        // construct JSON's by-value assignment argument before the left side.
+        auto &slot = value.value("type", "") == "status" ? status_ : telemetry_;
+        slot = std::move(value);
     } else {
         writable_.wait(lock, [&] { return replies_.size() < PendingLimit; });
         replies_.push_back(std::move(value));
