@@ -8,13 +8,27 @@ owner go-ahead. This guide covers Electron + Studio + `wirescape-engine` on
 
 The source-build tools are in [#450](https://github.com/kalharbi11/wirescape/pull/450)
 and the isolated app smoke is in
-[#452](https://github.com/kalharbi11/wirescape/pull/452). Both must be integrated
-and verified at **one full source SHA** before the commands below become an
+[#452](https://github.com/kalharbi11/wirescape/pull/452). #463, #450 and #452 must all be merged and verified
+at **one full source SHA** before the commands below become an
 owner-ready recipe. Do not mix their separate branch build outputs.
 
-## What has been checked
+## Current preparation status (2026-11-09)
 
-| Gate | Current evidence |
+The owner's first Windows session is complete; its runtime fixes are in #463.
+Codex Lead integrated current main into the existing Pi branches. #450's repaired
+preflight/updater/parallel tests pass 13 + 7 + 1 on cloud x86. #452's profile
+isolation and short-ELF defects have fixes and committed regressions; its portable
+profile guards pass 4/4 and orchestration mocks pass 10/10. It now wraps only the
+owned app-test process in an already installed `xvfb-run -a` when no display is
+configured. Missing display and Xvfb still block; no agent provisions the runner.
+
+These are source/static/mock checks, not an accepted ARM64 app run. Final-head
+hosted checks and actual Pi evidence remain pending. Keep the SHA guard below
+until a common main commit contains #463, #450 and #452 and passes the Pi smoke.
+
+## Historical review evidence
+
+| Gate | Earlier evidence (superseded for readiness) |
 |---|---|
 | Preflight, updater and build-job tests | 11 + 7 + 1 passed in a complete cloud checkout of `15ccb578c84eb2ebbf894670c082dc5acbbe44e3`; mocked, not Pi evidence |
 | App smoke orchestration tests | 7 passed at `53c1fe7ea77d1c1d4a5e5ff6f32b22516a912e04`; mocked |

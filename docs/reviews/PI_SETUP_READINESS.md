@@ -3,7 +3,23 @@
 
 Parent #436. This session independently reviewed the existing builders' work;
 it did not take over their source files, install anything on a Pi, or test
-hardware. Windows #439 remains a separate parked task.
+hardware. The owner's first Windows session is complete; #463 carries its runtime repair.
+
+## 2026-11-09 continuation
+
+The earlier findings below are historical: the builders repaired cache/generator/
+UI detection and first-import writes (#450), and duplicate/symlink settings and
+short-ELF reporting (#452). Codex Lead has merged current main normally into both
+branches. Cloud checks pass: preflight 13, updater 7, parallel cap 1, app-smoke
+mocks 10, portable profile guards 4, and desktop TypeScript. Electron acquisition
+in this cloud session failed DNS; the subsequent dependency install explicitly
+skipped the Electron binary for static checks, so no live app pass is claimed.
+
+The app smoke now uses an already installed Xvfb around only its owned child,
+with mocked regression coverage. Required hosted checks and actual Pi results
+remain pending. A single accepted SHA must contain merged #463, #450 and #452;
+there is no accepted SHA yet. Node and missing-display setup remain owner-managed.
+
 
 ## Source and executed checks
 
