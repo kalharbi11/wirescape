@@ -328,6 +328,75 @@ static void test_s1_many_cycles(AppEngine *cat) {
     advance(e.get(), 2400, 256);
     check(last(e.get(), 1) == 1.f, "RESET preserves running intent, resumes at step 1");
 }
+// A full event sink rejects NOTE_OFF without sacrificing its identity or allowing replacement ON.
+struct GrooveSaturatedSink {
+    std::array<ws2_event, 8> accepted{};
+    uint32_t count = 0;
+    bool block_off = false;
+    static int WS2_CALL push(void *ctx, uint32_t port, const ws2_event *event) {
+        auto &sink = *static_cast<GrooveSaturatedSink *>(ctx);
+        if (port != 4 || (event->type == WS2_NOTE_OFF && sink.block_off) || sink.count == sink.accepted.size())
+            return WS2_CAPACITY;
+        sink.accepted[sink.count++] = *event;
+        return WS2_OK;
+    }
+};
+static void test_s1_deliberate_saturation() {
+    GrooveSaturatedSink sink;
+    std::array<ws2_event_out, 10> outputs{};
+    for (uint32_t i = 0; i < outputs.size(); ++i)
+        outputs[i] = {sizeof(ws2_event_out), &sink, i, &GrooveSaturatedSink::push};
+    ws2_process raw{};
+    raw.output_count = static_cast<uint32_t>(outputs.size());
+    raw.event_outputs = outputs.data();
+    ws::Block block(raw);
+    groove::Sequencer old;
+    old.pattern.track_count = 1;
+    old.pattern.tracks[0].steps[0] = {groove::Note, 60, 1.f, .25f, .75f};
+    old.reset();
+    old.running = old.players[0].playing = true;
+    old.trigger(block, 0, 0);
+    check(sink.count == 1 && sink.accepted[0].type == WS2_NOTE_ON &&
+              sink.accepted[0].port == 4 && sink.accepted[0].key == 60 &&
+              sink.accepted[0].note_id > 0, "saturation setup records first note identity");
+    const auto first = sink.accepted[0];
+    sink.block_off = true;
+    old.release(block, 0, 0);
+    check(old.players[0].pending.on && !old.players[0].sounding.on && sink.count == 1,
+          "saturated NOTE_OFF remains pending and closes the gate");
+    old.trigger(block, 0, 0);
+    check(sink.count == 1 && old.players[0].pending.id == first.note_id,
+          "pending release blocks all replacement NOTE_ON events");
+    sink.block_off = false;
+    check(old.flush(block, 0, 0) && sink.count == 2 &&
+              sink.accepted[1].type == WS2_NOTE_OFF &&
+              sink.accepted[1].note_id == first.note_id && sink.accepted[1].key == first.key,
+          "next-block retry emits exactly the matching NOTE_OFF");
+    old.trigger(block, 0, 0);
+    check(sink.count == 3 && sink.accepted[2].type == WS2_NOTE_ON &&
+              sink.accepted[2].note_id != first.note_id, "new note gets new identity after release");
+
+    // Prepare a replacement while the retiring instance still owes an OFF.
+    const auto second = sink.accepted[2];
+    sink.block_off = true;
+    old.release(block, 0, 0);
+    check(old.players[0].pending.on && old.players[0].pending.id == second.note_id,
+          "reload candidate begins with old release still pending");
+    groove::Sequencer reloaded;
+    reloaded.pattern = old.pattern;
+    reloaded.reset();
+    check(!reloaded.running && !reloaded.players[0].playing &&
+              !reloaded.players[0].pending.on && !reloaded.players[0].sounding.on,
+          "replacement initializes fully stopped with no inherited note debt");
+    reloaded.trigger(block, 0, 0);
+    check(sink.count == 3, "replacement cannot auto-trigger on load");
+    sink.block_off = false;
+    check(old.flush(block, 0, 0) && sink.count == 4 &&
+              sink.accepted[3].type == WS2_NOTE_OFF &&
+              sink.accepted[3].note_id == second.note_id && sink.accepted[3].key == second.key &&
+              !old.players[0].pending.on, "retiring instance drains matching OFF without a stranded note");
+}
+
 static void test_s1_refusals(AppEngine *cat) {
     const Json good = dual_pattern();
     std::string error;
@@ -357,6 +426,7 @@ int main() {
         test_refusals(cat.get());
         test_s1_refusals(cat.get());
         test_s1_transport(cat.get());
+        test_s1_deliberate_saturation();
         test_s1_many_cycles(cat.get());
         for (double rate : {44100., 48000., 96000.})
             for (uint32_t block : {1u, 17u, 64u, 128u, 256u}) test_rate_block(cat.get(), rate, block);
