@@ -13,14 +13,16 @@ Read `AGENTS.md`, #293 and its latest Codex Lead handoff, `docs/tasks/P2_REMAINI
   device. If a remembered ID is missing or ambiguous, show a stale/unavailable
   selection and require an explicit user choice; never silently select a new
   default or open a different device.
-- Show only device metadata actually supplied by the current engine contract.
-  Mono/unsupported output must be visible with a reason, not silently omitted.
-  Backend/channel metadata not present in v0 requires a Keel contract ruling
-  before implementation; do not invent it in the UI.
+- Follow Keel's 2026-11-09 technical ruling on #293 (comment 6735450311):
+  device entries can add optional backend, outputChannels, supported and
+  unsupportedReason without changing id/name/kind/index. List mono outputs but
+  disable them and refuse before open (no mono downmix).
 - Preserve existing device-off fake/null testing and session/generation rules.
-  Optional sample rate and block controls are shown only if capabilities exist.
-  Changes must restart only the stream and preserve graph/MIDI; if no supported
-  capability exists, leave controls hidden and request a Keel ruling.
+  Advertise only implemented optional sample-rate and buffer capabilities.
+  Validate rates {44100,48000,96000}, buffers {64,128,256,512,1024};
+  stop the stream, reprepare the current graph, restart, roll back on refusal,
+  retain the document/MIDI selection and persist only after success.
+  The control-thread reply precedes the next new-state status push.
 - Do not change ABI, IDs, wire format, dependencies, thresholds or protected
   spec paths without explicit authorization. Real device access is owner-only.
 
