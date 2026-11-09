@@ -13,7 +13,7 @@
 // gate: 0 = rest, 1 = note, 2 = tie (previous note keeps sounding, no new note).
 #define WS_STEP(n) \
     ws::param("pitch" #n, "Pitch " #n, -2, 2, 0, "oct", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 3 * (n) - 1), \
-    ws::param("gate" #n, "Gate " #n, 0, 2, (n) <= 8 ? 1 : 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 3 * (n), 4, 1), \
+    ws::param("gate" #n, "Gate " #n, 0, 2, 1, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 3 * (n), 4, 1), \
     ws::param("vel" #n, "Velocity " #n, 0, 1, 0.8f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 3 * (n) + 1)
 
 struct StepSequencer {
@@ -31,7 +31,8 @@ struct StepSequencer {
         ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
 
     // 2 + 16*3 = 50 parameters (ABI2 limit 64 after #404). The original 26 slots stay unchanged.
-    static constexpr std::array params{
+    static constexpr auto params = [] {
+        auto p = std::array{
         ws::param("run", "Run", 0, 1, 1, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
         ws::param("length", "Length", 1, 16, 8, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 1),
         WS_STEP(1),
@@ -50,6 +51,9 @@ struct StepSequencer {
         WS_STEP(14),
         WS_STEP(15),
         WS_STEP(16)};
+        for (uint32_t s = 8; s < 16; ++s) p[3 + 3 * s].initial = 0.f;
+        return p;
+    }();
     static constexpr uint32_t kRun = 0, kLength = 1;
     static constexpr uint32_t pitch_param(uint32_t s) { return 2 + 3 * s; }
     static constexpr uint32_t gate_param(uint32_t s) { return 3 + 3 * s; }
