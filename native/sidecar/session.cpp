@@ -13,6 +13,10 @@
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
+#include <timeapi.h>
+#if defined(_MSC_VER)
+#pragma comment(lib, "winmm.lib")
+#endif
 #endif
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
@@ -239,6 +243,14 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
         sink_ = std::thread(
             [this, left = std::vector<float>(options_.block), right = std::vector<float>(options_.block)]() mutable {
                 float *rows[] = {left.data(), right.data()};
+#ifdef _WIN32
+                // The default ~15.6 ms Windows timer tick is longer than a block period, so
+                // block-paced waits always wake late. Request 1 ms only while the sink runs.
+                struct TimerResolution {
+                    TimerResolution() { timeBeginPeriod(1); }
+                    ~TimerResolution() { timeEndPeriod(1); }
+                } resolution;
+#endif
                 auto next = std::chrono::steady_clock::now();
                 sink_rendering_.store(true, std::memory_order_release);
                 while (!stop_sink_.load()) {
