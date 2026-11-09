@@ -55,6 +55,10 @@ Thumbs.db
 apps/studio/node_modules/
 apps/studio/dist/
 apps/studio/test-results/
+apps/desktop/node_modules/
+apps/desktop/build/
+apps/desktop/test-results/
+apps/desktop/playwright-report/
 
 # Web demo engine (built by .github/workflows/web-demo.yml)
 apps/studio/public/web/wirescape.wasm

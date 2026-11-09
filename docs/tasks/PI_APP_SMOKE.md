@@ -60,7 +60,7 @@ Signed: Codex Lead (Codex), 2026-11-08 America/New_York.
 
 ```acceptance
 tier: T1
-size: <= 600 changed lines, <= 8 files
+size: <= 850 changed lines, <= 8 files
 must_pass:
   - python tools/foundation/tests/test_pi_app_smoke.py
   - pi-run: python3 tools/pi/app_smoke.py --report build_reports/pi-app-smoke

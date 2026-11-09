@@ -15,11 +15,15 @@ struct MidiArena {
 template<class T> struct MidiRig {
     MidiArena arena; ws2_host host{sizeof(host), &arena, MidiArena::alloc};
     const ws2_descriptor* d = ws::Module<T>::descriptor(); void* instance = nullptr;
-    struct Buffers { float output[8][16][256]{}; };
+    struct Buffers {
+        float output[9][16][256]{};
+    };
     std::unique_ptr<Buffers> buffer = std::make_unique<Buffers>();
     float values[32]{}; const float* parameter_rows[32]{}; ws2_signal params[32]{};
     ws2_signal input{sizeof(ws2_signal), nullptr, 0, 0};
-    float* output_rows[8][16]{}; ws2_signal_out outputs[8]{}; ws2_event_out event_outputs[8]{};
+    float *output_rows[9][16]{};
+    ws2_signal_out outputs[9]{};
+    ws2_event_out event_outputs[9]{};
     ws2_event_list input_events{}; ws2_process ctx{};
     std::vector<ws2_event> emitted; size_t event_limit = 20000;
     static int WS2_CALL push(void* context, uint32_t port, const ws2_event* event) {

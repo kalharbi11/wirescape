@@ -90,9 +90,20 @@ setting blocker rather than pretending to merge.
   web library; use host.keyboard. Browser audio needs its user start gesture.
 - Reverb fx.reverb is merged on main (c39af7b): stereo SUM inputs, one wet/dry output per side, not one reverb per note. Unconnected right follows left; size/decay/damping/predelay/width/motion/freeze/mix are available. Use two output-bus routes to preserve stereo; saved state clears the tail.
 - Macro requires48k. No external sample files/services. Do not assume pending
-  Chord, Notes→CV, Quantizer or16steps exist: inspect actual catalogue.
+  Chord or Notes→CV exist: inspect the actual catalogue and deployed SHA.
 - Start poly keyboard patches at3–4voices. MIDI→CV supports polyphony in desktop,
   but raw MIDI input and generated note events are different kinds.
+- Desktop/native MIDI: wire `midi.in.midi` to `midi.to_cv.midi`; append-only
+  `last_note` output (index 8) can drive `essentials.vco.pitch` as a mono held,
+  unbent V/oct value (0=C4). It follows accepted NoteOn even when mono priority
+  keeps another note sounding, survives release/choke,
+  and resets to 0 on reset/restore; poly pitch/gate outputs keep their behavior.
+- CC range wiring: `midi.in.midi` → `midi.cc_to_cv.midi`, then `cc1` → a CV input.
+  For row 1 use `config.rows[0]` with `controller:21`, `min:0`, `max:1`.
+  Finite optional endpoints override the matching bipolar default; inverted and
+  constant ranges are valid, existing smoothing still applies, and JSON persists
+  the mapping. MIDI modules remain unavailable in the WebAssembly host; use
+  `host.keyboard` in browser patches. MIDI Learn stays separate UI-owned work.
 - Pitch CV0=C4, +1=one octave; VCO base frequency matters. Signals and events
   are different cables. Modulation targets parameter IDs with amounts[-1,1].
 - Every audible chain reaches explicit output routes. An autoplay patch needs
@@ -102,6 +113,79 @@ setting blocker rather than pretending to merge.
   Structural validation proves neither good sound nor Pi performance.
 - Keep unknown fields when editing an export. Share only your own/licensed
   original patches; include GPL-3.0-only SPDX metadata for repository patches.
+
+## Groove S1(a) build compatibility (PR #451)
+
+`sequencing.groove` S1(a) adds two synchronized tracks of up to32steps while
+retaining JSON config `version:1`, existing `run` and `t1_*` IDs. Existing S0
+patterns remain readable; reserved4×64 transient storage is not a four-track UI.
+Treat S1-only patches as requiring a build containing #451; check the actual
+native/WASM catalogue and deployed SHA before claiming availability on another host.
+Each track exposes `t1_*`/`t2_*` pitch, gate, mod1, mod2 and notes outputs.
+Mod1/mod2 hold authored0–1 values until the next note; each note output is mono.
+For notes wiring, connect `t1_notes` → one `essentials.vco.notes` event input and
+`t2_notes` → a second VCO's notes, then mix their audio into `essentials.output`.
+For CV wiring, use `t1_pitch` → VCO.pitch, `t1_gate` → VCA.gain_cv and
+VCO.audio → VCA.audio → Output.audio; T2 uses the corresponding `t2_*` ports.
+Route Output.audio explicitly to buses0/1 if a duplicated mono output is wanted.
+Controls are rising-edge requests: global `run`/`stop`/`reset`/`mute`, plus
+`t1_run`/`t1_stop`/`t1_mute` and T2 equivalents. STOP/track entry are queued to
+the shared32-step boundary; mute releases immediately while phase continues.
+Reload starts stopped even with saved high run. RESET does not invent a new start.
+The stopped editor/Apply workflow and authoritative completed-STOP/playhead
+observation are separate work: no live config editing or inferred STOP from a
+queued ACK, mute, silence or browser timer. Native/Pi tests do not certify owner
+listening, arbitrary whole-patch load or a deployed browser/editor implementation.
+
+## Spectral mode compatibility (PR #310)
+
+`sound.spectral` on older builds supports modes0–5. Builds including PR #310 append
+**6 Interleave** and **7 Vocoder**, retaining existing IDs and slots0–8.
+Patches using either mode or slots9–15 require PR #310 or a newer build;
+do not advertise them as compatible with older native or web deployments. Check
+the actual native/WASM catalogue and deployed SHA before publishing.
+The implementation shares native DSP with the web build, but a native/Pi probe
+does not certify a particular deployed browser build or subjective sound quality.
+
+Concrete mono wiring: `essentials.vco.audio` → `sound.spectral.a`,
+`essentials.noise.audio` → `sound.spectral.b`, then `sound.spectral.audio` →
+`essentials.output.audio`; route that Output's audio to buses0/1 to duplicate mono.
+Both Spectral inputs SUM polyphonic cables; its `audio` output is one voice,
+not a separate spectral process per note. For mode6, use two contrasting sounds
+in A/B; B is scaled by existing `b_level` (slot7,0–2,default1). For mode7,
+A is the articulated modulator and B the sustained rich carrier (saw/pad/noise).
+No external sample file or service is loaded; use source modules already supported
+by the chosen host. Start with conservative carrier/output levels and monitor peaks.
+
+| Slot | Parameter | Range and default | Use |
+|---|---|---|---|
+| 9 | `chunk_a` | 1–64,default5 | Interleave A hops; stepped, modulatable |
+| 10 | `chunk_b` | 1–64,default5 | Interleave B hops; stepped, modulatable |
+| 11 | `phase` | 0 Phase vocoder (default),1 Source phase | Interleave phase choice |
+| 12 | `bands` | 6–64,default24 | Vocoder bands; stepped, modulatable |
+| 13 | `flatten` | 0–1,default0.85 | Remove carrier spectral tilt |
+| 14 | `release` | 0.005–0.4 seconds,default0.05; log | Vocoder envelope release |
+| 15 | `noise` | 0–1,default0.2 | Modulator-following upper-band hiss |
+
+Interleave alternates whole STFT frames on a hop of N/4 samples, including silent
+frames, and its schedule advances in every mode. At48k/default N=2048, each hop
+is10.67ms, so default5+5 chunks repeat every106.67ms. Controls except `level`
+are sampled on hops; mode changes crossfade over four frames. Phase vocoder
+continues output phase through switches (glide/smear); Source phase switches
+more directly. Larger FFT sizes increase latency; default N=2048 is42.7ms at48k.
+Vocoder bands cover70Hz to min(12kHz,0.45×sample rate); attack is4ms and carrier
+smoothing approximately11.4ms. Statev2 restores the chunk schedule and accepts
+statev1 at interleave position0; input/overlap-add audio history is not persisted,
+so a loaded sound must be reanalyzed rather than resuming its exact waveform.
+
+Device-free Pi evidence exists at `f6d4dd8`: three60s probes, two instances,
+mono48k/128, all with0 allocations/0 faults. Worst blocks were0.315ms baseline,
+0.699ms with size3/mode7/bands6↔64 each hop, and0.918ms with size3/pitch1/mode0↔7
+every four hops, against a2.667ms period. These bounds describe those probes,
+not a whole patch, arbitrary instance counts, live audio, or physical display load.
+Final integration evidence and owner listening remain separate; larger sizes and
+mode crossfades need their measured budget. Keep older-build availability and
+browser deployment limits visible when sharing patches.
 
 ## Designer procedure
 
@@ -154,3 +238,13 @@ Future: optional live/shared-library refresh and an owner upload/publish UI,
 desktop synchronization and editable descriptions/audition tools. No automatic
 GitHub credentials or private local-file uploads in this change.
 
+
+## Step Sequencer 16-step editor (PR #410)
+
+Builds including native #405 and UI #410 expose 16 pitch/gate/velocity triples
+as two rows of eight. Length still defaults to8; steps9–16 default to Rest.
+For a longer pattern set `length:16`, author `pitch16` (octaves), `gate16`
+(0 Rest/1 Note/2 Tie), and `vel16` (0..1); wire Clock to `clock`, then
+`pitch`/`gate`/`velocity` to an instrument. Shortened patterns retain inactive
+values through edit/undo/save; native/WASM version compatibility remains #405's
+contract. UI/FakeEngine preview alone does not prove DSP or audible playback.

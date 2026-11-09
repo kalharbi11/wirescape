@@ -3,9 +3,10 @@
 // Reproduce cppcheck Qt model\'s empty keyword without assuming analyzer-specific defines.
 #define emit
 #include "../modules2/groove/dsp.h"
-#ifdef emit
-#error Groove must remove the conflicting Qt keyword before including the SDK
+#ifndef emit
+#error Groove must restore the caller's Qt keyword macro after including the SDK
 #endif
+#undef emit
 #include "../tests2/allocation_watch.h"
 #include "runtime_patch.h"
 #include <algorithm>
@@ -73,13 +74,14 @@ static uint32_t note_events(AppEngine *engine) {
           "native notes telemetry tap configured");
     return count;
 }
-static uint32_t run_id(AppEngine *engine) {
+static uint32_t param_id(AppEngine *engine, uint32_t slot) {
     for (uint32_t i = 0; i < app_engine_module_count(engine); ++i) {
         const auto *m = app_engine_module(engine, i);
-        if (std::string(m->id) == "sequencing.groove") return m->parameters[0].id;
+        if (std::string(m->id) == "sequencing.groove") return m->parameters[slot].id;
     }
     throw std::runtime_error("Groove not registered in native catalogue");
 }
+static uint32_t run_id(AppEngine *engine) { return param_id(engine, 0); }
 // A rendered graph must receive live parameter events. initialize_parameter
 // is quiescent/position-zero only, even if this module is currently stopped.
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters): parameter id, then value.
@@ -150,7 +152,7 @@ static void test_refusals(AppEngine *cat) {
             bad["tracks"][0]["steps"][1]["extra"] = 1;
             break;
         case 6:
-            bad["tracks"][0]["steps"].push_back({{"kind", "rest"}});
+            while (bad["tracks"][0]["steps"].size() <= 32) bad["tracks"][0]["steps"].push_back({{"kind", "rest"}});
             break;
         case 7:
             bad["unknown"] = true;
@@ -193,19 +195,22 @@ static void test_rate_block(AppEngine *cat, double rate, uint32_t block) {
     run_command(live.get(), id, 1.f);
     run_command(reload.get(), id, 1.f);
     const double period = rate / 8.; // 120 BPM sixteenth note
-    const uint32_t count = static_cast<uint32_t>(std::ceil(period * 8)) + 2;
+    const uint32_t count = static_cast<uint32_t>(std::ceil(period * 32)) + 2;
     const auto a = trace(live.get(), count, block);
     const auto b = trace(reload.get(), count, block);
     check(a == b, "native loop identical after serialized reload");
     check(note_events(live.get()) == 7 && note_events(reload.get()) == 7,
-          "native note ON/OFF emitted on note/rest/wrap, not tie");
+          "native NOTE_ON/OFF through 32-step wrap, not the old eight-step boundary");
     const auto at = [&](int step) { return a[static_cast<uint32_t>(std::ceil(period * step))]; };
     check(a[0] == 1.f && at(1) == 0.f && at(2) == 1.f && at(3) == 1.f && at(4) == 0.f && at(5) == 1.f && at(6) == 0.f &&
-              at(8) == 1.f,
+              at(8) == 0.f && at(31) == 0.f && at(32) == 1.f,
           "note/rest/tie/wrap transition frames");
-    run_command(live.get(), id, 0.f);
-    check(trace(live.get(), block, block)[0] == 0.f, "stop releases active gate");
-    check(note_events(live.get()) == 8, "stop generates a matching native note-off");
+    // S1 stop queues to the next common 32-step boundary, never acts as S0 run-low.
+    const uint32_t stop = param_id(live.get(), 1);
+    run_command(live.get(), stop, 1.f);
+    check(trace(live.get(), 1, 1)[0] == 1.f, "queued STOP does not truncate step 1");
+    const auto until_stop = trace(live.get(), static_cast<uint32_t>(std::ceil(period * 32)) + 2, block);
+    check(until_stop.back() == 0.f, "stop completes at the next 32-step boundary");
     // Separate signal route: pitch -> VCO pitch; gate -> VCA gain.
     // Never attach quantized pitch CV and raw note events to the same VCO.
     auto cv = load(patch(pattern(), true), cat, rate, error);
@@ -214,17 +219,167 @@ static void test_rate_block(AppEngine *cat, double rate, uint32_t block) {
     run_command(cv.get(), id, 1.f);
     trace(cv.get(), static_cast<uint32_t>(std::ceil(period * 2)) + 2, block, true);
 }
+
+static Json dual_pattern() {
+    Json p = pattern();
+    Json first = Json::array();
+    Json second = Json::array();
+    for (uint32_t i = 0; i < 32; ++i) {
+        first.push_back({{"kind", "rest"}});
+        second.push_back({{"kind", "rest"}});
+    }
+    first[0] = {{"kind", "note"}, {"key", 60}, {"velocity", 0.9}, {"mod1", 0.25}, {"mod2", 0.75}};
+    first[1] = {{"kind", "tie"}};
+    first[3] = {{"kind", "note"}, {"key", 64}, {"velocity", 0}};
+    first[31] = {{"kind", "note"}, {"key", 72}, {"velocity", 0.7}, {"mod1", 0.5}, {"mod2", 0.6}};
+    second[0] = {{"kind", "note"}, {"key", 67}, {"velocity", 0.8}, {"mod1", 0.4}, {"mod2", 0.6}};
+    second[1] = {{"kind", "tie"}};
+    second[31] = {{"kind", "note"}, {"key", 69}, {"velocity", 0.9}, {"mod1", 0.8}, {"mod2", 0.2}};
+    p["tracks"] = Json::array({{{"steps", first}}, {{"steps", second}}});
+    return p;
+}
+static void advance(AppEngine *e, uint32_t frames, uint32_t block) {
+    std::array<float, 256> audio{};
+    for (uint32_t done = 0; done < frames;) {
+        const uint32_t n = std::min(frames - done, block);
+        int status;
+        size_t allocated;
+        {
+            allocation_watch::Scope watch;
+            status = app_engine_render(e, audio.data(), n);
+            allocated = watch.allocations();
+        }
+        check(status == WS_OK && allocated == 0, "S1 render is bounded and allocation-free");
+        wirescape::engine2::Outgoing out;
+        while (app_engine_native(e).pop_egress(out))
+            check(out.node == 1 && (out.port == 4 || out.port == 9) &&
+                      (out.event.type == WS2_NOTE_ON || out.event.type == WS2_NOTE_OFF) && out.event.note_id > 0 &&
+                      out.event.key >= 0 && out.event.key <= 127 && out.frame < app_engine_native(e).meter().frame,
+                  "egress identity");
+        done += n;
+    }
+}
+static float last(AppEngine *e, uint32_t port) {
+    // advance() ends on a non-empty block, and the final sample is always the latest.
+    // A one-frame render makes the precise test frame observable independently of block size.
+    advance(e, 1, 1);
+    return app_engine_native(e).output_sample(1, port, 0, 0);
+}
+static void test_s1_transport(AppEngine *cat) {
+    std::string error;
+    auto config = dual_pattern();
+    auto saved = Json::parse(patch(config).dump());
+    check(saved["modules"][0]["config"] == config, "two-track authored JSON round-trips");
+    auto e = load(saved, cat, 48000, error, true);
+    check(bool(e), "two-track candidate prepared");
+    advance(e.get(), 1, 1); // initial parameter baselines do not issue START
+    check(last(e.get(), 1) == 0 && last(e.get(), 6) == 0, "both tracks load stopped");
+    run_command(e.get(), param_id(e.get(), 0), 1.f);
+    advance(e.get(), 1, 1);
+    auto &graph = app_engine_native(e.get());
+    check(graph.output_sample(1, 1, 0, 0) == 1.f && graph.output_sample(1, 6, 0, 0) == 1.f,
+          "tracks trigger simultaneously at step 1");
+    check(graph.output_sample(1, 2, 0, 0) == .25f && graph.output_sample(1, 3, 0, 0) == .75f &&
+              std::abs(graph.output_sample(1, 7, 0, 0) - .4f) < 1e-6f &&
+              std::abs(graph.output_sample(1, 8, 0, 0) - .6f) < 1e-6f,
+          "both sample-hold modulation lanes work independently on note trigger");
+    run_command(e.get(), param_id(e.get(), 8), 1.f); // Queue T2 STOP, leave T1 playing.
+    advance(e.get(), 1, 1);
+    check(graph.output_sample(1, 6, 0, 0) == 1.f, "track STOP is not immediate");
+    run_command(e.get(), param_id(e.get(), 6), 1.f); // T1 mute immediate.
+    advance(e.get(), 1, 1);
+    check(graph.output_sample(1, 1, 0, 0) == 0.f && graph.output_sample(1, 6, 0, 0) == 1.f,
+          "independent mute releases only T1");
+    check(graph.output_sample(1, 2, 0, 0) == .25f, "muted track holds modulation");
+    // Long-run synchronization and a queued track STOP at the shared wrap.
+    advance(e.get(), 32 * 6000 + 2, 256);
+    check(graph.output_sample(1, 6, 0, 1) == 0.f, "track STOP completes at shared cycle end");
+    check(graph.output_sample(1, 1, 0, 1) == 0.f, "T1 mute keeps phase but not gate");
+    // T2 re-enters at the next boundary while T1 remains on its own phase.
+    run_command(e.get(), param_id(e.get(), 7), 1.f);
+    advance(e.get(), 1, 1);
+    check(graph.output_sample(1, 6, 0, 0) == 0.f, "track restart queues boundary entry");
+    advance(e.get(), 32 * 6000 + 2, 256);
+    // With step 1 now passed, output is a rest; the held mod proves that it entered.
+    check(std::abs(graph.output_sample(1, 7, 0, 1) - .4f) < 1e-6f,
+          "track queued START enters with its own step-1 modulation");
+    run_command(e.get(), param_id(e.get(), 1), 1.f); // Global STOP request.
+    advance(e.get(), 1, 1);
+    advance(e.get(), 32 * 6000 + 2, 256);
+    check(graph.output_sample(1, 1, 0, 1) == 0.f && graph.output_sample(1, 6, 0, 1) == 0.f,
+          "global queued STOP completes without an extra note");
+}
+static void test_s1_many_cycles(AppEngine *cat) {
+    std::string error;
+    Json config = dual_pattern();
+    config["bpm"] = 300;
+    auto e = load(patch(config), cat, 48000, error, true);
+    check(bool(e), "S1 300 BPM graph loads");
+    advance(e.get(), 1, 1);
+    run_command(e.get(), param_id(e.get(), 0), 1.f);
+    advance(e.get(), 1, 1);
+    advance(e.get(), 102u * 32u * 2400u, 256);
+    check(note_events(e.get()) >= 400, "102 native cycles retain bounded NOTE_ON/OFF activity");
+    run_command(e.get(), param_id(e.get(), 1), 1.f);
+    run_command(e.get(), param_id(e.get(), 2), 1.f); // RESET outranks STOP.
+    advance(e.get(), 1, 1);
+    check(app_engine_native(e.get()).output_sample(1, 1, 0, 0) == 0.f, "same-frame RESET releases without retrigger");
+    advance(e.get(), 2400, 256);
+    check(last(e.get(), 1) == 1.f, "RESET preserves running intent, resumes at step 1");
+}
+static void test_s1_refusals(AppEngine *cat) {
+    const Json good = dual_pattern();
+    std::string error;
+    for (int c = 0; c < 9; ++c) {
+        Json invalid = good;
+        switch (c) {
+        case 0:
+            invalid["tracks"][0]["steps"][0]["mod1"] = 1.1;
+            break;
+        case 1:
+            invalid["tracks"][1]["steps"][0]["mod2"] = -0.1;
+            break;
+        case 2:
+            invalid["tracks"][0]["armed"] = 1;
+            break;
+        case 3:
+            invalid["tracks"][1]["mute"] = "no";
+            break;
+        case 4:
+            invalid["tracks"][0]["steps"][0]["extra"] = true;
+            break;
+        case 5:
+            invalid["tracks"][0]["anything"] = 2;
+            break;
+        case 6:
+            invalid["tracks"].push_back(invalid["tracks"][0]);
+            break;
+        case 7:
+            invalid["tracks"][0]["steps"][1]["key"] = 60;
+            break;
+        default:
+            invalid["tracks"][0]["steps"][0]["velocity"] = 1.5;
+            break;
+        }
+        check(!load(patch(invalid), cat, 48000, error), "S1 invalid native config refused");
+        check(!error.empty(), "S1 refused candidate explains why");
+    }
+}
+
 int main() {
     try {
         ws_engine_config cfg{sizeof(cfg), 48000, 256, 64, 2048};
         Owner cat(app_engine_create(&cfg), app_engine_destroy);
         check(bool(cat), "native catalogue creation");
         test_refusals(cat.get());
+        test_s1_refusals(cat.get());
+        test_s1_transport(cat.get());
+        test_s1_many_cycles(cat.get());
         for (double rate : {44100., 48000., 96000.})
             for (uint32_t block : {1u, 17u, 64u, 128u, 256u}) test_rate_block(cat.get(), rate, block);
-        std::puts("PASS Groove S0 native config/refusal/save-reload/stopped/noalloc/timing");
+        std::puts("PASS Groove v1 config/refusal/save-reload/stopped/noalloc/32-step timing");
     } catch (const std::exception &e) {
-        std::fprintf(stderr, "FAIL Groove S0: %s\n", e.what());
+        std::fprintf(stderr, "FAIL Groove v1/S1: %s\n", e.what());
         return 1;
     }
 }

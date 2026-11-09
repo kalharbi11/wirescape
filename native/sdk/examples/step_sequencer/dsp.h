@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
-// example.step_sequencer: 8-step pitch/gate/velocity sequencer that drives CV and note events.
+// example.step_sequencer: 16-step pitch/gate/velocity sequencer that drives CV and note events.
 // Teaching module: shows edge detection, a state machine, event output and "never strand a note-off".
 #pragma once
+#ifdef emit
+// Qt and cppcheck may define emit; SDK Block::emit must remain a method name.
+#undef emit
+#endif
 #include "wirescape_sdk.h"
 
-// Per-step parameter triple. Parameter IDs are API: pitch1..pitch8, gate1..gate8, vel1..vel8
+// Per-step parameter triple. Parameter IDs are API: pitch1..pitch16, gate1..gate16, vel1..vel16
 // must never change once published (patches and automation refer to them by ID).
 // gate: 0 = rest, 1 = note, 2 = tie (previous note keeps sounding, no new note).
 #define WS_STEP(n) \
@@ -13,7 +17,7 @@
     ws::param("vel" #n, "Velocity " #n, 0, 1, 0.8f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 3 * (n) + 1)
 
 struct StepSequencer {
-    static constexpr ws::Info info{"example.step_sequencer", "Step Sequencer", 1};
+    static constexpr ws::Info info{"example.step_sequencer", "Step Sequencer", 2};
 
     // WS2_FIRST: if a poly signal arrives, the host hands us its first voice.
     static constexpr std::array inputs{
@@ -26,11 +30,30 @@ struct StepSequencer {
         ws::port("velocity", "Velocity", WS2_CV_UNI),
         ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
 
-    // 2 + 8*3 = 26 parameters (host limit is 32). Step s (0-based) lives at 2 + 3*s + {0,1,2}.
-    static constexpr std::array params{
-        ws::param("run", "Run", 0, 1, 1, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
-        ws::param("length", "Length", 1, 8, 8, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 1),
-        WS_STEP(1), WS_STEP(2), WS_STEP(3), WS_STEP(4), WS_STEP(5), WS_STEP(6), WS_STEP(7), WS_STEP(8)};
+    // 2 + 16*3 = 50 parameters (ABI2 limit 64 after #404). The original 26 slots stay unchanged.
+    static constexpr auto params = [] {
+        auto p =
+            std::array{ws::param("run", "Run", 0, 1, 1, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
+                       ws::param("length", "Length", 1, 16, 8, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 1),
+                       WS_STEP(1),
+                       WS_STEP(2),
+                       WS_STEP(3),
+                       WS_STEP(4),
+                       WS_STEP(5),
+                       WS_STEP(6),
+                       WS_STEP(7),
+                       WS_STEP(8),
+                       WS_STEP(9),
+                       WS_STEP(10),
+                       WS_STEP(11),
+                       WS_STEP(12),
+                       WS_STEP(13),
+                       WS_STEP(14),
+                       WS_STEP(15),
+                       WS_STEP(16)};
+        for (uint32_t s = 8; s < 16; ++s) p[3 + 3 * s].initial = 0.f;
+        return p;
+    }();
     static constexpr uint32_t kRun = 0, kLength = 1;
     static constexpr uint32_t pitch_param(uint32_t s) { return 2 + 3 * s; }
     static constexpr uint32_t gate_param(uint32_t s) { return 3 + 3 * s; }
@@ -104,7 +127,7 @@ struct StepSequencer {
     }
 
     static uint32_t length_at(const ws::Block& b, uint32_t i) {
-        return static_cast<uint32_t>(std::clamp<long>(std::lround(b.param(kLength).ch(0)[i]), 1, 8));
+        return static_cast<uint32_t>(std::clamp<long>(std::lround(b.param(kLength).ch(0)[i]), 1, 16));
     }
     static long gate_at(const ws::Block& b, uint32_t s, uint32_t i) {
         return std::clamp<long>(std::lround(b.param(gate_param(s)).ch(0)[i]), 0, 2);
@@ -163,28 +186,31 @@ struct StepSequencer {
         }
     }
 
-    // State v1, u32 words: step, armed, running, clock_high, reset_high, note active, id, key,
+    // State v2 (same wire layout as v1), u32 words: step, armed, running, clock_high, reset_high, note active, id, key,
     // next_id, last_key, last_velocity (f32). A pending note-off is saved as an active note.
     int save_state(ws::Writer w) {
         const Note& n = sounding.active ? sounding : pending;
-        const uint32_t words[] = {1, step, armed, running, clock_high, reset_high, n.active, static_cast<uint32_t>(n.id),
-                                  static_cast<uint32_t>(n.key), static_cast<uint32_t>(next_id), static_cast<uint32_t>(last_key)};
-        for (uint32_t word : words) if (!w.u32(word)) return WS2_CAPACITY;
+        if (!w.u32(2) || !w.u32(step) || !w.u32(armed) || !w.u32(running)) return WS2_CAPACITY;
+        if (!w.u32(clock_high) || !w.u32(reset_high) || !w.u32(n.active)) return WS2_CAPACITY;
+        if (!w.u32(static_cast<uint32_t>(n.id)) || !w.u32(static_cast<uint32_t>(n.key))) return WS2_CAPACITY;
+        if (!w.u32(static_cast<uint32_t>(next_id)) || !w.u32(static_cast<uint32_t>(last_key))) return WS2_CAPACITY;
         return w.f32(last_velocity) ? WS2_OK : WS2_CAPACITY;
     }
 
     int load_state(ws::Reader r) {
         uint32_t version = 0;
         if (!r.u32(version)) return WS2_INVALID;
-        if (version != 1) return WS2_UNSUPPORTED;
+        if (version != 1 && version != 2) return WS2_UNSUPPORTED;
         uint32_t s, armed_in, running_in, clock_in, reset_in, active, id, key, next, last;
         float velocity;
         if (!r.u32(s) || !r.u32(armed_in) || !r.u32(running_in) || !r.u32(clock_in) || !r.u32(reset_in) || !r.u32(active) ||
             !r.u32(id) || !r.u32(key) || !r.u32(next) || !r.u32(last) || !r.f32(velocity)) return WS2_INVALID;
-        const bool sane = s < 8 && armed_in <= 1 && running_in <= 1 && clock_in <= 1 && reset_in <= 1 && active <= 1 &&
-                          id <= 0x7fffffffu && key <= 127 && next <= 0x7fffffffu && last <= 127 &&
-                          std::isfinite(velocity) && velocity >= 0.f && velocity <= 1.f;
-        if (!sane) return WS2_INVALID;
+        // Version-1 saved positions are only 0..7; version-2 may resume steps 0..15.
+        const bool sane_position = s < (version == 1 ? 8u : 16u);
+        const bool sane_flags = armed_in <= 1 && running_in <= 1 && clock_in <= 1 && reset_in <= 1 && active <= 1;
+        const bool sane_note = id <= 0x7fffffffu && key <= 127 && next <= 0x7fffffffu && last <= 127;
+        const bool sane_velocity = std::isfinite(velocity) && velocity >= 0.f && velocity <= 1.f;
+        if (!sane_position || !sane_flags || !sane_note || !sane_velocity) return WS2_INVALID;
         // Everything checked: commit. A note that was sounding is released by the next process() call,
         // because the host will not have a matching note-on for the restored session.
         step = s; armed = armed_in; running = running_in;

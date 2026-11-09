@@ -58,6 +58,21 @@ int main(int argc,char**argv){try{
  check(argc==2,"demo argument");std::ifstream input(argv[1]);std::string bytes((std::istreambuf_iterator<char>(input)),{});check(!bytes.empty(),"read demo");
  ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};Owner catalog(app_engine_create(&cfg),app_engine_destroy);std::string error;
  saved_lfo_patch(argv[1], catalog.get(), cfg);
+ // Qt's inspection-only legacy formats must never become executable native graphs.
+ const auto fixtures = std::filesystem::path(argv[1]).parent_path().parent_path() / "tests/fixtures/legacy_documents";
+ for (const char *name : {"patch_v1.json", "patch_v2.json", "patch_v3_unknown.json", "visual_study_v4.json",
+                          "future_patch_v99.json", "malformed_patch.json"}) {
+     std::ifstream fixture(fixtures / name, std::ios::binary);
+     check(bool(fixture), "read original legacy fixture");
+     const std::string original((std::istreambuf_iterator<char>(fixture)), {});
+     const auto retained = original;
+     const auto count = app_engine_module_count(catalog.get());
+     Owner rejected(wirescape::document::load_runtime_patch(original, catalog.get(), cfg, error), app_engine_destroy);
+     check(!rejected && !error.empty(), "legacy/visual/future/malformed fixture refuses execution with diagnostic");
+     check(original == retained && app_engine_module_count(catalog.get()) == count,
+           "refusal leaves source bytes and live catalogue unchanged");
+ }
+
  auto load=[&](const std::string&source){return Owner(wirescape::document::load_runtime_patch(source,catalog.get(),cfg,error),app_engine_destroy);};
  auto v1=load(bytes);check(bool(v1),"v1 loader");auto source=Json::parse(bytes),patch=source;patch["version"]=2;patch["settings"]={{"max_channels",16},{"feedback_block",1},{"seed",1u}};patch["outputs"]=Json::array({{{"module",source["outputNode"]},{"port","audio"},{"bus_channel",0}}});
  for(auto&m:patch["modules"]){auto type=m["type"].get<std::string>();m["module"]=type;m["version"]=1;m["config"]=Json::object();m["parameters"]=Json::object();for(auto it=m["values"].begin();it!=m["values"].end();++it)m["parameters"][app_engine_parameter_id(catalog.get(),type.c_str(),uint32_t(std::stoul(it.key())))]=it.value();m.erase("type");m.erase("values");}
@@ -65,10 +80,52 @@ int main(int argc,char**argv){try{
  auto v2=load(patch.dump());check(bool(v2),"v2 loader");float a[128],b[128];
  for(int block=0;block<100;++block){int ra,rb;size_t count;{allocation_watch::Scope watch;ra=app_engine_render(v1.get(),a,128);rb=app_engine_render(v2.get(),b,128);count=watch.allocations();}check(ra==WS_OK&&rb==WS_OK&&count==0,"loader callback allocation-free");for(int i=0;i<128;++i)check(a[i]==b[i]&&std::isfinite(a[i]),"v1/v2 graph equivalence");}
  check(!load("{\"format\":\"wirescape.native.patch\",\"format\":\"wirescape.native.patch\"}"),"duplicate keys rejected");
+ for (const auto &raw : {std::string("{\"format\":1,\"\\u0066ormat\":2}"), std::string("{\"x\":[{\"a\":1,\"a\":2}]}")})
+     check(!load(raw) && !error.empty(), "escaped and nested duplicate keys refused");
+ auto duplicate = patch;
+ duplicate["modules"].push_back(duplicate["modules"][0]);
+ check(!load(duplicate.dump()), "duplicate module IDs refused");
+ auto dangling = patch;
+ dangling["connections"][0]["to"]["module"] = 99;
+ check(!load(dangling.dump()), "dangling destination refused");
+ dangling = patch;
+ dangling["outputs"][0]["module"] = 99;
+ check(!load(dangling.dump()), "dangling output refused");
  auto bad=patch;bad["version"]=99;check(!load(bad.dump()),"future version refused");bad=patch;bad["modules"][0]["parameters"]={{"unknown",1}};check(!load(bad.dump()),"unknown parameter refused");
  bad=patch;bad["modules"][0]["inactive"]=true;check(!load(bad.dump()),"inactive module refused");bad=patch;bad["modules"][0]["id"]=1.5;check(!load(bad.dump()),"fractional ID refused");
  bad=patch;bad["settings"]["max_channels"]=17;check(!load(bad.dump()),"channel limit");bad=patch;bad["modules"][0]["config"]={{"unknown",1}};check(!load(bad.dump()),"unsupported nonempty config fails closed");
  bad=patch;bad["settings"]["sample_rate"]="48000";check(!load(bad.dump()),"sample rate type");
+ auto ccpatch = Json::parse(R"({"format":"wirescape.native.patch","version":2,"settings":{},
+  "modules":[{"id":200,"module":"midi.cc_to_cv","version":1,
+    "config":{"rows":[{"channel":1,"controller":21,"bipolar":true,"min":3.5,"max":-2.25}]}},
+    {"id":201,"module":"essentials.output","version":1}],
+  "connections":[],"outputs":[{"module":201,"port":"audio","bus_channel":0}],
+  "ui":{"opaque":{"keep":"lossless"}}})");
+ auto ccfirst = load(ccpatch.dump());
+ check(bool(ccfirst), "CC native range patch load");
+ const auto saved = ccpatch.dump();
+ auto reloaded = Json::parse(saved);
+ check(reloaded["modules"][0]["config"]["rows"][0]["min"] == 3.5 &&
+           reloaded["modules"][0]["config"]["rows"][0]["max"] == -2.25 &&
+           reloaded["modules"][0]["config"]["rows"][0]["bipolar"] == true &&
+           reloaded["ui"]["opaque"]["keep"] == "lossless",
+       "CC JSON round-trip preserves rows/unknown UI");
+ auto ccsecond = load(reloaded.dump());
+ check(bool(ccsecond), "CC native range patch reload");
+ bad = reloaded;
+ bad["modules"][0]["config"]["rows"][0]["min"] = "3.5";
+ check(!load(bad.dump()), "CC nonnumber minimum refused");
+ bad = reloaded;
+ bad["modules"][0]["config"]["rows"][0]["max"] = "not finite";
+ check(!load(bad.dump()), "CC nonnumber maximum refused");
+ float stable[128]{};
+ {
+     allocation_watch::Scope scope;
+     check(app_engine_render(ccfirst.get(), stable, 128) == WS_OK &&
+               app_engine_render(ccsecond.get(), stable, 128) == WS_OK && scope.allocations() == 0,
+           "refusal leaves previously loaded graphs usable");
+ }
+
  check(!load(std::string(wirescape::document::RuntimePatchLimit+1,' ')),"document size limit");check(!load("[]"),"root type");
  std::cout<<"runtime loader v1/v2, validation, noalloc pass\n";
  }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -472,13 +472,16 @@ void test_mode_switch_crossfades() {
     const size_t n = 24000, half = 12000;
     const auto a = sine(n, Tone{330, .5}, 48000), b = sine(n, Tone{550, .5}, 48000);
     double steady = 0;
-    for (uint32_t mode : {spectral::Max, spectral::Diff, spectral::Morph, spectral::Cross}) {
+    for (uint32_t mode = 0; mode < spectral::kModes; ++mode) {
         Rig r;
         r.set(spectral::P_MODE, float(mode));
         steady = std::max(steady, max_step(r.run(a, b), {6000, n}));
     }
-    for (auto [from, to] : {std::pair{spectral::Max, spectral::Diff}, std::pair{spectral::Diff, spectral::Morph},
-                            std::pair{spectral::Morph, spectral::Cross}}) {
+    for (auto [from, to] :
+         {std::pair{spectral::Max, spectral::Diff}, std::pair{spectral::Diff, spectral::Morph},
+          std::pair{spectral::Morph, spectral::Cross}, std::pair{spectral::Cross, spectral::Interleave},
+          std::pair{spectral::Interleave, spectral::Vocoder}, std::pair{spectral::Vocoder, spectral::Max},
+          std::pair{spectral::Morph, spectral::Vocoder}, std::pair{spectral::Vocoder, spectral::Interleave}}) {
         Rig r;
         r.set(spectral::P_MODE, float(from));
         const std::vector<float> a0(a.begin(), a.begin() + half), b0(b.begin(), b.begin() + half);
@@ -490,6 +493,95 @@ void test_mode_switch_crossfades() {
         const double step = max_step(y, {6000, n});
         std::printf("mode %u -> %u: worst step %.4f (steady %.4f)\n", from, to, step, steady);
         REQUIRE(step <= 1.25 * steady);
+    }
+}
+
+// Peak RMS over windows of `window` samples in y[span].
+double peak_rms(const std::vector<float> &y, Span span, size_t window) {
+    double peak = 0;
+    for (size_t t = span.from; t + window <= span.to; t += window / 2) peak = std::max(peak, rms(y, {t, t + window}));
+    return peak;
+}
+
+// Review on #310: a mode CV oscillating faster than the four-frame fade, silent-to-active onsets,
+// saving mid-fade and a size change while vocoding all stay bounded and deterministic.
+void test_transitions_under_stress() {
+    const size_t n = 30000, half = 12000;
+    const auto a = sine(n, Tone{330, .5}, 48000), b = add(sine(n, Tone{550, .5}, 48000), noise(n, NoiseSpec{51, .1f}));
+    double steady_step = 0, steady_rms = 0;
+    for (uint32_t mode : {spectral::Interleave, spectral::Vocoder}) {
+        Rig r;
+        r.set(spectral::P_MODE, float(mode));
+        const auto y = r.run(a, b);
+        steady_step = std::max(steady_step, max_step(y, {6000, n}));
+        steady_rms = std::max(steady_rms, peak_rms(y, {6000, n}, 256));
+    }
+    { // Mode CV switches at each FFT hop (512 samples), faster than the four-frame fade.
+        Rig r;
+        r.set(spectral::P_MODE, spectral::Interleave);
+        std::vector<float> y;
+        bool saw_interleave = false, saw_vocoder = false;
+        for (size_t pos = 0; pos < n; pos += 64) {
+            const bool vocoder = pos >= half && ((pos - half) / 512) % 2 != 0;
+            r.set(spectral::P_MODE, vocoder ? float(spectral::Vocoder) : float(spectral::Interleave));
+            if (pos >= half && pos % 512 == 0) {
+                saw_interleave |= !vocoder;
+                saw_vocoder |= vocoder;
+            }
+            const size_t count = std::min<size_t>(64, n - pos);
+            const std::vector<float> a0(a.begin() + long(pos), a.begin() + long(pos + count)),
+                b0(b.begin() + long(pos), b.begin() + long(pos + count));
+            const auto part = r.run(a0, b0, uint32_t(count));
+            y.insert(y.end(), part.begin(), part.end());
+        }
+        REQUIRE(saw_interleave && saw_vocoder && y.size() == n);
+        std::printf("rapid mode CV: step %.4f rms %.4f (steady %.4f / %.4f)\n", max_step(y, {half + 2048, n}),
+                    peak_rms(y, {half + 2048, n}, 256), steady_step, steady_rms);
+        REQUIRE(max_step(y, {half + 2048, n}) <= 1.25 * steady_step);
+        REQUIRE(peak_rms(y, {half + 2048, n}, 256) <= 1.5 * steady_rms);
+    }
+    for (uint32_t mode : {spectral::Interleave, spectral::Vocoder}) { // silence, then sound
+        std::vector<float> a0 = a, b0 = b;
+        std::fill(a0.begin(), a0.begin() + long(half), 0.f);
+        std::fill(b0.begin(), b0.begin() + long(half), 0.f);
+        Rig r;
+        r.set(spectral::P_MODE, float(mode));
+        const auto y = r.run(a0, b0);
+        REQUIRE(peak_rms(y, {0, n}, 256) <= 1.5 * steady_rms);
+    }
+    { // save in the middle of a Max -> Vocoder fade, load into two instances with different histories
+        Rig x;
+        x.set(spectral::P_MODE, spectral::Max);
+        const std::vector<float> a0(a.begin(), a.begin() + long(half)), b0(b.begin(), b.begin() + long(half));
+        x.run(a0, b0);
+        x.set(spectral::P_MODE, spectral::Vocoder);
+        const std::vector<float> a1(a.begin() + long(half), a.begin() + long(half + 600)),
+            b1(b.begin() + long(half), b.begin() + long(half + 600));
+        x.run(a1, b1);
+        const Bytes state = x.save();
+        REQUIRE(state[16] != 0); // the fade is still running (word 4)
+        Rig y, z;
+        z.run(b0, a0);
+        for (Rig *r : {&y, &z}) {
+            r->set(spectral::P_MODE, spectral::Vocoder);
+            REQUIRE(r->load(state) == WS2_OK);
+        }
+        const std::vector<float> a2(a.begin() + long(half), a.end()), b2(b.begin() + long(half), b.end());
+        const auto oy = y.run(a2, b2), oz = z.run(a2, b2);
+        for (size_t i = 0; i < oy.size(); ++i) REQUIRE(same_element(oy[i], oz[i]));
+    }
+    { // vocoding while the resolution drops from 4096 to 512
+        Rig r;
+        r.set(spectral::P_MODE, spectral::Vocoder).set(spectral::P_SIZE, 3);
+        const std::vector<float> a0(a.begin(), a.begin() + long(half)), b0(b.begin(), b.begin() + long(half));
+        auto y = r.run(a0, b0);
+        r.set(spectral::P_SIZE, 0);
+        const std::vector<float> a1(a.begin() + long(half), a.end()), b1(b.begin() + long(half), b.end());
+        const auto y1 = r.run(a1, b1);
+        y.insert(y.end(), y1.begin(), y1.end());
+        REQUIRE(r.latency() == 512);
+        REQUIRE(peak_rms(y, {9000, n}, 256) <=
+                1.5 * std::max(peak_rms(y, {9000, half}, 256), peak_rms(y, {half + 6000, n}, 256)));
     }
 }
 
@@ -543,9 +635,177 @@ void test_size_change() {
     REQUIRE(max_step(y, {8000, n}) <= 1.25 * steady);
     REQUIRE(rel_error(y, add(a, b), 512, {half + 8000, n}) < .02);
 }
+// Interleave of identical sources reconstructs A in both phase modes.
+void test_interleave_identity() {
+    const size_t n = 12000;
+    const auto a = test_a(n, 48000);
+    for (float phase : {0.f, 1.f}) {
+        Rig r;
+        r.set(spectral::P_MODE, spectral::Interleave).set(spectral::P_PHASE, phase).set(spectral::P_CHUNK_A, 3);
+        r.set(spectral::P_CHUNK_B, 2);
+        REQUIRE(rel_error(r.run(a, a), a, r.latency(), {size_t(2) * r.latency(), n}) < 1e-3);
+    }
+}
+
+double hop_rms(const std::vector<float> &y, size_t hop, size_t index, size_t offset) {
+    return rms(y, {offset + index * hop, offset + (index + 1) * hop});
+}
+
+// Chunks follow the frame clock: with B silent the output gates with a period of chunk_a + chunk_b hops.
+void test_interleave_schedule() {
+    const size_t n = 40000, hop = 512, start = 8192;
+    const auto a = sine(n, Tone{468.75, .5}, 48000), silent = std::vector<float>(n, 0.f); // 5 cycles per hop
+    double energy[3]{};
+    const uint32_t chunks[3][2] = {{6, 2}, {4, 4}, {2, 6}};
+    for (int c = 0; c < 3; ++c) {
+        Rig r;
+        r.set(spectral::P_MODE, spectral::Interleave).set(spectral::P_PHASE, 1);
+        r.set(spectral::P_CHUNK_A, float(chunks[c][0])).set(spectral::P_CHUNK_B, float(chunks[c][1]));
+        const auto y = r.run(a, silent);
+        energy[c] = rms(y, {start, n});
+        if (c == 1) {
+            for (size_t h = 0; h < 40; ++h) {
+                const double here = hop_rms(y, hop, h, start), period = hop_rms(y, hop, h + 8, start);
+                REQUIRE(std::abs(here - period) < 1e-3);
+            }
+            double swing = 0;
+            for (size_t h = 0; h < 8; ++h)
+                swing = std::max(swing, std::abs(hop_rms(y, hop, h, start) - hop_rms(y, hop, h + 4, start)));
+            REQUIRE(swing > .1);
+        }
+    }
+    REQUIRE(energy[0] > energy[1] && energy[1] > energy[2]);
+    Rig half;
+    half.set(spectral::P_MODE, spectral::Interleave).set(spectral::P_PHASE, 1).set(spectral::P_BLEVEL, .5f);
+    Rig full;
+    full.set(spectral::P_MODE, spectral::Interleave).set(spectral::P_PHASE, 1);
+    REQUIRE(std::abs(rms(half.run(silent, a), {start, n}) / rms(full.run(silent, a), {start, n}) - .5) < 1e-3);
+}
+
+std::vector<float> lowpassed_noise(size_t n, uint32_t seed) {
+    auto x = noise(n, NoiseSpec{seed, .5f});
+    float z = 0;
+    for (auto &v : x) v = z = z + .03f * (v - z);
+    return x;
+}
+// Energy of y[span] between lo and hi Hz (direct DFT magnitudes, 2048-point Hann).
+struct Band {
+    double lo, hi;
+};
+double band_energy(const std::vector<float> &y, size_t from, Band band) {
+    const double lo = band.lo, hi = band.hi;
+    const auto m = magnitudes(y, {from, from + 2048});
+    double e = 0;
+    for (size_t k = 0; k < m.size(); ++k) {
+        const double f = 48000.0 * double(k) / 2048;
+        if (f >= lo && f < hi) e += m[k] * m[k];
+    }
+    return e;
+}
+double db(double ratio) { return 10 * std::log10(ratio); }
+// Mean of band_energy over 8 consecutive frames (noise estimates from one frame scatter by several dB).
+double averaged_energy(const std::vector<float> &y, size_t from, Band band) {
+    double e = 0;
+    for (size_t f = 0; f < 8; ++f) e += band_energy(y, from + f * 2048, band);
+    return e / 8;
+}
+
+// The output follows A's gate and A's spectrum on a noise carrier.
+void test_vocoder_follows_modulator() {
+    const size_t n = 48000, gate = 12000;
+    auto a = sine(n, Tone{440, .5}, 48000);
+    for (size_t i = 0; i < n; ++i)
+        if ((i / gate) % 2) a[i] = 0;
+    const auto b = noise(n, NoiseSpec{11, .3f});
+    Rig r;
+    r.set(spectral::P_MODE, spectral::Vocoder).set(spectral::P_NOISE, 0).set(spectral::P_RELEASE, .02f);
+    const auto y = r.run(a, b);
+    const size_t l = r.latency();
+    const double on = rms(y, {l + 3000, l + gate - 1000}), off = rms(y, {l + gate + 4000, l + 2 * gate - 1000});
+    std::printf("vocoder gate on/off %.1f dB\n", 20 * std::log10(on / off));
+    REQUIRE(on > 10 * off);
+    const double low = band_energy(y, l + 4000, Band{300, 600}), high = band_energy(y, l + 4000, Band{2000, 4000});
+    REQUIRE(low > 30 * high);
+}
+
+// Flatten removes the carrier's own tilt: with a flat modulator the output turns flat too.
+void test_vocoder_flatten() {
+    const size_t n = 40000, from = 20000;
+    const auto a = noise(n, NoiseSpec{21, .3f}), b = lowpassed_noise(n, 22);
+    double tilt[2]{};
+    for (int f = 0; f < 2; ++f) {
+        Rig r;
+        r.set(spectral::P_MODE, spectral::Vocoder).set(spectral::P_NOISE, 0).set(spectral::P_FLATTEN, float(f));
+        r.set(spectral::P_RELEASE, .005f); // near-symmetric follower: no peak bias between narrow and wide bands
+        const auto y = r.run(a, b);
+        tilt[f] = db(averaged_energy(y, from, Band{200, 500}) / averaged_energy(y, from, Band{4000, 7000}));
+    }
+    const double source = db(averaged_energy(a, from, Band{200, 500}) / averaged_energy(a, from, Band{4000, 7000}));
+    std::printf("vocoder tilt: flatten 0 %.1f dB, flatten 1 %.1f dB, modulator %.1f dB\n", tilt[0], tilt[1], source);
+    REQUIRE(tilt[0] > tilt[1] + 20);
+    REQUIRE(std::abs(tilt[1] - source) < 6);
+}
+
+// A short release closes faster than a long one once A stops.
+void test_vocoder_release() {
+    const size_t n = 36000, stop = 18000;
+    auto a = sine(n, Tone{330, .5}, 48000);
+    std::fill(a.begin() + stop, a.end(), 0.f);
+    const auto b = noise(n, NoiseSpec{31, .3f});
+    size_t fall[2]{};
+    const float releases[2] = {.01f, .3f};
+    for (int k = 0; k < 2; ++k) {
+        Rig r;
+        r.set(spectral::P_MODE, spectral::Vocoder).set(spectral::P_NOISE, 0).set(spectral::P_RELEASE, releases[k]);
+        const auto y = r.run(a, b);
+        const size_t l = r.latency();
+        const double level = rms(y, {l + stop - 6000, l + stop - 2000});
+        fall[k] = n;
+        for (size_t t = l + stop; t + 512 < n; t += 256)
+            if (rms(y, {t, t + 512}) < .01 * level) {
+                fall[k] = t - l - stop;
+                break;
+            }
+    }
+    std::printf("vocoder -40 dB after %zu (release 10 ms) vs %zu samples (300 ms)\n", fall[0], fall[1]);
+    REQUIRE(fall[0] < fall[1]);
+    REQUIRE(fall[0] < 4800);
+}
+
+// Noise for consonants adds hiss above 3 kHz on a tonal carrier.
+void test_vocoder_noise() {
+    const size_t n = 24000, from = 16000;
+    const auto a = noise(n, NoiseSpec{41, .3f}), b = sine(n, Tone{220, .5}, 48000);
+    double hiss[2]{};
+    for (int k = 0; k < 2; ++k) {
+        Rig r;
+        r.set(spectral::P_MODE, spectral::Vocoder).set(spectral::P_NOISE, float(k));
+        hiss[k] = band_energy(r.run(a, b), from, Band{4000, 10000});
+    }
+    REQUIRE(hiss[1] > 10 * hiss[0]);
+}
+
+// Patches saved by version 1 (no interleave position) still load.
+void test_state_v1_loads() {
+    Rig x;
+    x.set(spectral::P_SIZE, 0);
+    x.run(test_a(3000, 48000), test_b(3000, 48000));
+    const Bytes v2 = x.save();
+    REQUIRE(v2.size() == size_t(13) * 4);
+    Bytes v1;
+    for (size_t i = 0; i < size_t(12) * 4; ++i) v1.push_back(v2[i]);
+    v1[0] = 1;
+    Rig y;
+    y.set(spectral::P_SIZE, 0);
+    REQUIRE(y.load(v1) == WS2_OK);
+    Bytes v1_short;
+    for (size_t i = 0; i < size_t(11) * 4; ++i) v1_short.push_back(v1[i]);
+    REQUIRE(y.load(v1_short) == WS2_INVALID);
+}
 } // namespace
 
 int main() {
+    std::setvbuf(stdout, nullptr, _IONBF, 0); // measurements stay visible if a check aborts
     test_approximations();
     test_fft_matches_dft();
     test_frame_matrix_every_mode();
@@ -561,6 +821,14 @@ int main() {
     test_mode_switch_crossfades();
     test_size_change();
     test_mean_b_level();
+    test_transitions_under_stress();
+    test_interleave_identity();
+    test_interleave_schedule();
+    test_vocoder_follows_modulator();
+    test_vocoder_flatten();
+    test_vocoder_release();
+    test_vocoder_noise();
+    test_state_v1_loads();
     std::puts("abi2_spectral_tests passed");
     return 0;
 }

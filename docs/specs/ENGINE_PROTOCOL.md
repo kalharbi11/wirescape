@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Engine protocol v0 — app ↔ `wirescape-engine` (#228)
 
-**Status:** normative Phase 1 contract for P1B (sidecar), P1C (`RealEngine`) and P1F (Electron shell). **Version:** `v: 0`; incompatible changes require a new protocol version, not silent reinterpretation. Implements [the P1.0 task](../tasks/P1_0_PROTOCOL.md) and `docs/PLAN.md` D1, D3–D9. This supersedes the transport and document-ownership proposals in research PR #217 §4: **no WebSocket, HTTP, Tauri or other network socket**.
+**Status:** normative Phase 1 contract for P1B (sidecar), P1C (`RealEngine`) and P1F (Electron shell). **Version:** `v: 0`; incompatible changes require a new protocol version, not silent reinterpretation. Implements [the P1.0 task](../tasks/done/P1_0_PROTOCOL.md) and `docs/PLAN.md` D1, D3–D9. This supersedes the transport and document-ownership proposals in research PR #217 §4: **no WebSocket, HTTP, Tauri or other network socket**.
 
 ## 1. Process, transport and limits
 

@@ -91,7 +91,7 @@ def inspect_package(package: Path) -> dict[str, Any]:
             "portaudio": {"version": "unknown", "evidence": "packaged PortAudio-named runtime file(s); package manifest does not record a version", "files": portaudio_files},
             "stock_processors": {"version": "Wirescape package build", "evidence": "packaged ws_*.dll filenames", "files": processor_files},
         },
-        "notices": {"bundled_files": notice_files, "source_evidence": ["repository LICENSE (GNU GPL v3 text)", "native/ui/third_party/PORTAUDIO_LICENSE.txt (PortAudio license text)"], "qt_sbom_evidence": {"sdk_prefix": prefix or None, "local_documents": sbom_files, "bundled_documents": [p for p in files if p.lower().endswith((".spdx", ".spdx.json", ".cdx.json"))], "note": "Presence of metadata alone does not establish full distribution compliance"}},
+        "notices": {"bundled_files": notice_files, "source_evidence": ["repository LICENSE (GNU GPL v3 text)", "native/third_party/portaudio/PORTAUDIO_LICENSE.txt (PortAudio license text)"], "qt_sbom_evidence": {"sdk_prefix": prefix or None, "local_documents": sbom_files, "bundled_documents": [p for p in files if p.lower().endswith((".spdx", ".spdx.json", ".cdx.json"))], "note": "Presence of metadata alone does not establish full distribution compliance"}},
         "gaps": [
             "No clean-machine Windows installation or startup result is established by this inventory.",
             "No Windows Application Control bypass or executable launch is attempted by this tool.",

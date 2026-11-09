@@ -3,7 +3,7 @@
 
 The owner gets the app running on the Pi with one script, and the Pi runner shows the engine keeps its deadlines while the app UI animates.
 
-**Read first:** `docs/tasks/P1B_ENGINE_SIDECAR.md`, `P1F_DESKTOP_SHELL.md`, `docs/PI_RUNNER.md`, `docs/PI_SETUP.md`, `tools/pi/demo.sh` (reuse its env-file pattern).
+**Read first:** `docs/tasks/done/P1B_ENGINE_SIDECAR.md`, `P1F_DESKTOP_SHELL.md`, `docs/PI_RUNNER.md`, `docs/PI_SETUP.md`, `tools/pi/demo.sh` (reuse its env-file pattern).
 
 **Build:**
 - `tools/pi/update-and-build.sh` (owner-run): fetch, switch to a given ref, `tools/dev.py build --headless --config Release`, `npm ci && npm run build` in `apps/studio`, `npm ci` in `apps/desktop`. It stops on the first error and prints the app command. Only incremental rebuilds after the first run.

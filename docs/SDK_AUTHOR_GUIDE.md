@@ -176,7 +176,7 @@ ctest --test-dir build/native -R '^abi2_midi_to_cv_tests$' --output-on-failure
 
 **Pi evidence:** for a task-specific run, put the exact command in a `pi-run:` line in the issue's acceptance block and label the PR `ci/pi-accept`. The private Pi bridge runs the task command and publishes `pi5/accept`; verify that status on the exact PR head. A generic build/test pass is not a substitute for the requested Pi command. Keep agent/CI checks offline and device-free; physical audio or MIDI verification is user-only.
 
-The CHAOS two-instance reference is a 120-second offline CPU render on the Pi at 48 kHz, block size 128, 45,000 blocks: worst block 489,275 ns, zero callback allocations, and zero engine faults. Its existing bound is <1,333 µs (half the 128-frame period). The command is `python tools/chaos_two_probe.py`; see `docs/tasks/J7_CHAOS_LITE.md` and `native/examples/chaos_two.json`. This is a measured offline workload reference, not a physical-device/round-trip latency result or a guarantee for another module.
+The CHAOS two-instance reference is a 120-second offline CPU render on the Pi at 48 kHz, block size 128, 45,000 blocks: worst block 489,275 ns, zero callback allocations, and zero engine faults. Its existing bound is <1,333 µs (half the 128-frame period). The command is `python tools/chaos_two_probe.py`; see `docs/tasks/done/J7_CHAOS_LITE.md` and `native/examples/chaos_two.json`. This is a measured offline workload reference, not a physical-device/round-trip latency result or a guarantee for another module.
 
 **Common mistakes**
 - Storing `b.in(i).ch(c)` as `const float*` (it's a view; use `auto`).
