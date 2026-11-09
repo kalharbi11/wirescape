@@ -131,18 +131,16 @@ struct MidiToCv {
                 if (status == 8 || status == 9) {
                     note.type = status == 8 || (type == 2 && data == 0) ? WS2_NOTE_OFF : WS2_NOTE_ON;
                     note.value = type == 2 ? float(data) / 127.f : float(data >> 16) / 65535.f;
-                    core.event(note, emit);
-                    if (note.type == WS2_NOTE_ON) {
-                        // Only accept pitch after the allocator actually holds the NoteOn.
-                        for (uint32_t c = 0; c < n; ++c) {
-                            const auto &v = core.allocator().voice(int(c));
-                            if (v.gate && v.key == int(key) && v.channel == int(channel) &&
-                                core.original_source(v.source_id) == event.source_id) {
-                                last_note = float(int(key) - 60) / 12.f;
-                                break;
-                            }
-                        }
-                    }
+                    const int held_before = note.type == WS2_NOTE_ON ? core.allocator().held_count() : 0;
+                    bool attack = false;
+                    core.event(note, [&](const ws2_event &out) {
+                        // Observe allocation before output-queue delivery can fail.
+                        attack = attack || out.type == WS2_NOTE_ON;
+                        emit(out);
+                    });
+                    // Mono priority may accept a held note without selecting it to sound.
+                    if (note.type == WS2_NOTE_ON && (attack || core.allocator().held_count() > held_before))
+                        last_note = float(int(key) - 60) / 12.f;
                 } else if (status == 11) {
                     if (key == 64) {
                         ex->pedal = sustain_hold && (type == 2 ? data >= 64 : data >= 0x80000000u);

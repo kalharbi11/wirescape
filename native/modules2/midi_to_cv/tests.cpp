@@ -241,6 +241,55 @@ static void last_note_mono_hold_and_restore() {
     r.run();
     REQUIRE(r.sample(8) == 0); // restart/restore never persists transient last note
 }
+static void last_note_acceptance_modes_and_limits() {
+    for (uint32_t mode = 0; mode < 4; ++mode)
+        for (uint32_t priority = 0; priority < 3; ++priority) {
+            MidiRig<MidiToCv> r;
+            r.values[1] = float(mode);
+            r.values[3] = float(priority);
+            r.run({midi1(0x90, 60, 127, 1), midi2(0x90, 72, 0xffff0000u, 3), midi1(0x90, 48, 127, 5)});
+            REQUIRE(r.sample(8, 0, 2) == 0 && r.sample(8, 0, 4) == 1 && r.sample(8, 0, 6) == -1);
+            if (mode == 3) REQUIRE(r.sample(0) == (priority == 2 ? 1.f : -1.f));
+            r.values[8] = 1;
+            r.run({midi1(0x91, 96, 127), midi1(0x90, 96, 0)});
+            REQUIRE(r.sample(8) == -1); // filtered channel and MIDI1 velocity-zero off are not accepted attacks
+            r.run({midi2(0x90, 84, 0)});
+            REQUIRE(r.sample(8) == 2); // MIDI2 zero velocity remains a valid NoteOn
+            r.run({source_choke()});
+            REQUIRE(r.sample(8) == 2);
+        }
+    // An accepted held note need not sound, and output-queue refusal is not input refusal.
+    MidiRig<MidiToCv> blocked;
+    blocked.values[1] = 3;
+    blocked.values[3] = 1;
+    blocked.event_limit = 0;
+    blocked.run({midi1(0x90, 60, 127), midi1(0x90, 72, 127, 1)});
+    REQUIRE(blocked.emitted.empty() && blocked.sample(0) == 0 && blocked.sample(8) == 1);
+    blocked.event_limit = 20000;
+    blocked.run({source_choke()});
+    // Mono retains all128 held notes. A rejected duplicate of the sounding key must not replace last_note.
+    MidiRig<MidiToCv> mono;
+    mono.values[1] = 3;
+    mono.values[3] = 1;
+    for (uint32_t i = 0; i < 127; ++i) mono.run({midi1(0x90, 60, 127)});
+    mono.run({midi1(0x90, 72, 127)});
+    REQUIRE(mono.sample(0) == 0 && mono.sample(8) == 1);
+    mono.run({midi1(0x90, 60, 127)});
+    REQUIRE(mono.sample(8) == 1);
+    mono.run({midi1(0x80, 60, 0), midi1(0x90, 84, 127, 1)});
+    REQUIRE(mono.sample(8) == 2);
+    mono.run({source_choke()});
+    // Rotate also bounds anonymous activations even though stolen voices leave only4 held records.
+    MidiRig<MidiToCv> rotate;
+    for (uint32_t i = 0; i < 124; ++i) rotate.run({midi1(0x90, 20, 127)});
+    for (uint8_t key : {60, 64, 67, 72}) rotate.run({midi1(0x90, key, 127)});
+    REQUIRE(rotate.sample(8) == 1);
+    rotate.run({midi1(0x90, 60, 127)});
+    REQUIRE(rotate.sample(8) == 1); // matching an active voice does not make a rejected attack accepted
+    rotate.run({midi1(0x80, 20, 0), midi1(0x90, 84, 127, 1)});
+    REQUIRE(rotate.sample(8) == 2);
+    rotate.run({source_choke()});
+}
 static void metadata_contract() {
     REQUIRE(MidiToCv::params.size() == 9);
     for (const auto& parameter : MidiToCv::params) REQUIRE(std::strcmp(parameter.id, "retrigger") != 0);
@@ -340,6 +389,7 @@ int main(int argc, char **argv) {
     metadata_contract();
     basic_and_steal();
     last_note_mono_hold_and_restore();
+    last_note_acceptance_modes_and_limits();
     sustain_bend_expression();
     modes_state_and_bounds();
     graph_fixtures();

@@ -95,7 +95,8 @@ setting blocker rather than pretending to merge.
   but raw MIDI input and generated note events are different kinds.
 - Desktop/native MIDI: wire `midi.in.midi` to `midi.to_cv.midi`; append-only
   `last_note` output (index 8) can drive `essentials.vco.pitch` as a mono held,
-  unbent V/oct value (0=C4). It follows accepted NoteOn, survives release/choke,
+  unbent V/oct value (0=C4). It follows accepted NoteOn even when mono priority
+  keeps another note sounding, survives release/choke,
   and resets to 0 on reset/restore; poly pitch/gate outputs keep their behavior.
 - CC range wiring: `midi.in.midi` → `midi.cc_to_cv.midi`, then `cc1` → a CV input.
   For row 1 use `config.rows[0]` with `controller:21`, `min:0`, `max:1`.
