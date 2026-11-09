@@ -168,3 +168,35 @@ test('R2 guards reject future or malformed loads without losing the retained dra
   await expect(page.getByTestId('patch-name')).toHaveText('Optional B');
   expect((await state(page)).future).toEqual(refused.future);
 });
+
+for (const result of ['accepted', 'refused'] as const) {
+  test(`native Save cannot cross an ordinary patch load that is ${result}`, async ({ page }) => {
+    const before = await state(page);
+    await page.evaluate(p => {
+      const bridge = (window as any).__mockBridge;
+      bridge.holdNext('loadGraph');
+      (window as any).__pendingPatchLoad = window.__wirescapeTest.load(p, 'Loading B');
+    }, refused);
+    await expect(page.getByTestId('app')).toHaveJSProperty('inert', true);
+    await expect(page.getByTestId('patch-name')).toHaveText('Loading B');
+    expect(await page.evaluate(() => (window as any).__mockBridge.getGraph().modules
+      .map((m: any) => m.id))).toEqual([1]);
+    await page.evaluate(() => (window as any).__mockBridge.menu('app.menuSavePatch'));
+    expect(await page.evaluate(() => (window as any).__mockBridge.getSaves())).toEqual([]);
+    await page.evaluate(outcome => {
+      const bridge = (window as any).__mockBridge;
+      if (outcome === 'accepted') bridge.acceptHeld();
+      else bridge.refuseHeld('busy');
+    }, result);
+    await page.evaluate(() => (window as any).__pendingPatchLoad);
+    await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+    expect(await page.evaluate(() => (window as any).__mockBridge.getSaves())).toEqual([]);
+    if (result === 'refused') expect(await state(page)).toEqual(before);
+    else expect((await state(page) as any).future).toEqual(refused.future);
+    const selected = await state(page);
+    await page.evaluate(() => (window as any).__mockBridge.menu('app.menuSavePatch'));
+    await expect.poll(() => page.evaluate(() => (window as any).__mockBridge.getSaves().length)).toBe(1);
+    expect(await page.evaluate(() => JSON.parse((window as any).__mockBridge.getSaves()[0].text)))
+      .toEqual(selected);
+  });
+}

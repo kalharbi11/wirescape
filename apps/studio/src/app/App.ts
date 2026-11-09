@@ -1448,7 +1448,7 @@ export class App {
   }
 
   private async savePatchFile(saveAs = false): Promise<void> {
-    if (this.documentBusy && this.draftVisible) return;
+    if (this.documentBusy) return;
     if (!window.wirescape) { this.exportPatch(); return; }
     const request = ++this.readEpoch, view = this.viewEpoch;
     try {

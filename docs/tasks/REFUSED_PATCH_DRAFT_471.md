@@ -19,6 +19,11 @@ Lead ruling (2026-11-09): <=750/8 includes UI-only RealEngine edit settlement,
 deferred canvas confirmation ownership, adversarial bridge regressions and actual
 Electron file-target preservation. All mutation entry points and pending reads
 must respect the immutable Apply candidate; no native/protocol change.
+Native Save must return before any file request while any document load or Apply
+is busy, including ordinary non-draft loads. Delayed successful and refused B
+loads while A plays must issue no save until completion; afterward Save captures
+only the selected document. The actual Electron A/B regression must preserve both
+files through the pending load and refusal.
 
 ## Acceptance
 ```acceptance

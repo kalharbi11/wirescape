@@ -16,7 +16,9 @@ test('draft and playing views never inherit one another\'s native Save target', 
   fs.writeFileSync(aFile, JSON.stringify(patch('A')));
   fs.writeFileSync(bFile, JSON.stringify(patch('B')));
   const stub = path.join(dir, 'engine.cjs'), wrapper = path.join(dir, 'app.cjs');
-  fs.writeFileSync(stub, `const readline = require('node:readline');
+  const releaseLoad = path.join(dir, 'release-load');
+  const aOriginal = fs.readFileSync(aFile, 'utf8'), bOriginal = fs.readFileSync(bFile, 'utf8');
+  fs.writeFileSync(stub, `const readline = require('node:readline'), fs = require('node:fs');
 const session = 'files-' + process.pid; let gen = 0, refused = false;
 const send = x => process.stdout.write(JSON.stringify({v:0,session,...x})+'\\n');
 send({type:'hello',protocol:0,engine:{version:'test',sha:'fixture'},capabilities:[],
@@ -24,7 +26,9 @@ send({type:'hello',protocol:0,engine:{version:'test',sha:'fixture'},capabilities
  sampleRate:48000,bufferFrames:256,latencyMs:0,cpuPercent:0,dropouts:0},midi:{devices:[],activity:{}}});
 const input=readline.createInterface({input:process.stdin});
 input.on('line',line=>{const c=JSON.parse(line);
- if(c.type==='loadGraph'&&c.patch.marker==='B'&&!refused){refused=true;send({re:c.id,ok:false,code:'busy',message:'fixture refusal',gen:String(gen)});return;}
+ if(c.type==='loadGraph'&&c.patch.marker==='B'&&!refused){refused=true;
+ const pending=setInterval(()=>{if(!fs.existsSync(${JSON.stringify(releaseLoad)}))return;
+ clearInterval(pending);send({re:c.id,ok:false,code:'busy',message:'fixture refusal',gen:String(gen)});},10);return;}
  if(c.type==='loadGraph')gen++;send({re:c.id,ok:true,gen:String(gen)});});
 input.on('close',()=>process.exit(0));\n`);
   fs.writeFileSync(wrapper, `const {app}=require('electron');
@@ -48,7 +52,18 @@ require(${JSON.stringify(main)});\n`);
     await choose(aFile); await page.getByTestId('open-patch').click();
     await expect(page.getByTestId('patch-name')).toHaveText('A.json');
     await choose(bFile); await page.getByTestId('open-patch').click();
+    await expect(page.getByTestId('app')).toHaveJSProperty('inert', true);
+    await expect(page.getByTestId('patch-name')).toHaveText('B.json');
+    await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('save-patch').click());
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    expect(await app.evaluate(() => globalThis.__saveDialogs ?? 0)).toBe(0);
+    expect(fs.readFileSync(aFile, 'utf8')).toBe(aOriginal);
+    expect(fs.readFileSync(bFile, 'utf8')).toBe(bOriginal);
+    fs.writeFileSync(releaseLoad, 'release');
     await expect(page.getByTestId('open-refused-draft')).toBeVisible();
+    await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+    expect(fs.readFileSync(aFile, 'utf8')).toBe(aOriginal);
+    expect(fs.readFileSync(bFile, 'utf8')).toBe(bOriginal);
     await page.getByTestId('open-refused-draft').click();
     await page.getByTestId('save-patch').click();
     await expect.poll(() => app.evaluate(() => globalThis.__saveDialogs)).toBe(1);
