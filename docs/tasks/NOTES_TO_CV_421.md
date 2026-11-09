@@ -86,6 +86,10 @@ voice prerequisite. Keep draft until a signed Keel ruling is linked.
    `native/web/web_engine.cpp` and Web AudioWorklet; verify actual
    render-backed pitch/gate/velocity channels and nonzero finite stereo
    audio for triad and seventh, rather than a UI mock or a test-only adapter.
+   Use the existing browser `noteOn`/`noteOff` commands delivered to
+   `host.keyboard.notes` as the non-MIDI note-event source. The web engine
+   excludes every `midi.*` module (`web_module`); never require a
+   `midi.to_cv` graph in WASM or count its rejection as an audio pass.
    Check browser catalogue, load/reload and no duplicate unquantized pitch
    path. Exercise Electron sidecar with null sink separately.
 5. **Evidence/review:** exact-head guard, linux-arm64, windows-x64,
@@ -100,7 +104,7 @@ voice prerequisite. Keep draft until a signed Keel ruling is linked.
 |---|---|---|
 | Root 60, triad 0/+4/+7 | simultaneous keys 60/64/67, unique output IDs; lanes 0/4/7 semitones relative to MIDI 60, gate=1, copied velocity | three concurrently active pitch/gate lanes; actual finite nonzero audio |
 | Root 60, seventh 0/+4/+7/+11 | keys 60/64/67/71 at same sample offset, four separately allocated lanes, 4 balanced offs | four concurrent voices and independently falling gates; nonzero rendered stereo |
-| Direct MIDI baseline | four held MIDI notes through shipped `midi.to_cv`, no Chord; all four pitch/gate lanes | real WASM baseline separate from generated chords |
+| Direct source baseline (no Chord) | four held fake-MIDI notes through shipped `midi.to_cv`, all four pitch/gate lanes (native/sidecar only) | four `noteOn` commands for 60/64/67/71 through supported `host.keyboard.notes` → approved Notes→CV allocator → poly instrument; four distinct sounding lanes, then independent `noteOff` releases; no `midi.*` module |
 | Overlapping/repeated roots | two sources, channel 0/15, note_id 0 and positive/anonymous IDs, repeated keys; each off releases only its activation under Keel rule | no replacement note killed by stale offs |
 | Edits/sustain/steal | held interval edits affect next activation only; sustain and four-voice steal/reuse, per-note expressions and order checked | live edit, save/reload, panic/replan/source removal clear all gates |
 | Queue/refusal | reject 1st/middle/last attack and one/many offs, retry across blocks, overflow and choke/panic; no leaked gates | graph reload cannot leave a stuck output note |
