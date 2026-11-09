@@ -28,7 +28,7 @@ The repo carries three products' worth of code for one product: the Qt app (`nat
 - [ ] **R5 Docs and read map** [#466 (R5a docs), #467 (R5b prune/archive); R5c AGENTS/CLAUDE + legacy/ goes with #468] (T0; Compass reviews; can start now).
   - Rewrite `README.md` (one quickstart, "build from source" on Windows and the Pi; "download" marked not available yet), `native/README.md`, `CONTRIBUTING.md`, and `docs/STATUS.md` (current evidence only; the Oct 27 table moves to git history).
   - Replace `docs/WINDOWS_DEMO_UPDATE.md` with `docs/WINDOWS_SETUP.md` from #436 W1.
-  - Delete (git history keeps them): `docs/ROADMAP.md`, `docs/PLANNER_HANDOFF.md`, `docs/PI_KIOSK.md`, `docs/CHAOS_USB_DEMO.md`, `docs/planner/LANES.md` and `docs/planner/MODULES.md`; STATE and the issues hold the queue. Keep `docs/DEMO_CLASS.md` until #271 closes.
+  - R5b #467 removes the stale roadmap, Pi kiosk/CHAOS demo, lanes and module-planner documents after repairing active references. The planner handoff remains unchanged until R5c/#468 because the protected-path list in AGENTS.md still names it (Codex Lead ruling). Keep `docs/DEMO_CLASS.md` until #271 closes.
   - Move task files whose issue is closed to `docs/tasks/done/`. First teach `tools/dev.py accept` to resolve both folders and add `docs/tasks/README.md` as the index.
   - `AGENTS.md` and `CLAUDE.md` (label-only): drop the Qt, pre-1A and `wirescape-ui` clauses.
   - Remove `legacy/` and `docs/history/` from the tree at the archive tag (label-only; owner sets `allow-protected`).

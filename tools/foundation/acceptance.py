@@ -60,7 +60,8 @@ def parse(text):
 
 def find_task(root, issue):
     matches = []
-    for path in sorted((root / "docs/tasks").glob("*.md")):
+    directory = root / "docs/tasks"
+    for path in sorted([*directory.glob("*.md"), *(directory / "done").glob("*.md")]):
         title = next((line for line in path.read_text(encoding="utf-8").splitlines()
                       if line.startswith("# ")), "")
         if re.search(rf"#{int(issue)}\b", title):

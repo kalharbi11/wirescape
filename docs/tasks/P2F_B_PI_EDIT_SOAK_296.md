@@ -5,7 +5,7 @@ Public child #391; parent #296; Keel ruling: #296 comment 6720719308. Branch `ta
 The child closes on public acceptance only. Parent #296 stays open for the private
 3600-second run. The 8-file public diff is within the original 6-file budget
 plus the permitted 50% self-decided extension (effective maximum: 9).
-Read AGENTS.md, docs/tasks/P2F_SIDECAR_EDIT_SOAK.md, #278/#284, the
+Read AGENTS.md, docs/tasks/done/P2F_SIDECAR_EDIT_SOAK.md, #278/#284, the
 latest #296 signed handoff, docs/PI_RUNNER.md and docs/WORKFLOW.md.
 Tier T1 for the public harness. The private runner is separately reviewed T2.
 

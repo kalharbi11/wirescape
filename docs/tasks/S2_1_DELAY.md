@@ -3,7 +3,7 @@
 
 **What.** A clean, musical stereo delay for jamming on the Pi: echoes that can sync to a patched clock, feedback that can run away without blowing up, a tone control in the loop, and ping-pong. Original code. No tape (owner, 2026-10-27): no wow/flutter, no saturation model beyond a soft limiter in the loop.
 
-**Read first:** `docs/planner/MODULES.md` (common rules), `docs/SDK_AUTHOR_GUIDE.md` §1–§12, `native/sdk/template/`, `native/modules2/vca/` (a simple processor), `native/modules2/chaos_lite/` (stereo-pair outputs, `WS2_LARGE` delay memory), and PR #304's file list for the standard wiring.
+**Read first:** `docs/SDK_AUTHOR_GUIDE.md` §1–§12, `native/sdk/template/`, `native/modules2/vca/` (a simple processor), `native/modules2/chaos_lite/` (stereo-pair outputs, `WS2_LARGE` delay memory), and PR #304's file list for the standard wiring.
 
 ## Interface (IDs final once merged)
 | Kind | ID | Name | Details |
