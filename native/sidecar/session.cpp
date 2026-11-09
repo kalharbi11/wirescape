@@ -158,7 +158,7 @@ Options parse_options(int argc, char **argv) {
         try {
             std::ifstream in(o.settings, std::ios::binary);
             if (in) {
-                std::string bytes(LineLimit + 1, '\\0');
+                std::string bytes(LineLimit + 1, '\0');
                 in.read(bytes.data(), std::streamsize(bytes.size()));
                 bytes.resize(size_t(in.gcount()));
                 const auto settings = strict_json(bytes);
