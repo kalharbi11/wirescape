@@ -48,9 +48,8 @@ def versions() -> dict[str, dict]:
     names = {"git": shutil.which("git"), "c++": shutil.which("c++"),
              "cmake": found["cmake"], "ninja": found["ninja"],
              "node": shutil.which("node"), "npm": shutil.which("npm")}
-    result = {name: tool_version(path) for name, path in names.items()}
-    result["python"] = {"available": True, "version": platform.python_version()}
-    return result
+    return {**{name: tool_version(path) for name, path in names.items()},
+            "python": {"available": True, "version": platform.python_version()}}
 
 
 def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
@@ -213,11 +212,10 @@ def stage_run(root: Path, report_dir: Path, stage: str, command: list[str], time
                     log.write("Stage timed out; owned process group terminated.\n")
         except OSError as exc:
             log.write(sanitize(f"Cannot start stage: {exc}\n", root))
-    expected_output = {
-        "native": root / "build/native/wirescape-engine",
-        "studio-build": root / "apps/studio/dist/index.html",
-        "desktop-build": root / "apps/desktop/build/main.js",
-    }.get(stage)
+    artifacts = {"native": "build/native/wirescape-engine",
+                 "studio-build": "apps/studio/dist/index.html",
+                 "desktop-build": "apps/desktop/build/main.js"}
+    expected_output = root / artifacts[stage] if stage in artifacts else None
     if code == 0 and expected_output and not expected_output.is_file():
         code = 1
         with log_path.open("a", encoding="utf-8") as log:
@@ -227,20 +225,19 @@ def stage_run(root: Path, report_dir: Path, stage: str, command: list[str], time
         code = 1
         with log_path.open("a", encoding="utf-8") as log:
             log.write("Source HEAD changed during this stage; refusing provenance.\n")
-    stage_file = report_dir / f"{stage}.json"
-    stage_file.write_text(json.dumps({"stage": stage, "exit_code": code,
-                                      "seconds": round(time.monotonic() - start, 2),
-                                      "log": log_path.name}) + "\n", encoding="utf-8")
+    (report_dir / f"{stage}.json").write_text(json.dumps({
+        "stage": stage, "exit_code": code, "seconds": round(time.monotonic() - start, 2),
+        "log": log_path.name}) + "\n", encoding="utf-8")
     results = {name: json.loads((report_dir / f"{name}.json").read_text())
                if (report_dir / f"{name}.json").is_file() else {"stage": name, "status": "not-run"}
                for name in STAGES}
     summary = {"source_sha": sha if rc == 0 else None, "architecture": platform.machine(),
                "tools": {k: v["version"] for k, v in versions().items()}, "stages": results}
     (report_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-    if code:
-        print(f"FAILED {stage} (exit {code}); log: {log_path}; next: inspect log, fix prerequisite and rerun update-and-build.sh at exact SHA {sha}", file=sys.stderr)
-    else:
-        print(f"PASS {stage}; log: {log_path}")
+    message = (f"FAILED {stage} (exit {code}); log: {log_path}; next: inspect log, "
+               f"fix prerequisite and rerun update-and-build.sh at exact SHA {sha}"
+               if code else f"PASS {stage}; log: {log_path}")
+    print(message, file=sys.stderr if code else sys.stdout)
     return code if code >= 0 else 128 - code
 
 
