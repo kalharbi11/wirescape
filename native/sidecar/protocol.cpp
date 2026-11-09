@@ -2,6 +2,7 @@
 #include "protocol.h"
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdlib>
 #include <iostream>
 #include <set>
