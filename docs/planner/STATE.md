@@ -1,59 +1,48 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-09, Codex Lead review outside #439/Pi installation.
-Pi first; #271 hardware failures preempt features. No queued result is a pass.
+**Updated:** 2026-11-09, Keel open-PR closeout. Owner-reported failures preempt everything.
+No queued, stale or missing result counts as a pass. Live heads and handoffs govern.
 
-## Groove S1 first
-- #451 native S1(a) stays with existing builder; child #454 owns acceptance.
-- Lead31e0aa8 fixes controls0..9; catalogue/conformance now PASS. Linux/Windows
-  fail102cycles: nominal fixture must drain egress between blocks, not raise caps.
-- Mandatory saturated NOTE_OFF retry/reload-pending + note identity tests missing;
-  add separate deliberate saturation fixture, format, rerun accept454/Pi/T1.
-- S1(b) functional editor waits designer + Keel authoritative completed STOP/
-  playhead contract (#4326732415072); no inferred state/invented wire fields.
-- Keep v1, 4x64 transient POD, stable IDs, stopped Apply.
+## Now: finish before start (D18, Compass #437)
+- Canonical queue: `docs/tasks/PR_CLOSEOUT_2026_11_09.md` (lanes A–J). It replaces
+  the READY list in `CLAIMABLE_2026_11_09.md`. No new module/feature issues until the
+  open count is under 10. Compass's D15–D19 + `docs/planner/CLEANUP.md` are on branch
+  `claude/hopeful-hopper-wh0id2` (#437). Cleanup R1–R7 starts after the closeout.
+- Open: 14 PRs (down from 22). Merge order: #427, #323, #400, #442, #310, #210,
+  #405 → #410, #451 → playhead PR, then #399, #458, the Pi PRs and #453.
 
-## Other reviewed agent work
-- #405960ec61 native16step -> #410e151680 UI: existing owner, preserve curated
-  exports/default8/statev1; fix cppcheck emit macro + tests.cpp:376 formatting,
-  fresh native/Studio/Pi acceptance then UI integration.
-- #3906a8be72 Learn seam: hosted CI/static/Web/WASM green; Keel current-head
-  helper-refactor T2 review still needed. #287 waits actual381 merge.
-- #210df81486: required Linux/Windows/sanitizers + private Pi PASS; independent
-  T1 inspection no correctness finding. Authored formatting +803cppcheck triage
-  remain; do not classify whole static red as inherited. Continue same branch.
-- #441ea39c09 OSC inventory selected acceptance/static/Linux/sanitizers PASS;
-  correct stale pre-v4 approval request; protected path also named on440.
-  #82 is oldQt/CLI, not Electron proof. Keel owner/lifecycle/consent/Monitor
-  contract gates runtime. Existing osc.in/monitor IDs; localhost/offLAN.
-- #420 SDK64 MERGED84f926b via gate after signed approval; source checks passed.
-- Owner enabled #427 auto-merge; newhead464c042 needs integration review/gates.
-  Still OPEN, not deployed. Coordinate existing conflict resolver, no duplicate
-  branch. After merge verify main deployment/live8patches/upload-update-delete.
-- #323385ad20: previous acceptance/required/Web/WASM PASS; current main conflict
-  needs normal integration, inherited keyboard-parser classification, new review.
-- #31083a4b05 is already based on main: integrate without rewrite; Interleave
-  first; current T1 review no High/Medium, hosted PASS; actual3Pi probes pending.
-- #398 render evidence MERGED. #4421716e2a: hosted3cases green; Keel safe
-  recovery injection ruling before fourth case; #296
-  actual3600s fake-device edit-soak missing. #387 reduction waits evidence.
-- #4006dcc370 latency: scoped formatting then T2. #43824787c6: Macro baseline
-  required Windows/static green; final Keel reset-lifetime disposition remains.
-- Chord406/Notes423 identity/channel/off/expression/capacity Keel ruling pending;
-  docs-only optional acceptance is not selected evidence. #399 contract gated.
-- #456 refreshes STATE/CLAIMABLE/FOUR_AGENTS; fixes455task discovery; latest393
-  handoff governs. #439 and Pi installation/setup remain out of scope.
+## Keel today (2026-11-09)
+- Merged #456, #438 (merge commit), #441, #390 (T2 final at 6a8be72; #287 unblocked).
+- Closed #82 (Qt OSC; port from branch), #443 (empty), #406 and #423 (parked per D18).
+- #427: main merged → `486d6b9`, approval posted; the gate merges on green.
+- #323: helper merging main (catalogue union); T1 review stands; static is inherited.
+- #400 T2: no High/Medium; conditional approval after a formatting-only head.
+- Rulings: #432 Groove `t1_pos`/`t2_pos` + `playhead` telemetry, capability
+  `telemetry.playhead`; #386 case 4 = native fake-service CTest + Studio mock-bridge
+  state sequence (no test hooks); #293 optional device fields, mono disabled,
+  rate/block stream-only restart with rollback, id-only identity; #72 OSC host in the
+  sidecar Session, `--confirm-lan`, `status.osc`, `monitor` telemetry (slice A is T1).
+- Static rule: fix authored formatting on changed hunks; cppcheck on untouched lines
+  is inherited and Codex Lead merges past it (delegation c). No new suppressions.
 
-## Pi preparation (owner authorized; installation after Windows test)
-- READY #445 preflight/logs: docs/tasks/PI_SOURCE_PREFLIGHT.md; no auto-install.
-- READY #446 ARM64 Electron/profile smoke: docs/tasks/PI_APP_SMOKE.md; reuse #386.
-- Queue/evidence: #444, docs/tasks/PI_SETUP_QUEUE.md; parent #436, related #235.
-- Pi nightly42560014392 pending; actual source SHA/results required, not green.
-- #101 baseline pending; #274 display/#296 soak/#271 hardware stay separate.
+## Keel owes next session
+- T2 cross-family reviews when ready: Groove playhead PR, #399/#293 implementation,
+  OSC slices B/C, #296 private soak review. Chord/Notes→CV ruling when Chord is next.
+- R2 (document coverage swap) review and R6 (ABI1 retirement) lead, after the closeout.
+- Low: the `module2.h` `latency_frames` comment should state the threading rule (label-only).
+
+## Pi preparation (after the Windows test)
+- #450: fix the cache false positive and read-only `--check-only`. Owner installs Node 22.
+- #452: short-header tests; `xvfb-run` smoke, else reported blocked. Owner installs xvfb.
+- #453 guide updates to one accepted SHA after both merge (renamed PI_SETUP in R5).
+- #101 baseline; #274 display, #296 soak and #271 hardware stay separate.
+
+## Sequencers (one at a time)
+- 16-step #405 → #410, then Groove S1 #451 → playhead PR → S1(b) editor, then Chord.
 
 ## Permanent gates
 - Required guard/Linux/Windows/sanitizers + task/Studio/WASM/Pi as applicable.
-- T1 different-session; T2 cross-family. No IDs/unknown data/threshold changes.
-- No force-push/main writes/devices/SSH/LAN; Electron sole automatic restarter.
-- No CI polling/schedules. Handoff exact heads, actual evidence and blockers.
+- T1 different-session; T2 cross-family. No ID, unknown-data or threshold changes.
+- No force-push, main writes, devices/SSH/LAN; Electron is the sole automatic restarter.
+- No CI polling/schedules. Handoffs give exact heads, actual evidence and blockers.
