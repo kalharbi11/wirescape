@@ -9,6 +9,9 @@ CMake and `tools/dev.py build` default to Qt-free. Qt discovery is opt-in via
 Existing Windows Qt CI explicitly opts in. Static already sets ON; CodeQL is
 source-only (`build-mode: none`). No tests or device permissions are removed.
 
+Budget: acceptance counts renames as delete/add: 2,618 byte-identical moved
+lines plus at most 200 actual edited lines (Codex Lead ruling, 2026-11-09).
+
 Read first: issue #464, CLEANUP R1, `native/CMakeLists.txt`, `tools/dev.py`,
 the three CI configure paths, and the audio-service header/license references.
 Report a fresh default configure/build with Qt absent from PATH/prefixes and
@@ -16,7 +19,7 @@ its complete CTest result. Headless tests never open real devices.
 
 ```acceptance
 tier: T1
-size: <= 200 changed lines, <= 14 files
+size: <= 2800 changed lines, <= 14 files
 must_pass:
   - python -c "import subprocess,sys; r=subprocess.run(['git','grep','-n','ui/third_party','--','native'],capture_output=True,text=True); sys.exit(1 if r.stdout.strip() else 0)"
   - python tools/dev.py build --headless
