@@ -1,0 +1,27 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "sound.spectral",
+  "name": "Spectral",
+  "library": "ws2_spectral",
+  "description": "Two-source STFT processes: morph, cross-synthesis, max, mean, min, A minus B.",
+  "license": "GPL-3.0-only",
+  "parameters": {
+    "mode": 0,
+    "size": 1,
+    "morph": 2,
+    "curve": 3,
+    "pitch": 4,
+    "amount": 5,
+    "smooth": 6,
+    "b_level": 7,
+    "level": 8
+  },
+  "inputs": {
+    "a": "signal",
+    "b": "signal"
+  },
+  "outputs": {
+    "audio": "signal"
+  }
+}

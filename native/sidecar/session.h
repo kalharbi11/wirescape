@@ -3,12 +3,42 @@
 #include "../io/audio/portaudio_service.h"
 #include "devices.h"
 #include "midi_host.h"
+#include "../document/telemetry_taps.h"
+#include <array>
 #include <set>
 namespace wirescape::sidecar {
 struct Options {
-    bool audio = false, midi = false, null_audio = false;
+    bool audio = false, midi = false, null_audio = false, bench_summary = false;
     std::string device, settings = "user_data/settings.json", directory;
     uint32_t rate = 48000, block = 256;
+};
+// The sink thread is the sole writer. Read only after it has joined.
+struct RenderHistogram {
+    std::array<uint64_t, 201> bins{}; // 0..199%, plus >=200%
+    uint64_t blocks = 0, overruns = 0, faults = 0, previous_faults = 0;
+    double max_percent = 0;
+
+    // Sample the existing Engine2 render-fault meter on the sink thread.
+    // A replan may reset the engine counter; retain all observed deltas.
+    void observe_faults(uint64_t current) noexcept {
+        faults += current >= previous_faults ? current - previous_faults : current;
+        previous_faults = current;
+    }
+    void record(double percent, bool late) noexcept {
+        ++bins[static_cast<size_t>(percent >= 200 ? 200 : percent)];
+        ++blocks;
+        if (late) ++overruns;
+        if (percent > max_percent) max_percent = percent;
+    }
+    uint32_t percentile(uint32_t pct) const noexcept {
+        if (!blocks) return 0;
+        uint64_t rank = (blocks - 1) * pct / 100 + 1;
+        for (size_t i = 0; i < bins.size(); ++i) {
+            if (rank <= bins[i]) return static_cast<uint32_t>(i);
+            rank -= bins[i];
+        }
+        return 200;
+    }
 };
 class Session {
     Options options_;
@@ -19,22 +49,28 @@ class Session {
     ObservedMidi *observer_ = nullptr;
     std::unique_ptr<midi::Host> midi_;
     Json patch_, preferences_ = Json::object(), audio_devices_, midi_devices_;
-    std::string token_, device_, fallback_, audio_state_ = "no-device";
+    std::string token_, device_, audio_state_ = "no-device";
     uint64_t generation_ = 0, tick_ = 0;
     std::set<uint32_t> used_ids_;
+    document::telemetry::Sampler telemetry_;
     std::array<bool, 128> keyboard_{};
     std::mutex sink_mutex_;
     std::condition_variable sink_wake_;
     std::thread sink_;
-    std::atomic<bool> stop_sink_{false};
+    std::atomic<bool> stop_sink_{false}, sink_rendering_{false};
     std::atomic<double> cpu_{0};
     std::atomic<uint64_t> dropouts_{0};
+    RenderHistogram bench_; // only sink thread records; joined before shutdown reads
+    bool bench_reported_ = false;
     std::chrono::steady_clock::time_point started_ = std::chrono::steady_clock::now();
-    void start_audio();
+    std::chrono::steady_clock::time_point audio_retry_{};
+    std::chrono::milliseconds audio_backoff_{100};
+    void start_audio(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
+    bool poll_audio(std::chrono::steady_clock::time_point, bool enumerated);
     void stop_audio();
     void start_midi();
     void persist();
-    void refresh_devices();
+    bool refresh_devices();
     Json execution(Json);
     void commit(Json, bool);
     Json apply(const Json &);
@@ -46,13 +82,14 @@ class Session {
     explicit Session(Options);
     ~Session();
     void shutdown();
-    void start(); // begin rendering only after the hello handshake is flushed
+    // Begin rendering only after the hello handshake is flushed.
+    void start(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
     Json hello() const;
     Json reply(const Request &);
     Json status() const;
     Json telemetry();
     Json devices();
-    bool poll();
+    bool poll(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
 };
 Options parse_options(int, char **);
 } // namespace wirescape::sidecar

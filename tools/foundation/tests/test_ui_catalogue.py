@@ -58,3 +58,13 @@ class UiCatalogueTests(unittest.TestCase):
         path.write_text(json.dumps(data))
         module = next(m for m in json.loads(generator.generate(self.root))['modules'] if m['id'] == data['id'])
         self.assertEqual(next(p for p in module['ports'] if p['id'] == 'pitch')['kind'], 'event')
+
+    def test_conditional_visibility_and_unknown_presentation_keys_survive(self):
+        path = self.root / 'apps/studio/public/catalogue-presentation.json'
+        data = json.loads(path.read_text())
+        param = data['modules'][0]['parameters'][0]
+        param['visibleWhen'] = {'param': 'mode', 'values': [6, 7], 'future': True}
+        param['futurePresentation'] = {'nested': [1, 2]}
+        path.write_text(json.dumps(data))
+        generated = json.loads(generator.generate(self.root))['modules'][0]['parameters'][0]
+        self.assertEqual(generated, param)

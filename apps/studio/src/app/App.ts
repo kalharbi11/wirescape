@@ -17,13 +17,20 @@ import { QuickAdd } from './QuickAdd';
 import { Toasts } from '../system/Toasts';
 import { StatusBar } from '../system/StatusBar';
 import { ComputerKeyboard, isTyping } from './Keyboard';
+import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
 import { STARTERS, DEFAULT_STARTER } from './starters';
+import { CURATED_PATCHES } from './curated';
+import { playableStarters } from '../web/starters';
 import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } from '../theme/theme';
 import { el } from './dom';
+import demoChaos from '../../../../native/examples/class_demo_1_chaos.json' with { type: 'json' };
+import demoSub from '../../../../native/examples/class_demo_2_subtractive.json' with { type: 'json' };
+import demoMacro from '../../../../native/examples/class_demo_3_macro.json' with { type: 'json' };
 
 const AUTOSAVE_KEY = 'wirescape.autosave.v2';
+const ACTIVE_SESSION_KEY = 'wirescape.session.active.v1';
 /** Copied modules survive a reload and a patch change, so paste works between patches. */
 const CLIPBOARD_KEY = 'wirescape.clipboard.v1';
 
@@ -38,13 +45,20 @@ export class App {
   private maxModuleId = 0;
   private canvas!: PatchCanvas;
   private library!: Library;
+  private libraryScrim!: HTMLButtonElement;
+  private menuBtn!: HTMLButtonElement;
   private quick!: QuickAdd;
   private toasts = new Toasts();
   private statusBar!: StatusBar;
   private keyboard!: ComputerKeyboard;
+  private piano!: OnScreenKeyboard;
   private devPanel!: DevPanel;
   private settings = new Modal('settings-modal');
   private shortcuts = new Modal('shortcuts-modal');
+  private patchBrowser = new Modal('patch-browser');
+  private bundledPatch = false;
+  private recovery = new Modal('recovery-modal');
+  private recoveryPending = false;
   private prefs: Preferences;
   private patchName = 'Untitled';
   private zoomLabel!: HTMLElement;
@@ -57,6 +71,7 @@ export class App {
   private undoBtn!: HTMLButtonElement;
   private redoBtn!: HTMLButtonElement;
   private clip: Clip | null = null;
+  private starterSelect?: HTMLSelectElement;
   private pasteCount = 0;
 
   constructor(
@@ -92,8 +107,8 @@ export class App {
 
   private build(): void {
     this.library = new Library(this.registry, {
-      add: type => this.addModuleCentred(type),
-      addAt: (type, x, y) => this.addModuleAt(type, x, y),
+      add: type => { this.setLibraryOpen(false); this.addModuleCentred(type); },
+      addAt: (type, x, y) => { this.setLibraryOpen(false); this.addModuleAt(type, x, y); },
     });
 
     this.quick = new QuickAdd(this.registry);
@@ -126,17 +141,19 @@ export class App {
     this.canvas.bindActivity();
 
     this.statusBar = new StatusBar({
-      onPanic: () => { this.engine.panic(); this.toasts.show('All notes stopped.'); },
+      onPanic: () => { this.keyboard.releaseAll(); this.engine.panic(); this.toasts.show('All notes stopped.'); },
       onOpenSettings: () => this.openSettings(),
       onClockToggle: running => this.toggleClock(running),
     });
 
     this.keyboard = new ComputerKeyboard(this.engine);
-    this.keyboard.onOctaveChange = o => { this.octaveEl.textContent = `OCT ${o}`; };
+    this.keyboard.setEnabled(this.prefs.computerKeyboardPlays);
+    this.piano = new OnScreenKeyboard(this.keyboard);
+    this.keyboard.onOctaveChange = o => { this.octaveEl.textContent = `OCT ${o}`; this.piano.refresh(); };
     this.devPanel = new DevPanel(this.engine, this.ticker);
 
     const main = el('div', 'main');
-    main.append(this.buildTopBar(), this.canvas.root, this.statusBar.root);
+    main.append(this.buildTopBar(), this.canvas.root, this.piano.root, this.statusBar.root);
 
     this.fileInput = el('input') as HTMLInputElement;
     this.fileInput.type = 'file';
@@ -145,9 +162,16 @@ export class App {
     this.fileInput.dataset.testid = 'file-input';
     this.fileInput.addEventListener('change', () => void this.importFile());
 
+    this.libraryScrim = el('button', 'library-scrim') as HTMLButtonElement;
+    this.libraryScrim.type = 'button';
+    this.libraryScrim.hidden = true;
+    this.libraryScrim.dataset.testid = 'library-backdrop';
+    this.libraryScrim.setAttribute('aria-label', 'Close module library');
+    this.libraryScrim.addEventListener('click', () => this.setLibraryOpen(false));
+
     this.root.append(
-      this.library.root, main, this.toasts.root, this.quick.root,
-      this.devPanel.root, this.settings.root, this.shortcuts.root, this.fileInput,
+      this.library.root, main, this.libraryScrim, this.toasts.root, this.quick.root,
+      this.devPanel.root, this.settings.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
     );
 
     this.attachDropTarget();
@@ -160,8 +184,12 @@ export class App {
     bar.dataset.testid = 'topbar';
 
     const left = el('div', 'topbar-left');
-    const menuBtn = this.action('☰', () => this.root.classList.toggle('library-open'), 'menu-toggle');
+    const menuBtn = this.menuBtn = this.action('☰', () =>
+      this.setLibraryOpen(!this.root.classList.contains('library-open')), 'menu-toggle');
     menuBtn.classList.add('icon-only', 'menu-btn');
+    menuBtn.setAttribute('aria-label', 'Show module library');
+    menuBtn.setAttribute('aria-expanded', 'false');
+    menuBtn.setAttribute('aria-controls', 'module-library');
     this.nameEl = el('span', 'patch-name', this.patchName);
     this.nameEl.dataset.testid = 'patch-name';
     this.nameEl.title = 'Click to rename the patch';
@@ -181,14 +209,11 @@ export class App {
     const blank = document.createElement('option');
     blank.value = ''; blank.textContent = 'Starter patches…';
     starters.append(blank);
-    for (const s of STARTERS) {
-      const o = document.createElement('option');
-      o.value = s.id; o.textContent = s.name; o.title = s.note;
-      starters.append(o);
-    }
+    this.starterSelect = starters;
+    this.fillStarters();
     starters.addEventListener('change', () => {
       const s = STARTERS.find(x => x.id === starters.value);
-      if (s) { this.loadPatch(s.patch(), s.name); this.toasts.show(`${s.name} loaded.`); }
+      if (s) { void this.loadBundledPatch(s.patch(), s.name); this.toasts.show(`${s.name} loaded.`); }
       starters.value = '';
     });
 
@@ -210,6 +235,13 @@ export class App {
     this.canvas.viewport.on(v => { this.zoomLabel.textContent = `${Math.round(v.s * 100)}%`; });
 
     const tools = el('div', 'toolbar');
+    const keys = this.action('KEYS', () => {
+      keys.setAttribute('aria-expanded', String(this.piano.toggle()));
+      this.canvas.updateVisibility();
+    }, 'toggle-keyboard');
+    keys.setAttribute('aria-expanded', 'false');
+    keys.setAttribute('aria-controls', this.piano.root.id);
+    keys.title = 'Show or hide the playable keyboard';
     this.undoBtn = this.action('↶', () => this.undo(), 'undo');
     this.redoBtn = this.action('↷', () => this.redo(), 'redo');
     this.undoBtn.title = 'Undo (Ctrl/Cmd + Z)';
@@ -217,15 +249,38 @@ export class App {
     const history = el('div', 'zoom-group history-group');
     history.append(this.undoBtn, this.redoBtn);
     tools.append(
+      keys,
       this.action('NEW', () => this.newPatch(), 'new-patch'),
       this.action('OPEN', () => void this.openPatchFile(), 'open-patch'),
+      this.action('PATCHES', () => void this.openPatchBrowser(), 'open-patch-browser'),
       this.action('SAVE', () => void this.savePatchFile(), 'save-patch'),
       this.action('?', () => this.shortcuts.open('Keyboard shortcuts'), 'shortcuts-btn'),
     );
 
-    right.append(starters, this.octaveEl, history, zoomGroup, tools);
+    // Keep zoom at the start of the scrollable mobile toolbar, after patches.
+    right.append(starters, this.octaveEl, zoomGroup, history, tools);
     bar.append(left, right);
     return bar;
+  }
+
+  private setLibraryOpen(open: boolean): void {
+    this.root.classList.toggle('library-open', open);
+    this.libraryScrim.hidden = !open;
+    this.menuBtn.setAttribute('aria-expanded', String(open));
+    this.menuBtn.setAttribute('aria-label', open ? 'Hide module library' : 'Show module library');
+  }
+
+  /** The web demo only lists starters its engine can play; desktop lists them all. */
+  private fillStarters(): void {
+    const select = this.starterSelect;
+    if (!select) return;
+    while (select.options.length > 1) select.remove(1);
+    const list = window.wirescape?.web ? playableStarters(STARTERS, this.registry) : STARTERS;
+    for (const s of list) {
+      const o = document.createElement('option');
+      o.value = s.id; o.textContent = s.name; o.title = s.note;
+      select.append(o);
+    }
   }
 
   private action(label: string, fn: () => void, testid: string): HTMLButtonElement {
@@ -252,8 +307,9 @@ export class App {
         if (state === 'restarting') { this.ticker.resetTelemetry(); this.lastStatus = null; }
       });
       this.engine.onGraphError(e => this.toasts.show(e.message, 'error'));
-      this.engine.onCatalogue(() => { this.library.refresh(); this.canvas.rebuild(); });
+      this.engine.onCatalogue(() => { this.library.refresh(); this.canvas.rebuild(); this.fillStarters(); });
       window.wirescape?.onMessage(m => {
+        if (m.type === 'app.engineExited' && m.expected !== true) this.offerRecovery('engine');
         if (m.type === 'app.menuOpenPatch') void this.openPatchFile();
         if (m.type === 'app.menuSavePatch') void this.savePatchFile(m.saveAs === true);
       });
@@ -262,29 +318,80 @@ export class App {
     this.engine.start();
     this.keyboard.attach();
 
-    const restored = this.restoreAutosave();
+    let unclean = false;
+    try {
+      unclean = localStorage.getItem(ACTIVE_SESSION_KEY) === '1';
+      localStorage.setItem(ACTIVE_SESSION_KEY, '1');
+    } catch { /* storage unavailable: keep ordinary startup usable */ }
+    const saved = unclean ? this.readAutosave() : null;
+    this.recoveryPending = !!saved;
+    const restored = !saved && this.restoreAutosave();
     if (!restored) this.loadPatch(DEFAULT_STARTER.patch(), DEFAULT_STARTER.name);
+    if (saved) this.offerRecovery('app', saved);
 
     requestAnimationFrame(() => { this.canvas.fit(); this.canvas.invalidateAnchors(); });
-    window.addEventListener('resize', () => this.canvas.updateVisibility());
+    window.addEventListener('resize', () => {
+      this.canvas.updateVisibility();
+      if (window.innerWidth > 1060) this.setLibraryOpen(false);
+    });
     setInterval(() => this.autosave(), 4000);
+    window.addEventListener('pagehide', () => {
+      if (this.recoveryPending) return; // Keep the original snapshot across an unanswered offer.
+      this.autosave(true);
+      try { localStorage.removeItem(ACTIVE_SESSION_KEY); } catch { /* storage unavailable */ }
+    });
     this.doc.on(() => this.refreshDirty());
   }
 
-  private restoreAutosave(): boolean {
+  private readAutosave(): { name: string; patch: PatchV2 } | null {
     try {
       const raw = localStorage.getItem(AUTOSAVE_KEY);
-      if (!raw) return false;
+      if (!raw) return null;
       const saved = JSON.parse(raw) as { name?: string; patch: PatchV2 };
-      if (!saved?.patch?.modules) return false;
-      this.loadPatch(saved.patch, saved.name ?? 'Untitled');
-      this.toasts.show('Restored your last patch.');
-      return true;
-    } catch { return false; }
+      if (!saved?.patch || !Array.isArray(saved.patch.modules) || !Array.isArray(saved.patch.connections)) return null;
+      if (saved.patch.format !== 'wirescape.native.patch' || saved.patch.version !== 2) return null;
+      const check = PatchDoc.from(saved.patch);
+      if (check.modules.size !== saved.patch.modules.length || check.connections.length !== saved.patch.connections.length) return null;
+      return { patch: saved.patch, name: typeof saved.name === 'string' ? saved.name : 'Untitled' };
+    } catch { return null; }
   }
 
-  private autosave(): void {
-    if (!this.doc.dirty) return;
+  private restoreAutosave(): boolean {
+    const saved = this.readAutosave();
+    if (!saved) return false;
+    void this.loadPatch(saved.patch, saved.name);
+    this.toasts.show('Restored your last patch.');
+    return true;
+  }
+
+  private offerRecovery(reason: 'app' | 'engine', saved = this.readAutosave()): void {
+    if (!saved || this.recovery.isOpen) return;
+    this.recoveryPending = true;
+    this.keyboard.releaseAll();
+    const b = this.recovery.body;
+    b.replaceChildren(el('p', '', `${reason === 'app' ? 'The previous session ended unexpectedly.' : 'The engine disconnected.'} Restore the last autosave of “${saved.name}”? Your saved patch file will not be changed.`));
+    const restore = el('button', 'btn', 'Restore autosave') as HTMLButtonElement;
+    const decline = el('button', 'btn', 'Keep current patch') as HTMLButtonElement;
+    restore.dataset.testid = 'recovery-restore';
+    decline.dataset.testid = 'recovery-decline';
+    let restoring = false;
+    restore.addEventListener('click', () => {
+      restoring = true;
+      this.recovery.close();
+      void this.loadPatch(saved.patch, saved.name);
+    });
+    decline.addEventListener('click', () => this.recovery.close());
+    b.append(restore, decline);
+    this.recovery.open('Recover patch', () => {
+      this.recoveryPending = false;
+      if (!restoring) this.autosave(true);
+    });
+  }
+
+  private autosave(force = false): void {
+    if (this.recoveryPending) return;
+    // A newly selected clean patch still replaces the previous recovery snapshot.
+    if (!force && !this.doc.dirty) return;
     try {
       localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ name: this.patchName, patch: this.doc.toJSON() }));
     } catch { /* storage full or unavailable */ }
@@ -292,7 +399,7 @@ export class App {
 
   // ---- patch lifecycle --------------------------------------------------
 
-  async loadPatch(patch: PatchV2, name = 'Untitled'): Promise<void> {
+  async loadPatch(patch: PatchV2, name = 'Untitled', forceSaveAs = false): Promise<void> {
     this.ticker.resetTelemetry();
     this.doc.replace(patch);
     this.patchName = name;
@@ -300,13 +407,25 @@ export class App {
     this.maxModuleId = Math.max(0, ...patch.modules.map(m => m.id));
     const running = this.engine.loadGraph(this.doc.toJSON());
     const v = patch.ui?.view;
-    if (v && v.zoom) this.canvas.viewport.setView(v.x, v.y, v.zoom);
-    else requestAnimationFrame(() => this.canvas.fit());
+    // Restoring/fitting the viewport is presentation, not a source-document edit.
+    const loadedUi = this.doc.ui;
+    const restoreView = () => {
+      if (this.doc.ui !== loadedUi) return;
+      const view = this.doc.ui.view;
+      if (v && v.zoom) this.canvas.viewport.setView(v.x, v.y, v.zoom);
+      else this.canvas.fit();
+      if (view === undefined) delete this.doc.ui.view;
+      else this.doc.ui.view = view;
+    };
+    if (v && v.zoom) restoreView();
+    else requestAnimationFrame(restoreView);
     requestAnimationFrame(() => this.canvas.invalidateAnchors());
     this.doc.markClean();
     this.refreshDirty();
     this.history?.reset();
+    this.autosave(true);
     this.pasteCount = 0;
+    this.bundledPatch = forceSaveAs;
     try { await running; }
     catch (e) { this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error'); }
   }
@@ -451,9 +570,10 @@ export class App {
     const skipped: string[] = [];
     for (const m of clip.modules) {
       const id = this.allocateId();
-      try { this.engine.addModule(id, m.module, m.parameters); }
+      const params = m.parameters ?? {};
+      try { this.engine.addModule(id, m.module, params); }
       catch { skipped.push(m.module); continue; }
-      this.doc.addModule(m.module, m.parameters, m.pos[0] + dx, m.pos[1] + dy, id);
+      this.doc.addModule(m.module, params, m.pos[0] + dx, m.pos[1] + dy, id);
       this.trackRollback(() => this.doc.removeModule(id));
       const added = this.doc.modules.get(id);
       if (added) Object.assign(added, m.extra);
@@ -498,6 +618,7 @@ export class App {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     this.doc.markClean();
     this.refreshDirty();
+    this.autosave(true);
     this.toasts.show('Patch saved.');
   }
 
@@ -611,7 +732,7 @@ export class App {
     }
     this.canvas.selectModule(id, false);
     this.canvas.invalidateAnchors();
-    this.root.classList.remove('library-open');
+    this.setLibraryOpen(false);
     this.toasts.show(`${d.name} added.`);
     return id;
   }
@@ -719,6 +840,7 @@ export class App {
     if (next === null) return;
     this.patchName = next.trim() || 'Untitled';
     this.nameEl.textContent = this.patchName;
+    this.autosave(true);
   }
 
   private toggleClock(running: boolean): void {
@@ -746,7 +868,7 @@ export class App {
       if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); this.duplicate(); return; }
       if (mod && e.key.toLowerCase() === 'f') { e.preventDefault(); this.library.focusSearch(); return; }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this.deleteSelection(); return; }
-      if (e.key === 'Escape') { this.canvas.select({ kind: 'none' }); this.root.classList.remove('library-open'); return; }
+      if (e.key === 'Escape') { this.canvas.select({ kind: 'none' }); this.setLibraryOpen(false); return; }
       if (e.key === '?') { e.preventDefault(); this.shortcuts.open('Keyboard shortcuts'); return; }
       if (e.key === '`' || (e.shiftKey && e.key.toLowerCase() === 'd')) { e.preventDefault(); this.devPanel.toggle(); return; }
       if (e.key === '0' && mod) { e.preventDefault(); this.canvas.viewport.zoomTo(1); return; }
@@ -857,6 +979,11 @@ export class App {
     b.append(el('h3', 'settings-group', 'MIDI'));
     const midiFields = el('div', 'settings-midi');
     b.append(midiFields);
+    const computerKeys = switchButton(this.prefs.computerKeyboardPlays,
+      on => this.setPref({ computerKeyboardPlays: on }));
+    computerKeys.dataset.testid = 'computer-keyboard-plays';
+    b.append(field('Computer keyboard plays', computerKeys,
+      'A/W/S… plays notes in patches with a Keyboard module. MIDI inputs use their own device switches.'));
     void engine.listMidiDevices().then(devices => {
       if (!b.contains(midiFields)) return;
       if (!devices.length) {
@@ -953,7 +1080,10 @@ export class App {
       el('div', '', `Wirescape Studio prototype · ${__APP_VERSION__}`),
       el('div', 'muted', `Build ${__BUILD__} · ${navigator.hardwareConcurrency ?? '?'} cores · profile ${this.prefs.profile}`),
       el('div', 'muted', this.engine instanceof RealEngine
-        ? 'Native engine via the isolated preload bridge.' : 'Simulated engine. No audio or hardware MIDI.'),
+        ? window.wirescape?.web
+          ? 'WebAssembly audio engine running in an AudioWorklet. No hardware MIDI or OSC.'
+          : 'Native engine via the isolated preload bridge.'
+        : 'Simulated engine. No audio or hardware MIDI.'),
       upd, updOut,
     );
     b.append(about);
@@ -972,6 +1102,7 @@ export class App {
     this.prefs = { ...this.prefs, ...patch };
     applyPrefs(this.prefs);
     savePrefs(this.prefs);
+    this.keyboard.setEnabled(this.prefs.computerKeyboardPlays);
     CanvasPane.setZoom(this.canvas.viewport.view.s, true);
     this.ticker.throttleHz = this.prefs.profile === 'pi' ? 30 : 0;
     // Hit areas change the geometry the layout is derived from, so every
@@ -980,6 +1111,65 @@ export class App {
     requestAnimationFrame(() => this.canvas.invalidateAnchors());
   }
 
+
+  private async loadBundledPatch(patch: PatchV2, name: string): Promise<void> {
+    try { await window.wirescape?.openPatch({ library: 'reset' }); }
+    catch { /* Save As below protects the previous native target if reset fails. */ }
+    const loading = this.loadPatch(patch, name, true);
+    const loadedUi = this.doc.ui;
+    await loading;
+    // The wide, multi-row bundled graphs should open fully framed, not at 100%
+    // on their first leftmost module. Imported user patches keep their saved view.
+    requestAnimationFrame(() => {
+      if (this.doc.ui === loadedUi) this.canvas.fit();
+    });
+  }
+
+  private async openPatchBrowser(): Promise<void> {
+    const body = this.patchBrowser.body;
+    body.replaceChildren();
+    const message = el('p', '', '');
+    const choose = async (read: () => Promise<{ patch: PatchV2; name: string } | null>, bundled: boolean) => {
+      if (this.doc.dirty && !window.confirm('Discard unsaved edits and switch patches?')) return;
+      try {
+        // A native read can adopt its save target before renderer validation.
+        // Until this document loads successfully, plain Save must ask for a path.
+        this.bundledPatch = true;
+        const selected = await read();
+        if (!selected) return;
+        if (!Array.isArray(selected.patch.modules) || !Array.isArray(selected.patch.connections)) throw new Error('Invalid patch.');
+        if (bundled) await this.loadBundledPatch(selected.patch, selected.name);
+        else await this.loadPatch(selected.patch, selected.name);
+        this.patchBrowser.close();
+      } catch (e) { message.textContent = e instanceof Error ? e.message : 'Could not open patch.'; }
+    };
+    body.append(message, el('h3', 'settings-group', 'BUNDLED · READ ONLY'));
+    const bundled = [...STARTERS.filter(s => s.id.startsWith('qt-')).map(s => ({ name: s.name, patch: s.patch() })),
+      ...STARTERS.filter(s => CURATED_PATCHES.some(p => p.id === s.id)).map(s => ({ name: s.name, patch: s.patch() })),
+      { name: 'Class demo · CHAOS', patch: demoChaos as unknown as PatchV2 },
+      { name: 'Class demo · Subtractive', patch: demoSub as unknown as PatchV2 },
+      { name: 'Class demo · Macro', patch: demoMacro as unknown as PatchV2 }];
+    for (const [i, item] of bundled.filter(item => item.patch.modules.every(m => this.registry.has(m.module))).entries()) {
+      const button = this.action(item.name + ' · read only', () => void choose(async () => item, true), `bundled-patch-${i}`);
+      body.append(button);
+    }
+    body.append(el('h3', 'settings-group', 'USER PATCHES'));
+    const users = el('div');
+    body.append(users);
+    this.patchBrowser.open('Patch browser');
+    if (!window.wirescape) { users.textContent = 'User patch folder is available in the desktop app.'; return; }
+    try {
+      const result = await window.wirescape.openPatch({ library: 'list' });
+      if (!this.patchBrowser.isOpen) return;
+      const names: unknown = result ? JSON.parse(result.text) : [];
+      if (!Array.isArray(names) || names.length > 256 || names.some(n => typeof n !== 'string')) throw new Error('Invalid patch list.');
+      if (!names.length) users.textContent = 'No user patches yet. Save a copy to add one.';
+      for (const [i, name] of names.entries()) users.append(this.action(name, () => void choose(async () => {
+        const file = await window.wirescape!.openPatch({ library: 'read', name });
+        return file ? { name: file.name, patch: JSON.parse(file.text) as PatchV2 } : null;
+      }, false), `user-patch-${i}`));
+    } catch (e) { message.textContent = e instanceof Error ? e.message : 'Could not list patches.'; }
+  }
 
   /** Native dialogs belong to Electron main; browser-only use keeps file input/export. */
   private async openPatchFile(): Promise<void> {
@@ -998,12 +1188,14 @@ export class App {
   private async savePatchFile(saveAs = false): Promise<void> {
     if (!window.wirescape) { this.exportPatch(); return; }
     try {
-      const result = await window.wirescape.savePatch(JSON.stringify(this.doc.toJSON(), null, 2), { saveAs });
+      const result = await window.wirescape.savePatch(JSON.stringify(this.doc.toJSON(), null, 2), { saveAs: saveAs || this.bundledPatch });
       if (!result) return;
+      this.bundledPatch = false;
       this.patchName = result.name;
       this.nameEl.textContent = result.name;
       this.doc.markClean();
       this.refreshDirty();
+      this.autosave(true);
       this.toasts.show('Patch saved.');
     } catch (e) {
       this.toasts.show(e instanceof Error ? e.message : 'Could not save patch.', 'error');
@@ -1026,9 +1218,7 @@ export class App {
   testApi() {
     return {
       state: () => this.doc.toJSON(),
-      autosaveNow: () => {
-        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ name: this.patchName, patch: this.doc.toJSON() }));
-      },
+      autosaveNow: () => this.autosave(true),
       clearAutosave: () => localStorage.removeItem(AUTOSAVE_KEY),
       patchName: () => this.patchName,
       load: (p: PatchV2, name?: string) => this.loadPatch(p, name),
@@ -1072,4 +1262,3 @@ export class App {
 
 declare const __APP_VERSION__: string;
 declare const __BUILD__: string;
-

@@ -16,7 +16,7 @@ extern "C" {
 #define WS_ABI2_VERSION 2u
 #define WS2_MAX_CHANNELS 16u
 #define WS2_MAX_PORTS 32u
-#define WS2_MAX_PARAMS 32u
+#define WS2_MAX_PARAMS 64u /* raised from 32 (additive, #402); hosts reject descriptors above it */
 #define WS2_MAX_PAYLOAD 1472u
 #define WS2_DIRECT_PORT UINT32_MAX
 enum ws2_result { WS2_OK=0, WS2_INVALID=1, WS2_CAPACITY=2, WS2_UNSUPPORTED=3, WS2_EXCEPTION=4, WS2_STATE=5 };

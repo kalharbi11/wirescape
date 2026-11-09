@@ -57,13 +57,48 @@ class AcceptanceTests(unittest.TestCase):
         code, report = self.run_task(commands)
         self.assertEqual(code, 0)
         self.assertEqual([item["status"] for item in report["commands"]], ["external"] * len(commands))
+        self.assertEqual([item["kind"] for item in report["commands"]], list(acceptance.EXTERNAL))
+        self.assertEqual(report["status"], "incomplete")
 
     def test_pi_run_is_external_and_preserves_runner_command(self):
         command = 'pi-run: build/native/probe --benchmark # runner only'
         with patch.object(acceptance, "run_logged", side_effect=AssertionError("Pi command executed locally")):
             code, report = self.run_task([command])
         self.assertEqual(code, 0)
-        self.assertEqual(report["commands"], [{"command": command, "status": "external"}])
+        self.assertEqual(report["commands"], [{"command": command, "kind": "pi-run:", "status": "external"}])
+        self.assertEqual(report["status"], "incomplete")
+
+    def test_strict_incomplete_exits_nonzero_but_preserves_local_compatibility(self):
+        commands = ['python -c "pass"', 'ci: guard green', 'pi: descriptive check',
+                    'pi-run: ctest -R probe', 'user: physical listening']
+        code, report = self.run_task(commands)
+        self.assertEqual(code, 0)
+        self.assertEqual(report["status"], "incomplete")
+        self.assertEqual(report["commands"][0]["status"], "passed")
+        code, report = self.run_task(commands, strict=True)
+        self.assertEqual(code, 1)
+        self.assertEqual(report["status"], "incomplete")
+        self.assertNotIn("Acceptance: passed", (self.root / "build_reports/accept-85.md").read_text())
+
+    def test_unknown_prefix_fails_without_execution(self):
+        with patch.object(acceptance, "run_logged", side_effect=AssertionError("unknown prefix executed")):
+            code, report = self.run_task(["custom: do not execute"])
+        self.assertEqual(code, 1)
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["commands"][0]["kind"], "unknown")
+        self.assertIn("unknown acceptance prefix", report["commands"][0]["error"])
+
+    def test_empty_external_requirement_fails_closed(self):
+        code, report = self.run_task(["pi-run:"])
+        self.assertEqual(code, 1)
+        self.assertEqual(report["status"], "failed")
+        self.assertIn("empty", report["commands"][0]["error"])
+
+    def test_unavailable_size_keeps_aggregation_incomplete(self):
+        with patch.object(acceptance, "size_check", return_value={"status": "unavailable"}):
+            code, report = self.run_task(['python -c "pass"'], strict=True)
+        self.assertEqual(code, 1)
+        self.assertEqual(report["status"], "incomplete")
 
     def test_size_overflow_and_binary_fail(self):
         with patch.object(subprocess, "check_output", side_effect=[b"abc123\n", b"12\t3\tfile.cpp\0"]):
@@ -159,6 +194,74 @@ class AcceptanceTests(unittest.TestCase):
                 source.write_text(contents, encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "not verified"):
                     acceptance.select_pr_task(self.root, "Closes #114")
+
+    def test_pr_selection_ignores_quoted_example_and_code_directives(self):
+        examples = (
+            "The PR quotes \x60Closes #384\x60 but does not close that issue.",
+            "\x60Closes #384\x60",
+            "For example: Closes #384",
+            "> Closes #384",
+            "> an example\nCloses #384",  # lazy block-quote continuation
+            "- \x60Closes #384\x60",
+            "- an example\nCloses #384",  # lazy list continuation
+            "- an example\n<!-- context -->\nCloses #384",
+            "1. \x60Closes #384\x60",
+            "    Closes #384",
+            "\tCloses #384",
+            "\x60\x60\x60markdown\nCloses #384\n\x60\x60\x60",
+            "~~~markdown\nCloses #384\n~~~",
+            "<!-- Closes #384 -->",
+            "<!--\nCloses #384\n-->",
+        )
+        for example in examples:
+            with self.subTest(example=example):
+                issue, path, message = acceptance.select_pr_task(self.root, example)
+                self.assertIsNone(issue)
+                self.assertIsNone(path)
+                self.assertIn("not selected", message)
+
+    def test_pr_selection_first_real_line_and_fail_closed(self):
+        directory = self.root / "docs/tasks"
+        directory.mkdir(parents=True)
+        actual = directory / "real.md"
+        actual.write_text(task(["python -c 'pass'"]).replace("#85", "#114"), encoding="utf-8")
+        examples = ("> Closes #384\n\n- \x60Closes #384\x60\n\n"
+                    + "\x60\x60\x60markdown\nCloses #384\n\x60\x60\x60\n\n"
+                    + "<!-- Closes #384 -->\n\n<!--\nCloses #384\n-->\n\n")
+        for real in ("Closes #114", "closes #114.", "   ClOsEs #114 (implementation)",
+                     "This closes #114.", "- Closes #114", "1. Closes #114",
+                     "- This closes #114", "The change <!-- context --> closes #114.",
+                     "Closes #114 <!-- context -->",
+                     "Closes #114 <!-- context\nstill context -->",
+                     "<!-- context\nstill context --> Closes #114"):
+            with self.subTest(real=real):
+                issue, path, note = acceptance.select_pr_task(
+                    self.root, examples + real + "\nCloses #999")
+                self.assertEqual((issue, path, note), (114, actual, ""))
+        with self.assertRaisesRegex(ValueError, "not verified.*#999"):
+            acceptance.select_pr_task(self.root, examples + "Closes #999\nCloses #114")
+
+    def test_pr_selection_atx_heading_ends_lazy_blocks(self):
+        directory = self.root / "docs/tasks"
+        directory.mkdir(parents=True)
+        actual = directory / "real.md"
+        actual.write_text(task(["python -c 'pass'"]).replace("#85", "#114"), encoding="utf-8")
+        for body in ("> quoted example\n# Closes #114",
+                     "- list example\n# Closes #114",
+                     "1. numbered example\n## This closes #114"):
+            with self.subTest(body=body):
+                issue, path, note = acceptance.select_pr_task(self.root, body + "\nCloses #999")
+                self.assertEqual((issue, path, note), (114, actual, ""))
+        # A missing space after # or a seven-hash marker is not an ATX heading;
+        # indented list content is not a new top-level heading.
+        for body in ("> quoted example\n#Closes #114",
+                     "> quoted example\n####### Closes #114",
+                     "- list example\n  # Closes #114"):
+            with self.subTest(body=body):
+                issue, path, note = acceptance.select_pr_task(self.root, body)
+                self.assertIsNone(issue)
+                self.assertIsNone(path)
+                self.assertIn("not selected", note)
 
     def test_timeout_preserves_failure(self):
         code, report = self.run_task(['python -c "import time; time.sleep(10)"'], timeout=.1)

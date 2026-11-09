@@ -80,7 +80,7 @@ static Config config() {
 struct Topology {
     bool pass, event_edge, fourth;
 };
-static std::unique_ptr<Engine> graph(Topology topology) {
+static std::unique_ptr<Engine> graph(Topology topology, const std::vector<Tap> &taps = {}) {
     const auto [pass, event_edge, fourth] = topology;
     auto e = std::make_unique<Engine>(config());
     CHECK(e->add_node(1, ws::Module<Voice>::descriptor()));
@@ -94,6 +94,7 @@ static std::unique_ptr<Engine> graph(Topology topology) {
     if (fourth) CHECK(e->output(4, 0, 2));
     CHECK(e->register_producer() == 0);
     CHECK(e->register_producer() == 1);
+    CHECK(e->set_telemetry_taps(taps));
     CHECK(e->prepare());
     return e;
 }
@@ -390,6 +391,7 @@ static void ramp_survives() {
     CHECK(live->output_sample(1, 0, 0, 0) == reference->output_sample(1, 0, 0, 0));
     CHECK(b[0] == y[0]);
 }
+static unsigned replan_attempts = 3, replan_timeouts = 0;
 static double live_edits() {
     auto live = graph({false, true, true});
     auto &e = *live;
@@ -418,11 +420,35 @@ static double live_edits() {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     });
+    // Keel ruling #297: every attempt keeps the full three-block park deadline. A timeout is a legal outcome
+    // (old graph retained, then a bounded retry, as the sidecar does under D5/D7). Strict mode (Pi evidence via
+    // --max-gap-ms, or WIRESCAPE_REPLAN_STRICT=1) still requires every edit to commit on its first attempt.
     auto edit = [&](Topology topology) {
-        auto next = graph(topology);
         const auto before = audio.blocks.load();
-        CHECK(e.replan(*next, uint64_t(frames) * 3 * 1000000000 / 48000));
-        next.reset(); // No render callback may retain a staging owner/context.
+        bool committed = false;
+        for (unsigned attempt = 0; attempt < replan_attempts && !committed; ++attempt) {
+            auto next = graph(topology);
+            const auto old_generation = e.meter().generation;
+            const auto started = now_ns();
+            committed = e.replan(*next, uint64_t(frames) * 3 * 1000000000 / 48000);
+            next.reset(); // No render callback may retain a staging owner/context.
+            if (!committed) {
+                const auto error = e.error();
+                CHECK(error == "Audio did not park before the edit deadline");
+                ++replan_timeouts;
+                std::fprintf(stderr, "replan attempt %u timed out after %.3f ms, %llu callbacks: %s\n", attempt + 1,
+                             double(now_ns() - started) / 1000000.,
+                             static_cast<unsigned long long>(audio.blocks.load() - before), error.c_str());
+                CHECK(e.meter().generation == old_generation); // A timeout retains the old graph.
+                CHECK(e.meter().faults == 0);
+                // The next render retires the cancelled park; only then may another edit be requested.
+                const auto retired = audio.blocks.load();
+                const auto retire_deadline = Clock::now() + std::chrono::seconds(2);
+                while (audio.blocks.load() <= retired + 1 && Clock::now() < retire_deadline) std::this_thread::yield();
+                CHECK(audio.blocks.load() > retired + 1);
+            }
+        }
+        CHECK(committed);
         const auto deadline = Clock::now() + std::chrono::seconds(2);
         while (audio.blocks.load() < before + 3 && Clock::now() < deadline) std::this_thread::yield();
         CHECK(audio.blocks.load() >= before + 3);
@@ -487,17 +513,48 @@ static double live_edits() {
     audio.wait(0, 0);
     return double(audio.gap_ns.load()) / 1000000.;
 }
+static void telemetry_replan_layout() {
+    auto live=graph({false,false,false},{{Tap::Param,1,0},{Tap::EventOut,1,1}});
+    auto kept=graph({false,false,false},{{Tap::Param,1,0}});
+    auto removed=std::make_unique<Engine>(config());
+    CHECK(removed->add_node(2,ws::Module<Voice>::descriptor()));
+    CHECK(removed->output(2,0,0));
+    CHECK(removed->set_telemetry_taps({}));
+    CHECK(removed->register_producer()==0);
+    CHECK(removed->register_producer()==1);
+    CHECK(removed->prepare());
+    CHECK(live->enqueue(0,1,0,note(),0,Timing::Immediate)==WS2_OK);
+    float a[frames]{},b[frames]{};float*out[]{a,b};
+    CHECK(live->render(out,2,frames)==WS2_OK);
+    CHECK(b[frames-1]>.1f);
+    float values[2]{};uint32_t counts[2]{};uint64_t frame=0;
+    CHECK(live->read_telemetry(values,counts,2,frame)==2&&counts[1]==1&&frame==frames);
+    replan_at_fade_out(*live,*kept);
+    kept.reset();
+    CHECK(live->render(out,2,frames)==WS2_OK);
+    CHECK(live->read_telemetry(values,counts,2,frame)==1&&frame==live->meter().frame);
+    CHECK(values[0]==.75f || values[0]==1.f); // Retained node's rendered gain.
+    replan_at_fade_out(*live,*removed);
+    removed.reset();
+    CHECK(live->render(out,2,frames)==WS2_OK);
+    CHECK(live->read_telemetry(values,counts,2,frame)==0&&frame==0);
+    CHECK(live->descriptor(1)==nullptr); // Removed nodes cannot retain a stale tap.
+}
 int main(int argc, char **argv) {
     double max_gap_ms = 0;
     if (argc == 3 && std::strcmp(argv[1], "--max-gap-ms") == 0) max_gap_ms = std::strtod(argv[2], nullptr);
     else CHECK(argc == 1);
+    const char *strict = std::getenv("WIRESCAPE_REPLAN_STRICT");
+    if (max_gap_ms > 0 || (strict && std::strcmp(strict, "1") == 0)) replan_attempts = 1;
     allocation_scope_is_thread_local();
     counted_target_rejection();
     removed_event_routes_release();
+    telemetry_replan_layout();
     feedback_delay_survives();
     ramp_survives();
     const auto gap = live_edits();
-    std::printf(
-        "PASS live add/connect/disconnect/remove, state/release/ingress/cancel/noalloc; 256-frame gap %.3f ms\n", gap);
+    std::printf("PASS live add/connect/disconnect/remove, state/release/ingress/cancel/noalloc; 256-frame gap %.3f ms; "
+                "replan timeouts retried %u (%s)\n",
+                gap, replan_timeouts, replan_attempts == 1 ? "strict" : "hosted: bounded retry");
     if (max_gap_ms > 0) CHECK(gap <= max_gap_ms);
 }

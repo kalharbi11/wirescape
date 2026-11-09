@@ -116,12 +116,14 @@ export async function mockBridge(page: Page): Promise<void> {
         setTimeout(() => void hello(), 0);
         return () => listeners.delete(cb);
       },
-      openPatch: async () => openText,
+      openPatch: async (request?: { library: string }) => request
+        ? request.library === 'list' ? { name: 'User patches', text: '[]' } : null
+        : openText,
       savePatch: async (text: string) => { saved = text; return { name: 'Saved.wirescape.json' }; },
       platform: 'linux',
     };
     (window as any).__mockBridge = {
-      sent, getGraph: () => copy(graph), getSession: session,
+      sent, getGraph: () => copy(graph), getSession: session, generation: () => String(gen),
       getSaved: () => saved,
       setOpen: (value: { text: string; name: string } | null) => { openText = value; },
       setDelay: (ms: number) => { delay = ms; },
@@ -131,10 +133,10 @@ export async function mockBridge(page: Page): Promise<void> {
       exit,
       devices: () => emit({ v: 0, type: 'devices', session: session(), gen: String(gen),
         audioDevices: copy(audio), midiDevices: copy(midi) }),
-      status: () => emit({ v: 0, type: 'status', session: session(), gen: String(gen),
-        status: { audio: copy(audioStatus), midi: { devices: copy(midi), activity: {} } } }),
-      telemetry: (data: Message) => emit({ v: 0, type: 'telemetry', session: session(),
-        gen: String(gen), telemetry: { tick: 12, time: 0.4, effective: {}, phase: {},
+      status: (overrides: Message = {}) => emit({ v: 0, type: 'status', session: session(), gen: String(gen),
+        status: { audio: { ...copy(audioStatus), ...overrides }, midi: { devices: copy(midi), activity: {} } } }),
+      telemetry: (data: Message, atGen = String(gen)) => emit({ v: 0, type: 'telemetry', session: session(),
+        gen: atGen, telemetry: { tick: 12, time: 0.4, effective: {}, phase: {},
           envelope: {}, meters: {}, scope: {}, eventActivity: {}, heldNotes: [], ...data } }),
     };
   });

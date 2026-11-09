@@ -1,0 +1,8 @@
+{
+  "code": "BLND",
+  "sections": [
+    { "label": "01 / BLEND", "params": ["mode", "balance", "fade"] },
+    { "label": "02 / SPLICE", "params": ["seg_a", "seg_b", "jitter"] }
+  ],
+  "modPorts": ["balance", "mode"]
+}

@@ -15,8 +15,9 @@ const INSET = 3;
 
 /**
  * LFO scope: a two-cycle scrolling trace driven only by received engine
- * phase, with the newest output at the right. Without phase telemetry the
- * wave stays static; no clock or CSS motion invents a signal.
+ * phase. The live output sample updates the numeric readout only: splicing
+ * it into the last trace pixel would create a misleading moving kink when
+ * phase is unavailable. No local clock invents phase or signal motion.
  */
 export class WavePreview {
   readonly root: HTMLElement;
@@ -26,7 +27,6 @@ export class WavePreview {
   private phase: number | null = null;
   private output: number | null = null;
   private drawnPhase: number | null = null;
-  private drawnOutput: number | null = null;
   private layer: HTMLCanvasElement | null = null;
   private layerKey = '';
   private lastText = 0;
@@ -42,7 +42,9 @@ export class WavePreview {
     this.root.append(this.pane.root);
     this.unbind = o.ticker.bind(o.moduleId, t => {
       const p = t.phase[o.moduleId];
-      this.phase = typeof p === 'number' && Number.isFinite(p) ? ((p % 1) + 1) % 1 : null;
+      this.phase = typeof p === 'number' && Number.isFinite(p) && p >= 0 && p < 1 ? p : null;
+      if (this.phase === null) delete this.root.dataset.phase;
+      else this.root.dataset.phase = String(this.phase);
       const out = t.outputs?.[`${o.moduleId}:control`];
       this.output = typeof out === 'number' && Number.isFinite(out) ? out : null;
       this.draw(t.time);
@@ -59,9 +61,11 @@ export class WavePreview {
       this.root.title = s.rateLabel;
     }
     const ph = this.phase;
-    if (!changed && this.layer && ph === this.drawnPhase && this.output === this.drawnOutput) return;
+    if (!changed && this.layer && ph === this.drawnPhase) {
+      this.updateReadout(time);
+      return;
+    }
     this.drawnPhase = ph;
-    this.drawnOutput = this.output;
 
     const w = pane.width, h = pane.height, ctx = pane.ctx, pal = pane.palette();
     const x0 = INSET, x1 = w - INSET, cy = h / 2, A = h * 0.34;
@@ -79,8 +83,7 @@ export class WavePreview {
     const latestPhase = ph ?? 0;
     for (let x = x0; x <= x1; x++) {
       const u = (x - x0) / (x1 - x0);
-      const output = u === 1 && this.output !== null ? this.output
-        : lfoTraceValue(latestPhase, u, s.depth, s.offset);
+      const output = lfoTraceValue(latestPhase, u, s.depth, s.offset);
       const y = cy - Math.max(-1, Math.min(1, output)) * A;
       x === x0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
@@ -89,15 +92,32 @@ export class WavePreview {
     ctx.lineJoin = 'round';
     ctx.stroke();
 
-    if (time - this.lastText >= 1 / 15 || time < this.lastText) {
-      this.lastText = time;
-      if (ph === null) {
-        this.readout.textContent = 'phase not available';
-      } else {
-        const v = this.output ?? lfoTraceValue(ph, 1, s.depth, s.offset);
-        this.readout.textContent = `φ ${Math.round(ph * 360)}° ${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`;
-      }
+    // The rust dot is a measured position only, never a locally advanced cursor.
+    if (ph !== null) {
+      const value = lfoTraceValue(ph, 1, s.depth, s.offset);
+      const y = cy - Math.max(-1, Math.min(1, value)) * A;
+      ctx.beginPath();
+      ctx.arc(x1, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = pal.rust;
+      ctx.fill();
     }
+
+    this.updateReadout(time);
+  }
+
+  /** Live amplitude may update the label, never the phase-based trace. */
+  private updateReadout(time: number): void {
+    if (this.phase === null) {
+      this.readout.textContent = 'phase not available';
+      return;
+    }
+    if (time - this.lastText < 1 / 15 && time >= this.lastText) return;
+    this.lastText = time;
+    // An output value is shown only if the engine also reported that output.
+    const degrees = Math.round(this.phase * 360);
+    const v = this.output;
+    this.readout.textContent = v === null ? `φ ${degrees}°`
+      : `φ ${degrees}° ${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}`;
   }
 
   destroy(): void { this.unbind(); this.pane.destroy(); }
