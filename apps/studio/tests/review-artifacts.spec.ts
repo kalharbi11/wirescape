@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { test, expect } from '@playwright/test';
 import { boot, settle } from './helpers';
+import { STARTERS } from '../src/app/starters';
 
 test.use({ video: 'on' });
 test('review recording, screenshots and frame samples', async ({ page, browser }, info) => {
@@ -17,11 +18,11 @@ test('review recording, screenshots and frame samples', async ({ page, browser }
   await boot(page);
   environment.display = await page.evaluate(() => ({ width: screen.width, height: screen.height, dpr: devicePixelRatio, viewport: [innerWidth, innerHeight], userAgent: navigator.userAgent }));
   for (const id of ['witching-hour', 'vowel-apparitions', 'dust-reactor']) {
-    await page.evaluate(id => {
+    const starter = STARTERS.find(s => s.id === id)!;
+    await page.evaluate(({ patch, name }) => {
       const a = window.__wirescapeTest;
-      const s = a.starters.find((s: { id: string }) => s.id === id);
-      a.load(s.patch(), s.name); a.fit(); a.noteOn(60);
-    }, id);
+      a.load(patch, name); a.fit(); a.noteOn(60);
+    }, { patch: starter.patch(), name: starter.name });
     await settle(page, 20);
     await page.screenshot({ path: info.outputPath(`${id}.png`) });
     // Exercise each signature control in the recording.
@@ -36,11 +37,11 @@ test('review recording, screenshots and frame samples', async ({ page, browser }
   const samples = [];
   for (const workload of ['stress-20-40', 'signal-drone'] as const) {
     if (workload === 'signal-drone') {
-      await page.evaluate(() => {
+      const starter = STARTERS.find(s => s.id === 'dust-reactor')!;
+      await page.evaluate(({ patch, name }) => {
         const a = window.__wirescapeTest;
-        const starter = a.starters.find((s: { id: string }) => s.id === 'dust-reactor');
-        a.load(starter.patch(), starter.name); a.noteOn(60);
-      });
+        a.load(patch, name); a.noteOn(60);
+      }, { patch: starter.patch(), name: starter.name });
     } else {
       // Structural stress: 20 modules / 40 cables, moving modulation. This
       // intentionally has no Output; the drone separately exercises signal displays.

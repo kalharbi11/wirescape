@@ -1,51 +1,53 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-09, Codex Lead priorities/reviews/claimable queue.
-Pi first; #271 hardware sign-off still open, reported failures preempt features.
-Live heads/handoffs govern; no queued/stale/missing result is passed.
+**Updated:** 2026-11-09, Codex Lead. Owner failures preempt features.
+Live heads and completed evidence govern; queued, stale and missing results never pass.
 
-## Owner priorities and latest Compass/Keel
-- Interleave higher priority than Vocoder. OSC now active independent work.
-- MIDI seam/controls can progress; LearnUI waits actual seam merge.
-- Existing agents keep16step405/410and Groove430; no duplicate sequencer claims.
-- Compass/Keel431review approved stopped-edit playable Groove first, live editsS2.
-- Keel430binding: sequencing.groove separate ID; versioned JSON config -> fixed
-  4track/64step POD quiescent adapter; fail-closed, unknown editable data preserved.
-- S0mayproceed independently. S1release-ready requires stable16step/combined regressions.
-- Existing params/inputs only, no new protocol/ABI; load stopped, release on replacement,
-  step1restart, bounded2MiB. Shared helper extraction needs a real second use.
+## Authority and queue
+- Board #473 is the claim source. D18 holds while 10+ implementation PRs are open.
+- Owner explicitly delegated Codex Lead authority to revise rulings, unblock agents,
+  approve and merge; Keel availability alone does not block. Record decisions on issues.
+- Keep independent review, actual evidence, realtime safety, IDs and unknown data.
+- PLAN D15–D19 and CLEANUP govern scope. No new module/feature issues in this window.
 
-## Actual implemented / pending
-- Reverb348MERGED c39af7b; catalogue26. Delay/Spectral/Blend/Resonator retained.
-- Telemetry379MERGED07fb277; eight curated patches412MERGED3af48ae.
-- Quantizer323prepared0acdad4 with27modules; independent review no High/Medium.
-  Exact native/task/Windows/sanitizers/Studio/WASM PASS; static had2authored
-  assertion-wrap errors + inherited keyboard parser. Root fixed ONLY wraps385ad20.
-  Fresh checks/integration required; not merged or a second DSP implementation.
-- 427public patch folder/design guide is NOT merged. Final main reconciliation/gates
-  remain despite successful source UI/WASM evidence. Preserve owner fast-lane rule.
-- 398render evidence has independent T1 and780e280fiveCTest/Pi PASS; task-only
-  cap repair3f12baa needs final gates. 296actual3600s private edit soak still missing.
-- 415selector and431Groove docs actually merged; don't repeat those tasks.
+## Merged / current lead gates
+- #474 R0 merged83b381a; #442 real-app evidence merged32e7ba4.
+- #400 latency reporting merged9a1d2f5 after Keel review, exact-head required/task
+  green and pinned LLVM18 formatting proof; no Pi requirement for reporting-only scope.
+- #463 Windows runtime: cross-family source review complete. All hosted checks passed
+  a6168ed. Actual Pi build/accept passed31b909a; only a CLI whitespace wrap differed,
+  verified token/tree equivalent. Lead recorded that bounded evidence transfer.
+- #463 now integrates current main normally; only STATE conflicted, native merged cleanly.
+  Fresh integration checks/evidence remain before actual merge. Then #399/#472/#471
+  owners merge main. No claim that an untested integration head passed on Pi.
 
-## New-agent queue (claim before editing; continue branches)
-- Canonical: docs/tasks/CLAIMABLE_2026_11_09.md; index393 refreshed.
-- READY305/310Interleave-first: main retarget/integration, phase/chunks/state/WASM/Pi.
-  Keep ASan tail fix and actual hop-boundary stress; Vocoder polish follows.
-- READY381/390 +290/210: reconcile main, fake/native/UMP/poly/CC evidence.
-  Keel final helper-refactor look;287UI after actual381merge. No duplicate seam.
-- READY72/82OSC: current-host inventory/task first, reuse portable services/tests;
-  no staleQt feature merge. Keel new host ownership/protocol decision before invention.
-- READY385/398 ->386 +296: render integrity/provenance and actual private soak.
-- READY307/400: repair authored79+233format diagnostics, then exact T2 Claude review.
-- READY426/427: existing rollout branch reconciliation and final selected acceptance.
-- Audio399and Notes423have bounded task fixes; semantic contracts remain Keel stops.
+## Owner evidence and setup
+- Windows first session on #463: WASAPI headphones, all starters switch and sound,
+  computer keyboard and Launchkey MIDI work at48k/256. Extended testing remains.
+- Shared WASAPI needs the device rate and another DAW must release the device.
+- Pi runnerpi5 is online and executing private poll42565126954; no duplicate dispatch.
+- Pi chain #45052ade08 -> #452926a5e5 -> #453d0c45ca: source reviewed,
+  repaired Windows/static checks, actual final target evidence/combined SHA pending.
+- Owner installs Node22/xvfb where required. One accepted SHA must contain actual
+  #463/#450/#452 merges and pass combined device-off ARM64 app smoke.
+- #475 W1 Windows setup: existing builder plus delegated repair reviewer; fix generated
+  output junction escapes, DLL load/export validation and executed Windows smoke.
 
-## Permanent gates
-- Required guard/Linux/Windows/sanitizers PLUS task/Studio/WASM/Pi as applicable.
-- T1different-session review; T2cross-family. Keep allIDs/unknown patch data.
-- No force-push/main write, devices/SSH/LAN, suppression or threshold weakening.
-- Electron sole automatic restarter; defaultlocalhost/offLAN; no invented wirefields.
-- Update patch-design limitations in capability integration PRs per owner mandate.
-- No CI polling/schedules. Handoff exact head, real evidence and remaining blockers.
+## Active cleanup and rulings
+- #464/#476 R1 Qt-free build: source reviewed; header/license exact renames.
+  Size2800/14 accounts for2618 unchanged moved lines, not a test threshold change.
+- #466/#477 R5a docs: independent wording review complete, hosted gates pending.
+- #465 R2: real unsupported/future Studio ingress data-loss guard and Electron
+  overwrite/v1-backup protections; independent review/full tests required.
+- Qt-only inspector behavior is explicitly retired; supported compatibility and real
+  persistence guarantees must be mapped in R2 table before R3 deletes tests.
+- R3 #468 waits R1/R2/W1 and archive/qt-final on its base; R4 #469 follows R3;
+  R6 #470 remains separate ABI1 retirement. No Qt tests or ABI1 deleted yet.
+
+## Retained builders / permanent gates
+- #405 -> #410; #451/#461 -> playhead -> editor; #210 MIDI; #310 Interleave;
+  #458 study reconnect/task fixes. Existing builders retain branches; see board.
+- Required guard/Linux/Windows/sanitizers + task/Web/WASM/Pi as applicable.
+- No force-push, direct main commits, device/SSH access, suppression or threshold weakening.
+- #271 owner hardware, #274 display/performance and #296 actual3600s soak remain separate.

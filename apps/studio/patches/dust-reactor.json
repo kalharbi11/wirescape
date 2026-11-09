@@ -1,0 +1,262 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "06 · Dust Reactor",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 1106,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "essentials.vco",
+      "parameters": {
+        "frequency": 55
+      },
+      "version": 2
+    },
+    {
+      "id": 2,
+      "module": "essentials.noise",
+      "parameters": {
+        "level": 0.1
+      },
+      "version": 2
+    },
+    {
+      "id": 3,
+      "module": "essentials.mixer",
+      "parameters": {
+        "level_a": 0.32,
+        "level_b": 0.18
+      },
+      "version": 2
+    },
+    {
+      "id": 4,
+      "module": "essentials.vcf",
+      "parameters": {
+        "cutoff": 510,
+        "resonance": 0.53
+      },
+      "version": 2
+    },
+    {
+      "id": 5,
+      "module": "essentials.ladder",
+      "parameters": {
+        "cutoff": 1750,
+        "resonance": 0.23,
+        "drive": 0.19
+      },
+      "version": 2
+    },
+    {
+      "id": 6,
+      "module": "essentials.output",
+      "parameters": {},
+      "version": 2
+    },
+    {
+      "id": 7,
+      "module": "essentials.clock",
+      "parameters": {
+        "bpm": 33,
+        "ticks_per_beat": 1,
+        "duty": 0.4,
+        "run": 1
+      },
+      "version": 2
+    },
+    {
+      "id": 8,
+      "module": "example.random_source",
+      "parameters": {
+        "smooth": 0.73,
+        "range": 0.62
+      },
+      "version": 1
+    },
+    {
+      "id": 9,
+      "module": "essentials.lfo",
+      "parameters": {
+        "rate": 0.061,
+        "depth": 0.76
+      },
+      "version": 2
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "audio"
+      },
+      "to": {
+        "module": 3,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "audio"
+      },
+      "to": {
+        "module": 3,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "audio"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "low24"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "clock"
+      },
+      "to": {
+        "module": 8,
+        "port": "clock"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 8,
+        "port": "smooth"
+      },
+      "to": {
+        "module": 4,
+        "port": "cutoff"
+      },
+      "amount": 0.27
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 9,
+        "port": "control"
+      },
+      "to": {
+        "module": 5,
+        "port": "cutoff"
+      },
+      "amount": 0.23
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 9,
+        "port": "control"
+      },
+      "to": {
+        "module": 1,
+        "port": "frequency"
+      },
+      "amount": 0.018
+    }
+  ],
+  "outputs": [
+    {
+      "module": 6,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 6,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        80,
+        80
+      ],
+      "2": [
+        80,
+        1180
+      ],
+      "3": [
+        740,
+        80
+      ],
+      "4": [
+        1400,
+        80
+      ],
+      "5": [
+        2060,
+        80
+      ],
+      "6": [
+        2720,
+        80
+      ],
+      "7": [
+        740,
+        1180
+      ],
+      "8": [
+        1400,
+        1180
+      ],
+      "9": [
+        2060,
+        1180
+      ]
+    },
+    "labels": {
+      "1": "Sub-bass sine",
+      "2": "Grain field",
+      "8": "Random geology",
+      "9": "Thermal drift"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

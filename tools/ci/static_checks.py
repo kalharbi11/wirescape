@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Run static checks without rewriting sources; summarize failures and counts."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -67,6 +68,53 @@ def analysis_units(root, files, builds=("build/static", "build/static-web")):
     return selected
 
 
+def pinned_cppcheck_baseline(root, output, code):
+    """Recognize exact historical vendor findings, never first-party or new ones."""
+    baseline_path = root / "native/modules2/macro_oscillator/cppcheck-baseline.json"
+    if not baseline_path.exists():
+        return output, code, 0
+    baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+    if baseline.get("schema") != 1 or not baseline.get("source_sha256"):
+        raise ValueError("Invalid pinned cppcheck baseline")
+    for name, expected in baseline["source_sha256"].items():
+        source = (root / name).resolve()
+        if not source.is_relative_to(root.resolve()) or hashlib.sha256(source.read_bytes()).hexdigest() != expected:
+            raise ValueError("Pinned cppcheck baseline invalidated by source change: " + name)
+    known = {(d["path"], d["line"], d["column"], d["id"], d["message"])
+             for d in baseline["diagnostics"]}
+    prefixes = [
+        (root / "build/static/_deps/macro_eurorack-src", "eurorack"),
+        (root / "build/static-web/_deps/macro_eurorack-src", "eurorack"),
+        (root / "build/static/engine2/macro_oscillator/upstream/stmlib", "stmlib"),
+        (root / "build/static-web/upstream/stmlib", "stmlib"),
+    ]
+    diagnostic = re.compile(r"^(.*?):(\d+):(\d+): warning: (.*) \[([A-Za-z0-9]+)\]$")
+    remaining, matched = [], 0
+    for line in output.splitlines():
+        match = diagnostic.fullmatch(line)
+        inherited = False
+        if match:
+            path = Path(match[1])
+            if not path.is_absolute():
+                path = root / path
+            path = path.resolve()
+            for directory, vendor in prefixes:
+                if path.is_relative_to(directory.resolve()):
+                    name = vendor + "/" + path.relative_to(directory.resolve()).as_posix()
+                    key = (name, int(match[2]), int(match[3]), match[5], match[4])
+                    inherited = key in known
+                    break
+        if inherited:
+            matched += 1
+        else:
+            remaining.append(line)
+    filtered = "\n".join(remaining)
+    # 42 is cppcheck's configured findings exit code; crashes/tool errors stay red.
+    if code == 42 and matched and not re.search(r"^.*?:\d+:\d+:\s", filtered, re.M):
+        code = 0
+    return filtered, code, matched
+
+
 def run_checks(root, diff, tidy_diff):
     files = changed_ranges(diff)
     jobs = []
@@ -88,7 +136,7 @@ def run_checks(root, diff, tidy_diff):
             project.write_text(json.dumps([{k: v for k, v in entry.items() if k != "build"}
                                            for entry in units]), encoding="utf-8")
             jobs.append(("cppcheck changed files", ["cppcheck", "--enable=warning,performance",
-                         "--error-exitcode=1", "--suppress=missingIncludeSystem", "--inline-suppr", "--template=gcc",
+                         "--error-exitcode=42", "--suppress=missingIncludeSystem", "--inline-suppr", "--template=gcc",
                          "--library=qt", "--project=" + str(project)], None))
         for name, ranges in files.items():
             if ranges:
@@ -111,6 +159,18 @@ def run_checks(root, diff, tidy_diff):
             output, code = result.stdout + result.stderr, result.returncode
         except (OSError, subprocess.TimeoutExpired) as error:
             output, code = str(error), 1
+        if name == "cppcheck changed files":
+            # Keep the complete evidence in the log, collapsed by default.
+            print("::group::Full cppcheck report (including pinned vendor baseline)")
+            print(output)
+            print("::endgroup::")
+            try:
+                output, code, inherited = pinned_cppcheck_baseline(root, output, code)
+                if inherited:
+                    print(f"Pinned vendor baseline: {inherited} exact findings; new findings still fail")
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                output += "\nPinned baseline validation failed: " + str(error)
+                code = 1
         count = len(re.findall(r"^.*?:\d+:\d+:\s", output, re.M))
         failed = code != 0 or count > 0
         rows.append((name, count, "failed" if failed else "passed"))
