@@ -495,6 +495,8 @@ export class App {
   private async applyRefusedDraft(): Promise<void> {
     if (!this.draftVisible) return;
     this.applyDraftButton.disabled = true;
+    // A loadGraph acknowledgement is asynchronous. Prevent a switch/edit from racing it.
+    this.root.inert = true;
     try {
       // Submit the actual edited document; do not overwrite it with the playing patch.
       await this.engine.loadGraph(this.doc.toJSON());
@@ -510,6 +512,7 @@ export class App {
     } catch (e) {
       this.toasts.show(e instanceof Error ? e.message : 'Draft could not run; still playing the previous patch.', 'error');
     } finally {
+      this.root.inert = false;
       this.applyDraftButton.disabled = false;
     }
   }
