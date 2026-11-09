@@ -215,6 +215,7 @@
       setButton("track-" + t, track === t);
       $("track-status-" + t).textContent = localMute[t] ? "Muted / phase continues" :
         trackQueued[t] ? "START queued" : trackStop[t] ? "STOP queued" :
+        (mode === "running" || mode === "queued") && armed[t] ? "Running" :
         armed[t] ? "Armed" : "Disarmed";
     }
     setButton("page-0", page === 0); setButton("page-1", page === 1);
@@ -267,6 +268,8 @@
     $("sim-refuse").disabled = mode !== "applying";
     $("sim-recover").disabled = mode !== "unknown";
     $("save-draft").disabled = !isEditing || !savedDirty();
+    for (const id of ["reset", "global-mute", "track-start", "track-stop", "track-mute"])
+      $(id).disabled = mode === "applying" || mode === "unknown";
     $("loaded-status").textContent = mode === "applying" ? "SIMULATED / Applying candidate — waiting for loadGraph ACK. START LOCKED." :
       mode === "refused" ? "SIMULATED / Refused. Draft retained, candidate NOT loaded. START LOCKED." :
       mode === "unknown" ? "UNKNOWN / Disconnected. Native stop and loaded generation not verified." :
@@ -313,19 +316,23 @@
   $("sim-complete").onclick = () => {if (mode!=="queued") return;
     mode="stopped";verified=true;playhead=null;trackQueued=[false,false];trackStop=[false,false];
     record("Demo native confirmation: global STOP complete; editor unlocked.");};
-  $("reset").onclick = () => {if (mode==="unknown") return;playhead=null;trackQueued=[false,false];trackStop=[false,false];
+  $("reset").onclick = () => {if (mode==="unknown" || mode==="applying") return;playhead=null;trackQueued=[false,false];trackStop=[false,false];
     record("Demo RESET released notes, cleared queues, and preserved running intent.");};
-  $("global-mute").onclick = () => {if (mode==="unknown") return;
+  $("global-mute").onclick = () => {if (mode==="unknown" || mode==="applying") return;
     muted=!muted;record("Global mute toggled. Native clock status unchanged; no editing bypass.");};
-  $("track-start").onclick = () => {if (mode==="unknown") return;
-    if (mode==="running" || mode==="queued") {trackQueued[track]=true;trackStop[track]=false;
-      record("Track START queued for shared boundary (simulated).");}
-    else {armed[track]=true;record("Track armed while globally stopped.");}};
-  $("track-stop").onclick = () => {if (mode==="unknown") return;
-    if (mode==="running" || mode==="queued") {trackStop[track]=!trackStop[track];trackQueued[track]=false;
-      record("Track STOP pending toggled; phase unaffected until boundary.");}
-    else {armed[track]=false;record("Track disarmed while globally stopped.");}};
-  $("track-mute").onclick = () => {if (mode==="unknown") return;
+  $("track-start").onclick = () => {if (mode==="unknown" || mode==="applying") return;
+    if (mode==="running" || mode==="queued") {
+      if (trackStop[track]) {trackStop[track]=false;record("Track START cancelled pending STOP.");}
+      else if (!armed[track]) {trackQueued[track]=true;record("Track START queued for shared boundary (simulated).");}
+      else record("Track already playing; START does not retrigger.");
+    } else {armed[track]=true;record("Track armed while globally stopped.");}};
+  $("track-stop").onclick = () => {if (mode==="unknown" || mode==="applying") return;
+    if (mode==="running" || mode==="queued") {
+      if (trackQueued[track]) {trackQueued[track]=false;record("Track STOP cancelled queued entry.");}
+      else if (armed[track]) {trackStop[track]=!trackStop[track];
+        record("Track STOP pending toggled; phase unaffected until boundary.");}
+    } else {armed[track]=false;record("Track disarmed while globally stopped.");}};
+  $("track-mute").onclick = () => {if (mode==="unknown" || mode==="applying") return;
     localMute[track]=!localMute[track];record("Track mute toggled; phase unchanged and editor lock retained.");};
   $("sim-advance").onclick = () => {if (mode !== "running" && mode !== "queued") {
     record("Step 23 fixture only applies to simulated running or queued state.");return;}
