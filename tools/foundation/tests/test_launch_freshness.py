@@ -20,7 +20,7 @@ class LaunchFreshnessTests(unittest.TestCase):
     def tree(self, root):
         build = root / 'build'
         engine = build / 'sidecar' / ('wirescape-engine.exe' if os.name == 'nt' else 'wirescape-engine')
-        files = [engine, root/'native/source.cpp', root/'apps/desktop/main.ts',
+        files = [engine, build/'libws2_fixture.so', root/'native/source.cpp', root/'apps/desktop/main.ts',
                  root/'apps/studio/src/App.ts', root/'apps/desktop/build/main.js',
                  root/'apps/desktop/build/preload.js', root/'apps/studio/dist/index.html',
                  root/'apps/desktop/node_modules/electron/dist/electron']
@@ -28,6 +28,7 @@ class LaunchFreshnessTests(unittest.TestCase):
             file.parent.mkdir(parents=True, exist_ok=True)
             file.write_bytes(b'verified')
         (root/'apps/desktop/node_modules/electron/path.txt').write_text('electron')
+        (build/'CMakeCache.txt').write_text('CMAKE_BUILD_TYPE:STRING=Release\n')
         return build, engine
 
     def certify(self):
@@ -39,7 +40,8 @@ class LaunchFreshnessTests(unittest.TestCase):
 
     def test_launch_requires_matching_desktop_and_engine_evidence(self):
         for change in ('matching', 'native_source', 'desktop_source', 'engine', 'artifact', 'electron',
-                       'missing', 'corrupt', 'config', 'headless', 'unstable', 'missing_entry', 'missing_digest'):
+                       'missing', 'corrupt', 'config', 'headless', 'unstable', 'missing_entry', 'missing_digest',
+                       'library_changed', 'library_missing', 'cache_changed'):
             with self.subTest(change=change), tempfile.TemporaryDirectory(prefix='electron launch ') as folder:
                 root = Path(folder)
                 build, engine = self.tree(root)
@@ -50,6 +52,12 @@ class LaunchFreshnessTests(unittest.TestCase):
                         (root/'native/source.cpp').write_bytes(b'changed')
                     elif change == 'desktop_source':
                         (root/'apps/desktop/main.ts').write_bytes(b'changed')
+                    elif change == 'library_changed':
+                        (build/'libws2_fixture.so').write_bytes(b'changed')
+                    elif change == 'library_missing':
+                        (build/'libws2_fixture.so').unlink()
+                    elif change == 'cache_changed':
+                        (build/'CMakeCache.txt').write_text('CMAKE_BUILD_TYPE:STRING=Debug\n')
                     elif change == 'engine':
                         engine.write_bytes(b'changed')
                     elif change == 'artifact':
@@ -148,6 +156,9 @@ class LaunchFreshnessTests(unittest.TestCase):
             with patch.object(dev, 'ROOT', root), patch.object(dev, 'BUILD_DIR', build):
                 self.certify()
                 self.assertTrue(dev._refresh_build_metadata('Release')[0]['desktop_verified'])
+                (build/'libws2_fixture.so').write_bytes(b'changed')
+                self.assertFalse(dev._refresh_build_metadata('Release')[0]['desktop_verified'])
+                self.certify()
                 engine.write_bytes(b'changed')
                 self.assertFalse(dev._refresh_build_metadata('Release')[0]['desktop_verified'])
 

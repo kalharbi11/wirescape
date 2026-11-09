@@ -368,8 +368,11 @@ def _launch_freshness_error(executable: Path, config: str) -> str | None:
     try:
         if source_provenance(ROOT)["sha256"] != meta["source"]["sha256"]:
             return "native/tool source changed since the build"
-        if sha256_file(executable) != meta["binaries"][executable.relative_to(BUILD_DIR).as_posix()]:
-            return "engine executable changed since the build"
+        if _cache_values() != meta["cmake_cache"]:
+            return "native build configuration changed since the build"
+        if (_artifact_inventory(config) != meta["binaries"] or
+                executable.relative_to(BUILD_DIR).as_posix() not in meta["binaries"]):
+            return "native artifacts changed or are missing since the build"
         desktop = meta["desktop"]
         if _desktop_inventory() != desktop["sources"] or _desktop_inventory(True) != desktop["artifacts"]:
             return "Electron source or artifacts changed since the build"

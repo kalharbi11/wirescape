@@ -21,6 +21,7 @@ Default build compiles native and the existing Electron npm build. Headless buil
 compiles native only. Electron evidence separately hashes its source inputs,
 compiled artifacts and runtime; the native sidecar and ABI2 libraries join the
 native artifact inventory. Failed builds invalidate prior desktop certification.
+Launch checks the full native artifact inventory and recorded CMake configuration.
 Unchanged native test builds may retain already matching desktop evidence; a
 headless build or stale/missing/corrupt evidence cannot certify leftover UI files.
 
