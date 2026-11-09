@@ -2,7 +2,6 @@
 """Process conformance: pipes, null sink and an explicitly fake device catalogue."""
 import atexit
 import json
-import os
 import queue
 import re
 import subprocess
