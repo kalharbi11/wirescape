@@ -18,11 +18,11 @@ These are new Wirescape patches, not copies of third-party presets.
 | **01 · Hollow Chapel** | Automatic | Two low-register CHAOS bodies with delay-bend and ring coupling retain their left/right stereo pairs. Each channel gets its own mixer, ladder and Output bus; two slow LFOs move comb tuning and opposing filter cutoffs, while internal self-modulated LFOs add irregular motion. |
 | **02 · Breathing Walls** | Automatic | A bent CHAOS voice and a quiet noise floor feed a resonant ladder. A slow clock advances a smoothed random source; a separate LFO shifts feedback and roughness. |
 | **03 · Black Ice Choir** | Keyboard | Four-voice CHAOS with slow ADSR/VCA articulation (2.2 s attack, 7.2 s release), two independent slow modulators and internally drifting body resonance. Hold chords and let them overlap. |
-| **04 · Vowel Apparitions** | Keyboard | Macro model **7** (speech/formant), 12-semitone lower register, into 12 dB VCF, long envelope and VCA. Independent 0.082 Hz morph and 0.031 Hz cutoff LFOs prevent locked-in repetitive sweeps. |
-| **05 · Glass Cathedrals** | Keyboard | Macro model **12** (modal resonator) with trigger/velocity; main and auxiliary outputs are blended at 0.72/0.19 before a soft ladder, and two LFOs move timbre and filter independently. |
+| **04 · Vowel Apparitions** | Keyboard | Macro model **7** (Chiptune), 12-semitone lower register, into 12 dB VCF, long envelope and VCA. Independent 0.082 Hz morph and 0.031 Hz cutoff LFOs prevent locked-in repetitive sweeps. |
+| **05 · Glass Cathedrals** | Keyboard | Macro model **12** (Additive synthesis) with trigger/velocity; main and auxiliary outputs are blended at 0.72/0.19 before a soft ladder, and two LFOs move timbre and filter independently. |
 | **06 · Dust Reactor** | Automatic | Stock VCO (55 Hz) plus low noise into a mixer, 24 dB VCF and ladder. Clocked smooth random cutoff and slow LFO movement produce a nonrepeating industrial drone. |
 | **07 · Witching Hour** | Automatic | Running clock (82 BPM, two ticks/beat) → eight-step D-minor ostinato → VCO → VCF → ADSR-controlled VCA. Eight pitches, velocities, tie and rest are authored. |
-| **08 · Neon Elegy** | Automatic | Running clock (94 BPM, two ticks/beat) → eight-step A-minor/F/C/G-inspired line → Macro model **2** (FM) with internal low-pass gate → ladder. Velocity and slow morph modulation add accents. |
+| **08 · Neon Elegy** | Automatic | Running clock (94 BPM, two ticks/beat) → eight-step A-minor/F/C/G-inspired line → Macro model **2** (six-operator FM preset 1) with internal low-pass gate → ladder. Velocity and slow morph modulation add accents. |
 
 **Performance and expectations.** Automatic patches start when their graph is
 rendered, not merely when a JSON file is opened with audio disabled. The browser
