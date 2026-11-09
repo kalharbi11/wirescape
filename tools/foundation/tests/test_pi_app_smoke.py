@@ -52,25 +52,25 @@ class PiAppSmokeTests(unittest.TestCase):
         self.assertFalse(smoke.arm64_elf(file))
         # Incomplete/corrupt binary downloads must never raise IndexError.
         for length in (0, 4, 5, 6, 19):
-            file.write_bytes(b'\\x7fELF' + b'\\x00' * max(0, length - 4)
+            file.write_bytes(b'\x7fELF' + b'\x00' * max(0, length - 4)
                              if length else b'')
             self.assertFalse(smoke.arm64_elf(file), f'truncated ELF length={length}')
         file.unlink()
         self.assertFalse(smoke.arm64_elf(file))
 
     def test_short_elf_writes_blocked_summary_instead_of_crashing(self):
-        self.objects['engine'].write_bytes(b'\\x7fELF')
+        self.objects['engine'].write_bytes(b'\x7fELF')
         # Simulate a fully provisioned Pi without starting any real process.
-        with patch.object(smoke, 'check_environment', side_effect=CHECK_ENVIRONMENT), \\
-             patch.object(smoke.platform, 'system', return_value='Linux'), \\
-             patch.object(smoke.platform, 'machine', return_value='aarch64'), \\
-             patch.object(smoke, 'clean_checkout', return_value=True), \\
-             patch.object(smoke.ctypes.util, 'find_library', return_value='portaudio'), \\
-             patch.object(smoke, 'tool_versions', return_value={}), \\
-             patch.object(smoke, 'run_child', return_value=(0, 'mock build')), \\
+        with patch.object(smoke, 'check_environment', side_effect=CHECK_ENVIRONMENT), \
+             patch.object(smoke.platform, 'system', return_value='Linux'), \
+             patch.object(smoke.platform, 'machine', return_value='aarch64'), \
+             patch.object(smoke, 'clean_checkout', return_value=True), \
+             patch.object(smoke.ctypes.util, 'find_library', return_value='portaudio'), \
+             patch.object(smoke, 'tool_versions', return_value={}), \
+             patch.object(smoke, 'run_child', return_value=(0, 'mock build')), \
              patch.object(smoke.subprocess, 'run', return_value=
-                          __import__('subprocess').CompletedProcess([], 0, '', '')), \\
-             patch.dict(os.environ, {'DISPLAY': ':99'}), \\
+                          __import__('subprocess').CompletedProcess([], 0, '', '')), \
+             patch.dict(os.environ, {'DISPLAY': ':99'}), \
              patch.object(sys, 'argv', ['app_smoke.py', '--report', str(self.report)]):
             code = smoke.main()
         self.assertEqual(code, 2)
