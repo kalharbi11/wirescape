@@ -23,11 +23,13 @@ for (const [key, suffix] of [['userData','user'],['sessionData','session']]) {
 require(${JSON.stringify(path.join(root, 'apps/desktop/build/main.js'))});\n`);
   const environment = { ...process.env, WIRESCAPE_TEST_STUB: '0' };
   delete environment.ELECTRON_RUN_AS_NODE;
+  const nativeLog = [];
   let app, nativePid;
   try {
     app = await electron.launch({ executablePath: require('electron'),
       args: [wrapper, '--engine', engine, '--null-audio', '--settings', path.join(scratch, 'settings.json')],
       cwd: root, env: environment });
+    app.process().stderr.on('data', data => nativeLog.push(data.toString('utf8')));
     const page = await app.firstWindow();
     await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
     await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
@@ -55,6 +57,7 @@ require(${JSON.stringify(path.join(root, 'apps/desktop/build/main.js'))});\n`);
     const electronProcess = app.process();
     await app.close(); app = null;
     expect(electronProcess.exitCode).toBe(0);
+    expect(nativeLog.join('')).toContain('engine-exit code=0 signal=null expected=true');
     execFileSync('powershell.exe', ['-NoProfile', '-Command',
       `if (Get-Process -Id ${nativePid} -ErrorAction SilentlyContinue) { throw 'Native child survived graceful shutdown' }`],
       { timeout: 10000 });
