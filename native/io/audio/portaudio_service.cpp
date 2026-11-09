@@ -22,6 +22,8 @@ struct Backend {
  void* library=nullptr;
  decltype(&Pa_Initialize) initialize=nullptr;decltype(&Pa_Terminate) terminate=nullptr;
  decltype(&Pa_GetDeviceCount) count=nullptr;decltype(&Pa_GetDeviceInfo) info=nullptr;
+ decltype(&Pa_GetHostApiInfo) host_api=nullptr;
+ decltype(&Pa_IsFormatSupported) format_supported=nullptr;
  decltype(&Pa_GetDefaultOutputDevice) default_device=nullptr;decltype(&Pa_GetErrorText) text=nullptr;
  decltype(&Pa_OpenStream) open=nullptr;decltype(&Pa_StartStream) start=nullptr;
  decltype(&Pa_StopStream) stop=nullptr;decltype(&Pa_AbortStream) abort=nullptr;
@@ -45,7 +47,7 @@ struct Backend {
   if(!library)throw std::runtime_error("PortAudio unavailable: install libportaudio2 on Linux or place the DLL beside the runner");
   // Resident through process exit, including a broken-backend shutdown path.
 #define LOAD(member,name) symbol(member,name)
-  LOAD(initialize,"Pa_Initialize");LOAD(terminate,"Pa_Terminate");LOAD(count,"Pa_GetDeviceCount");LOAD(info,"Pa_GetDeviceInfo");LOAD(default_device,"Pa_GetDefaultOutputDevice");LOAD(text,"Pa_GetErrorText");LOAD(open,"Pa_OpenStream");LOAD(start,"Pa_StartStream");LOAD(stop,"Pa_StopStream");LOAD(abort,"Pa_AbortStream");LOAD(close,"Pa_CloseStream");LOAD(active,"Pa_IsStreamActive");LOAD(load,"Pa_GetStreamCpuLoad");
+  LOAD(initialize,"Pa_Initialize");LOAD(terminate,"Pa_Terminate");LOAD(count,"Pa_GetDeviceCount");LOAD(info,"Pa_GetDeviceInfo");LOAD(host_api,"Pa_GetHostApiInfo");LOAD(format_supported,"Pa_IsFormatSupported");LOAD(default_device,"Pa_GetDefaultOutputDevice");LOAD(text,"Pa_GetErrorText");LOAD(open,"Pa_OpenStream");LOAD(start,"Pa_StartStream");LOAD(stop,"Pa_StopStream");LOAD(abort,"Pa_AbortStream");LOAD(close,"Pa_CloseStream");LOAD(active,"Pa_IsStreamActive");LOAD(load,"Pa_GetStreamCpuLoad");
 #undef LOAD
   check(initialize());initialized=true;
  }
@@ -77,7 +79,24 @@ std::vector<Device> devices(const std::string &directory) {
     b.check(count);
     for (int i = 0; i < count; ++i) {
         const auto *d = b.info(i);
-        if (d && d->maxOutputChannels >= 2) result.push_back({d->name, i, i == b.default_device()});
+        if (!d) continue;
+        Device entry;
+        entry.name = d->name;
+        entry.index = i;
+        entry.is_default = i == b.default_device();
+        entry.output_channels = d->maxOutputChannels;
+        if (const auto *api = b.host_api(d->hostApi)) entry.backend = api->name;
+        entry.sample_rates.clear();
+        if (d->maxOutputChannels >= 2) {
+            PaStreamParameters output{i, 2, paFloat32, d->defaultLowOutputLatency, nullptr};
+            for (uint32_t rate : {44100u, 48000u, 96000u})
+                if (b.format_supported(nullptr, &output, rate) >= 0) entry.sample_rates.push_back(rate);
+        }
+        entry.supported = d->maxOutputChannels >= 2 && !entry.sample_rates.empty();
+        if (!entry.supported)
+            entry.unsupported_reason = d->maxOutputChannels == 0 ? "no-output" :
+                                       d->maxOutputChannels == 1 ? "mono-output" : "rate-unsupported";
+        result.push_back(std::move(entry));
     }
     return result;
 }
@@ -103,11 +122,14 @@ struct Stream::Impl {
             }
         }
         const auto *info = device >= 0 ? b.info(device) : nullptr;
-        if (!info || info->maxOutputChannels < 2) throw std::runtime_error("No matching stereo output device");
+        if (!info) throw std::runtime_error("No matching audio output device");
+        if (info->maxOutputChannels < 2)
+            throw std::runtime_error(info->maxOutputChannels == 0 ? "no-output" : "mono-output");
+        PaStreamParameters output{device, 2, paFloat32, info->defaultLowOutputLatency, nullptr};
+        if (b.format_supported(nullptr, &output, rate) < 0) throw std::runtime_error("rate-unsupported");
         context = std::make_unique<Context>(EngineOwner(nullptr, app_engine_destroy), block);
         context->stop_producers = std::move(producers);
         context->engine = std::move(engine);
-        PaStreamParameters output{device, 2, paFloat32, info->defaultLowOutputLatency, nullptr};
         auto opened = b.open(&stream, nullptr, &output, rate, block, paNoFlag, callback, context.get());
         if (opened < 0) {
             engine = std::move(context->engine);
