@@ -42,6 +42,13 @@ Live heads/handoffs govern; no queued/stale/missing result is passed.
 - READY426/427: existing rollout branch reconciliation and final selected acceptance.
 - Audio399and Notes423have bounded task fixes; semantic contracts remain Keel stops.
 
+## Pi preparation (owner authorized; installation after Windows test)
+- READY #445 preflight/logs: docs/tasks/PI_SOURCE_PREFLIGHT.md; no auto-install.
+- READY #446 ARM64 Electron/profile smoke: docs/tasks/PI_APP_SMOKE.md; reuse #386.
+- Queue/evidence: #444, docs/tasks/PI_SETUP_QUEUE.md; parent #436, related #235.
+- Pi nightly42560014392 pending; actual source SHA/results required, not green.
+- #101 baseline pending; #274 display/#296 soak/#271 hardware stay separate.
+
 ## Permanent gates
 - Required guard/Linux/Windows/sanitizers PLUS task/Studio/WASM/Pi as applicable.
 - T1different-session review; T2cross-family. Keep allIDs/unknown patch data.
