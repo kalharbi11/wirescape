@@ -33,7 +33,9 @@ def arm64_elf(file: Path) -> bool:
     try:
         with file.open("rb") as stream:
             data = stream.read(20)
-        return data[:4] == b"\x7fELF" and data[4] == 2 and data[5] == 1 and int.from_bytes(data[18:20], "little") == 183
+        return (len(data) >= 20 and data[:4] == b"\x7fELF" and
+                data[4] == 2 and data[5] == 1 and
+                int.from_bytes(data[18:20], "little") == 183)
     except OSError:
         return False
 
