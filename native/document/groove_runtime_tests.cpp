@@ -11,12 +11,16 @@
 #include "runtime_patch.h"
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 using Json = nlohmann::json;
 using Owner = std::unique_ptr<AppEngine, decltype(&app_engine_destroy)>;
@@ -330,12 +334,15 @@ static void test_s1_many_cycles(AppEngine *cat) {
 // A full event sink rejects NOTE_OFF without sacrificing its identity or allowing replacement ON.
 struct GrooveSaturatedSink {
     std::array<ws2_event, 8> accepted{};
+    std::array<uint64_t, 8> frames{};
+    uint64_t frame = 100;
     uint32_t count = 0;
     bool block_off = false;
     static int WS2_CALL push(void *ctx, uint32_t port, const ws2_event *event) {
         auto &sink = *static_cast<GrooveSaturatedSink *>(ctx);
         if (port != 4 || (event->type == WS2_NOTE_OFF && sink.block_off) || sink.count == sink.accepted.size())
             return WS2_CAPACITY;
+        sink.frames[sink.count] = sink.frame + event->offset;
         sink.accepted[sink.count++] = *event;
         return WS2_OK;
     }
@@ -346,6 +353,7 @@ static void test_s1_deliberate_saturation() {
     for (uint32_t i = 0; i < outputs.size(); ++i)
         outputs[i] = {sizeof(ws2_event_out), &sink, i, &GrooveSaturatedSink::push};
     ws2_process raw{};
+    raw.frames = 1;
     raw.output_count = static_cast<uint32_t>(outputs.size());
     raw.event_outputs = outputs.data();
     ws::Block block(raw);
@@ -355,9 +363,10 @@ static void test_s1_deliberate_saturation() {
     old.reset();
     old.running = old.players[0].playing = true;
     old.trigger(block, 0, 0);
-    check(sink.count == 1 && sink.accepted[0].type == WS2_NOTE_ON &&
-              sink.accepted[0].port == 4 && sink.accepted[0].key == 60 &&
-              sink.accepted[0].note_id > 0, "saturation setup records first note identity");
+    check(sink.count == 1 && sink.accepted[0].type == WS2_NOTE_ON && sink.accepted[0].port == 4 &&
+              sink.accepted[0].key == 60 && sink.accepted[0].note_id > 0 && sink.accepted[0].offset == 0 &&
+              sink.frames[0] == 100,
+          "saturation setup records first note identity");
     const auto first = sink.accepted[0];
     sink.block_off = true;
     old.release(block, 0, 0);
@@ -367,13 +376,16 @@ static void test_s1_deliberate_saturation() {
     check(sink.count == 1 && old.players[0].pending.id == first.note_id,
           "pending release blocks all replacement NOTE_ON events");
     sink.block_off = false;
-    check(old.flush(block, 0, 0) && sink.count == 2 &&
-              sink.accepted[1].type == WS2_NOTE_OFF &&
-              sink.accepted[1].note_id == first.note_id && sink.accepted[1].key == first.key,
+    sink.frame = 101;
+    check(old.flush(block, 0, 0) && sink.count == 2 && sink.accepted[1].type == WS2_NOTE_OFF &&
+              sink.accepted[1].note_id == first.note_id && sink.accepted[1].key == first.key &&
+              sink.accepted[1].port == 4 && sink.accepted[1].offset == 0 && sink.frames[1] > sink.frames[0],
           "next-block retry emits exactly the matching NOTE_OFF");
     old.trigger(block, 0, 0);
-    check(sink.count == 3 && sink.accepted[2].type == WS2_NOTE_ON &&
-              sink.accepted[2].note_id != first.note_id, "new note gets new identity after release");
+    check(sink.count == 3 && sink.accepted[2].type == WS2_NOTE_ON && sink.accepted[2].note_id != first.note_id &&
+              sink.accepted[2].key == first.key && sink.accepted[2].port == 4 && sink.accepted[2].offset == 0 &&
+              sink.frames[2] >= sink.frames[1],
+          "new note gets new identity after release");
 
     // Prepare a replacement while the retiring instance still owes an OFF.
     const auto second = sink.accepted[2];
@@ -384,16 +396,160 @@ static void test_s1_deliberate_saturation() {
     groove::Sequencer reloaded;
     reloaded.pattern = old.pattern;
     reloaded.reset();
-    check(!reloaded.running && !reloaded.players[0].playing &&
-              !reloaded.players[0].pending.on && !reloaded.players[0].sounding.on,
+    check(!reloaded.running && !reloaded.players[0].playing && !reloaded.players[0].pending.on &&
+              !reloaded.players[0].sounding.on,
           "replacement initializes fully stopped with no inherited note debt");
     reloaded.trigger(block, 0, 0);
     check(sink.count == 3, "replacement cannot auto-trigger on load");
     sink.block_off = false;
-    check(old.flush(block, 0, 0) && sink.count == 4 &&
-              sink.accepted[3].type == WS2_NOTE_OFF &&
+    sink.frame = 102;
+    check(old.flush(block, 0, 0) && sink.count == 4 && sink.accepted[3].type == WS2_NOTE_OFF &&
               sink.accepted[3].note_id == second.note_id && sink.accepted[3].key == second.key &&
-              !old.players[0].pending.on, "retiring instance drains matching OFF without a stranded note");
+              sink.accepted[3].port == 4 && sink.accepted[3].offset == 0 && sink.frames[3] > sink.frames[2] &&
+              !old.players[0].pending.on,
+          "retiring instance drains matching OFF without a stranded note");
+}
+
+// Real engine integration: overflow substitutes its documented global host choke
+// for an undeliverable release; replan then removes the old route and chokes the
+// retained receiver before a fresh stopped Groove instance can emit anything.
+struct GrooveReleaseFlood {
+    static constexpr ws::Info info{"test.groove_release_flood", "Release flood", 1};
+    static constexpr std::array<ws2_port, 0> inputs{};
+    static constexpr std::array outputs{ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
+    static constexpr std::array params{ws::param("fire", "Fire", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE)};
+    static inline uint32_t admitted = 0;
+    bool fired = false;
+    void prepare(const ws::Setup &) { reset(); }
+    void reset() { fired = false; }
+    void process(ws::Block &b) {
+        if (admitted || fired || b.param(0).value(0, 0) < 1.f) return;
+        fired = true;
+        for (uint32_t i = 0; i < 256; ++i) {
+            ws2_event e{};
+            e.struct_size = sizeof(e);
+            e.type = WS2_NOTE_OFF;
+            e.note_id = 9000;
+            e.key = 1;
+            admitted += b.emit(0, e);
+        }
+    }
+};
+struct GrooveHostReceiver {
+    static constexpr ws::Info info{"test.groove_receiver", "Note receiver", 1};
+    static constexpr std::array inputs{ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
+    static constexpr std::array outputs{ws::port("held", "Held")};
+    static constexpr std::array<ws2_param, 0> params{};
+    struct Seen {
+        ws2_event event;
+        uint64_t frame;
+    };
+    static inline std::array<Seen, 16> seen{};
+    static inline uint32_t count = 0;
+    static inline bool overflow = false;
+    bool held = false;
+    void prepare(const ws::Setup &) { reset(); }
+    void reset() { held = false; }
+    void process(ws::Block &b) {
+        for (const auto &e : b.events()) {
+            if (count < seen.size()) seen[count++] = {e, b.frame_position() + e.offset};
+            else overflow = true;
+            if (e.type == WS2_NOTE_ON) held = true;
+            if (e.type == WS2_NOTE_OFF || e.type == WS2_NOTE_CHOKE) held = false;
+        }
+        b.out(0).set_channels(1);
+        b.out(0).mark_constant();
+        b.out(0).ch(0)[0] = held ? 1.f : 0.f;
+    }
+};
+static void test_s1_engine_saturation_replan() {
+    using wirescape::engine2::Engine;
+    using wirescape::engine2::Timing;
+    wirescape::engine2::Config limits;
+    check(limits.ring_capacity == 256, "fixture saturates unchanged production egress capacity");
+    Engine live(limits), candidate(limits);
+    auto prepare = [](Engine &engine, int key) {
+        groove::Config config;
+        config.tracks[0].steps[0] = {groove::Note, key, 1.f, 0.f, 0.f};
+        std::vector<uint8_t> bytes(sizeof(config));
+        std::memcpy(bytes.data(), &config, sizeof(config));
+        check(engine.add_node(1, ws::Module<GrooveReleaseFlood>::descriptor()), "real flood node");
+        check(engine.add_node(2, ws::Module<groove::Sequencer>::descriptor(), bytes), "real Groove node");
+        check(engine.add_node(3, ws::Module<GrooveHostReceiver>::descriptor()), "real retained note receiver");
+        check(engine.connect(2, 4, 3, 0) && engine.output(3, 0, 0), "real Groove notes route");
+        check(engine.register_producer() == 0 && engine.prepare(), "real prepared graph");
+    };
+    prepare(live, 60);
+    prepare(candidate, 61); // changed config replaces Groove, retains receiver
+    check(candidate.set_parameter(2, 0, 1.f), "saved high START in replacement");
+    GrooveHostReceiver::count = GrooveReleaseFlood::admitted = 0;
+    GrooveHostReceiver::overflow = false;
+    float output[256]{};
+    float *rows[]{output};
+    auto render = [&](uint32_t frames) {
+        allocation_watch::ThreadScope watch;
+        check(live.render(rows, 1, frames) == WS2_OK && watch.allocations() == 0,
+              "saturated/replanned render is allocation-free");
+    };
+    auto control = [&](uint32_t node, uint32_t index) {
+        ws2_event e{};
+        e.struct_size = sizeof(e);
+        e.type = WS2_PARAM;
+        e.index = index;
+        e.value = 1.f;
+        check(live.enqueue(0, node, WS2_DIRECT_PORT, e, 0, Timing::Immediate) == WS2_OK, "control ingress");
+    };
+    render(1);
+    control(2, 0);
+    render(1);
+    wirescape::engine2::Outgoing out;
+    check(live.pop_egress(out) && out.node == 2 && out.port == 4 && out.event.type == WS2_NOTE_ON &&
+              out.event.note_id > 0 && out.event.key == 60 && out.event.offset == 0 && out.frame == 1,
+          "real native NOTE_ON has exact source, port, key, id and absolute frame");
+    const auto first = out;
+    check(!live.pop_egress(out) && output[0] == 1.f, "receiver holds precisely that note");
+    control(1, 0);
+    control(2, 3);
+    render(1); // fill critical egress, then immediate Groove mute/OFF
+    if (GrooveReleaseFlood::admitted != limits.ring_capacity || live.meter().release_emergencies != 1)
+        std::fprintf(stderr, "host saturation: admitted=%u emergencies=%llu receiver=%u frame=%llu\n",
+                     GrooveReleaseFlood::admitted, static_cast<unsigned long long>(live.meter().release_emergencies),
+                     GrooveHostReceiver::count, static_cast<unsigned long long>(live.meter().frame));
+    check(GrooveReleaseFlood::admitted == limits.ring_capacity && live.meter().release_emergencies == 1,
+          "real critical ring is full and the old release invokes host recovery");
+    check(live.pop_egress(out) && out.event.type == WS2_NOTE_CHOKE && out.event.source_id == UINT32_MAX &&
+              out.event.note_id == -1 && out.event.channel == -1 && out.event.flags == 1 && out.frame > first.frame,
+          "documented global choke releases the external ledger's outstanding note");
+    while (live.pop_egress(out)) check(out.event.type != WS2_NOTE_ON, "no ON may intervene after release failure");
+    check(GrooveHostReceiver::count == 2 && GrooveHostReceiver::seen[1].event.type == WS2_NOTE_OFF &&
+              GrooveHostReceiver::seen[1].event.note_id == first.event.note_id &&
+              GrooveHostReceiver::seen[1].event.key == first.event.key && GrooveHostReceiver::seen[1].event.port == 0 &&
+              GrooveHostReceiver::seen[1].event.offset == 0 && GrooveHostReceiver::seen[1].frame == 2,
+          "internal receiver got the matched OFF before host recovery");
+    std::atomic<bool> done{false}, success{false};
+    std::thread planner([&] {
+        success = live.replan(candidate, 16000000);
+        done = true;
+    });
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (!done.load() && std::chrono::steady_clock::now() < deadline) {
+        render(1);
+        std::this_thread::yield();
+    }
+    planner.join();
+    check(success.load(), "real engine adopts replacement through live replan");
+    render(256);
+    check(!GrooveHostReceiver::overflow && GrooveHostReceiver::count == 3,
+          "no replacement NOTE_ON or extra release reaches the retained receiver");
+    const auto &choke = GrooveHostReceiver::seen[2];
+    check(choke.event.type == WS2_NOTE_CHOKE && choke.event.port == 0 && choke.event.offset == 0 &&
+              choke.event.note_id == -1 && choke.event.source_id == UINT32_MAX && choke.event.flags == 1 &&
+              choke.frame >= 3 && choke.frame < live.meter().frame,
+          "removed old Groove route delivers the host choke at the next render boundary");
+    for (float value : output) check(value == 0.f, "stopped replacement strands no downstream note");
+    for (int block = 0; block < 30; ++block) render(256);
+    check(GrooveHostReceiver::count == 3 && !live.pop_egress(out) && live.meter().faults == 0,
+          "saved-high replacement does not auto-start, re-emit old notes or strand a receiver");
 }
 
 static void test_s1_refusals(AppEngine *cat) {
@@ -445,6 +601,7 @@ int main() {
         test_s1_transport(cat.get());
         test_s1_deliberate_saturation();
         test_s1_many_cycles(cat.get());
+        test_s1_engine_saturation_replan();
         for (double rate : {44100., 48000., 96000.})
             for (uint32_t block : {1u, 17u, 64u, 128u, 256u}) test_rate_block(cat.get(), rate, block);
         std::puts("PASS Groove v1 config/refusal/save-reload/stopped/noalloc/32-step timing");
