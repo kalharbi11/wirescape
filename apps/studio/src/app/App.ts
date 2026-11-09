@@ -938,13 +938,19 @@ export class App {
         return;
       }
       const currentId = this.lastStatus?.audio.deviceId ?? '';
+      // Optional v0 fields are additive. Legacy EngineClient implementations
+      // may omit them, so keep the existing shared interface unchanged.
+      type AudioDetail = (typeof devices)[number] & {
+        backend?: string; outputChannels?: number; supported?: boolean; unsupportedReason?: string;
+      };
+      const routes = devices as AudioDetail[];
       // A missing or duplicate remembered identity must not select the first device.
-      const count = (id: string) => devices.filter(d => d.id === id).length;
-      const usable = (d: (typeof devices)[number]) => count(d.id) === 1 && d.supported !== false;
-      const details = (d: (typeof devices)[number]) => [
+      const count = (id: string) => routes.filter(d => d.id === id).length;
+      const usable = (d: AudioDetail) => count(d.id) === 1 && d.supported !== false;
+      const details = (d: AudioDetail) => [
         d.backend, d.outputChannels === undefined ? undefined : `${d.outputChannels} channels`,
       ].filter(Boolean).join(' · ');
-      const current = devices.find(d => d.id === currentId && usable(d));
+      const current = routes.find(d => d.id === currentId && usable(d));
       const placeholder = currentId
         ? `Unavailable, ambiguous or unsupported: ${this.lastStatus?.audio.deviceName ?? currentId}`
         : 'Choose a physical output…';
@@ -956,7 +962,7 @@ export class App {
       const rates = select([], '', v => engine.setSampleRate?.(Number(v)));
       rates.dataset.testid = 'audio-rate';
       const refreshRates = (deviceId: string) => {
-        const dev = devices.find(d => d.id === deviceId && usable(d));
+        const dev = routes.find(d => d.id === deviceId && usable(d));
         // Unknown rates are unknown, not proof that 48 kHz is supported.
         rates.replaceChildren(...(dev?.sampleRates ?? []).map(n => {
           const option = document.createElement('option');
@@ -969,21 +975,21 @@ export class App {
         rates.disabled = !dev || rates.options.length === 0;
       };
       let buffer: HTMLSelectElement | undefined;
-      const choices = devices.map(d => ({
+      const choices = routes.map(d => ({
         value: d.id,
         label: `${d.name}${details(d) ? ` · ${details(d)}` : ''}${d.supported === false ? ` — unavailable: ${d.unsupportedReason ?? 'unsupported'}` : ''}`,
       }));
       if (!current) choices.unshift({ value: '', label: placeholder });
       const sel = select(choices, current?.id ?? '', v => {
-        const chosen = devices.find(d => d.id === v && usable(d));
+        const chosen = routes.find(d => d.id === v && usable(d));
         if (!chosen) return;
         engine.selectAudioDevice(v);
-        route.textContent = `Requested physical route: ${devices.find(d => d.id === v)!.name} (awaiting engine status)`;
+        route.textContent = `Requested physical route: ${routes.find(d => d.id === v)!.name} (awaiting engine status)`;
         if (engine.setSampleRate) refreshRates(v);
         if (buffer) buffer.disabled = false;
       });
       for (const option of sel.options) {
-        if (option.value && !devices.some(d => d.id === option.value && usable(d))) option.disabled = true;
+        if (option.value && !routes.some(d => d.id === option.value && usable(d))) option.disabled = true;
       }
       sel.dataset.testid = 'audio-device';
       audioFields.append(field('Physical output device (not graph Output)', sel));
