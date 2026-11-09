@@ -48,7 +48,7 @@
   border-radius: 3px; background: var(--card); padding: 9px 12px; cursor: pointer; }
 .groove-study button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--card); }
 .groove-study button:disabled { opacity: .42; cursor: not-allowed; }
-.groove-study :is(button, input, select, a):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.groove-study :is(button, input, select, a, .step-scroller):focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .groove-study .square { min-width: 44px; }
 .groove-study .tracks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px;
   padding: 14px 16px; border-bottom: var(--line); }
@@ -71,7 +71,7 @@
 .groove-study .step-cell .step-label { font: 11px var(--mono); }
 .groove-study .step-cell[data-kind="note"] .step-label { font-weight: 600; }
 .groove-study .step-cell[data-kind="tie"] { border-style: dashed; }
-.groove-study .step-cell.is-selected { border: 2px solid var(--ink); background: var(--card2); }
+.groove-study .step-cell.is-selected { border: 2px solid var(--ink); background: var(--card2); color: var(--ink); }
 .groove-study .step-cell.is-playhead::before { content: ""; position: absolute; width: 5px; height: 5px;
   border-radius: 50%; top: 5px; right: 5px; background: var(--rust); }
 .groove-study .playhead-key { color: var(--rust); }
@@ -81,7 +81,7 @@
 .groove-study .panel > h3 { margin-bottom: 12px; }
 .groove-study .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
 .groove-study label { display: grid; gap: 6px; font: 500 10px var(--mono); color: var(--graph); }
-.groove-study label input { min-width: 0; width: 100%; padding: 10px 8px; border: 1px solid var(--hair);
+.groove-study label input { min-width: 0; min-height: 44px; width: 100%; padding: 10px 8px; border: 1px solid var(--hair);
   background: var(--card); border-radius: 3px; font-variant-numeric: tabular-nums; }
 .groove-study label input:disabled { background: var(--card2); }
 .groove-study .status { padding: 10px 12px; border: var(--line); background: var(--card2);

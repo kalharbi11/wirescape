@@ -137,7 +137,7 @@
               <button id="sim-refuse" type="button">Refuse Apply</button>
               <button id="sim-advance" type="button">Show step 23</button>
               <button id="sim-disconnect" type="button">Disconnect</button>
-              <button id="sim-recover" type="button">Confirm stopped + loaded</button>
+              <button id="sim-recover" type="button">Confirm STOP + prior load</button>
             </div>
             <div id="demo-log" class="mono muted" aria-live="polite" style="margin-top:12px">Demo event: initial simulated stopped/loaded snapshot.</div>
           </div>
@@ -187,7 +187,7 @@
   note(1, 7, 72, .6, .15, .9); note(1, 23, 55, .7, .7, .3);
   let draft = clone(initial), loaded = clone(initial), saved = clone(initial);
   let past = [], future = [], track = 0, page = 0, selected = 0;
-  let mode = "stopped", verified = true, muted = false, localMute = [false,false];
+  let mode = "stopped", verified = true, refused = false, muted = false, localMute = [false,false];
   let trackQueued = [false,false], trackStop = [false,false], armed = [true,true], playhead = null;
   let lastEvent = "Initial simulated stopped/loaded snapshot.";
   const editable = () => verified && (mode === "stopped" || mode === "refused");
@@ -304,10 +304,10 @@
   $("apply").onclick = () => {if (!editable() || !dirty()) return;
     mode="applying"; record("Candidate submitted (simulated); pending ACK or refusal.");};
   $("sim-ack").onclick = () => {if (mode !== "applying") return;
-    loaded=clone(draft); mode="stopped"; verified=true; playhead=null;
+    loaded=clone(draft); mode="stopped"; refused=false; verified=true; playhead=null;
     record("Demo ACK: newly loaded graph is stopped. Start remains separate.");};
   $("sim-refuse").onclick = () => {if (mode !== "applying") return;
-    mode="refused"; record("Demo refusal: changed draft kept, old loaded graph unchanged.");};
+    mode="refused"; refused=true; record("Demo refusal: changed draft kept, old loaded graph unchanged.");};
   $("start").onclick = () => {if (mode!=="stopped" || dirty() || !verified) return;
     mode="running"; playhead=0; trackQueued=[false,false];trackStop=[false,false];
     record("Demo START at step 1; no timing/audio engine attached.");};
@@ -339,8 +339,9 @@
     playhead=22;record("Demo/native playhead fixture set to step 23; editor page not moved.");};
   $("sim-disconnect").onclick = () => {mode="unknown";verified=false;playhead=null;
     record("Demo disconnect: native STOP/playhead/loaded truth unknown; edits blocked.");};
-  $("sim-recover").onclick = () => {mode="stopped";verified=true;loaded=clone(draft);playhead=null;
-    record("Demo independently confirmed STOP and loaded config; not an inferred reconnect.");};
+  $("sim-recover").onclick = () => {if (mode !== "unknown") return;
+    mode=refused ? "refused" : "stopped";verified=true;playhead=null;
+    record("Demo confirmed STOP and prior acknowledged load; draft/refusal retained. Apply before Start if dirty.");};
   render();
 })();
 </script>

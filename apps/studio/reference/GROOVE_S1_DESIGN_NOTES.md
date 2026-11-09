@@ -32,13 +32,13 @@ the patch canvas visible when space allows; on narrow viewports the inspector
 stacks and its **step row scrolls internally**, not the entire app canvas. Do
 not silently add an app-wide navigation tab.
 
-**Geometry intended by CSS (not yet visually certified):** outer study max
+**Geometry checked in cloud Chromium (not physical Pi evidence):** outer study max
 1440px; expanded editor spans the available study width; 16-cell row requires
 824px minimum and scrolls at narrower widths; two equal-status track rows
 stack below 600px; two inner panels stack below 900px. Intended review sizes:
 1920×1080, 1280×720, and a narrow portrait viewport (e.g. 390×844).
-A source inspection and mock-DOM interaction pass are not a screenshot or
-actual overflow measurement at those sizes.
+Real Chromium screenshots and root overflow/focus checks cover all three sizes;
+the narrow step row scrolls inside its container. Physical display QA remains separate.
 
 ## Fixture and gesture walk-through
 
@@ -71,7 +71,8 @@ modulation as ruled for S1; velocity zero is musically a rest.
    Track Start to queue boundary entry; Track Stop cancels queued entry.
 8. Click Disconnect: STOP and loaded confirmation read **unknown**;
    editing and Start stay disabled. Only an explicit simulated confirmation
-   re-establishes the demo's stopped/loaded fixture.
+   re-establishes STOP and the prior acknowledged load, preserving the draft
+   and any refusal. Recovery never acknowledges an unapplied candidate.
 
 There is intentionally no keyboard shortcut that bypasses a lock, no inferred
 completed STOP from a gate's level, and no browser-created transport beat.
@@ -95,8 +96,9 @@ without writing a file, so it cannot be mistaken for patch persistence.
 | Playhead 23, editor page 1 | No if running | No | No | Step 23 off-page, selected page stays |
 
 The demo does not establish how the production app obtains native truth. The
-existing telemetry seam has **no authoritative Groove completed STOP/playhead**:
-Keel's T2 ruling is required before implementing S1(b) gating. A `stop`
+existing telemetry seam has **no installed authoritative Groove STOP/playhead**.
+Keel ruled on the separate measured t1_pos/t2_pos seam in #432 comment
+6735445406; that dedicated T2 integration follows #451 and is not built here. A `stop`
 parameter/command receipt, muted output, or fake-browser clock is insufficient.
 S1 config uses reviewed JSON `version:1`, 1–2 tracks/1–32 steps with additive
 defaults and strict native refusal of unknown keys; keep the authored unknown
@@ -117,7 +119,7 @@ modules; that warning stays beside Apply without a confirmation modal.
 | Exact numeric fields and segmented kind | `src/panels/widgets/NumberBox.ts`, `Segmented.ts`, and panel layout conventions |
 | Authored JSON, Undo/Redo, save/open | `src/patch/PatchDoc.ts`, current app document history/persistence; unknown keys stay authored |
 | Candidate Apply, refusal and actual ACK/generation | `src/engine/RealEngine.ts`, existing `loadGraph` transaction and status bridge |
-| Native STOP completion, position and disconnect | **Missing T2 observation ruling**, then bounded native-to-Studio status; never `FakeEngine` timer |
+| Native STOP completion, position and disconnect | **Separate ruled T2 observation implementation**, then bounded native-to-Studio status; never `FakeEngine` timer |
 | Optional live status dot | `src/runtime/Ticker.ts`, driven only by genuine telemetry and visibility; rust reserved for live event/position |
 
 S1b gate-length options and selected-step/page copy/clear/duplicate are **not**
@@ -149,18 +151,26 @@ layout properties or simulated signal motion.
 - **PASS** source audit: no external scripts or timer-driven playhead; two
   local CSS links present; responsive 900px/600px rules and reduced-motion
   clause present.
-- **NOT VERIFIED:** actual Chromium/Safari viewport screenshots, layout
-  overflow, pointer hit-testing, keyboard focus walkthrough, CSS visual
-  fidelity and console on a rendered page. No checkout of the GitHub branch
-  was available to the container; only GitHub connector source verification
-  and controlled mock-DOM tests were run. This is **not** Playwright or
-  native S1 acceptance.
+- **PASS** real cloud Chromium browser regression: dirty and refused drafts survive
+  disconnect/recovery; Start stays locked until explicit Apply ACK. Undo confirms
+  the prior acknowledged snapshot was preserved. Queued STOP keeps edits locked.
+- **PASS** 1280x720, 1920x1080 and 390x844: no document horizontal overflow,
+  internal narrow step scrolling, page selection, visible keyboard focus, 44px
+  numeric controls and no browser console/page errors. Screenshots inspected in
+  workspace artifacts (not committed). Selected-step contrast and scroll focus
+  were corrected after this rendered pass.
+- Reproduce: `npm --prefix apps/studio ci --no-audit --no-fund`, then
+  `node --test apps/studio/tests-node/groove-study.test.mjs`. Set
+  `WIRESCAPE_CHROMIUM` for a nonstandard Chromium executable and optionally
+  `WIRESCAPE_GROOVE_ARTIFACTS` for screenshots. The test serves only local study
+  assets over loopback; this cloud policy blocks file-URL navigation.
+- **NOT VERIFIED:** Safari, physical Pi/Windows display, or production Studio integration.
 - **NOT VERIFIED:** real engine/Studio telemetry, Pi or Windows UI, MIDI/audio,
   native STOP/playhead, actual `loadGraph`, real persistence or physical listening.
 
-Before merge: visually inspect 1280×720, 1920×1080 and a narrow viewport;
-test keyboard navigation/scroll, read-only state, text wrapping, console and
-reduced motion in a real browser. Then independent different-session T1
+Before merge: independent different-session source and screenshot T1
 `COMMENT` review on the exact PR head; no author merge/approval.
 
 Signed: ChatGPT (GPT-6, Groove UI study builder), 2026-11-09.
+
+Closeout: Codex Lead (Codex, delegated study builder), 2026-11-09 America/New_York.
