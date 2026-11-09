@@ -57,6 +57,18 @@ static uint32_t run_id(AppEngine *engine){
  }
  throw std::runtime_error("Groove not registered in native catalogue");
 }
+// A rendered graph must receive live parameter events. initialize_parameter
+// is quiescent/position-zero only, even if this module is currently stopped.
+static void run_command(AppEngine *e,uint32_t param,float value){
+ ws_event event{};
+ event.struct_size=sizeof(event);
+ event.type=WS_PARAMETER;
+ event.node_id=1;
+ event.parameter_id=param;
+ event.value=value;
+ event.frame=app_engine_native(e).meter().frame;
+ check(app_engine_enqueue(e,&event)==WS_OK,"existing ingress accepts run command");
+}
 static std::vector<float> trace(AppEngine *e,uint32_t count,uint32_t block,bool verify_cv=false){
  std::vector<float> out;
  out.reserve(count);
@@ -117,8 +129,8 @@ static void test_rate_block(AppEngine *cat,double rate,uint32_t block){
  check(trace(live.get(),block,block)[0]==0.f,"fresh patch starts stopped");
  check(trace(reload.get(),block,block)[0]==0.f,"reloaded patch starts stopped");
  uint32_t id=run_id(live.get());
- check(app_engine_initialize_parameter(live.get(),1,id,1)==WS_OK,"start via existing parameter seam");
- check(app_engine_initialize_parameter(reload.get(),1,id,1)==WS_OK,"reloaded start");
+ run_command(live.get(),id,1.f);
+ run_command(reload.get(),id,1.f);
  const double period=rate/8.; // 120 BPM sixteenth note
  const uint32_t count=static_cast<uint32_t>(std::ceil(period*8))+2;
  const auto a=trace(live.get(),count,block);
@@ -128,14 +140,14 @@ static void test_rate_block(AppEngine *cat,double rate,uint32_t block){
  check(a[0]==1.f&&at(1)==0.f&&at(2)==1.f&&at(3)==1.f&&
        at(4)==0.f&&at(5)==1.f&&at(6)==0.f&&at(8)==1.f,
        "note/rest/tie/wrap transition frames");
- check(app_engine_initialize_parameter(live.get(),1,id,0)==WS_OK,"stop via existing seam");
+ run_command(live.get(),id,0.f);
  check(trace(live.get(),block,block)[0]==0.f,"stop releases active gate");
  // Separate signal route: pitch -> VCO pitch; gate -> VCA gain.
  // Never attach quantized pitch CV and raw note events to the same VCO.
  auto cv=load(patch(pattern(),true),cat,rate,error);
  check(bool(cv),"pitch/gate CV patch loads through native graph");
  check(trace(cv.get(),block,block)[0]==0.f,"signal patch loads stopped");
- check(app_engine_initialize_parameter(cv.get(),1,id,1)==WS_OK,"start CV patch");
+ run_command(cv.get(),id,1.f);
  trace(cv.get(),static_cast<uint32_t>(std::ceil(period*2))+2,block,true);
 }
 int main(){
