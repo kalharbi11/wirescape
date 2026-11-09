@@ -2,6 +2,7 @@
 #pragma once
 #include "app_engine.h"
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <stdexcept>
@@ -44,6 +45,10 @@ class Stream {
            std::function<void()> stop_producers = {});
     ~Stream();
     EngineOwner stop();
+    // Hands `next` to the running callback at a block boundary without reopening the
+    // device. On success `next` holds the retired engine, which the callback no longer
+    // touches. False (deadline passed or no stream) leaves both engines unchanged.
+    bool exchange(EngineOwner &next, std::chrono::steady_clock::time_point deadline);
     bool running() const;
     double cpu_percent() const;
     uint64_t dropouts() const;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include <optional>
+#include "../io/audio/engine_slot.h"
 #include "../io/audio/portaudio_service.h"
 #include "devices.h"
 #include "midi_host.h"
@@ -59,6 +60,7 @@ class Session {
     std::condition_variable sink_wake_;
     std::thread sink_;
     std::atomic<bool> stop_sink_{false}, sink_rendering_{false};
+    audio::EngineSlot sink_slot_; // null-sink twin of the PortAudio callback handoff
     std::atomic<double> cpu_{0};
     std::atomic<uint64_t> dropouts_{0};
     RenderHistogram bench_; // only sink thread records; joined before shutdown reads

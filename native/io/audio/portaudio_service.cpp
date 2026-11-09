@@ -2,6 +2,7 @@
 #include "portaudio_service.h"
 #include "../../ui/third_party/portaudio.h"
 #include "callback_render.h"
+#include "engine_slot.h"
 #include "wirescape/output_policy.h"
 #include <algorithm>
 #include <chrono>
@@ -62,15 +63,20 @@ struct Context {
     EngineOwner engine;
     std::vector<float> scratch;
     std::atomic<uint64_t> faults{0};
-    Context(EngineOwner e, uint32_t block) : engine(std::move(e)), scratch(size_t{block} * 2) {}
+    // `engine` is control-owned; the callback renders only `live`, which it alone
+    // writes after the stream starts, adopting exchanged engines at block starts.
+    EngineSlot slot;
+    AppEngine *live = nullptr;
+    Context(EngineOwner e, uint32_t block) : engine(std::move(e)), scratch(size_t{block} * 2), live(engine.get()) {}
 };
 int callback(const void *, void *output, unsigned long frames, const PaStreamCallbackTimeInfo *,
              PaStreamCallbackFlags flags, void *data) {
     auto &c = *static_cast<Context *>(data);
     auto *out = static_cast<float *>(output);
     const auto size = uint32_t(c.scratch.size() / 2);
+    c.live = c.slot.adopt(c.live);
     const auto now = app_engine_clock_ns();
-    const bool ok = render_callback_block(c.engine.get(), c.scratch.data(), size, out, frames, now, c.faults);
+    const bool ok = render_callback_block(c.live, c.scratch.data(), size, out, frames, now, c.faults);
     const auto end = app_engine_clock_ns();
     c.metrics.publish(end >= now ? end - now : 0, frames, c.rate, (flags & paOutputUnderflow) != 0);
     return ok ? paContinue : paAbort;
@@ -128,6 +134,7 @@ struct Stream::Impl {
         context->rate = rate;
         context->stop_producers = std::move(producers);
         context->engine = std::move(engine);
+        context->live = context->engine.get();
         PaStreamParameters output{device, 2, paFloat32, info->defaultLowOutputLatency, nullptr};
         auto opened = b.open(&stream, nullptr, &output, rate, block, paNoFlag, callback, context.get());
         if (opened < 0) {
@@ -175,6 +182,13 @@ Stream::Stream(EngineOwner &e, const StreamSelection &selection, double rate, ui
     : impl_(std::make_unique<Impl>(e, selection, rate, block, std::move(producers))) {}
 Stream::~Stream() = default;
 EngineOwner Stream::stop() { return impl_->retire(); }
+bool Stream::exchange(EngineOwner &next, std::chrono::steady_clock::time_point deadline) {
+    auto *context = impl_->context.get();
+    if (!context || !next || !impl_->stream) return false;
+    if (!context->slot.offer(next.get(), deadline)) return false;
+    std::swap(context->engine, next); // `next` now owns the retired engine.
+    return true;
+}
 bool Stream::running() const { return impl_->stream && impl_->backend->active(impl_->stream) > 0; }
 double Stream::cpu_percent() const {
     return impl_->context ? impl_->context->metrics.read() : std::numeric_limits<double>::quiet_NaN();
