@@ -103,6 +103,56 @@ setting blocker rather than pretending to merge.
 - Keep unknown fields when editing an export. Share only your own/licensed
   original patches; include GPL-3.0-only SPDX metadata for repository patches.
 
+## Proposed Spectral modes — PR #310, not yet merged
+
+`sound.spectral` on older/main builds supports modes0–5. PR #310 appends
+**6 Interleave** and **7 Vocoder**, retaining existing IDs and slots0–8.
+Until it merges, patches using either mode or slots9–15 require that PR's build;
+do not advertise them as compatible with older native or web deployments. After
+merge, check the actual native/WASM catalogue and deployed SHA before publishing.
+The implementation shares native DSP with the web build, but a native/Pi probe
+does not certify a particular deployed browser build or subjective sound quality.
+
+Concrete mono wiring: `essentials.vco.audio` → `sound.spectral.a`,
+`essentials.noise.audio` → `sound.spectral.b`, then `sound.spectral.audio` →
+`essentials.output.audio`; route that Output's audio to buses0/1 to duplicate mono.
+Both Spectral inputs SUM polyphonic cables; its `audio` output is one voice,
+not a separate spectral process per note. For mode6, use two contrasting sounds
+in A/B; B is scaled by existing `b_level` (slot7,0–2,default1). For mode7,
+A is the articulated modulator and B the sustained rich carrier (saw/pad/noise).
+No external sample file or service is loaded; use source modules already supported
+by the chosen host. Start with conservative carrier/output levels and monitor peaks.
+
+| Slot | Parameter | Range and default | Use |
+|---|---|---|---|
+| 9 | `chunk_a` | 1–64,default5 | Interleave A hops; stepped, modulatable |
+| 10 | `chunk_b` | 1–64,default5 | Interleave B hops; stepped, modulatable |
+| 11 | `phase` | 0 Phase vocoder (default),1 Source phase | Interleave phase choice |
+| 12 | `bands` | 6–64,default24 | Vocoder bands; stepped, modulatable |
+| 13 | `flatten` | 0–1,default0.85 | Remove carrier spectral tilt |
+| 14 | `release` | 0.005–0.4 seconds,default0.05; log | Vocoder envelope release |
+| 15 | `noise` | 0–1,default0.2 | Modulator-following upper-band hiss |
+
+Interleave alternates whole STFT frames on a hop of N/4 samples, including silent
+frames, and its schedule advances in every mode. At48k/default N=2048, each hop
+is10.67ms, so default5+5 chunks repeat every106.67ms. Controls except `level`
+are sampled on hops; mode changes crossfade over four frames. Phase vocoder
+continues output phase through switches (glide/smear); Source phase switches
+more directly. Larger FFT sizes increase latency; default N=2048 is42.7ms at48k.
+Vocoder bands cover70Hz to min(12kHz,0.45×sample rate); attack is4ms and carrier
+smoothing approximately11.4ms. Statev2 restores the chunk schedule and accepts
+statev1 at interleave position0; input/overlap-add audio history is not persisted,
+so a loaded sound must be reanalyzed rather than resuming its exact waveform.
+
+Device-free Pi evidence exists at `f6d4dd8`: three60s probes, two instances,
+mono48k/128, all with0 allocations/0 faults. Worst blocks were0.315ms baseline,
+0.699ms with size3/mode7/bands6↔64 each hop, and0.918ms with size3/pitch1/mode0↔7
+every four hops, against a2.667ms period. These bounds describe those probes,
+not a whole patch, arbitrary instance counts, live audio, or physical display load.
+Final integration evidence and owner listening remain separate; larger sizes and
+mode crossfades need their measured budget. Keep older-build availability and
+browser deployment limits visible when sharing patches.
+
 ## Designer procedure
 
 1. Read this guide, patches/README and the actual module catalogue.
