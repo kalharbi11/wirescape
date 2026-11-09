@@ -815,6 +815,7 @@ Json Session::hello() const {
             {"engine", {{"version", "0.1.0"}, {"sha", WIRESCAPE_ENGINE_SHA}}},
             {"capabilities", Json::array({"setSampleRate", "setBufferFrames"})},
             {"catalogue", catalogue(catalogue_.get())},
+            {"audioDevices", audio_devices_},
             {"audio", audio_status()},
             {"midi", midi_status()}};
 }
