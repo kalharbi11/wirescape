@@ -32,25 +32,25 @@ struct StepSequencer {
 
     // 2 + 16*3 = 50 parameters (ABI2 limit 64 after #404). The original 26 slots stay unchanged.
     static constexpr auto params = [] {
-        auto p = std::array{
-            ws::param("run", "Run", 0, 1, 1, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
-            ws::param("length", "Length", 1, 16, 8, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 1),
-            WS_STEP(1),
-            WS_STEP(2),
-            WS_STEP(3),
-            WS_STEP(4),
-            WS_STEP(5),
-            WS_STEP(6),
-            WS_STEP(7),
-            WS_STEP(8),
-            WS_STEP(9),
-            WS_STEP(10),
-            WS_STEP(11),
-            WS_STEP(12),
-            WS_STEP(13),
-            WS_STEP(14),
-            WS_STEP(15),
-            WS_STEP(16)};
+        auto p =
+            std::array{ws::param("run", "Run", 0, 1, 1, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
+                       ws::param("length", "Length", 1, 16, 8, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 1),
+                       WS_STEP(1),
+                       WS_STEP(2),
+                       WS_STEP(3),
+                       WS_STEP(4),
+                       WS_STEP(5),
+                       WS_STEP(6),
+                       WS_STEP(7),
+                       WS_STEP(8),
+                       WS_STEP(9),
+                       WS_STEP(10),
+                       WS_STEP(11),
+                       WS_STEP(12),
+                       WS_STEP(13),
+                       WS_STEP(14),
+                       WS_STEP(15),
+                       WS_STEP(16)};
         for (uint32_t s = 8; s < 16; ++s) p[3 + 3 * s].initial = 0.f;
         return p;
     }();
