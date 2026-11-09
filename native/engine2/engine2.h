@@ -82,6 +82,9 @@ public:
     bool output_constant(uint32_t node,uint32_t port)const;
     float output_sample(uint32_t node,uint32_t port,uint32_t channel,uint32_t frame)const;
     uint32_t feedback_edges()const;
+    // Control-owner-only, may overlap render; modules publish dynamic latency
+    // atomically from process(). Uses pre-sized scratch and performs no allocations.
+    void refresh_latency() noexcept;
     uint32_t latency_frames(uint32_t bus_channel)const;
     std::vector<FeedbackLoop> feedback_loops()const;
     std::vector<uint8_t>save_state(uint32_t node);
