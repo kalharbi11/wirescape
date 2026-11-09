@@ -90,7 +90,7 @@ setting blocker rather than pretending to merge.
   web library; use host.keyboard. Browser audio needs its user start gesture.
 - Reverb fx.reverb is merged on main (c39af7b): stereo SUM inputs, one wet/dry output per side, not one reverb per note. Unconnected right follows left; size/decay/damping/predelay/width/motion/freeze/mix are available. Use two output-bus routes to preserve stereo; saved state clears the tail.
 - Macro requires48k. No external sample files/services. Do not assume pending
-  Chord, Notes→CV, Quantizer or16steps exist: inspect actual catalogue.
+  Chord or Notes→CV exist: inspect the actual catalogue and deployed SHA.
 - Start poly keyboard patches at3–4voices. MIDI→CV supports polyphony in desktop,
   but raw MIDI input and generated note events are different kinds.
 - Pitch CV0=C4, +1=one octave; VCO base frequency matters. Signals and events
@@ -204,3 +204,13 @@ Future: optional live/shared-library refresh and an owner upload/publish UI,
 desktop synchronization and editable descriptions/audition tools. No automatic
 GitHub credentials or private local-file uploads in this change.
 
+
+## Step Sequencer 16-step editor (PR #410)
+
+Builds including native #405 and UI #410 expose 16 pitch/gate/velocity triples
+as two rows of eight. Length still defaults to8; steps9–16 default to Rest.
+For a longer pattern set `length:16`, author `pitch16` (octaves), `gate16`
+(0 Rest/1 Note/2 Tie), and `vel16` (0..1); wire Clock to `clock`, then
+`pitch`/`gate`/`velocity` to an instrument. Shortened patterns retain inactive
+values through edit/undo/save; native/WASM version compatibility remains #405's
+contract. UI/FakeEngine preview alone does not prove DSP or audible playback.
