@@ -84,8 +84,6 @@ endforeach()
 add_library(wirescape_catalog_dependencies INTERFACE)
 target_link_libraries(wirescape_catalog_dependencies INTERFACE wirescape_voice2)
 add_library(ws2_groove SHARED ../modules2/groove/module.cpp)
-# Qt's optional `emit` keyword collides with the SDK's ws::Block::emit member.
-target_compile_definitions(ws2_groove PRIVATE QT_NO_KEYWORDS)
 target_link_libraries(ws2_groove PRIVATE wirescape_sdk2)
 add_library(ws2_host_keyboard SHARED ../modules2/host_keyboard/module.cpp)
 target_link_libraries(ws2_host_keyboard PRIVATE wirescape_sdk2 wirescape_voice2)
