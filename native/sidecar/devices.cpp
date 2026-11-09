@@ -122,9 +122,19 @@ Json ObservedMidi::held() const {
 }
 Json audio_devices(const std::string &directory, bool fake) {
     auto result = Json::array();
-    if (fake) return Json::array({{{"id", "USB Stereo"}, {"name", "USB Stereo"}, {"kind", "audio"}, {"index", 3}}});
-    for (const auto &d : audio::devices(directory))
-        result.push_back({{"id", d.name}, {"name", d.name}, {"kind", "audio"}, {"index", d.index}});
+    if (fake) return Json::array({{{"id", "USB Stereo"}, {"name", "USB Stereo"}, {"kind", "audio"},
+                                    {"index", 3}, {"backend", "FakeAudio"}, {"outputChannels", 2},
+                                    {"sampleRates", Json::array({44100, 48000, 96000})}, {"supported", true}},
+                                   {{"id", "Mono DAC"}, {"name", "Mono DAC"}, {"kind", "audio"},
+                                    {"index", 4}, {"backend", "FakeAudio"}, {"outputChannels", 1},
+                                    {"supported", false}, {"unsupportedReason", "mono-output"}}});
+    for (const auto &d : audio::devices(directory)) {
+        Json entry = {{"id", d.name}, {"name", d.name}, {"kind", "audio"}, {"index", d.index},
+                      {"backend", d.backend}, {"outputChannels", d.output_channels}, {"supported", d.supported}};
+        if (!d.sample_rates.empty()) entry["sampleRates"] = d.sample_rates;
+        if (!d.supported) entry["unsupportedReason"] = d.unsupported_reason;
+        result.push_back(std::move(entry));
+    }
     return result;
 }
 Json midi_devices(const MidiDeviceListing &listing, bool authorized) {
