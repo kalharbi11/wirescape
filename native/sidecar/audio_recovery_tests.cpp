@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Link-time fake implements the existing audio service boundary; never loads PortAudio.
 #include "session.h"
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -13,6 +14,7 @@ bool active = true, refuse = false, enumeration_throws = false, render = false;
 uint32_t rejected_rate = 0;
 std::string rate_refused_id;
 int stopped = 0, exchanges = 0;
+std::vector<wirescape::audio::DeviceQuery> queries;
 std::atomic<uint64_t> completed_blocks{0};
 AppEngine *engine = nullptr;
 }
@@ -21,7 +23,8 @@ wirescape::audio::Device output(const std::string &name, int index, bool is_defa
     return {name, name, "", index, is_default};
 }
 namespace wirescape::audio {
-std::vector<Device> devices(const std::string &) {
+std::vector<Device> devices(const std::string &, const DeviceQuery &query) {
+    fake::queries.push_back(query);
     if (fake::enumeration_throws) throw std::runtime_error("fake enumeration failure");
     return fake::outputs;
 }
@@ -93,6 +96,16 @@ int main() {
     } cleanup{root};
     try {
         std::filesystem::create_directories(root);
+        using wirescape::audio::classify_rates;
+        const auto supported = classify_rates({0, -1, 0}, -1);
+        const auto invalid = classify_rates({-1, -1, -1}, -1);
+        const auto busy = classify_rates({-2, -2, -2}, -1);
+        const auto mixed = classify_rates({0, -1, -2}, -1);
+        check(supported.known && supported.rates == std::vector<uint32_t>{44100, 96000},
+              "successful/invalid-rate results produce the exact supported set");
+        check(invalid.known && invalid.rates.empty(), "only invalid-rate results prove no supported rate");
+        check(!busy.known && busy.rates.empty() && !mixed.known && mixed.rates.empty(),
+              "busy/unknown errors omit the set, including mixed success and unknown results");
         Options options;
         options.audio = true; // fake linked service, never the physical backend
         options.settings = (root / "settings.json").string();
@@ -194,22 +207,42 @@ int main() {
             s.start();
             check(audio(s)["state"] == "running" && audio(s)["deviceId"] == "USB Stereo",
                   "fake stereo output must be playing");
-            auto call = [&](const char *id, const char *method, Json payload = Json::object()) {
+            auto call = [&](const char *id, const char *method, const Json &payload = Json::object()) {
                 Json cmd = {{"v", 0}, {"id", id}, {"type", method}};
                 cmd.update(payload);
                 return s.reply({cmd, {}, {}});
             };
             auto hello = s.hello();
-            check(hello["audioDevices"].size() == 3 &&
+            check(hello["audioDevices"].size() == 2 &&
                       hello["capabilities"] == Json::array({"midiLearn", "setSampleRate", "setBufferFrames"}),
                   "hello must expose the supported device catalogue and methods");
             auto listed = call("list", "listAudioDevices")["result"]["devices"];
-            check(listed.size() == 3 && listed[0]["backend"] == "FakeAudio" && listed[0]["outputChannels"] == 2 &&
+            check(listed.size() == 2 && listed[0]["backend"] == "FakeAudio" && listed[0]["outputChannels"] == 2 &&
                       listed[0]["supported"] == true,
                   "backend/channels must be reported honestly");
             check(listed[1]["supported"] == false && listed[1]["unsupportedReason"] == "mono-output" &&
-                      listed[2]["unsupportedReason"] == "no-output",
-                  "mono and no-output routes must be listed but disabled");
+                      std::none_of(listed.begin(), listed.end(), [](const Json &d) { return d["id"] == "No Output"; }),
+                  "mono outputs stay disabled and input-only endpoints are filtered");
+            fake::queries.clear();
+            const auto known_rates = listed[0]["sampleRates"];
+            fake::outputs[0].sample_rates.clear();
+            fake::outputs[0].supported = false;
+            fake::outputs[0].unsupported_reason = "rate-unsupported"; // busy warm enumeration is not evidence
+            for (int tick = 0; tick < 8; ++tick) {
+                s.poll();
+                const auto entry = s.devices()["audioDevices"][0];
+                check(entry["supported"] == true && entry["sampleRates"] == known_rates,
+                      "repeated warm polls preserve active support and known rates");
+                check(!fake::queries.back().probe_rates && fake::queries.back().active_id == "USB Stereo",
+                      "warm polls never request format probes and identify the held endpoint");
+            }
+            const auto active_list = call("held-list", "listAudioDevices")["result"]["devices"];
+            check(fake::queries.back().probe_rates && fake::queries.back().active_id == "USB Stereo" &&
+                      active_list[0]["supported"] == true && active_list[0]["sampleRates"] == known_rates,
+                  "explicit enumeration probes only endpoints not held by the current stream");
+            fake::outputs[0].sample_rates = {44100, 48000, 96000};
+            fake::outputs[0].supported = true;
+            fake::outputs[0].unsupported_reason.clear();
             const auto stopped = fake::stopped;
             const auto playing = fake::engine;
             auto missing = call("missing", "selectAudioDevice", {{"deviceId", "outdated-id"}});
@@ -276,6 +309,21 @@ int main() {
             check(audio(s)["state"] == "running", "real device loss still reconnects the remembered route");
             s.shutdown();
         }
+        options.settings = (root / "unknown-rates.json").string();
+        fake::outputs = {output("Unknown stereo", 7, true)};
+        fake::outputs[0].sample_rates.clear();
+        {
+            Session s(options);
+            s.start();
+            for (int tick = 0; tick < 3; ++tick) s.poll();
+            const auto entry = s.devices()["audioDevices"][0];
+            check(entry["supported"] == true && !entry.contains("sampleRates") && audio(s)["sampleRate"] == 48000,
+                  "unknown supported rates stay omitted while status reports the proven current rate");
+            auto changed = s.reply({{{"v", 0}, {"id", "unknown-rate"}, {"type", "setSampleRate"}, {"hz", 44100}}, {}, {}});
+            check(changed["ok"] == true && audio(s)["sampleRate"] == 44100,
+                  "unknown metadata does not prevent a stream-validated rate change");
+        }
+        fake::outputs = {output("USB Stereo", 3, true)};
         // An unsupported startup rate is a stable refusal, recoverable by an explicit rate choice.
         options.settings = (root / "startup-rate.json").string();
         fake::rejected_rate = options.rate;
@@ -414,3 +462,4 @@ int main() {
         return 1;
     }
 }
+

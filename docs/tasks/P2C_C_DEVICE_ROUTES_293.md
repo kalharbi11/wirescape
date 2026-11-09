@@ -28,14 +28,32 @@ Read `AGENTS.md`, #293 and its latest Codex Lead handoff, `docs/tasks/P2_REMAINI
 
 Codex Lead owner-delegated ruling (2026-11-09): include #472 typed rate-error
 refusal, optional default rate/status reason, and regression coverage in this
-existing coordinated PR; <=850 lines/13 files includes session/EngineClient
+existing coordinated PR; <=1050 lines/15 files includes session/EngineClient
 state declarations and the canonical three-capability golden hello fixture. Preserve #463 EngineSlot/history and existing wire names.
+
+## Keel rate-probe correction (2026-11-09)
+
+- A successful format probe supports that rate. Only invalid-sample-rate results
+  prove a rate unsupported; any busy/other error makes the complete set unknown,
+  so omit sampleRates and keep stereo-channel support. All three invalid-rate
+  results alone mark rate-unsupported. Cover success, invalid, busy and mixed results.
+- Warm periodic polling refreshes identities without format probes and carries
+  known per-id metadata. Never probe the endpoint held by the running stream;
+  it stays supported. Preserve unknown sampleRates omission rather than claiming
+  an exhaustive singleton; status.sampleRate reports the proven running rate.
+- Cold enumeration and explicit list requests may probe idle endpoints. Selection
+  and rate changes refresh only the target; the actual post-stop stream open
+  validates requested rates when capabilities are unknown. Preserve rollback.
+- Filter input-only endpoints; retain disabled mono outputs and existing stereo ids.
+- Add repeated fake-poll/explicit-list stability and unknown-rate-change regressions,
+  plus the narrow authored Static repairs. Keep exact-head Pi evidence and obtain
+  changed-head Claude T2 re-review; older fake passes do not resolve the real-device High.
 
 ## Focused checks
 
 ```acceptance
 tier: T2
-size: <= 850 changed lines, <= 13 files
+size: <= 1050 changed lines, <= 15 files
 must_pass:
   - ctest --test-dir build/native -R "audio|sidecar_" --output-on-failure --no-tests=error
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser="$(command -v chromium || command -v chromium-browser || command -v google-chrome)" && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npx playwright test tests/system.spec.ts --grep "audio route"'
@@ -47,3 +65,4 @@ Before completion: verify fake mono/stale/duplicate identities, explicit
 selection and refusal, supported-capability UI, stream-only restart with
 unchanged graph/MIDI, and exact-head private Pi fake-route lifecycle evidence.
 Require independent Claude T2 COMMENT review and all required hosted checks.
+

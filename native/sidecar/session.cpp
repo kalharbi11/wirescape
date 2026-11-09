@@ -182,7 +182,7 @@ Options parse_options(int argc, char **argv) {
                 }
             }
         } catch (...) {
-            // An invalid preferences file must not override explicit startup flags.
+            std::cerr << "Invalid audio preferences; retaining startup settings\n";
         }
     }
     need(!o.bench_summary || o.null_audio, "invalid", "--bench-summary requires --null-audio");
@@ -259,7 +259,7 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
             // Resolve the default only before any identity has been selected.
             // A remembered/missing output must never be replaced by the default.
             if (device_.empty() || device_.find('|') == std::string::npos) {
-                const auto list = audio::devices(options_.directory);
+                const auto list = audio::devices(options_.directory, {false, {}, {}});
                 if (!device_.empty()) {
                     // Pre-identity settings stored a bare name. Upgrade a unique name to its id;
                     // a name Windows repeats across host APIs can never open, so use the default.
@@ -344,10 +344,37 @@ void Session::start_midi() {
     std::string error;
     need(midi_->start(active_, patch_.dump(), error), "unavailable", "Cannot start MIDI subscriptions");
 }
-bool Session::refresh_devices(bool audio) {
+bool Session::refresh_devices(bool audio, bool probe_rates, const std::string &target) {
     bool enumerated = audio;
     if (audio) try {
-            audio_devices_ = audio_devices(options_.directory, options_.null_audio);
+            const bool playing = stream_ && stream_->running();
+            auto next = audio_devices(options_.directory, options_.null_audio,
+                                      {probe_rates, target, playing ? device_ : std::string{}});
+            for (auto &entry : next) {
+                const auto id = entry.at("id").get<std::string>();
+                const bool active = playing && id == device_;
+                if (!probe_rates || active || (!target.empty() && target != id)) {
+                    const auto old = std::find_if(audio_devices_.begin(), audio_devices_.end(),
+                                                  [&](const Json &d) { return d.at("id") == id; });
+                    if (old != audio_devices_.end() &&
+                        old->value("outputChannels", 2) == entry.value("outputChannels", 2))
+                        for (const auto *key : {"sampleRates", "supported", "unsupportedReason"}) {
+                            entry.erase(key);
+                            if (old->contains(key)) entry[key] = (*old)[key];
+                        }
+                }
+                if (active && entry.value("outputChannels", 2) >= 2) {
+                    entry["supported"] = true;
+                    entry.erase("unsupportedReason");
+                    // A cached known set includes the rate proven by the running stream.
+                    // Unknown remains omitted; a singleton would falsely exclude other rates.
+                    if (entry.contains("sampleRates") &&
+                        std::find(entry["sampleRates"].begin(), entry["sampleRates"].end(), Json(options_.rate)) ==
+                            entry["sampleRates"].end())
+                        entry["sampleRates"].push_back(options_.rate);
+                }
+            }
+            audio_devices_ = std::move(next);
         } catch (...) {
             enumerated = false; // Keep the last successful list; failure is not disappearance.
         }
@@ -596,7 +623,10 @@ Json Session::apply(const Json &command) {
         throw Refusal("refused", "rate-unsupported");
     };
     auto type = command.at("type").get<std::string>();
-    if (type == "listAudioDevices") return {{"devices", audio_devices_}};
+    if (type == "listAudioDevices") {
+        refresh_devices();
+        return {{"devices", audio_devices_}};
+    }
     if (type == "listMidiDevices") return {{"devices", midi_devices_}};
     if (type == "midiLearn") {
         need(command.at("armed").is_boolean());
@@ -617,6 +647,7 @@ Json Session::apply(const Json &command) {
         const uint32_t next_rate = rate_change ? value : options_.rate;
         const uint32_t next_block = rate_change ? options_.block : value;
         if (options_.audio) {
+            refresh_devices(true, true, device_);
             need((stream_ && stream_->running()) || audio_reason_ == "rate-unsupported", "unavailable",
                  "No active audio stream");
             const auto count = std::count_if(audio_devices_.begin(), audio_devices_.end(),
@@ -692,6 +723,7 @@ Json Session::apply(const Json &command) {
     if (type == "selectAudioDevice") {
         need(command.at("deviceId").is_string());
         auto id = command.at("deviceId").get<std::string>();
+        refresh_devices(true, true, id);
         auto count = std::count_if(audio_devices_.begin(), audio_devices_.end(),
                                    [&](const Json &d) { return d.at("id") == id; });
         need(count > 0, "not-found", "No such audio output");
@@ -725,7 +757,7 @@ Json Session::apply(const Json &command) {
             if (rate_refused) refuse_rate();
             throw;
         }
-        refresh_devices();
+        refresh_devices(true, false);
         return nullptr;
     }
     if (type == "setMidiEnabled") {
@@ -752,7 +784,7 @@ Json Session::apply(const Json &command) {
             start_midi();
             throw;
         }
-        refresh_devices();
+        refresh_devices(false);
         return nullptr;
     }
     if (type == "panic") {
@@ -1011,14 +1043,15 @@ bool Session::poll(std::chrono::steady_clock::time_point now) {
     observer_->expire_learning(now);
     auto old_audio = audio_devices_, old_midi = midi_devices_;
     if (midi_->enabled().empty()) observer_->endpoints();
-    // With a stream open, PortAudio is already initialised and enumeration is cheap.
-    // Without one, every call is a cold init, so space them out.
+    // Warm polling refreshes identities only: ALSA format probes can open a busy PCM.
+    // Without a stream every call is a cold init, so space those out.
     constexpr std::chrono::seconds kColdEnumeration{2};
     const bool warm = stream_ != nullptr || !options_.audio;
     const bool cold_due = !cold_enumeration_ || now - *cold_enumeration_ >= kColdEnumeration;
     if (!warm && cold_due) cold_enumeration_ = now;
-    const auto enumerated = refresh_devices(warm || cold_due);
+    const auto enumerated = refresh_devices(warm || cold_due, !warm);
     auto changed = poll_audio(now, enumerated);
     return changed || old_audio != audio_devices_ || old_midi != midi_devices_;
 }
 } // namespace wirescape::sidecar
+

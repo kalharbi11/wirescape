@@ -183,7 +183,7 @@ Json ObservedMidi::held() const {
     }
     return held;
 }
-Json audio_devices(const std::string &directory, bool fake) {
+Json audio_devices(const std::string &directory, bool fake, const audio::DeviceQuery &query) {
     auto result = Json::array();
     if (fake)
         return Json::array({{{"id", "USB Stereo"},
@@ -202,7 +202,8 @@ Json audio_devices(const std::string &directory, bool fake) {
                              {"outputChannels", 1},
                              {"supported", false},
                              {"unsupportedReason", "mono-output"}}});
-    for (const auto &d : audio::devices(directory)) {
+    for (const auto &d : audio::devices(directory, query)) {
+        if (d.output_channels == 0) continue;
         Json entry = {{"id", d.id},
                       {"name", d.name},
                       {"kind", "audio"},
@@ -233,3 +234,4 @@ Json midi_devices(const MidiDeviceListing &listing, bool authorized) {
     return result;
 }
 } // namespace wirescape::sidecar
+

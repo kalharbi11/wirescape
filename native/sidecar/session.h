@@ -76,7 +76,7 @@ class Session {
     void stop_audio();
     void start_midi();
     void persist();
-    bool refresh_devices(bool audio = true);
+    bool refresh_devices(bool audio = true, bool probe_rates = true, const std::string &target = {});
     Json execution(Json);
     void commit(Json, bool);
     Json apply(const Json &);
@@ -99,3 +99,4 @@ class Session {
 };
 Options parse_options(int, char **);
 } // namespace wirescape::sidecar
+

@@ -103,15 +103,17 @@ int callback(const void *, void *output, unsigned long frames, const PaStreamCal
 }
 } // namespace
 namespace {
-std::vector<Device> enumerate(Backend &b) {
+std::vector<Device> enumerate(Backend &b, const DeviceQuery &query = {}) {
     int count = b.count();
     b.check(count);
     const int fallback = b.default_device();
     std::vector<RawDevice> raw;
     std::vector<Device> result;
+    result.reserve(size_t(count));
+    raw.reserve(size_t(count));
     for (int i = 0; i < count; ++i) {
         const auto *d = b.info(i);
-        if (!d) continue;
+        if (!d || d->maxOutputChannels == 0) continue;
         Device entry;
         entry.name = d->name;
         entry.index = i;
@@ -121,23 +123,32 @@ std::vector<Device> enumerate(Backend &b) {
         if (const auto *api = b.host_api(d->hostApi)) entry.backend = api->name ? api->name : "Audio";
         entry.host_api = entry.backend.empty() ? "Audio" : entry.backend;
         entry.sample_rates.clear();
-        if (d->maxOutputChannels >= 2) {
-            PaStreamParameters output{i, 2, paFloat32, d->defaultLowOutputLatency, nullptr};
-            for (uint32_t rate : {44100u, 48000u, 96000u})
-                if (b.format_supported(nullptr, &output, rate) >= 0) entry.sample_rates.push_back(rate);
-        }
-        entry.supported = d->maxOutputChannels >= 2 && !entry.sample_rates.empty();
-        if (!entry.supported)
-            entry.unsupported_reason = d->maxOutputChannels == 0   ? "no-output"
-                                       : d->maxOutputChannels == 1 ? "mono-output"
-                                                                   : "rate-unsupported";
+        entry.supported = d->maxOutputChannels >= 2;
+        if (!entry.supported) entry.unsupported_reason = "mono-output";
         result.push_back(std::move(entry));
     }
-    // Preserve all published stereo-output ids when adding disabled mono/input entries.
+    // Preserve published stereo-output ids when adding disabled mono outputs.
     std::stable_partition(result.begin(), result.end(), [](const Device &d) { return d.output_channels >= 2; });
     for (const auto &d : result) raw.push_back({d.name, d.host_api});
     auto ids = device_ids(raw);
-    for (size_t i = 0; i < result.size(); ++i) result[i].id = std::move(ids[i]);
+    for (size_t i = 0; i < result.size(); ++i) {
+        auto &entry = result[i];
+        entry.id = std::move(ids[i]);
+        if (!query.probe_rates || !entry.supported || entry.id == query.active_id ||
+            (!query.target_id.empty() && entry.id != query.target_id))
+            continue;
+        const auto *d = b.info(entry.index);
+        PaStreamParameters output{entry.index, 2, paFloat32, d->defaultLowOutputLatency, nullptr};
+        const auto support = classify_rates({b.format_supported(nullptr, &output, 44100),
+                                             b.format_supported(nullptr, &output, 48000),
+                                             b.format_supported(nullptr, &output, 96000)},
+                                            paInvalidSampleRate);
+        entry.sample_rates = support.rates;
+        if (support.known && support.rates.empty()) {
+            entry.supported = false;
+            entry.unsupported_reason = "rate-unsupported";
+        }
+    }
     return result;
 }
 } // namespace
@@ -147,9 +158,9 @@ void list_devices(const std::string &directory) {
         std::cout << d.index << ": " << d.id << (d.is_default ? "  [default]" : "") << " ("
                   << b.info(d.index)->defaultSampleRate << " Hz default)\n";
 }
-std::vector<Device> devices(const std::string &directory) {
+std::vector<Device> devices(const std::string &directory, const DeviceQuery &query) {
     Backend b(directory);
-    return enumerate(b);
+    return enumerate(b, query);
 }
 struct Stream::Impl {
     std::unique_ptr<Backend> backend;
@@ -162,7 +173,7 @@ struct Stream::Impl {
         auto &b = *backend;
         int device = b.default_device();
         if (!selection.name.empty()) {
-            const auto list = enumerate(b);
+            const auto list = enumerate(b, {false, {}, {}});
             const int found = resolve_device(list, selection.name);
             if (found < 0) throw std::runtime_error("No unique audio device matches the selection");
             device = list[size_t(found)].index;
@@ -244,7 +255,7 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block);context->stop_producers=stop_producers;int device=b.default_device();
  context->rate = rate;
  if(!name.empty()){size_t consumed=0;try{device=std::stoi(name,&consumed);}catch(const std::exception&){consumed=0;}if(consumed!=name.size()){
-         const auto list = enumerate(b);
+         const auto list = enumerate(b, {false, {}, {}});
          const int found = resolve_device(list, name);
          device = found < 0 ? paNoDevice : list[size_t(found)].index;
  }}
@@ -271,3 +282,4 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  b.check(terminated);
 }
 }
+
