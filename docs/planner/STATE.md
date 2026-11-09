@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-09 evening, Keel. Owner-reported failures preempt everything.
+**Updated:** 2026-11-09, Codex Lead merge-captain handoff. Owner-reported failures preempt everything.
 No queued, stale or missing result counts as a pass. Live heads and handoffs govern.
 
 ## Now
@@ -11,17 +11,19 @@ No queued, stale or missing result counts as a pass. Live heads and handoffs gov
   sequence in `docs/planner/CLEANUP.md` (R0 merged; R1 #464, R2 #465, R5 #466/#467 open now;
   R3 #468, R4 #469, R6 #470 blocked).
 - **Windows:** owner's first install and test passed on the #463 branch (real audio,
-  keyboard, Launchkey, all starters switch). #463 (T2, Keel-authored) needs the Codex
-  cross-family review (claimed), CI and `ci/pi`, then merge. Anything touching
+  keyboard, Launchkey, all starters switch). #463 cross-family source review is complete
+  at 31b909a (final explicit-flush fix recheck pending). Prior a30 required/task/Web
+  checks passed; final CI/Pi remain gates. Anything touching
   `native/sidecar` or `native/io/audio` (#399, #472) merges main after it.
   #436 W1 = `docs/WINDOWS_SETUP.md` + `tools/windows/setup.ps1` at #463's merge SHA.
 - **Pi tomorrow (owner):** #450 → #452 → #453 with one accepted SHA. Owner installs
-  Node 22 and `xvfb` on the Pi first.
+  Node 22 and `xvfb` on the Pi first; runner is rebooting and actual Pi jobs remain queued.
 - Open PRs: 15 (D18 still in force: no new module/feature issues until under 10).
 
 ## Keel today (2026-11-09)
 - Merged #456, #438, #441, #390, #459, #323 (Quantizer, 3ed2a14 after catalogue union),
   and Compass's R0 decisions. #427 merged by the gate.
+- #442 merged 32e7ba4: independent T1, exact-head required/task/Web checks passed.
 - Closed #82, #443, #406, #423 (parked), #188 (Qt launcher, superseded by #436).
 - Rulings: #432 playhead seam, #386 case 4, #293 devices, #72 OSC, #400 conditional
   approval, #472 rate-mismatch refusal (`rate-unsupported`, never `reconnecting`).
