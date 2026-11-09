@@ -1,6 +1,8 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Open-PR closeout queue: 2026-11-09 (Keel)
 
+**Claim from the GitHub board, issue #473.** This file keeps the per-PR obstacles and rulings that the board rows point to. Since this file was written: #427 and #323 merged; #463 (Windows real audio) leads the merge order.
+
 D18 says finish before start: merge or close what's open before any new module or feature work. This file replaces the READY list in `CLAIMABLE_2026_11_09.md`. The Qt retirement and cleanup packets (`docs/planner/CLEANUP.md`, R1–R7) start **after** this queue drains, except where Compass says otherwise. Each lane below names its PRs in merge order, the exact obstacle, and the ruling that clears it. Claim on the issue, continue the existing branch (no duplicate PRs), and sign exact-head evidence.
 
 ## Done by Keel today
