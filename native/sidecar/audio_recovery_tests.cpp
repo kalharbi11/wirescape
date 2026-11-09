@@ -291,6 +291,38 @@ int main() {
                   "explicit supported rate recovers without changing identity");
         }
         fake::rejected_rate = 0;
+        // A failure after stream start must stop the candidate before its telemetry taps die.
+        fake::outputs = {output("USB Stereo", 3, true)};
+        fake::render = true;
+        options.settings = (root / "post-start-rollback.json").string();
+        std::ofstream(options.settings) << R"({"audio":"malformed","opaque":17})";
+        {
+            Session s(options);
+            s.start();
+            Json patch = {{"format", "wirescape.native.patch"},
+                          {"version", 2},
+                          {"modules", Json::array({{{"id", 1}, {"module", "essentials.output"}},
+                                                   {{"id", 2}, {"module", "essentials.lfo"}}})},
+                          {"connections", Json::array()}};
+            auto loaded = s.reply({{{"v", 0}, {"id", "tap-graph"}, {"type", "loadGraph"}, {"patch", patch}}, {}, {}});
+            check(loaded["ok"] == true, "prepare a graph with live telemetry taps");
+            const auto gen = s.status()["gen"];
+            auto failed = s.reply({{{"v", 0}, {"id", "post-start"}, {"type", "setSampleRate"}, {"hz", 44100}}, {}, {}});
+            check(failed["code"] == "unavailable" && s.status()["gen"] == gen && audio(s)["state"] == "running" &&
+                      audio(s)["sampleRate"] == 48000,
+                  "post-start preferences failure rolls back the live graph and configuration");
+            auto edit = s.reply({{{"v", 0},
+                                  {"id", "old-graph"},
+                                  {"type", "setParam"},
+                                  {"moduleId", 2},
+                                  {"paramId", "frequency"},
+                                  {"value", 4}},
+                                 {},
+                                 {}});
+            check(edit["ok"] == true, "the previous document remains editable after rollback");
+            check(s.telemetry()["telemetry"]["phase"].contains("2"), "previous telemetry storage survives rollback");
+        }
+        fake::render = false;
         // Windows lists one endpoint per host API and repeats names inside one host API.
         check(wirescape::audio::device_ids({{"Headphones", "MME"},
                                             {"Headphones", "Windows WASAPI"},

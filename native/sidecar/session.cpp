@@ -639,6 +639,9 @@ Json Session::apply(const Json &command) {
         const auto old_config = config_;
         const auto old_rate = options_.rate, old_block = options_.block;
         const auto old_preferences = preferences_;
+        // Keep candidate taps alive through rollback, until its render thread is joined.
+        document::telemetry::Sampler next_telemetry(
+            document::telemetry::plan(patch_, catalogue_.get(), /*phase_enabled=*/true));
         midi_->stop();
         app_engine_panic(active_); // release held notes before replacing DSP state
         stop_audio();
@@ -648,8 +651,6 @@ Json Session::apply(const Json &command) {
             next_config.sample_rate = next_rate;
             next_config.max_block_frames = next_block;
             std::string error;
-            document::telemetry::Sampler next_telemetry(
-                document::telemetry::plan(patch_, catalogue_.get(), /*phase_enabled=*/true));
             audio::EngineOwner prepared(document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config,
                                                                      error, &next_telemetry.taps()),
                                         app_engine_destroy);
