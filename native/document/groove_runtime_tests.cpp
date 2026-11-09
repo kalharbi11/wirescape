@@ -116,6 +116,19 @@ static void test_refusals(AppEngine *cat){
   check(!load(patch(bad),cat,48000,error),"invalid candidate refused");
   check(!error.empty(),"native explains refusal");
  }
+ // A saved run=1 parameter must never bypass the stopped-on-load rule.
+ Json armed=patch(good);
+ armed["modules"][0]["parameters"]["run"]=1;
+ auto restored=load(armed,cat,48000,error);
+ check(bool(restored),"load saved high run parameter");
+ const auto silent=trace(restored.get(),512,128);
+ check(std::all_of(silent.begin(),silent.end(),[](float g){return g==0.f;}),
+       "saved high run never causes an accidental note-on");
+ const auto id=run_id(restored.get());
+ run_command(restored.get(),id,0.f);
+ check(trace(restored.get(),1,1)[0]==0.f,"re-arm from saved high");
+ run_command(restored.get(),id,1.f);
+ check(trace(restored.get(),1,1)[0]==1.f,"new start edge after reload");
 }
 static void test_rate_block(AppEngine *cat,double rate,uint32_t block){
  std::string error;
