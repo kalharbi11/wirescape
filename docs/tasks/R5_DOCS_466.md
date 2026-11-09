@@ -5,7 +5,7 @@ Rewrite only README.md, native/README.md, CONTRIBUTING.md and docs/STATUS.md.
 Describe Electron + Studio + wirescape-engine, explicit headless source builds,
 device-off launches, owner-only hardware consent and current evidence. Keep the
 Windows first-session result distinct from pending final runtime/Pi validation.
-The planned Windows guide is linked through its PR until its file exists.
+Link the merged Windows setup guide; an accepted combined install SHA remains pending.
 Historical evidence remains in Git history; no code, archived files or agent
 rules change. Codex Lead authorized this task path and a narrow factual
 docs/planner/STATE.md refresh on #466; the docs-only file budget is six.

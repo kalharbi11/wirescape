@@ -3,7 +3,8 @@
 
 People and AI agents use the same [workflow and engineering rules](AGENTS.md).
 The product is Electron + Studio + the native `wirescape-engine`; start with
-[the source-build quickstart](README.md). [Board #473](https://github.com/kalharbi11/wirescape/issues/473)
+[the source-build quickstart](README.md) and [Windows setup](docs/WINDOWS_SETUP.md).
+[Board #473](https://github.com/kalharbi11/wirescape/issues/473)
 and the latest issue handoffs govern current claims. Finish existing work before
 starting features while the plan's D18 limit applies.
 

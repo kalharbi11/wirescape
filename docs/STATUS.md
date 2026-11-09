@@ -9,7 +9,7 @@ different things; the evidence below keeps those boundaries explicit.
 | Scope | Current evidence | Boundary |
 |---|---|---|
 | Application foundation | Sidecar, RealEngine, Electron shell, patch codec/catalogue sync and live replan are merged; [architecture](ARCHITECTURE.md), [plan](PLAN.md) | The app uses the native engine over stdio; Studio owns lossless editing |
-| Modules and patches | 28 ABI 2 catalogue entries, including Quantizer, Delay, Reverb, Spectral, Blend, Resonator and Groove S0; eight curated patches and shared patch library are merged | Open SEQ-16, Groove S1 and Interleave work is not implied complete |
+| Modules and patches | 28 ABI 2 catalogue entries, including Quantizer, Delay, Reverb, Spectral, Blend, Resonator and Groove S0; eight curated patches and shared patch library are merged | SEQ-16 native #405 and Spectral Interleave/Vocoder #310 merged; #410 editor and production Groove S1 retain their gates |
 | Windows protocol | [#439](https://github.com/kalharbi11/wirescape/pull/439) merged; protocol and golden tests execute on Windows | A skipped test is not passing evidence |
 | Owner Windows session, 2026-11-09 | [#463](https://github.com/kalharbi11/wirescape/pull/463) runtime fixes merged: WASAPI headphones selectable, starters switch and sound, computer keyboard and Launchkey MIDI work at 48 kHz/256 | First-session owner evidence; extended hardware/soak acceptance remains separate |
 | Owner Pi session, 2026-11-07 | Headless playback and M8 MIDI, recorded in [DEMO_CLASS](DEMO_CLASS.md) | Does not certify the current Electron app on the Pi |
@@ -22,10 +22,10 @@ different things; the evidence below keeps those boundaries explicit.
   live patching by ear, device recovery or the longer jam in #271.
 - The actual 60-minute device-free Pi edit soak remains #296; queued, old or
   incomplete reports do not discharge it. Pi display/performance evidence remains separate.
-- [#475](https://github.com/kalharbi11/wirescape/pull/475) encodes the tested Windows
-  source-build path. Downloadable installers, clean-VM distribution validation,
+- [Windows source setup](WINDOWS_SETUP.md) merged in #475; combined-main validation
+  and an accepted install SHA remain pending. Downloadable installers, clean-VM validation,
   install/uninstall/rollback and release certification are not available yet.
-- OSC, MIDI Learn UI, the sequencer upgrades and remaining Phase 2 work retain
+- OSC, MIDI Learn UI, pending sequencer integrations and remaining Phase 2 work retain
   their issue-specific gates. The SDK remains experimental; no ABI freeze or
   Daisy/plugin cross-build certification is claimed.
 - Qt/ABI1 retirement is staged in [CLEANUP](planner/CLEANUP.md). Old tests and

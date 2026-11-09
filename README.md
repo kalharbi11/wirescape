@@ -50,9 +50,9 @@ apps/desktop/node_modules/.bin/electron apps/desktop --engine "$PWD/build/native
 
 Real playback needs PortAudio: the matching x64 DLL beside the Windows engine,
 or `libportaudio.so.2` on Linux. Only the owner launches with `--confirm-audio`
-and `--confirm-midi`. The Windows setup guide and pinned PortAudio/bootstrap
-path are being prepared in [#475](https://github.com/kalharbi11/wirescape/pull/475)
-(planned docs/WINDOWS_SETUP.md). Preserve existing patches/settings. The owner's
+and `--confirm-midi`. Follow the merged [Windows source setup guide](docs/WINDOWS_SETUP.md)
+for the isolated bootstrap and pinned PortAudio path. A combined accepted source
+SHA is still pending; preserve existing patches/settings. The owner's
 first Windows session worked with WASAPI headphones at 48 kHz; another DAW must
 release the device, and shared WASAPI must use its device rate.
 
