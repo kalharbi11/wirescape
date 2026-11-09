@@ -74,6 +74,16 @@ class PiPreflightTests(unittest.TestCase):
         self.assertIn("cache:build/CMakeCache.txt", self.failures())
         self.assertTrue(cache.is_file())
 
+    def test_cmake_notfound_is_not_real_qt_contamination(self):
+        (self.root / "build").mkdir()
+        cache = self.root / "build/CMakeCache.txt"
+        cache.write_text(
+            "CMAKE_HOME_DIRECTORY:INTERNAL=" + str((self.root / "native").resolve()) + "\n"
+            "CMAKE_SYSTEM_PROCESSOR:STRING=aarch64\n"
+            "Qt6_DIR:PATH=Qt6_DIR-NOTFOUND\n"
+        )
+        self.assertNotIn("cache:build/CMakeCache.txt", self.failures())
+
     def test_inherited_qt_state_is_rejected_without_modifying_env(self):
         with patch.dict(os.environ, {"QT_PLUGIN_PATH": "/old/qt"}):
             self.assertIn("no inherited Qt overrides", self.failures())
