@@ -411,7 +411,10 @@ export class App {
 
   // ---- patch lifecycle --------------------------------------------------
 
-  async loadPatch(patch: PatchV2, name = 'Untitled', forceSaveAs = false): Promise<void> {
+  async loadPatch(patch: PatchV2, name = 'Untitled', forceSaveAs = false, restoring = false): Promise<void> {
+    // What is showing (and, if it ran, still sounding) before this load.
+    const previous = restoring ? undefined : { patch: this.doc.toJSON(), name: this.patchName,
+      dirty: this.doc.dirty, bundled: this.bundledPatch };
     this.ticker.resetTelemetry();
     this.doc.replace(patch);
     this.patchName = name;
@@ -439,7 +442,18 @@ export class App {
     this.pasteCount = 0;
     this.bundledPatch = forceSaveAs;
     try { await running; }
-    catch (e) { this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error'); }
+    catch (e) {
+      // The engine refused to switch (audio swap, busy) and kept the previous graph.
+      // Never leave this patch on screen while the previous one sounds and takes MIDI.
+      if (previous && e instanceof EngineRefusal && e.detail.engine &&
+          (e.detail.code === 'unavailable' || e.detail.code === 'busy')) {
+        this.toasts.show(`${name} could not start: ${e.message}. Still playing ${previous.name}.`, 'error');
+        await this.loadPatch(previous.patch, previous.name, previous.bundled, true);
+        if (previous.dirty) { this.doc.markDirty(); this.refreshDirty(); }
+        return;
+      }
+      this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error');
+    }
   }
 
   // ---- system (phase 5) ---------------------------------------------------

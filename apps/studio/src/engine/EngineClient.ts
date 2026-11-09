@@ -105,6 +105,8 @@ export interface Telemetry {
 export interface EngineError {
   code: 'unknown-module' | 'kind-mismatch' | 'duplicate' | 'not-found' | 'refused' | 'invalid' | 'busy' | 'limit' | 'unavailable';
   message: string;
+  /** The engine itself answered with this refusal (not a local supersede/disconnect). */
+  engine?: true;
 }
 
 /** Thrown/returned when the engine refuses an edit; the UI rolls back. */

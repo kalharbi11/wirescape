@@ -31,7 +31,8 @@ struct Stream::Impl {
     std::thread callback;
 };
 Stream::Stream(EngineOwner &owner, const StreamSelection &selection, double rate, uint32_t block,
-               std::function<void()> producers) : impl_(std::make_unique<Impl>()) {
+               std::function<void()> producers)
+    : impl_(std::make_unique<Impl>()) {
     fake::attempts.push_back(selection.name);
     if (resolve_device(fake::outputs, selection.name) < 0 || fake::refuse)
         throw std::runtime_error("fake unavailable/ambiguous output");
@@ -197,7 +198,8 @@ int main() {
             check(audio(s)["state"] == "running" && audio(s)["deviceId"] == "MME|Headphones",
                   "an ambiguous legacy name falls back to the default instead of reconnecting forever");
             for (const char *id : {"Windows WASAPI|Headphones", "Windows WDM-KS|Headphones ()#2"}) {
-                auto reply = s.reply({{{"v", 0}, {"id", "pick"}, {"type", "selectAudioDevice"}, {"deviceId", id}}, {}, {}});
+                auto reply =
+                    s.reply({{{"v", 0}, {"id", "pick"}, {"type", "selectAudioDevice"}, {"deviceId", id}}, {}, {}});
                 check(reply["ok"] == true && audio(s)["deviceId"] == id, "every repeated name is selectable by id");
             }
             for (const auto &attempt : fake::attempts) check(attempt.find('|') != std::string::npos, "opens use ids");
@@ -217,7 +219,8 @@ int main() {
         // An offer nobody adopts is withdrawn: the render side keeps its engine.
         {
             wirescape::audio::EngineSlot slot;
-            auto *const current = reinterpret_cast<AppEngine *>(0x10), *const next = reinterpret_cast<AppEngine *>(0x20);
+            auto *const current = reinterpret_cast<AppEngine *>(0x10);
+            auto *const next = reinterpret_cast<AppEngine *>(0x20);
             check(!slot.offer(next, std::chrono::steady_clock::now()), "an unadopted offer times out");
             check(slot.adopt(current) == current, "a withdrawn offer is never adopted later");
         }

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
-#include <optional>
+#include "../document/telemetry_taps.h"
 #include "../io/audio/engine_slot.h"
 #include "../io/audio/portaudio_service.h"
 #include "devices.h"
 #include "midi_host.h"
-#include "../document/telemetry_taps.h"
 #include <array>
+#include <optional>
 #include <set>
 namespace wirescape::sidecar {
 struct Options {

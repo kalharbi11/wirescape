@@ -7,6 +7,12 @@ failed `ui_catalogue_sync` there is already fixed on `main`. Root-cause analysis
 and rulings: Keel. All the failures in the owner's report trace to the four causes below.
 They are not independent bugs.
 
+**Status (Keel, 2026-11-09):** RC1, RC3 and RC4 are implemented on branch
+`claude/bold-wozniak-fxjaxr`, RC2 as the 2 s cold-enumeration spacing. One PR, not A/B.
+Native code is all in a `swap`/device path with fake-backend tests; it needs a
+cross-family (Codex/ChatGPT) T2 review and the owner's Windows run below. RC5 is closed:
+the owner pressed Restart engine (`engine-exit code=0 expected=true`), no crash.
+
 ## Root causes (from the code, matched to the owner's logs)
 
 **RC1. Device identity is the bare PortAudio name, and Windows repeats names.**

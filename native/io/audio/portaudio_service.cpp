@@ -23,7 +23,9 @@ struct Backend {
  void* library=nullptr;
  decltype(&Pa_Initialize) initialize=nullptr;decltype(&Pa_Terminate) terminate=nullptr;
  decltype(&Pa_GetDeviceCount) count=nullptr;decltype(&Pa_GetDeviceInfo) info=nullptr;
- decltype(&Pa_GetDefaultOutputDevice) default_device=nullptr;decltype(&Pa_GetHostApiInfo) host_api=nullptr;decltype(&Pa_GetErrorText) text=nullptr;
+ decltype(&Pa_GetDefaultOutputDevice) default_device = nullptr;
+ decltype(&Pa_GetHostApiInfo) host_api = nullptr;
+ decltype(&Pa_GetErrorText) text = nullptr;
  decltype(&Pa_OpenStream) open=nullptr;decltype(&Pa_StartStream) start=nullptr;
  decltype(&Pa_StopStream) stop=nullptr;decltype(&Pa_AbortStream) abort=nullptr;
  decltype(&Pa_CloseStream) close=nullptr;decltype(&Pa_IsStreamActive) active=nullptr;
@@ -46,7 +48,20 @@ struct Backend {
   if(!library)throw std::runtime_error("PortAudio unavailable: install libportaudio2 on Linux or place the DLL beside the runner");
   // Resident through process exit, including a broken-backend shutdown path.
 #define LOAD(member,name) symbol(member,name)
-  LOAD(initialize,"Pa_Initialize");LOAD(terminate,"Pa_Terminate");LOAD(count,"Pa_GetDeviceCount");LOAD(info,"Pa_GetDeviceInfo");LOAD(default_device,"Pa_GetDefaultOutputDevice");LOAD(host_api,"Pa_GetHostApiInfo");LOAD(text,"Pa_GetErrorText");LOAD(open,"Pa_OpenStream");LOAD(start,"Pa_StartStream");LOAD(stop,"Pa_StopStream");LOAD(abort,"Pa_AbortStream");LOAD(close,"Pa_CloseStream");LOAD(active,"Pa_IsStreamActive");LOAD(load,"Pa_GetStreamCpuLoad");
+  LOAD(initialize, "Pa_Initialize");
+  LOAD(terminate, "Pa_Terminate");
+  LOAD(count, "Pa_GetDeviceCount");
+  LOAD(info, "Pa_GetDeviceInfo");
+  LOAD(default_device, "Pa_GetDefaultOutputDevice");
+  LOAD(host_api, "Pa_GetHostApiInfo");
+  LOAD(text, "Pa_GetErrorText");
+  LOAD(open, "Pa_OpenStream");
+  LOAD(start, "Pa_StartStream");
+  LOAD(stop, "Pa_StopStream");
+  LOAD(abort, "Pa_AbortStream");
+  LOAD(close, "Pa_CloseStream");
+  LOAD(active, "Pa_IsStreamActive");
+  LOAD(load, "Pa_GetStreamCpuLoad");
 #undef LOAD
   check(initialize());initialized=true;
  }
@@ -202,7 +217,9 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block);context->stop_producers=stop_producers;int device=b.default_device();
  context->rate = rate;
  if(!name.empty()){size_t consumed=0;try{device=std::stoi(name,&consumed);}catch(const std::exception&){consumed=0;}if(consumed!=name.size()){
-   const auto list=enumerate(b);const int found=resolve_device(list,name);device=found<0?paNoDevice:list[size_t(found)].index;
+         const auto list = enumerate(b);
+         const int found = resolve_device(list, name);
+         device = found < 0 ? paNoDevice : list[size_t(found)].index;
  }}
  const auto*info=device>=0?b.info(device):nullptr;if(!info||info->maxOutputChannels<2)throw std::runtime_error("No matching stereo output device");
  PaStreamParameters output{device,2,paFloat32,info->defaultLowOutputLatency,nullptr};PaStream*stream=nullptr;

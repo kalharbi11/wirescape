@@ -254,9 +254,9 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
         }
     } else {
         active_ = engine_.get();
-        sink_ = std::thread(
-            [this, live = active_, left = std::vector<float>(options_.block),
-             right = std::vector<float>(options_.block)]() mutable {
+        sink_ =
+            std::thread([this, live = active_, left = std::vector<float>(options_.block),
+                         right = std::vector<float>(options_.block)]() mutable {
                 float *rows[] = {left.data(), right.data()};
 #ifdef _WIN32
                 // The default ~15.6 ms Windows timer tick is longer than a block period, so
