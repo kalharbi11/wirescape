@@ -63,6 +63,7 @@ test('16-step editor uses real catalogue; high steps, length, undo/redo and patc
   await expect(grid).toHaveAttribute('aria-label', '16-step pattern');
   expect(await grid.evaluate(e => getComputedStyle(e).gridTemplateColumns.split(' ').length)).toBe(8);
 
+  await expect(page.getByTestId('step-gate-1-16')).toHaveText('Rest');
   // Each change must be a distinct reversible edit. The first eight IDs
   // remain stable and edits in the upper bank use the same history path.
   await page.getByTestId('readout-1-pitch16').click();
@@ -71,6 +72,8 @@ test('16-step editor uses real catalogue; high steps, length, undo/redo and patc
   await page.getByTestId('readout-1-vel16').click();
   await page.getByTestId('readout-input-1-vel16').fill('65%');
   await page.getByTestId('readout-input-1-vel16').press('Enter');
+  await page.getByTestId('step-gate-1-16').click();
+  await expect(page.getByTestId('step-gate-1-16')).toHaveText('Note');
   await page.getByTestId('step-gate-1-16').click();
   await expect(page.getByTestId('step-gate-1-16')).toHaveText('Tie');
   await page.getByTestId('readout-1-length').click();
@@ -92,12 +95,14 @@ test('16-step editor uses real catalogue; high steps, length, undo/redo and patc
   await expect(page.getByTestId('step-1-16')).not.toHaveClass(/outside-length/);
   await page.evaluate(() => window.__wirescapeTest.undo()); // gate tie -> note
   await expect(page.getByTestId('step-gate-1-16')).toHaveText('Note');
+  await page.evaluate(() => window.__wirescapeTest.undo()); // gate note -> rest
+  await expect(page.getByTestId('step-gate-1-16')).toHaveText('Rest');
   await page.evaluate(() => window.__wirescapeTest.undo()); // velocity -> default
   expect((await state(page)).modules[0].parameters.vel16 ?? 0.8).toBeCloseTo(0.8);
   await page.evaluate(() => window.__wirescapeTest.undo()); // pitch -> default
   expect((await state(page)).modules[0].parameters.pitch16 ?? 0).toBeCloseTo(0);
 
-  for (let i = 0; i < 4; ++i) await page.evaluate(() => window.__wirescapeTest.redo());
+  for (let i = 0; i < 5; ++i) await page.evaluate(() => window.__wirescapeTest.redo());
   const redone = (await state(page)).modules[0].parameters;
   expect(redone.pitch16).toBeCloseTo(0.5);
   expect(redone.vel16).toBeCloseTo(0.65);
@@ -111,4 +116,32 @@ test('16-step editor uses real catalogue; high steps, length, undo/redo and patc
   expect(loaded.vel16).toBeCloseTo(0.65);
   await expect(page.getByTestId('step-gate-1-16')).toHaveText('Tie');
   await expect(page.getByTestId('step-1-16')).toHaveClass(/outside-length/);
+});
+
+// FakeEngine is the UI fixture; DSP/render correctness belongs to the native/WASM gates.
+test('touch editor keeps two rows, distinct controls and keyboard focus', async ({ page }, info) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await sequence(page, 16);
+  await page.evaluate(() => {
+    window.__wirescapeTest.setPref({ hit: 'touch' });
+    window.__wirescapeTest.zoomTo(1);
+  });
+  await settle(page);
+  const first = await page.getByTestId('step-1-1').boundingBox();
+  const eighth = await page.getByTestId('step-1-8').boundingBox();
+  const ninth = await page.getByTestId('step-1-9').boundingBox();
+  const last = await page.getByTestId('step-1-16').boundingBox();
+  expect(first && eighth && ninth && last).toBeTruthy();
+  expect(first!.y).toBeCloseTo(eighth!.y);
+  expect(ninth!.y).toBeCloseTo(last!.y);
+  expect(ninth!.y).toBeGreaterThanOrEqual(first!.y + first!.height);
+  const gate = page.getByTestId('step-gate-1-16');
+  expect((await gate.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await gate.focus();
+  await expect(gate).toBeFocused();
+  await gate.press('Space');
+  await expect(gate).toHaveText('Note');
+  expect(errors).toEqual([]);
+  await page.screenshot({ path: info.outputPath('seq16-touch.png') });
 });
