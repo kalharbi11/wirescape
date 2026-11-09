@@ -9,7 +9,7 @@ different things; the evidence below keeps those boundaries explicit.
 | Scope | Current evidence | Boundary |
 |---|---|---|
 | Application foundation | Sidecar, RealEngine, Electron shell, patch codec/catalogue sync and live replan are merged; [architecture](ARCHITECTURE.md), [plan](PLAN.md) | The app uses the native engine over stdio; Studio owns lossless editing |
-| Modules and patches | 27 ABI 2 catalogue entries, including Quantizer, Delay, Reverb, Spectral, Blend, Resonator and Groove S0; eight curated patches and shared patch library are merged | Open SEQ-16, Groove S1 and Interleave work is not implied complete |
+| Modules and patches | 28 ABI 2 catalogue entries, including Quantizer, Delay, Reverb, Spectral, Blend, Resonator and Groove S0; eight curated patches and shared patch library are merged | Open SEQ-16, Groove S1 and Interleave work is not implied complete |
 | Windows protocol | [#439](https://github.com/kalharbi11/wirescape/pull/439) merged; protocol and golden tests execute on Windows | A skipped test is not passing evidence |
 | Owner Windows session, 2026-11-09 | [#463](https://github.com/kalharbi11/wirescape/pull/463) branch: WASAPI headphones selectable, starters switch and sound, computer keyboard and Launchkey MIDI work at 48 kHz/256 | First-session branch evidence; final merge/CI/Pi gates and extended testing remain separate |
 | Owner Pi session, 2026-11-07 | Headless playback and M8 MIDI, recorded in [DEMO_CLASS](DEMO_CLASS.md) | Does not certify the current Electron app on the Pi |
