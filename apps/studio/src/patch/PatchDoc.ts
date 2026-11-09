@@ -68,6 +68,30 @@ export class PatchDoc {
         (patch.connections !== undefined && !Array.isArray(patch.connections))) {
       throw new Error('Invalid patch containers; the current patch was kept.');
     }
+    const object = (value: unknown): boolean => !!value && typeof value === 'object' && !Array.isArray(value);
+    if (patch.ui !== undefined && (!object(patch.ui) ||
+        ['positions', 'view', 'labels', 'cableColors'].some(key => patch.ui?.[key] !== undefined && !object(patch.ui[key])))) {
+      throw new Error('Invalid patch UI containers; the current patch was kept.');
+    }
+    const v1 = (patch as { version: number }).version === 1;
+    if (v1 && (!Array.isArray(patch.modules) || !Array.isArray(patch.connections))) {
+      throw new Error('Invalid v1 patch containers; the current patch was kept.');
+    }
+    const ids = new Set<number>();
+    for (const m of patch.modules ?? []) {
+      if (!m || !Number.isSafeInteger(m.id) || m.id <= 0 || ids.has(m.id) ||
+          typeof (v1 ? m.type : m.module) !== 'string' ||
+          (v1 && m.values != null && typeof m.values !== 'object')) {
+        throw new Error('Invalid or duplicate patch module; the current patch was kept.');
+      }
+      ids.add(m.id);
+    }
+    for (const c of patch.connections ?? []) {
+      const readable = v1 ? c && ['audio', 'control', 'signal', 'modulation', 'event'].includes(c.kind) &&
+        Number.isSafeInteger(c.fromNode) && Number(c.fromNode) > 0 && typeof c.fromPort === 'string' &&
+        Number.isSafeInteger(c.toNode) && Number(c.toNode) > 0 && typeof c.toPort === 'string' : isConnection(c);
+      if (!readable) throw new Error('Invalid patch connection; the current patch was kept.');
+    }
     // Mirror the native document's v1 migration, preserving the original envelope.
     if ((patch as { version: number }).version === 1) patch = migrateV1(patch);
     patch = structuredClone(patch);
@@ -75,10 +99,9 @@ export class PatchDoc {
     this.extras = rest;
     this.modules.clear();
     for (const m of modules ?? []) {
-      if (typeof m?.id !== 'number' || typeof m?.module !== 'string') continue;
       this.modules.set(m.id, m);
     }
-    this.connections = (connections ?? []).filter(isConnection).map(c => ({ ...c }));
+    this.connections = (connections ?? []).map(c => ({ ...c }));
     this.sourceHasUi = 'ui' in patch;
     this.ui = ui ?? {};
     this.emit({ t: 'reset' });
@@ -256,7 +279,7 @@ function isConnection(c: unknown): c is Connection {
 }
 function isEndpoint(e: unknown): e is Endpoint {
   const x = e as Endpoint;
-  return !!x && typeof x === 'object' && typeof x.module === 'number' && typeof x.port === 'string';
+  return !!x && typeof x === 'object' && Number.isSafeInteger(x.module) && x.module > 0 && typeof x.port === 'string';
 }
 export const EMPTY = EMPTY_PATCH;
 

@@ -298,6 +298,29 @@ function nativeFile(text: string): { version: number; preserved?: unknown } {
   if (!value || value.format !== 'wirescape.native.patch' || ![1, 2].includes(value.version) ||
       (value.modules !== undefined && !Array.isArray(value.modules)) ||
       (value.connections !== undefined && !Array.isArray(value.connections))) throw new Error('Unsupported patch');
+  const object = (item: unknown): boolean => !!item && typeof item === 'object' && !Array.isArray(item);
+  if (value.ui !== undefined && (!object(value.ui) ||
+      ['positions', 'view', 'labels', 'cableColors'].some(key => value.ui[key] !== undefined && !object(value.ui[key])))) {
+    throw new Error('Invalid patch UI containers');
+  }
+  const v1 = value.version === 1;
+  if (v1 && (!Array.isArray(value.modules) || !Array.isArray(value.connections))) throw new Error('Invalid v1 patch');
+  const ids = new Set<number>();
+  for (const m of value.modules ?? []) {
+    if (!m || !Number.isSafeInteger(m.id) || m.id <= 0 || ids.has(m.id) ||
+        typeof (v1 ? m.type : m.module) !== 'string' ||
+        (v1 && m.values != null && typeof m.values !== 'object')) throw new Error('Invalid patch module');
+    ids.add(m.id);
+  }
+  const endpoint = (e: any): boolean => !!e && Number.isSafeInteger(e.module) && e.module > 0 && typeof e.port === 'string';
+  for (const c of value.connections ?? []) {
+    const readable = c && (v1
+      ? ['audio', 'control', 'signal', 'modulation', 'event'].includes(c.kind) &&
+        Number.isSafeInteger(c.fromNode) && c.fromNode > 0 && typeof c.fromPort === 'string' &&
+        Number.isSafeInteger(c.toNode) && c.toNode > 0 && typeof c.toPort === 'string'
+      : ['signal', 'modulation', 'event'].includes(c.kind) && endpoint(c.from) && endpoint(c.to));
+    if (!readable) throw new Error('Invalid patch connection');
+  }
   // JSON.parse accepts duplicate keys. Refuse them before any open/save binding;
   // decoded keys detect escaped aliases, including nested objects inside arrays.
   const stack: (Set<string> | null)[] = [];

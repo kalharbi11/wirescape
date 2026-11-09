@@ -299,6 +299,19 @@ test('unsupported opens never rebind Save and unsupported targets are never over
     invalid.push('{broken', '[]', native(false).replace('"version":2', '"version":99'),
       native(false).replace('"unknown":false', '"unknown":1,"\\u0075nknown":2'),
       native(false).replace('"unknown":false', '"unknown":[{"a":1,"a":2}]'), ' '.repeat(2097153));
+    const base = JSON.parse(native(false));
+    const malformed = [{ modules: [{ id: 'bad', module: 'vendor.x' }] },
+      { modules: [{ id: 1, module: 'x' }, { id: 1, module: 'y' }] }, { modules: [null] },
+      { modules: [{ id: 1, module: null }] }, { connections: [null] },
+    { ui: 4 }, { ui: { positions: 'bad' } }, { ui: { view: [] } }, { ui: { labels: false } },
+    { ui: { cableColors: null } },
+      { connections: [{ kind: 'future', from: { module: 1, port: 'a' }, to: { module: 99, port: 'b' } }] },
+      { connections: [{ kind: 'signal', from: { module: 'bad', port: 'a' }, to: { module: 99, port: 'b' } }] },
+      { version: 1, modules: undefined }, { version: 1, connections: undefined },
+      { version: 1, modules: [{ id: 1, type: null }] },
+    { version: 1, modules: [{ id: 1, type: 'essentials.vco', values: 4 }] },
+      { version: 1, connections: [{ kind: 'audio', fromNode: 1, fromPort: 'a', toNode: 99 }] }];
+    invalid.push(...malformed.map(change => JSON.stringify({ ...base, ...change })));
     for (const bytes of invalid) {
       fs.writeFileSync(rejected, bytes);
       await app.evaluate(({ dialog }, filename) => {
@@ -312,6 +325,12 @@ test('unsupported opens never rebind Save and unsupported targets are never over
         .rejects.toThrow('Refusing to overwrite');
       expect(fs.readFileSync(rejected, 'utf8')).toBe(bytes);
     }
+    const opaque = JSON.stringify({ ...base, modules: [{ id: 1, module: 'vendor.future', opaque: true }],
+      connections: [{ kind: 'signal', from: { module: 1, port: 'future' }, to: { module: 99, port: 'missing' }, vendor: 42 }] });
+    fs.writeFileSync(rejected, opaque);
+    expect((await page.evaluate(() => window.wirescape.openPatch())).text).toBe(opaque);
+    await page.evaluate(text => window.wirescape.savePatch(text), opaque);
+    expect(fs.readFileSync(rejected, 'utf8')).toBe(opaque);
     expect(fs.readdirSync(dir).some(name => name.endsWith('.tmp') || name.endsWith('.v1.json'))).toBe(false);
   } finally { await app.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
