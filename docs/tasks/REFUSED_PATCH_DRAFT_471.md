@@ -20,8 +20,8 @@ No realtime, protocol, device, or patch-format changes. Do not replace `selectAu
 tier: T1
 size: <= 450 changed lines, <= 5 files
 must_pass:
-  - cd apps/studio && npm test -- tests/mock-bridge/real-engine.spec.ts
-  - cd apps/studio && npm test
+  - sh -c 'cd apps/studio && npx playwright test tests/mock-bridge/refused-draft.spec.ts'
+  - sh -c 'cd apps/studio && npm test'
 stops: [new dependency, engine/protocol edit, format change, test weakening, size budget exceeded]
 ```
 
