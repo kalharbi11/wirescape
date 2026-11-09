@@ -216,6 +216,8 @@ export class RealEngine implements EngineClient {
     if (message.ok !== true) {
       const err = refusal(message.code, message.message);
       if (p.kind === 'load') {
+        // A refused loadGraph leaves the engine on its previous graph (sidecar rollback).
+        (err.detail as { engine?: true }).engine = true;
         if (p.revision === this.revision) {
           this.ready = false;
           this.queue = []; this.active = undefined;
