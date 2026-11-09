@@ -99,9 +99,11 @@ def check_environment(artifacts: bool = True) -> tuple[list[str], str | None]:
         backend = "x11"
     elif os.environ.get("WAYLAND_DISPLAY"):
         backend = "wayland"
+    elif shutil.which("xvfb-run"):
+        backend = "xvfb"
     else:
         backend = None
-        problems.append("No DISPLAY or WAYLAND_DISPLAY; owner must provide an existing display or Xvfb (never auto-install)")
+        problems.append("No DISPLAY, WAYLAND_DISPLAY or xvfb-run; owner must provide a display or install Xvfb (never auto-install)")
     for name in ("node", "npm"):
         if not shutil.which(name):
             problems.append(f"Missing {name} on PATH; provision it outside the smoke")
@@ -181,6 +183,8 @@ def run(report: Path, timeout: int) -> tuple[int, dict]:
     command = [shutil.which("node"), str(REQUIRED["playwright"]), "test",
                "--config=playwright.config.cjs", "--grep=Pi ARM64:",
                "--reporter=json", "--output=" + str(report / "playwright")]
+    if backend == "xvfb":
+        command = [shutil.which("xvfb-run"), "-a", *command]
     with tempfile.TemporaryDirectory(prefix="wirescape pi isolated profile ") as profile:
         env = {**os.environ, "WIRESCAPE_PI_APP_SMOKE": "1",
                "WIRESCAPE_TEST_STUB": "0", "WIRESCAPE_PI_PROFILE_DIR": profile,

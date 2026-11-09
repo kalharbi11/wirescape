@@ -41,13 +41,6 @@ No queued, stale or missing result counts as a pass. Live heads and handoffs gov
 ## Sequencers (one at a time)
 - 16-step #405 → #410, then Groove S1 #451 → playhead PR → S1(b) editor, then Chord.
 
-## Pi preparation (owner authorized; installation after Windows test)
-- READY #445 preflight/logs: docs/tasks/PI_SOURCE_PREFLIGHT.md; no auto-install.
-- READY #446 ARM64 Electron/profile smoke: docs/tasks/PI_APP_SMOKE.md; reuse #386.
-- Queue/evidence: #444, docs/tasks/PI_SETUP_QUEUE.md; parent #436, related #235.
-- Pi nightly42560014392 pending; actual source SHA/results required, not green.
-- #101 baseline pending; #274 display/#296 soak/#271 hardware stay separate.
-
 ## Permanent gates
 - Required guard/Linux/Windows/sanitizers + task/Studio/WASM/Pi as applicable.
 - T1 different-session; T2 cross-family. No ID, unknown-data or threshold changes.

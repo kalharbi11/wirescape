@@ -84,11 +84,40 @@ class PiAppSmokeTests(unittest.TestCase):
              patch.object(smoke.platform, 'system', return_value='Linux'), \
              patch.object(smoke.platform, 'machine', return_value='x86_64'), \
              patch.object(smoke, 'clean_checkout', return_value=True), \
+             patch.object(smoke.shutil, 'which', side_effect=lambda name: None if name == 'xvfb-run' else '/usr/bin/' + name), \
              patch.dict(os.environ, {'DISPLAY': '', 'WAYLAND_DISPLAY': ''}):
             issues, backend = checker()
         self.assertIsNone(backend)
         self.assertTrue(any('ARM64' in problem for problem in issues))
         self.assertTrue(any('DISPLAY' in problem for problem in issues))
+
+    def test_existing_xvfb_is_a_functional_display_backend(self):
+        with patch.object(smoke, 'check_environment', side_effect=CHECK_ENVIRONMENT), \
+             patch.object(smoke.platform, 'system', return_value='Linux'), \
+             patch.object(smoke.platform, 'machine', return_value='aarch64'), \
+             patch.object(smoke, 'clean_checkout', return_value=True), \
+             patch.object(smoke.ctypes.util, 'find_library', return_value='portaudio'), \
+             patch.dict(os.environ, {'DISPLAY': '', 'WAYLAND_DISPLAY': ''}):
+            problems, backend = smoke.check_environment(artifacts=False)
+        self.assertEqual(problems, [])
+        self.assertEqual(backend, 'xvfb')
+
+    def test_xvfb_wraps_only_the_owned_real_app_child(self):
+        calls = []
+        def fake_run(command, cwd, env, seconds):
+            calls.append(command)
+            if env.get('WIRESCAPE_PI_APP_SMOKE'):
+                self.assertEqual(command[:2], ['/usr/bin/node', '-a'])
+                self.assertEqual(env['WIRESCAPE_PI_DISPLAY_BACKEND'], 'xvfb')
+                return 0, json.dumps({'stats': {'expected': 1}})
+            self.assertNotIn('xvfb-run', command)
+            return 0, 'mock build'
+        with patch.object(smoke, 'check_environment', return_value=([], 'xvfb')), \
+             patch.object(smoke, 'run_child', side_effect=fake_run):
+            code, result = smoke.run(self.report, 900)
+        self.assertEqual(code, 0)
+        self.assertEqual(result['display_backend'], 'xvfb')
+        self.assertEqual(len(calls), 5)
 
     def test_success_real_test_count_profile_cleanup_and_source_provenance(self):
         created = []

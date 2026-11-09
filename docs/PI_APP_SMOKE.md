@@ -57,3 +57,5 @@ test, wrong ELF architecture or missing report is a nonzero exit.
 Read the failing stage log, manually provision missing prerequisites and
 rerun the *same head*. Xvfb verifies function but not physical Pi display
 responsiveness; existing #274 and #296 remain separate.
+
+When no existing DISPLAY or WAYLAND_DISPLAY is configured, the smoke uses an already installed `xvfb-run -a` for its owned Playwright/Electron child only. It never installs Xvfb or changes the runner session. Without either a display or `xvfb-run`, the summary remains blocked. Xvfb establishes functional readiness, not physical-display performance.
