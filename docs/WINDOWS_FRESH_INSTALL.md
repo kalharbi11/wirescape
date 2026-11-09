@@ -1,16 +1,25 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Windows: isolated Electron source build
 
-**Status: BLOCKED, not yet a verified install recipe.** PR #439 at
-`46ab2c5d1a30475349d8460176341d47c9419b38` failed both Windows
-`abi2_sidecar_protocol_tests` and `sidecar_golden` in
-[run 42558134759](https://github.com/kalharbi11/wirescape/actions/runs/42558134759).
-Both processes exited 3 after a pipe watchdog timeout. A successful build,
-Linux pass, or green task-acceptance job does not resolve this Windows failure.
-The commands below are a reviewable source-build procedure for #436. Do not
-start the owner's clean-install experiment until a tested full source SHA is
-recorded here after #439's Windows tests, required checks and Keel T2 review.
-No accepted Windows SHA is currently supplied.
+**Status: BLOCKED, not yet a verified install recipe.** The latest executed
+Windows result for PR #439, source
+`dd5dbea06b57c1b05aa122ee2d8bd2cea231dbf3`, is **99/100 CTests passed** in
+[run 42560884305](https://github.com/kalharbi11/wirescape/actions/runs/42560884305).
+`sidecar_golden` and `abi2_sidecar_unit_tests` execute and pass. The full
+`abi2_sidecar_protocol_tests` still fails its 8000 Hz / 4096-frame loadGraph
+case with `Audio mute did not complete`. A partial pass is not readiness.
+
+The earlier apparent pipe stall was diagnosed as a moved-from JSON exception
+hidden during transport cleanup. Its coalescing fix and regression are in
+#439, but the newly exposed D5 mute-timing failure remains unresolved. Keel
+has the exact test/source evidence for a focused timing/synchronization ruling;
+no deadline, test assertion or skip was relaxed. Independent T2 review and
+remaining required checks are still outstanding.
+
+These commands are a reviewable source-build procedure for #436. Do not start
+the owner's clean-install experiment until a tested full source SHA is recorded
+here after the complete Windows suites, required checks and Keel T2 review.
+**No accepted Windows SHA is currently supplied.**
 
 This is the Electron + Studio + Qt-free engine path. There is no certified
 Windows binary installer in this procedure. The older `dev.py launch/package`
