@@ -55,43 +55,34 @@ Troubleshooting:
 
 ## Standalone Electron app: source preparation (not installation)
 
-This builds Electron + Studio + `wirescape-engine` from source, **not** a
-distributable installer. The owner defers installation until the Windows test;
-agents and Pi CI never install packages, alter sessions, SSH or open devices.
+Electron + Studio + `wirescape-engine` source build is **not** an installer.
+Installation follows the owner's Windows test; agents/Pi CI never install,
+alter sessions, SSH, or open devices.
 
-### 1. Check prerequisites — offline, read-only
+### 1. Check — offline and read-only
 
-```sh
-python3 tools/pi/preflight.py --check-only
-```
+`python3 tools/pi/preflight.py --check-only` checks ARM64, tools, npm
+lockfiles, PortAudio/Electron libraries, space, permissions, Git cleanliness,
+Qt overrides and foreign/Qt-enabled caches. Node LTS **22/24/26** is required;
+the Pi runner's Node 20.19.2 needs **owner-managed Node 22** (nvm/NodeSource)
+to match CI. Qt is not required. No fetch, build, network, report, or
+cache deletion; resolve failures manually.
 
-Checks ARM64, Git/compiler/Python/CMake/Ninja, Node/npm, lockfiles,
-PortAudio/Electron libraries, disk/permissions, clean Git, Qt environment and
-foreign/Qt-enabled CMake caches. Maintained Node LTS: **22, 24, 26**; use
-**Node 22** to match CI. On the Pi runner, Node 20.19.2 is a known
-owner-managed prerequisite: install/select Node 22 LTS via nvm or NodeSource
-before rerunning `pi5/accept`. Qt is not needed for this Electron build.
-No network, fetch, checkout, build, report, installation or cache deletion
-occurs. Resolve failures manually without changing global owner settings.
-
-### 2. Build approved source SHA
+### 2. Build approved source
 
 ```sh
 sh tools/pi/update-and-build.sh <accepted-commit-sha>
-sh tools/pi/update-and-build.sh <accepted-commit-sha> --jobs 4  # optional, 1–4
+sh tools/pi/update-and-build.sh <accepted-commit-sha> --jobs 4  # optional 1–4
 ```
 
-The one-argument ref form remains supported. The updater checks the clean
-tree, preflights before fetch and after verified detached checkout, then
-reuses `tools/dev.py build --headless --config Release` (default **2** jobs).
-Studio/Desktop use pinned `npm ci`; stages fail fast. Build/install stages
-may fetch pinned sources or npm packages; check-only never does.
-Ignored reports: `build_reports/pi-source-build/<sha>/` (sanitized bounded
-logs, per-stage JSON, `summary.json` with SHA, tools and outcomes). Inspect
-the named failed stage log and retry the same SHA; a report alone is not Pi
-execution evidence.
+The positional ref form remains. It checks cleanliness, preflights before
+fetch and after detached SHA verification, runs the existing headless
+`tools/dev.py` driver (default **2** jobs), then locked Studio/Desktop
+`npm ci` builds. Stages fail fast. Only build/npm stages may use network.
+Ignored `build_reports/pi-source-build/<sha>/` has sanitized logs and JSON
+SHA/tool/stage provenance; inspect failed logs, then retry the same SHA.
 
-### 3. Test (devices off)
+### 3. Test — devices off
 
 ```sh
 python3 tools/foundation/tests/test_pi_preflight.py
@@ -100,18 +91,16 @@ python3 -m unittest discover -s tools/foundation/tests -p test_build_parallel.py
 python3 tools/dev.py test
 ```
 
-Task-specific Pi `pi-run:` needs actual exact-head `ci/pi-accept` results.
-A missing prerequisite is BLOCKED, not a skipped success; cloud mocks are
-not Pi evidence.
+Only exact-head private `pi5/accept` satisfies `pi-run:`; cloud mocks and
+missing prerequisites do not count as Pi success.
 
 ### 4. Owner-only installation and launch — deferred
 
-After the Windows test and owner approval, the owner may invoke
+After Windows testing and approval, only the owner may run
 `tools/pi/install-desktop-entry.sh` and launch with
-`--confirm-audio --confirm-midi`. Neither check nor build installs or opens
-devices. For device-free app diagnostics use temporary `--settings` and
-`--null-audio` (#446). Normal choices remain in
-`user_data/settings.json`; old demo kiosk logs are not Electron logs.
+`--confirm-audio --confirm-midi`. For device-free smoke use temporary
+`--settings` and `--null-audio` (#446); ordinary device choices remain in
+`user_data/settings.json`. No check/build stage installs or opens devices.
 
 ## Class demo (owner only)
 
