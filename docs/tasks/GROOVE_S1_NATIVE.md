@@ -5,11 +5,9 @@ Keel preauthorized `docs/tasks/GROOVE_S1*.md` in #432 comment 6731562789.
 S0 #430 is merged; Studio stopped editor is separate S1(b).
 
 ## Read first
-AGENTS.md; #432 Keel ruling/latest handoff; docs/PLAN.md Now/Decisions;
-docs/sequencer/{README,GROOVE}.md; docs/SDK_AUTHOR_GUIDE.md §§7–12;
-native/modules2/groove/{config.h,dsp.h,module.json};
-native/document/{runtime_module_config.h,groove_runtime_tests.cpp};
-native/sdk/examples/step_sequencer/dsp.h.
+AGENTS.md; #432 ruling/handoff; docs/PLAN.md Now/Decisions; docs/sequencer/{README,GROOVE}.md;
+docs/SDK_AUTHOR_GUIDE.md §§7–12; native/modules2/groove/{config.h,dsp.h,module.json};
+native/document/{runtime_module_config.h,groove_runtime_tests.cpp}; native/sdk/examples/step_sequencer/dsp.h.
 
 ## Scope and rollback
 Preserve JSON `version:1`, S0 `run` and `t1_*` IDs, native 2×32
