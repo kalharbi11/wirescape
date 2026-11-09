@@ -27,17 +27,17 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 - Pi runnerpi5 is online and executing private poll42565126954; no duplicate dispatch.
 - Pi chain #450 74c5ee2 -> #452 98755f4 -> #453 558e52d: main integrated;
   exact-head Pi evidence and the common accepted SHA remain pending.
-- Owner installs Node22/xvfb where required. One accepted SHA must contain actual
-  #463/#450/#452 merges and pass combined device-off ARM64 app smoke.
-- #475 W1 d19e33e: preserve output/junction confinement and DLL validation;
-  executed Windows device-off setup smoke remains a merge gate.
+- Owner confirmed Xvfb/xauth installed; #452 has ci/pi-retry after that fix.
+  One accepted SHA must contain #463/#450/#452 and pass combined device-off ARM64 smoke.
+- #475 W1 e8 head: earlier CMake identity failure fixed; preserve confinement/DLL
+  validation. Executed real Windows device-off setup smoke remains a merge gate.
 
 ## Active cleanup and rulings
-- #464/#476 R1 5685881: source reviewed; header/license exact renames.
-  Size2800/14 accounts for2618 unchanged moved lines, not a test threshold change.
+- #464/#476 R1 merged ab64493: Qt-free default and shared PortAudio header/license
+  exact renames. The old ABI1 and Qt-removal packets remain separate.
 - #466/#477 R5a docs: wording reviewed; main/STATE refresh awaits final hosted gates.
-- #465/#478 R2 352791c: unsupported/future Studio ingress guard and Electron
-  overwrite/v1-backup protections implemented; independent review/final gates apply.
+- #465/#478 R2 1a07a5d: source review approved the ingress guard and Electron
+  overwrite/v1-backup protections; exact-head hosted/task gates remain pending.
 - #467/#479 archives100 verified closed tasks with identical hashes; final integration
   gates pending. PLANNER_HANDOFF deletion is deferred to R5c to preserve AGENTS links.
 - Qt-only inspector behavior is explicitly retired; supported compatibility and real

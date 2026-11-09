@@ -217,11 +217,11 @@ def command_build(args: argparse.Namespace) -> int:
         configure.extend(["-A", "x64"])
     if not generator.startswith("Visual Studio"):
         configure.append(f"-DCMAKE_BUILD_TYPE={args.config}")
-    qt_prefix = _qt_prefix(args.qt_prefix)
+    qt_prefix = _qt_prefix(args.qt_prefix) if not args.headless else None
     if qt_prefix:
         configure.append(f"-DCMAKE_PREFIX_PATH={qt_prefix}")
         configure.append(f"-DQt6_DIR={qt_prefix / 'lib/cmake/Qt6'}")
-    elif args.qt_prefix:
+    elif args.qt_prefix and not args.headless:
         record.update(status="failed", summary=f"Qt prefix does not contain lib/cmake/Qt6/Qt6Config.cmake: {args.qt_prefix}")
         report = _save_record(record)
         _print_record(record, report, args.json)
@@ -754,7 +754,7 @@ def command_package(args: argparse.Namespace) -> int:
             shutil.copy2(module, destination / module.name)
     shutil.copy2(backend, destination / "libportaudio64bit.dll")
     shutil.copy2(ROOT / "LICENSE", destination / "LICENSE")
-    shutil.copy2(ROOT / "native/ui/third_party/PORTAUDIO_LICENSE.txt", destination / "PORTAUDIO_LICENSE.txt")
+    shutil.copy2(ROOT / "native/third_party/portaudio/PORTAUDIO_LICENSE.txt", destination / "PORTAUDIO_LICENSE.txt")
     (destination / "README.txt").write_text(
         "Wirescape experimental local development package. Open wirescape_studio.exe.\n"
         "Audio starts OFF. Refresh outputs, select a device, Start, then hold Gate or play a note.\n"
@@ -961,7 +961,11 @@ def make_parser() -> argparse.ArgumentParser:
         child.add_argument("--config", choices=("Debug", "Release"), default="Release")
         if name == "build":
             child.add_argument("--qt-prefix", help="Qt SDK prefix; WIRESCAPE_QT_DIR, then CMAKE_PREFIX_PATH, then .tools/qt/6.10.3/msvc2022_64")
-            child.add_argument("--headless", action="store_true", help="disable the optional Qt UI target")
+            mode = child.add_mutually_exclusive_group()
+            mode.add_argument("--headless", dest="headless", action="store_true", default=True,
+                              help="build without the optional Qt UI (default)")
+            mode.add_argument("--with-qt", dest="headless", action="store_false",
+                              help="explicitly enable the retained Qt UI and its tests")
         child.add_argument("--json", action="store_true", help="print the full result as JSON")
         child.set_defaults(func=func)
     child = sub.add_parser("updates", help="Check installed revision against latest main; show assisted update instructions")

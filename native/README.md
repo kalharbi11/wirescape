@@ -13,7 +13,9 @@ python tools/dev.py test --config Release
 ```
 
 Use `python3` on the Pi. `--headless` builds the engine, CLI and device-free
-native tests without a GUI toolkit. The historical UI and ABI1 code remain in
+native tests without a GUI toolkit; this is also the default after R1. The retained
+Qt app requires explicit `--with-qt` and is outside the product setup path.
+The historical UI and ABI1 code remain in
 the tree while the [cleanup plan](../docs/planner/CLEANUP.md) moves coverage and
 retires them; they are not the application setup path.
 
@@ -35,3 +37,8 @@ Windows uses the `Release/wirescape_cli.exe` executable under the same build
 folder. Physical playback requires the owner and explicit device-confirmation
 flags. See [current evidence and pending gates](../docs/STATUS.md); successful
 compilation or an installed PortAudio library alone does not verify sound.
+
+The project retains its root GPL license. The shared vendored PortAudio header
+and its upstream license are now under `native/third_party/portaudio/`; see
+[PortAudio license](third_party/portaudio/PORTAUDIO_LICENSE.txt) and
+[audio backend provenance](io/audio/DESIGN.md).
