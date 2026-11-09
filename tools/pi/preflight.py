@@ -104,9 +104,7 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
     present = [key for key in inherited if os.environ.get(key)]
     check("no inherited Qt overrides", not present,
           "Unset process-local Qt/CMake overrides: " + ", ".join(present) + ". Do not change global user settings.")
-    # tools/dev.py configures -S native -B build/native using this discovered generator.
-    # An own, headless cache is reusable; reject foreign/Qt-enabled caches without
-    # deleting them or assuming that a freshly built Pi cache is stale.
+    # tools/dev.py configures -S native -B build/native; never delete foreign caches.
     expected_generator = discover_toolchain().get("generator")
     for cache in (root / "build/CMakeCache.txt", root / "build/native/CMakeCache.txt"):
         if not cache.is_file():
@@ -115,13 +113,10 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
             contents = cache.read_text(encoding="utf-8", errors="replace")
         except OSError:
             contents = ""
-        values = {}
-        for line in contents.splitlines():
-            if line.startswith(("#", "//")) or "=" not in line or ":" not in line:
-                continue
-            name_type, value = line.split("=", 1)
-            name = name_type.split(":", 1)[0]
-            values[name] = value.strip()
+        values = {key.split(":", 1)[0]: value.strip()
+                  for line in contents.splitlines()
+                  if not line.startswith(("#", "//")) and ":" in line and "=" in line
+                  for key, value in [line.split("=", 1)]}
         source = values.get("CMAKE_HOME_DIRECTORY", "")
         same_source = bool(source and Path(source).resolve() == (root / "native").resolve())
         cache_arch = values.get("CMAKE_SYSTEM_PROCESSOR", "").lower()
@@ -132,9 +127,9 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
         ui_enabled = values.get("WIRESCAPE_BUILD_UI", "").upper() in ("ON", "TRUE", "YES", "1")
         check(f"cache:{cache.relative_to(root)}",
               same_source and same_arch and same_generator and not qt_cache and not ui_enabled,
-              "Cache source/architecture/generator mismatch or Qt UI override. Owner: inspect "
-              "CMAKE_HOME_DIRECTORY, CMAKE_SYSTEM_PROCESSOR, CMAKE_GENERATOR and WIRESCAPE_BUILD_UI; "
-              "move an incompatible build directory aside (never delete it automatically).")
+              "Cache source/architecture/generator or Qt UI mismatch. Inspect CMAKE_HOME_DIRECTORY, "
+              "CMAKE_SYSTEM_PROCESSOR, CMAKE_GENERATOR, WIRESCAPE_BUILD_UI; move incompatible "
+              "build directory aside, never delete it automatically.")
     return checks, {"sha": sha if rc == 0 else None, "architecture": arch, "tools": tools}
 
 
