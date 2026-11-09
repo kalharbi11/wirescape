@@ -9,6 +9,7 @@ namespace fake {
 std::vector<wirescape::audio::Device> outputs;
 std::vector<std::string> attempts;
 bool active = true, refuse = false, enumeration_throws = false;
+uint32_t rejected_rate = 0;
 int stopped = 0;
 AppEngine *engine = nullptr;
 }
@@ -21,12 +22,13 @@ struct Stream::Impl {
     EngineOwner engine{nullptr, app_engine_destroy};
     std::function<void()> producers;
 };
-Stream::Stream(EngineOwner &owner, const StreamSelection &selection, double, uint32_t,
+Stream::Stream(EngineOwner &owner, const StreamSelection &selection, double rate, uint32_t,
                std::function<void()> producers) : impl_(std::make_unique<Impl>()) {
     fake::attempts.push_back(selection.name);
     size_t matches = 0;
     for (const auto &d : fake::outputs) matches += d.name == selection.name;
-    if (matches != 1 || fake::refuse) throw std::runtime_error("fake unavailable/ambiguous output");
+    if (matches != 1 || fake::refuse || uint32_t(rate) == fake::rejected_rate)
+        throw std::runtime_error("fake unavailable/ambiguous output");
     impl_->engine = std::move(owner);
     impl_->producers = std::move(producers);
     fake::engine = impl_->engine.get();
@@ -146,7 +148,71 @@ int main() {
             s.start();
             check(audio(s)["deviceId"] == "Other default", "initial default selection remains supported");
         }
-        std::cout << "audio recovery fake-backend tests passed\n";
+        // The link-time fake is the sidecar's protocol-level audio seam; no OS
+        // audio endpoint is enumerated or opened.
+        options.settings = (root / "stream-contract.json").string();
+        fake::attempts.clear();
+        fake::stopped = 0;
+        fake::outputs = {{"USB Stereo", 3, true, "FakeAudio", 2, {44100, 48000, 96000}, true, ""},
+                         {"Mono DAC", 4, false, "FakeAudio", 1, {}, false, "mono-output"},
+                         {"No Output", 5, false, "FakeAudio", 0, {}, false, "no-output"}};
+        {
+            Session s(options);
+            s.start();
+            check(audio(s)["state"] == "running" && audio(s)["deviceId"] == "USB Stereo",
+                  "fake stereo output must be playing");
+            auto call = [&](const char *id, const char *method, Json payload = Json::object()) {
+                Json cmd = {{"v", 0}, {"id", id}, {"type", method}};
+                cmd.update(payload);
+                return s.reply({cmd, {}, {}});
+            };
+            auto listed = call("list", "listAudioDevices")["result"]["devices"];
+            check(listed.size() == 3 && listed[0]["backend"] == "FakeAudio" &&
+                      listed[0]["outputChannels"] == 2 && listed[0]["supported"] == true,
+                  "backend/channels must be reported honestly");
+            check(listed[1]["supported"] == false && listed[1]["unsupportedReason"] == "mono-output" &&
+                      listed[2]["unsupportedReason"] == "no-output",
+                  "mono and no-output routes must be listed but disabled");
+            const auto stopped = fake::stopped;
+            const auto playing = fake::engine;
+            auto missing = call("missing", "selectAudioDevice", {{"deviceId", "outdated-id"}});
+            auto mono = call("mono", "selectAudioDevice", {{"deviceId", "Mono DAC"}});
+            check(missing["ok"] == false && missing["code"] == "not-found" &&
+                      mono["ok"] == false && mono["code"] == "refused" && mono["message"] == "mono-output" &&
+                      fake::stopped == stopped && fake::engine == playing && audio(s)["deviceId"] == "USB Stereo",
+                  "stale/mono refusal must not interrupt the active route");
+            auto invalid_rate = call("bad", "setSampleRate", {{"hz", 32000}});
+            auto invalid_frames = call("bad-block", "setBufferFrames", {{"frames", 33}});
+            check(invalid_rate["code"] == "invalid" && invalid_frames["code"] == "invalid" &&
+                      fake::stopped == stopped, "out-of-set settings must not stop the stream");
+            auto rate = call("rate", "setSampleRate", {{"hz", 44100}});
+            check(rate["ok"] == true && rate["gen"] == "1" && audio(s)["state"] == "running" &&
+                      audio(s)["sampleRate"] == 44100 && audio(s)["bufferFrames"] == 256,
+                  "rate ack requires a running new stream");
+            auto frames = call("frames", "setBufferFrames", {{"frames", 128}});
+            check(frames["ok"] == true && frames["gen"] == "2" &&
+                      audio(s)["sampleRate"] == 44100 && audio(s)["bufferFrames"] == 128,
+                  "buffer restart must keep selected rate");
+            std::ifstream saved(options.settings);
+            Json prefs;
+            saved >> prefs;
+            check(prefs["audio"]["sampleRate"] == 44100 && prefs["audio"]["bufferFrames"] == 128,
+                  "persist only after successful restart");
+            fake::rejected_rate = 96000;
+            const auto gen = s.status()["gen"];
+            auto unavailable = call("fail", "setSampleRate", {{"hz", 96000}});
+            check(unavailable["ok"] == false && unavailable["code"] == "unavailable" &&
+                      s.status()["gen"] == gen && audio(s)["sampleRate"] == 44100 &&
+                      audio(s)["bufferFrames"] == 128 && audio(s)["state"] == "running" &&
+                      audio(s)["deviceId"] == "USB Stereo", "failure must roll back to the playing route");
+            fake::rejected_rate = 0;
+            std::ifstream saved_after(options.settings);
+            Json after;
+            saved_after >> after;
+            check(after["audio"] == prefs["audio"], "rejected stream config must not persist");
+            s.shutdown();
+        }
+        std::cout << "audio recovery and stream-protocol fake-backend tests passed\n";
     } catch (const std::exception &e) {
         std::cerr << e.what() << '\n';
         return 1;
