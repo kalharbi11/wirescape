@@ -3,13 +3,21 @@ import { test, expect } from '@playwright/test';
 import { boot, state } from './helpers';
 import { mockBridge } from './mock-bridge/bridge';
 
-test('browser lists nine read-only bundles and loads through existing graph path', async ({ page }) => {
+test('browser lists preserved test bundles and eight curated read-only patches and loads through existing graph path', async ({ page }) => {
   await boot(page);
   await page.getByTestId('open-patch-browser').click();
-  await expect(page.getByTestId('patch-browser').locator('[data-testid^="bundled-patch-"]')).toHaveCount(9);
+  await expect(page.getByTestId('patch-browser').locator('[data-testid^="bundled-patch-"]')).toHaveCount(17);
   await page.getByTestId('bundled-patch-0').click();
   await expect(page.getByTestId('patch-browser')).toBeHidden();
   expect((await state(page)).modules.length).toBeGreaterThan(0);
+});
+
+test('curated patches are accessible in the read-only browser without changing session bundles', async ({ page }) => {
+  await boot(page);
+  await page.getByTestId('open-patch-browser').click();
+  await page.getByTestId('bundled-patch-6').click(); // six preserved Qt bundles precede curated patches
+  await expect(page.getByTestId('patch-name')).toContainText('Hollow Chapel');
+  expect((await state(page)).modules.some((m: { module: string }) => m.module === 'essentials.chaos_lite')).toBe(true);
 });
 
 test('user selection round-trips unknown fields; bundled Save creates a copy', async ({ page }) => {

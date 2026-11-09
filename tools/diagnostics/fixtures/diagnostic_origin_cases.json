@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "fixture_kind": "synthetic; NOT captured analyzer evidence",
+  "cases": [
+    {"id": "changed-first-party-source", "synthetic": true, "diagnostics": [
+      {"tool":"clang-tidy","severity":"warning","location":{"path":"native/modules2/macro_oscillator/dsp.h","line":79,"column":9},"message":"synthetic example of unsafe class zero-initialization [cppcoreguidelines-pro-type-member-init]","raw":"native/modules2/macro_oscillator/dsp.h:79:9: warning: synthetic zero-initialization finding","expected_origin":"first_party","provenance":"tracked Wirescape source; changed line; requires actual diff verification"}
+    ]},
+    {"id": "first-party-included-header", "synthetic": true, "diagnostics": [
+      {"tool":"cppcheck","severity":"warning","location":{"path":"native/voice/note_to_cv.h","line":155,"column":39},"message":"synthetic parser warning [syntaxError]","raw":"native/voice/note_to_cv.h:155:39: warning: synthetic parser warning [syntaxError]","expected_origin":"first_party","provenance":"tracked Wirescape included header even if the translation unit is elsewhere"}
+    ]},
+    {"id": "pinned-fetchcontent-eurorack", "synthetic": true, "diagnostics": [
+      {"tool":"cppcheck","severity":"warning","location":{"path":"build/static/_deps/macro_eurorack-src/plaits/dsp/voice.cc","line":40,"column":5},"message":"synthetic uninitialized member [uninitMemberVar]","raw":"build/static/_deps/macro_eurorack-src/plaits/dsp/voice.cc:40:5: warning: synthetic member finding [uninitMemberVar]","expected_origin":"pinned_dependency","provenance":"native/modules2/macro_oscillator/CMakeLists.txt: macro_eurorack URL f4cfa7697095a28d292bff758beb51deb49b5a86"}
+    ]},
+    {"id": "pinned-stmlib-source-dir", "synthetic": true, "diagnostics": [
+      {"tool":"cppcheck","severity":"warning","location":{"path":"build/static/modules2/macro_oscillator/upstream/stmlib/utils/dsp.h","line":68,"column":3},"message":"synthetic missing return [missingReturn]","raw":"build/static/modules2/macro_oscillator/upstream/stmlib/utils/dsp.h:68:3: warning: synthetic missing return [missingReturn]","expected_origin":"pinned_dependency","provenance":"native/modules2/macro_oscillator/CMakeLists.txt: macro_stmlib URL e3bd7c9cc00e4364166f9905c0509b6ffd0535ec; SOURCE_DIR under module binary tree, with pinned portability patch"}
+    ]},
+    {"id": "mixed-origins-one-translation-unit", "synthetic": true, "diagnostics": [
+      {"tool":"cppcheck","severity":"warning","location":{"path":"native/modules2/macro_oscillator/dsp.h","line":79,"column":15},"message":"synthetic first-party memsetClass [memsetClass]","raw":"native/modules2/macro_oscillator/dsp.h:79:15: warning: synthetic first-party class reset [memsetClass]","expected_origin":"first_party","provenance":"Wirescape adapter; do not reclassify by compiled unit alone"},
+      {"tool":"cppcheck","severity":"warning","location":{"path":"build/static/_deps/macro_eurorack-src/plaits/dsp/voice.cc","line":40,"column":5},"message":"synthetic pinned upstream uninitialized member [uninitMemberVar]","raw":"build/static/_deps/macro_eurorack-src/plaits/dsp/voice.cc:40:5: warning: synthetic upstream member [uninitMemberVar]","expected_origin":"pinned_dependency","provenance":"same compile closure, independent diagnostic location; eurorack pin f4cfa7697095a28d292bff758beb51deb49b5a86"}
+    ]},
+    {"id": "unknown-outside-approved-roots", "synthetic": true, "diagnostics": [
+      {"tool":"clang-tidy","severity":"warning","location":{"path":"../unrelated-checkout/include/other.h","line":8,"column":2},"message":"synthetic outside-root issue [misc-include-cleaner]","raw":"../unrelated-checkout/include/other.h:8:2: warning: synthetic foreign include","expected_origin":"unknown","provenance":"path lies outside tracked repo and named immutable roots; do not silently exclude"}
+    ]},
+    {"id": "unknown-relative-path-without-base", "synthetic": true, "diagnostics": [
+      {"tool":"cppcheck","severity":"warning","location":{"path":"../../../native/voice/note_to_cv.h","line":155,"column":39},"message":"synthetic unresolved relative header [syntaxError]","raw":"../../../native/voice/note_to_cv.h:155:39: warning: synthetic unresolved header","expected_origin":"unknown","provenance":"no diagnostic working directory/base mapping; apparent native prefix is insufficient"}
+    ]},
+    {"id": "unknown-symlink-alias", "synthetic": true, "diagnostics": [
+      {"tool":"clang-tidy","severity":"error","location":{"path":"build/static/vendor_alias/stmlib/utils/dsp.h","line":17,"column":6},"message":"synthetic indirect-path diagnostic [clang-diagnostic-error]","raw":"build/static/vendor_alias/stmlib/utils/dsp.h:17:6: error: synthetic alias location","expected_origin":"unknown","provenance":"alias target not verified; do not assume it resolves into pinned stmlib"}
+    ]},
+    {"id": "pinned-fetchcontent-json", "synthetic": true, "diagnostics": [
+      {"tool":"cppcheck","severity":"warning","location":{"path":"build/static/_deps/nlohmann_json-src/include/nlohmann/json.hpp","line":210,"column":4},"message":"synthetic upstream template issue [uninitMemberVar]","raw":"build/static/_deps/nlohmann_json-src/include/nlohmann/json.hpp:210:4: warning: synthetic template finding","expected_origin":"pinned_dependency","provenance":"native/document/CMakeLists.txt: nlohmann_json URL 9cca280a4d0ccf0c08f47a99aa71d1b0e52f8d03"}
+    ]}
+  ]
+}

@@ -24,7 +24,7 @@ struct Slot {
 };
 struct Plan {
     std::vector<Tap> taps;
-    std::vector<Slot> slots;
+    std::vector<Slot> entries;
 };
 
 // The map is deliberately host-owned: only cabled parameters, the two envelope
@@ -41,7 +41,7 @@ inline Plan plan(const Json &patch, AppEngine *catalogue, bool phase_enabled = f
     }
     auto add = [&](Tap tap, Field field, std::string name) {
         result.taps.push_back(tap);
-        result.slots.push_back({field, tap.node, std::move(name)});
+        result.entries.push_back({field, tap.node, std::move(name)});
     };
     std::set<std::pair<uint32_t, uint32_t>> parameters;
     for (const auto &c : patch.at("connections")) {
@@ -86,7 +86,7 @@ class Sampler {
     // Engine2 resets its cumulative EventOut counts to zero at that same commit.
     void swap(Sampler &other) noexcept {
         plan_.taps.swap(other.plan_.taps);
-        plan_.slots.swap(other.plan_.slots);
+        plan_.entries.swap(other.plan_.entries);
         values_.swap(other.values_);
         pulse_.swap(other.pulse_);
         counts_.swap(other.counts_);
@@ -102,8 +102,8 @@ class Sampler {
             values_.data(), counts_.data(), static_cast<uint32_t>(values_.size()), frame);
         if (count != plan_.taps.size() || frame == 0 || frame == last_frame_) return out;
         last_frame_ = frame;
-        for (size_t i = 0; i < plan_.slots.size(); ++i) {
-            const auto &slot = plan_.slots[i];
+        for (size_t i = 0; i < plan_.entries.size(); ++i) {
+            const auto &slot = plan_.entries[i];
             const auto id = std::to_string(slot.node);
             if (slot.field == Field::EventActivity) {
                 pulse_[i] = counts_[i] != previous_[i] ? 1.f : pulse_[i] * 0.6f;

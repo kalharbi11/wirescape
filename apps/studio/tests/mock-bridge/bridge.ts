@@ -23,8 +23,8 @@ export async function mockBridge(page: Page): Promise<void> {
     const copy = (v: any) => JSON.parse(JSON.stringify(v));
     const midiStatus = () => ({ devices: copy(midi), activity: {},
       ...(learnArmed ? { learn: { armed: true, ...(learnPacket ?? {}) } } : {}) });
-    const emitStatus = () => emit({ v: 0, type: 'status', session: session(), gen: String(gen),
-      status: { audio: copy(audioStatus), midi: midiStatus() } });
+    const emitStatus = (overrides: Message = {}) => emit({ v: 0, type: 'status', session: session(), gen: String(gen),
+      status: { audio: { ...copy(audioStatus), ...overrides }, midi: midiStatus() } });
     const reply = (cmd: Message, ok: boolean, response: Message = {}, s = session(), g = String(gen)) => {
       emit({ v: 0, session: s, re: cmd.id, ok, gen: g, ...response });
     };

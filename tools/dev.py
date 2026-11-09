@@ -941,6 +941,7 @@ def make_parser() -> argparse.ArgumentParser:
     child.add_argument("--base", default="origin/main", help="diff base ref for size checks (default: origin/main)")
     child.add_argument("--timeout", type=float, default=600, help="seconds per command")
     child.add_argument("--json", action="store_true", help="print only the JSON summary")
+    child.add_argument("--strict", action="store_true", help="exit nonzero on incomplete external/pending evidence")
     child.set_defaults(func=lambda args: run_acceptance(ROOT, args))
     for name, func in (("doctor", command_doctor), ("snapshot", command_snapshot), ("report", command_report)):
         child = sub.add_parser(name)
