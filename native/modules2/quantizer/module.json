@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "id": "essentials.quantizer",
+  "name": "Quantizer",
+  "abi_version": 2,
+  "library": "ws2_quantizer",
+  "description": "Quantizes pitch to the nearest note of a scale, with hysteresis, scale-step shift, optional sample-and-hold trigger and a trigger when the note changes.",
+  "parameters": {
+    "scale": 0,
+    "root": 1,
+    "shift": 2,
+    "octave": 3,
+    "n0": 4,
+    "n1": 5,
+    "n2": 6,
+    "n3": 7,
+    "n4": 8,
+    "n5": 9,
+    "n6": 10,
+    "n7": 11,
+    "n8": 12,
+    "n9": 13,
+    "n10": 14,
+    "n11": 15
+  },
+  "inputs": {
+    "pitch": "signal",
+    "trigger": "signal"
+  },
+  "outputs": {
+    "pitch": "signal",
+    "changed": "signal"
+  },
+  "license": "GPL-3.0-only"
+}

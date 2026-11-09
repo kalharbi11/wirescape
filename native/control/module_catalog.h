@@ -17,6 +17,7 @@
 #include "../modules2/mixer/dsp.h"
 #include "../modules2/noise/dsp.h"
 #include "../modules2/output/dsp.h"
+#include "../modules2/quantizer/dsp.h"
 #include "../modules2/resonator/dsp.h"
 #include "../modules2/reverb/dsp.h"
 #include "../modules2/scale_offset/dsp.h"
