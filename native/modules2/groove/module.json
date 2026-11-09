@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "id": "sequencing.groove",
+  "name": "Groove (S0)",
+  "abi_version": 2,
+  "library": "ws2_groove",
+  "description": "One-track stopped structured-configuration proof (S0)",
+  "parameters": {
+    "run": 0
+  },
+  "inputs": {},
+  "outputs": {
+    "t1_pitch": "signal",
+    "t1_gate": "signal",
+    "t1_mod1": "signal",
+    "t1_mod2": "signal",
+    "t1_notes": "event"
+  },
+  "license": "GPL-3.0-only"
+}
