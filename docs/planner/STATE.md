@@ -8,10 +8,10 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 - Board #473 is the claim source. Codex Lead keeps it current and holds the owner's
   delegation to approve/merge after independent review and evidence (T2 still needs Claude).
 - Owner's subsequent instruction holds new starts until remaining PRs close, even below10.
-- Eight closeout PRs include main compile repair486 and this planner refresh484.
+- Seven closeout PRs remain after486 merged1e20242; this planner refresh484 is one.
 - Later: Learn287 → Groove432 → OSC72; Chord403/421 still waits for S1(b).
 
-## Merged 2026-11-09 (main `605da43`)
+## Merged 2026-11-09 (baseline `605da43`, compile repair `1e20242`)
 - #463 Windows runtime, #400 latency, #442 real-app evidence, #474 PLAN D15–D19.
 - Cleanup: R1 #476, R2 #478, R5b #479, R5a docs #477. W1 Windows setup #475.
 - Sound/sequencers: #310 Interleave/Vocoder, #405 + #410 16-step, #458 Groove study,
@@ -23,9 +23,10 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 - Windows first session on #463: WASAPI headphones, starters switch and sound,
   computer keyboard and Launchkey work at 48k/256. Shared WASAPI needs the device rate.
 - Pi runner: Node 22.23.4 / npm 10.9.9 and Xvfb/xauth installed by the owner.
-- First merge486's reviewed fixture-name repair after exact required/task checks;
-  main605da43 currently fails compilation from colliding MIDI/Groove test locals.
-- **#483 / #453:** repair the PI_SETUP first-run bypass, merge fixed main into #453, `Closes #483`, `ci/pi` + `ci/pi-accept`. When the
+- #486 merged1e20242 after exact guard/Linux/Windows/sanitizers/task success;
+  the combined MIDI/Groove fixture collision is repaired.
+- **#483 / #453:** guides repaired; fixed main integrated at2b07cfc with identical
+  authorized task483 (also in484); Closes483 and both Pi labels applied. When the
   docs-only exact head passes preflight + app smoke, pin its main parent as `AcceptedSha`
   in docs/PI_FRESH_INSTALL.md (Keel evidence-transfer ruling on #483), then merge.
 - Then the owner session: PI_FRESH_INSTALL sections 1–6 + the Pi part of #271.
@@ -34,13 +35,14 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 - #399 device routes/rate refusal (T2): **Keel High**: `Pa_IsFormatSupported` runs in
   every warm poll enumeration; on ALSA the active hw device is busy, so the running
   output is marked unsupported. Scoped cooperator repairs probe classification/cache,
-  warm polling and three Static findings, with focused tests; Claude re-review remains.
-- #461 Groove saturation/replan tests (T0): root integrates fixed main, retains reviewed
-  two-file delta; final required/task/Pi disposition follows.
-- #480 refused draft: f72ce9f fixes the last Save-during-load Medium with delayed
-  bridge/Electron file tests; independent source review passed, hosted gates pending.
-- #482 R3a:73ad9b1 splits nondeleting acceptance per Keel. Actual frozen-Qt comparison
-  remains required: repeatability alone is not cross-renderer equality. No hash
+  warm polling and three Static findings at a86fba3; fixed main integrated8c340bb.
+  Classifier/syntax local checks pass; exact hosted/Pi and Claude re-review remain.
+- #461 Groove tests: fixed main integrated8c9b834; reviewed263-line/two-file delta
+  retained; fresh required/task/Pi disposition remains.
+- #480 refused draft: last Save/load Medium fixed and independently reviewed;
+  fixed main integrated021cd63; delayed bridge/Electron proof awaits hosted gates.
+- #482 R3a:e988e70 integrates fixed main and real Windows frozen-Qt comparison hook.
+  Actual comparison remains pending; repeatability alone is not baseline equality. No hash
   rebaseline. R3b deletion and allow-test-removal require a
   test-to-replacement table; Codex Lead tags `archive/qt-final` (annotated) on
   R3b's merge parent, once.
