@@ -24,15 +24,27 @@ static Json pattern(){
    {{"kind","rest"}},{{"kind","rest"}}
  })}}})}};
 }
-static Json patch(Json config) {
- return {{"format","wirescape.native.patch"},{"version",2},
+static Json cable(uint32_t from,const char *source,uint32_t to,const char *input,
+                  const char *kind="signal") {
+ return {{"kind",kind},{"from",{{"module",from},{"port",source}}},
+         {"to",{{"module",to},{"port",input}}}};
+}
+static Json patch(Json config,bool cv=false) {
+ Json p={{"format","wirescape.native.patch"},{"version",2},
   {"settings",{{"max_channels",1},{"feedback_block",1}}},
   {"modules",Json::array({
    {{"id",1},{"module","sequencing.groove"},{"version",1},{"config",config},{"parameters",{{"run",0}}}},
    {{"id",2},{"module","essentials.vco"},{"version",2}}})},
-  {"connections",Json::array({{{"kind","event"},{"from",{{"module",1},{"port","t1_notes"}}},
-   {"to",{{"module",2},{"port","notes"}}}}})},
+  {"connections",Json::array()},
   {"outputs",Json::array({{{"module",2},{"port","audio"},{"bus_channel",0}}})}};
+ if(cv){
+  p["modules"].push_back({{"id",3},{"module","essentials.vca"},{"version",2}});
+  p["connections"].push_back(cable(1,"t1_pitch",2,"pitch"));
+  p["connections"].push_back(cable(1,"t1_gate",3,"gain_cv"));
+  p["connections"].push_back(cable(2,"audio",3,"audio"));
+  p["outputs"]=Json::array({{{"module",3},{"port","audio"},{"bus_channel",0}}});
+ }else p["connections"].push_back(cable(1,"t1_notes",2,"notes","event"));
+ return p;
 }
 static Owner load(const Json &p,AppEngine *catalog,double rate,std::string &error){
  ws_engine_config cfg{sizeof(cfg),rate,256,64,2048};
@@ -45,10 +57,11 @@ static uint32_t run_id(AppEngine *engine){
  }
  throw std::runtime_error("Groove not registered in native catalogue");
 }
-static std::vector<float> trace(AppEngine *e,uint32_t count,uint32_t block){
+static std::vector<float> trace(AppEngine *e,uint32_t count,uint32_t block,bool verify_cv=false){
  std::vector<float> out;
  out.reserve(count);
  std::array<float,256> audio{};
+ bool audible=false;
  for(uint32_t done=0;done<count;){
   uint32_t n=std::min(count-done,block);
   int result;
@@ -59,12 +72,17 @@ static std::vector<float> trace(AppEngine *e,uint32_t count,uint32_t block){
   for(uint32_t i=0;i<n;++i){
    float g=graph.output_sample(1,1,0,i);
    check((g==0.f||g==1.f)&&std::isfinite(audio[i]),"finite native gate and audio");
+   if(verify_cv){
+    if(!g)check(audio[i]==0.f,"CV gate closes downstream VCA");
+    else if(std::abs(audio[i])>0.25f)audible=true;
+   }
    check(graph.output_sample(1,2,0,i)==0.f&&graph.output_sample(1,3,0,i)==0.f,
          "inactive modulation lanes are deterministic");
    out.push_back(g);
   }
   done+=n;
  }
+ if(verify_cv)check(audible,"pitch and gate drive audible native CV patch");
  return out;
 }
 static void test_refusals(AppEngine *cat){
@@ -112,6 +130,13 @@ static void test_rate_block(AppEngine *cat,double rate,uint32_t block){
        "note/rest/tie/wrap transition frames");
  check(app_engine_initialize_parameter(live.get(),1,id,0)==WS_OK,"stop via existing seam");
  check(trace(live.get(),block,block)[0]==0.f,"stop releases active gate");
+ // Separate signal route: pitch -> VCO pitch; gate -> VCA gain.
+ // Never attach quantized pitch CV and raw note events to the same VCO.
+ auto cv=load(patch(pattern(),true),cat,rate,error);
+ check(bool(cv),"pitch/gate CV patch loads through native graph");
+ check(trace(cv.get(),block,block)[0]==0.f,"signal patch loads stopped");
+ check(app_engine_initialize_parameter(cv.get(),1,id,1)==WS_OK,"start CV patch");
+ trace(cv.get(),static_cast<uint32_t>(std::ceil(period*2))+2,block,true);
 }
 int main(){
  try{
