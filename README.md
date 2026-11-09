@@ -1,61 +1,70 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Wirescape™
 
-**An open-source modular patching environment for music.** It's in alpha and under active development.
+An open-source modular patching environment for music, in alpha. The application
+is an Electron window around Studio, the TypeScript patch editor, connected to
+the native C++17 `wirescape-engine` process. ABI 2 modules provide polyphonic
+cables, audio-rate modulation, feedback and portable DSP.
 
-Wirescape combines a native C++ realtime engine and a TypeScript web UI. The standalone Electron shell and engine connection are being built; the Qt Quick interface remains buildable during the transition. Its focus:
-- polyphonic cables, audio-rate modulation and feedback patching
-- a simple module SDK that people and AI agents can both build with
-- module DSP that moves unchanged into plugins (CLAP/VST3) and Daisy-class hardware
+**Downloadable installers are not available yet.** Build from source at a
+revision accepted for your test session. Current evidence: [STATUS](docs/STATUS.md).
 
-MIDI, OSC and UDP are planned, followed by DMX, serial and scripting.
+## Build from source
 
-- **Status and evidence:** [docs/STATUS.md](docs/STATUS.md)
-- **Plan and milestones:** [docs/PLAN.md](docs/PLAN.md)
-- **Architecture today:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- **Module contract (ABI 2):** [docs/specs/ABI2_PLAN.md](docs/specs/ABI2_PLAN.md)
-- **Contributing / agents:** [CONTRIBUTING.md](CONTRIBUTING.md) · [AGENTS.md](AGENTS.md)
+Use Git, Python 3.12+, Node.js 22 with npm, CMake 4.2.3, Ninja 1.13.0 and a C++17
+compiler. Windows x64 needs the Visual Studio 2022 C++ workload and Windows SDK;
+Raspberry Pi 5 needs a 64-bit Linux desktop and C++ build tools. The engine build
+below explicitly disables the retired UI. First configure and `npm ci` download
+pinned dependencies; builds do not open audio or MIDI devices.
 
-## Web UI
-
-The UI now lives in [apps/studio](apps/studio/IMPORT.md), imported with its Git history.
-It currently uses `FakeEngine`; real engine integration and the desktop shell follow in Phase 1.
+From the repository root, build the engine and the Electron application:
 
 ```sh
-cd apps/studio
-npm ci
-npm run typecheck
-npm run build
-npm test                  # Playwright; set WIRESCAPE_CHROMIUM to Chromium's path
-npm run dev               # local UI development
+python tools/dev.py build --headless --config Release
+python tools/dev.py test --config Release
+npm --prefix apps/studio ci
+npm --prefix apps/desktop ci
+npm --prefix apps/desktop run build
 ```
 
-Hosted `web` CI checks types, builds and runs browser tests without audio/MIDI devices.
-Design and performance guidance: [apps/studio/AGENTS.md](apps/studio/AGENTS.md).
+On the Pi, use `python3` in place of `python`. For a clean checkout at an accepted
+revision, [the Pi setup notes](docs/PI_SETUP.md) also document the owner-run
+updater. The new isolated Pi preflight/app guide is being validated in
+[#450](https://github.com/kalharbi11/wirescape/pull/450),
+[#452](https://github.com/kalharbi11/wirescape/pull/452) and
+[#453](https://github.com/kalharbi11/wirescape/pull/453); a common accepted SHA
+for that path is still pending.
 
-## Build (Windows x64)
-Requirements: Visual Studio 2022 (MSVC), CMake ≥ 3.20, Python 3.12, and Qt 6.10 for MSVC x64.
+Open a terminal in your desktop session and try a device-off launch first.
+Windows PowerShell:
 
 ```powershell
-$env:WIRESCAPE_QT_DIR = "C:\path\to\Qt\6.10.3\msvc2022_64"   # or set CMAKE_PREFIX_PATH
-python tools/dev.py doctor
-python tools/dev.py build
-python tools/dev.py test
-python tools/dev.py launch      # opens the GUI with audio off; start audio from the app
+& .\apps\desktop\node_modules\.bin\electron.cmd .\apps\desktop --engine "$PWD\build\native\Release\wirescape-engine.exe" --null-audio
 ```
 
-Linux ARM64 / Raspberry Pi 5: `python tools/dev.py build --headless` builds the engine and tests without the UI.
+Raspberry Pi desktop terminal:
 
-## Repository layout
-```
-apps/studio/   TypeScript web UI, design system and Playwright tests
-native/        engine, modules (Essentials), Qt UI, tests
-tools/         build, test, benchmark and package scripts (tools/dev.py)
-docs/          plan, architecture, status, specs, tasks, reviews, design, history
-legacy/        the original Python/browser prototype, kept for reference only
+```sh
+apps/desktop/node_modules/.bin/electron apps/desktop --engine "$PWD/build/native/wirescape-engine" --null-audio
 ```
 
-## Licence
-- The app and Essentials modules: **GPL-3.0** (see `LICENSE`).
-- The module SDK and ABI headers (`native/sdk/`, `native/include/wirescape/module2.h`, `native/voice/`): **MIT** (see `LICENSES/MIT.txt`).
-- Modules derived from third-party GPL code (for example Surge-based DSP) stay GPL.
-- "Wirescape" and its logo are trademarks: see [TRADEMARKS.md](TRADEMARKS.md).
+Real playback needs PortAudio: the matching x64 DLL beside the Windows engine,
+or `libportaudio.so.2` on Linux. Only the owner launches with `--confirm-audio`
+and `--confirm-midi`. Follow the merged [Windows source setup guide](docs/WINDOWS_SETUP.md)
+for the isolated bootstrap and pinned PortAudio path. A combined accepted source
+SHA is still pending; preserve existing patches/settings. The owner's
+first Windows session worked with WASAPI headphones at 48 kHz; another DAW must
+release the device, and shared WASAPI must use its device rate.
+
+## Development and project map
+
+[CONTRIBUTING](CONTRIBUTING.md) · [agent rules](AGENTS.md) ·
+[plan](docs/PLAN.md) · [architecture](docs/ARCHITECTURE.md) ·
+[SDK guide](docs/SDK_AUTHOR_GUIDE.md) · [ABI 2 contract](docs/specs/ABI2_PLAN.md).
+Studio lives in `apps/studio`, Electron in `apps/desktop`, native code in `native`,
+and build/report tools in `tools`. Browser development uses `npm run dev` in
+Studio; automated tests keep devices off.
+
+The app and first-party modules are GPL-3.0; the SDK, ABI 2 header and voice
+library are MIT. See `LICENSE` and `LICENSES/MIT.txt`. Third-party licences remain
+with their components. Wirescape and its logo are [trademarks](TRADEMARKS.md).

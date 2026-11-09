@@ -1655,6 +1655,15 @@
      "hint": "ev_notes",
      "poly": "poly",
      "stereo_pair": null
+    },
+    {
+     "id": "last_note",
+     "name": "Last note",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "pitch",
+     "poly": "poly",
+     "stereo_pair": null
     }
    ],
    "parameters": [
