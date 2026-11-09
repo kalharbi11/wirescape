@@ -31,7 +31,7 @@ tier: T2
 size: <= 650 changed lines, <= 10 files
 must_pass:
   - ctest --test-dir build/native -R "audio|sidecar_" --output-on-failure --no-tests=error
-  - cd apps/studio && npm test -- --grep "audio route"
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser="$(command -v chromium || command -v chromium-browser || command -v google-chrome)" && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npx playwright test tests/system.spec.ts --grep "audio route"'
   - pi-run: ctest --test-dir build/native -R "audio|sidecar_" --output-on-failure --no-tests=error
 stops: [ABI header edit, ID/format change, new dependency, real devices in tests, threshold loosening]
 ```
