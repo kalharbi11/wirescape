@@ -12,8 +12,8 @@
 #include <stdexcept>
 #ifdef _WIN32
 #define NOMINMAX
-#include <windows.h>
 #include <timeapi.h>
+#include <windows.h>
 #if defined(_MSC_VER)
 #pragma comment(lib, "winmm.lib")
 #endif

@@ -232,8 +232,7 @@ void Transport::write() {
             auto bytes = value.dump();
             if (bytes.size() > LineLimit) throw std::runtime_error("Reply exceeds protocol limit");
             bytes.push_back('\n');
-            if (!pipe_->write_all(bytes.data(), bytes.size()))
-                throw std::runtime_error("Protocol output unavailable");
+            if (!pipe_->write_all(bytes.data(), bytes.size())) throw std::runtime_error("Protocol output unavailable");
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 writing_ = false;

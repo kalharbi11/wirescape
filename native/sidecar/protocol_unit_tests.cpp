@@ -117,8 +117,7 @@ int run_tests() {
     // The stream-backed test adapter must parse raw-pipe-sized chunks without
     // splitting or corrupting a newline-delimited request at 64 KiB boundaries.
     const std::string large_payload(65540, 'x');
-    const std::string long_line =
-        "{\"v\":0,\"id\":\"long\",\"type\":\"panic\",\"pad\":\"" + large_payload + "\"}\n";
+    const std::string long_line = "{\"v\":0,\"id\":\"long\",\"type\":\"panic\",\"pad\":\"" + large_payload + "\"}\n";
     std::istringstream chunked_input(long_line + "{\"v\":0,\"id\":\"second\",\"type\":\"panic\"}\n" +
                                      std::string(LineLimit + 1, 'x') + "\n");
     std::ostringstream chunked_output;
