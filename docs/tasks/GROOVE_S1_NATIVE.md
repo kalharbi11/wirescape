@@ -19,9 +19,14 @@ Rollback removes new registration/adapter but preserves authored JSON,
 marking unavailable; never rewrite saved data. If authoritative native
 STOP/playhead is unavailable, request Keel T2 ruling before editor work.
 
+Owner-authorized Lead closeout accounting (#454, 2026-11-09): the semantic
+implementation remains capped at900 lines. The975-line total allows only
+pinned LLVM18 whitespace formatting, the mandatory central patch guide entry
+and this ruling; all assertions and runtime thresholds remain unchanged.
+
 ```acceptance
 tier: T1
-size: <= 900 changed lines, <= 20 files
+size: <= 975 changed lines, <= 20 files
 must_pass:
   - ctest --test-dir build/native -R 'groove|runtime_module_config|ui_catalogue_sync' --output-on-failure
   - ci: guard
