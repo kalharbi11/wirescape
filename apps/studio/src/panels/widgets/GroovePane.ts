@@ -7,6 +7,7 @@ import {
   setKind, setLength, sourceOf, stepAt, stepFor, trackLength, upgrade,
   type GrooveConfig, type Kind, type Step,
 } from '../../groove/pattern';
+import { ROOTS, SCALES, type Scale, barStart, clearBar, copyBar, inScale, movePitch, pasteBar, rollNotes } from '../../groove/editorHelpers';
 import '../../styles/groove.css';
 
 /** What the Groove editor may ask of the app. Nothing here starts audio on its own. */
@@ -26,7 +27,8 @@ export interface GrooveHost {
   onChange(cb: () => void): () => void;
 }
 
-interface View { t: number; sel: [number, number]; lane: 'trig' | 'note'; pen: [number, number] }
+interface View { t: number; sel: [number, number]; lane: 'trig' | 'note'; pen: [number, number];
+  mode: 'pads' | 'roll'; scale: Scale; root: number; look: 'graphite' | 'oxblood' | 'led'; octave: number }
 /** Per-module view state survives card rebuilds (undo, load). */
 const views = new Map<number, View>();
 const ICON_PLAY = '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 1.5v9l7.5-4.5z"/></svg>';
@@ -65,11 +67,13 @@ export class GroovePane {
   private applying = false;
   private pop: HTMLElement | null = null;
   private wheelAcc = 0;
+  private clipboard: Step[] | null = null;
   private unbind: (() => void)[] = [];
 
   constructor(private readonly id: number, ticker: Ticker, private readonly host: GrooveHost,
     private readonly layoutChanged: () => void = () => undefined) {
-    this.view = views.get(id) ?? { t: 0, sel: [0, 0], lane: 'trig', pen: [PEN[0]!, PEN[1]!] };
+    this.view = views.get(id) ?? { t: 0, sel: [0, 0], lane: 'trig', pen: [PEN[0]!, PEN[1]!],
+      mode: 'pads', scale: 'Chromatic', root: 0, look: 'graphite', octave: 4 };
     views.set(id, this.view);
     this.play = this.button('g-pbtn', 'play', 'Play / stop at loop end');
     this.apply = this.button('soft', 'apply', '', 'Apply');
@@ -78,6 +82,9 @@ export class GroovePane {
     this.undoBtn = this.button('', 'undo', 'Undo', '↶');
     this.redoBtn = this.button('', 'redo', 'Redo', '↷');
     this.root = el('div', 'groove-pane');
+    this.root.tabIndex = 0;
+    this.root.addEventListener('keydown', e => this.keyDown(e));
+    this.root.dataset.look = this.view.look;
     this.root.dataset.testid = `groove-${id}`;
     this.status.dataset.testid = `groove-status-${id}`;
     this.draftEl.dataset.testid = `groove-draft-${id}`;
@@ -99,8 +106,29 @@ export class GroovePane {
     const transport = el('div', 'g-row g-transport');
     transport.append(this.play, reset, this.status, el('span', 'g-sp'), this.draftEl, this.apply, this.stopApply,
       this.revert, el('span', 'g-lbl', 'BPM'), this.bpm, this.undoBtn, this.redoBtn);
-    this.root.append(transport, this.tracksRow, this.lanesRow, this.grid, this.insp);
-    this.grid.addEventListener('pointerdown', e => this.padDown(e));
+    const head = el('div', 'g-row g-head');
+    head.append(el('span', 'g-identity', 'GRV  Groove'), el('span', 'g-sp'));
+    const viewSwitch = el('span', 'g-seg underline');
+    for (const mode of ['pads', 'roll'] as const) {
+      const b = this.button(this.view.mode === mode ? 'on' : '', 'view-' + mode, '', mode);
+      b.addEventListener('click', () => {
+        this.view.mode = mode;
+        this.closePop(); this.refresh(); this.layoutChanged();
+      });
+      viewSwitch.append(b);
+    }
+    head.append(viewSwitch);
+    this.root.append(head, transport, this.tracksRow, this.lanesRow, this.grid, this.insp);
+    this.grid.addEventListener('pointerdown', e => {
+      if ((e.target as HTMLElement).closest('.g-roll-cell')) this.rollDown(e);
+      else this.padDown(e);
+    });
+    this.grid.addEventListener('dblclick', e => this.rollDelete(e));
+    this.grid.addEventListener('contextmenu', e => {
+      if ((e.target as HTMLElement).closest('.g-roll-cell')) {
+        e.preventDefault(); this.rollDelete(e);
+      }
+    });
     this.grid.addEventListener('wheel', e => this.wheel(e), { passive: false });
     this.unbind.push(host.onChange(() => this.refresh()));
     this.unbind.push(ticker.bind(id, t => { this.last = t; this.paintLive(); }));
@@ -113,7 +141,9 @@ export class GroovePane {
   private len(t = this.t): number { return this.cfg ? trackLength(this.cfg, t) : 16; }
   private step(i: number, t = this.t): Step { return this.cfg ? stepAt(this.cfg, t, i) : { kind: 'rest' }; }
   /** Pitch move by `n` units: chromatic now; G2b's scale helper replaces this. */
-  private stepPitch(key: number, n: number, octave: boolean): number { return clamp(key + n * (octave ? 12 : 1), 0, 127); }
+  private stepPitch(key: number, n: number, octave: boolean): number {
+    return octave ? clamp(key + n * 12, 0, 127) : movePitch(key, n, this.view.root, this.view.scale);
+  }
 
   private edit(fn: (c: GrooveConfig) => void, base?: GrooveConfig): void {
     const c = base ? JSON.parse(JSON.stringify(base)) as GrooveConfig : readConfig(this.host.config(this.id));
@@ -174,6 +204,9 @@ export class GroovePane {
     if (this.view.sel[this.t] >= this.len()) this.view.sel[this.t] = this.len() - 1;
     if (document.activeElement !== this.bpm) this.bpm.value = String(this.cfg?.bpm ?? 120);
     this.bpm.disabled = !this.cfg;
+    this.root.dataset.look = this.view.look;
+    const viewSwitch = this.root.querySelector('.g-head .g-seg');
+    for (const mode of ['pads', 'roll']) viewSwitch?.querySelector('[data-testid="groove-view-' + mode + '-' + this.id + '"]')?.classList.toggle('on', this.view.mode === mode);
     this.renderTracks(); this.renderLanes(); this.renderGrid(); this.renderInspector();
     this.paintLive();
   }
@@ -222,11 +255,50 @@ export class GroovePane {
   private renderLanes(): void {
     const seg = el('span', 'g-seg underline');
     for (const [lane, label] of [['trig', 'Trig'], ['note', 'Note']] as const) {
-      const b = this.button(lane === this.view.lane ? 'on' : '', `lane-${lane}`, '', label);
+      const b = this.button(lane === this.view.lane ? 'on' : '', 'lane-' + lane, '', label);
       b.addEventListener('click', () => { this.view.lane = lane; this.refresh(); });
       seg.append(b);
     }
-    this.lanesRow.replaceChildren(seg);
+    const root = el('select', 'g-select') as HTMLSelectElement;
+    root.dataset.testid = 'groove-scale-root-' + this.id;
+    root.setAttribute('aria-label', 'Scale root');
+    ROOTS.forEach((name, i) => {
+      const opt = el('option', '', name) as HTMLOptionElement;
+      opt.value = String(i); root.append(opt);
+    });
+    root.value = String(this.view.root);
+    root.addEventListener('change', () => { this.view.root = Number(root.value); this.renderGrid(); });
+    const scale = el('select', 'g-select') as HTMLSelectElement;
+    scale.dataset.testid = 'groove-scale-' + this.id;
+    scale.setAttribute('aria-label', 'Scale helper (display and pitch gestures only)');
+    (Object.keys(SCALES) as Scale[]).forEach(name => {
+      const opt = el('option', '', name) as HTMLOptionElement;
+      opt.value = name; scale.append(opt);
+    });
+    scale.value = this.view.scale;
+    scale.addEventListener('change', () => { this.view.scale = scale.value as Scale; this.renderGrid(); });
+    const copy = this.button('', 'copy-bar', 'Copy the selected 16-step bar', 'Copy');
+    copy.disabled = !this.cfg;
+    copy.addEventListener('click', () => { if (this.cfg) this.clipboard = copyBar(this.cfg, this.t, this.view.sel[this.t]); });
+    const paste = this.button('', 'paste-bar', 'Paste into selected bar as one undo step', 'Paste');
+    paste.disabled = !this.cfg || !this.clipboard;
+    paste.addEventListener('click', () => {
+      if (this.clipboard) this.edit(c => pasteBar(c, this.t, this.view.sel[this.t], this.clipboard!));
+    });
+    const clear = this.button('', 'clear-bar', 'Clear the selected bar as one undo step', 'Clear');
+    clear.disabled = !this.cfg;
+    clear.addEventListener('click', () => this.edit(c => clearBar(c, this.t, this.view.sel[this.t])));
+    const look = el('select', 'g-select') as HTMLSelectElement;
+    look.dataset.testid = 'groove-look-' + this.id;
+    look.setAttribute('aria-label', 'Trig look');
+    for (const name of ['graphite', 'oxblood', 'led'] as const) {
+      const opt = el('option', '', name === 'led' ? 'LED' : name[0]!.toUpperCase() + name.slice(1)) as HTMLOptionElement;
+      opt.value = name; look.append(opt);
+    }
+    look.value = this.view.look;
+    look.addEventListener('change', () => { this.view.look = look.value as View['look']; this.root.dataset.look = this.view.look; });
+    this.lanesRow.replaceChildren(seg, el('span', 'g-lbl', 'Scale'), root, scale, el('span', 'g-sp'),
+      copy, paste, clear, look);
     if (!this.cfg) this.lanesRow.append(el('span', 'g-note',
       'This Groove pattern uses a newer format; it is kept as saved and is read-only here.'));
   }
@@ -234,6 +306,7 @@ export class GroovePane {
   private renderGrid(): void {
     this.grid.replaceChildren();
     if (!this.cfg) return;
+    if (this.view.mode === 'roll') { this.renderRoll(); return; }
     const c = this.cfg, t = this.t, L = this.len(), sel = this.view.sel[t];
     for (let b = 0; b < Math.ceil(L / 16); b++) {
       const bar = el('div', 'g-bar');
