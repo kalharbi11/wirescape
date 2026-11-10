@@ -169,7 +169,7 @@ def edge(kind, source, output, dest, port, **extra):
 
 with tempfile.TemporaryDirectory() as directory:
     settings = Path(directory) / 'settings.json'
-    engine = Engine(settings, '--confirm-audio', '--confirm-midi')  # null overrides both
+    engine = Engine(settings, '--confirm-audio', '--confirm-midi', '--confirm-lan')  # null overrides audio/MIDI; no OSC routes
     assert 'midiLearn' in engine.hello['capabilities']
     assert 'learn' not in engine.hello['midi']
     assert engine.call('midiLearn', armed=True)['result'] == {'armed': True}

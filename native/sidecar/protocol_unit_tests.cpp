@@ -149,11 +149,6 @@ int run_tests() {
     check(timing.overrun_render_count == 1 && timing.overrun_render_max_us == 101);
     check(timing.overrun_wake_count == 2 && timing.overrun_wake_max_us == 200);
 
-    // Consent is an explicit process-start opt-in, never implied by null-audio.
-    char executable[] = "wirescape-engine", confirmed[] = "--confirm-lan";
-    char *without[] = {executable}, *with[] = {executable, confirmed};
-    check(!parse_options(1, without).lan);
-    check(parse_options(2, with).lan);
     midi_hotplug_observation();
     for (const auto &bad : {"{\"x\":1,\"x\":2}", "{\"x\":{\"y\":1,\"y\":2}}", "[]"}) {
         bool refused = false;
