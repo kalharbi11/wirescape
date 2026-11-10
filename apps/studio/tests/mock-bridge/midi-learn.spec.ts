@@ -274,3 +274,55 @@ test('Forget replan is also serialized and its refusal retains the learned cable
   await expect.poll(() => graph(page)).toEqual(graphBefore);
   expect(await depth(page)).toEqual(historyBefore);
 });
+
+
+async function timeoutLearn(page: Page) {
+  await mockBridge(page); await boot(page);
+  await page.evaluate(p => { window.__wirescapeTest.load(p, 'A'); window.__wirescapeTest.zoomTo(1); }, patchA);
+  await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
+  await expect.poll(async () => (await graph(page)).modules.length).toBe(1);
+  await learnKnob(page, 2, 'cutoff', 74);
+  const before = await state(page), graphBefore = await graph(page), historyBefore = await depth(page);
+  await page.clock.install();
+  await page.evaluate(() => (window as any).__mockBridge.holdNext('loadGraph'));
+  await page.getByTestId('learn-confirm').click();
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', true);
+  return { before, graphBefore, historyBefore };
+}
+
+test('lost Learn reply: higher generation push keeps the mapping and ignores a late reply', async ({ page }) => {
+  await timeoutLearn(page);
+  await page.clock.runFor(3000);
+  await page.evaluate(() => (window as any).__mockBridge.loseHeldWithPush(true));
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+  expect((await state(page)).modules).toHaveLength(3);
+  const learnedGraph = await graph(page);
+  expect(learnedGraph.modules).toHaveLength(3);
+  await page.evaluate(() => (window as any).__mockBridge.replyHeldLate());
+  expect(await graph(page)).toEqual(learnedGraph);
+});
+
+test('lost Learn reply: same generation push restores document, graph and history; late reply is ignored', async ({ page }) => {
+  const { before, graphBefore, historyBefore } = await timeoutLearn(page);
+  await page.clock.runFor(3000);
+  await page.evaluate(() => (window as any).__mockBridge.loseHeldWithPush(false));
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+  expect(await state(page)).toEqual(before);
+  expect(await graph(page)).toEqual(graphBefore);
+  expect(await depth(page)).toEqual(historyBefore);
+  await page.evaluate(() => (window as any).__mockBridge.replyHeldLate());
+  expect(await graph(page)).toEqual(graphBefore);
+});
+
+test('no engine push within 10 seconds offers Restart; restart reloads the pre-Learn graph before unlocking', async ({ page }) => {
+  const { before, graphBefore, historyBefore } = await timeoutLearn(page);
+  await page.clock.runFor(10_000);
+  await expect(page.getByTestId('midi-learn-restart-prompt')).toBeVisible();
+  await page.getByTestId('midi-learn-restart').click();
+  await page.clock.runFor(300);
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+  expect(await page.evaluate(() => (window as any).__mockBridge.restartCount())).toBe(1);
+  expect(await state(page)).toEqual(before);
+  expect(await graph(page)).toEqual(graphBefore);
+  expect(await depth(page)).toEqual(historyBefore);
+});
