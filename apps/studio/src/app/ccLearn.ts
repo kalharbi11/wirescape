@@ -76,29 +76,54 @@ class Edit implements Revertible {
       if (this.doc.modules.has(c.from.module) && this.doc.modules.has(c.to.module)) this.doc.connect(c);
     });
   }
-  /** Replace a CC module's rows (keeping its other config) and, optionally, one `CC n` label. */
-  rows(id: number, rows: Record<string, unknown>[], label?: { port: string; controller: number }): void {
+  /** Replace rows and set or clear only the affected `CC n` display hint. */
+  rows(id: number, rows: Record<string, unknown>[],
+    label?: { port: string; controller: number | null }): void {
     const m = this.doc.modules.get(id);
     if (!m) return;
     const before = m.config === undefined ? undefined : structuredClone(m.config);
     const ui = this.doc.ui as Record<string, unknown>;
-    const hadMap = 'ccMap' in ui;
+    const hadMap = Object.prototype.hasOwnProperty.call(ui, 'ccMap');
     const labels = record(ui.ccMap);
-    const beforeLabels = labels[String(id)];
-    // The CC n label on the module follows the learned controller (ui.ccMap is a display hint only).
-    if (label) ui.ccMap = { ...labels, [String(id)]: { ...record(beforeLabels), [label.port]: label.controller } };
+    const key = String(id);
+    const beforeLabels = record(labels[key]);
+    const hadModuleLabels = Object.prototype.hasOwnProperty.call(labels, key);
+    const hadPortLabel = label ? Object.prototype.hasOwnProperty.call(beforeLabels, label.port) : false;
+    const beforePortLabel = label ? beforeLabels[label.port] : undefined;
+    // The CC n label follows the learned controller; trimming a row restores its implicit CC n.
+    if (label) {
+      const nextPortLabels = { ...beforeLabels };
+      if (label.controller === null) delete nextPortLabels[label.port];
+      else nextPortLabels[label.port] = label.controller;
+      const nextLabels = { ...labels };
+      if (Object.keys(nextPortLabels).length || hadModuleLabels) nextLabels[key] = nextPortLabels;
+      else delete nextLabels[key];
+      if (Object.keys(nextLabels).length || hadMap) ui.ccMap = nextLabels;
+      else delete ui.ccMap;
+    }
     const next = { ...record(m.config), rows: structuredClone(rows) };
     this.doc.setConfig(id, next);
     this.undo.push(() => {
       const now = this.doc.modules.get(id);
-      if (!now || !same(now.config, next)) return; // edited since: keep the newer rows
-      if (label) {
-        const u = this.doc.ui as Record<string, unknown>;
-        const map = { ...record(u.ccMap) };
-        if (beforeLabels === undefined) delete map[String(id)]; else map[String(id)] = beforeLabels;
-        if (!hadMap && !Object.keys(map).length) delete u.ccMap; else u.ccMap = map;
-      }
-      this.doc.setConfig(id, before);
+      if (!now) return;
+      if (same(now.config, next)) this.doc.setConfig(id, before); // keep any newer row edit
+      if (!label) return;
+      const u = this.doc.ui as Record<string, unknown>;
+      const currentLabels = record(u.ccMap);
+      const currentModuleLabels = record(currentLabels[key]);
+      const authoredValue = label.controller;
+      const stillAuthored = authoredValue === null
+        ? !Object.prototype.hasOwnProperty.call(currentModuleLabels, label.port)
+        : currentModuleLabels[label.port] === authoredValue;
+      if (!stillAuthored) return; // preserve a later edit to this label
+      const restoredModuleLabels = { ...currentModuleLabels };
+      if (hadPortLabel) restoredModuleLabels[label.port] = beforePortLabel;
+      else delete restoredModuleLabels[label.port];
+      const restoredLabels = { ...currentLabels };
+      if (Object.keys(restoredModuleLabels).length || hadModuleLabels) restoredLabels[key] = restoredModuleLabels;
+      else delete restoredLabels[key];
+      if (Object.keys(restoredLabels).length || hadMap) u.ccMap = restoredLabels;
+      else delete u.ccMap;
     });
   }
   revert(): void { for (const u of this.undo.splice(0).reverse()) u(); }
@@ -158,7 +183,7 @@ function freeSlot(doc: PatchDoc, ep: Endpoint): { module: number; row: number } 
 function trimRow(doc: PatchDoc, edit: Edit, module: number, port: string): void {
   const rows = doc.ccRows(module);
   if (rowOf(port) === rows.length - 1 && rows.length > 1 && !doc.cablesFrom(module, port).length) {
-    edit.rows(module, rows.slice(0, -1).map(r => ({ ...r })));
+    edit.rows(module, rows.slice(0, -1).map(r => ({ ...r })), { port, controller: null });
   }
 }
 
