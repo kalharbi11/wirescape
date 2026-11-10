@@ -888,6 +888,42 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
     bool shorter = false;
     check(seq.gate_duration(0, 0, shorter) == 175. && shorter,
           "the last tied step's three-quarter gate sets the release span");
+    // A short track still advances the global 16-step bar clock. Adding a
+    // longer track after three 8-step loops must enter at absolute step 32,
+    // not wait until step 40 because the master modulus used to be eight.
+    Sequencer joining;
+    joining.pattern = decoded;
+    joining.reset();
+    joining.running = true;
+    joining.players[0].playing = true;
+    joining.players[1].playing = joining.players[1].armed = false;
+    for (uint32_t i = 0; i < 24; ++i) joining.boundary(dummy, 0);
+    check(joining.step == 24 && joining.step_t[0] == 0,
+          "8-step track does not erase global sixteen-step bar phase");
+    joining.players[1].armed = joining.players[1].enter = true;
+    for (uint32_t i = 0; i < 7; ++i) {
+        joining.boundary(dummy, 0);
+        check(!joining.players[1].playing,
+              "queued long track does not enter before the next real bar");
+    }
+    joining.boundary(dummy, 0);
+    check(joining.step == 32 && joining.players[1].playing &&
+          joining.step_t[1] == 32 && joining.players[1].loop == 1,
+          "64-step track enters at absolute bar32 with matching phase");
+    Sequencer short_stop;
+    short_stop.pattern = decoded;
+    short_stop.reset();
+    short_stop.running = short_stop.players[0].playing = true;
+    short_stop.players[1].armed = false;
+    for (uint32_t i = 0; i < 25; ++i) short_stop.boundary(dummy, 0);
+    short_stop.stop_queued = true;
+    for (uint32_t i = 0; i < 6; ++i) {
+        short_stop.boundary(dummy, 0);
+        check(short_stop.running, "short global STOP awaits next 8-step boundary");
+    }
+    short_stop.boundary(dummy, 0);
+    check(!short_stop.running && short_stop.step == 32,
+          "short-only STOP completes on absolute step32, not a false 64-step wait");
     // Frozen S1 transport regression: v1 track re-entry still waits for the
     // shared 32-step wrap, rather than G1 v2's new 16-step bar boundary.
     Sequencer legacy_clock;
@@ -901,8 +937,8 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
     check(!legacy_clock.players[0].playing && legacy_clock.step == 16,
           "authored v1 cannot start a track mid-way through its legacy 32-step cycle");
     for (uint32_t i = 0; i < 16; ++i) legacy_clock.boundary(dummy, 0);
-    check(legacy_clock.players[0].playing && legacy_clock.step == 0,
-          "authored v1 track re-entry remains at its original 32-step wrap");
+    check(legacy_clock.players[0].playing && legacy_clock.step == 32,
+          "authored v1 track re-entry remains at 32-step wrap despite the 64-tick global clock");
 }
 
 int main() {
