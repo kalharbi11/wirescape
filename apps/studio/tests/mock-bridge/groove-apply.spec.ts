@@ -172,6 +172,10 @@ test('G2b Roll/bar edits stay in draft until a measured stop and explicit Apply'
   expect(current.tracks[0].length).toBe(32);
   expect(current.tracks[0].steps[16]).toMatchObject({ kind: 'note', key: 60 });
   expect(JSON.stringify(await graphConfig(page))).toBe(baseline);
+  await telemetry(page, { 1: [18, -1] }); // a rest still has a real measured Roll playhead
+  await expect(page.getByTestId('groove-roll-1-19-60')).toHaveClass(/play/);
+  await expect(page.getByTestId('groove-roll-velocity-1-19')).toHaveClass(/play/);
+  await expect(apply(page)).toBeDisabled();
   await telemetry(page, { 1: [-1, -1] });
   await expect(apply(page)).toBeEnabled();
   const before = (await sent(page)).length;
