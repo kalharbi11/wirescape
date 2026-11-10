@@ -375,7 +375,10 @@ Note). Authoring rules for patch designers:
   drag vertically to change pitch; double-click/right-click to delete. Under the
   note grid, lollipop lanes edit velocity, gate, Mod 1 and Mod 2. The inspector
   also accepts typed Mod 1/2 percentages. The Roll scrolls within its card,
-  rather than widening the web page.
+  rather than widening the web page. Roll note buttons are keyboard-focusable:
+  arrow keys move by step or pitch; Enter/Space enters a note, and Backspace
+  removes it. Focus a Roll value slider and use arrow keys or Home/End to edit
+  its value.
 - **Scale and bar tools:** root and Chromatic/Major/Minor/Pentatonic scale selections
   mark the pitch guide and affect subsequent pitch gestures, not saved note data.
   Copy snapshots the selected (up to 16-step) bar. Paste and Clear each create a
