@@ -89,8 +89,21 @@ setting blocker rather than pretending to merge.
   apps/studio/public/wirescape_modules.json. No hardware MIDI modules in the
   web library; use host.keyboard. Browser audio needs its user start gesture.
 - Reverb fx.reverb is merged on main (c39af7b): stereo SUM inputs, one wet/dry output per side, not one reverb per note. Unconnected right follows left; size/decay/damping/predelay/width/motion/freeze/mix are available. Use two output-bus routes to preserve stereo; saved state clears the tail.
-- Macro requires48k. No external sample files/services. Do not assume pending
-  Chord or Notes→CV exist: inspect the actual catalogue and deployed SHA.
+- Macro requires48k. No external sample files/services. Inspect the actual
+  installed catalogue or deployed SHA before assuming Chord is available.
+- **Notes→CV (builds containing #421):** `essentials.notes_to_cv` accepts
+  a `notes` event input and produces three **poly signal** outputs:
+  `pitch` (V/oct; C4=0), `gate` and `velocity`. It allocates fresh poly
+  voices independently of incoming MIDI channels (stepped `voices` 1–16,
+  default 4, rotating/stealing when full). Example: `host.keyboard.notes`
+  → `essentials.notes_to_cv.notes` → `pitch` to `essentials.vco.pitch`,
+  `gate` to `essentials.adsr.gate`, and `velocity` to a sound-level
+  control; then VCO.audio + ADSR.envelope → VCA → Output. The same note-event
+  input also accepts a sequencer's `notes` or `essentials.chord.notes`
+  **after #403 has separately shipped**. The raw-MIDI `midi.to_cv.midi`
+  port does *not* accept those notes. The WASM host excludes `midi.*`;
+  use `host.keyboard` in browser patches. Recorded native tests are
+  device-off, not evidence of physical MIDI or speaker sound.
 
 ### Macro Oscillator model names (48 kHz only)
 
