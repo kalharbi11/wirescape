@@ -47,7 +47,7 @@ struct Sequencer {
         ws::param("t2_run", "T2 Start", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 7, 4, 1),
         ws::param("t2_stop", "T2 Stop", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 8, 4, 1),
         ws::param("t2_mute", "T2 Mute", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 9, 4, 1)};
-    static constexpr uint32_t kTracks = 2, kSteps = 64, kParams = 10;
+    static constexpr uint32_t kTracks = 2, kSteps = 64, kClock = 512, kParams = 10;
     struct NoteState {
         bool on = false;
         int32_t id = 0, key = 60;
@@ -178,12 +178,14 @@ struct Sequencer {
         for (uint32_t t = 0; t < pattern.track_count; ++t) {
             const auto &player = players[t];
             if (player.playing || player.enter || player.armed)
-                if (pattern.tracks[t].length > longest) longest = pattern.tracks[t].length;
+                if (pattern.tracks[t].length * pattern.tracks[t].div > longest)
+                    longest = pattern.tracks[t].length * pattern.tracks[t].div;
         }
         // A running transport with all tracks disarmed must still have a defined cycle.
         if (!longest)
             for (uint32_t t = 0; t < pattern.track_count; ++t)
-                if (pattern.tracks[t].length > longest) longest = pattern.tracks[t].length;
+                if (pattern.tracks[t].length * pattern.tracks[t].div > longest)
+                    longest = pattern.tracks[t].length * pattern.tracks[t].div;
         return longest;
     }
     double gate_duration(uint32_t track, uint32_t note_step, bool &short_gate) const {
@@ -198,7 +200,7 @@ struct Sequencer {
             last_gate = pattern_track.steps[next].gate_q;
         }
         short_gate = last_gate < 4; // Full-length gates use the legacy boundary release.
-        return samples_per_step * (static_cast<double>(ties) + last_gate / 4.);
+        return samples_per_step * pattern_track.div * (static_cast<double>(ties) + last_gate / 4.);
     }
 
     // NOLINTNEXTLINE(bugprone-easily-swappable-parameters): type and sample offset are distinct concepts.
@@ -310,8 +312,12 @@ struct Sequencer {
     }
 
     void trigger_all(ws::Block &b, uint32_t i) {
-        for (uint32_t t = 0; t < kTracks; ++t) release_step(b, t, i);
-        for (uint32_t t = 0; t < kTracks; ++t) trigger(b, t, i);
+        // Release every stepping track before any track attacks. Non-stepping
+        // tracks retain gate, modulation and fired telemetry unchanged.
+        for (uint32_t t = 0; t < kTracks; ++t)
+            if (step % pattern.tracks[t].div == 0) release_step(b, t, i);
+        for (uint32_t t = 0; t < kTracks; ++t)
+            if (step % pattern.tracks[t].div == 0) trigger(b, t, i);
     }
     bool edge(const ws::Block &b, uint32_t p, uint32_t i) {
         const bool high = b.param(p).value(0, i) > 0.5f;
@@ -323,12 +329,13 @@ struct Sequencer {
     // One sixteenth-note tick. Track wraps are independent, while global STOP
     // waits for the longest armed/running track to realign with the master.
     void boundary(ws::Block &b, uint32_t i) {
-        // Preserve absolute 16-step bar alignment when the active track set
-        // changes (e.g. a 64-step track joins an already running 8-step track).
-        // All approved lengths divide 64, so modulo-64 is a bounded clock.
-        step = (step + 1u) % kSteps;
+        // Sixteenths since Start. Every approved length * divisor divides 512.
+        // Non-stepping tracks retain their own current step and loop counter.
+        step = (step + 1u) % kClock;
         for (uint32_t t = 0; t < kTracks; ++t) {
-            step_t[t] = (step_t[t] + 1u) % pattern.tracks[t].length;
+            const auto &track = pattern.tracks[t];
+            if (step % track.div != 0) continue;
+            step_t[t] = (step / track.div) % track.length;
             auto &p = players[t];
             if (p.playing && step_t[t] == 0) ++p.loop;
         }
@@ -342,7 +349,7 @@ struct Sequencer {
         }
         for (uint32_t t = 0; t < kTracks; ++t) {
             auto &p = players[t];
-            if (p.stop && step_t[t] == 0) {
+            if (p.stop && step % (pattern.tracks[t].length * pattern.tracks[t].div) == 0) {
                 release(b, t, i);
                 p.playing = p.armed = p.stop = p.enter = p.fired = p.skipped_cond = false;
             } else if (p.enter && (pattern.authored_version == 1 ? step % 32u == 0 : step % 16u == 0)) {

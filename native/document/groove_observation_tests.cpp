@@ -63,6 +63,8 @@ struct Rig {
 
 struct PolyRig : Rig {
     std::array<ws2_event, 96> log{};
+    std::array<uint32_t, 96> event_samples{};
+    uint32_t sample = 0;
     uint32_t event_count = 0, ons_attempted = 0, offs_attempted = 0;
     uint32_t refuse_on = 0, refuse_off = 0;
     static int WS2_CALL record(void *context, uint32_t port, const ws2_event *e) {
@@ -71,6 +73,7 @@ struct PolyRig : Rig {
         if (e->type == WS2_NOTE_ON && ++r.ons_attempted == r.refuse_on) return WS2_CAPACITY;
         if (e->type == WS2_NOTE_OFF && ++r.offs_attempted == r.refuse_off) return WS2_CAPACITY;
         CHECK(r.event_count < r.log.size());
+        r.event_samples[r.event_count] = r.sample;
         r.log[r.event_count++] = *e;
         return WS2_OK;
     }
@@ -88,6 +91,7 @@ struct PolyRig : Rig {
         s.keys = {60, 64, 67, 0, 0};
         sequencer.reset();
     }
+    void render() { Rig::render(); ++sample; }
     uint32_t count(uint32_t type) const {
         uint32_t result = 0;
         for (uint32_t i = 0; i < event_count; ++i) result += log[i].type == type;
@@ -166,6 +170,91 @@ static void chord_egress_contract() {
     CHECK(tie.count(WS2_NOTE_ON) == 3 && tie.count(WS2_NOTE_OFF) == 0);
     CHECK(tie.values[10] == 0); // A bar-wrap tie retained all three voices.
 }
+
+static void speed_clock_contract() {
+    // At 120 bpm and a device-free 120 Hz test rate, one sixteenth is 15 samples.
+    constexpr uint32_t sixteenth = 15;
+    for (uint32_t div : {2u, 4u, 8u}) {
+        PolyRig timing;
+        auto &track = timing.sequencer.pattern.tracks[0];
+        track.div = div;
+        for (auto &s : track.steps) {
+            s = track.steps[0];
+            s.kind = groove::Note;
+        }
+        timing.sequencer.samples_per_step = sixteenth;
+        timing.start();
+        CHECK(timing.count(WS2_NOTE_ON) == 3);
+        for (uint32_t n = 1; n < sixteenth * div; ++n) {
+            timing.render();
+            CHECK(timing.count(WS2_NOTE_ON) == 3);
+        }
+        timing.render();
+        CHECK(timing.count(WS2_NOTE_ON) == 6);
+        CHECK(timing.event_samples[6] - timing.event_samples[0] == sixteenth * div);
+        CHECK(timing.values[10] == 1); // Own step index, not absolute n.
+    }
+
+    PolyRig gate;
+    auto &track = gate.sequencer.pattern.tracks[0];
+    track.div = 4;
+    track.steps[0].gate_q = 1;
+    track.steps[1].kind = groove::Tie;
+    track.steps[1].gate_q = 1;
+    gate.sequencer.samples_per_step = sixteenth;
+    gate.start();
+    for (uint32_t n = 1; n < 75; ++n) {
+        gate.render();
+        CHECK(gate.count(WS2_NOTE_OFF) == 0);
+    }
+    gate.render();
+    CHECK(gate.count(WS2_NOTE_OFF) == 3);
+    CHECK(gate.event_samples[3] - gate.event_samples[0] == 75);
+
+    PolyRig ab;
+    ab.sequencer.pattern.tracks[0].div = 4;
+    auto &note = ab.sequencer.pattern.tracks[0].steps[0];
+    note.cond_type = groove::AB;
+    note.cond_a = 2;
+    note.cond_b = 2;
+    ab.start();
+    CHECK(ab.count(WS2_NOTE_ON) == 0);
+    for (uint32_t n = 1; n < 32; ++n) ab.render();
+    CHECK(ab.count(WS2_NOTE_ON) == 0);
+    ab.render();
+    CHECK(ab.count(WS2_NOTE_ON) == 3);
+    CHECK(ab.values[12] == 2 && ab.values[10] == 0);
+    CHECK(ab.log[0].key == 60 && ab.log[1].key == 64 && ab.log[2].key == 67);
+
+    PolyRig master;
+    master.sequencer.pattern.track_count = 2;
+    master.sequencer.pattern.tracks[0].length = 16;
+    master.sequencer.pattern.tracks[0].div = 4;
+    master.sequencer.pattern.tracks[1].length = 16;
+    master.sequencer.pattern.tracks[1].div = 1;
+    master.sequencer.players[1].armed = true;
+    master.start();
+    CHECK(master.sequencer.master_steps() == 64);
+    master.controls[1] = 1.f; // Global STOP at n=64, not the fast track's n=16.
+    for (uint32_t n = 1; n < 64; ++n) {
+        master.render();
+        CHECK(master.sequencer.running);
+    }
+    master.render();
+    CHECK(!master.sequencer.running && master.count(WS2_NOTE_OFF) == 3);
+
+    PolyRig track_stop;
+    track_stop.sequencer.pattern.tracks[0].length = 8;
+    track_stop.sequencer.pattern.tracks[0].div = 2;
+    track_stop.start();
+    track_stop.controls[5] = 1.f; // Track STOP at its n=16 cycle end.
+    for (uint32_t n = 1; n < 16; ++n) {
+        track_stop.render();
+        CHECK(track_stop.sequencer.players[0].playing);
+    }
+    track_stop.render();
+    CHECK(!track_stop.sequencer.players[0].playing && track_stop.sequencer.running);
+}
 struct SnapshotProbe {
     static constexpr ws::Info info{"test.groove_snapshot", "Snapshot", 1};
     static constexpr std::array<ws2_port, 0> inputs{};
@@ -215,6 +304,7 @@ static void coherent_snapshots() {
 }
 int main() {
     chord_egress_contract();
+    speed_clock_contract();
     coherent_snapshots();
     const char *ports[]{"t1_pitch", "t1_gate", "t1_mod1", "t1_mod2", "t1_notes",
         "t2_pitch", "t2_gate", "t2_mod1", "t2_mod2", "t2_notes", "t1_pos", "t2_pos",
