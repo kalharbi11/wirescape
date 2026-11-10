@@ -8,7 +8,9 @@ Persist original authored JSON `version:1` losslessly and accept explicit
 validated fixed 4×64 v2 POD, never persist POD padding. Off-thread graph
 instance IDs become deterministic seed material, not new authored JSON.
 Two tracks follow independent 8/16/32/64-step clocks, realigning on the
-longest active master cycle, with per-track sounding/pending notes. Failed NOTE_OFF retries before new ON. Conditional skipped-note
+longest active master cycle, with per-track sounding/pending notes. The
+transient `authored_version` distinction protects v1's original 32-step
+track-entry behavior; v2 queues track entries at 16-step bar boundaries. Failed NOTE_OFF retries before new ON. Conditional skipped-note
 trigs suppress NOTE_ON and dependent ties while updating the step's mods.
 Short gates release at a fractional step, with lookahead over bounded ties;
 full-length legacy gates keep exact old boundary-release timing. Initial high is baseline. RESET > STOP > MUTE > START > tick.
