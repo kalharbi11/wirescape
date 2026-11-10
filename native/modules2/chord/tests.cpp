@@ -362,8 +362,7 @@ static void keyboard_chord_cv_graph() {
         }
         REQUIRE(engine.enqueue(0, 1, WS2_DIRECT_PORT, note(WS2_NOTE_OFF, {60}), frames) == WS2_OK);
         REQUIRE(engine.render(rows, 1, frames) == WS2_OK);
-        for (uint32_t voice = 0; voice < 3; ++voice)
-            REQUIRE(engine.output_sample(3, 1, voice, frames - 1) == 0);
+        for (uint32_t voice = 0; voice < 3; ++voice) REQUIRE(engine.output_sample(3, 1, voice, frames - 1) == 0);
     }
 }
 int main() {
