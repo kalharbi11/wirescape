@@ -388,7 +388,7 @@ for the editor to observe them. For example, a `t1_fired` signal may drive a gat
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
 
-## CHAOS-lite sound presets (#489; available after Studio PR merges)
+## CHAOS sound presets (#489; available after Studio PR merges)
 
 The `essentials.chaos_lite` card's **Presets** dropdown supplies eight
 repeatable starting sounds. The first four are from its native README:
