@@ -124,6 +124,41 @@ static void steal_and_reset() {
     a.run();
     for (uint32_t c = 0; c < 4; ++c) REQUIRE(a.value(1, c, 0) == 0);
 }
+static void anonymous_fifo_and_repeated_roots() {
+    Rig a;
+    auto older = note(WS2_NOTE_ON, 60, -1);
+    auto newer = note(WS2_NOTE_ON, 60, -1);
+    older.value = .25f;
+    newer.value = .75f;
+    a.run({older, newer});
+    REQUIRE(a.outs[0].channels == 4);
+    REQUIRE(a.value(1, 0, 1) == 1.f && a.value(1, 1, 1) == 1.f);
+    REQUIRE(a.value(2, 0, 1) == .25f && a.value(2, 1, 1) == .75f);
+
+    a.run({note(WS2_NOTE_OFF, 60, -1)});
+    REQUIRE(a.value(1, 0, 1) == 0.f && a.value(1, 1, 1) == 1.f);
+    REQUIRE(a.value(2, 0, 1) == 0.f && a.value(2, 1, 1) == .75f);
+    a.run({note(WS2_NOTE_OFF, 60, -1)});
+    REQUIRE(a.value(1, 0, 1) == 0.f && a.value(1, 1, 1) == 0.f);
+}
+
+static void voice_count_change_and_reset() {
+    Rig a;
+    a.run({note(WS2_NOTE_ON, 60, 0)});
+    REQUIRE(a.outs[0].channels == 4 && a.value(1, 0, 1) == 1.f);
+
+    a.voice_param = 2.f;
+    a.run();
+    REQUIRE(a.outs[0].channels == 2);
+    REQUIRE(a.value(1, 0, 0) == 0.f && a.value(1, 1, 0) == 0.f);
+
+    a.run({note(WS2_NOTE_ON, 64, 1)});
+    REQUIRE(a.outs[0].channels == 2 && a.value(1, 0, 1) == 1.f);
+    a.desc->reset(a.state);
+    a.run();
+    REQUIRE(a.outs[0].channels == 2);
+    REQUIRE(a.value(1, 0, 0) == 0.f && a.value(1, 1, 0) == 0.f);
+}
 static void block_matrix_and_allocations() {
     for (double rate : {44100., 48000., 96000.})
         for (uint32_t n : {1u, 17u, 128u, 256u}) {
@@ -177,6 +212,8 @@ static void native_keyboard_graph() {
 int main() {
     poly_triads_and_offs();
     source_identity_and_choke();
+    anonymous_fifo_and_repeated_roots();
+    voice_count_change_and_reset();
     steal_and_reset();
     block_matrix_and_allocations();
     native_keyboard_graph();
