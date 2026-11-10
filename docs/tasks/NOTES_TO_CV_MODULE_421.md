@@ -47,7 +47,7 @@ need it. The WASM host allows it (it isn't `midi.*`).
 
 ```acceptance
 tier: T1
-size: <= 900 changed lines, <= 18 files (Codex Lead 2026-11-10, #421)
+size: <= 900 changed lines, <= 18 files
 must_pass:
   - bash -lc "python tools/dev.py build --headless --config Release && ctest --test-dir build/native -R 'notes_to_cv|ui_patch_conformance|sidecar' --output-on-failure --no-tests=error"
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
