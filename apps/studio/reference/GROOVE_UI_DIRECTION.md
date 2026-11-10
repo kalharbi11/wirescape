@@ -11,6 +11,7 @@ Plan context: [docs/sequencer/GROOVE.md](../../../docs/sequencer/GROOVE.md).
 | file | what |
 |---|---|
 | [`ui/groove-r2-final.html`](../ui/groove-r2-final.html) | **The chosen design.** Self-contained, openable offline; demo clock, optional test tones. |
+| [`ui/groove-r3-chords.html`](../ui/groove-r3-chords.html) | The chosen design plus chords (#514) and the scale in the transport row. |
 | [`ui/groove-r1-concepts.html`](../ui/groove-r1-concepts.html) | Round 1: three concepts (pads + lanes, note roll, stages), research and comparison. Kept for the record. |
 
 Open either file directly in Chromium. Every transport state, playhead and load
@@ -158,6 +159,66 @@ is still needed. Rows of 4 would meet 44 px at the cost of twice the scrolling.
   - Steps 8/16/32/64 in both views.
 - Not run: physical Pi display, real touch hardware, engine integration. Screenshots were kept out of the repo.
 
+## Chords (UI for #514, G4)
+
+File: [`ui/groove-r3-chords.html`](../ui/groove-r3-chords.html). It is `groove-r2-final.html` plus chords and a more visible scale.
+Data: #514 gives a note step up to 5 keys (the reserved `keys` field). The mockup keeps `key` as the
+**root** and adds `keys` only for 2–5 notes, so a single-note step is saved exactly as today.
+
+**Inspector: `Notes  ○ Single  ○ Chord [Am ▾]  ◁ ▷`**
+- **Single**, not "Note": the Trig control already says Rest / *Note* / Tie, and a chord is notes too.
+- Choosing **Chord** on a single note builds the **scale chord** on that root and opens the picker.
+  Inversion ◁ ▷ moves the lowest note up or the highest down an octave.
+- **Picker** (popover). Names are spelled on the step's root; types that leave the scale are shown in grey.
+
+  | Group | Options |
+  |---|---|
+  | In <scale> | the scale triad and scale 7th (e.g. Am, Am7 in A minor) |
+  | Triads | maj, m, °, +, sus2, sus4, (5) |
+  | Sevenths | maj7, m7, 7, m7♭5, 6, m6 |
+  | Extended | add9, m9 |
+  | One note | back to Single |
+
+- The Note field becomes **Root** when the step holds a chord.
+
+**Pads (small, so the cue is a symbol, not the notes)**
+- The pad shows the **chord name** (`Am`, `Cmaj7`, `G`) in semibold.
+- If the keys match no known chord, the pad shows root + count (`A4+2`).
+- On pads the slash bass is dropped (`Cm7/E♭` shows as `Cm7`); the inspector and roll show the full name.
+- A tiny **ladder** on the right edge marks each key's height within two octaves: a close chord reads tall, an open voicing reads spread.
+- The other cues (velocity, length, mods, condition, tie) are unchanged.
+- Phone pads use 10.5 px names; `Cmaj7` fits a 41 px pad.
+
+**Moving a chord**
+- Drag up/down, wheel or ↑↓ moves the whole chord.
+- A **scale chord moves diatonically**: Am → B° → C in A minor, so it stays in key.
+- A typed chord type (e.g. maj7) moves in parallel. **Shift** moves by octaves.
+
+**Entering chords without an on-screen keyboard**
+- Select a step and **hold several keys together**. The computer row A–K works in the mockup; the app keyboard and
+  MIDI in would feed the same function.
+- The held notes become the step's chord (up to 5), and the selection advances when all keys are released.
+- One key alone enters a single note, as before.
+- Real MIDI devices stay owner-run (devices-off rule).
+
+**Roll (manual voicing)**
+- Clicking an empty cell in a column that already has a note **adds that key to the step** (up to 5).
+- Each key can be dragged up/down on its own; double-click or right-click deletes one key; the step's last key deletes the note.
+- The chord name (and condition) sits above the top key. The keys share the step's start, gate length and ties: per-key
+  start/length isn't in #514's model, so it isn't drawn.
+
+**Scale (UI helper, more visible)**
+- `Scale [A] [minor]` now sits in the transport row, next to Tempo.
+- It drives pitch drag and wheel steps, the picker's "In scale" chords and grey marks, diatonic chord moves, and the roll's
+  **Scale notes only** toggle (on by default). With it on, the roll shows only scale rows; off-scale keys still show as dashed tags.
+- Still UI-only: steps store plain MIDI keys. Saving the scale in the patch `ui` extras is the proposal.
+
+**For the G4b builder / reviewers**
+- Use `keys` only for 2–5 notes. Velocity, gate, mods, condition and ties are per step and apply to every key.
+- Chord naming is a pure function of the keys and root: no stored chord type is needed. The mockup's `q` (which
+  picker entry made it) is a UI hint for diatonic moves; store it in `ui` extras or drop it.
+- Pads-view multi-note entry is UI-only work, separate from G4b's Roll entry; it needs no extra engine field.
+
 ## Research sources
 
 - Westlicht PER|FORMER manual: https://westlicht.github.io/performer/manual. The session network blocked it, so details came from search excerpts.
@@ -165,4 +226,4 @@ is still needed. Rows of 4 would meet 44 px at the cost of twice the scrolling.
 - Digitakt review: https://de.ra.co/reviews/21197
 - Hermod+ / Metropolix user discussion: https://reddit.birdcat.cafe/r/modular/comments/1j0g8q3/hermod_w_metropolix_overkill
 
-Signed: Claude (Groove UI designer), 2026-11-10
+Signed: Claude (Groove UI designer), 2026-11-10 (chords section added the same day)
