@@ -38,7 +38,7 @@
         "lfo_depth": 0.66,
         "lfo_self": 0.76,
         "cutoff": 1700,
-        "level": 1.0
+        "level": 1
       },
       "version": 1
     },
@@ -128,8 +128,8 @@
       "module": "essentials.slew",
       "version": 2,
       "parameters": {
-        "rise": 2.0,
-        "fall": 2.0
+        "rise": 2,
+        "fall": 2
       }
     },
     {
@@ -157,7 +157,7 @@
       "module": "essentials.mixer",
       "version": 2,
       "parameters": {
-        "level_a": 2.0,
+        "level_a": 2,
         "level_b": 0
       }
     },
@@ -166,7 +166,7 @@
       "module": "essentials.mixer",
       "version": 2,
       "parameters": {
-        "level_a": 2.0,
+        "level_a": 2,
         "level_b": 0
       }
     }
@@ -459,15 +459,15 @@
       ],
       "6": [
         1110,
-        1888
+        3000
       ],
       "7": [
         2100,
-        1888
+        3000
       ],
       "8": [
         3090,
-        1888
+        3000
       ],
       "9": [
         1290,
@@ -479,7 +479,7 @@
       ],
       "11": [
         2100,
-        3648
+        3900
       ],
       "12": [
         4020,
@@ -501,15 +501,15 @@
     "labels": {
       "1": "Bent wall",
       "2": "Air leakage",
+      "4": "Wall filter L",
+      "5": "Out L",
       "7": "Slow random wander",
       "8": "Structural pulse",
-      "5": "Out L",
-      "13": "Out R",
-      "4": "Wall filter L",
-      "10": "Wall filter R",
       "9": "Right mix",
+      "10": "Wall filter R",
       "11": "Slow glide",
       "12": "Hall",
+      "13": "Out R",
       "14": "Gain L",
       "15": "Gain R"
     },

@@ -91,7 +91,7 @@
       "module": "essentials.noise",
       "version": 2,
       "parameters": {
-        "level": 1.0
+        "level": 1
       }
     },
     {
@@ -123,7 +123,7 @@
         "damping": 0.3,
         "tune": 0,
         "mix": 1,
-        "level": 1.0
+        "level": 1
       }
     },
     {
@@ -167,7 +167,7 @@
       "module": "essentials.mixer",
       "version": 2,
       "parameters": {
-        "level_a": 1.0,
+        "level_a": 1,
         "level_b": 0.6
       }
     },
@@ -262,7 +262,7 @@
         "module": 5,
         "port": "cutoff"
       },
-      "amount": 0.12
+      "amount": 0.03
     },
     {
       "kind": "modulation",
@@ -274,7 +274,7 @@
         "module": 1,
         "port": "frequency"
       },
-      "amount": 0.018
+      "amount": 0.00015
     },
     {
       "kind": "signal",
@@ -508,10 +508,6 @@
         3780,
         192
       ],
-      "21": [
-        4710,
-        192
-      ],
       "17": [
         5640,
         192
@@ -527,6 +523,10 @@
       "20": [
         7500,
         864
+      ],
+      "21": [
+        4710,
+        192
       ]
     },
     "labels": {
@@ -542,12 +542,12 @@
       "13": "Ping Env",
       "14": "Ping VCA",
       "15": "Metal Plate",
-      "21": "Pings + Texture",
       "16": "Splice",
       "17": "Synced Delay",
       "18": "Hall",
       "19": "Out L",
-      "20": "Out R"
+      "20": "Out R",
+      "21": "Pings + Texture"
     },
     "view": {
       "x": 0,

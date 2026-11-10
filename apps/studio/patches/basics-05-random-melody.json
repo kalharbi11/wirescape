@@ -19,7 +19,7 @@
       "version": 2,
       "parameters": {
         "bpm": 105,
-        "ticks_per_beat": 2,
+        "ticks_per_beat": 3,
         "duty": 0.3,
         "run": 1
       }
@@ -37,7 +37,7 @@
       "module": "essentials.noise",
       "version": 2,
       "parameters": {
-        "level": 0.5
+        "level": 0.7
       }
     },
     {
@@ -80,7 +80,7 @@
         "strike_tone": 0.6,
         "strike_level": 0.8,
         "mix": 1,
-        "level": 0.7
+        "level": 0.85
       }
     },
     {
@@ -301,14 +301,6 @@
         990,
         864
       ],
-      "10": [
-        990,
-        1536
-      ],
-      "11": [
-        1920,
-        864
-      ],
       "4": [
         1920,
         192
@@ -332,20 +324,28 @@
       "9": [
         5640,
         864
+      ],
+      "10": [
+        990,
+        1536
+      ],
+      "11": [
+        1920,
+        864
       ]
     },
     "labels": {
       "1": "Clock",
       "2": "Random Steps",
       "3": "Mallet Noise",
-      "10": "Mallet Env",
-      "11": "Mallet VCA",
       "4": "Scale Quantizer",
       "5": "Marimba Pluck",
       "6": "Synced Delay",
       "7": "Room",
       "8": "Out L",
-      "9": "Out R"
+      "9": "Out R",
+      "10": "Mallet Env",
+      "11": "Mallet VCA"
     },
     "view": {
       "x": 0,

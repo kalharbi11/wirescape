@@ -4,6 +4,8 @@ import { STARTERS, DEFAULT_STARTER } from '../src/app/starters';
 import { CURATED_PATCHES } from '../src/app/curated';
 import catalogue from '../public/wirescape_modules.json' with { type: 'json' };
 import { boot, settle } from './helpers';
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const curated = STARTERS.filter(s => CURATED_PATCHES.some(p => p.id === s.id));
 const descriptors = new Map(catalogue.modules.map(m => [m.id, m]));
@@ -138,3 +140,38 @@ for (const starter of curated) {
     expect(errors).toEqual([]);
   });
 }
+
+test('all fifteen public Basics/Scene patches have non-overlapping cards in mouse and touch layouts', async ({ page }) => {
+  const directory = resolve(process.cwd(), 'patches');
+  const filenames = readdirSync(directory)
+    .filter(name => /^(?:basics|scene)-\d{2}-[a-z0-9-]+\.json$/.test(name)).sort();
+  expect(filenames).toHaveLength(15);
+  const patches = filenames.map(file => ({ file, patch: JSON.parse(readFileSync(resolve(directory, file), 'utf8')) }));
+  await boot(page);
+  const failures: string[] = [];
+  for (const hit of ['mouse', 'touch']) {
+    await page.evaluate(hit => window.__wirescapeTest.setPref({ hit }), hit);
+    for (const { file, patch } of patches) {
+      expect(Object.keys(patch.ui.positions)).toHaveLength(patch.modules.length);
+      await page.evaluate(p => {
+        window.__wirescapeTest.load(p, p.name);
+        window.__wirescapeTest.fit();
+      }, patch);
+      await settle(page);
+      await expect(page.locator('.module')).toHaveCount(patch.modules.length);
+      const collisions = await page.locator('.module').evaluateAll(cards => {
+        const overlaps: string[] = [];
+        for (let i = 0; i < cards.length; i++) for (let j = i + 1; j < cards.length; j++) {
+          const a = cards[i]!.getBoundingClientRect(), b = cards[j]!.getBoundingClientRect();
+          if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 &&
+              Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2) {
+            overlaps.push(cards[i]!.getAttribute('data-testid') + ' overlaps ' + cards[j]!.getAttribute('data-testid'));
+          }
+        }
+        return overlaps;
+      });
+      failures.push(...collisions.map(c => file + ' / ' + hit + ': ' + c));
+    }
+  }
+  expect(failures).toEqual([]);
+});

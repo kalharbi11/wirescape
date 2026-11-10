@@ -74,8 +74,8 @@
       "id": 3,
       "module": "essentials.mixer",
       "parameters": {
-        "level_a": 2.0,
-        "level_b": 2.0
+        "level_a": 2,
+        "level_b": 2
       },
       "version": 2
     },
@@ -117,8 +117,8 @@
       "id": 8,
       "module": "essentials.mixer",
       "parameters": {
-        "level_a": 2.0,
-        "level_b": 2.0
+        "level_a": 2,
+        "level_b": 2
       },
       "version": 2
     },
@@ -157,7 +157,7 @@
       "module": "essentials.mixer",
       "version": 2,
       "parameters": {
-        "level_a": 2.0,
+        "level_a": 2,
         "level_b": 0
       }
     },
@@ -166,7 +166,7 @@
       "module": "essentials.mixer",
       "version": 2,
       "parameters": {
-        "level_a": 2.0,
+        "level_a": 2,
         "level_b": 0
       }
     }
@@ -419,27 +419,27 @@
         3600,
         2032
       ],
-      "12": [
-        2595,
-        128
-      ],
-      "13": [
-        2595,
-        2032
-      ],
       "11": [
         3090,
         1120
+      ],
+      "12": [
+        2910,
+        128
+      ],
+      "13": [
+        2910,
+        2032
       ]
     },
     "labels": {
       "1": "Stone choir · low L/R",
       "2": "Stone choir · high L/R",
+      "5": "Out L",
       "6": "Slow tide",
       "7": "Counterphase haze",
       "8": "Right body mix",
       "9": "Right-hand shadow",
-      "5": "Out L",
       "10": "Out R",
       "11": "Chapel",
       "12": "Gain L",
