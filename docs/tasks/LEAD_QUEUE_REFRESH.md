@@ -16,7 +16,7 @@ tier: T0
 size: <= 220 changed lines, <= 3 files
 must_pass:
   - python -c "from pathlib import Path; s=Path('docs/planner/STATE.md').read_text(); assert len(s.splitlines()) <= 60; assert all(x in s for x in ('#505', '#500', '#512', '#72', '#513', 'cd7999e4a02308df0db918cfbab6974b97b6782f', 'other', 'family')); n=Path('docs/tasks/NOTES_TO_CV_MODULE_421.md').read_text(); assert 'released FIFO' in n and 'released LIFO' not in n; assert '<= 900 changed lines, <= 18 files' in n"
-  - git diff --check
+  - bash -lc 'git diff --check'
 stops: [runtime or protocol edits, CI policy edits, changing shared NoteToCv, removing tests or weakening thresholds]
 ```
 
