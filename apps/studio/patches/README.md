@@ -45,7 +45,7 @@ Descriptions include performance parameters to expose in a future front panel.
 | `chaos-02-wireglass-lead` | Expressive metallic keyboard lead / legato notes | route/depth, rough rate/depth, internal vibrato, body tune, envelope and echo |
 | `chaos-03-orbiting-iron-fx` | Autoplay irregular-feeling metallic accents / listen for space between hits | clock rate/duty, function rise/fall/curve, coupling, roughness, body, delay/reverb |
 
-**Important release fix:** CHAOS-lite's `gate` multiplies audio by zero at
+**Important release fix:** CHAOS's `gate` multiplies audio by zero at
 note-off, so an external ADSR cannot produce a release if the keyboard gate
 is also connected to CHAOS. Both revised keyboard patches and the three new
 patches deliberately leave CHAOS `gate` **unpatched**, where its documented
