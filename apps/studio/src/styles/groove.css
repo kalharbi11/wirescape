@@ -154,3 +154,5 @@
   .g-insp { gap: 9px 14px; }
   .g-roll { max-width: 100%; touch-action: pan-x pan-y; }
 }
+
+.g-pad.note.off-scale .g-nn { text-decoration: underline dotted; text-underline-offset: 3px; }
