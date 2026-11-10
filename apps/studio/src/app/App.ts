@@ -69,6 +69,7 @@ export class App {
   private nameEl!: HTMLElement;
   private draftLabel!: HTMLElement;
   private learnApplyingEl!: HTMLElement;
+  private learnRestartPrompt: HTMLElement | null = null;
   private learnSettled: Promise<void> | null = null;
   private openDraftButton!: HTMLButtonElement;
   private applyDraftButton!: HTMLButtonElement;
@@ -962,33 +963,106 @@ export class App {
     this.learnApplyingEl.hidden = false;
     this.learnApplyingEl.style.display = '';
     this.toasts.show('Applying MIDI Learn…');
-    const pending = engine.loadGraph(submitted).then(() => {
-      this.toasts.show(result.message);
-    }).catch(async err => {
-      if (!(err instanceof EngineRefusal) || !err.detail.engine) {
-        this.toasts.show(err instanceof Error ? err.message : `${what} failed.`, 'error');
-        return;
-      }
-      const reason = `${what} was refused: ${err.message}`;
-      // A restarted engine must not restore a document belonging to another view.
-      if (this.viewEpoch !== epoch || this.editEngine() !== engine) {
-        this.toasts.show(reason, 'error');
-        return;
-      }
+    const real = engine instanceof RealEngine ? engine : null;
+    const gen0 = real?.generation();
+    let phase: 'reply' | 'wait-gen' | 'applied' | 'not-applied' | 'restart-required' | 'restart' = 'reply';
+    let genTimer = 0, pushTimer = 0, restored = false;
+    let removeGen = () => {}, removeConnection = () => {};
+    let clickRestart = () => {}, resolveRecovery = () => {};
+    let restartClick = new Promise<void>(resolve => { clickRestart = resolve; });
+    const recoveryDone = new Promise<void>(resolve => { resolveRecovery = resolve; });
+    const restore = () => {
+      if (restored) return;
+      restored = true;
       this.doc.replace({ ...previous, ui: { ...(previous.ui ?? {}), view: this.doc.ui.view } });
       if (!wasDirty) this.doc.markClean();
       restoreHistory();
       requestAnimationFrame(() => this.canvas.invalidateAnchors());
       this.refreshDirty();
-      try {
-        await engine.loadGraph(this.doc.toJSON());
-      } catch (e) {
-        this.toasts.show(e instanceof Error ? e.message : 'The patch could not run.', 'error');
-        return;
+    };
+    const showRestart = () => {
+      if (phase === 'reply' || phase === 'wait-gen') phase = 'restart-required';
+      if (this.learnRestartPrompt || !real) return;
+      const panel = el('div', 'learn-restart-prompt', 'Engine not responding. ');
+      panel.dataset.testid = 'midi-learn-restart-prompt';
+      panel.setAttribute('role', 'alert');
+      Object.assign(panel.style, { position: 'fixed', inset: 'auto 1rem 1rem auto', zIndex: '10000',
+        padding: '1rem', background: '#211d1a', color: '#fff', border: '1px solid #e58b58' });
+      const button = el('button', 'learn-restart-button', 'Restart engine') as HTMLButtonElement;
+      button.dataset.testid = 'midi-learn-restart';
+      button.addEventListener('click', () => {
+        button.disabled = true;
+        this.learnRestartPrompt?.remove();
+        this.learnRestartPrompt = null;
+        phase = 'restart';
+        clickRestart();
+      });
+      panel.append(button);
+      document.body.append(panel);
+      this.learnRestartPrompt = panel;
+    };
+    const recover = async () => {
+      restore();
+      while (true) {
+        await restartClick;
+        restartClick = new Promise<void>(resolve => { clickRestart = resolve; });
+        try {
+          await real!.restartEngine();
+          await real!.waitForReady();
+          phase = 'applied';
+          this.toasts.show('Engine restarted; the pre-Learn patch is running.', 'error');
+          resolveRecovery();
+          return;
+        } catch (err) {
+          phase = 'restart-required';
+          this.toasts.show(err instanceof Error ? err.message : 'Could not restart engine.', 'error');
+          showRestart();
+        }
       }
-      this.toasts.show(`${reason}. It was taken back out of the patch.`, 'error');
+    };
+    let recovering = false;
+    const requireRestart = () => {
+      if (phase === 'applied' || phase === 'not-applied') return;
+      window.clearTimeout(genTimer); window.clearTimeout(pushTimer);
+      removeGen(); removeConnection();
+      showRestart();
+      if (!recovering && real) { recovering = true; void recover(); }
+    };
+    if (real && gen0 !== undefined) {
+      genTimer = window.setTimeout(() => { if (phase === 'reply') phase = 'wait-gen'; }, 3000);
+      pushTimer = window.setTimeout(requireRestart, 10_000);
+      removeGen = real.onGeneration(gen => {
+        if (phase !== 'wait-gen') return;
+        const applied = BigInt(gen) > BigInt(gen0);
+        phase = applied ? 'applied' : 'not-applied';
+        window.clearTimeout(genTimer); window.clearTimeout(pushTimer); removeGen();
+        if (!applied) restore();
+        real.settleUnansweredLoad(applied);
+      });
+      removeConnection = real.onConnection(state => {
+        if (state === 'restarting' && phase !== 'applied' && phase !== 'not-applied') requireRestart();
+      });
+    }
+    const pending = engine.loadGraph(submitted).then(() => {
+      if (phase !== 'not-applied' && phase !== 'restart-required' && phase !== 'restart') {
+        phase = 'applied';
+        this.toasts.show(result.message);
+      }
+    }).catch(async err => {
+      window.clearTimeout(genTimer); window.clearTimeout(pushTimer);
+      if (phase === 'not-applied') return;
+      if (phase === 'restart-required' || phase === 'restart') { await recoveryDone; return; }
+      if (this.viewEpoch !== epoch || this.editEngine() !== engine) return;
+      const reason = err instanceof EngineRefusal && err.detail.engine
+        ? `${what} was refused: ${err.message}` : (err instanceof Error ? err.message : `${what} failed.`);
+      restore();
+      if (err instanceof EngineRefusal && err.detail.engine) {
+        this.toasts.show(`${reason}. It was taken back out of the patch.`, 'error');
+      } else this.toasts.show(reason, 'error');
     }).finally(() => {
-        this.learnSettled = null;
+      removeGen(); removeConnection();
+      this.learnRestartPrompt?.remove(); this.learnRestartPrompt = null;
+      this.learnSettled = null;
       this.learnApplyingEl.hidden = true;
       this.learnApplyingEl.style.display = 'none';
       this.endDocumentOperation();
