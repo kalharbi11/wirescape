@@ -26,7 +26,8 @@ never writes the document; `ui.ccMap` stays a display hint.
   undo, cables, CC rows and labels) are blocked and visibly marked as applying.
   Refusal restores the prior document and history exactly before editing resumes. A lost load
   uses `gen` to decide whether it applied; after 10 s without a push or on `app.engineExited`,
-  Studio offers `app.restartEngine` and stays locked until the pre-Learn patch is reloaded.
+  Studio offers `app.restartEngine` and stays locked until the pre-Learn patch is reloaded. Each restart/reload
+  attempt has a 10 s bound and restores a retry action on timeout.
 - Wired implicit-default outputs keep their meaning (holes are filled with explicit
   default rows). Fourteen-bit rows drop the flag when a controller above 31 is learned.
 - One user gesture is one undo step.
@@ -43,7 +44,7 @@ protocol for a later narrow edit path; nothing here removes it.
 tier: T1
 size: <= 1450 changed lines, <= 16 files
 must_pass:
-  - mock bridge lost-load cases: higher-gen keep, same-gen revert, late reply ignored, 10 s no-push restart, and `app.engineExited` restart/reload
+  - mock bridge lost-load cases: higher-gen keep, same-gen revert, late reply ignored, 10 s no-push restart, restart-attempt timeout/retry, and `app.engineExited` restart/reload
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npx playwright test tests/midi-learn-ui.spec.ts tests/mock-bridge/midi-learn.spec.ts --trace off'
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
   - bash -lc "cd apps/studio && npm run typecheck"
