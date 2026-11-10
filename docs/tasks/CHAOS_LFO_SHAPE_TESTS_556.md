@@ -8,6 +8,7 @@ If a regression fails, report it; do not alter DSP to make it pass.
 
 The existing test assertions, module IDs, ABI, audio paths and CI thresholds
 stay unchanged. No new dependencies, hardware or network access.
+The native CTest/hosted jobs use offline engines; real audio is not an acceptance fixture.
 Patch guide impact: none — test-only regression.
 
 ```acceptance
