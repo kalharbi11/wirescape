@@ -13,12 +13,17 @@ Studio/Monitor UI and protocol (C), then #94 fuzzing.
   Studio catalogue/port assertions and patch designer availability guidance.
 - Validate a complete bundle before any child callback: malformed later
   children must cause no partial CV writes, event emissions or callbacks.
-  Keep bounded work and no allocation, locks, I/O or logging in render.
+  Test both codec callback counts and OscIn CV/event state with a valid first
+  child followed by a malformed second child; include nested bundles and
+  burst/capacity bounds. Keep bounded work and no allocation, locks, I/O or
+  logging in render.
 - No UDP socket, LAN consent, sidecar lifecycle, `--confirm-lan`, Electron
   forwarding, status/telemetry protocol, SDK/ABI or new dependencies.
   Registration alone does not make live OSC ingress or Monitor UI available.
 - Independent different-session T1 source review and exact-head executed
-  acceptance required. Pi checks must be device-off; no LAN/device access.
+  acceptance required. The selected acceptance issue is #525, not #72 or an
+  optional unselected task job. Pi checks must be device-off; no LAN/device
+  access. Require actual Windows and Pi execution, not just queued labels.
 
 ```acceptance
 tier: T1
