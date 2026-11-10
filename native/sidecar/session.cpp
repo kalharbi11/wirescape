@@ -385,9 +385,7 @@ void Session::start_midi() {
     std::string error;
     need(midi_->start(active_, patch_.dump(), error), "unavailable", "Cannot start MIDI subscriptions");
 }
-void Session::start_osc() {
-    osc_->start(active_, patch_.dump());
-}
+void Session::start_osc() { osc_->start(active_, patch_.dump()); }
 bool Session::refresh_devices(bool audio, bool probe_rates, const std::string &target) {
     bool enumerated = audio;
     if (audio) try {
@@ -469,8 +467,7 @@ Json Session::execution(Json patch) {
         need(ids.insert(id).second, "duplicate", "Duplicate module ID");
         auto *d = descriptor(id);
         need(!m.value("inactive", false), "unavailable", "Module is inactive");
-        if (std::string(d->id) == "osc.in")
-            need(++osc_routes <= 32, "limit", "At most 32 OSC input routes");
+        if (std::string(d->id) == "osc.in") need(++osc_routes <= 32, "limit", "At most 32 OSC input routes");
         if (!m.contains("version")) m["version"] = d->version;
         if (std::string(d->id) == "essentials.output") output = std::min(output, id);
         auto values = m.value("parameters", Json::object());
@@ -538,7 +535,11 @@ void Session::commit(Json patch, bool new_namespace) {
     // (including the original graph on refusal). Socket errors never refuse patches.
     osc_->stop();
     auto resume_osc = [this](void *) noexcept {
-        try { start_osc(); } catch (...) { osc_->stop(); }
+        try {
+            start_osc();
+        } catch (...) {
+            osc_->stop();
+        }
     };
     std::unique_ptr<void, decltype(resume_osc)> osc_restart(this, resume_osc);
     const bool rendering = (stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire);
@@ -727,7 +728,11 @@ Json Session::apply(const Json &command) {
         // The stream change destroys/replaces the engine; suspend ingress first.
         osc_->stop();
         auto resume_osc = [this](void *) noexcept {
-            try { start_osc(); } catch (...) { osc_->stop(); }
+            try {
+            start_osc();
+        } catch (...) {
+            osc_->stop();
+        }
         };
         std::unique_ptr<void, decltype(resume_osc)> osc_restart(this, resume_osc);
         // Keep candidate taps alive through rollback, until its render thread is joined.
@@ -1023,12 +1028,14 @@ Json Session::midi_status() const {
     return result;
 }
 Json Session::hello() const {
+    Json capabilities =
+        Json::array({"midiLearn", "telemetry.playhead", "setSampleRate", "setBufferFrames", "osc"});
     return {{"v", 0},
             {"session", token_},
             {"type", "hello"},
             {"protocol", 0},
             {"engine", {{"version", "0.1.0"}, {"sha", WIRESCAPE_ENGINE_SHA}}},
-            {"capabilities", Json::array({"midiLearn", "telemetry.playhead", "setSampleRate", "setBufferFrames", "osc"})},
+            {"capabilities", std::move(capabilities)},
             {"catalogue", catalogue(catalogue_.get())},
             {"audioDevices", audio_devices_},
             {"audio", audio_status()},
@@ -1041,11 +1048,16 @@ Json Session::status() const {
     value["type"] = "status";
     value["status"] = {{"audio", audio_status()}, {"midi", midi_status()}};
     Json osc_routes = Json::array();
-    for (const auto &route : osc_->states())
-        osc_routes.push_back({{"module", std::to_string(route.node)}, {"port", route.port},
-                              {"bind", route.lan_bound ? "0.0.0.0" : "127.0.0.1"},
-                              {"state", route.state}, {"received", route.received},
-                              {"dropped", route.dropped}});
+    for (const auto &route : osc_->states()) {
+        Json entry = Json::object();
+        entry["module"] = std::to_string(route.node);
+        entry["port"] = route.port;
+        entry["bind"] = route.lan_bound ? "0.0.0.0" : "127.0.0.1";
+        entry["state"] = route.state;
+        entry["received"] = route.received;
+        entry["dropped"] = route.dropped;
+        osc_routes.push_back(std::move(entry));
+    }
     value["status"]["osc"] = {{"routes", std::move(osc_routes)}};
     return value;
 }
