@@ -561,6 +561,7 @@ export class App {
     this.applyDraftButton.disabled = true;
     const epoch = this.viewEpoch, candidate = this.doc.toJSON(), name = this.patchName;
     const bytes = JSON.stringify(candidate);
+    const restoreGrooves = this.grooves.checkpoint();
     try {
       this.grooves.forget();
       await this.engine.loadGraph(candidate);
@@ -580,6 +581,8 @@ export class App {
       this.refreshDraftControls();
       this.toasts.show(`${name} is now running.`);
     } catch (e) {
+      // Rejected candidate never became the playing Groove, even when IDs overlap.
+      restoreGrooves();
       this.toasts.show(e instanceof Error ? e.message : 'Draft could not run; still playing the previous patch.', 'error');
     } finally {
       this.endDocumentOperation();
