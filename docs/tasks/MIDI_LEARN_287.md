@@ -40,11 +40,14 @@ live replan**, the same path as a MIDI input change, instead of separate `addMod
 refusal restores the previous document and graph exactly. `ccMap.set` stays in the
 protocol for a later narrow edit path; nothing here removes it.
 
+Required mock-bridge evidence (covered by the focused Playwright command below):
+higher-gen keep, same-gen revert, late reply ignored, 10 s no-push restart,
+restart-attempt timeout/retry, and `app.engineExited` restart/reload.
+
 ```acceptance
 tier: T1
 size: <= 1450 changed lines, <= 16 files
 must_pass:
-  - mock bridge lost-load cases: higher-gen keep, same-gen revert, late reply ignored, 10 s no-push restart, restart-attempt timeout/retry, and `app.engineExited` restart/reload
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npx playwright test tests/midi-learn-ui.spec.ts tests/mock-bridge/midi-learn.spec.ts --trace off'
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
   - bash -lc "cd apps/studio && npm run typecheck"
