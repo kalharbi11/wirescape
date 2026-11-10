@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#include "dsp.h"
+#include "../../engine2/engine2.h"
 #include "../../sdk/examples/test_support.h"
 #include "../../tests2/allocation_watch.h"
-#include "../../engine2/engine2.h"
-#include <vector>
+#include "dsp.h"
 #include <chrono>
-#include <string>
 #include <cstring>
+#include <string>
+#include <vector>
 
 struct Arena {
     std::vector<unsigned char> bytes = std::vector<unsigned char>(4 * 1024 * 1024);
