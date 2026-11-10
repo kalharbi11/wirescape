@@ -2,9 +2,10 @@
 # Monitor (`monitor`)
 
 One fan-in event input `events`, plus `in1` and `in2`. No outputs. Configuration
-JSON is `{ "prefix": "Pico" }`; the host supplies the tap internally, never a saved
-pointer. The app's log dialog provides pause/clear/counters; `play --monitor` drains
-the same binary entries to stderr on the control thread.
+will be supplied by the sidecar; its internal tap pointer is never a saved
+patch field. **Slice A only** registers the module and tests its bounded capture.
+The sidecar's gen-tagged telemetry and Studio log view (slice C) are not yet
+available. OSC payloads must never be sent to stderr or application logs.
 
 The fixed SPSC tap holds1024 entries×128bytes. Formatting happens only in UI/control
 code. MIDI keeps UMP words; notes keep a fixed summary; OSC keeps a payload prefix

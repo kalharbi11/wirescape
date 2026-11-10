@@ -2,7 +2,11 @@
 # OSC In (`osc.in`)
 
 Eight `row1`…`row8` signals plus `messages` events; no inputs or parameter knobs.
-The host's `config` JSON selects UDP port(default9000), `lan`(false), and up to8 rows:
+The *planned sidecar adapter* in slice B will consume authored configuration
+for UDP port (default 9000), `lan` (false) and up to eight rows. The native
+module currently accepts a validated, private, host-supplied POD and defaults
+when no adapter is installed. This JSON example is **not yet operational**
+in the Electron app:
 
 ```json
 {"port":9000,"lan":false,"rows":[{"pattern":"/pico1/knob/*","argument":0,"kind":"cv","input_min":0,"input_max":1,"output_min":0,"output_max":1,"smoothing_ms":5,"timeout_ms":1000,"stale":"hold"}]}
@@ -26,6 +30,8 @@ intermediate CV/gate messages, so that case does not promise identical renders.
 Numeric rows coalesce latest-wins per channel/block at that last message's offset;
 triggers retain individual arrival offsets. Other glob forms `?`, `[]`, `{}` work.
 
-Sockets live exclusively in the host service. Default binding is127.0.0.1; LAN needs
-both module `lan:true` and explicit global confirmation. This module never opens a
-socket. See `docs/CONTROLLERS.md` for controller and sender setup.
+Sockets will live exclusively in the sidecar-owned host service (slice B),
+not in this module. The required default binding is 127.0.0.1; LAN will need
+both module `lan:true` and explicit launch confirmation. **Slice A installs no
+UDP listener**; the `row*` ports receive only events from a future host or a
+direct device-free native test. No OSC networking is provided in the web demo.
