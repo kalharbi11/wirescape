@@ -54,7 +54,8 @@ class SinkScheduling {
   public:
     SinkScheduling() noexcept {
         if (avrt_) {
-            const auto register_task = reinterpret_cast<Register>(GetProcAddress(avrt_, "AvSetMmThreadCharacteristicsW"));
+            const auto register_task =
+                reinterpret_cast<Register>(GetProcAddress(avrt_, "AvSetMmThreadCharacteristicsW"));
             revert_ = reinterpret_cast<Revert>(GetProcAddress(avrt_, "AvRevertMmThreadCharacteristics"));
             DWORD index = 0;
             if (register_task && revert_) task_ = register_task(L"Pro Audio", &index);

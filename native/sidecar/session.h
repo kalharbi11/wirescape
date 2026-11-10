@@ -38,8 +38,7 @@ struct RenderHistogram {
     // Reporting only: lateness still means completion past the absolute deadline.
     // Both causes can contribute to the same overrun; counts are not exclusive.
     void record_timing(double percent, std::chrono::steady_clock::time_point before,
-                       std::chrono::steady_clock::time_point after,
-                       std::chrono::steady_clock::time_point start,
+                       std::chrono::steady_clock::time_point after, std::chrono::steady_clock::time_point start,
                        std::chrono::steady_clock::time_point deadline) noexcept {
         const bool late = after > deadline;
         record(percent, late);
