@@ -682,14 +682,15 @@ static void test_v2_gates_and_skipped_ties() {
         GrooveV2Rig rig;
         auto &track = rig.seq.pattern.tracks[0];
         track.steps[0] = {groove::Note, 60, 1.f, .5f, .25f, 4, groove::AB, 2, 2};
-        track.steps[1] = {groove::Tie};
+        track.steps[1] = {groove::Tie, 60, 0.f, .75f, .5f};
         rig.start();
         check(rig.count == 0 && !rig.seq.players[0].fired &&
               rig.values[2] == .5f && rig.values[3] == .25f,
               "failed A:B note becomes rest but still updates both CV mods");
         for (uint32_t i = 0; i < 4; ++i) rig.render();
-        check(rig.count == 0 && !rig.seq.players[0].fired && rig.values[1] == 0,
-              "tie following failed condition cannot resurrect a note");
+        check(rig.count == 0 && !rig.seq.players[0].fired && rig.values[1] == 0 &&
+              rig.values[2] == .75f && rig.values[3] == .5f,
+              "a failed condition's tie cannot resurrect a note but still updates both mods");
     }
     {
         GrooveV2Rig rig;
