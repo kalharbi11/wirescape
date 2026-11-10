@@ -28,7 +28,15 @@
     "t2_gate": "signal",
     "t2_mod1": "signal",
     "t2_mod2": "signal",
-    "t2_notes": "event"
+    "t2_notes": "event",
+    "t1_pos": "signal",
+    "t2_pos": "signal",
+    "t1_loop_lo": "signal",
+    "t2_loop_lo": "signal",
+    "t1_fired": "signal",
+    "t2_fired": "signal",
+    "t1_loop_hi": "signal",
+    "t2_loop_hi": "signal"
   },
   "license": "GPL-3.0-only"
 }
