@@ -505,10 +505,22 @@
      "decimals": 0,
      "modulatable": false,
      "choices": [
-      {"value": 0, "label": "Sine"},
-      {"value": 1, "label": "Triangle"},
-      {"value": 2, "label": "Sample & hold"},
-      {"value": 3, "label": "Smooth random"}
+      {
+       "value": 0,
+       "label": "Sine"
+      },
+      {
+       "value": 1,
+       "label": "Triangle"
+      },
+      {
+       "value": 2,
+       "label": "Sample & hold"
+      },
+      {
+       "value": 3,
+       "label": "Smooth random"
+      }
      ]
     }
    ],
