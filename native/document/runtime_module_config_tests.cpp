@@ -30,7 +30,6 @@ static void instance_config_union() {
     CHECK(config.instance_seed == 0 && config.authored_version == 1 && config.tracks[0].length == 32);
 }
 int main() try {
- instance_config_union();
  auto encode=[](const char*s){return runtime_module_config("midi.cc_to_cv",nlohmann::json::parse(s));};
  auto bytes=encode(R"({"rows":[{"channel":16,"controller":31,"fourteen_bit":true,"bipolar":true,"smoothing_ms":0}]})");
  wirescape::midi::CcConfiguration config;CHECK(wirescape::midi::cc_configuration(bytes.data(),static_cast<uint32_t>(bytes.size()),config));
@@ -89,6 +88,7 @@ int main() try {
      }
      CHECK(rejected);
  }
+    instance_config_union();
  std::puts("PASS bounded typed MIDI and Groove configurations and invalid row rejection");
 } catch(const std::exception& error) {
  std::fprintf(stderr,"FAIL runtime module configuration: %s\n",error.what());return EXIT_FAILURE;
