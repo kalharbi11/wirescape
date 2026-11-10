@@ -298,7 +298,8 @@ implicit full gate. The new `version:2` config allows each track to set
 `length` to **8, 16, 32 or 64** sixteenth notes (default 16 for a newly authored
 v2 track, 32 for v1). A track pads its omitted steps with rests. Active tracks
 follow their own lengths; the longest active track determines the global
-STOP/Apply master-cycle boundary.
+STOP/Apply master-cycle boundary. V2 track START enters at the next
+16-step bar; an authored v1 track retains its original 32-step entry boundary.
 
 On each v2 step, `gate` selects 0.25, 0.5, 0.75 or 1 times one step, default
 1. A tie extends the sounding note through the tied cells, with the *last*
