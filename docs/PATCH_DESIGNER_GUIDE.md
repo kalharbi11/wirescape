@@ -89,8 +89,20 @@ setting blocker rather than pretending to merge.
   apps/studio/public/wirescape_modules.json. No hardware MIDI modules in the
   web library; use host.keyboard. Browser audio needs its user start gesture.
 - Reverb fx.reverb is merged on main (c39af7b): stereo SUM inputs, one wet/dry output per side, not one reverb per note. Unconnected right follows left; size/decay/damping/predelay/width/motion/freeze/mix are available. Use two output-bus routes to preserve stereo; saved state clears the tail.
-- Macro requires48k. No external sample files/services. Do not assume pending
-  Chord or Notes→CV exist: inspect the actual catalogue and deployed SHA.
+- Macro requires48k. No external sample files/services. Check the installed
+  catalogue/deployed SHA before using new Chord or Notes→CV modules.
+- **Chord (builds containing #403):** `essentials.chord` accepts and outputs
+  `notes` event cables. Route `host.keyboard.notes` or a sequencer's
+  `notes` output into `essentials.chord.notes`. The root is always present;
+  four optional enabled semitone shifts (-24..+24) default to +4/+7 enabled,
+  +12/-12 disabled. Each note activation owns distinct output note IDs;
+  same-pitch duplicates are distinct voices, and held intervals don't retune.
+  Chord is not a sequencer or a CV source. **A production polyphonic audio
+  chain requires `essentials.notes_to_cv` (#421)**: Chord `notes` →
+  Notes→CV `notes` → poly `pitch`/`gate`/`velocity` → instrument/Output.
+  Until #421 is actually merged into the target build, don't promise that
+  route; `midi.to_cv.midi` is raw-MIDI-only and cannot accept Chord's note
+  events. No hardware/MIDI or listening validation is implied.
 
 ### Macro Oscillator model names (48 kHz only)
 
