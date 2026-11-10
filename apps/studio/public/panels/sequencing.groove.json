@@ -1,0 +1,20 @@
+{
+  "code": "GRV",
+  "panes": [
+    "groove"
+  ],
+  "hidden": [
+    "run",
+    "stop",
+    "reset",
+    "mute",
+    "t1_run",
+    "t1_stop",
+    "t1_mute",
+    "t2_run",
+    "t2_stop",
+    "t2_mute"
+  ],
+  "modPorts": [],
+  "width": 1250
+}

@@ -215,6 +215,16 @@ button { cursor: pointer; }
   border: 0.5px solid var(--hair); border-radius: 1px; padding: 0 3px;
 }
 .module-header-slot { display: flex; align-items: center; flex: none; }
+.module-presets { display: flex; align-items: center; gap: 5px; cursor: default; user-select: auto; }
+.module-preset-label { font: 500 8px var(--mono); letter-spacing: .04em; color: var(--mute); }
+.module-preset-select { max-width: 126px; height: 25px; border: 1px solid var(--hair);
+  border-radius: 3px; background: var(--card); color: var(--graph);
+  font: 10px var(--mono); cursor: pointer; }
+@media (max-width: 760px) {
+  .module-preset-label { display: none; }
+  .module-preset-select { max-width: 104px; }
+}
+
 .module-header { flex: none; }
 .module-body { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center; padding-top: 22px; padding-bottom: 24px; }
 .panel-core { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0 12px; }
@@ -417,6 +427,21 @@ body.hide-port-labels .port-label { display: none; }
 .status-btn.danger { color: var(--danger); border-color: var(--accent-soft); }
 .status-btn:hover { background: var(--surface-2); }
 
+/* ---- MIDI Learn bar (#287) ------------------------------------------------ */
+.learn-bar {
+  position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); z-index: 390;
+  display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 24px); flex-wrap: wrap;
+  padding: 8px 12px; background: var(--card); border: .5px solid var(--rust); border-radius: var(--radius-sm);
+  box-shadow: 0 2px 10px rgba(0,0,0,.12); font: 500 10px var(--mono); letter-spacing: .04em; color: var(--ink);
+}
+.learn-bar[hidden] { display: none; }
+.learn-title { color: var(--rust); text-transform: uppercase; }
+.learn-any { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.learn-btn {
+  border: .5px solid var(--graph); background: var(--card2); color: var(--ink); padding: 4px 10px;
+  font: 500 10px var(--mono); letter-spacing: .04em; border-radius: 4px; cursor: pointer;
+}
+.learn-btn:disabled { opacity: .4; cursor: default; }
 /* ---- toast, modals, quick-add ------------------------------------------ */
 .toast {
   position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%);

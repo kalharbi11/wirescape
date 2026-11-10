@@ -94,7 +94,7 @@
   },
   {
    "id": "essentials.chaos_lite",
-   "name": "CHAOS-lite",
+   "name": "CHAOS",
    "category": "Instrument",
    "ports": [
     {
@@ -492,6 +492,36 @@
      "step": 0,
      "decimals": 3,
      "modulatable": true
+    },
+    {
+     "id": "lfo_shape",
+     "name": "LFO shape",
+     "minimum": 0,
+     "maximum": 3,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Sine"
+      },
+      {
+       "value": 1,
+       "label": "Triangle"
+      },
+      {
+       "value": 2,
+       "label": "Sample & hold"
+      },
+      {
+       "value": 3,
+       "label": "Smooth random"
+      }
+     ]
     }
    ],
    "version": 1,
@@ -521,7 +551,8 @@
     "lfo_target": 22,
     "lfo_self": 23,
     "cutoff": 24,
-    "level": 25
+    "level": 25,
+    "lfo_shape": 26
    }
   },
   {
@@ -4907,6 +4938,134 @@
     "n10": 14,
     "n11": 15
    }
+  },
+  {
+   "id": "osc.in",
+   "name": "OSC In",
+   "category": "MIDI / control",
+   "ports": [
+    {
+     "id": "row1",
+     "name": "Row 1",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row2",
+     "name": "Row 2",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row3",
+     "name": "Row 3",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row4",
+     "name": "Row 4",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row5",
+     "name": "Row 5",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row6",
+     "name": "Row 6",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row7",
+     "name": "Row 7",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row8",
+     "name": "Row 8",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "messages",
+     "name": "Messages",
+     "direction": "output",
+     "kind": "event",
+     "hint": "ev_message",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [],
+   "version": 1,
+   "legacy_parameters": {}
+  },
+  {
+   "id": "monitor",
+   "name": "Monitor",
+   "category": "Utility",
+   "ports": [
+    {
+     "id": "events",
+     "name": "Events",
+     "direction": "input",
+     "kind": "event",
+     "hint": "ev_message",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "in1",
+     "name": "Signal 1",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "in2",
+     "name": "Signal 2",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [],
+   "version": 1,
+   "legacy_parameters": {}
   }
  ]
 }

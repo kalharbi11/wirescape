@@ -38,6 +38,41 @@ constexpr std::chrono::milliseconds kMuteBudget{1000}, kGapBudget{1000};
 #else
 constexpr std::chrono::milliseconds kMuteBudget{100}, kGapBudget{150};
 #endif
+#ifdef _WIN32
+// Set up before the first render, release only after the sink stops. Loading
+// avrt dynamically keeps MMCSS optional on Windows installations without it.
+class SinkScheduling {
+    using Register = HANDLE(WINAPI *)(LPCWSTR, LPDWORD);
+    using Revert = BOOL(WINAPI *)(HANDLE);
+    HMODULE avrt_ = LoadLibraryW(L"avrt.dll");
+    HANDLE task_ = nullptr;
+    Revert revert_ = nullptr;
+    bool timer_ = timeBeginPeriod(1) == TIMERR_NOERROR;
+    int previous_priority_ = GetThreadPriority(GetCurrentThread());
+    bool fallback_ = false;
+
+  public:
+    SinkScheduling() noexcept {
+        if (avrt_) {
+            const auto register_task =
+                reinterpret_cast<Register>(GetProcAddress(avrt_, "AvSetMmThreadCharacteristicsW"));
+            revert_ = reinterpret_cast<Revert>(GetProcAddress(avrt_, "AvRevertMmThreadCharacteristics"));
+            DWORD index = 0;
+            if (register_task && revert_) task_ = register_task(L"Pro Audio", &index);
+        }
+        if (!task_) fallback_ = SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) != 0;
+    }
+    ~SinkScheduling() {
+        if (task_) revert_(task_);
+        if (fallback_ && previous_priority_ != THREAD_PRIORITY_ERROR_RETURN)
+            SetThreadPriority(GetCurrentThread(), previous_priority_);
+        if (timer_) timeEndPeriod(1);
+        if (avrt_) FreeLibrary(avrt_);
+    }
+    SinkScheduling(const SinkScheduling &) = delete;
+    SinkScheduling &operator=(const SinkScheduling &) = delete;
+};
+#endif
 struct Refusal : std::runtime_error {
     std::string code;
     Refusal(std::string c, const char *m) : std::runtime_error(m), code(std::move(c)) {}
@@ -131,6 +166,7 @@ Json catalogue(AppEngine *engine) {
 Options parse_options(int argc, char **argv) {
     Options o;
     o.directory = std::filesystem::absolute(argv[0]).parent_path().string();
+    bool cli_rate = false, cli_block = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--confirm-audio") o.audio = true;
@@ -147,10 +183,42 @@ Options parse_options(int argc, char **argv) {
                 need(v.find_first_not_of("0123456789") == std::string::npos);
                 auto n = std::stoull(v);
                 need(n > 0 && n <= (arg == "--block" ? 4096 : UINT32_MAX));
-                if (arg == "--block") o.block = uint32_t(n);
-                else o.rate = uint32_t(n);
+                if (arg == "--block") {
+                    o.block = uint32_t(n);
+                    cli_block = true;
+                } else {
+                    o.rate = uint32_t(n);
+                    cli_rate = true;
+                }
             }
         } else throw Refusal("invalid", "Unknown startup flag");
+    }
+    // Explicit CLI rate/block always win for this invocation; persisted choices
+    // apply only when their corresponding command-line option is absent.
+    if (!cli_rate || !cli_block) {
+        try {
+            std::ifstream in(o.settings, std::ios::binary);
+            if (in) {
+                std::string bytes(LineLimit + 1, '\0');
+                in.read(bytes.data(), std::streamsize(bytes.size()));
+                bytes.resize(size_t(in.gcount()));
+                const auto settings = strict_json(bytes);
+                if (settings.contains("audio") && settings["audio"].is_object()) {
+                    const auto &audio = settings["audio"];
+                    if (!cli_rate && audio.contains("sampleRate") && audio["sampleRate"].is_number_integer()) {
+                        const auto value = audio["sampleRate"].get<int64_t>();
+                        if (value == 44100 || value == 48000 || value == 96000) o.rate = uint32_t(value);
+                    }
+                    if (!cli_block && audio.contains("bufferFrames") && audio["bufferFrames"].is_number_integer()) {
+                        const auto value = audio["bufferFrames"].get<int64_t>();
+                        if (value == 64 || value == 128 || value == 256 || value == 512 || value == 1024)
+                            o.block = uint32_t(value);
+                    }
+                }
+            }
+        } catch (...) {
+            std::cerr << "Invalid audio preferences; retaining startup settings\n";
+        }
     }
     need(!o.bench_summary || o.null_audio, "invalid", "--bench-summary requires --null-audio");
     if (o.null_audio) o.audio = o.midi = false;
@@ -215,17 +283,22 @@ void Session::shutdown() {
         bench_reported_ = true;
         std::cerr << "bench blocks=" << bench_.blocks << " p50=" << bench_.percentile(50)
                   << " p99=" << bench_.percentile(99) << " max=" << bench_.max_percent
-                  << " overruns=" << bench_.overruns << " faults=" << bench_.faults << '\n';
+                  << " overruns=" << bench_.overruns << " faults=" << bench_.faults
+                  << " overrun_render_count=" << bench_.overrun_render_count
+                  << " overrun_render_max_us=" << bench_.overrun_render_max_us
+                  << " overrun_wake_count=" << bench_.overrun_wake_count
+                  << " overrun_wake_max_us=" << bench_.overrun_wake_max_us << '\n';
     }
 }
 void Session::start_audio(std::chrono::steady_clock::time_point now) {
     stop_sink_.store(false);
+    audio_reason_.clear();
     if (options_.audio) {
         try {
             // Resolve the default only before any identity has been selected.
             // A remembered/missing output must never be replaced by the default.
             if (device_.empty() || device_.find('|') == std::string::npos) {
-                const auto list = audio::devices(options_.directory);
+                const auto list = audio::devices(options_.directory, {false, {}, {}});
                 if (!device_.empty()) {
                     // Pre-identity settings stored a bare name. Upgrade a unique name to its id;
                     // a name Windows repeats across host APIs can never open, so use the default.
@@ -244,6 +317,9 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
                                                       options_.rate, options_.block, [this] { midi_->stop(); });
             audio_state_ = "running";
             audio_backoff_ = std::chrono::milliseconds(100);
+        } catch (const audio::RateUnsupported &) {
+            audio_state_ = "no-device";
+            audio_reason_ = "rate-unsupported"; // invalid rates are refusals, never retry loops
         } catch (const audio::ShutdownFailure &) {
             throw;
         } catch (const std::exception &) {
@@ -259,12 +335,7 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
                          right = std::vector<float>(options_.block)]() mutable {
                 float *rows[] = {left.data(), right.data()};
 #ifdef _WIN32
-                // The default ~15.6 ms Windows timer tick is longer than a block period, so
-                // block-paced waits always wake late. Request 1 ms only while the sink runs.
-                struct TimerResolution {
-                    TimerResolution() { timeBeginPeriod(1); }
-                    ~TimerResolution() { timeEndPeriod(1); }
-                } resolution;
+                SinkScheduling scheduling;
 #endif
                 auto next = std::chrono::steady_clock::now();
                 sink_rendering_.store(true, std::memory_order_release);
@@ -281,9 +352,10 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
                     double percent = std::chrono::duration<double>(after - before).count() *
                                      options_.rate / options_.block * 100;
                     cpu_.store(percent);
+                    const auto scheduled_start = next;
                     next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                         std::chrono::duration<double>(double(options_.block) / options_.rate));
-                    if (options_.bench_summary) bench_.record(percent, after > next);
+                    if (options_.bench_summary) bench_.record_timing(percent, before, after, scheduled_start, next);
                     std::unique_lock<std::mutex> lock(sink_mutex_);
                     sink_wake_.wait_until(lock, next, [this] { return stop_sink_.load(); });
                 }
@@ -307,10 +379,37 @@ void Session::start_midi() {
     std::string error;
     need(midi_->start(active_, patch_.dump(), error), "unavailable", "Cannot start MIDI subscriptions");
 }
-bool Session::refresh_devices(bool audio) {
+bool Session::refresh_devices(bool audio, bool probe_rates, const std::string &target) {
     bool enumerated = audio;
     if (audio) try {
-            audio_devices_ = audio_devices(options_.directory, options_.null_audio);
+            const bool playing = stream_ && stream_->running();
+            auto next = audio_devices(options_.directory, options_.null_audio,
+                                      {probe_rates, target, playing ? device_ : std::string{}});
+            for (auto &entry : next) {
+                const auto id = entry.at("id").get<std::string>();
+                const bool active = playing && id == device_;
+                if (!probe_rates || active || (!target.empty() && target != id)) {
+                    const auto old = std::find_if(audio_devices_.begin(), audio_devices_.end(),
+                                                  [&](const Json &d) { return d.at("id") == id; });
+                    if (old != audio_devices_.end() &&
+                        old->value("outputChannels", 2) == entry.value("outputChannels", 2))
+                        for (const auto *key : {"sampleRates", "supported", "unsupportedReason"}) {
+                            entry.erase(key);
+                            if (old->contains(key)) entry[key] = (*old)[key];
+                        }
+                }
+                if (active && entry.value("outputChannels", 2) >= 2) {
+                    entry["supported"] = true;
+                    entry.erase("unsupportedReason");
+                    // A cached known set includes the rate proven by the running stream.
+                    // Unknown remains omitted; a singleton would falsely exclude other rates.
+                    if (entry.contains("sampleRates") &&
+                        std::find(entry["sampleRates"].begin(), entry["sampleRates"].end(), Json(options_.rate)) ==
+                            entry["sampleRates"].end())
+                        entry["sampleRates"].push_back(options_.rate);
+                }
+            }
+            audio_devices_ = std::move(next);
         } catch (...) {
             enumerated = false; // Keep the last successful list; failure is not disappearance.
         }
@@ -554,8 +653,15 @@ void Session::commit(Json patch, bool new_namespace) {
     std::cerr << "commit path=d5 gen=" << generation_ << '\n';
 }
 Json Session::apply(const Json &command) {
+    auto refuse_rate = [&]() {
+        audio_reason_ = "rate-unsupported";
+        throw Refusal("refused", "rate-unsupported");
+    };
     auto type = command.at("type").get<std::string>();
-    if (type == "listAudioDevices") return {{"devices", audio_devices_}};
+    if (type == "listAudioDevices") {
+        refresh_devices();
+        return {{"devices", audio_devices_}};
+    }
     if (type == "listMidiDevices") return {{"devices", midi_devices_}};
     if (type == "midiLearn") {
         need(command.at("armed").is_boolean());
@@ -563,15 +669,109 @@ Json Session::apply(const Json &command) {
         observer_->arm_learning(armed);
         return {{"armed", armed}};
     }
-    if (type == "setOsc" || type == "setSampleRate" || type == "setBufferFrames")
-        throw Refusal("unavailable", "Capability not available");
+    if (type == "setOsc") throw Refusal("unavailable", "Capability not available");
+    if (type == "setSampleRate" || type == "setBufferFrames") {
+        const bool rate_change = type == "setSampleRate";
+        const auto value = integer(command.at(rate_change ? "hz" : "frames"));
+        const std::array<uint32_t, 3> rates{44100, 48000, 96000};
+        const std::array<uint32_t, 5> blocks{64, 128, 256, 512, 1024};
+        need(rate_change ? std::find(rates.begin(), rates.end(), value) != rates.end()
+                         : std::find(blocks.begin(), blocks.end(), value) != blocks.end(),
+             "invalid", "Rate or buffer size is outside the supported set");
+        need(options_.audio || options_.null_audio, "unavailable", "Audio access not authorized");
+        const uint32_t next_rate = rate_change ? value : options_.rate;
+        const uint32_t next_block = rate_change ? options_.block : value;
+        if (options_.audio) {
+            refresh_devices(true, true, device_);
+            need((stream_ && stream_->running()) || audio_reason_ == "rate-unsupported", "unavailable",
+                 "No active audio stream");
+            const auto count = std::count_if(audio_devices_.begin(), audio_devices_.end(),
+                                             [&](const Json &d) { return d.at("id") == device_; });
+            need(count == 1, "unavailable", "Selected audio output is missing or ambiguous");
+            const auto entry = std::find_if(audio_devices_.begin(), audio_devices_.end(),
+                                            [&](const Json &d) { return d.at("id") == device_; });
+            need(entry->value("supported", true), "unavailable", "Audio output is unsupported");
+            if (entry->contains("sampleRates") &&
+                std::find((*entry)["sampleRates"].begin(), (*entry)["sampleRates"].end(), Json(next_rate)) ==
+                    (*entry)["sampleRates"].end())
+                refuse_rate();
+        } else {
+            need(sink_.joinable(), "unavailable", "No active null-audio stream");
+        }
+        if (next_rate == options_.rate && next_block == options_.block) return nullptr;
+
+        // Control thread only. Quiesce the old stream before preparing a new
+        // runnable graph, retaining the document and selected MIDI endpoints.
+        const auto old_config = config_;
+        const auto old_rate = options_.rate, old_block = options_.block;
+        const auto old_preferences = preferences_;
+        // Keep candidate taps alive through rollback, until its render thread is joined.
+        document::telemetry::Sampler next_telemetry(
+            document::telemetry::plan(patch_, catalogue_.get(), /*phase_enabled=*/true));
+        midi_->stop();
+        app_engine_panic(active_); // release held notes before replacing DSP state
+        stop_audio();
+        auto previous = std::move(engine_);
+        try {
+            ws_engine_config next_config = config_;
+            next_config.sample_rate = next_rate;
+            next_config.max_block_frames = next_block;
+            std::string error;
+            audio::EngineOwner prepared(document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config,
+                                                                     error, &next_telemetry.taps()),
+                                        app_engine_destroy);
+            need(bool(prepared), "unavailable", "Graph cannot prepare at requested stream configuration");
+            app_engine_prepare_master_fade_in(prepared.get());
+            engine_ = std::move(prepared);
+            active_ = engine_.get();
+            config_ = next_config;
+            options_.rate = next_rate;
+            options_.block = next_block;
+            start_audio();
+            need(!options_.audio || (stream_ && stream_->running()), "unavailable",
+                 "Audio device refused the new stream");
+            start_midi();
+            preferences_["audio"]["sampleRate"] = next_rate;
+            preferences_["audio"]["bufferFrames"] = next_block;
+            persist(); // only after the replacement stream is running
+            ++generation_;
+            keyboard_.fill(false);
+            telemetry_.swap(next_telemetry);
+            return nullptr;
+        } catch (...) {
+            const bool rate_refused = audio_reason_ == "rate-unsupported";
+            midi_->stop();
+            stop_audio();
+            engine_ = std::move(previous);
+            active_ = engine_.get();
+            config_ = old_config;
+            options_.rate = old_rate;
+            options_.block = old_block;
+            preferences_ = old_preferences;
+            app_engine_prepare_master_fade_in(active_);
+            start_audio();
+            start_midi();
+            if (rate_refused) refuse_rate();
+            throw Refusal("unavailable", "Stream change refused; previous configuration restored");
+        }
+    }
     if (type == "selectAudioDevice") {
         need(command.at("deviceId").is_string());
         auto id = command.at("deviceId").get<std::string>();
+        refresh_devices(true, true, id);
         auto count = std::count_if(audio_devices_.begin(), audio_devices_.end(),
                                    [&](const Json &d) { return d.at("id") == id; });
         need(count > 0, "not-found", "No such audio output");
         need(count == 1, "duplicate", "Ambiguous audio output name");
+        auto found =
+            std::find_if(audio_devices_.begin(), audio_devices_.end(), [&](const Json &d) { return d.at("id") == id; });
+        if (!found->value("supported", true)) {
+            if (found->value("unsupportedReason", std::string{}) == "rate-unsupported") refuse_rate();
+            throw Refusal("refused", found->value("unsupportedReason", std::string("unsupported")).c_str());
+        }
+        if (found->contains("sampleRates") && std::find((*found)["sampleRates"].begin(), (*found)["sampleRates"].end(),
+                                                        Json(options_.rate)) == (*found)["sampleRates"].end())
+            refuse_rate();
         need(options_.audio || options_.null_audio, "unavailable", "Audio device access is not authorized");
         auto old_device = device_;
         midi_->stop();
@@ -583,14 +783,16 @@ Json Session::apply(const Json &command) {
             start_midi();
             persist();
         } catch (...) {
+            const bool rate_refused = audio_reason_ == "rate-unsupported";
             midi_->stop();
             stop_audio();
             device_ = old_device;
             start_audio();
             start_midi();
+            if (rate_refused) refuse_rate();
             throw;
         }
-        refresh_devices();
+        refresh_devices(true, false);
         return nullptr;
     }
     if (type == "setMidiEnabled") {
@@ -617,7 +819,7 @@ Json Session::apply(const Json &command) {
             start_midi();
             throw;
         }
-        refresh_devices();
+        refresh_devices(false);
         return nullptr;
     }
     if (type == "panic") {
@@ -786,6 +988,7 @@ Json Session::audio_status() const {
                    {"latencyMs", 2. * options_.block / options_.rate * 1000},
                    {"cpuPercent", measured ? cpu : 0},
                    {"dropouts", dropouts_.load() + (stream_ ? stream_->dropouts() : 0)}};
+    if (!audio_reason_.empty()) result["reason"] = audio_reason_;
     return result;
 }
 Json Session::midi_status() const {
@@ -800,8 +1003,9 @@ Json Session::hello() const {
             {"type", "hello"},
             {"protocol", 0},
             {"engine", {{"version", "0.1.0"}, {"sha", WIRESCAPE_ENGINE_SHA}}},
-            {"capabilities", Json::array({"midiLearn", "telemetry.playhead"})},
+            {"capabilities", Json::array({"midiLearn", "telemetry.playhead", "setSampleRate", "setBufferFrames"})},
             {"catalogue", catalogue(catalogue_.get())},
+            {"audioDevices", audio_devices_},
             {"audio", audio_status()},
             {"midi", midi_status()}};
 }
@@ -857,10 +1061,12 @@ bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumera
     if (stream_ && (!stream_->running() || (enumerated && matches == 0))) {
         midi_->stop();
         stop_audio();
+        audio_reason_.clear(); // genuine device loss supersedes a prior refused setting
         audio_state_ = "device-lost";
         audio_backoff_ = std::chrono::milliseconds(100);
         audio_retry_ = now + audio_backoff_;
     } else if (!stream_) {
+        if (audio_reason_ == "rate-unsupported") return false;
         if (audio_state_ == "device-lost") audio_state_ = "reconnecting";
         if (now < audio_retry_) return previous != audio_state_;
         start_audio(now);
@@ -872,14 +1078,15 @@ bool Session::poll(std::chrono::steady_clock::time_point now) {
     observer_->expire_learning(now);
     auto old_audio = audio_devices_, old_midi = midi_devices_;
     if (midi_->enabled().empty()) observer_->endpoints();
-    // With a stream open, PortAudio is already initialised and enumeration is cheap.
-    // Without one, every call is a cold init, so space them out.
+    // Warm polling refreshes identities only: ALSA format probes can open a busy PCM.
+    // Without a stream every call is a cold init, so space those out.
     constexpr std::chrono::seconds kColdEnumeration{2};
     const bool warm = stream_ != nullptr || !options_.audio;
     const bool cold_due = !cold_enumeration_ || now - *cold_enumeration_ >= kColdEnumeration;
     if (!warm && cold_due) cold_enumeration_ = now;
-    const auto enumerated = refresh_devices(warm || cold_due);
+    const auto enumerated = refresh_devices(warm || cold_due, !warm);
     auto changed = poll_audio(now, enumerated);
     return changed || old_audio != audio_devices_ || old_midi != midi_devices_;
 }
 } // namespace wirescape::sidecar
+

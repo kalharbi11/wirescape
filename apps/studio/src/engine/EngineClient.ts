@@ -17,6 +17,12 @@ export interface Device {
   sampleRates?: number[];
   /** Audio: PortAudio host API (e.g. "Windows WASAPI"); the id is `hostApi|name[#n]`. */
   hostApi?: string;
+  /** Optional audio backend capabilities, supplied by the native device enumerator. */
+  backend?: string;
+  outputChannels?: number;
+  supported?: boolean;
+  unsupportedReason?: string;
+  defaultSampleRate?: number;
   enabled?: boolean;
   kind: 'audio' | 'midi';
 }
@@ -37,6 +43,8 @@ export interface MidiLearn {
 export interface SystemStatus {
   audio: {
     state: AudioState;
+    /** A refused hardware configuration; it does not imply device loss or retry. */
+    reason?: string;
     deviceId: string | null;
     deviceName: string | null;
     sampleRate: number;
