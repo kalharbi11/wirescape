@@ -47,7 +47,7 @@ struct Sequencer {
         ws::param("t2_run", "T2 Start", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 7, 4, 1),
         ws::param("t2_stop", "T2 Stop", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 8, 4, 1),
         ws::param("t2_mute", "T2 Mute", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 9, 4, 1)};
-    static constexpr uint32_t kTracks = 2, kSteps = 32, kParams = 10;
+    static constexpr uint32_t kTracks = 2, kSteps = 64, kParams = 10;
     struct NoteState {
         bool on = false;
         int32_t id = 0, key = 60;
@@ -57,7 +57,9 @@ struct Sequencer {
         NoteState sounding{}, pending{};
         float pitch = 0.f, mod1 = 0.f, mod2 = 0.f;
         uint32_t loop = 1;
+        uint32_t rng = 1;
         bool fired = false;
+        double gate_age = 0., gate_cutoff = 0.;
     };
 
     Config pattern{};
@@ -66,15 +68,21 @@ struct Sequencer {
     std::array<bool, kTracks> mod1_active{}, mod2_active{};
     double samples_per_step = 6000., phase = 0.;
     uint32_t step = 0;
+    std::array<uint32_t, kTracks> step_t{};
+    uint32_t rng_seed = 1;
     bool running = false, stop_queued = false, muted = false, reset_wait = false;
     int32_t next_id = 1;
 
     bool prepare(const ws::Setup &s) {
         if (!decode(s.config.data, s.config.bytes, pattern)) return false;
         samples_per_step = s.sample_rate() * 15. / pattern.bpm;
+        // The quiescent adapter carries the graph's stable numeric instance ID.
+        // Mixing the optional host seed adds repeatability without pointer or clock entropy.
+        rng_seed = pattern.instance_seed ^ static_cast<uint32_t>(s.config.seed) ^
+                   static_cast<uint32_t>(s.config.seed >> 32u);
         for (uint32_t t = 0; t < kTracks; ++t) {
             mod1_active[t] = mod2_active[t] = false;
-            for (uint32_t i = 0; i < kSteps && t < pattern.track_count; ++i) {
+            for (uint32_t i = 0; i < pattern.tracks[t].length && t < pattern.track_count; ++i) {
                 mod1_active[t] |= pattern.tracks[t].steps[i].mod1 != 0.f;
                 mod2_active[t] |= pattern.tracks[t].steps[i].mod2 != 0.f;
             }
@@ -90,12 +98,68 @@ struct Sequencer {
             players[t].armed = t < pattern.track_count && pattern.tracks[t].armed != 0;
             players[t].muted = t < pattern.track_count && pattern.tracks[t].mute != 0;
         }
+        for (uint32_t t = 0; t < kTracks; ++t) players[t].rng = seed_for(t);
         observed.fill(false);
         control_high.fill(false);
+        step_t.fill(0);
         running = stop_queued = muted = reset_wait = false;
         phase = 0.;
         step = 0;
         next_id = 1;
+    }
+
+    uint32_t seed_for(uint32_t track) const {
+        uint32_t x = rng_seed ^ (0x9e3779b9u * (track + 1u));
+        x ^= x >> 16u; x *= 0x7feb352du;
+        x ^= x >> 15u; x *= 0x846ca68bu;
+        x ^= x >> 16u;
+        return x ? x : 1u; // xorshift32 cannot start at zero.
+    }
+    static uint32_t next_random(uint32_t &state) {
+        state ^= state << 13u;
+        state ^= state >> 17u;
+        state ^= state << 5u;
+        return state;
+    }
+    bool condition_passes(const Step &row, Player &player) {
+        switch (row.cond_type) {
+        case Always: return true;
+        case Chance: {
+            const uint32_t sample = next_random(player.rng);
+            return static_cast<uint64_t>(sample) * 100u <
+                   static_cast<uint64_t>(row.cond_a) * (uint64_t{1} << 32);
+        }
+        case AB: return (player.loop - 1u) % row.cond_b == row.cond_a - 1u;
+        case First: return player.loop == 1u;
+        case NotFirst: return player.loop != 1u;
+        default: return false; // validated on the control thread.
+        }
+    }
+    uint32_t master_steps() const {
+        uint32_t longest = 0;
+        for (uint32_t t = 0; t < pattern.track_count; ++t) {
+            const auto &player = players[t];
+            if (player.playing || player.enter || player.armed)
+                if (pattern.tracks[t].length > longest) longest = pattern.tracks[t].length;
+        }
+        // A running transport with all tracks disarmed must still have a defined cycle.
+        if (!longest)
+            for (uint32_t t = 0; t < pattern.track_count; ++t)
+                if (pattern.tracks[t].length > longest) longest = pattern.tracks[t].length;
+        return longest;
+    }
+    double gate_duration(uint32_t track, uint32_t note_step) const {
+        const auto &pattern_track = pattern.tracks[track];
+        uint32_t last_gate = pattern_track.steps[note_step].gate_q;
+        uint32_t ties = 0;
+        for (uint32_t next = (note_step + 1u) % pattern_track.length;
+             ties + 1u < pattern_track.length &&
+             pattern_track.steps[next].kind == Tie;
+             next = (next + 1u) % pattern_track.length) {
+            ++ties;
+            last_gate = pattern_track.steps[next].gate_q;
+        }
+        return samples_per_step * (static_cast<double>(ties) + last_gate / 4.);
     }
 
     // NOLINTNEXTLINE(bugprone-easily-swappable-parameters): type and sample offset are distinct concepts.
