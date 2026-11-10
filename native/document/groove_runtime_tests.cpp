@@ -9,6 +9,7 @@
 #undef emit
 #include "../tests2/allocation_watch.h"
 #include "runtime_patch.h"
+#include "runtime_module_config.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -591,6 +592,115 @@ static void test_s1_refusals(AppEngine *cat) {
     }
 }
 
+
+static void test_v2_config_and_conditions(AppEngine *cat) {
+    using namespace groove;
+    Json v2 = {{"version", 2}, {"bpm", 120}, {"tracks", Json::array()}};
+    Json short_track = {{"length", 8}, {"steps", Json::array()}};
+    short_track["steps"].push_back({{"kind", "note"}, {"key", 60}, {"velocity", 1},
+        {"gate", 0.25}, {"mod1", 0.2}, {"cond", {{"type", "chance"}, {"p", 50}}}});
+    short_track["steps"].push_back({{"kind", "tie"}, {"gate", 0.75}});
+    Json long_track = {{"length", 64}, {"steps", Json::array()}};
+    long_track["steps"].push_back({{"kind", "note"}, {"key", 72}, {"velocity", 1},
+        {"cond", {{"type", "ab"}, {"a", 1}, {"b", 4}}}});
+    v2["tracks"].push_back(short_track);
+    v2["tracks"].push_back(long_track);
+    const auto converted = wirescape::document::runtime_module_config("sequencing.groove", v2, 17);
+    Config decoded;
+    check(decode(converted.data(), static_cast<uint32_t>(converted.size()), decoded), "v2 transient config validates");
+    check(decoded.version == 2 && decoded.instance_seed == 17 && decoded.track_count == 2 &&
+          decoded.tracks[0].length == 8 && decoded.tracks[1].length == 64 &&
+          decoded.tracks[0].steps[0].gate_q == 1 &&
+          decoded.tracks[0].steps[0].cond_type == Chance &&
+          decoded.tracks[0].steps[0].cond_a == 50 &&
+          decoded.tracks[0].steps[1].gate_q == 3 &&
+          decoded.tracks[1].steps[0].cond_type == AB &&
+          decoded.tracks[1].steps[0].cond_a == 1 &&
+          decoded.tracks[1].steps[0].cond_b == 4,
+          "v2 length, gate and condition fields map exactly");
+    const auto different = wirescape::document::runtime_module_config("sequencing.groove", v2, 18);
+    Config different_seed;
+    check(decode(different.data(), static_cast<uint32_t>(different.size()), different_seed) &&
+          different_seed.instance_seed != decoded.instance_seed,
+          "distinct graph instances keep independent deterministic seeds");
+
+    const auto legacy = wirescape::document::runtime_module_config("sequencing.groove", pattern(), 19);
+    Config migrated;
+    check(decode(legacy.data(), static_cast<uint32_t>(legacy.size()), migrated) &&
+          migrated.version == 2 && migrated.instance_seed == 0 &&
+          migrated.tracks[0].length == 32 &&
+          migrated.tracks[0].steps[0].gate_q == 4 &&
+          migrated.tracks[0].steps[0].cond_type == Always,
+          "authored v1 preserves 32-step, full-gate, unconditional semantics");
+    LegacyConfig native_v1;
+    native_v1.tracks[0].steps[0] = {Note, 72, 0.8f, 0.25f, 0.75f};
+    Config converted_v1;
+    check(decode(reinterpret_cast<const uint8_t *>(&native_v1), sizeof(native_v1), converted_v1) &&
+          converted_v1.tracks[0].steps[0].kind == Note &&
+          converted_v1.tracks[0].steps[0].key == 72 &&
+          converted_v1.tracks[0].steps[0].gate_q == 4,
+          "legacy transient v1 layout decodes without changing note fields");
+
+    auto refused = [&](const Json &candidate) {
+        std::string error;
+        check(!load(patch(candidate), cat, 48000, error) && !error.empty(),
+              "invalid Groove v2 candidate refused by real patch loader");
+    };
+    Json bad = v2;
+    bad["tracks"][0]["length"] = 12; refused(bad);
+    bad = v2;
+    bad["tracks"][0]["steps"][0]["gate"] = 0.3; refused(bad);
+    bad = v2;
+    bad["tracks"][0]["steps"][0]["cond"]["p"] = 100; refused(bad);
+    bad = v2;
+    bad["tracks"][0]["steps"][0]["cond"] = {{"type", "ab"}, {"a", 2}, {"b", 1}}; refused(bad);
+    bad = v2;
+    bad["tracks"][0]["steps"][1]["cond"] = {{"type", "first"}}; refused(bad);
+    bad = v2;
+    bad["tracks"][0]["steps"][0]["keys"] = Json::array({60, 64}); refused(bad);
+    bad = v2;
+    bad["tracks"][0]["steps"] = Json::array();
+    for (uint32_t i = 0; i < 9; ++i) bad["tracks"][0]["steps"].push_back({{"kind", "rest"}});
+    refused(bad);
+    bad = v2; bad["version"] = 3; refused(bad);
+    std::string error;
+    check(bool(load(patch(v2), cat, 48000, error)), "v2 accepted through the real native patch loader");
+
+    Sequencer seq;
+    seq.pattern = decoded;
+    seq.rng_seed = 12345;
+    seq.reset();
+    auto &p = seq.players[0];
+    Step cond = decoded.tracks[0].steps[0];
+    for (uint32_t loop = 1; loop <= 16; ++loop) {
+        p.loop = loop;
+        cond.cond_type = AB; cond.cond_a = 2; cond.cond_b = 4;
+        check(seq.condition_passes(cond, p) == ((loop - 1) % 4 == 1), "A:B repeats on track loops");
+        cond.cond_type = First;
+        check(seq.condition_passes(cond, p) == (loop == 1), "first condition");
+        cond.cond_type = NotFirst;
+        check(seq.condition_passes(cond, p) == (loop != 1), "not-first condition");
+    }
+    cond.cond_type = Chance; cond.cond_a = 50; cond.cond_b = 0;
+    p.rng = seq.seed_for(0);
+    uint32_t hits = 0;
+    for (uint32_t i = 0; i < 1000; ++i) hits += seq.condition_passes(cond, p);
+    check(hits >= 450 && hits <= 550, "fixed-seed 50 percent chance remains in bounded distribution band");
+    p.rng = seq.seed_for(0);
+    uint32_t replay = 0;
+    for (uint32_t i = 0; i < 1000; ++i) replay += seq.condition_passes(cond, p);
+    check(hits == replay, "chance RNG repeats after Reset/Start seed");
+    check(seq.seed_for(0) != seq.seed_for(1), "per-track chance streams are independent");
+    seq.players[0].playing = seq.players[1].playing = true;
+    check(seq.master_steps() == 64, "master cycle follows longest active track");
+    seq.players[1].playing = seq.players[1].armed = false;
+    check(seq.master_steps() == 8, "master cycle follows remaining shorter track");
+    seq.samples_per_step = 100;
+    bool shorter = false;
+    check(seq.gate_duration(0, 0, shorter) == 175. && shorter,
+          "the last tied step's three-quarter gate sets the release span");
+}
+
 int main() {
     try {
         ws_engine_config cfg{sizeof(cfg), 48000, 256, 64, 2048};
@@ -598,13 +708,14 @@ int main() {
         check(bool(cat), "native catalogue creation");
         test_refusals(cat.get());
         test_s1_refusals(cat.get());
+        test_v2_config_and_conditions(cat.get());
         test_s1_transport(cat.get());
         test_s1_deliberate_saturation();
         test_s1_many_cycles(cat.get());
         test_s1_engine_saturation_replan();
         for (double rate : {44100., 48000., 96000.})
             for (uint32_t block : {1u, 17u, 64u, 128u, 256u}) test_rate_block(cat.get(), rate, block);
-        std::puts("PASS Groove v1 config/refusal/save-reload/stopped/noalloc/32-step timing");
+        std::puts("PASS Groove v1 compatibility, v2 config/conditions, stopped/noalloc/clock");
     } catch (const std::exception &e) {
         std::fprintf(stderr, "FAIL Groove v1/S1: %s\n", e.what());
         return 1;
