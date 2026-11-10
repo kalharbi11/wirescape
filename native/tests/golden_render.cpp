@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "app_patch.h"
 #include "module_catalog.h"
+#include "runtime_module_config.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
@@ -159,7 +160,9 @@ int main(int argc, char **argv) {
                     config.seed = 42;
                     wirescape::engine2::Engine engine(config);
                     engine.register_producer();
-                    require(engine.add_node(1, descriptor) && (!has_signal || engine.output(1, signal, 0)) &&
+                    require(engine.add_node(1, descriptor,
+                                            runtime_module_config(descriptor->id, nlohmann::json::object(), 1)) &&
+                                (!has_signal || engine.output(1, signal, 0)) &&
                                 engine.prepare(),
                             "default module graph failed");
                     const auto digest = has_signal ? hash([&](float *out, uint32_t count) {
