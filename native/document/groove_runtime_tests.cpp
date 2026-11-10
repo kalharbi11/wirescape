@@ -741,7 +741,8 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
     const auto converted = wirescape::document::runtime_module_config("sequencing.groove", v2, 17);
     Config decoded;
     check(decode(converted.data(), static_cast<uint32_t>(converted.size()), decoded), "v2 transient config validates");
-    check(decoded.version == 2 && decoded.instance_seed == 17 && decoded.track_count == 2 &&
+    check(decoded.version == 2 && decoded.authored_version == 2 &&
+          decoded.instance_seed == 17 && decoded.track_count == 2 &&
           decoded.tracks[0].length == 8 && decoded.tracks[1].length == 64 &&
           decoded.tracks[0].steps[0].gate_q == 1 &&
           decoded.tracks[0].steps[0].cond_type == Chance &&
@@ -760,7 +761,8 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
     const auto legacy = wirescape::document::runtime_module_config("sequencing.groove", pattern(), 19);
     Config migrated;
     check(decode(legacy.data(), static_cast<uint32_t>(legacy.size()), migrated) &&
-          migrated.version == 2 && migrated.instance_seed == 0 &&
+          migrated.version == 2 && migrated.authored_version == 1 &&
+          migrated.instance_seed == 0 &&
           migrated.tracks[0].length == 32 &&
           migrated.tracks[0].steps[0].gate_q == 4 &&
           migrated.tracks[0].steps[0].cond_type == Always,
@@ -885,6 +887,21 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
     bool shorter = false;
     check(seq.gate_duration(0, 0, shorter) == 175. && shorter,
           "the last tied step's three-quarter gate sets the release span");
+    // Frozen S1 transport regression: v1 track re-entry still waits for the
+    // shared 32-step wrap, rather than G1 v2's new 16-step bar boundary.
+    Sequencer legacy_clock;
+    legacy_clock.pattern = migrated;
+    legacy_clock.reset();
+    legacy_clock.running = true;
+    legacy_clock.players[0].playing = false;
+    legacy_clock.players[0].armed = true;
+    legacy_clock.players[0].enter = true;
+    for (uint32_t i = 0; i < 16; ++i) legacy_clock.boundary(dummy, 0);
+    check(!legacy_clock.players[0].playing && legacy_clock.step == 16,
+          "authored v1 cannot start a track mid-way through its legacy 32-step cycle");
+    for (uint32_t i = 0; i < 16; ++i) legacy_clock.boundary(dummy, 0);
+    check(legacy_clock.players[0].playing && legacy_clock.step == 0,
+          "authored v1 track re-entry remains at its original 32-step wrap");
 }
 
 int main() {
