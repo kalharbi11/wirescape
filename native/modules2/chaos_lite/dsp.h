@@ -58,7 +58,7 @@ struct ChaosLite {
     bool prepare(const ws::Setup& s) {
         rate = static_cast<float>(s.sample_rate()); capacity = std::min<uint32_t>(s.max_channels(), 8u); seed = s.config.seed;
         comb_size = comb_length(rate); delay_size = delay_length(rate);
-        lfo_fade_length = std::max(1u, static_cast<uint32_t>(std::lround(rate * .01f)));
+        lfo_fade_length = std::max<uint32_t>(1u, static_cast<uint32_t>(std::lround(rate * .01f)));
         for (uint32_t c = 0; c < capacity; ++c) for (uint32_t side = 0; side < 2; ++side) {
             auto* comb = static_cast<float*>(s.alloc(3 * comb_size * sizeof(float), 32, WS2_LARGE));
             auto* delay = static_cast<float*>(s.alloc(delay_size * sizeof(float), 32, WS2_LARGE));
