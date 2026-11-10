@@ -178,6 +178,19 @@ static void lfo_shapes_and_legacy_state() {
                            new_state.begin() + 4 + c * (64 + 40)));
     }
     restored.run(256); // accepts a migrated old patch without changing old ID semantics
+    // A state captured mid-shape-switch at 96 kHz may have 959 samples
+    // of its 10 ms fade left; loading at 44.1 kHz must not reject it.
+    Rig high_rate(96000, 4);
+    high_rate.values[26] = 3.f;
+    high_rate.run(1);
+    const Bytes high_rate_state = high_rate.save();
+    Rig same_rate(96000, 4);
+    REQUIRE(same_rate.load(high_rate_state) == WS2_OK);
+    REQUIRE(same_rate.save() == high_rate_state);
+    Rig lower_rate(44100, 4);
+    REQUIRE(lower_rate.load(high_rate_state) == WS2_OK);
+    lower_rate.values[26] = 3.f;
+    lower_rate.run(256);
 }
 
 static int benchmark() {
