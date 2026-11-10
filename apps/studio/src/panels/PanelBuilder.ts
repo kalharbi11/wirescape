@@ -182,6 +182,9 @@ export class Panel {
   /** Repaint one parameter's widget, if it has one. */
   refreshParam(id: string): void {
     this.widgets.get(id)?.refresh();
+    // A manual knob/CC edit changes the current preset match even though
+    // the header selector is not a widget for that parameter ID.
+    this.widgets.get('preset.header')?.refresh();
     this.refreshVisibility();
     for (const p of this.panes) p.refresh?.();
   }
