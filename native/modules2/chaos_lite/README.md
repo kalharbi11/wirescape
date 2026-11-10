@@ -44,21 +44,3 @@ rejected without changing the current state. Jitter advances on an internal fixe
 
 `abi2_chaos_lite_tests --benchmark` measures a real engine graph with two instances ×
 four voices, 48 kHz/128, 10,000 timed blocks after warmup, without opening a device.
-
-
-## Additive internal LFO shapes (branch #532)
-
-`lfo_shape` is appended at slot **26** (0 Sine, original default;
-1 Triangle; 2 Sample & hold; 3 Smooth random). All original slots
-0–25, their ranges/units and old sound remain unchanged. The independent
-per-voice seeded random stream does not consume drift/jitter RNG samples.
-Smooth random continuously eases between seeded targets; S&H holds a new
-seeded value per internal LFO cycle. Live shape changes crossfade over
-10 ms. `lfo_rate`, `lfo_depth`, `lfo_self` and
-`lfo_target` keep their old meanings and ranges.
-
-New state version 2 persists the per-voice random LFO values and phase;
-old state version 1 is read and reconstructs new waveform state from
-the saved patch seed. This does not restore comb/delay tails (as before).
-Old patches omitted `lfo_shape` and therefore still use sine. This
-feature is not in older builds; do not use values 1–3 on those builds.
