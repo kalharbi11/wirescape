@@ -41,7 +41,7 @@ export function pasteBar(cfg: GrooveConfig, track: number, step: number, clipboa
   const start = barStart(step), end = Math.min(start + 16, trackLength(cfg, track));
   for (let i = start; i < end && i - start < clipboard.length; i++) {
     const target = stepFor(cfg, track, i);
-    for (const key of FIELDS) delete target[key];
+    for (const key of FIELDS) delete (target as Record<string, unknown>)[key];
     const src = clipboard[i - start]!;
     for (const key of FIELDS) if (src[key] !== undefined) {
       (target as Record<string, unknown>)[key] = copy(src[key]);
