@@ -145,7 +145,29 @@ or parameter IDs.
   Finite optional endpoints override the matching bipolar default; inverted and
   constant ranges are valid, existing smoothing still applies, and JSON persists
   the mapping. MIDI modules remain unavailable in the WebAssembly host; use
-  `host.keyboard` in browser patches. MIDI Learn stays separate UI-owned work.
+  `host.keyboard` in browser patches.
+- MIDI Learn (Studio on the desktop engine, #287): right-click a modulatable knob →
+  **MIDI Learn…**, move a controller, **Confirm** (Enter; Esc cancels; the engine
+  stops waiting after 30 s). Studio writes a free `midi.cc_to_cv` row
+  (`channel` = the captured one, or `0` with "any channel"; `controller`), cables
+  `ccN` → that knob as a modulation with amount `1`, and sends the edited patch as
+  one live replan. Until it settles, Studio shows "Applying MIDI Learn…" and
+  blocks patch edits, undo, cables and CC labels; rejection restores the old
+  patch and history before editing resumes. The row goes on a converter whose `midi.in` feed hears the
+  device that moved (`all_enabled`, or that exact `endpoint` + `system_name`); a
+  converter with no feed gets one in the same edit. Otherwise it adds a
+  `midi.cc_to_cv` module fed by a matching `midi.in` (a new one naming the device
+  when none hears it); unrelated routes are untouched. A device unplugged or
+  disabled before Confirm is refused. Wired but unconfigured outputs keep their
+  default CC n (explicit default rows fill the gap, never a hole). Re-learning a
+  mapped knob updates its row, or moves it to a new row when another knob shares
+  that row or its converter does not hear the new device. **Forget MIDI mapping**
+  removes only that knob's CC cable (and a now-unused last row). One undo step
+  each. Learned rows are ordinary `config.rows`, so a saved patch needs no
+  learn state. Modulation is added to the knob's own value, so a full sweep needs
+  the knob near its minimum (0..1 CC onto its range). The `CC n` label on the
+  module follows the learned controller (`ui.ccMap`, display only). Hand-edit
+  JSON is still fine; unavailable in the browser demo (no MIDI).
 - `essentials.vco` is a pure sine. Keep `frequency` 220 for concert tuning when pitch
   is connected (it is a ratio to 220; 261.63 plays three semitones sharp). Its `fm` input is additive Hz from a ±1 signal,
   so it only gives a few Hz of deviation. For audible FM, connect a modulator
@@ -366,6 +388,25 @@ for the editor to observe them. For example, a `t1_fired` signal may drive a gat
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
 
+## CHAOS-lite sound presets (#489; available after Studio PR merges)
+
+The `essentials.chaos_lite` card's **Presets** dropdown supplies eight
+repeatable starting sounds. The first four are from its native README:
+**Warm fifth** (smooth pair/fifth), **Bent wire** (delay bending), **Broken
+bell** (ring-mod strike), and **Slow weather** (slow body motion). The four
+Studio originals are **Basalt drone** (dark sustained comb), **Glass pluck**
+(bright short resonant note), **Iron rain** (metallic high partials), and
+**Tide choir** (slow stereo tonal movement).
+
+A choice sets **all** descriptor parameters to its values or their defaults,
+not merely the named subset, via the existing engine parameter path. Undo
+restores the previous parameter state in one step, and save/reload retains
+those numeric values without writing preset names or changing cables,
+module IDs, or unknown fields. A changed knob shows **Custom**. These are
+sound-design candidates, not separately approved/audio-auditioned patches:
+verify actual sound against the offline render/WAV evidence before claiming
+a preset's audio acceptance, and never infer DSP playback from FakeEngine
+control values alone.
 
 ## CHAOS atmospheric lab (experimental #530; not public until merged)
 
