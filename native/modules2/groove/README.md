@@ -34,8 +34,9 @@ low→high edge starts step 1. Pending NOTE_OFF blocks new NOTE_ON.
 Scalar IDs: `run` 0, `stop` 1, `reset` 2, `mute` 3,
 `t1_run/stop/mute` 4/5/6, `t2_run/stop/mute` 7/8/9.
 All are rising-edge commands after first-sample baseline. Global STOP queues to the longest active 8/16/32/64-step master cycle;
-track STOP queues to its own length, and track START to the next 16-step
-bar boundary. START arms/queues;
+track STOP queues to its own length, and new v2 track START enters at the
+next 16-step bar boundary. Authored v1 track START still enters only at its
+original 32-step cycle boundary. START arms/queues;
 MUTE releases immediately without losing phase; RESET releases and
 clears queues. Priority RESET > STOP > MUTE > START > step advance.
 All same-frame releases occur before any new NOTE_ON.
