@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include "wirescape/module2.h"
+
 #include <cstdint>
 #include <memory>
 #include <vector>

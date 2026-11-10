@@ -6,9 +6,9 @@ namespace wirescape::osc {
 int Host::deliver(void *context, uint32_t node, const ws2_event &event, uint64_t timestamp) noexcept {
     auto &self = *static_cast<Host *>(context);
     if (!self.engine_) return WS2_INVALID;
-    return app_engine_native(self.engine_).enqueue(
-        2, node, WS2_DIRECT_PORT, event, timestamp, engine2::Timing::Timestamped,
-        self.engine_generation_);
+    auto &graph = app_engine_native(self.engine_);
+    return graph.enqueue(2, node, WS2_DIRECT_PORT, event, timestamp, engine2::Timing::Timestamped,
+                         self.engine_generation_);
 }
 void Host::start(AppEngine *engine, const std::string &document) {
     stop();
@@ -39,7 +39,5 @@ void Host::stop() noexcept {
     engine_ = nullptr;
     engine_generation_ = 0;
 }
-std::vector<RouteState> Host::states() const {
-    return service_ ? service_->states() : std::vector<RouteState>{};
-}
+std::vector<RouteState> Host::states() const { return service_ ? service_->states() : std::vector<RouteState>{}; }
 } // namespace wirescape::osc

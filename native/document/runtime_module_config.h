@@ -136,8 +136,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
      // then copied as bounded private POD for the module's prepare() call.
      wirescape::osc::Configuration config;
      for (auto it = value.begin(); it != value.end(); ++it)
-         require(it.key() == "port" || it.key() == "lan" || it.key() == "rows",
-                 "Unknown OSC input setting");
+         require(it.key() == "port" || it.key() == "lan" || it.key() == "rows", "Unknown OSC input setting");
      if (value.contains("port")) {
          const auto &port = value.at("port");
          require(port.is_number_integer(), "OSC port must be an integer");
@@ -179,9 +178,8 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
                      const auto n = item.get<int64_t>();
                      require(n >= 0 && n < 32, "OSC argument index outside range");
                      dest.argument = static_cast<uint32_t>(n);
-                 } else if (name == "input_min" || name == "input_max" ||
-                            name == "output_min" || name == "output_max" ||
-                            name == "smoothing_ms" || name == "timeout_ms") {
+                 } else if (name == "input_min" || name == "input_max" || name == "output_min" ||
+                            name == "output_max" || name == "smoothing_ms" || name == "timeout_ms") {
                      require(item.is_number() && std::isfinite(item.get<double>()), "OSC row value must be finite");
                      const auto n = static_cast<float>(item.get<double>());
                      if (name == "input_min") dest.input_min = n;

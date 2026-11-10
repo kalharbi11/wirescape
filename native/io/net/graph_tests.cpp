@@ -41,8 +41,7 @@ int main() {
     GraphSink sink{engine.get()};
     wirescape::osc::Service service({&sink, GraphSink::deliver});
     REQUIRE(service.add({1, 0, false}) && service.start());
-    REQUIRE(service.states().size() == 1 &&
-            std::strcmp(service.states()[0].state, "listening") == 0);
+    REQUIRE(service.states().size() == 1 && std::strcmp(service.states()[0].state, "listening") == 0);
     wirescape::osc::Message message;
     message.address = "/pico1/knob/3";
     message.count = 1;
