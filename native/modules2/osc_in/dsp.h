@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
+// Some hosts define Qt's `emit` macro. Do not let it erase the SDK's
+// event-output method; restore the host macro on leaving this header.
+#ifdef emit
+#pragma push_macro("emit")
+#undef emit
+#define WIRESCAPE_OSC_RESTORE_EMIT
+#endif
 #include "../../io/osc/codec.h"
 #include "../../io/osc/pattern.h"
 #include "config.h"
@@ -113,7 +120,7 @@ struct OscIn {
             ++sequence;
         }
         for (uint32_t r = 0; r < 8; ++r) {
-            b.out(r).set_channels(std::max(1u, rows[r].count));
+            b.out(r).set_channels(std::max<uint32_t>(1, rows[r].count));
             b.out(r).mark_constant(false);
         }
         b.out(8).set_channels(0);
@@ -121,7 +128,7 @@ struct OscIn {
         b.split(
             [&](uint32_t first, uint32_t end) {
                 for (uint32_t r = 0; r < 8; ++r)
-                    for (uint32_t c = 0; c < std::max(1u, rows[r].count); ++c) {
+                    for (uint32_t c = 0; c < std::max<uint32_t>(1, rows[r].count); ++c) {
                         auto &v = rows[r].voices[c];
                         const auto &cfg = config.rows[r];
                         for (uint32_t i = first; i < end; ++i) {
@@ -154,7 +161,7 @@ struct OscIn {
                         auto &v = row.voices[c];
                         if (cfg.kind == 2) {
                             if (row.triggers++ < 64) {
-                                v.pulse = std::max(1u, uint32_t(std::ceil(rate * .001)));
+                                v.pulse = std::max<uint32_t>(1, uint32_t(std::ceil(rate * .001)));
                                 v.seen = b.frame_position() + e.offset;
                             } else ++statistics->dropped;
                             continue;
@@ -192,3 +199,7 @@ struct OscIn {
     }
 };
 } // namespace wirescape::osc
+#ifdef WIRESCAPE_OSC_RESTORE_EMIT
+#pragma pop_macro("emit")
+#undef WIRESCAPE_OSC_RESTORE_EMIT
+#endif

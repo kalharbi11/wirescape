@@ -205,7 +205,7 @@ test.describe('the catalogue', () => {
     await boot(page);
     const report = await page.evaluate(async () => {
       const t = window.__wirescapeTest;
-      const out: { id: string; knobs: number; controls: number; ports: number; params: number }[] = [];
+      const out: { id: string; knobs: number; controls: number; ports: number; descriptorPorts: number; params: number }[] = [];
       for (const m of t.registry.all) {
         t.load({
           format: 'wirescape.native.patch', version: 2,
@@ -218,6 +218,7 @@ test.describe('the catalogue', () => {
           knobs: card?.querySelectorAll('.knob-unit').length ?? 0,
           controls: card?.querySelectorAll('.knob-unit,.segmented,.toggle,.input-select,.control-readout,.control-fader,.control-number').length ?? 0,
           ports: card?.querySelectorAll('.port').length ?? 0,
+          descriptorPorts: m.ports.length,
           params: m.parameters.length,
         });
       }
@@ -226,8 +227,8 @@ test.describe('the catalogue', () => {
 
     expect(report).toHaveLength(30);
     expect(report.some(r => r.id === 'essentials.quantizer')).toBe(true);
-    expect(report.find(r => r.id === 'osc.in')).toMatchObject({ ports: 9, params: 0 });
-    expect(report.find(r => r.id === 'monitor')).toMatchObject({ ports: 3, params: 0 });
+    expect(report.find(r => r.id === 'osc.in')).toMatchObject({ ports: 4, descriptorPorts: 9, params: 0 });
+    expect(report.find(r => r.id === 'monitor')).toMatchObject({ ports: 3, descriptorPorts: 3, params: 0 });
     expect(report.some(r => r.id === 'sequencing.groove')).toBe(true);
     expect(report.some(r => r.id === 'fx.delay')).toBe(true);
     expect(report.some(r => r.id === 'fx.reverb')).toBe(true);

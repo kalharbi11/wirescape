@@ -92,7 +92,7 @@ struct Monitor {
             entry.type = e.type;
             entry.key = code;
             if (e.type == WS2_MIDI) {
-                entry.bytes = std::min(4u, e.ump_words) * 4;
+                entry.bytes = std::min<uint32_t>(4, e.ump_words) * 4;
                 std::memcpy(entry.payload, e.ump, entry.bytes);
             } else if (e.type == WS2_MESSAGE) {
                 const uint32_t n = std::min<uint32_t>(e.bytes, sizeof(entry.payload));
