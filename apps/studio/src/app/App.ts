@@ -939,12 +939,7 @@ export class App {
     }, 'Forget MIDI mapping');
   }
 
-  /**
-   * Learn/Forget replan is atomic with respect to authored edits. Keel #500:
-   * while it is pending, refuse edits rather than try to invert changes made
-   * to new CC modules/rows by other gestures. Do not release the UI lock until
-   * a refused load's restoration replan has also settled.
-   */
+  /** Keel #500: serialize Learn/Forget and its recovery replan with all document edits. */
   private applyLearn(change: () => { message: string } | null, what: string): void {
     if (this.documentBusy) return;
     const restoreHistory = this.history.checkpoint();
@@ -975,8 +970,7 @@ export class App {
         return;
       }
       const reason = `${what} was refused: ${err.message}`;
-      // An external restart can supersede the replan. Never restore the old
-      // document over a newer one if its view or edit target has changed.
+      // A restarted engine must not restore a document belonging to another view.
       if (this.viewEpoch !== epoch || this.editEngine() !== engine) {
         this.toasts.show(reason, 'error');
         return;
@@ -994,8 +988,7 @@ export class App {
       }
       this.toasts.show(`${reason}. It was taken back out of the patch.`, 'error');
     }).finally(() => {
-      // The read and view epochs remain guarded by beginDocumentOperation.
-      this.learnSettled = null;
+        this.learnSettled = null;
       this.learnApplyingEl.hidden = true;
       this.learnApplyingEl.style.display = 'none';
       this.endDocumentOperation();
