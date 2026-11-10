@@ -25,7 +25,7 @@ struct Rig {
     ws2_host host{sizeof(host), &arena, Arena::alloc};
     const ws2_descriptor* descriptor = ws::Module<chaos_lite::ChaosLite>::descriptor();
     void* instance = nullptr;
-    static constexpr uint32_t max_frames = 256, max_channels = 16, parameters = 26;
+    static constexpr uint32_t max_frames = 256, max_channels = 16, parameters = 27;
     struct Buffers { float out[2][max_channels][max_frames]{}; };
     std::unique_ptr<Buffers> buffers = std::make_unique<Buffers>();
     float input_values[4][max_channels]{};
@@ -133,6 +133,52 @@ static void components() {
     bad[20] = 0; bad[21] = 0; bad[22] = 0xc0; bad[23] = 0x7f;
     REQUIRE(r.load(bad) == WS2_INVALID); REQUIRE(r.save() == prior);
 }
+static void lfo_shapes_and_legacy_state() {
+    // Every waveform must be independent of the host's process block cuts.
+    // Use fast enough modulation to cross multiple seeded random cycles.
+    for (double rate : {44100., 48000., 96000.}) {
+        for (uint32_t shape = 0; shape < 4; ++shape) {
+            Rig whole(rate, 4), cut(rate, 4);
+            whole.values[26] = cut.values[26] = static_cast<float>(shape);
+            whole.values[20] = cut.values[20] = 12.f;
+            whole.values[21] = cut.values[21] = .6f;
+            REQUIRE(render(whole, 256) == render(cut, 17));
+            for (uint32_t k = 0; k < 24; ++k) {
+                whole.run(256); cut.run(256);
+            }
+            REQUIRE(whole.save() == cut.save());
+        }
+    }
+    // A live switch returns to sine without clicks from stale random state;
+    // default zero still renders through the unchanged sine path.
+    Rig switched;
+    switched.run(256);
+    for (uint32_t shape : {3u, 2u, 1u, 0u}) {
+        switched.values[26] = static_cast<float>(shape);
+        for (uint32_t k = 0; k < 12; ++k) switched.run(256);
+    }
+    // Load an authentic v1 byte layout (64 bytes per voice) extracted from
+    // the preserved prefix of v2. v1 has no LFO random generator/shape data.
+    Rig original;
+    original.run(256);
+    const Bytes modern = original.save();
+    REQUIRE(modern.size() == 4 + 8 * (64 + 40));
+    Bytes legacy{1u, 0u, 0u, 0u};
+    for (uint32_t c = 0; c < 8; ++c) {
+        const size_t offset = 4 + c * (64 + 40);
+        legacy.insert(legacy.end(), modern.begin() + offset, modern.begin() + offset + 64);
+    }
+    Rig restored;
+    REQUIRE(restored.load(legacy) == WS2_OK);
+    const Bytes new_state = restored.save();
+    for (uint32_t c = 0; c < 8; ++c) {
+        REQUIRE(std::equal(legacy.begin() + 4 + c * 64,
+                           legacy.begin() + 4 + (c + 1) * 64,
+                           new_state.begin() + 4 + c * (64 + 40)));
+    }
+    restored.run(256); // accepts a migrated old patch without changing old ID semantics
+}
+
 static int benchmark() {
     using namespace wirescape::engine2;
     Config config; config.max_block = 128; config.max_channels = 4; config.seed = 42;
@@ -156,5 +202,5 @@ static int benchmark() {
 }
 int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark();
-    matrix(); state_and_extremes(); components(); std::puts("CHAOS-lite callback matrix/state/extremes/allocation checks passed");
+    matrix(); state_and_extremes(); components(); lfo_shapes_and_legacy_state(); std::puts("CHAOS-lite callback matrix/state/extremes/allocation checks passed");
 }
