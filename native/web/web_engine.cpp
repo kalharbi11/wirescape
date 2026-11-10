@@ -135,7 +135,7 @@ struct Web {
         candidate = execution(std::move(candidate));
         std::string error;
         wirescape::document::telemetry::Sampler next_telemetry(
-            wirescape::document::telemetry::plan(candidate, catalogue.get(), /*phase_enabled=*/true));
+            wirescape::document::telemetry::plan(candidate, catalogue.get(), /*phase_enabled=*/true, /*groove_enabled=*/true));
         using wirescape::document::load_runtime_patch;
         Owner next(load_runtime_patch(candidate.dump(), catalogue.get(), config, error, &next_telemetry.taps()),
                    app_engine_destroy);

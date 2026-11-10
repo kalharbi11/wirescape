@@ -78,7 +78,7 @@ export class WebBridge implements WirescapeBridge {
     const latencyMs = Math.round(((context.baseLatency || 0) + (context.outputLatency || 0)) * 10000) / 10;
     this.hello = {
       v: 0, type: 'hello', session: this.session, protocol: 0,
-      engine: { version: 'web', sha: 'wasm' }, capabilities: [], catalogue,
+      engine: { version: 'web', sha: 'wasm' }, capabilities: ['telemetry.playhead'], catalogue,
       audio: {
         state: 'running', deviceId: 'browser', deviceName: 'Browser audio', sampleRate: context.sampleRate,
         bufferFrames: 128, latencyMs, cpuPercent: 0, dropouts: 0,
@@ -158,6 +158,7 @@ export class WebBridge implements WirescapeBridge {
           scope: t.scope ?? {}, eventActivity: t.eventActivity ?? {}, meters: t.meters ?? {},
           heldNotes: t.heldNotes ?? [],
           outputs: t.outputs ?? {},
+          playhead: t.playhead ?? {}, groove: t.groove ?? {},
         },
       });
     } else if (m.kind === 'failed') {

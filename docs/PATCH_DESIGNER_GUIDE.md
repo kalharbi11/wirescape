@@ -311,3 +311,17 @@ For a longer pattern set `length:16`, author `pitch16` (octaves), `gate16`
 `pitch`/`gate`/`velocity` to an instrument. Shortened patterns retain inactive
 values through edit/undo/save; native/WASM version compatibility remains #405's
 contract. UI/FakeEngine preview alone does not prove DSP or audible playback.
+
+## Groove observation outputs (PR #501)
+
+Groove observation outputs append to its existing pitch/gate/mod/notes ports:
+`t1_pos` and `t2_pos` report 0-based steps while active and -1 only after the global
+transport, the track and all owed note releases finish. Mute and STOP request acknowledgement
+do not mean fully stopped. `t1_fired`/`t2_fired` are 0/1 condition results
+(including a passed trig's continued ties). Exact per-track uint32 loop counts
+use paired `t1_loop_lo`/`t1_loop_hi` and `t2_loop_lo`/`t2_loop_hi` signals,
+each 0..65535; reconstruct as `lo + 65536 * hi`. These ports are patchable,
+but primarily support the engine's measured editor telemetry; no cable is needed
+for the editor to observe them. For example, a `t1_fired` signal may drive a gate
+input to visualize a passed note condition. It is an observation held for the
+step, not an extra note-event route. All original port IDs/order remain stable.
