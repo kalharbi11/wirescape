@@ -134,6 +134,13 @@
 .g-roll-cell.skip { opacity: .28; }
 .g-roll-cell.chg::after { content: ''; position: absolute; width: 4px; height: 4px; left: 1px; top: 1px;
   border-radius: 50%; background: var(--rust, #c2501f); }
+.g-rch { position: absolute; bottom: calc(100% + 1px); left: 0; z-index: 3; white-space: nowrap;
+  font: 600 9px var(--mono, monospace); color: var(--graph, #2e2e2d);
+  background: var(--card, #fff); pointer-events: none; padding: 0 2px; }
+.g-toast { align-self: flex-start; position: sticky; bottom: 8px; z-index: 5;
+  font: 11px var(--mono, monospace); color: var(--graph, #2e2e2d);
+  background: var(--card, #fff); border-radius: 4px; }
+.g-toast:empty { display: none; }
 .g-rcond { position: absolute; top: 1px; right: 1px; font: 6.5px var(--mono, monospace); color: var(--n-fg); }
 @media (max-width: 759px) {
   .groove-pane { --g-pad: clamp(30px, calc((100vw - 60px) / 8), 41px);
