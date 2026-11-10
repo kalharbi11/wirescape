@@ -27,6 +27,8 @@ export interface KnobOptions {
   param: ModuleParam;
   moduleId: number;
   tier: KnobTier;
+  /** A compact, descriptor-bound copy of the same parameter on the CHAOS strip. */
+  variant?: 'performance';
   getValue(): number;
   /** `commit` is false during a drag and true when the gesture ends. */
   setValue(v: number, commit: boolean): void;
@@ -79,7 +81,7 @@ export class Knob {
     this.root = el('div', `knob-unit tier-${o.tier}`);
     this.root.dataset.param = p.id;
     this.root.dataset.modulatable = String(p.modulatable);
-    this.root.dataset.testid = `knob-${o.moduleId}-${p.id}`;
+    this.root.dataset.testid = `${o.variant === 'performance' ? 'performance-' : ''}knob-${o.moduleId}-${p.id}`;
 
     const wrap = el('div', 'dial-wrap');
     wrap.style.width = wrap.style.height = `${g.sz}px`;
@@ -160,7 +162,7 @@ export class Knob {
     labels.append(this.labelEl);
     this.readout = el('button', 'control-readout') as HTMLButtonElement;
     this.readout.type = 'button';
-    this.readout.dataset.testid = `readout-${o.moduleId}-${p.id}`;
+    this.readout.dataset.testid = `${o.variant === 'performance' ? 'performance-' : ''}readout-${o.moduleId}-${p.id}`;
     this.readout.title = 'Click to type a value';
     this.liveEl = el('div', 'knob-live');
     labels.append(this.readout, this.liveEl);
@@ -187,7 +189,7 @@ export class Knob {
       })),
       sum: () => pct(valueToNorm(this.travel, this.live) - valueToNorm(this.travel, this.o.getValue())),
       result: () => this.shown(this.live),
-    }, o.ticker, `info-${o.moduleId}-${p.id}`);
+    }, o.ticker, `${o.variant === 'performance' ? 'performance-' : ''}info-${o.moduleId}-${p.id}`);
 
     this.refresh();
     this.unbind = o.ticker.bind(o.moduleId, t => {
@@ -278,6 +280,8 @@ export class Knob {
   }
 
   private shown(value: number): string {
+    // The performance strip shows the exact saved value, not a rounded macro position.
+    if (this.o.variant === 'performance') return `${value}${this.o.param.unit ? ` ${this.o.param.unit}` : ''}`;
     if (this.o.musical === 'vco') {
       return this.pitchWasConnected ? formatVcoTune(value) : formatBaseHz(value);
     }
@@ -357,7 +361,7 @@ export class Knob {
     const input = el('input', 'readout-input') as HTMLInputElement;
     input.value = this.o.musical === 'vco' && this.pitchWasConnected
       ? formatVcoTune(this.o.getValue()) : displayValue(p, this.o.getValue());
-    input.dataset.testid = `readout-input-${this.o.moduleId}-${p.id}`;
+    input.dataset.testid = `${this.o.variant === 'performance' ? 'performance-' : ''}readout-input-${this.o.moduleId}-${p.id}`;
     input.setAttribute('aria-label', `${p.name} value`);
     this.readout.replaceWith(input);
     input.focus(); input.select();
