@@ -1,56 +1,55 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-10, Codex Lead round. Owner failures preempt features.
-Exact-head completed evidence governs; pending, historical and missing results never pass.
+**Updated:** 2026-11-10, Codex Lead quick live-queue pass.
+Current-head completed evidence governs; queued, historical and missing checks never pass.
 
 ## Authority and queue
-- Board #473 and its SEND THESE comment are the live claim source; retain fresh claims.
-- Owner/Keel lifted the hold for Chord, MIDI Learn, OSC and Groove; other new starts wait.
-- Codex Lead/Coda share senior routing/fix authority per owner. T2 still requires the other
-  model family; Keel-only ABI/SDK/spec/CI-policy authority is unchanged.
-- Chord #403/#511 and Notes→CV #421/#512 may merge independently. Preserve both registrations.
-  Keel: explicit identity reuse is last-wins. Coda: Notes→CV anonymous offs are FIFO.
-- #517 reconciles Notes→CV task to FIFO and ≤18 files; ≤900 lines/tests unchanged.
-- MIDI #500: Keel gen-based3s/10s/restart ruling posted; repair builder resumed.
-  Forget stale-hint fix/test pushed. Scope1250/16; never guess unknown graph state.
-- OSC #72: active A builder task/72-osc-slice-a → B sidecar host/consent → C Studio/Monitor.
-  Keel's gen/lifetime/localhost/observation ruling governs; B/C cross-family T2. #94 follows its task; codec-only prep may follow A.
-- Groove #505 merged9ff49fd after required/task/Web/Pi and Keel approval;
-  Claude509/516 may normally merge that main now.
-- #509 G2a → #516 G2b retain UI builder; malformed tracks must not recurse/throw.
-  Scale persists only in ui.groove[id]; engine config stays version/bpm/tracks.
-- Claude UI builder owns both509/516 with normal non-force pushes, then G4b/G5b
-  on claude/adoring-shannon-viv6lm; dedicated T1 task527. No duplicate UI writer.
-- Native526 has one builder G4a→G5a afterG1; keys rootfirst, no q; div1/2/4/8, cycle512.
+- Board #473 and newest SEND THESE comment are the live claim source; retain fresh claims.
+- Owner/Keel ASAP lanes: Chord, MIDI Learn, OSC and Groove. Other new features wait.
+- Codex Lead/Coda share senior routing; T2 requires the other model family.
+  Keel-only ABI/SDK/spec/CI-policy authority remains unchanged.
+- Chord #403/#511 and Notes→CV #421/#512 may merge independently; preserve registrations.
+  Explicit note identity reuse is last-wins; anonymous Notes→CV releases are FIFO.
+- #517 reconciles Notes→CV to FIFO and <=18 files/900 lines, retaining tests.
+- #511 at1c96ceb: task/Linux/sanitizers pass; inherited Groove emit-guard Static failure
+  and Windows seed-278 wake overrun remain. #552/#553 supplies strict guard repair.
+  Integrate after merge; Keel classifies scheduling recurrence under #513, no weaker limit.
+- #512 at7f16d17: reported exact hosted green, but branch conflicts. Existing writer
+  integrates main; independent changed-head T1 and actual Pi module CTest/ruling remain.
+- Native Groove #526/#528 atcdc474f: non-draft and mergeable, Claude T2 COMMENT and
+  actual Pi Groove CTests present. Exact-head workflow lookup empty: verify hosted gates.
+- Groove UI #527/#534 at3ca6113: draft/conflicted on merged #516 parent.
+  Claude retains claude/adoring-shannon-viv6lm; normally integrate/retarget to main.
+  Fix untouched-config tests, existing-key double-click deletion and held-chord cleanup
+  on blur/hidden/focusout with regression. Preserve native #528 dependency.
+  Scale stays in ui.groove[id]; native keys root-first, div1/2/4/8, cycle512.
+- OSC #72: A/#518 merged. B/#529 already claimed on task/529-osc-host; resume host
+  lifecycle/consent outside specs. Keel must authorize ENGINE_PROTOCOL.md on #529.
+  C follows B; cross-family T2. #94 follows complete J5 per its task, not A alone.
+- #551 Chromium acceptance fix: narrow T0 source reviewed; conflicting, missing
+  Windows/Web evidence. Existing writer integrates main and reruns full acceptance.
+- #553 atef3294b: strict emit guard source reviewed, no findings; required/Static
+  checks incomplete at review, Windows absent. No approval until final evidence.
 
 ## Completed baseline and owner evidence
-- Merged: #486 compile repair, #484 planner, #461 saturation, #480 refused draft,
-  #494 Pi smoke, #492 Macro names, #453 Pi guide, #501 G3, #504 setup,
-  #506 workflow, #507 patch library and #508 module tasks.
-- Earlier Phase 1/native/Windows/cleanup evidence remains in PLAN and merged handoffs.
+- Newly verified merged: #399 device routes, #500 MIDI Learn, #505 G1, #509 G2a,
+  #516 G2b, #518 OSC A, #520 scheduler, #533 CHAOS LFO and #546 curated layout.
+- Earlier merged: #486, #484, #461, #480, #494, #492, #453, #501, #504, #506–#508.
 - #453 pins AcceptedSha cd7999e4a02308df0db918cfbab6974b97b6782f under Keel's
-  docs-only transfer ruling: private pi5/accept 42720681421, preflight 28/28 and
-  ARM64 Electron/native smoke passed. #483 closed; later main is not certified by it.
-- Owner next: PI_FRESH_INSTALL sections 1–6 + #271 Pi portion. Windows first session
-  already verified WASAPI headphones, keyboard and Launchkey at 48k/256.
-- #271 hardware, #274 display/performance and #296 actual 3600-second soak stay separate.
+  docs-only transfer: private pi5/accept42720681421, preflight28/28 and app smoke pass.
+  #483 closed; later main is not certified by that evidence.
+- Owner next: PI_FRESH_INSTALL sections1–6 and #271 Pi portion. Windows first session
+  verified WASAPI headphones, keyboard and Launchkey at48k/256.
+- #271 hardware, #274 display/performance, #296 actual3600-second soak remain distinct.
 
-## Closeout and review gates
-- #399 headf36c85f normally integrates main9ff and scheduler;16 Python tests pass,
-  device/probe logic unchanged; fresh required/task/Web/Pi gates. D5 #487 separate.
-- Scheduler #520 mergedc90e3bf with Keel approval; Pi non-gate per explicit ruling.
-  NativeG1 main9ff includes it; deadlines/zero-overrun assertions unchanged.
-- #522: authorized Studio/native WAV task added; exact acceptance pending.
-- #518/#525: slice-A task now authorized; parent72 stays open for B/C.
-- #482 R3a head 9d6658d: exact required CI 42757266679 green; Windows 102/102 and
-  frozen Qt/current renderer comparison pass. Independent Claude T2 review remains.
-- R3b needs mapped replacements and scoped deletion authority; archive/qt-final is
-  annotated once on actual merge parent. No deletion/hash rebaseline in R3a.
-- #481 R4 follows full R3b; R6 ABI1 #470 stays Keel-led and separate.
-- #511 regressions/native tests pass; final G1 adapter union underway. #512 head10f19a8
-  per-voice/FIFO/reset native tests pass; Studio/hosted/Pi pending. #500 bounded recovery
-  repair+tests underway. Native526/528 focused chord/speed/golden tests pass, draft pending.
-- Unclaimed parallel builder529: OSC host B after518; no Groove UI files. #482 needs Claude.
-- Permanent: required guard/Linux/Windows/sanitizers + task/Web/WASM/Pi as applicable.
-  No force-push, direct main commits, devices/SSH, assertions removed or thresholds weakened.
+## Closeout and evidence limits
+- #482 R3a: frozen Qt/current renderer equality and independent review; no deletion
+  or hash rebaseline. R3b needs replacement map/scoped authority and archive/qt-final
+  annotated once on actual merge parent. #481 R4 follows full R3b; #470 R6 is Keel-led.
+- #543/#544/#547/#548/#549 retain existing writers; close acceptance/review gates.
+- Local checkout29611d2: acceptance-tool tests2/2, doc links2/2, all15 shared patches
+  structurally pass. Doctor stops: CMake absent; no native/newer-head acceptance claimed.
+- #519 carries this state refresh; normal main integration and exact-head checks remain.
+- Permanent: guard/Linux/Windows/sanitizers + task/Web/WASM/Pi as applicable.
+  No direct main commits, force pushes, devices/SSH or weakened assertions/thresholds.
