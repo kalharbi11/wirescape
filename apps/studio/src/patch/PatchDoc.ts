@@ -213,14 +213,12 @@ export class PatchDoc {
     return Array.isArray(rows) ? rows.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object') : [];
   }
 
-  /** Replace a CC module's rows, keeping every other config key it carries. */
-  setCcRows(id: number, rows: Record<string, unknown>[]): void {
+  /** Replace a module's whole `config` (absent when `undefined`); Learn's rows and their inverse. */
+  setConfig(id: number, config: unknown): void {
     const m = this.modules.get(id);
-    if (!m || m.module !== 'midi.cc_to_cv') return;
-    const current = m.config;
-    const config = current && typeof current === 'object' && !Array.isArray(current)
-      ? current as Record<string, unknown> : {};
-    m.config = { ...config, rows: structuredClone(rows) };
+    if (!m) return;
+    if (config === undefined) delete m.config;
+    else m.config = structuredClone(config) as typeof m.config;
     this.emit({ t: 'config', id });
   }
 

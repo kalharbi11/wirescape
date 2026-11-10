@@ -134,13 +134,18 @@ or parameter IDs.
   `host.keyboard` in browser patches.
 - MIDI Learn (Studio on the desktop engine, #287): right-click a modulatable knob →
   **MIDI Learn…**, move a controller, **Confirm** (Enter; Esc cancels; the engine
-  stops waiting after 30 s). Studio writes the next free `midi.cc_to_cv` row
+  stops waiting after 30 s). Studio writes a free `midi.cc_to_cv` row
   (`channel` = the captured one, or `0` with "any channel"; `controller`), cables
   `ccN` → that knob as a modulation with amount `1`, and sends the edited patch as
-  one live replan. With no free row it adds a `midi.cc_to_cv` module (plus a
-  `midi.in` feeding it when the patch has none); wired but unconfigured outputs
-  keep their default CC n (explicit default rows fill the gap, never a hole).
-  Learning a knob that is already mapped updates its row. **Forget MIDI mapping**
+  one live replan. The row goes on a converter whose `midi.in` feed hears the
+  device that moved (`all_enabled`, or that exact `endpoint` + `system_name`); a
+  converter with no feed gets one in the same edit. Otherwise it adds a
+  `midi.cc_to_cv` module fed by a matching `midi.in` (a new one naming the device
+  when none hears it); unrelated routes are untouched. A device unplugged or
+  disabled before Confirm is refused. Wired but unconfigured outputs keep their
+  default CC n (explicit default rows fill the gap, never a hole). Re-learning a
+  mapped knob updates its row, or moves it to a new row when another knob shares
+  that row or its converter does not hear the new device. **Forget MIDI mapping**
   removes only that knob's CC cable (and a now-unused last row). One undo step
   each. Learned rows are ordinary `config.rows`, so a saved patch needs no
   learn state. Modulation is added to the knob's own value, so a full sweep needs

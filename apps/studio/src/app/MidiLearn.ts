@@ -78,7 +78,7 @@ export class MidiLearn {
     if (!target || !o) return;
     const anyChannel = this.any.checked;
     this.close();
-    this.host.commit(target, { channel: o.channel, controller: o.controller }, anyChannel);
+    this.host.commit(target, { deviceId: o.deviceId, channel: o.channel, controller: o.controller }, anyChannel);
   }
 
   destroy(): void { this.close(); this.off(); }

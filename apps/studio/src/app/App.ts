@@ -84,6 +84,7 @@ export class App {
   private octaveEl!: HTMLElement;
   private lastStatus: SystemStatus | null = null;
   private learn!: MidiLearn;
+  private learnEpoch = -1;
   private fileInput!: HTMLInputElement;
   private history!: History;
   private undoBtn!: HTMLButtonElement;
@@ -154,7 +155,7 @@ export class App {
     this.canvas = new PatchCanvas({
       midiLearn: {
         available: () => this.learn.available(),
-        begin: (m, p) => this.learn.begin(m, p),
+        begin: (m, p) => { this.learnEpoch = this.viewEpoch; this.learn.begin(m, p); },
         mapped: (m, p) => learnedCables(this.doc, { module: m, param: p }).length > 0,
         forget: (m, p) => this.forgetLearn({ module: m, param: p }),
       },
@@ -909,36 +910,71 @@ export class App {
   }
 
   private learnServices(): LearnServices {
-    return {
-      doc: this.doc,
-      allocateId: () => this.allocateId(),
-      reload: previous => {
-        void this.engine.loadGraph(this.doc.toJSON()).catch(err => {
-          this.doc.replace(previous);
-          void this.engine.loadGraph(previous);
-          this.toasts.show(err instanceof Error ? err.message : 'The engine refused that change.', 'error');
-        });
-      },
-    };
+    return { doc: this.doc, allocateId: () => this.allocateId(), devices: () => this.lastStatus?.midi.devices ?? [] };
   }
 
-  /** MIDI Learn confirmed (#287): write the CC row, cable it onto the knob, one undo step. */
+  /** MIDI Learn confirmed (#287): write the CC row, feed and cable onto the knob, one undo step. */
   private commitLearn(target: LearnTarget, capture: LearnCapture, anyChannel: boolean): void {
-    try {
+    if (this.learnEpoch !== this.viewEpoch) {
+      this.toasts.show('The patch changed while learning; nothing was mapped.', 'error');
+      return;
+    }
+    this.applyLearn(() => {
       const r = commitLearn(this.learnServices(), target, capture, anyChannel);
       const note = r.notes.length ? ` (${r.notes.join('; ')})` : '';
-      this.toasts.show(`CC ${capture.controller} learned${note}.`);
-    } catch (err) {
-      this.toasts.show(err instanceof EngineRefusal || err instanceof Error ? err.message : 'MIDI Learn failed.', 'error');
-    }
+      return { revert: r.revert, message: `CC ${capture.controller} learned${note}.` };
+    }, 'MIDI Learn');
   }
 
   private forgetLearn(target: LearnTarget): void {
-    try {
-      if (forgetLearn(this.learnServices(), target)) this.toasts.show('MIDI mapping forgotten.');
-    } catch (err) {
-      this.toasts.show(err instanceof Error ? err.message : 'Could not forget the mapping.', 'error');
+    this.applyLearn(() => {
+      const r = forgetLearn(this.learnServices(), target);
+      return r && { revert: r.revert, message: 'MIDI mapping forgotten.' };
+    }, 'Forget MIDI mapping');
+  }
+
+  /**
+   * Learn and Forget are one document edit sent as one live replan to the current
+   * edit target (the playing engine, or the refused draft's fake). Only a genuine
+   * engine refusal of THIS replan takes the edit back, and only within the document
+   * it was made in: a superseded load (an undo, a patch switch) belongs to whoever
+   * replaced it. With no later edits the document, history and dirty state return
+   * exactly; after later edits only the Learn's own changes are taken back out.
+   */
+  private applyLearn(change: () => { revert(): void; message: string } | null, what: string): void {
+    if (this.documentBusy) return;
+    const restoreHistory = this.history.checkpoint();
+    const previous = this.doc.toJSON(), wasDirty = this.doc.dirty;
+    let result: { revert(): void; message: string } | null;
+    try { result = change(); } catch (err) {
+      this.doc.replace(previous);
+      if (!wasDirty) this.doc.markClean();
+      restoreHistory();
+      this.refreshDirty();
+      this.toasts.show(err instanceof Error ? err.message : `${what} failed.`, 'error');
+      return;
     }
+    if (!result) return;
+    this.history.flush(); // one gesture, one undo step, even when confirmed with Enter
+    const content = (p: PatchV2) => JSON.stringify({ ...p, ui: { ...(p.ui ?? {}), view: undefined } });
+    const submitted = this.doc.toJSON(), bytes = content(submitted);
+    const epoch = this.viewEpoch, engine = this.editEngine(), revert = result.revert;
+    this.toasts.show(result.message);
+    void engine.loadGraph(submitted).catch(err => {
+      if (!(err instanceof EngineRefusal) || !err.detail.engine) return;
+      const reason = `${what} was refused: ${err.message}`;
+      if (this.viewEpoch !== epoch || this.editEngine() !== engine) { this.toasts.show(reason, 'error'); return; }
+      if (content(this.doc.toJSON()) === bytes) {
+        this.doc.replace({ ...previous, ui: { ...(previous.ui ?? {}), view: this.doc.ui.view } });
+        if (!wasDirty) this.doc.markClean();
+        restoreHistory();
+      } else revert();
+      requestAnimationFrame(() => this.canvas.invalidateAnchors());
+      this.refreshDirty();
+      void engine.loadGraph(this.doc.toJSON()).catch(e =>
+        this.toasts.show(e instanceof Error ? e.message : 'The patch could not run.', 'error'));
+      this.toasts.show(`${reason}. It was taken back out of the patch.`, 'error');
+    });
   }
 
   private setMidiEndpoint(moduleId: number, endpoint: string, systemName?: string): void {

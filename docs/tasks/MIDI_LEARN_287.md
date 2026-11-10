@@ -13,10 +13,18 @@ never writes the document; `ui.ccMap` stays a display hint.
 - Learn bar: "Move a control on your controller…", then `CC n · ch c · device`, an "any
   channel" checkbox, Confirm (button or Enter) and Cancel (button or Esc). Arm, capture
   and the 30 s timeout are transient engine state; a dropped arm closes the bar.
-- Confirm writes one `midi.cc_to_cv` row (next free row of the first module with one;
-  otherwise a new module, plus a `midi.in` feed if the patch has none), cables `ccN` to the
-  knob (modulation, amount 1) and keeps `ui.ccMap` labels truthful. Re-learning a mapped
-  knob updates its row. Forget removes that knob's CC cable and a freed trailing row.
+- Confirm writes one `midi.cc_to_cv` row on a converter that hears the device that moved
+  (its `midi.in` feed is `all_enabled` or names that `name` + `system_name`), or on one with
+  no feed yet, which gets one in the same edit; otherwise a new converter, fed by a `midi.in`
+  that takes the device (added, naming it, if none does). It cables `ccN` to the knob
+  (modulation, amount 1) and keeps `ui.ccMap` labels truthful. A device gone or disabled
+  before Confirm is refused with a toast. Re-learning a mapped knob updates its row in place
+  only when no other knob shares that row and its converter hears the device; otherwise it
+  forks to a free or new row. Forget removes only that knob's CC cable and a freed trailing row.
+- Ownership (#500 review): Learn/Forget go to the App's current edit target (playing engine
+  or refused-draft fake). Only a genuine engine refusal of that replan, in the same document,
+  takes it back: exactly (document, history, dirty) with no later edits, or just the Learn's
+  own changes after later edits. A superseded load (undo, patch switch) is left to its owner.
 - Wired implicit-default outputs keep their meaning (holes are filled with explicit
   default rows). Fourteen-bit rows drop the flag when a controller above 31 is learned.
 - One user gesture is one undo step.
@@ -31,12 +39,14 @@ protocol for a later narrow edit path; nothing here removes it.
 
 ```acceptance
 tier: T1
-size: <= 500 changed lines, <= 8 files
+size: <= 1100 changed lines, <= 16 files
 must_pass:
-  - bash -lc "cd apps/studio && npm ci && npx playwright test tests/midi-learn-ui.spec.ts tests/mock-bridge/midi-learn.spec.ts --trace off"
-  - bash -lc "cd apps/studio && npm ci && npm test"
-  - ci: guard, linux-arm64, windows-x64, sanitizers, web green
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npx playwright test tests/midi-learn-ui.spec.ts tests/mock-bridge/midi-learn.spec.ts --trace off'
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
+  - bash -lc "cd apps/studio && npm run typecheck"
+  - ci: guard, linux-arm64, windows-x64, sanitizers, web green on the exact head
 stops: [native/protocol/catalogue format change, parameter ID change, real devices in tests, threshold loosening]
 ```
 
 Signed: Claude Sonnet 5.5 (Studio UI builder), 2026-11-10
+Updated (review fixes, budget per owner/Coda ruling): Claude (MIDI Learn builder), 2026-11-10

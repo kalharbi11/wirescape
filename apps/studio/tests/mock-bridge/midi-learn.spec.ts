@@ -138,3 +138,96 @@ test('a refused Learn leaves the document and the engine on the previous graph',
   expect((await state(page)).connections).toEqual([]);
   expect(await page.evaluate(() => (window as any).__mockBridge.getGraph().modules.length)).toBe(1);
 });
+
+// ---- #500 review: a Learn replan never outlives the document that made it ----
+
+type Page = import('@playwright/test').Page;
+const patchA = { format: 'wirescape.native.patch', version: 2,
+  modules: [{ id: 2, module: 'essentials.vcf' }], connections: [],
+  ui: { positions: { '2': [900, 80] }, labels: {}, view: { x: 0, y: 0, zoom: 1 } } };
+const patchB = { format: 'wirescape.native.patch', version: 2,
+  modules: [{ id: 7, module: 'essentials.vco' }], connections: [], ownerB: { keep: true } };
+const graph = (page: Page) => page.evaluate(() => (window as any).__mockBridge.getGraph());
+const depth = (page: Page) => page.evaluate(() => window.__wirescapeTest.historyDepth());
+const refuseHeld = (page: Page) => page.evaluate(() => (window as any).__mockBridge.refuseHeld('refused'));
+
+async function heldLearn(page: Page) {
+  await mockBridge(page);
+  await boot(page);
+  await page.evaluate(p => { window.__wirescapeTest.load(p, 'A'); window.__wirescapeTest.zoomTo(1); }, patchA);
+  await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
+  await expect.poll(async () => (await graph(page)).modules.length).toBe(1);
+  await learnKnob(page, 2, 'cutoff', 74);
+  await page.evaluate(() => (window as any).__mockBridge.holdNext('loadGraph'));
+  await page.getByTestId('learn-confirm').click();
+  await expect.poll(async () => (await state(page)).modules.length).toBe(3);
+  expect(await depth(page)).toEqual({ past: 1, future: 0 });
+}
+
+async function openB(page: Page) {
+  await page.evaluate(b => {
+    const m = (window as any).__mockBridge;
+    m.setOpen({ name: 'B.wirescape.json', text: JSON.stringify(b) });
+    m.menu('app.menuOpenPatch');
+  }, patchB);
+}
+
+async function expectB(page: Page) {
+  await expect(page.getByTestId('patch-name')).toHaveText('B.wirescape.json');
+  await expect.poll(async () => (await graph(page)).modules.map((m: any) => m.id)).toEqual([7]);
+  const s = await state(page);
+  expect(s.modules.map((m: any) => m.id)).toEqual([7]);
+  expect(s.ownerB).toEqual({ keep: true });
+  expect(await depth(page)).toEqual({ past: 0, future: 0 });
+  // B, opened from a file, keeps its own native Save target.
+  await page.evaluate(() => (window as any).__mockBridge.menu('app.menuSavePatch'));
+  await expect.poll(() => page.evaluate(() => (window as any).__mockBridge.getSaves().length)).toBe(1);
+  const save = await page.evaluate(() => (window as any).__mockBridge.getSaves()[0]);
+  expect(save.saveAs).toBe(false);
+  expect(JSON.parse(save.text).modules.map((m: any) => m.id)).toEqual([7]);
+}
+
+test('OPEN B while the Learn replan is held: the accepted Learn runs on A, then B opens untouched', async ({ page }) => {
+  await heldLearn(page);
+  await openB(page);
+  await page.evaluate(() => (window as any).__mockBridge.acceptHeld());
+  await expectB(page);
+});
+
+test('OPEN B while the Learn replan is held: its refusal never restores A over B', async ({ page }) => {
+  await heldLearn(page);
+  await openB(page);
+  await refuseHeld(page);
+  await expectB(page);
+});
+
+test('UNDO while the Learn replan is held supersedes it; its late reply changes nothing', async ({ page }) => {
+  await heldLearn(page);
+  await page.evaluate(() => window.__wirescapeTest.undo());
+  await expect.poll(async () => (await graph(page)).modules.length).toBe(1);
+  await refuseHeld(page);
+  const s = await state(page);
+  expect(s.modules.map((m: any) => m.id)).toEqual([2]);
+  expect(s.connections).toEqual([]);
+  expect(await depth(page)).toEqual({ past: 0, future: 1 });
+  await expect(page.getByTestId('toast').filter({ hasText: 'taken back' })).toHaveCount(0);
+  await page.evaluate(() => window.__wirescapeTest.redo());
+  await expect.poll(async () => (await graph(page)).modules.length).toBe(3);
+  expect((await state(page)).modules).toHaveLength(3);
+});
+
+test('a delayed genuine refusal after a newer edit takes only the Learn back out', async ({ page }) => {
+  await heldLearn(page);
+  await page.evaluate(() => window.__wirescapeTest.commitParam(2, 'resonance', 0.4));
+  await refuseHeld(page);
+  await expect.poll(async () => (await state(page)).modules.map((m: any) => m.id)).toEqual([2]);
+  const s = await state(page);
+  expect(s.connections).toEqual([]);
+  expect(s.modules[0].parameters.resonance).toBe(0.4);
+  expect(s.ui.ccMap).toBeUndefined();
+  await expect.poll(async () => {
+    const g = await graph(page);
+    return { ids: g.modules.map((m: any) => m.id), res: g.modules[0]?.parameters?.resonance, cables: g.connections.length };
+  }).toEqual({ ids: [2], res: 0.4, cables: 0 });
+  await expect(page.getByTestId('toast').last()).toContainText('taken back');
+});
