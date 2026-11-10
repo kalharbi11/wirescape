@@ -119,6 +119,43 @@ int main(int argc, char **argv) {
     CHECK(wsw_render(4096) == nullptr);
     CHECK(loudest(10) >= 0);
 
+    // Groove observations are uncabled last-frame outputs from the same sampler
+    // used by the sidecar. A commit and a repeated read both clear the maps.
+    Json groove_patch = Json::parse(R"json({
+        "format": "wirescape.native.patch", "version": 2, "settings": {},
+        "modules": [
+            {"id": 1, "module": "sequencing.groove",
+             "config": {"version": 1, "bpm": 300,
+                        "tracks": [{"steps": [{"kind": "note", "key": 60, "velocity": 1}]}]}},
+            {"id": 7, "module": "essentials.output"}],
+        "connections": []})json");
+    CHECK(command({{"type", "loadGraph"}, {"patch", groove_patch}})["ok"] == true);
+    auto no_frame = Json::parse(wsw_telemetry());
+    CHECK(no_frame["playhead"].empty() && no_frame["groove"].empty());
+    loudest(1);
+    auto stopped = Json::parse(wsw_telemetry());
+    CHECK(stopped["playhead"]["1"] == Json::array({-1, -1}));
+    CHECK(stopped["groove"]["1"][0]["playing"] == false);
+    CHECK(stopped["groove"]["1"][0]["loop"] == 1);
+    CHECK(command({{"type", "setParam"}, {"moduleId", 1}, {"paramId", "run"}, {"value", 1}})["ok"] == true);
+    loudest(1);
+    auto running = Json::parse(wsw_telemetry());
+    CHECK(running["playhead"]["1"][0] == 0);
+    CHECK(running["groove"]["1"][0] == Json({{"step", 0}, {"loop", 1}, {"playing", true}, {"fired", true}}));
+    auto repeated = Json::parse(wsw_telemetry());
+    CHECK(repeated["playhead"].empty() && repeated["groove"].empty());
+    // A queued STOP ACK is not a stopped observation.
+    CHECK(command({{"type", "setParam"}, {"moduleId", 1}, {"paramId", "stop"}, {"value", 1}})["ok"] == true);
+    loudest(1);
+    auto pending_stop = Json::parse(wsw_telemetry());
+    CHECK(pending_stop["groove"]["1"][0]["playing"] == true);
+    loudest(650); // v1 32-step master cycle at 300 BPM = 76800 samples
+    auto complete_stop = Json::parse(wsw_telemetry());
+    CHECK(complete_stop["playhead"]["1"] == Json::array({-1, -1}));
+    CHECK(command({{"type", "loadGraph"}, {"patch", groove_patch}})["ok"] == true);
+    auto committed = Json::parse(wsw_telemetry());
+    CHECK(committed["playhead"].empty() && committed["groove"].empty());
+
     // A3 telemetry is read from engine2's last rendered block, not UI guesses.
     Json telemetry_patch = Json::parse(R"json({
         "format": "wirescape.native.patch",

@@ -51,6 +51,9 @@ const generation = (s: unknown): bigint | null =>
 export class RealEngine implements EngineClient {
   private session = '';
   private gen = '0';
+  private playheadEnabled = false;
+  private playhead: Telemetry['playhead'] = {};
+  private statusGen = '';
   private serial = 0;
   private revision = 0;
   private loadedOnce = false;
@@ -62,6 +65,7 @@ export class RealEngine implements EngineClient {
   private queue: Edit[] = [];
   private active?: Edit;
   private lastEdit?: Edit;
+  private settledWaiters = new Set<() => void>();
   private confirmed: PatchV2 | null = null;
   private usedIds = new Set<number>();
   private audioDevices: Device[] = [];
@@ -93,6 +97,13 @@ export class RealEngine implements EngineClient {
 
   stop(): void { this.unsubscribe?.(); this.unsubscribe = undefined; this.started = false; }
 
+  canApplyGroove(moduleId: number): boolean {
+    if (!this.ready || this.state !== 'real' || this.load || this.active || this.queue.length) return false;
+    if (this.statusGen === this.gen && this.status && this.status.audio.state !== 'running') return true;
+    const position = this.playheadEnabled ? this.playhead?.[moduleId] : undefined;
+    return position?.[0] === -1 && position[1] === -1;
+  }
+
   onTelemetry(cb: (t: Telemetry) => void): () => void { this.telemetryCbs.add(cb); return () => this.telemetryCbs.delete(cb); }
   onStatus(cb: (s: SystemStatus) => void): () => void {
     this.statusCbs.add(cb);
@@ -111,6 +122,17 @@ export class RealEngine implements EngineClient {
   onCatalogue(cb: () => void): () => void {
     this.catalogueCbs.add(cb); return () => this.catalogueCbs.delete(cb);
   }
+  /** A document switch must keep its owner visible until all inverses have settled. */
+  async whenEditsSettled(): Promise<void> {
+    while (this.active || this.queue.length || this.load)
+      await new Promise<void>(resolve => this.settledWaiters.add(resolve));
+  }
+  private notifySettled(): void {
+    if (this.active || this.queue.length || this.load) return;
+    for (const resolve of this.settledWaiters) resolve();
+    this.settledWaiters.clear();
+  }
+
   /** Attach an App-owned inverse to the most recently queued optimistic edit. */
   registerRollback(fn: () => void): void { if (this.lastEdit) this.lastEdit.rollback = fn; }
 
@@ -134,12 +156,15 @@ export class RealEngine implements EngineClient {
     this.lastEdit = undefined;
     this.load?.reject(error);
     this.load = undefined;
+    this.notifySettled();
   }
 
   private receive(message: Wire): void {
     if (!isRecord(message) || message.v !== 0) return;
     if (message.type === 'app.engineExited') {
       this.session = '';
+      this.playhead = {}; this.statusGen = '';
+      this.playheadEnabled = false;
       this.ready = false;
       this.confirmed = null;
       this.setState('restarting');
@@ -156,10 +181,12 @@ export class RealEngine implements EngineClient {
       else { this.pending.clear(); this.active = undefined; this.queue = []; }
       this.session = message.session;
       this.gen = '0';
+      this.playhead = {}; this.statusGen = '';
       this.ready = false;
       this.usedIds.clear();
       this.confirmed = null;
       const capabilities = Array.isArray(message.capabilities) ? message.capabilities : [];
+      this.playheadEnabled = capabilities.includes('telemetry.playhead');
       this.setSampleRate = capabilities.includes('setSampleRate')
         ? hz => this.control('setSampleRate', { hz }) : undefined;
       this.setBufferFrames = capabilities.includes('setBufferFrames')
@@ -172,6 +199,7 @@ export class RealEngine implements EngineClient {
       }
       if (isRecord(message.audio) && isRecord(message.midi)) {
         this.midiDevices = Array.isArray(message.midi.devices) ? message.midi.devices as Device[] : [];
+        this.statusGen = this.gen;
         this.emitStatus({ audio: message.audio as unknown as SystemStatus['audio'],
           midi: { devices: this.midiDevices, activity: isRecord(message.midi.activity)
             ? message.midi.activity as Record<string, number> : {},
@@ -192,13 +220,17 @@ export class RealEngine implements EngineClient {
       if (message.type === 'status' && isRecord(message.status)) {
         const next = message.status as unknown as SystemStatus;
         this.midiDevices = next.midi?.devices ?? this.midiDevices;
+        this.statusGen = this.gen;
         this.emitStatus(next);
       } else if (message.type === 'devices') {
         if (Array.isArray(message.audioDevices)) this.audioDevices = message.audioDevices as Device[];
         if (Array.isArray(message.midiDevices)) this.midiDevices = message.midiDevices as Device[];
         if (this.status) this.emitStatus({ ...this.status, midi: { ...this.status.midi, devices: this.midiDevices } });
       } else if (message.type === 'telemetry' && isRecord(message.telemetry)) {
-        const t = message.telemetry as unknown as Telemetry;
+        const t = { ...message.telemetry, gen: message.gen } as unknown as Telemetry;
+        // Older/absent generations are unknown: never let them authorize Apply.
+        this.playhead = this.playheadEnabled && message.gen === this.gen && isRecord(t.playhead) ? t.playhead : {};
+        if (!this.playheadEnabled) { delete t.playhead; delete t.groove; }
         // v0 transmits JSON arrays, never invent absent scope/effective/outputs.
         t.scope = Object.fromEntries(Object.entries(t.scope ?? {}).map(([k, v]) =>
           [k, Array.isArray(v) ? Float32Array.from(v) : v])) as Telemetry['scope'];
@@ -212,7 +244,10 @@ export class RealEngine implements EngineClient {
     const g = generation(message.gen);
     if (p.kind !== 'restart' && (g === null || g < BigInt(this.gen))) return;
     this.pending.delete(message.re);
-    if (g !== null && g > BigInt(this.gen) && p.kind !== 'restart') this.gen = message.gen as string;
+    if (g !== null && g > BigInt(this.gen) && p.kind !== 'restart') {
+      this.gen = message.gen as string;
+      this.playhead = {}; this.statusGen = '';
+    }
     if (message.ok !== true) {
       const err = refusal(message.code, message.message);
       if (p.kind === 'load') {
@@ -222,6 +257,7 @@ export class RealEngine implements EngineClient {
           this.ready = false;
           this.queue = []; this.active = undefined;
           this.load?.reject(err); this.load = undefined;
+          this.notifySettled();
         }
       } else if (p.kind === 'edit' && p.edit) this.failEdit(p.edit, err);
       else p.reject?.(err);
@@ -237,12 +273,14 @@ export class RealEngine implements EngineClient {
         this.load = undefined;
         this.setState('real');
         this.pumpEdits();
+        this.notifySettled();
       }
     } else if (p.kind === 'edit' && p.edit) {
       if (this.confirmed) applyMutation(this.confirmed, p.edit.mutation, this.usedIds);
       this.queue.shift();
       this.active = undefined;
       this.pumpEdits();
+      this.notifySettled();
     } else p.resolve?.(message);
   }
 
@@ -252,6 +290,7 @@ export class RealEngine implements EngineClient {
   }
 
   async loadGraph(patch: PatchV2): Promise<void> {
+    this.playhead = {};
     this.loadedOnce = true;
     this.ready = false;
     this.active = undefined;
@@ -271,7 +310,7 @@ export class RealEngine implements EngineClient {
     this.pending.set(l.id, { session: this.session, type: 'loadGraph', kind: 'load',
       revision: l.revision });
     try { this.send(l.id, 'loadGraph', { patch: l.patch }); }
-    catch { this.pending.delete(l.id); l.reject(refusal('unavailable', 'Bridge unavailable.')); this.load = undefined; }
+    catch { this.pending.delete(l.id); l.reject(refusal('unavailable', 'Bridge unavailable.')); this.load = undefined; this.notifySettled(); }
   }
 
   private enqueue(type: string, payload: Wire): void {
@@ -310,6 +349,7 @@ export class RealEngine implements EngineClient {
       }
       entry.session = this.session;
       this.active = entry;
+      this.playhead = {};
       this.pending.set(entry.id, { session: this.session, type: entry.mutation.type, kind: 'edit', edit: entry });
       try { this.send(entry.id, entry.mutation.type, entry.mutation.payload); }
       catch { this.pending.delete(entry.id); this.failEdit(entry, refusal('unavailable', 'Bridge unavailable.')); }
@@ -325,6 +365,7 @@ export class RealEngine implements EngineClient {
     });
     // Revalidation of later queued edits is performed against the last ack.
     this.pumpEdits();
+    this.notifySettled();
   }
   private request(type: string, payload: Wire = {}): Promise<Wire> {
     if (!this.session) return Promise.reject(refusal('unavailable', 'Engine disconnected.'));

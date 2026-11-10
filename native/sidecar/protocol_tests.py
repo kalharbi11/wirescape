@@ -351,6 +351,24 @@ with tempfile.TemporaryDirectory() as directory:
     # Replacing the graph must remove phase immediately, even with reused IDs.
     no_lfo = observed.call('loadGraph', patch=minimal())['gen']
     telemetry_when(observed, no_lfo, lambda t: t['phase'] == {})
+    # Same-generation Groove tuples and typed tracks are one uncabled render snapshot.
+    assert 'telemetry.playhead' in observed.hello['capabilities']
+    groove_patch = minimal()
+    groove_patch['modules'].append(dict(id=1, module='sequencing.groove',
+        config=dict(version=1, bpm=300, tracks=[dict(steps=[dict(kind='note', key=60, velocity=1)])])))
+    groove_gen = observed.call('loadGraph', patch=groove_patch)['gen']
+    stopped = telemetry_when(observed, groove_gen, lambda t: t['playhead'].get('1') == [-1, -1])
+    assert stopped['groove']['1'][0] == dict(step=-1, loop=1, playing=False, fired=False)
+    observed.call('setParam', moduleId=1, paramId='run', value=1)
+    playing = telemetry_when(observed, groove_gen, lambda t: t['groove'].get('1', [{}])[0].get('playing'))
+    for track, position in zip(playing['groove']['1'], playing['playhead']['1']):
+        assert track['step'] == position and track['playing'] == (position >= 0)
+        assert isinstance(track['loop'], int) and isinstance(track['fired'], bool)
+    observed.call('setParam', moduleId=1, paramId='stop', value=1)
+    telemetry_when(observed, groove_gen, lambda t: t['playhead'].get('1') == [-1, -1])
+    # Reused node IDs after a replacement cannot retain the old Groove entry.
+    cleared_gen = observed.call('loadGraph', patch=minimal())['gen']
+    telemetry_when(observed, cleared_gen, lambda t: t['playhead'] == {} and t['groove'] == {})
     observed.close()
     restarted = Engine(settings)
     assert restarted.session != old_session

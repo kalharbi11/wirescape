@@ -479,7 +479,7 @@ void Session::commit(Json patch, bool new_namespace) {
     const auto patch_bytes = patch.dump();
     // Stage metadata and cursor storage before any live graph swap.
     document::telemetry::Sampler next_telemetry(
-        document::telemetry::plan(patch, catalogue_.get(), /*phase_enabled=*/true));
+        document::telemetry::plan(patch, catalogue_.get(), /*phase_enabled=*/true, /*groove_enabled=*/true));
     audio::EngineOwner candidate(document::load_runtime_patch(patch_bytes, catalogue_.get(), config_, error,
                                                              &next_telemetry.taps()),
                                  app_engine_destroy);
@@ -968,7 +968,7 @@ Json Session::hello() const {
             {"type", "hello"},
             {"protocol", 0},
             {"engine", {{"version", "0.1.0"}, {"sha", WIRESCAPE_ENGINE_SHA}}},
-            {"capabilities", Json::array({"midiLearn", "setSampleRate", "setBufferFrames"})},
+            {"capabilities", Json::array({"midiLearn", "telemetry.playhead", "setSampleRate", "setBufferFrames"})},
             {"catalogue", catalogue(catalogue_.get())},
             {"audioDevices", audio_devices_},
             {"audio", audio_status()},

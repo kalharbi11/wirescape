@@ -33,7 +33,7 @@ export async function mockBridge(page: Page): Promise<void> {
         catalogue = await (await fetch('/wirescape_modules.json')).json();
       }
       emit({ v: 0, type: 'hello', session: session(), protocol: 0,
-        engine: { version: 'test', sha: 'abc1234' }, capabilities: ['midiLearn'],
+        engine: { version: 'test', sha: 'abc1234' }, capabilities: ['midiLearn', 'telemetry.playhead'],
         catalogue, audio: audioStatus,
         midi: midiStatus() });
     };
@@ -115,6 +115,10 @@ export async function mockBridge(page: Page): Promise<void> {
       setTimeout(() => accept(cmd, s), delay);
     };
     let holdType = '';
+    let holdOpen = false;
+    let pendingOpen: (() => void) | undefined;
+    const saves: Message[] = [];
+    let opens = 0;
     const exit = (expected = false) => {
       emit({ v: 0, type: 'app.engineExited', exitCode: expected ? 0 : null,
         signal: null, expected });
@@ -130,15 +134,27 @@ export async function mockBridge(page: Page): Promise<void> {
         setTimeout(() => void hello(), 0);
         return () => listeners.delete(cb);
       },
-      openPatch: async (request?: { library: string }) => request
-        ? request.library === 'list' ? { name: 'User patches', text: '[]' } : null
-        : openText,
-      savePatch: async (text: string) => { saved = text; return { name: 'Saved.wirescape.json' }; },
+      openPatch: async (request?: { library: string }) => {
+        opens++;
+        if (request) return request.library === 'list' ? { name: 'User patches', text: '[]' } : null;
+        const selected = openText;
+        if (holdOpen) { holdOpen = false; await new Promise<void>(resolve => { pendingOpen = resolve; }); }
+        return selected;
+      },
+      savePatch: async (text: string, options: Message = {}) => {
+        saves.push({ text, ...options }); saved = text; return { name: 'Saved.wirescape.json' };
+      },
       platform: 'linux',
     };
     (window as any).__mockBridge = {
       sent, getGraph: () => copy(graph), getSession: session, generation: () => String(gen),
-      getSaved: () => saved,
+      getSaved: () => saved, getSaves: () => copy(saves), openCount: () => opens,
+      holdOpen: () => { holdOpen = true; },
+      releaseOpen: () => { pendingOpen?.(); pendingOpen = undefined; },
+      menu: (type: string) => emit({ v: 0, type }),
+      acceptHeld: () => { for (const h of held.splice(0)) accept(h.cmd, h.session); },
+      refuseHeld: (code = 'refused') => { for (const h of held.splice(0))
+        reply(h.cmd, false, { code, message: 'Scripted ' + code }, h.session, h.gen); },
       setOpen: (value: { text: string; name: string } | null) => { openText = value; },
       setDelay: (ms: number) => { delay = ms; },
       refuseNext: (type: string, code = 'refused') => { refused.push({ type, code }); },

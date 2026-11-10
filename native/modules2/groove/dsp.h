@@ -26,7 +26,15 @@ struct Sequencer {
         ws::port("t2_gate", "T2 Gate", WS2_GATE),
         ws::port("t2_mod1", "T2 Mod 1", WS2_CV_BI),
         ws::port("t2_mod2", "T2 Mod 2", WS2_CV_BI),
-        ws::port("t2_notes", "T2 Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
+        ws::port("t2_notes", "T2 Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT),
+        ws::port("t1_pos", "T1 Position", WS2_CV_BI),
+        ws::port("t2_pos", "T2 Position", WS2_CV_BI),
+        ws::port("t1_loop_lo", "T1 Loop Low", WS2_CV_BI),
+        ws::port("t2_loop_lo", "T2 Loop Low", WS2_CV_BI),
+        ws::port("t1_fired", "T1 Fired", WS2_GATE),
+        ws::port("t2_fired", "T2 Fired", WS2_GATE),
+        ws::port("t1_loop_hi", "T1 Loop High", WS2_CV_BI),
+        ws::port("t2_loop_hi", "T2 Loop High", WS2_CV_BI)};
     // All controls are rising-edge requests, including the published S0 run ID.
     static constexpr std::array params{
         ws::param("run", "Start", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1),
@@ -48,6 +56,8 @@ struct Sequencer {
         bool armed = true, muted = false, playing = false, enter = false, stop = false;
         NoteState sounding{}, pending{};
         float pitch = 0.f, mod1 = 0.f, mod2 = 0.f;
+        uint32_t loop = 1;
+        bool fired = false;
     };
 
     Config pattern{};
@@ -130,8 +140,9 @@ struct Sequencer {
     }
     void trigger(ws::Block &b, uint32_t t, uint32_t i) {
         auto &p = players[t];
-        if (!p.playing || effective_mute(t)) return;
         const auto &row = pattern.tracks[t].steps[step];
+        p.fired = p.playing && ((row.kind == Note && row.velocity > 0.f) || (row.kind == Tie && p.fired));
+        if (!p.playing || effective_mute(t)) return;
         if (row.kind == Tie && p.sounding.on) return;
         if (row.kind != Note || row.velocity <= 0.f || !flush(b, t, i)) return;
         const NoteState note{true, next_id, row.key};
@@ -159,15 +170,16 @@ struct Sequencer {
             release_all(b, i);
             running = stop_queued = reset_wait = false;
             for (auto &p : players) {
-                p.playing = p.enter = p.stop = false;
+                p.playing = p.enter = p.stop = p.fired = false;
             }
             return; // STOP at the boundary has no extra step-1 NOTE_ON.
         }
         for (uint32_t t = 0; t < kTracks; ++t) {
             auto &p = players[t];
+            if (p.playing) ++p.loop;
             if (p.stop) {
                 release(b, t, i);
-                p.playing = p.armed = p.stop = p.enter = false;
+                p.playing = p.armed = p.stop = p.enter = p.fired = false;
             } else if (p.enter) {
                 p.playing = true;
                 p.enter = false;
@@ -184,6 +196,10 @@ struct Sequencer {
                 b.out(base + p).mark_constant(constant);
             }
             b.out(base + 4).set_channels(0);
+            for (uint32_t port : {10 + t, 12 + t, 14 + t, 16 + t}) {
+                b.out(port).set_channels(1);
+                b.out(port).mark_constant(false);
+            }
         }
         for (uint32_t i = 0; i < b.frames(); ++i) {
             for (uint32_t t = 0; t < kTracks; ++t) flush(b, t, i);
@@ -197,7 +213,8 @@ struct Sequencer {
                 reset_wait = running;
                 stop_queued = false;
                 for (auto &p : players) {
-                    p.enter = p.stop = false;
+                    p.enter = p.stop = p.fired = false;
+                    p.loop = 1;
                     p.playing = running && p.armed;
                 }
             } else {
@@ -238,7 +255,8 @@ struct Sequencer {
                         for (uint32_t t = 0; t < kTracks; ++t) {
                             auto &p = players[t];
                             p.playing = t < pattern.track_count && p.armed;
-                            p.enter = p.stop = false;
+                            p.enter = p.stop = p.fired = false;
+                            p.loop = 1;
                         }
                         trigger_all(b, i);
                         started = true;
@@ -266,6 +284,14 @@ struct Sequencer {
                 b.out(base + 1).ch(0)[i] = p.sounding.on ? 1.f : 0.f;
                 b.out(base + 2).ch(0)[i] = p.mod1;
                 b.out(base + 3).ch(0)[i] = p.mod2;
+                // STOP is complete only after the global transport, this track and
+                // every owed release have stopped. A disarmed track under a running
+                // transport is not stopped; a refused NOTE_OFF keeps the position.
+                const bool active = running || p.playing || p.pending.on || p.sounding.on;
+                b.out(10 + t).ch(0)[i] = active ? static_cast<float>(step) : -1.f;
+                b.out(12 + t).ch(0)[i] = static_cast<float>(p.loop & 0xffffu);
+                b.out(14 + t).ch(0)[i] = p.fired ? 1.f : 0.f;
+                b.out(16 + t).ch(0)[i] = static_cast<float>(p.loop >> 16u);
             }
         }
     }

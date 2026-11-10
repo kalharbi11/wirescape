@@ -151,6 +151,30 @@ Engine persists selected audio `id`, the last successfully applied `audio.sample
 - These four maps are **complete snapshots**, not deltas or tombstones. Clients replace them on every telemetry message; absent means unavailable/no activity. When no render frame advanced since the last sample (stopped, parked or lost), all four are `{}`. The outer `gen` identifies the graph that installed the taps, and older generations are ignored by Studio. `scope` remains `{}` in the sidecar; if it is transmitted as JSON number arrays, `RealEngine` converts each to `Float32Array`. No value is guessed or interpolated.
 - Realtime produces only preallocated bounded atomics/snapshots. Non-RT sampler packages JSON; no callback serialization, heap allocation or unbounded copying. Never let slow IPC block the render thread. Missing/unsupported metrics are absent or empty as above; the adapter may not replace them with plausible demo numbers.
 
+When `hello.capabilities` advertises **`telemetry.playhead`**, optional
+`playhead:{"<Groove moduleId>":[t1,t2]}` and
+`groove:{"<Groove moduleId>":[{step,loop,playing,fired},{step,loop,playing,fired}]}`
+are installed together. Both maps come from the **same render-owned last-frame
+snapshot**, including uncabled Groove observation outputs. `step` (also the
+corresponding `playhead` value) is an integer 0..63 while active, or **-1 only
+when the global transport and the track have stopped, its gate is zero and all owed NOTE_OFFs have drained** (a disarmed track under a running transport reports the transport step);
+`playing` is exactly `step >= 0`. Mute or a queued STOP/ACK does not prove STOP.
+`loop` is the exact uint32 per-track loop count (starts 1 on Start/Reset);
+the native sampler reconstructs the low/high 16-bit signal halves off-render.
+`fired` is a boolean condition result for the current note trig, inherited by
+continued ties, false for rests/failed conditions/stopped tracks. Before G1
+conditions every existing note trig passes. These complete maps reset on every
+successful commit, carry the outer `gen`, and are `{}` whenever no new render
+frame advanced. No older or absent entry authorizes Apply. Studio enables
+stopped Apply only for current-generation `playhead[id] == [-1,-1]`, or when
+current-generation audio status is not `running`. The capability is omitted if
+this observation seam is unavailable; no timing interpolation is permitted.
+
+§7 additive telemetry example (same envelope as T13):
+```json
+{"v":0,"session":"s1","type":"telemetry","gen":"5","telemetry":{"tick":12,"time":0.4,"effective":{},"phase":{},"envelope":{},"meters":{},"scope":{},"eventActivity":{},"heldNotes":[],"playhead":{"1":[3,-1]},"groove":{"1":[{"step":3,"loop":16777217,"playing":true,"fired":false},{"step":-1,"loop":1,"playing":false,"fired":false}]}}}
+```
+
 ## 8. `EngineClient` refusal, ordering and reconciliation
 
 `FakeEngine` keeps its existing synchronous API and remains the browser-test backend. `RealEngine` implements the unchanged `void` edit methods by queuing a command and may additionally expose **optional** `onRefusal?(cb: (r: {requestId:string; type:string; detail:EngineError; gen:string}) => void): () => void` on `EngineClient`. This is additive: code must feature-detect `onRefusal` and not require `FakeEngine` to implement it. `loadGraph` and device-list methods already return Promises; their errors reject with `EngineRefusal`.
@@ -169,7 +193,7 @@ Each line below is a standalone JSON wire line. `>` denotes renderer→engine st
 
 **T01 — first `hello`, catalogue and capabilities.**
 ```text
-< {"v":0,"session":"s1","type":"hello","protocol":0,"engine":{"version":"0.1","sha":"abc1234"},"capabilities":["midiLearn"],"catalogue":{"modules":[{"id":"essentials.output","name":"Output","category":"I/O","ports":[{"id":"audio","name":"Audio","direction":"input","kind":"signal","hint":"audio","poly":"sum","stereo_pair":null},{"id":"audio","name":"Audio","direction":"output","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null}],"parameters":[]},{"id":"essentials.vco","name":"VCO","category":"Oscillator","ports":[{"id":"pitch","name":"Pitch","direction":"input","kind":"signal","hint":"pitch","poly":"poly","stereo_pair":null},{"id":"fm","name":"FM Hz","direction":"input","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null},{"id":"notes","name":"Notes","direction":"input","kind":"event","hint":"ev_notes","poly":"poly","stereo_pair":null},{"id":"audio","name":"Audio","direction":"output","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null}],"parameters":[{"id":"frequency","name":"Frequency","minimum":0.01,"maximum":20000,"default":220,"unit":"Hz","taper":"linear","step":0,"decimals":3,"modulatable":true}]}]},"audio":{"state":"no-device","deviceId":null,"deviceName":null,"sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":0,"dropouts":0},"midi":{"devices":[],"activity":{}}}
+< {"v":0,"session":"s1","type":"hello","protocol":0,"engine":{"version":"0.1","sha":"abc1234"},"capabilities":["midiLearn","telemetry.playhead"],"catalogue":{"modules":[{"id":"essentials.output","name":"Output","category":"I/O","ports":[{"id":"audio","name":"Audio","direction":"input","kind":"signal","hint":"audio","poly":"sum","stereo_pair":null},{"id":"audio","name":"Audio","direction":"output","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null}],"parameters":[]},{"id":"essentials.vco","name":"VCO","category":"Oscillator","ports":[{"id":"pitch","name":"Pitch","direction":"input","kind":"signal","hint":"pitch","poly":"poly","stereo_pair":null},{"id":"fm","name":"FM Hz","direction":"input","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null},{"id":"notes","name":"Notes","direction":"input","kind":"event","hint":"ev_notes","poly":"poly","stereo_pair":null},{"id":"audio","name":"Audio","direction":"output","kind":"signal","hint":"audio","poly":"poly","stereo_pair":null}],"parameters":[{"id":"frequency","name":"Frequency","minimum":0.01,"maximum":20000,"default":220,"unit":"Hz","taper":"linear","step":0,"decimals":3,"modulatable":true}]}]},"audio":{"state":"no-device","deviceId":null,"deviceName":null,"sampleRate":48000,"bufferFrames":256,"latencyMs":10.6667,"cpuPercent":0,"dropouts":0},"midi":{"devices":[],"activity":{}}}
 ```
 
 **T02 — load a minimal execution view; missing settings, per-module version and outputs are filled ONLY in engine copy.**

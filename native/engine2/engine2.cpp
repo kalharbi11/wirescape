@@ -155,6 +155,7 @@ struct Engine::Impl {
     std::vector<Packet>future;std::vector<uint8_t>arena;
     bool prepared=false;std::atomic_flag rendering=ATOMIC_FLAG_INIT;
     std::vector<Tap> taps;std::vector<Node*> tap_nodes;
+    std::atomic<uint64_t> tap_sequence{0};
     std::unique_ptr<std::atomic<float>[]> tap_values;
     std::unique_ptr<std::atomic<uint32_t>[]> tap_counts;
     std::atomic<uint64_t> tap_frame{0};
@@ -676,18 +677,29 @@ bool Engine::set_telemetry_taps(const std::vector<Tap>&requested){
     auto counts=std::make_unique<std::atomic<uint32_t>[]>(requested.size());
     for(size_t i=0;i<requested.size();++i){values[i].store(0,std::memory_order_relaxed);counts[i].store(0,std::memory_order_relaxed);}
     p.taps=requested;p.tap_values.swap(values);p.tap_counts.swap(counts);
-    p.tap_nodes.clear();p.tap_frame.store(0,std::memory_order_relaxed);
+    p.tap_nodes.clear();p.tap_frame.store(0,std::memory_order_relaxed);p.tap_sequence.store(0,std::memory_order_relaxed);
     return true;
 }
 uint32_t Engine::read_telemetry(float*values,uint32_t*counts,uint32_t capacity,uint64_t&frame)const noexcept {
     const auto&p=*p_;frame=0;
     if(capacity<p.taps.size()||(!p.taps.empty()&&(!values||!counts)))return 0;
-    frame=p.tap_frame.load(std::memory_order_acquire);
-    for(size_t i=0;i<p.taps.size();++i){
-        values[i]=p.tap_values[i].load(std::memory_order_relaxed);
-        counts[i]=p.tap_counts[i].load(std::memory_order_relaxed);
+    // A bounded non-render read must not combine two blocks (in particular
+    // Groove's split uint32 loop and release-safe position observations).
+    for(uint32_t attempt=0;attempt<3;++attempt){
+        const auto before=p.tap_sequence.load(std::memory_order_acquire);
+        if(before&1u)continue;
+        const auto observed=p.tap_frame.load(std::memory_order_relaxed);
+        for(size_t i=0;i<p.taps.size();++i){
+            values[i]=p.tap_values[i].load(std::memory_order_relaxed);
+            counts[i]=p.tap_counts[i].load(std::memory_order_relaxed);
+        }
+        std::atomic_thread_fence(std::memory_order_acquire);
+        if(before==p.tap_sequence.load(std::memory_order_relaxed)){
+            frame=observed;
+            return static_cast<uint32_t>(p.taps.size());
+        }
     }
-    return static_cast<uint32_t>(p.taps.size());
+    return static_cast<uint32_t>(p.taps.size()); // frame=0: unavailable, never a torn snapshot.
 }
 bool Engine::prepare(){
     auto&p=*p_;if(p.prepared)return p.fail("Prepare is quiescent and single-use; reconfigure uses staged replacement");
@@ -786,6 +798,7 @@ int Engine::render(float*const*outputs,uint32_t output_channels,uint32_t frames,
     if(!p.taps.empty()){
         // Render-owned, post-DSP snapshots. Feedback loops process in chunks, so
         // their parameter buffer's last chunk is shorter than the full block.
+        p.tap_sequence.fetch_add(1,std::memory_order_acq_rel);
         for(size_t i=0;i<p.taps.size();++i){
             const auto&t=p.taps[i];const auto*n=p.tap_nodes[i];float sample=0;
             if(t.kind==Tap::Param){
@@ -803,7 +816,8 @@ int Engine::render(float*const*outputs,uint32_t output_channels,uint32_t frames,
             }
             p.tap_values[i].store(sample,std::memory_order_relaxed);
         }
-        p.tap_frame.store(p.block_start+frames,std::memory_order_release);
+        p.tap_frame.store(p.block_start+frames,std::memory_order_relaxed);
+        p.tap_sequence.fetch_add(1,std::memory_order_release);
     }
     if(p.cfg.playing)p.beat+=frames*p.cfg.bpm/(60.*p.cfg.sample_rate);
     p.position.store(p.block_start+frames,std::memory_order_release);
@@ -1124,6 +1138,7 @@ bool Engine::replan(Engine &candidate, uint64_t timeout_ns) {
     old.distance.swap(fresh.distance);
     old.taps.swap(fresh.taps);old.tap_nodes.swap(fresh.tap_nodes);
     old.tap_values.swap(fresh.tap_values);old.tap_counts.swap(fresh.tap_counts);
+    old.tap_sequence.store(0,std::memory_order_relaxed);
     old.tap_frame.store(0,std::memory_order_release);
     old.feedback_count.store(fresh.feedback_count.load());
     old.latency.store(fresh.latency.load());
