@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { expect, test, type Page } from '@playwright/test';
 import { boot, settle, state } from './helpers';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { MODULE_PRESETS, resolvePreset } from '../src/app/modulePresets';
 
 const menu = (page: Page) => page.getByTestId('module-presets-1');
 const values = async (page: Page) => (await state(page)).modules.find((m: any) => m.id === 1)?.parameters ?? {};
@@ -82,5 +87,66 @@ test('all presets use finite descriptor-bounded values, preserving unknown modul
     const m = (await state(page)).modules[0];
     expect(m.futureField).toEqual({ unsupported: true });
     expect((await state(page)).connections).toEqual(base.connections);
+  }
+});
+
+/** Optional here; the task-acceptance native lane must set CHAOS_RENDER explicitly.
+ * The renderer uses production app_engine + runtime_patch, never FakeEngine audio.
+ */
+test('offline WAV: all eight presets render finite, audible left/right bus levels', async () => {
+  test.skip(!process.env.CHAOS_RENDER, 'Native WAV renderer is built in the task acceptance lane');
+  const renderer = resolve(process.env.CHAOS_RENDER!);
+  const catalog = JSON.parse(readFileSync(resolve('public/wirescape_modules.json'), 'utf8'));
+  const descriptor = catalog.modules.find((m: any) => m.id === 'essentials.chaos_lite');
+  expect(descriptor).toBeTruthy();
+  const directory = mkdtempSync(join(tmpdir(), 'chaos-preset-evidence-'));
+  try {
+    for (const [index, preset] of MODULE_PRESETS['essentials.chaos_lite']!.entries()) {
+      for (const port of ['left', 'right']) {
+        const name = index + '-' + port;
+        const source = {
+          'SPDX-License-Identifier': 'GPL-3.0-only',
+          name: 'CHAOS-lite ' + preset.name + ' ' + port,
+          rate: 48000, block: 128, seconds: 2, seed: 7, peak_limit: 3,
+          patch: {
+            format: 'wirescape.native.patch', version: 2, settings: { seed: 7 },
+            name: 'CHAOS preset offline evidence',
+            modules: [
+              { id: 1, module: 'essentials.chaos_lite', version: 1,
+                parameters: resolvePreset(descriptor, preset) },
+              { id: 2, module: 'essentials.output', version: 2, parameters: {} },
+            ],
+            connections: [{
+              kind: 'signal',
+              from: { module: 1, port },
+              to: { module: 2, port: 'audio' },
+            }],
+            outputs: [
+              { module: 2, port: 'audio', bus_channel: 0 },
+              { module: 2, port: 'audio', bus_channel: 1 },
+            ],
+          },
+          events: [{ frame: 0, type: 'noteOn', node: 1, key: 60 }],
+          windows: [{ kind: 'active', start: 16000, end: 76000 }],
+          frequencies: [],
+        };
+        const casePath = join(directory, name + '.json'), out = join(directory, name);
+        mkdirSync(out);
+        writeFileSync(casePath, JSON.stringify(source));
+        const child = spawnSync('python', [
+          resolve('../../native/tools/render/evidence.py'), '--render', renderer,
+          '--case', casePath, '--out', out, '--configuration', 'Release',
+        ], { encoding: 'utf8', timeout: 60000 });
+        expect(child.status, preset.name + '/' + port + ': ' + child.stderr).toBe(0);
+        const metrics = JSON.parse(readFileSync(join(out, 'measurements.json'), 'utf8'));
+        expect(metrics.status).toBe('passed');
+        const active = metrics.assertions.find((x: any) => x.check === 'active');
+        expect(active?.rms_fs, preset.name + '/' + port).toBeGreaterThan(0.01);
+        console.log('CHAOS WAV', preset.name, port, 'rms_fs', active.rms_fs,
+          'source_sha', metrics.source_sha, 'patch_sha256', metrics.patch_sha256);
+      }
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
   }
 });
