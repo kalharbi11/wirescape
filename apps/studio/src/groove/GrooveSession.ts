@@ -28,6 +28,12 @@ export class GrooveSession {
   /** A whole new document is about to load: its drafts become what plays. */
   forget(): void { this.applied.clear(); this.changed(); }
 
+  /** Preserve the actually running patterns around a trial document load that may refuse. */
+  checkpoint(): () => void {
+    const before = new Map(this.applied);
+    return () => { this.applied = before; this.changed(); };
+  }
+
   /** Execution copy of a full patch: each Groove carries its applied, known-fields-only config. */
   project(patch: PatchV2): PatchV2 {
     const out = clone(patch);
