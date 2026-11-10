@@ -307,7 +307,7 @@ struct Sequencer {
             if (p.stop && step_t[t] == 0) {
                 release(b, t, i);
                 p.playing = p.armed = p.stop = p.enter = p.fired = p.skipped_cond = false;
-            } else if (p.enter && step % 16u == 0) {
+            } else if (p.enter && (pattern.authored_version == 1 ? step == 0 : step % 16u == 0)) {
                 p.playing = true;
                 p.enter = false;
                 p.loop = 1;
