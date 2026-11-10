@@ -100,6 +100,23 @@ setting blocker rather than pretending to merge.
 - Macro requires48k. No external sample files/services. Do not assume pending
   Chord or Notes→CV exist: inspect the actual catalogue and deployed SHA.
 
+### Other shipped module IDs (catalogue cross-reference)
+
+This guide's wiring examples are **not** the complete module inventory. The
+generated `apps/studio/public/wirescape_modules.json` is the authoritative list
+for each deployed build's module IDs, port directions, parameter ranges and defaults.
+At this guide revision, it also contains these modules not named in the examples
+above or below:
+
+- Control and shaping: `essentials.clock`, `essentials.lfo`, `essentials.function_envelope`,
+  `essentials.adsr`, `essentials.slew`, `essentials.scale_offset`, `essentials.quantizer`
+- Audio and filtering: `essentials.vca`, `essentials.vcf`, `essentials.ladder`,
+  `essentials.resonator`, `essentials.mixer`, `fx.delay`, `sound.blend`
+- Generators: `example.random_source`, `example.step_sequencer`
+
+Treat the list as discoverability, **not** a substitute for the generated
+descriptor or a promise that pending modules are available on a deployed SHA.
+
 ### Macro Oscillator model names (48 kHz only)
 
 These **0-based** model indices follow the exact `plaits::Voice::Init` registration order
