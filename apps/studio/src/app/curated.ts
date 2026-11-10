@@ -118,7 +118,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
   },
   {
     id: "vowel-apparitions", name: "04 · Vowel Apparitions",
-    note: "Play keys · Vocal/formant textures with independent vowel and filter-breath modulation.",
+    note: "Play keys · Chiptune model 7 with independently moving morph and filter-breath modulation.",
     patch: {
       "SPDX-License-Identifier": "GPL-3.0-only",
       name: "04 · Vowel Apparitions", format: "wirescape.native.patch", version: 2,
@@ -148,13 +148,13 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       outputs: [{"module":5,"port":"audio","bus_channel":0},{"module":5,"port":"audio","bus_channel":1}],
       ui: {
         positions: {"1":[80,80],"2":[740,80],"3":[1400,80],"4":[2060,80],"5":[2720,80],"6":[80,1180],"7":[740,1180],"8":[2060,1180]},
-        labels: {"2":"Vocal engine · model 7","6":"Long breath","7":"Vowel drift","8":"Independent filter breath"}, view: {"x":0,"y":0,"zoom":1},
+        labels: {"2":"Chiptune · model 7","6":"Long breath","7":"Vowel drift","8":"Independent filter breath"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
   },
   {
     id: "glass-cathedrals", name: "05 · Glass Cathedrals",
-    note: "Play keys · Macro model 12, main/aux resonant blend and slowly drifting overtones.",
+    note: "Play keys · Additive model 12, main/aux overtone blend and slowly drifting harmonics.",
     patch: {
       "SPDX-License-Identifier": "GPL-3.0-only",
       name: "05 · Glass Cathedrals", format: "wirescape.native.patch", version: 2,
@@ -182,7 +182,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       outputs: [{"module":4,"port":"audio","bus_channel":0},{"module":4,"port":"audio","bus_channel":1}],
       ui: {
         positions: {"1":[80,80],"2":[740,80],"3":[2060,80],"4":[2720,80],"5":[740,1180],"6":[2060,1180],"7":[1400,80]},
-        labels: {"2":"Modal engine · model 12","5":"Glass shimmer","6":"Slow shadow","7":"Modal + overtone blend"}, view: {"x":0,"y":0,"zoom":1},
+        labels: {"2":"Additive · model 12","5":"Glass shimmer","6":"Slow shadow","7":"Additive + overtone blend"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
   },
