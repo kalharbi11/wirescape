@@ -21,15 +21,15 @@ never writes the document; `ui.ccMap` stays a display hint.
   before Confirm is refused with a toast. Re-learning a mapped knob updates its row in place
   only when no other knob shares that row and its converter hears the device; otherwise it
   forks to a free or new row. Forget removes only that knob's CC cable and a freed trailing row.
-- Ownership (#500 review): Learn/Forget go to the App's current edit target (playing engine
-  or refused-draft fake). Only a genuine engine refusal of that replan, in the same document,
-  takes it back: exactly (document, history, dirty) with no later edits, or just the Learn's
-  own changes after later edits. A superseded load (undo, patch switch) is left to its owner.
+- Ownership (#500, Keel ruling): Learn/Forget go to the current playing/draft edit target.
+  While the one-graph replan or refusal recovery is pending, document edits (including
+  undo, cables, CC rows and labels) are blocked and visibly marked as applying.
+  Refusal restores the prior document and history exactly before editing resumes.
 - Wired implicit-default outputs keep their meaning (holes are filled with explicit
   default rows). Fourteen-bit rows drop the flag when a controller above 31 is learned.
 - One user gesture is one undo step.
 
-## Decision for Keel/Compass (departure from "through `ccMap.set`")
+## Keel-approved single-replan decision (departure from "through `ccMap.set`")
 The whole change (row, module, feed cable, mapping cable) is sent as **one `loadGraph`
 live replan**, the same path as a MIDI input change, instead of separate `addModule`,
 `ccMap.set` and `connect` edits. RealEngine queues edits independently, so a refused
