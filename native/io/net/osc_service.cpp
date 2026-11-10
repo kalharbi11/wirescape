@@ -64,7 +64,10 @@ struct Service::Impl {
         const bool bound_lan = route.lan && confirmed;
         uint32_t listener = listener_count;
         for (uint32_t i = 0; i < listener_count; ++i)
-            if (listeners[i].requested == route.port) { listener = i; break; }
+            if (listeners[i].requested == route.port) {
+                listener = i;
+                break;
+            }
         bool enabled = true;
         if (listener < listener_count && listeners[listener].lan != bound_lan) {
             enabled = false; // reported as port-busy; the patch itself still loads
@@ -106,12 +109,16 @@ struct Service::Impl {
 #ifdef _WIN32
             u_long nonblocking = 1;
             if (ioctlsocket(listener.socket, FIONBIO, &nonblocking) != 0) {
-                close_socket(listener.socket); listener.socket = invalid_socket; continue;
+                close_socket(listener.socket);
+                listener.socket = invalid_socket;
+                continue;
             }
 #else
             const int flags = fcntl(listener.socket, F_GETFL, 0);
             if (flags < 0 || fcntl(listener.socket, F_SETFL, flags | O_NONBLOCK) < 0) {
-                close_socket(listener.socket); listener.socket = invalid_socket; continue;
+                close_socket(listener.socket);
+                listener.socket = invalid_socket;
+                continue;
             }
 #endif
             sockaddr_in address{};
@@ -119,7 +126,9 @@ struct Service::Impl {
             address.sin_port = htons(listener.requested);
             address.sin_addr.s_addr = htonl(listener.lan ? INADDR_ANY : INADDR_LOOPBACK);
             if (bind(listener.socket, reinterpret_cast<sockaddr *>(&address), sizeof(address)) != 0) {
-                close_socket(listener.socket); listener.socket = invalid_socket; continue;
+                close_socket(listener.socket);
+                listener.socket = invalid_socket;
+                continue;
             }
 #ifdef _WIN32
             int length = sizeof(address);
@@ -127,7 +136,9 @@ struct Service::Impl {
             socklen_t length = sizeof(address);
 #endif
             if (getsockname(listener.socket, reinterpret_cast<sockaddr *>(&address), &length) != 0) {
-                close_socket(listener.socket); listener.socket = invalid_socket; continue;
+                close_socket(listener.socket);
+                listener.socket = invalid_socket;
+                continue;
             }
             listener.bound = ntohs(address.sin_port);
             sockets.fetch_add(1, std::memory_order_relaxed);
@@ -170,8 +181,8 @@ struct Service::Impl {
                 if (!(descriptors[j].revents & POLLIN)) continue;
                 const uint32_t i = indices[j];
                 for (uint32_t packets = 0; packets < 64 && running.load(std::memory_order_relaxed); ++packets) {
-                    const auto length = recv(listeners[i].socket, reinterpret_cast<char *>(packet.data()),
-                                             int(packet.size()), 0);
+                    auto *packet_data = reinterpret_cast<char *>(packet.data());
+                    const auto length = recv(listeners[i].socket, packet_data, int(packet.size()), 0);
                     if (length <= 0) break;
                     received.fetch_add(1, std::memory_order_relaxed);
                     if (length > 2048) {
@@ -182,12 +193,16 @@ struct Service::Impl {
                         malformed.fetch_add(1, std::memory_order_relaxed);
                         continue;
                     }
-                    const auto timestamp = uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                        std::chrono::steady_clock::now().time_since_epoch()).count());
+                    const auto observed = std::chrono::steady_clock::now().time_since_epoch();
+                    const auto timestamp =
+                        uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(observed).count());
                     parse(packet.data(), size_t(length), [&](const Message &message) {
                         bool shortened = false;
                         const auto bytes = encode(message, normalized.data(), normalized.size(), shortened);
-                        if (!bytes) { dropped.fetch_add(1, std::memory_order_relaxed); return; }
+                        if (!bytes) {
+                            dropped.fetch_add(1, std::memory_order_relaxed);
+                            return;
+                        }
                         if (shortened) truncated.fetch_add(1, std::memory_order_relaxed);
                         ws2_event event{};
                         event.struct_size = sizeof(event);
@@ -199,7 +214,8 @@ struct Service::Impl {
                         event.bytes = uint32_t(bytes);
                         for (uint32_t r = 0; r < route_count; ++r) {
                             if (!route_enabled[r] || routes[r].port != listeners[i].requested) continue;
-                            if (!sink.deliver || sink.deliver(sink.context, routes[r].node, event, timestamp) != WS2_OK) {
+                            const auto deliver = sink.deliver;
+                            if (!deliver || deliver(sink.context, routes[r].node, event, timestamp) != WS2_OK) {
                                 dropped.fetch_add(1, std::memory_order_relaxed);
                                 route_dropped[r].fetch_add(1, std::memory_order_relaxed);
                             } else {
@@ -231,13 +247,20 @@ std::vector<RouteState> Service::states() const {
         const auto effective_lan = route.lan && impl_->confirmed;
         const Impl::Listener *listener = nullptr;
         for (uint32_t j = 0; j < impl_->listener_count; ++j)
-            if (impl_->listeners[j].requested == route.port &&
-                impl_->listeners[j].lan == effective_lan) { listener = &impl_->listeners[j]; break; }
+            if (impl_->listeners[j].requested == route.port && impl_->listeners[j].lan == effective_lan) {
+                listener = &impl_->listeners[j];
+                break;
+            }
         const bool listening = impl_->route_enabled[i] && listener && listener->socket != invalid_socket;
-        out.push_back({route.node, route.port, route.lan, effective_lan,
-                       !listening ? "port-busy" : route.lan && !impl_->confirmed ? "lan-not-confirmed" : "listening",
-                       impl_->route_received[i].load(std::memory_order_relaxed),
-                       impl_->route_dropped[i].load(std::memory_order_relaxed)});
+        RouteState report;
+        report.node = route.node;
+        report.port = route.port;
+        report.lan_requested = route.lan;
+        report.lan_bound = effective_lan;
+        report.state = !listening ? "port-busy" : route.lan && !impl_->confirmed ? "lan-not-confirmed" : "listening";
+        report.received = impl_->route_received[i].load(std::memory_order_relaxed);
+        report.dropped = impl_->route_dropped[i].load(std::memory_order_relaxed);
+        out.push_back(report);
     }
     return out;
 }

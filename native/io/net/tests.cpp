@@ -38,8 +38,11 @@ int main() {
     auto state = local.states();
     REQUIRE(state.size() == 2 && std::strcmp(state[0].state, "lan-not-confirmed") == 0);
     REQUIRE(!state[0].lan_bound && !state[1].lan_bound);
-    Message m; m.address = "/pico1/knob/3"; m.count = 1;
-    m.arguments[0].type = 'f'; m.arguments[0].real = .5f;
+    Message m;
+    m.address = "/pico1/knob/3";
+    m.count = 1;
+    m.arguments[0].type = 'f';
+    m.arguments[0].real = .5f;
     uint8_t bytes[1472]{};
     bool truncated = false;
     auto n = encode(m, bytes, sizeof(bytes), truncated);
@@ -50,17 +53,18 @@ int main() {
     address.sin_port = htons(local.bound_port());
     address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     const auto before = std::chrono::steady_clock::now();
-    REQUIRE(sendto(sender, reinterpret_cast<const char *>(bytes), int(n), 0,
-                   reinterpret_cast<sockaddr *>(&address), sizeof(address)) == int(n));
+    const int sent = sendto(sender, reinterpret_cast<const char *>(bytes), int(n), 0,
+                            reinterpret_cast<sockaddr *>(&address), sizeof(address));
+    REQUIRE(sent == int(n));
     for (uint32_t i = 0; i < 2000 && c.count.load() < 2; ++i)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     const auto after = std::chrono::steady_clock::now();
     state = local.states();
     REQUIRE(c.count == 2 && c.timestamp != 0);
-    REQUIRE(c.timestamp >= uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
-        before.time_since_epoch()).count()));
-    REQUIRE(c.timestamp <= uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
-        after.time_since_epoch()).count()));
+    const auto before_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(before.time_since_epoch()).count();
+    const auto after_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(after.time_since_epoch()).count();
+    REQUIRE(c.timestamp >= uint64_t(before_ns));
+    REQUIRE(c.timestamp <= uint64_t(after_ns));
     REQUIRE(state[0].received == 1 && state[1].received == 1);
     REQUIRE(state[0].dropped == 0 && state[1].dropped == 0);
     // Occupied localhost ports do not fail service startup or accept unwanted data.
