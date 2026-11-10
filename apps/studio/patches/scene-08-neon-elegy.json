@@ -1,0 +1,444 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Scene 8 · Neon Elegy (Macro sequence)",
+  "description": "A melancholic synthwave line in A minor: a 16-step sequence through a quantizer into the Macro Oscillator, a ladder filter, a clock-synced ping-pong delay and a hall. It plays itself; try the Macro harmonics, timbre and morph knobs or the model, and the ladder cutoff.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 1108,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "essentials.clock",
+      "version": 2,
+      "parameters": {
+        "bpm": 94,
+        "ticks_per_beat": 2,
+        "duty": 0.58,
+        "run": 1
+      }
+    },
+    {
+      "id": 2,
+      "module": "example.step_sequencer",
+      "version": 2,
+      "parameters": {
+        "run": 1,
+        "length": 16,
+        "pitch1": -0.25,
+        "gate1": 1,
+        "vel1": 0.8,
+        "pitch2": 0.0,
+        "gate2": 1,
+        "vel2": 0.6,
+        "pitch3": 0.333333,
+        "gate3": 1,
+        "vel3": 0.85,
+        "pitch4": 0.583333,
+        "gate4": 1,
+        "vel4": 0.6,
+        "pitch5": 0.416667,
+        "gate5": 1,
+        "vel5": 0.85,
+        "pitch6": 0.416667,
+        "gate6": 2,
+        "vel6": 0.85,
+        "pitch7": 0.333333,
+        "gate7": 1,
+        "vel7": 0.7,
+        "pitch8": 0.0,
+        "gate8": 0,
+        "vel8": 0.5,
+        "pitch9": 0.166667,
+        "gate9": 1,
+        "vel9": 0.8,
+        "pitch10": 0.333333,
+        "gate10": 1,
+        "vel10": 0.6,
+        "pitch11": 0.0,
+        "gate11": 1,
+        "vel11": 0.8,
+        "pitch12": -0.083333,
+        "gate12": 1,
+        "vel12": 0.6,
+        "pitch13": -0.25,
+        "gate13": 1,
+        "vel13": 0.85,
+        "pitch14": -0.25,
+        "gate14": 2,
+        "vel14": 0.85,
+        "pitch15": -0.583333,
+        "gate15": 1,
+        "vel15": 0.75,
+        "pitch16": 0.0,
+        "gate16": 0,
+        "vel16": 0.5
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.quantizer",
+      "version": 1,
+      "parameters": {
+        "scale": 2,
+        "root": 9
+      }
+    },
+    {
+      "id": 4,
+      "module": "ports.macro_oscillator",
+      "version": 1,
+      "parameters": {
+        "model": 10,
+        "coarse": -12,
+        "harmonics": 0.38,
+        "timbre": 0.62,
+        "morph": 0.31,
+        "timbre_amount": 0.29,
+        "morph_amount": 0.24,
+        "decay": 0.3,
+        "lpg_colour": 0.59
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.ladder",
+      "version": 2,
+      "parameters": {
+        "cutoff": 3300,
+        "resonance": 0.24,
+        "drive": 0.12
+      }
+    },
+    {
+      "id": 6,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.093,
+        "depth": 0.72
+      }
+    },
+    {
+      "id": 7,
+      "module": "fx.delay",
+      "version": 1,
+      "parameters": {
+        "division": 6,
+        "feedback": 0.45,
+        "tone": -0.3,
+        "mode": 1,
+        "mix": 0.3
+      }
+    },
+    {
+      "id": 10,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.7,
+        "decay": 5,
+        "damping": 0.5,
+        "predelay": 0.04,
+        "width": 1,
+        "motion": 0.25,
+        "mix": 0.3
+      }
+    },
+    {
+      "id": 11,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 0.52
+      }
+    },
+    {
+      "id": 8,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 9,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "clock"
+      },
+      "to": {
+        "module": 2,
+        "port": "clock"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "clock"
+      },
+      "to": {
+        "module": 7,
+        "port": "clock"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 3,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "gate"
+      },
+      "to": {
+        "module": 3,
+        "port": "trigger"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 4,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "gate"
+      },
+      "to": {
+        "module": 4,
+        "port": "trigger"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "gate"
+      },
+      "to": {
+        "module": 4,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 4,
+        "port": "level"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "main"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 11,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 11,
+        "port": "audio"
+      },
+      "to": {
+        "module": 7,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "left"
+      },
+      "to": {
+        "module": 10,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "right"
+      },
+      "to": {
+        "module": 10,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 10,
+        "port": "left"
+      },
+      "to": {
+        "module": 8,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 10,
+        "port": "right"
+      },
+      "to": {
+        "module": 9,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 6,
+        "port": "control"
+      },
+      "to": {
+        "module": 4,
+        "port": "morph"
+      },
+      "amount": 0.16
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 6,
+        "port": "control"
+      },
+      "to": {
+        "module": 5,
+        "port": "cutoff"
+      },
+      "amount": 0.18
+    }
+  ],
+  "outputs": [
+    {
+      "module": 8,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 9,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        40,
+        120
+      ],
+      "2": [
+        660,
+        120
+      ],
+      "3": [
+        1280,
+        120
+      ],
+      "4": [
+        1900,
+        120
+      ],
+      "6": [
+        40,
+        1100
+      ],
+      "5": [
+        2520,
+        120
+      ],
+      "11": [
+        3140,
+        120
+      ],
+      "7": [
+        3760,
+        120
+      ],
+      "10": [
+        4380,
+        120
+      ],
+      "8": [
+        5000,
+        120
+      ],
+      "9": [
+        5000,
+        540
+      ]
+    },
+    "labels": {
+      "1": "Clock",
+      "2": "A minor · sixteen steps",
+      "3": "A minor quantizer",
+      "4": "FM engine",
+      "5": "Ladder",
+      "6": "Shifting harmonics",
+      "11": "Trim",
+      "7": "Dotted ping-pong",
+      "10": "Neon hall",
+      "8": "Out L",
+      "9": "Out R"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

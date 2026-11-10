@@ -1,0 +1,287 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Basics 3 · Echo and Reverb",
+  "description": "A short, bell-like keyboard pluck sent through a ping-pong echo and then a reverb, out to two speakers (left and right). Play single notes and listen to the echoes and the room; try the Echo feedback and mix, and the Room mix and decay.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 103,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "host.keyboard",
+      "version": 1,
+      "parameters": {
+        "voices": 4
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 523.26
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 261.63
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.003,
+        "decay": 0.45,
+        "sustain": 0.0,
+        "release": 0.3
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 0.323
+      }
+    },
+    {
+      "id": 6,
+      "module": "fx.delay",
+      "version": 1,
+      "parameters": {
+        "time": 0.375,
+        "feedback": 0.4,
+        "tone": -0.2,
+        "mode": 1,
+        "mix": 0.3
+      }
+    },
+    {
+      "id": 7,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.6,
+        "decay": 2.5,
+        "damping": 0.5,
+        "mix": 0.3
+      }
+    },
+    {
+      "id": 8,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 9,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 2,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 3,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 4,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 2,
+        "port": "audio"
+      },
+      "to": {
+        "module": 3,
+        "port": "frequency"
+      },
+      "amount": 0.06
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "audio"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 5,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "left"
+      },
+      "to": {
+        "module": 7,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "right"
+      },
+      "to": {
+        "module": 7,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "left"
+      },
+      "to": {
+        "module": 8,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "right"
+      },
+      "to": {
+        "module": 9,
+        "port": "audio"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "module": 8,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 9,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        40,
+        120
+      ],
+      "2": [
+        660,
+        120
+      ],
+      "3": [
+        1280,
+        120
+      ],
+      "4": [
+        660,
+        540
+      ],
+      "5": [
+        1900,
+        120
+      ],
+      "6": [
+        2520,
+        120
+      ],
+      "7": [
+        3140,
+        120
+      ],
+      "8": [
+        3760,
+        120
+      ],
+      "9": [
+        3760,
+        540
+      ]
+    },
+    "labels": {
+      "1": "Keys",
+      "2": "Bell Modulator",
+      "3": "Pluck VCO",
+      "4": "Pluck Envelope",
+      "5": "Amp VCA",
+      "6": "Echo",
+      "7": "Room",
+      "8": "Out L",
+      "9": "Out R"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

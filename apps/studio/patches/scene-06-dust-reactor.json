@@ -1,0 +1,558 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Scene 6 · Dust Reactor (generative texture)",
+  "description": "A sub-bass drone and filtered grit, with metal-plate pings struck by the clock and spliced into the texture, then echoed in time and washed in a hall. Hands-off and endlessly shifting: try the clock BPM, the Splice jitter and segment lengths, and the VCF resonance.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 1106,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 55
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.noise",
+      "version": 2,
+      "parameters": {
+        "level": 0.1
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 0.5,
+        "level_b": 0.28
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.vcf",
+      "version": 2,
+      "parameters": {
+        "cutoff": 510,
+        "resonance": 0.53
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.ladder",
+      "version": 2,
+      "parameters": {
+        "cutoff": 1750,
+        "resonance": 0.23,
+        "drive": 0.19
+      }
+    },
+    {
+      "id": 7,
+      "module": "essentials.clock",
+      "version": 2,
+      "parameters": {
+        "bpm": 72,
+        "ticks_per_beat": 2,
+        "duty": 0.3,
+        "run": 1
+      }
+    },
+    {
+      "id": 8,
+      "module": "example.random_source",
+      "version": 1,
+      "parameters": {
+        "smooth": 0.73,
+        "range": 0.62
+      }
+    },
+    {
+      "id": 9,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.061,
+        "depth": 0.76
+      }
+    },
+    {
+      "id": 12,
+      "module": "essentials.noise",
+      "version": 2,
+      "parameters": {
+        "level": 0.8
+      }
+    },
+    {
+      "id": 13,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.0005,
+        "decay": 0.01,
+        "sustain": 0,
+        "release": 0.01
+      }
+    },
+    {
+      "id": 14,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1
+      }
+    },
+    {
+      "id": 15,
+      "module": "essentials.resonator",
+      "version": 1,
+      "parameters": {
+        "structure": 3,
+        "decay": 1.4,
+        "damping": 0.45,
+        "tune": -5,
+        "mix": 1,
+        "level": 0.7
+      }
+    },
+    {
+      "id": 16,
+      "module": "sound.blend",
+      "version": 1,
+      "parameters": {
+        "mode": 1,
+        "balance": 0.5,
+        "seg_a": 0.4,
+        "seg_b": 0.15,
+        "fade": 0.01,
+        "jitter": 0.5
+      }
+    },
+    {
+      "id": 17,
+      "module": "fx.delay",
+      "version": 1,
+      "parameters": {
+        "division": 4,
+        "feedback": 0.45,
+        "tone": -0.4,
+        "mode": 1,
+        "mix": 0.3
+      }
+    },
+    {
+      "id": 18,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.7,
+        "decay": 4,
+        "damping": 0.6,
+        "mix": 0.3
+      }
+    },
+    {
+      "id": 21,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 1.0,
+        "level_b": 1.3
+      }
+    },
+    {
+      "id": 19,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 20,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "audio"
+      },
+      "to": {
+        "module": 3,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "audio"
+      },
+      "to": {
+        "module": 3,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "audio"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "low24"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "clock"
+      },
+      "to": {
+        "module": 8,
+        "port": "clock"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 8,
+        "port": "smooth"
+      },
+      "to": {
+        "module": 4,
+        "port": "cutoff"
+      },
+      "amount": 0.15
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 9,
+        "port": "control"
+      },
+      "to": {
+        "module": 5,
+        "port": "cutoff"
+      },
+      "amount": 0.12
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 9,
+        "port": "control"
+      },
+      "to": {
+        "module": 1,
+        "port": "frequency"
+      },
+      "amount": 0.018
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "clock"
+      },
+      "to": {
+        "module": 13,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 13,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 14,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 12,
+        "port": "audio"
+      },
+      "to": {
+        "module": 14,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 14,
+        "port": "audio"
+      },
+      "to": {
+        "module": 15,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "step"
+      },
+      "to": {
+        "module": 15,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 16,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 15,
+        "port": "audio"
+      },
+      "to": {
+        "module": 16,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 16,
+        "port": "audio"
+      },
+      "to": {
+        "module": 21,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 15,
+        "port": "audio"
+      },
+      "to": {
+        "module": 21,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 21,
+        "port": "audio"
+      },
+      "to": {
+        "module": 17,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "clock"
+      },
+      "to": {
+        "module": 17,
+        "port": "clock"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 17,
+        "port": "left"
+      },
+      "to": {
+        "module": 18,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 17,
+        "port": "right"
+      },
+      "to": {
+        "module": 18,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 18,
+        "port": "left"
+      },
+      "to": {
+        "module": 19,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 18,
+        "port": "right"
+      },
+      "to": {
+        "module": 20,
+        "port": "audio"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "module": 19,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 20,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        40,
+        120
+      ],
+      "2": [
+        40,
+        540
+      ],
+      "3": [
+        660,
+        120
+      ],
+      "4": [
+        1280,
+        120
+      ],
+      "5": [
+        1900,
+        120
+      ],
+      "7": [
+        40,
+        960
+      ],
+      "8": [
+        660,
+        960
+      ],
+      "9": [
+        660,
+        1380
+      ],
+      "12": [
+        660,
+        1800
+      ],
+      "13": [
+        1280,
+        1800
+      ],
+      "14": [
+        1900,
+        1800
+      ],
+      "15": [
+        1900,
+        2220
+      ],
+      "16": [
+        2520,
+        120
+      ],
+      "21": [
+        3140,
+        120
+      ],
+      "17": [
+        3760,
+        120
+      ],
+      "18": [
+        4380,
+        120
+      ],
+      "19": [
+        5000,
+        120
+      ],
+      "20": [
+        5000,
+        540
+      ]
+    },
+    "labels": {
+      "1": "Sub-bass sine",
+      "2": "Grain field",
+      "3": "Dust Mix",
+      "4": "Rusty VCF",
+      "5": "Ladder",
+      "7": "Reactor Clock",
+      "8": "Random geology",
+      "9": "Thermal drift",
+      "12": "Impact noise",
+      "13": "Ping Env",
+      "14": "Ping VCA",
+      "15": "Metal Plate",
+      "21": "Pings + Texture",
+      "16": "Splice",
+      "17": "Synced Delay",
+      "18": "Hall",
+      "19": "Out L",
+      "20": "Out R"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

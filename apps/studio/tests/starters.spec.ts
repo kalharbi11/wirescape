@@ -1,21 +1,30 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { test, expect } from '@playwright/test';
-import { STARTERS, DEFAULT_STARTER } from '../src/app/starters';
+import { STARTERS, BUNDLED_STARTERS, DEFAULT_STARTER } from '../src/app/starters';
 import catalogue from '../public/wirescape_modules.json' with { type: 'json' };
 import { boot, settle } from './helpers';
+import { patchIndex } from '../patch-library.mjs';
 
-const qt = STARTERS.filter(s => s.id.startsWith('qt-'));
+const bundled = BUNDLED_STARTERS;
 
-test('six Qt starters retain native data and use valid catalogue endpoints', () => {
-  expect(qt).toHaveLength(6);
+test('Qt starters are retired; the bundled MIDI starter uses valid catalogue endpoints', () => {
+  expect(STARTERS.some(s => s.id.startsWith('qt-'))).toBe(false);
+  expect(bundled.map(s => s.id)).toEqual(['midi-keys-and-knobs']);
   expect(DEFAULT_STARTER.id).toBe('keyboard-voice');
-  for (const starter of qt) {
+  for (const starter of bundled) {
     const patch = starter.patch();
     expect(patch['SPDX-License-Identifier']).toBe('GPL-3.0-only');
-    expect(patch.settings).toHaveProperty('seed', 42);
-    expect(patch.outputs).toHaveLength(2);
-    const output = patch.modules.find(m => m.module === 'essentials.output')!;
-    expect(patch.outputs).toEqual([0, 1].map(bus_channel => ({ module: output.id, port: 'audio', bus_channel })));
+    expect(patch.settings).toHaveProperty('sample_rate', 48000);
+    expect(patch).not.toHaveProperty('devices.0');
+    // Stereo: each bus 0/1 is fed by exactly one Output module route.
+    expect(patch.outputs!.map(r => r.bus_channel).sort()).toEqual([0, 1]);
+    for (const route of patch.outputs!) {
+      expect(patch.modules.find(m => m.id === route.module)?.module).toBe('essentials.output');
+      expect(route.port).toBe('audio');
+    }
+    for (const kind of ['midi.in', 'midi.to_cv', 'midi.cc_to_cv']) {
+      expect(patch.modules.some(m => m.module === kind), kind).toBe(true);
+    }
     const types = new Map(patch.modules.map(m => [m.id, catalogue.modules.find(d => d.id === m.module)!]));
     for (const module of patch.modules) {
       const descriptor = types.get(module.id);
@@ -42,7 +51,7 @@ test('six Qt starters retain native data and use valid catalogue endpoints', () 
   }
 });
 
-for (const starter of qt) {
+for (const starter of bundled) {
   test(`${starter.id} loads and saves native fields without loss`, async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -71,12 +80,16 @@ for (const starter of qt) {
   });
 }
 
+// The shipped public library (apps/studio/patches) is laid out like the built-ins.
+const library = (JSON.parse(patchIndex()) as { patches: { id: string; name: string; patch: any }[] }).patches
+  .map(({ id, name, patch }) => ({ id, name, patch: () => structuredClone(patch) }));
+
 test('all bundled starters place cards without overlaps in mouse and touch profiles', async ({ page }) => {
   await boot(page);
   const failures: string[] = [];
   for (const hit of ['mouse', 'touch']) {
     await page.evaluate(hit => window.__wirescapeTest.setPref({ hit }), hit);
-    for (const starter of STARTERS) {
+    for (const starter of [...STARTERS, ...library]) {
       await page.evaluate(({ patch, name }) => {
         window.__wirescapeTest.load(patch, name);
         window.__wirescapeTest.fit();

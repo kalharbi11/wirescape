@@ -12,7 +12,7 @@ test('curated collection is eight independent, valid v2 patches with no replaced
   expect(curated).toHaveLength(8);
   expect(new Set(curated.map(s => s.id)).size).toBe(8);
   expect(DEFAULT_STARTER.id).toBe('keyboard-voice'); // web smoke-test baseline
-  expect(STARTERS.filter(s => s.id.startsWith('qt-'))).toHaveLength(6); // session fixtures
+  expect(STARTERS.filter(s => s.id.startsWith('qt-'))).toHaveLength(0); // retired; Basics live in patches/
   for (const removed of ['drone', 'clocked-random', 'sequence', 'macro', 'chaos']) {
     expect(STARTERS.some(s => s.id === removed)).toBe(false);
   }

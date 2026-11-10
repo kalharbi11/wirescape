@@ -49,10 +49,17 @@ Visitors find compatible patches in Starter patches and PATCHES → SHARED PATCH
 Changes appear after a successful deployment and refresh, not at the instant of commit.
 An open PR is a preview/check, not a public deployment.
 
-The eight cinematic patches are now editable JSON in that folder. Historical
-curated.ts/STARTERS/native ui_starters fixtures stay as regression snapshots,
-not the public editable library. Do not edit those snapshots for ordinary
-public patch changes. Keyboard voice and Qt/class-demo regressions stay built-in.
+**Shipped set (2026-11-10).** Every new build ships 16 patches: the fifteen
+library files in that folder (**Basics 1–7** introductory patches,
+`basics-NN-*.json`, and the eight revised cinematic **Scene 1–8** patches,
+`scene-NN-*.json`), plus the bundled desktop-only MIDI example
+`apps/studio/src/app/bundled/midi-keys-and-knobs.json`. That one lives in the
+app because this folder and the web host exclude `midi.*` modules; the web
+Starter list hides it automatically. The six old `qt-*` starters were retired;
+their IDs stay reserved. Historical curated.ts/STARTERS/native ui_starters
+fixtures stay as regression snapshots, not the public editable library. Do not
+edit those snapshots for ordinary public patch changes. Keyboard voice (the web
+smoke-test default) and the three class demos (owner M8 sessions) stay built-in.
 
 ## Standing agent authority (no lead approval round trip)
 
@@ -132,6 +139,14 @@ or parameter IDs.
   constant ranges are valid, existing smoothing still applies, and JSON persists
   the mapping. MIDI modules remain unavailable in the WebAssembly host; use
   `host.keyboard` in browser patches. MIDI Learn stays separate UI-owned work.
+- `essentials.vco` is a pure sine. Its `fm` input is additive Hz from a ±1 signal,
+  so it only gives a few Hz of deviation. For audible FM, connect a modulator
+  VCO's `audio` with a **modulation** cable to the carrier's `frequency`
+  parameter (amount ≈0.05–0.2). With pitch connected, `frequency` is a tuning
+  ratio, so the FM index tracks the keyboard. Put a VCA on the modulator audio
+  (before the cable) to envelope the depth. Basics 2 shows this wiring.
+- Modulation amounts span the target's whole range: 0.02–0.05 on a 20–20000 Hz
+  cutoff is already a large sweep.
 - Pitch CV0=C4, +1=one octave; VCO base frequency matters. Signals and events
   are different cables. Modulation targets parameter IDs with amounts[-1,1].
 - Every audible chain reaches explicit output routes. An autoplay patch needs

@@ -1,0 +1,285 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Basics 2 · FM, Filter and LFO",
+  "description": "Two sine oscillators make a bright FM tone, a low-pass filter tames it and a slow LFO sweeps the filter. Play the keyboard; try the FM depth (Depth VCA gain), the Filter cutoff and the LFO rate.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 102,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "host.keyboard",
+      "version": 1,
+      "parameters": {
+        "voices": 4
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 523.26
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1.0
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 261.63
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.vcf",
+      "version": 2,
+      "parameters": {
+        "cutoff": 2500.0,
+        "resonance": 0.25
+      }
+    },
+    {
+      "id": 6,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.4,
+        "depth": 1
+      }
+    },
+    {
+      "id": 7,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.02,
+        "decay": 0.4,
+        "sustain": 0.6,
+        "release": 0.6
+      }
+    },
+    {
+      "id": 8,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 0.3
+      }
+    },
+    {
+      "id": 9,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 2,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 4,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 7,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "audio"
+      },
+      "to": {
+        "module": 3,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 3,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 3,
+        "port": "audio"
+      },
+      "to": {
+        "module": 4,
+        "port": "frequency"
+      },
+      "amount": 0.2
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 6,
+        "port": "control"
+      },
+      "to": {
+        "module": 5,
+        "port": "cutoff"
+      },
+      "amount": 0.15
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "low24"
+      },
+      "to": {
+        "module": 8,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 8,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "audio"
+      },
+      "to": {
+        "module": 9,
+        "port": "audio"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "module": 9,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 9,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        40,
+        120
+      ],
+      "2": [
+        660,
+        120
+      ],
+      "3": [
+        1280,
+        120
+      ],
+      "4": [
+        1900,
+        120
+      ],
+      "5": [
+        2520,
+        120
+      ],
+      "6": [
+        2520,
+        540
+      ],
+      "7": [
+        660,
+        540
+      ],
+      "8": [
+        3140,
+        120
+      ],
+      "9": [
+        3760,
+        120
+      ]
+    },
+    "labels": {
+      "1": "Keys",
+      "2": "Modulator (2x)",
+      "3": "FM Depth",
+      "4": "Carrier",
+      "5": "Filter",
+      "6": "Filter LFO",
+      "7": "Envelope",
+      "8": "Amp VCA",
+      "9": "Out"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}
