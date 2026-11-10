@@ -22,7 +22,7 @@ size: <= 450 changed lines, <= 8 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
-  - bash -lc "cd apps/studio && npm ci && npm test"
+  - bash -lc 'cd apps/studio && npm ci && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
   - ci: guard, linux-arm64, windows-x64, sanitizers, web green
 stops: [ABI/protocol edit, existing slot/ID/range change, failure to load old state v1, non-realtime operation, new dependency]
 ```
