@@ -181,3 +181,5 @@
   .module:has(.groove-pane) .port,
   .module:has(.groove-pane) .port-ctl { display: none; }
 }
+
+.g-vcell.play { border-left: 2px solid var(--rust, #c2501f); }
