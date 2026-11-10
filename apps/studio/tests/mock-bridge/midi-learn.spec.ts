@@ -334,6 +334,26 @@ test('restart attempt timeout keeps the lock and restores a retry action', async
   expect(await depth(page)).toEqual(historyBefore);
 });
 
+test('lost restart acknowledgement keeps Studio locked and restores retry after 10 s', async ({ page }) => {
+  const { before, graphBefore, historyBefore } = await timeoutLearn(page);
+  await page.clock.runFor(10_000);
+  await page.evaluate(() => (window as any).__mockBridge.dropNextRestartReply());
+  await page.getByTestId('midi-learn-restart').click();
+  await page.clock.runFor(300);
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', true);
+  expect(await graph(page)).toEqual(graphBefore);
+  await page.clock.runFor(9700);
+  await expect(page.getByTestId('midi-learn-restart-prompt')).toBeVisible();
+  expect(await state(page)).toEqual(before);
+  await page.getByTestId('midi-learn-restart').click();
+  await page.clock.runFor(300);
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+  expect(await state(page)).toEqual(before);
+  expect(await graph(page)).toEqual(graphBefore);
+  expect(await depth(page)).toEqual(historyBefore);
+  expect(await page.evaluate(() => (window as any).__mockBridge.restartCount())).toBe(2);
+});
+
 test('app.engineExited offers Restart and reloads the pre-Learn graph before unlocking', async ({ page }) => {
   const { before, graphBefore, historyBefore } = await timeoutLearn(page);
   await page.evaluate(() => (window as any).__mockBridge.exit());
