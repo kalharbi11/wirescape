@@ -49,10 +49,17 @@ Visitors find compatible patches in Starter patches and PATCHES → SHARED PATCH
 Changes appear after a successful deployment and refresh, not at the instant of commit.
 An open PR is a preview/check, not a public deployment.
 
-The eight cinematic patches are now editable JSON in that folder. Historical
-curated.ts/STARTERS/native ui_starters fixtures stay as regression snapshots,
-not the public editable library. Do not edit those snapshots for ordinary
-public patch changes. Keyboard voice and Qt/class-demo regressions stay built-in.
+**Shipped set (2026-11-10).** Every new build ships 16 patches: the fifteen
+library files in that folder (**Basics 1–7** introductory patches,
+`basics-NN-*.json`, and the eight revised cinematic **Scene 1–8** patches,
+`scene-NN-*.json`), plus the bundled desktop-only MIDI example
+`apps/studio/src/app/bundled/midi-keys-and-knobs.json`. That one lives in the
+app because this folder and the web host exclude `midi.*` modules; the web
+Starter list hides it automatically. The six old `qt-*` starters were retired;
+their IDs stay reserved. Historical curated.ts/STARTERS/native ui_starters
+fixtures stay as regression snapshots, not the public editable library. Do not
+edit those snapshots for ordinary public patch changes. Keyboard voice (the web
+smoke-test default) and the three class demos (owner M8 sessions) stay built-in.
 
 ## Standing agent authority (no lead approval round trip)
 
@@ -119,6 +126,12 @@ For example, model **07** is Chiptune, **12** is Additive synthesis,
 FM presets occupy indices 02–04. The selector does not alter the patch's port
 or parameter IDs.
 
+- Macro `level` input: when connected it overrides `gate`, so keyboard velocity
+  patched into `level` keeps the internal low-pass gate open after note-off and the
+  note never releases. Drive the Macro from `pitch` + `gate` (or `trigger`). If you
+  want velocity on `level`, put an ADSR → VCA after the Macro for the release.
+  Speech synthesis (model 15) with `harmonics` above about 0.35 plays a short word
+  and then stops; keep `harmonics` ≤0.35 for sustained vowels.
 - Start poly keyboard patches at3–4voices. MIDI→CV supports polyphony in desktop,
   but raw MIDI input and generated note events are different kinds.
 - Desktop/native MIDI: wire `midi.in.midi` to `midi.to_cv.midi`; append-only
@@ -152,6 +165,15 @@ or parameter IDs.
   the knob near its minimum (0..1 CC onto its range). The `CC n` label on the
   module follows the learned controller (`ui.ccMap`, display only). Hand-edit
   JSON is still fine; unavailable in the browser demo (no MIDI).
+- `essentials.vco` is a pure sine. Keep `frequency` 220 for concert tuning when pitch
+  is connected (it is a ratio to 220; 261.63 plays three semitones sharp). Its `fm` input is additive Hz from a ±1 signal,
+  so it only gives a few Hz of deviation. For audible FM, connect a modulator
+  VCO's `audio` with a **modulation** cable to the carrier's `frequency`
+  parameter (amount ≈0.05–0.2). With pitch connected, `frequency` is a tuning
+  ratio, so the FM index tracks the keyboard. Put a VCA on the modulator audio
+  (before the cable) to envelope the depth. Basics 2 shows this wiring.
+- Modulation amounts span the target's whole range: 0.02–0.05 on a 20–20000 Hz
+  cutoff is already a large sweep.
 - Pitch CV0=C4, +1=one octave; VCO base frequency matters. Signals and events
   are different cables. Modulation targets parameter IDs with amounts[-1,1].
 - Every audible chain reaches explicit output routes. An autoplay patch needs
@@ -309,3 +331,17 @@ For a longer pattern set `length:16`, author `pitch16` (octaves), `gate16`
 `pitch`/`gate`/`velocity` to an instrument. Shortened patterns retain inactive
 values through edit/undo/save; native/WASM version compatibility remains #405's
 contract. UI/FakeEngine preview alone does not prove DSP or audible playback.
+
+## Groove observation outputs (PR #501)
+
+Groove observation outputs append to its existing pitch/gate/mod/notes ports:
+`t1_pos` and `t2_pos` report 0-based steps while active and -1 only after the global
+transport, the track and all owed note releases finish. Mute and STOP request acknowledgement
+do not mean fully stopped. `t1_fired`/`t2_fired` are 0/1 condition results
+(including a passed trig's continued ties). Exact per-track uint32 loop counts
+use paired `t1_loop_lo`/`t1_loop_hi` and `t2_loop_lo`/`t2_loop_hi` signals,
+each 0..65535; reconstruct as `lo + 65536 * hi`. These ports are patchable,
+but primarily support the engine's measured editor telemetry; no cable is needed
+for the editor to observe them. For example, a `t1_fired` signal may drive a gate
+input to visualize a passed note condition. It is an observation held for the
+step, not an extra note-event route. All original port IDs/order remain stable.

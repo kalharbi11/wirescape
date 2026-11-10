@@ -1,6 +1,6 @@
 {
   "SPDX-License-Identifier": "GPL-3.0-only",
-  "name": "01 · Hollow Chapel",
+  "name": "Scene 1 · Hollow Chapel (CHAOS drone)",
   "format": "wirescape.native.patch",
   "version": 2,
   "settings": {
@@ -37,7 +37,7 @@
         "lfo_depth": 0.55,
         "lfo_self": 0.4,
         "cutoff": 2200,
-        "level": 0.23
+        "level": 0.9
       },
       "version": 1
     },
@@ -66,7 +66,7 @@
         "lfo_depth": 0.42,
         "lfo_self": 0.57,
         "cutoff": 2700,
-        "level": 0.2
+        "level": 0.8
       },
       "version": 1
     },
@@ -74,8 +74,8 @@
       "id": 3,
       "module": "essentials.mixer",
       "parameters": {
-        "level_a": 0.48,
-        "level_b": 0.43
+        "level_a": 2,
+        "level_b": 2
       },
       "version": 2
     },
@@ -85,7 +85,7 @@
       "parameters": {
         "cutoff": 1450,
         "resonance": 0.28,
-        "drive": 0.14
+        "drive": 0.7
       },
       "version": 2
     },
@@ -117,8 +117,8 @@
       "id": 8,
       "module": "essentials.mixer",
       "parameters": {
-        "level_a": 0.47,
-        "level_b": 0.44
+        "level_a": 2,
+        "level_b": 2
       },
       "version": 2
     },
@@ -128,7 +128,7 @@
       "parameters": {
         "cutoff": 1120,
         "resonance": 0.32,
-        "drive": 0.13
+        "drive": 0.7
       },
       "version": 2
     },
@@ -137,6 +137,38 @@
       "module": "essentials.output",
       "parameters": {},
       "version": 2
+    },
+    {
+      "id": 11,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.9,
+        "decay": 14,
+        "damping": 0.6,
+        "predelay": 0.06,
+        "width": 1,
+        "motion": 0.35,
+        "mix": 0.4
+      }
+    },
+    {
+      "id": 12,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 2,
+        "level_b": 0
+      }
+    },
+    {
+      "id": 13,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 2,
+        "level_b": 0
+      }
     }
   ],
   "connections": [
@@ -170,17 +202,6 @@
       },
       "to": {
         "module": 4,
-        "port": "audio"
-      }
-    },
-    {
-      "kind": "signal",
-      "from": {
-        "module": 4,
-        "port": "audio"
-      },
-      "to": {
-        "module": 5,
         "port": "audio"
       }
     },
@@ -266,17 +287,6 @@
       }
     },
     {
-      "kind": "signal",
-      "from": {
-        "module": 9,
-        "port": "audio"
-      },
-      "to": {
-        "module": 10,
-        "port": "audio"
-      }
-    },
-    {
       "kind": "modulation",
       "from": {
         "module": 7,
@@ -287,6 +297,72 @@
         "port": "cutoff"
       },
       "amount": -0.16
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 12,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 9,
+        "port": "audio"
+      },
+      "to": {
+        "module": 13,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 12,
+        "port": "audio"
+      },
+      "to": {
+        "module": 11,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 13,
+        "port": "audio"
+      },
+      "to": {
+        "module": 11,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 11,
+        "port": "left"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 11,
+        "port": "right"
+      },
+      "to": {
+        "module": 10,
+        "port": "audio"
+      }
     }
   ],
   "outputs": [
@@ -304,58 +380,76 @@
   "ui": {
     "positions": {
       "1": [
-        80,
-        80
+        120,
+        128
       ],
       "2": [
-        80,
-        1270
+        120,
+        2032
       ],
       "3": [
-        860,
-        80
+        1290,
+        128
       ],
       "4": [
-        1400,
-        80
+        2100,
+        128
       ],
       "5": [
-        2060,
-        80
+        3600,
+        128
       ],
       "6": [
-        740,
-        2350
+        1110,
+        3760
       ],
       "7": [
-        1400,
-        2350
+        2100,
+        3760
       ],
       "8": [
-        860,
-        1270
+        1290,
+        2032
       ],
       "9": [
-        1400,
-        1270
+        2100,
+        2032
       ],
       "10": [
-        2060,
-        1270
+        3600,
+        2032
+      ],
+      "11": [
+        3090,
+        1120
+      ],
+      "12": [
+        2910,
+        128
+      ],
+      "13": [
+        2910,
+        2032
       ]
     },
     "labels": {
       "1": "Stone choir · low L/R",
       "2": "Stone choir · high L/R",
+      "5": "Out L",
       "6": "Slow tide",
       "7": "Counterphase haze",
       "8": "Right body mix",
-      "9": "Right-hand shadow"
+      "9": "Right-hand shadow",
+      "10": "Out R",
+      "11": "Chapel",
+      "12": "Gain L",
+      "13": "Gain R"
     },
     "view": {
       "x": 0,
       "y": 0,
       "zoom": 1
     }
-  }
+  },
+  "description": "Autoplay: two slow CHAOS-lite stone-choir voices (low and high, each with its own left/right body) breathe through ladder filters and a long, dark reverb, so the chapel fills and drifts on its own. Nothing to play; try the ladder cutoffs, reverb decay/mix and the two slow LFO rates."
 }

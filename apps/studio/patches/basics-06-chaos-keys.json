@@ -1,0 +1,295 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Basics 6 · CHAOS Keys",
+  "description": "CHAOS-lite is a stereo two-oscillator instrument: Keys feed pitch, gate and velocity in, an ADSR through two VCAs shapes each note and lets it release cleanly, and a modest reverb sits before Out L and Out R. Try shape_a and shape_b (0 saw, 1 square, 2 sine), detune for beating, route (Direct, Multiply, Delay) with depth, body_mix for the comb resonance, and roughness for a gritty AM edge.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 42,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "host.keyboard",
+      "version": 1,
+      "parameters": {
+        "voices": 4
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.chaos_lite",
+      "version": 1,
+      "parameters": {
+        "shape_a": 0.2,
+        "shape_b": 0.9,
+        "detune": 9,
+        "octave_a": 0,
+        "octave_b": -1,
+        "level_a": 0.55,
+        "level_b": 0.4,
+        "route": 0,
+        "body_mix": 0.3,
+        "body_tune": 0,
+        "feedback": 0.45,
+        "damping": 0.5,
+        "roughness": 0.05,
+        "drift": 0.12,
+        "cutoff": 5000,
+        "level": 1.0
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.03,
+        "decay": 0.4,
+        "sustain": 0.7,
+        "release": 0.8
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1.6
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1.6
+      }
+    },
+    {
+      "id": 6,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.55,
+        "decay": 2.8,
+        "damping": 0.5,
+        "mix": 0.28
+      }
+    },
+    {
+      "id": 7,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 8,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 2,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 2,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 2,
+        "port": "velocity"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 3,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "left"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "right"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 4,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 5,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "left"
+      },
+      "to": {
+        "module": 7,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "right"
+      },
+      "to": {
+        "module": 8,
+        "port": "audio"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "module": 7,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 8,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "2": [
+        990,
+        192
+      ],
+      "3": [
+        60,
+        960
+      ],
+      "4": [
+        2220,
+        192
+      ],
+      "5": [
+        2220,
+        864
+      ],
+      "6": [
+        3150,
+        192
+      ],
+      "7": [
+        4080,
+        192
+      ],
+      "8": [
+        4080,
+        864
+      ]
+    },
+    "labels": {
+      "1": "Keys",
+      "2": "CHAOS",
+      "3": "Envelope",
+      "4": "VCA L",
+      "5": "VCA R",
+      "6": "Hall",
+      "7": "Out L",
+      "8": "Out R"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

@@ -1,9 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { test, expect } from '@playwright/test';
+import type { PatchV2 } from '../src/patch/types';
 import { STARTERS, DEFAULT_STARTER } from '../src/app/starters';
 import { CURATED_PATCHES } from '../src/app/curated';
 import catalogue from '../public/wirescape_modules.json' with { type: 'json' };
 import { boot, settle } from './helpers';
+import library01 from '../patches/basics-01-first-tone.json' with { type: 'json' };
+import library02 from '../patches/basics-02-fm-filter-lfo.json' with { type: 'json' };
+import library03 from '../patches/basics-03-echo-and-reverb.json' with { type: 'json' };
+import library04 from '../patches/basics-04-sequencer-and-quantizer.json' with { type: 'json' };
+import library05 from '../patches/basics-05-random-melody.json' with { type: 'json' };
+import library06 from '../patches/basics-06-chaos-keys.json' with { type: 'json' };
+import library07 from '../patches/basics-07-macro-keys.json' with { type: 'json' };
+import library08 from '../patches/scene-01-hollow-chapel.json' with { type: 'json' };
+import library09 from '../patches/scene-02-breathing-walls.json' with { type: 'json' };
+import library10 from '../patches/scene-03-black-ice-choir.json' with { type: 'json' };
+import library11 from '../patches/scene-04-vowel-apparitions.json' with { type: 'json' };
+import library12 from '../patches/scene-05-glass-cathedrals.json' with { type: 'json' };
+import library13 from '../patches/scene-06-dust-reactor.json' with { type: 'json' };
+import library14 from '../patches/scene-07-witching-hour.json' with { type: 'json' };
+import library15 from '../patches/scene-08-neon-elegy.json' with { type: 'json' };
 
 const curated = STARTERS.filter(s => CURATED_PATCHES.some(p => p.id === s.id));
 const descriptors = new Map(catalogue.modules.map(m => [m.id, m]));
@@ -12,7 +28,7 @@ test('curated collection is eight independent, valid v2 patches with no replaced
   expect(curated).toHaveLength(8);
   expect(new Set(curated.map(s => s.id)).size).toBe(8);
   expect(DEFAULT_STARTER.id).toBe('keyboard-voice'); // web smoke-test baseline
-  expect(STARTERS.filter(s => s.id.startsWith('qt-'))).toHaveLength(6); // session fixtures
+  expect(STARTERS.filter(s => s.id.startsWith('qt-'))).toHaveLength(0); // retired; Basics live in patches/
   for (const removed of ['drone', 'clocked-random', 'sequence', 'macro', 'chaos']) {
     expect(STARTERS.some(s => s.id === removed)).toBe(false);
   }
@@ -138,3 +154,53 @@ for (const starter of curated) {
     expect(errors).toEqual([]);
   });
 }
+
+test('all fifteen public Basics/Scene patches have non-overlapping cards in mouse and touch layouts', async ({ page }) => {
+  // Import the exact published patch files: no Node filesystem types in the Studio TS build.
+  const patches = [
+    { file: 'basics-01-first-tone.json', patch: library01 },
+    { file: 'basics-02-fm-filter-lfo.json', patch: library02 },
+    { file: 'basics-03-echo-and-reverb.json', patch: library03 },
+    { file: 'basics-04-sequencer-and-quantizer.json', patch: library04 },
+    { file: 'basics-05-random-melody.json', patch: library05 },
+    { file: 'basics-06-chaos-keys.json', patch: library06 },
+    { file: 'basics-07-macro-keys.json', patch: library07 },
+    { file: 'scene-01-hollow-chapel.json', patch: library08 },
+    { file: 'scene-02-breathing-walls.json', patch: library09 },
+    { file: 'scene-03-black-ice-choir.json', patch: library10 },
+    { file: 'scene-04-vowel-apparitions.json', patch: library11 },
+    { file: 'scene-05-glass-cathedrals.json', patch: library12 },
+    { file: 'scene-06-dust-reactor.json', patch: library13 },
+    { file: 'scene-07-witching-hour.json', patch: library14 },
+    { file: 'scene-08-neon-elegy.json', patch: library15 },
+  ];
+  expect(patches).toHaveLength(15);
+  expect(new Set(patches.map(({ file }) => file)).size).toBe(15);
+  await boot(page);
+  const failures: string[] = [];
+  for (const hit of ['mouse', 'touch']) {
+    await page.evaluate(hit => window.__wirescapeTest.setPref({ hit }), hit);
+    for (const { file, patch } of patches) {
+      expect(Object.keys(patch.ui.positions)).toHaveLength(patch.modules.length);
+      await page.evaluate(p => {
+        window.__wirescapeTest.load(p as unknown as PatchV2, p.name);
+        window.__wirescapeTest.fit();
+      }, patch);
+      await settle(page);
+      await expect(page.locator('.module')).toHaveCount(patch.modules.length);
+      const collisions = await page.locator('.module').evaluateAll(cards => {
+        const overlaps: string[] = [];
+        for (let i = 0; i < cards.length; i++) for (let j = i + 1; j < cards.length; j++) {
+          const a = cards[i]!.getBoundingClientRect(), b = cards[j]!.getBoundingClientRect();
+          if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 2 &&
+              Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 2) {
+            overlaps.push(cards[i]!.getAttribute('data-testid') + ' overlaps ' + cards[j]!.getAttribute('data-testid'));
+          }
+        }
+        return overlaps;
+      });
+      failures.push(...collisions.map(c => file + ' / ' + hit + ': ' + c));
+    }
+  }
+  expect(failures).toEqual([]);
+});
