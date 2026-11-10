@@ -247,6 +247,26 @@ select.sel{appearance:none;-webkit-appearance:none;font:500 10px var(--mono);bor
 .pop button.on{background:var(--soft);color:var(--ink)}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--graph);color:#fff;font:500 10px var(--mono);letter-spacing:.05em;padding:8px 14px;border-radius:6px;z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.on{opacity:1}
+/* phone: vertical layout, rows of 8 */
+.bpads{display:flex;flex-direction:column;gap:12px}
+[data-narrow="1"]{--gap:3px;--group:10px}
+[data-narrow="1"] .top{padding:8px 12px;gap:4px 14px}
+[data-narrow="1"] .wrap{padding:16px 8px 40px}
+[data-narrow="1"] #card{width:100%}
+[data-narrow="1"] .gcard{width:100%}
+[data-narrow="1"] .rail{display:none}
+[data-narrow="1"] .gbody{padding:10px 8px 16px}
+[data-narrow="1"] .status{min-width:0}
+[data-narrow="1"] .ttab{flex:1 1 150px}
+[data-narrow="1"] .ttab .tst,[data-narrow="1"] .ttab .nm{display:none}
+[data-narrow="1"] .r-lanes .seg{max-width:100%;overflow-x:auto;scrollbar-width:none}
+[data-narrow="1"] .grid{padding:18px 0 16px;gap:22px}
+[data-narrow="1"] .bar{flex-direction:column;gap:6px}
+[data-narrow="1"] .barn{padding:0;text-align:left;width:auto}
+[data-narrow="1"] .pad .nn{font-size:11px}
+[data-narrow="1"] .pad.note .band{left:calc(50% + 13px)}
+[data-narrow="1"] .cue-cond{font-size:7px;right:3px;top:2px}
+[data-narrow="1"] .insp{gap:12px 20px}
 @media (prefers-reduced-motion:reduce){.segi,.pad{transition:none}.spin{animation:none}}
 </style>
 </head>
@@ -379,7 +399,8 @@ const ICON_STOP='<svg width="11" height="11" viewBox="0 0 11 11"><rect x="1.5" y
 
 /* ---------------- card ---------------- */
 function render(){
-  document.body.dataset.look=S.look;document.body.dataset.density=S.density;
+  document.body.dataset.look=S.look;document.body.dataset.density=S.density;document.body.dataset.narrow=S.narrow?'1':'';
+  if(S.narrow){const avail=Math.min(innerWidth,760)-2-16-16;document.body.style.setProperty('--pad',Math.max(34,Math.floor((avail-6*3-10)/8))+'px')}else document.body.style.removeProperty('--pad');
   document.getElementById('segLook').innerHTML=seg('look',[['graphite','Graphite'],['oxblood','Oxblood'],['led','LED']],S.look,'look','fill');
   document.getElementById('segDensity').innerHTML=seg('density',[['mouse','Mouse'],['touch','Touch']],S.density,'density','fill');
   document.getElementById('tgSound').classList.toggle('on',S.sound);
@@ -428,8 +449,7 @@ function padsView(){
   const roots=NOTE.map((n,i)=>`<option value="${i}" ${i===S.root?'selected':''}>${n}</option>`).join('');
   let bars='';
   for(let b=0;b<Math.ceil(L/16);b++){
-    let grps='';
-    for(let g=0;g<4;g++){let cells='';
+    const grps=[];for(let g=0;g<4;g++){let cells='';
       for(let c=0;c<4;c++){const i=b*16+g*4+c;if(i>=L)break;
         const s=st[i],src=srcIndex(st,i),key=src>=0?st[src].key:s.key,nextTie=i+1<L&&st[i+1].k==='tie'&&s.k!=='rest'&&src>=0;
         const lastTie=s.k==='tie'&&!nextTie;
@@ -447,7 +467,7 @@ function padsView(){
             if(s.c){cls.push('cond');inner+=`<span class="cue-cond">${s.c}</span>`}
           }
           if(nextTie||(real&&s.k==='tie'))inner+=`<span class="band"></span>`;
-          if(nextTie)cls.push('tied',c===3?(g===3?'rend':'gend'):'');
+          if(nextTie)cls.push('tied',c===3?(g===3||(S.narrow&&g===1)?'rend':'gend'):'');
           if(lastTie)cls.push('last');
           if(lane==='note'&&real){const lo=S.oct[t]*12+7,y=clamp((key-lo)/30,0,1);inner+=`<span class="ctrack"><span class="contour" style="bottom:${y*100}%;${s.k==='tie'?'opacity:.4':''}"></span></span>`}
         }
@@ -456,8 +476,9 @@ function padsView(){
         const ledOn=s.k==='note'?'on':'';
         cells+=`<div class="pcell"><div class="${cls.join(' ')}" data-drag="pad" data-i="${i}" data-p="${t}:${i}" role="button" aria-label="Step ${i+1}">${inner}</div><span class="slot ${ledOn}" data-p="${t}:${i}"></span></div>`;
       }
-      if(cells)grps+=`<div class="pgrp">${cells}</div>`;}
-    bars+=`<div class="bar" data-bar="${b}"><span class="barn">${b+1}</span><div class="pads">${grps}</div></div>`;
+      if(cells)grps.push(`<div class="pgrp">${cells}</div>`);}
+    const body=S.narrow?`<div class="pads">${grps.slice(0,2).join('')}</div>${grps.length>2?`<div class="pads">${grps.slice(2).join('')}</div>`:''}`:`<div class="pads">${grps.join('')}</div>`;
+    bars+=`<div class="bar" data-bar="${b}"><span class="barn">${b+1}</span><div class="bpads">${body}</div></div>`;
   }
   return `<div class="row r-lanes">${seg('lane',LANES,lane,'lane')}<span class="sp"></span>
     <span class="f" style="flex-direction:row;gap:8px;align-items:center"><span class="lbl">Scale</span><select class="sel" data-act="root">${roots}</select><select class="sel" data-act="scale">${scales}</select></span>
@@ -467,7 +488,7 @@ function padsView(){
 
 /* ---------------- roll ---------------- */
 function rollRows(t){const rows=[];for(let k=S.rollTop[t];k>S.rollTop[t]-25;k--)rows.push(k);return rows}
-function rollGeom(){const L=S.tracks[S.t].len,touch=S.density==='touch';const W=touch?1100:1010;return{cw:clamp(Math.floor(W/L),touch?18:14,64),rh:touch?22:15,L}}
+function rollGeom(){const L=S.tracks[S.t].len,touch=S.density==='touch';const W=S.narrow?Math.max(300,innerWidth-80):touch?1100:1010;return{cw:clamp(Math.floor(W/L),touch?18:14,64),rh:touch?22:15,L}}
 function rollView(){
   const t=S.t,st=stepsOf(t),rows=rollRows(t),{cw,rh,L}=rollGeom(),H=rows.length*rh,W=L*cw;
   let keys='',rws='',cols='',notes='',head='';
@@ -485,7 +506,7 @@ function rollView(){
   for(let i=0;i<L;i++){const s=st[i],v=f==='len'?s.len:s[f];lol+=`<span class="lol ${f} ${s.k!=='note'?'rv':''}" style="left:${i*cw+cw/2-.75}px;height:${Math.max(2,v*(LH-6))}px"></span>`}
   return `<div class="row r-lanes"><button class="tb" data-act="rscroll" data-v="12">▲ Oct</button><button class="tb" data-act="rscroll" data-v="-12">▼ Oct</button><span class="sp"></span>
      <span class="lbl">Chords · later</span></div>
-   <div class="roll" style="flex-direction:column"><div class="rhead">${head}</div>
+   <div class="roll" style="flex-direction:column;overflow-x:auto"><div class="rhead">${head}</div>
    <div style="display:flex"><div class="rkeys">${keys}</div><div class="rgrid" data-drag="roll" style="width:${W}px;height:${H}px">${rws}${cols}${notes}</div></div></div>
    <div class="rlane-wrap"><div class="rlane" data-drag="rlane" style="width:${W}px">${lol}</div></div>
    <div class="row" style="padding:2px 0 20px 40px">${seg('rlane',[['vel','Velocity'],['len','Length'],['m1','Mod 1'],['m2','Mod 2']],f,'rlane')}</div>`;
@@ -568,10 +589,10 @@ document.addEventListener('pointerdown',e=>{
   if(e.button!==0||e.target.closest('input,select,#pop'))return;
   const el=e.target.closest('[data-drag]');if(!el)return;const kind=el.dataset.drag,t=S.t,st=stepsOf(t);
   if(kind==='pad'){const i=+el.dataset.i,s=st[i];e.preventDefault();
-    if(S.lane==='trig'){if(e.shiftKey){select(i);render();return}
-      D={k:'trig',i0:i,last:i,moved:false,held:false,orig:clone(st)};D.timer=setTimeout(()=>{if(D&&!D.moved){D.held=true;select(i);render()}},360)}
-    else if(S.lane==='note'){select(i);beginG();if(s.k==='rest'){makeNote(t,i);aud(t,S.pen[t])}const j=srcIndex(st,i);D={k:'pnote',i,y0:e.clientY,key0:j>=0?st[j].key:s.key,lk:null};render()}
-    else if(S.lane==='cond'){select(i);render();const p=document.querySelector(`.pad[data-i="${i}"]`);if(p)openCond(p,t,i)}
+    if(S.lane==='trig'||S.lane==='note'){const wasSel=S.sel[t]===i,j=srcIndex(st,i);
+      D={k:'trig',i0:i,last:i,mode:null,wasSel,x0:e.clientX,y0:e.clientY,key0:j>=0?st[j].key:null,lk:null,orig:clone(st)};
+      if(!wasSel){select(i);render()}}
+    else if(S.lane==='cond'){select(i);render();const p=document.querySelector(`.pad[data-i="${i}"]`);if(p&&s.k==='note')openCond(p,t,i)}
     else{select(i);beginG();D={k:'pval',f:S.lane};paintVal(e)}}
   else if(kind==='roll'){e.preventDefault();const h=rollHit(e,el);if(h.i==null)return;beginG();const orig=clone(st);select(h.i);
     st[h.i]={...st[h.i],k:'note',key:h.key};S.pen[t]=h.key;aud(t,h.key);D={k:'rnew',i0:h.i,orig,max:h.i};render()}
@@ -584,11 +605,14 @@ document.addEventListener('pointerdown',e=>{
   else if(kind==='bpm')D={k:'bpm',x0:e.clientX,v0:S.bpm};
 });
 window.addEventListener('pointermove',e=>{if(!D)return;const t=S.t,st=stepsOf(t),L=S.tracks[t].len;
-  if(D.k==='trig'){const p=at(e,'[data-drag="pad"]');if(!p)return;const i=+p.dataset.i;
-    if(i!==D.i0&&!D.moved){D.moved=true;clearTimeout(D.timer);beginG()}if(!D.moved||i===D.last)return;D.last=i;
-    for(let j=0;j<64;j++)st[j]=clone(D.orig[j]);
-    if(i>D.i0){if(st[D.i0].k!=='note'){makeNote(t,D.i0);}for(let j=D.i0+1;j<=i;j++)st[j].k='tie'}select(D.i0);render()}
-  else if(D.k==='pnote'){const k=degStep(snapKey(D.key0),Math.round((D.y0-e.clientY)/14));if(k!==D.lk){D.lk=k;setPitch(t,D.i,k);aud(t,k);render()}}
+  if(D.k==='trig'){const dx=e.clientX-D.x0,dy=e.clientY-D.y0;
+    if(!D.mode){if(Math.abs(dy)>6&&Math.abs(dy)>Math.abs(dx)&&D.key0!=null){D.mode='pitch';beginG()}
+      else{const p=at(e,'[data-drag="pad"]');if(p&&+p.dataset.i!==D.i0&&Math.abs(dx)>Math.abs(dy)){D.mode='tie';beginG()}}}
+    if(D.mode==='pitch'){const n=Math.round(-dy/14),k=e.shiftKey?clamp(D.key0+12*n,0,127):degStep(snapKey(D.key0),n);
+      if(k!==D.lk){D.lk=k;setPitch(t,D.i0,k);aud(t,k);render()}}
+    else if(D.mode==='tie'){const p=at(e,'[data-drag="pad"]');if(!p)return;const i=+p.dataset.i;if(i===D.last)return;D.last=i;
+      for(let j=0;j<64;j++)st[j]=clone(D.orig[j]);
+      if(i>D.i0){if(st[D.i0].k!=='note')makeNote(t,D.i0);for(let j=D.i0+1;j<=i;j++)st[j].k='tie'}select(D.i0);render()}}
   else if(D.k==='pval')paintVal(e);
   else if(D.k==='rnew'){const g=document.querySelector('.rgrid');const {cw}=rollGeom(),r=g.getBoundingClientRect();const c=clamp(Math.floor((e.clientX-r.left)/cw),D.i0,L-1);D.max=Math.max(D.max,c);
     for(let j=D.i0+1;j<=D.max;j++)st[j]=j<=c?{...D.orig[j],k:'tie'}:clone(D.orig[j]);render()}
@@ -602,8 +626,8 @@ window.addEventListener('pointermove',e=>{if(!D)return;const t=S.t,st=stepsOf(t)
   else if(D.k==='bpm'){const v=+clamp(D.v0+(e.clientX-D.x0)*(e.shiftKey?.02:.2),20,300).toFixed(1);if(v!==S.bpm){S.bpm=v;render()}}
 });
 window.addEventListener('pointerup',()=>{if(!D)return;const d=D;D=null;const t=S.t,st=stepsOf(t);
-  if(d.k==='trig'){clearTimeout(d.timer);if(!d.moved&&!d.held){const i=d.i0,s=st[i];
-      edit(()=>{if(s.k==='rest'||(s.k==='tie'&&srcIndex(st,i)<0)){makeNote(t,i);aud(t,S.pen[t])}else s.k='rest'});select(i);render()}endG();return}
+  if(d.k==='trig'){if(!d.mode&&d.wasSel){const i=d.i0,s=st[i];
+      edit(()=>{if(s.k==='rest'||(s.k==='tie'&&srcIndex(st,i)<0)){makeNote(t,i);aud(t,S.pen[t])}else s.k='rest'})}endG();render();return}
   if(d.k==='num'&&!d.moved){endG();hist.pop();openInput(d.el,d.f);return}
   endG();render()});
 function paintVal(e){const p=at(e,'[data-drag="pad"]');if(!p)return;const i=+p.dataset.i,r=p.getBoundingClientRect(),f=D.f;
@@ -639,6 +663,15 @@ document.addEventListener('keydown',e=>{if(e.target.closest('input,select'))retu
   if(k==='z'||k==='x'){S.oct[t]=clamp(S.oct[t]+(k==='x'?1:-1),0,7);toast('Octave '+S.oct[t]);return}
   const lk=k.toLowerCase();if(lk in PIANO&&!e.repeat){const key=clamp(S.oct[t]*12+12+PIANO[lk],0,127);aud(t,key);edit(()=>{setPitch(t,i,key)});select(i+1);render()}
 });
+/* wheel over a note: scale steps, Shift: octaves */
+let wAcc=0;
+document.addEventListener('wheel',e=>{const p=e.target.closest('.pad[data-drag="pad"]');if(!p||!(S.lane==='trig'||S.lane==='note'))return;
+  const t=S.t,i=+p.dataset.i,st=stepsOf(t),j=srcIndex(st,i);if(j<0)return;e.preventDefault();
+  wAcc+=(e.deltaY||e.deltaX);if(Math.abs(wAcc)<40)return;const n=wAcc<0?1:-1;wAcc=0;
+  if(S.sel[t]!==i)select(i);edit(()=>setPitch(t,i,e.shiftKey?clamp(st[j].key+12*n,0,127):degStep(snapKey(st[j].key),n)));aud(t,st[j].key)},{passive:false});
+/* phone layout */
+S.narrow=innerWidth<760;if(S.narrow&&matchMedia('(pointer:coarse)').matches)S.density='touch';
+let rT=0;addEventListener('resize',()=>{clearTimeout(rT);rT=setTimeout(()=>{const n=innerWidth<760;if(n!==S.narrow){S.narrow=n}render()},120)});
 render();
 </script>
 </body>
