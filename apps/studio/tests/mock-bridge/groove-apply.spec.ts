@@ -123,3 +123,27 @@ test('playhead and skipped-this-pass dim come only from telemetry', async ({ pag
   await expect(page.getByTestId('groove-pad-1-2')).toHaveClass(/play/);
   await expect(page.getByTestId('groove-pad-1-1')).not.toHaveClass(/play|skip/);
 });
+
+test('G2b Roll/bar edits stay in draft until a measured stop and explicit Apply', async ({ page }) => {
+  const baseline = JSON.stringify(await graphConfig(page));
+  await page.getByTestId('groove-copy-bar-1').click();
+  await page.getByTestId('groove-len-32-1').click();
+  await page.getByTestId('groove-pad-1-18').click(); // select bar two; does not mutate the pattern
+  await page.getByTestId('groove-paste-bar-1').click();
+  await page.getByTestId('groove-scale-1').selectOption('Minor');
+  await page.getByTestId('groove-look-1').selectOption('led');
+  await page.getByTestId('groove-view-roll-1').click();
+  await expect(page.getByTestId('groove-roll-1')).toBeVisible();
+  const current = await page.evaluate(() => window.__wirescapeTest.state().modules[0].config);
+  expect(current.tracks[0].length).toBe(32);
+  expect(current.tracks[0].steps[16]).toMatchObject({ kind: 'note', key: 60 });
+  expect(JSON.stringify(await graphConfig(page))).toBe(baseline);
+  await telemetry(page, { 1: [-1, -1] });
+  await expect(apply(page)).toBeEnabled();
+  const before = (await sent(page)).length;
+  await apply(page).click();
+  await expect(page.getByTestId('groove-draft-1')).toBeHidden();
+  expect((await graphConfig(page)).tracks[0].steps[16]).toMatchObject({ kind: 'note', key: 60 });
+  expect((await sent(page)).slice(before).filter(m => m.type === 'loadGraph')).toHaveLength(1);
+  expect((await sent(page)).slice(before).some(m => m.type === 'setParam' && m.paramId === 'run')).toBe(false);
+});
