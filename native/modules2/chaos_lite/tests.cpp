@@ -163,10 +163,11 @@ static void lfo_shapes_and_legacy_state() {
     original.run(256);
     const Bytes modern = original.save();
     REQUIRE(modern.size() == 4 + 8 * (64 + 40));
-    Bytes legacy{1u, 0u, 0u, 0u};
+    Bytes legacy;
+    for (uint8_t b : {uint8_t(1), uint8_t(0), uint8_t(0), uint8_t(0)}) legacy.push_back(b);
     for (uint32_t c = 0; c < 8; ++c) {
         const size_t offset = 4 + c * (64 + 40);
-        legacy.insert(legacy.end(), modern.begin() + offset, modern.begin() + offset + 64);
+        for (size_t i = 0; i < 64; ++i) legacy.push_back(modern[offset + i]);
     }
     Rig restored;
     REQUIRE(restored.load(legacy) == WS2_OK);
