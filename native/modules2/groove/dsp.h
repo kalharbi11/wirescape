@@ -60,6 +60,7 @@ struct Sequencer {
         uint32_t rng = 1;
         bool fired = false;
         double gate_age = 0., gate_cutoff = 0.;
+        bool short_gate = false;
     };
 
     Config pattern{};
@@ -148,7 +149,7 @@ struct Sequencer {
                 if (pattern.tracks[t].length > longest) longest = pattern.tracks[t].length;
         return longest;
     }
-    double gate_duration(uint32_t track, uint32_t note_step) const {
+    double gate_duration(uint32_t track, uint32_t note_step, bool &short_gate) const {
         const auto &pattern_track = pattern.tracks[track];
         uint32_t last_gate = pattern_track.steps[note_step].gate_q;
         uint32_t ties = 0;
@@ -159,6 +160,7 @@ struct Sequencer {
             ++ties;
             last_gate = pattern_track.steps[next].gate_q;
         }
+        short_gate = last_gate < 4; // Full-length gates use the legacy boundary release.
         return samples_per_step * (static_cast<double>(ties) + last_gate / 4.);
     }
 
@@ -199,19 +201,35 @@ struct Sequencer {
     void release_step(ws::Block &b, uint32_t t, uint32_t i) {
         const auto &p = players[t];
         if (!p.playing || effective_mute(t)) return;
-        const auto &row = pattern.tracks[t].steps[step];
+        const auto &row = pattern.tracks[t].steps[step_t[t]];
         if (row.kind != Tie || !p.sounding.on) release(b, t, i);
     }
     void trigger(ws::Block &b, uint32_t t, uint32_t i) {
         auto &p = players[t];
-        const auto &row = pattern.tracks[t].steps[step];
-        p.fired = p.playing && (row.kind == Note || (row.kind == Tie && p.fired));
-        if (!p.playing || effective_mute(t)) return;
+        const auto &row = pattern.tracks[t].steps[step_t[t]];
+        const bool continued = p.fired && p.sounding.on;
+        p.fired = false;
+        if (!p.playing) return;
+        if (row.kind == Note && row.velocity > 0.f) {
+            p.fired = condition_passes(row, p);
+            if (!p.fired) {
+                // A failed condition acts as a rest for notes/ties, not for the
+                // stepped CV modulation: the skipped trig still updates both mods.
+                p.mod1 = row.mod1;
+                p.mod2 = row.mod2;
+                return;
+            }
+        } else if (row.kind == Tie) {
+            p.fired = continued;
+        }
+        if (effective_mute(t)) return;
         if (row.kind == Tie && p.sounding.on) return;
-        if (row.kind != Note || row.velocity <= 0.f || !flush(b, t, i)) return;
+        if (row.kind != Note || row.velocity <= 0.f || !p.fired || !flush(b, t, i)) return;
         const NoteState note{true, next_id, row.key};
         if (!emit(b, t, WS2_NOTE_ON, i, note, row.velocity)) return;
         p.sounding = note;
+        p.gate_age = 0.;
+        p.gate_cutoff = gate_duration(t, step_t[t], p.short_gate);
         next_id = next_id == 0x7fffffff ? 1 : next_id + 1;
         p.pitch = static_cast<float>(row.key - 60) / 12.f;
         p.mod1 = row.mod1;
@@ -229,24 +247,31 @@ struct Sequencer {
         control_high[p] = high;
         return rise;
     }
+    // One sixteenth-note tick. Track wraps are independent, while global STOP
+    // waits for the longest armed/running track to realign with the master.
     void boundary(ws::Block &b, uint32_t i) {
-        if (stop_queued) {
+        step = (step + 1u) % master_steps();
+        for (uint32_t t = 0; t < kTracks; ++t) {
+            step_t[t] = (step_t[t] + 1u) % pattern.tracks[t].length;
+            auto &p = players[t];
+            if (p.playing && step_t[t] == 0) ++p.loop;
+        }
+        if (step == 0 && stop_queued) {
             release_all(b, i);
             running = stop_queued = reset_wait = false;
-            for (auto &p : players) {
-                p.playing = p.enter = p.stop = p.fired = false;
-            }
-            return; // STOP at the boundary has no extra step-1 NOTE_ON.
+            for (auto &p : players) p.playing = p.enter = p.stop = p.fired = false;
+            return; // No step-1 NOTE_ON after the completed global STOP.
         }
         for (uint32_t t = 0; t < kTracks; ++t) {
             auto &p = players[t];
-            if (p.playing) ++p.loop;
-            if (p.stop) {
+            if (p.stop && step_t[t] == 0) {
                 release(b, t, i);
                 p.playing = p.armed = p.stop = p.enter = p.fired = false;
-            } else if (p.enter) {
+            } else if (p.enter && step % 16u == 0) {
                 p.playing = true;
                 p.enter = false;
+                p.loop = 1;
+                p.rng = seed_for(t);
             }
         }
     }
