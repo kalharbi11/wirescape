@@ -411,6 +411,46 @@ export class GroovePane {
       row.append(name, cells);
       roll.append(row);
     }
+    // Roll value lanes share the step axis and scroll with note rows.
+    // Every click is a single document/history edit. Only the active note has a velocity.
+    for (const lane of ['velocity', 'gate', 'mod1', 'mod2'] as const) {
+      const row = el('div', 'g-rrow g-vrow');
+      const label = el('span', 'g-rlabel', { velocity: 'VEL', gate: 'GATE', mod1: 'MOD 1', mod2: 'MOD 2' }[lane]);
+      const cells = el('div', 'g-rcells');
+      cells.style.gridTemplateColumns = 'repeat(' + length + ', 24px)';
+      for (let i = 0; i < length; i++) {
+        const st = stepAt(cfg, t, i), value = lane === 'velocity' ? st.velocity ?? 0.8 :
+          lane === 'gate' ? st.gate ?? 1 : st[lane] ?? 0;
+        const disabled = lane === 'velocity' && st.kind !== 'note';
+        const cell = el('div', 'g-vcell');
+        cell.dataset.testid = 'groove-roll-' + lane + '-' + this.id + '-' + (i + 1);
+        cell.setAttribute('role', 'button');
+        cell.setAttribute('aria-label', lane + ', step ' + (i + 1) + ': ' + value);
+        if (disabled) cell.classList.add('disabled');
+        if (i % 16 === 0) cell.classList.add('bar-edge');
+        const stem = el('span', 'g-vstem');
+        stem.style.height = (value * 75) + '%';
+        const dot = el('span', 'g-vdot');
+        stem.append(dot); cell.append(stem);
+        cell.addEventListener('pointerdown', e => {
+          e.preventDefault(); e.stopPropagation();
+          if (disabled) return;
+          this.view.sel[t] = i; this.view.selected[t] = true;
+          const rect = cell.getBoundingClientRect();
+          const f = clamp(1 - (e.clientY - rect.top) / rect.height, 0, 1);
+          this.edit(c => {
+            const step = stepFor(c, t, i);
+            if (lane === 'velocity') step.velocity = Math.round(f * 100) / 100;
+            else if (lane === 'gate') {
+              const g = GATES[Math.max(0, Math.min(3, Math.round(f * 3)))]!;
+              if (g === 1) delete step.gate; else step.gate = g;
+            } else step[lane] = Math.round(f * 100) / 100;
+          });
+        });
+        cells.append(cell);
+      }
+      row.append(label, cells); roll.append(row);
+    }
     this.grid.append(roll);
   }
 
@@ -548,11 +588,25 @@ export class GroovePane {
       }));
       gate.append(b);
     }
+    const modField = (key: 'mod1' | 'mod2'): HTMLElement => {
+      const input = el('input', 'g-in') as HTMLInputElement;
+      input.type = 'number'; input.min = '0'; input.max = '100'; input.step = '1';
+      input.dataset.testid = 'groove-' + key + '-' + this.id;
+      input.value = String(Math.round((s[key] ?? 0) * 100));
+      input.addEventListener('change', () => {
+        const n = Number(input.value);
+        if (Number.isFinite(n)) this.edit(c => {
+          stepFor(c, t, i)[key] = Math.round(clamp(n, 0, 100)) / 100;
+        });
+      });
+      return input;
+    };
     const cond = this.button('g-ccbtn', 'cond', 'Trig condition (note trigs only)', condLabel(s.cond, true));
     cond.disabled = s.kind !== 'note';
     cond.addEventListener('click', e => { e.stopPropagation(); this.openCond(cond, i); });
     this.insp.append(head, field('Trig', kind), field('Note', note), field('Velocity %', vel),
-      field('Length', gate), field('Condition', cond));
+      field('Length', gate), field('Mod 1 %', modField('mod1')), field('Mod 2 %', modField('mod2')),
+      field('Condition', cond));
   }
 
   private openCond(anchor: HTMLElement, i: number): void {
