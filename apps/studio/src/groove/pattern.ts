@@ -11,7 +11,7 @@ export type Cond =
   | { type: 'first' }
   | { type: 'not_first' };
 export interface Step {
-  kind: Kind; key?: number; velocity?: number; gate?: number; cond?: Cond;
+  kind: Kind; key?: number; keys?: number[]; velocity?: number; gate?: number; cond?: Cond;
   mod1?: number; mod2?: number; [extra: string]: unknown;
 }
 export interface Track { length?: number; steps: Step[]; armed?: boolean; mute?: boolean; [extra: string]: unknown }
@@ -128,7 +128,7 @@ export function setKind(step: Step, kind: Kind, key?: number): void {
   if (kind === 'note') {
     if (typeof step.key !== 'number') step.key = key ?? 60;
     if (typeof step.velocity !== 'number') step.velocity = 0.8;
-  } else { delete step.key; delete step.velocity; delete step.cond; }
+  } else { delete step.key; delete step.keys; delete step.velocity; delete step.cond; }
 }
 export function setLength(cfg: GrooveConfig, t: number, length: number): void {
   upgrade(cfg);
@@ -167,6 +167,7 @@ export function engineConfig(raw: unknown): unknown {
       const out: Step = { kind };
       if (kind === 'note') {
         out.key = Number.isInteger(step.key) && num(step.key, 0, 127) ? step.key as number : 60;
+        if ('keys' in step) out.keys = step.keys as number[];
         out.velocity = num(step.velocity, 0, 1) ? step.velocity as number : 0.8;
       }
       for (const m of ['mod1', 'mod2'] as const) if (num(step[m], 0, 1)) out[m] = step[m] as number;

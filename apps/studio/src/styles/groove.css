@@ -157,6 +157,13 @@
   .g-roll { max-width: 100%; touch-action: pan-x pan-y; }
 }
 
+.g-pad .g-nn.chd { font-weight: 600; font-size: 12px; letter-spacing: -.02em; }
+.g-pad .g-nn.long { font-size: 10px; }
+.cue-ch { position: absolute; right: 6px; top: 16px; bottom: 13px; width: 6px; pointer-events: none; }
+.cue-ch i { position: absolute; left: 0; width: 6px; height: 1.5px; border-radius: 1px; background: currentColor; opacity: .6; }
+.g-chord-controls { display: inline-flex; align-items: center; gap: 3px; }
+.g-chord-pop { grid-template-columns: repeat(4, minmax(55px, 1fr)); min-width: 280px; }
+.g-chord-pop button.out { color: var(--mute, #8c8c88); }
 .g-pad.note.off-scale .g-nn { text-decoration: underline dotted; text-underline-offset: 3px; }
 
 .g-vrow { border-top: .5px solid var(--hair2, #e2e2df); background: var(--card, #fff); }

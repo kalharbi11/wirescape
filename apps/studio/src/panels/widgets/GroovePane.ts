@@ -8,6 +8,10 @@ import {
   type GrooveConfig, type Kind, type Step,
 } from '../../groove/pattern';
 import { ROOTS, SCALES, type Scale, clearBar, copyBar, inScale, movePitch, pasteBar, rollNotes } from '../../groove/editorHelpers';
+import {
+  PICKER_GROUPS, chordName, inScale as chordInScale, invert, moveNotes, notesOf,
+  qualityKeys, scaleStack, setNotes, stepLabel, type ScaleCtx,
+} from '../../groove/chords';
 import '../../styles/groove.css';
 
 /** What the Groove editor may ask of the app. Nothing here starts audio on its own. */
@@ -143,6 +147,18 @@ export class GroovePane {
   private get t(): number { return this.view.t; }
   private len(t = this.t): number { return this.cfg ? trackLength(this.cfg, t) : 16; }
   private step(i: number, t = this.t): Step { return this.cfg ? stepAt(this.cfg, t, i) : { kind: 'rest' }; }
+  private scaleCtx(): ScaleCtx { return { root: this.view.root, intervals: SCALES[this.view.scale] }; }
+  private moveStep(c: GrooveConfig, i: number, n: number, octave: boolean): void {
+    const src = sourceOf(c, this.t, i);
+    if (src < 0) return;
+    const step = stepFor(c, this.t, src), keys = notesOf(step), root = step.key ?? keys[0]!;
+    if (keys.length < 2) {
+      this.setPitch(c, i, this.stepPitch(root, n, octave));
+    } else {
+      const moved = moveNotes(keys, root, n, this.scaleCtx(), octave);
+      if (moved) { setNotes(step, moved.keys, moved.root); this.view.pen[this.t] = moved.root; }
+    }
+  }
   /** Pitch move by `n` units: chromatic now; G2b's scale helper replaces this. */
   private stepPitch(key: number, n: number, octave: boolean): number {
     return octave ? clamp(key + n * 12, 0, 127) : movePitch(key, n, this.view.root, this.view.scale);
@@ -159,8 +175,11 @@ export class GroovePane {
     let j = sourceOf(c, this.t, i);
     if (j < 0) { setKind(stepFor(c, this.t, i), 'note', key); j = i; }
     const s = stepFor(c, this.t, j);
-    s.key = clamp(key, 0, 127);
-    this.view.pen[this.t] = s.key;
+    const root = s.key ?? 60, newRoot = clamp(key, 0, 127);
+    const shifted = notesOf(s).map(k => k + newRoot - root);
+    if (shifted.some(k => k < 0 || k > 127)) return;
+    setNotes(s, shifted, newRoot);
+    this.view.pen[this.t] = newRoot;
   }
   private select(i: number): void {
     this.view.sel[this.t] = clamp(i, 0, this.len() - 1);
@@ -388,9 +407,23 @@ export class GroovePane {
     pad.dataset.testid = `groove-pad-${this.id}-${i + 1}`;
     pad.dataset.kind = s.kind;
     pad.setAttribute('role', 'button');
-    pad.setAttribute('aria-label', `Step ${i + 1}: ${s.kind === 'note' ? noteName(s.key ?? 60) : s.kind}`);
+    pad.setAttribute('aria-label', `Step ${i + 1}: ${s.kind === 'note' ? stepLabel(s) : s.kind}`);
     if (s.kind === 'note') {
-      pad.append(el('span', 'g-nn', noteName(s.key ?? 60)));
+      const keys = notesOf(s);
+      const label = el('span', 'g-nn', keys.length > 1 ? stepLabel(s, true) : noteName(s.key ?? 60));
+      if (keys.length > 1) {
+        label.classList.add('chd');
+        if (label.textContent!.length > 5) label.classList.add('long');
+        const ladder = el('span', 'cue-ch');
+        const lowest = Math.min(...keys);
+        for (const k of keys) {
+          const tick = el('i');
+          tick.style.bottom = `${clamp((k - lowest) / 24, 0, 1) * 100}%`;
+          ladder.append(tick);
+        }
+        pad.append(ladder);
+      }
+      pad.append(label);
       if (!inScale(s.key ?? 60, this.view.root, this.view.scale)) pad.classList.add('off-scale');
       const vel = el('span', 'cue-vel'); vel.style.width = `${Math.round((s.velocity ?? 0.8) * 100)}%`;
       pad.append(vel);
@@ -638,8 +671,8 @@ export class GroovePane {
     else if (e.key === 'ArrowRight') this.select(i + 1);
     else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       const src = sourceOf(this.cfg, t, i);
-      const current = src >= 0 ? stepAt(this.cfg, t, src).key ?? this.view.pen[t] : this.view.pen[t];
-      this.edit(cfg => this.setPitch(cfg, i, this.stepPitch(current, e.key === 'ArrowUp' ? 1 : -1, e.shiftKey)));
+      if (src < 0) this.edit(cfg => this.setPitch(cfg, i, this.stepPitch(this.view.pen[t], e.key === 'ArrowUp' ? 1 : -1, e.shiftKey)));
+      else this.edit(cfg => this.moveStep(cfg, i, e.key === 'ArrowUp' ? 1 : -1, e.shiftKey));
     } else if (k === 'z') { this.view.octave = clamp(this.view.octave - 1, -1, 9); }
     else if (k === 'x') { this.view.octave = clamp(this.view.octave + 1, -1, 9); }
     else if (k in piano) this.edit(cfg => this.setPitch(cfg, i, clamp((this.view.octave + 1) * 12 + piano[k]!, 0, 127)));
@@ -664,6 +697,41 @@ export class GroovePane {
       const b = this.button(s.kind === k ? 'on' : '', `kind-${k}`, '', k[0]!.toUpperCase() + k.slice(1));
       b.addEventListener('click', () => this.edit(c => setKind(stepFor(c, t, i), k, this.view.pen[t])));
       kind.append(b);
+    }
+    const sourceStep = src >= 0 ? this.step(src) : s;
+    const isChord = src >= 0 && notesOf(sourceStep).length > 1;
+    const notes = el('span', 'g-seg g-note-kind');
+    for (const mode of ['Single', 'Chord'] as const) {
+      const b = this.button((mode === 'Chord') === isChord ? 'on' : '', 'notes-' + mode.toLowerCase(), '', mode);
+      b.disabled = src < 0;
+      b.addEventListener('click', () => {
+        if (src < 0) return;
+        if (mode === 'Single' && isChord) this.edit(c => {
+          const st = stepFor(c, t, src);
+          setNotes(st, [st.key ?? 60]);
+        });
+        else if (mode === 'Chord' && !isChord) this.edit(c => {
+          const st = stepFor(c, t, src), root = st.key ?? 60;
+          setNotes(st, this.view.scale === 'Chromatic'
+            ? qualityKeys(root, 'maj') : scaleStack(root, 3, this.scaleCtx()), root);
+        });
+      });
+      notes.append(b);
+    }
+    const chordControls = el('span', 'g-chord-controls');
+    if (isChord) {
+      const picker = this.button('g-ccbtn', 'chord-picker', 'Chord voicing and quality', stepLabel(sourceStep) + ' ▾');
+      picker.addEventListener('click', e => { e.stopPropagation(); this.openChord(picker, src); });
+      chordControls.append(picker);
+      for (const [sign, delta] of [['◁', -1], ['▷', 1]] as const) {
+        const b = this.button('', delta < 0 ? 'invert-down' : 'invert-up', 'Invert chord', sign);
+        b.addEventListener('click', () => this.edit(c => {
+          const st = stepFor(c, t, src);
+          const result = invert(notesOf(st), st.key ?? 60, delta);
+          if (result) setNotes(st, result.keys, result.root);
+        }));
+        chordControls.append(b);
+      }
     }
     const note = el('input', 'g-in big') as HTMLInputElement;
     note.dataset.testid = `groove-note-${this.id}`;
@@ -708,9 +776,45 @@ export class GroovePane {
     const cond = this.button('g-ccbtn', 'cond', 'Trig condition (note trigs only)', condLabel(s.cond, true));
     cond.disabled = s.kind !== 'note';
     cond.addEventListener('click', e => { e.stopPropagation(); this.openCond(cond, i); });
-    this.insp.append(head, field('Trig', kind), field('Note', note), field('Velocity %', vel),
+    this.insp.append(head, field('Trig', kind), field(isChord ? 'Root' : 'Note', note),
+      field('Notes', notes, chordControls), field('Velocity %', vel),
       field('Length', gate), field('Mod 1 %', modField('mod1')), field('Mod 2 %', modField('mod2')),
       field('Condition', cond));
+  }
+
+  private openChord(anchor: HTMLElement, i: number): void {
+    this.closePop();
+    const t = this.t, s = this.step(i), root = s.key ?? 60, scale = this.scaleCtx();
+    const pop = el('div', 'g-pop g-chord-pop');
+    pop.dataset.testid = `groove-chord-pop-${this.id}`;
+    const group = (name: string) => pop.append(el('div', 'g-ph', name));
+    const option = (value: string, keys: number[], label?: string) => {
+      const b = this.button(keys.every(k => chordInScale(k, scale)) ? '' : 'out',
+        'chord-opt-' + value, keys.map(noteName).join(' '), label ?? chordName(keys, root) ?? noteName(root));
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        this.closePop();
+        this.edit(c => {
+          const st = stepFor(c, t, i);
+          setNotes(st, keys, value === 'single' ? st.key : keys[0]);
+        });
+      });
+      pop.append(b);
+    };
+    if (this.view.scale !== 'Chromatic') {
+      group(`In ${ROOTS[this.view.root]} ${this.view.scale}`);
+      option('scale3', scaleStack(root, 3, scale));
+      option('scale4', scaleStack(root, 4, scale));
+    }
+    for (const [name, qualities] of PICKER_GROUPS) {
+      group(name);
+      for (const quality of qualities) option(quality, qualityKeys(root, quality));
+    }
+    group('One note');
+    option('single', [root], noteName(root));
+    pop.addEventListener('pointerdown', e => e.stopPropagation());
+    anchor.after(pop);
+    this.pop = pop;
   }
 
   private openCond(anchor: HTMLElement, i: number): void {
@@ -754,7 +858,7 @@ export class GroovePane {
     const t = this.t, i0 = Number(pad.dataset.i), wasSel = this.view.selected[t] && this.view.sel[t] === i0;
     const orig = JSON.parse(JSON.stringify(this.cfg)) as GrooveConfig;
     const src = sourceOf(orig, t, i0), key0 = src >= 0 ? stepAt(orig, t, src).key ?? 60 : null;
-    let mode: 'pitch' | 'tie' | null = null, lastKey = key0, lastTie = i0;
+    let mode: 'pitch' | 'tie' | null = null, lastKey = 0, lastTie = i0;
     this.root.focus();
     if (!wasSel) this.select(i0);
     const move = (ev: PointerEvent) => {
@@ -764,8 +868,8 @@ export class GroovePane {
         else if (Math.abs(dx) > Math.abs(dy) && this.padAt(ev.clientX, ev.clientY) > i0) mode = 'tie';
       }
       if (mode === 'pitch' && key0 !== null) {
-        const k = this.stepPitch(key0, Math.round(-dy / 14), ev.shiftKey);
-        if (k !== lastKey) { lastKey = k; this.edit(c => this.setPitch(c, i0, k), orig); }
+        const n = Math.round(-dy / 14);
+        if (n !== lastKey) { lastKey = n; this.edit(c => this.moveStep(c, i0, n, ev.shiftKey), orig); }
       } else if (mode === 'tie') {
         const i = this.padAt(ev.clientX, ev.clientY);
         if (i < 0 || i === lastTie) return;
@@ -805,8 +909,7 @@ export class GroovePane {
     const n = this.wheelAcc < 0 ? 1 : -1;
     this.wheelAcc = 0;
     if (this.view.sel[t] !== i || !this.view.selected[t]) this.select(i);
-    const key = this.stepPitch(stepAt(this.cfg, t, src).key ?? 60, n, e.shiftKey);
-    this.edit(c => this.setPitch(c, i, key));
+    this.edit(c => this.moveStep(c, i, n, e.shiftKey));
   }
 
   // ---- live (telemetry only) ------------------------------------------------
