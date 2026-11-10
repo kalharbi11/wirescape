@@ -60,6 +60,112 @@ struct Rig {
         CHECK(watch.allocations() == 0);
     }
 };
+
+struct PolyRig : Rig {
+    std::array<ws2_event, 96> log{};
+    uint32_t event_count = 0, ons_attempted = 0, offs_attempted = 0;
+    uint32_t refuse_on = 0, refuse_off = 0;
+    static int WS2_CALL record(void *context, uint32_t port, const ws2_event *e) {
+        auto &r = *static_cast<PolyRig *>(context);
+        CHECK(port == 4 || port == 9);
+        if (e->type == WS2_NOTE_ON && ++r.ons_attempted == r.refuse_on) return WS2_CAPACITY;
+        if (e->type == WS2_NOTE_OFF && ++r.offs_attempted == r.refuse_off) return WS2_CAPACITY;
+        CHECK(r.event_count < r.log.size());
+        r.log[r.event_count++] = *e;
+        return WS2_OK;
+    }
+    PolyRig() {
+        events[4] = {sizeof(ws2_event_out), this, 4, record};
+        events[9] = {sizeof(ws2_event_out), this, 9, record};
+        auto &track = sequencer.pattern.tracks[0];
+        track.length = 8;
+        for (auto &s : track.steps) s.kind = groove::Rest;
+        auto &s = track.steps[0];
+        s.kind = groove::Note;
+        s.velocity = 0.8f;
+        s.key = 60;
+        s.key_count = 3;
+        s.keys = {60, 64, 67, 0, 0};
+        sequencer.reset();
+    }
+    uint32_t count(uint32_t type) const {
+        uint32_t result = 0;
+        for (uint32_t i = 0; i < event_count; ++i) result += log[i].type == type;
+        return result;
+    }
+    void start() { render(); controls[0] = 1.f; render(); }
+};
+static void chord_egress_contract() {
+    PolyRig triad;
+    triad.start();
+    CHECK(triad.count(WS2_NOTE_ON) == 3 && triad.values[14] == 1);
+    for (uint32_t k = 0; k < 3; ++k) {
+        CHECK(triad.log[k].type == WS2_NOTE_ON);
+        CHECK(triad.log[k].offset == 0 && triad.log[k].key == int32_t(triad.sequencer.pattern.tracks[0].steps[0].keys[k]));
+        CHECK(triad.log[k].value == 0.8f && triad.log[k].channel == 0);
+        for (uint32_t j = 0; j < k; ++j) CHECK(triad.log[k].note_id != triad.log[j].note_id);
+    }
+    triad.controls[2] = 1.f; triad.render();
+    CHECK(triad.count(WS2_NOTE_OFF) == 3);
+    for (uint32_t k = 0; k < 3; ++k) CHECK(triad.log[k + 3].note_id == triad.log[k].note_id);
+
+    PolyRig five;
+    auto &s = five.sequencer.pattern.tracks[0].steps[0];
+    s.key_count = 5;
+    s.keys = {60, 62, 64, 67, 71};
+    five.refuse_on = 3; // Accepted voices 0, 1, 3 and 4 only.
+    five.start();
+    CHECK(five.ons_attempted == 5 && five.count(WS2_NOTE_ON) == 4);
+    CHECK(five.sequencer.players[0].sounding.on);
+    five.refuse_off = 2; // One refused release remains owed.
+    five.controls[2] = 1.f;
+    five.render();
+    CHECK(five.count(WS2_NOTE_OFF) == 3);
+    CHECK(five.sequencer.players[0].pending.on);
+    CHECK(five.values[10] >= 0);
+    five.render();
+    CHECK(five.count(WS2_NOTE_OFF) == 4 && !five.sequencer.players[0].pending.on);
+    for (uint32_t i = 0; i < 4; ++i) {
+        uint32_t matched = 0;
+        for (uint32_t j = 4; j < five.event_count; ++j)
+            matched += five.log[i].note_id == five.log[j].note_id && five.log[j].type == WS2_NOTE_OFF;
+        CHECK(matched == 1);
+    }
+
+    PolyRig root_refused;
+    root_refused.refuse_on = 1;
+    root_refused.start();
+    CHECK(root_refused.count(WS2_NOTE_ON) == 2 && root_refused.values[1] == 1.f);
+    root_refused.controls[2] = 1.f; root_refused.render();
+    CHECK(root_refused.count(WS2_NOTE_OFF) == 2);
+
+    PolyRig gate;
+    gate.sequencer.samples_per_step = 16;
+    gate.sequencer.pattern.tracks[0].steps[0].gate_q = 1;
+    gate.start();
+    for (uint32_t i = 0; i < 4; ++i) gate.render();
+    CHECK(gate.count(WS2_NOTE_OFF) == 3 && gate.values[1] == 0.f);
+
+    PolyRig skip;
+    skip.sequencer.pattern.tracks[0].steps[0].cond_type = groove::AB;
+    skip.sequencer.pattern.tracks[0].steps[0].cond_a = 2;
+    skip.sequencer.pattern.tracks[0].steps[0].cond_b = 2;
+    skip.sequencer.pattern.tracks[0].steps[1].kind = groove::Tie;
+    skip.start(); skip.render();
+    CHECK(skip.count(WS2_NOTE_ON) == 0 && skip.values[14] == 0);
+
+    PolyRig tie;
+    tie.sequencer.samples_per_step = 8;
+    auto &track = tie.sequencer.pattern.tracks[0];
+    track.steps[0].kind = groove::Tie;
+    track.steps[7].kind = groove::Note;
+    track.steps[7].key_count = 3;
+    track.steps[7].keys = {60, 64, 67, 0, 0};
+    tie.start();
+    for (uint32_t i = 0; i < 8 * 8; ++i) tie.render();
+    CHECK(tie.count(WS2_NOTE_ON) == 3 && tie.count(WS2_NOTE_OFF) == 0);
+    CHECK(tie.values[10] == 0); // A bar-wrap tie retained all three voices.
+}
 struct SnapshotProbe {
     static constexpr ws::Info info{"test.groove_snapshot", "Snapshot", 1};
     static constexpr std::array<ws2_port, 0> inputs{};
@@ -108,6 +214,7 @@ static void coherent_snapshots() {
     CHECK(observed > 0);
 }
 int main() {
+    chord_egress_contract();
     coherent_snapshots();
     const char *ports[]{"t1_pitch", "t1_gate", "t1_mod1", "t1_mod2", "t1_notes",
         "t2_pitch", "t2_gate", "t2_mod1", "t2_mod2", "t2_notes", "t1_pos", "t2_pos",

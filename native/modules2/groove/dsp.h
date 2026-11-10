@@ -52,9 +52,15 @@ struct Sequencer {
         bool on = false;
         int32_t id = 0, key = 60;
     };
+    // Five fixed sounding and pending slots. The summary flag also covers a
+    // partially accepted chord whose root was refused by the event sink.
+    struct Voices {
+        bool on = false;
+        std::array<NoteState, 5> notes{};
+    };
     struct Player {
         bool armed = true, muted = false, playing = false, enter = false, stop = false;
-        NoteState sounding{}, pending{};
+        Voices sounding{}, pending{};
         float pitch = 0.f, mod1 = 0.f, mod2 = 0.f;
         uint32_t loop = 1;
         uint32_t rng = 1;
@@ -208,17 +214,37 @@ struct Sequencer {
         e.value = velocity;
         return b.emit(e.port, e);
     }
+    // Bounded collision avoidance: at most twenty voices can be live/pending
+    // across the two tracks, even after repeated refused NOTE_OFFs.
+    int32_t unused_note_id() {
+        for (uint32_t attempt = 0; attempt <= kTracks * 10; ++attempt) {
+            bool used = false;
+            for (const auto &p : players) {
+                for (const auto &voice : p.sounding.notes) used |= voice.on && voice.id == next_id;
+                for (const auto &voice : p.pending.notes) used |= voice.on && voice.id == next_id;
+            }
+            if (!used) return next_id;
+            next_id = next_id == 0x7fffffff ? 1 : next_id + 1;
+        }
+        return -1; // Cannot occur with the fixed number of occupied slots.
+    }
     bool flush(ws::Block &b, uint32_t t, uint32_t i) {
-        auto &p = players[t];
-        if (!p.pending.on) return true;
-        if (!emit(b, t, WS2_NOTE_OFF, i, p.pending, 0.f)) return false;
-        p.pending = {};
-        return true;
+        auto &pending = players[t].pending;
+        if (!pending.on) return true;
+        bool complete = true;
+        for (auto &voice : pending.notes) {
+            if (!voice.on) continue;
+            if (emit(b, t, WS2_NOTE_OFF, i, voice, 0.f)) voice = {};
+            else complete = false;
+        }
+        pending.on = !complete;
+        return complete;
     }
     void release(ws::Block &b, uint32_t t, uint32_t i) {
         auto &p = players[t];
         if (p.sounding.on) {
-            // There cannot be another pending release: a pending release blocks NOTE_ON.
+            // Pending releases block every new attack, so this move cannot
+            // overwrite an existing refused OFF.
             p.pending = p.sounding;
             p.sounding = {};
         }
@@ -263,15 +289,24 @@ struct Sequencer {
         if (effective_mute(t)) return;
         if (row.kind == Tie && p.sounding.on) return;
         if (row.kind != Note || row.velocity <= 0.f || !p.fired || !flush(b, t, i)) return;
-        const NoteState note{true, next_id, row.key};
-        if (!emit(b, t, WS2_NOTE_ON, i, note, row.velocity)) return;
-        p.sounding = note;
-        p.gate_age = 0.;
-        p.gate_cutoff = gate_duration(t, step_t[t], p.short_gate);
-        next_id = next_id == 0x7fffffff ? 1 : next_id + 1;
-        p.pitch = static_cast<float>(row.key - 60) / 12.f;
-        p.mod1 = row.mod1;
-        p.mod2 = row.mod2;
+        // Each attempt is independent: store only accepted voices. Their ONs
+        // share the exact sample offset and the authored root-first order.
+        for (uint32_t k = 0; k < row.key_count; ++k) {
+            const int32_t id = unused_note_id();
+            if (id < 0) break;
+            const NoteState note{true, id, row.keys[k]};
+            if (!emit(b, t, WS2_NOTE_ON, i, note, row.velocity)) continue;
+            p.sounding.notes[k] = note;
+            p.sounding.on = true;
+            next_id = next_id == 0x7fffffff ? 1 : next_id + 1;
+        }
+        if (p.sounding.on) {
+            p.gate_age = 0.;
+            p.gate_cutoff = gate_duration(t, step_t[t], p.short_gate);
+            p.pitch = static_cast<float>(row.key - 60) / 12.f;
+            p.mod1 = row.mod1;
+            p.mod2 = row.mod2;
+        }
     }
 
     void trigger_all(ws::Block &b, uint32_t i) {
