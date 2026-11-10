@@ -1,0 +1,400 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "CHAOS Lab 2 · Wireglass (expressive lead)",
+  "description": "A pitched, playable glass-and-wire lead: A's edged waveform interacts with B's near-sine via ring coupling; the comb adds metallic body, but the note remains musical. An ADSR drives stereo VCAs and also nudges coupling on note onset. Slow external LFOs shift coupling and the body's tuning; internal subtle pitch LFO adds vibrato. Echo is intentionally modest. CHAOS gate remains unpatched for real release. Expose: route, depth, shape_a, shape_b, detune, body_tune/mix, roughness/rate, internal lfo_rate/lfo_depth, ADSR attack/release and delay mix.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 5302,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "host.keyboard",
+      "version": 1,
+      "parameters": {
+        "voices": 3
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.chaos_lite",
+      "version": 1,
+      "parameters": {
+        "shape_a": 0.62,
+        "shape_b": 1.91,
+        "detune": -12,
+        "octave_a": 0,
+        "octave_b": 0,
+        "level_a": 0.6,
+        "level_b": 0.38,
+        "pan_a": -0.12,
+        "pan_b": 0.17,
+        "route": 1,
+        "depth": 0.7,
+        "body_tune": 0.7,
+        "feedback": 0.51,
+        "damping": 0.58,
+        "body_mix": 0.4,
+        "roughness": 0.16,
+        "rough_rate": 75,
+        "drift": 0.09,
+        "jitter": 0.018,
+        "fall": 0,
+        "lfo_target": 0,
+        "lfo_rate": 4.7,
+        "lfo_depth": 0.0028,
+        "lfo_self": 0.08,
+        "cutoff": 5900,
+        "level": 0.76
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.01,
+        "decay": 0.36,
+        "sustain": 0.62,
+        "release": 0.58
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1.25
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1.25
+      }
+    },
+    {
+      "id": 6,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.45,
+        "decay": 2.8,
+        "damping": 0.47,
+        "predelay": 0.015,
+        "width": 0.82,
+        "motion": 0.16,
+        "mix": 0.21
+      }
+    },
+    {
+      "id": 7,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 8,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 9,
+      "module": "fx.delay",
+      "version": 1,
+      "parameters": {
+        "time": 0.31,
+        "feedback": 0.28,
+        "tone": -0.17,
+        "mode": 1,
+        "mix": 0.18
+      }
+    },
+    {
+      "id": 10,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.22,
+        "depth": 0.6
+      }
+    },
+    {
+      "id": 11,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.08,
+        "depth": 0.55
+      }
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 2,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 2,
+        "port": "velocity"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 3,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "left"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "right"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 4,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 5,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "left"
+      },
+      "to": {
+        "module": 7,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "right"
+      },
+      "to": {
+        "module": 8,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 9,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 9,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 9,
+        "port": "left"
+      },
+      "to": {
+        "module": 6,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 9,
+        "port": "right"
+      },
+      "to": {
+        "module": 6,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 10,
+        "port": "control"
+      },
+      "to": {
+        "module": 2,
+        "port": "depth"
+      },
+      "amount": 0.12
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 11,
+        "port": "control"
+      },
+      "to": {
+        "module": 2,
+        "port": "body_tune"
+      },
+      "amount": 0.018
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 2,
+        "port": "depth"
+      },
+      "amount": 0.08
+    }
+  ],
+  "outputs": [
+    {
+      "module": 7,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 8,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "2": [
+        990,
+        192
+      ],
+      "3": [
+        60,
+        960
+      ],
+      "4": [
+        2220,
+        192
+      ],
+      "5": [
+        2220,
+        864
+      ],
+      "6": [
+        4080,
+        192
+      ],
+      "7": [
+        5010,
+        192
+      ],
+      "8": [
+        5010,
+        864
+      ],
+      "9": [
+        3150,
+        192
+      ],
+      "10": [
+        990,
+        1700
+      ],
+      "11": [
+        1920,
+        1700
+      ]
+    },
+    "labels": {
+      "1": "Keys",
+      "2": "Ring CHAOS",
+      "3": "Lead ADSR",
+      "4": "VCA L",
+      "5": "VCA R",
+      "6": "Short hall",
+      "7": "Out L",
+      "8": "Out R",
+      "9": "Wire echo",
+      "10": "Coupling wobble",
+      "11": "Body glide"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}
