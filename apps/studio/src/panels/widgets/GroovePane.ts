@@ -339,6 +339,7 @@ export class GroovePane {
     pad.setAttribute('aria-label', `Step ${i + 1}: ${s.kind === 'note' ? noteName(s.key ?? 60) : s.kind}`);
     if (s.kind === 'note') {
       pad.append(el('span', 'g-nn', noteName(s.key ?? 60)));
+      if (!inScale(s.key ?? 60, this.view.root, this.view.scale)) pad.classList.add('off-scale');
       const vel = el('span', 'cue-vel'); vel.style.width = `${Math.round((s.velocity ?? 0.8) * 100)}%`;
       pad.append(vel);
       if ((s.gate ?? 1) < 1) {
@@ -373,6 +374,7 @@ export class GroovePane {
     if (!this.cfg) return;
     const cfg = this.cfg, t = this.t, length = this.len();
     const notes = rollNotes(cfg, t);
+    const appliedNotes = this.applied ? rollNotes(this.applied, t) : null;
     const keys = new Set<number>(notes.keys());
     for (let k = this.view.pen[t] - 6; k <= this.view.pen[t] + 6; k++) {
       if (k >= 0 && k <= 127) keys.add(k);
@@ -401,7 +403,7 @@ export class GroovePane {
           const condition = stepAt(cfg, t, i).cond;
           if (condition) cell.append(el('span', 'g-rcond', condLabel(condition)));
         }
-        if (this.applied && kind !== (rollNotes(this.applied, t).get(key)?.get(i) ?? 'rest'))
+        if (appliedNotes && kind !== (appliedNotes.get(key)?.get(i) ?? 'rest'))
           cell.classList.add('chg');
         cells.append(cell);
       }
@@ -432,7 +434,7 @@ export class GroovePane {
     const current = rollNotes(orig, t).get(key)?.get(i);
     this.view.sel[t] = i;
     this.renderInspector();
-    let mode: 'tie' | 'pitch' | null = null, last = i;
+    let mode: 'tie' | 'pitch' | null = null, last = key;
     const move = (ev: PointerEvent) => {
       const dx = ev.clientX - e.clientX, dy = ev.clientY - e.clientY;
       const hit = (document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null)?.closest<HTMLElement>('.g-roll-cell');
