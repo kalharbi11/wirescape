@@ -208,8 +208,12 @@ struct ChaosLite {
                 if (!std::isfinite(v.lfo_held) || !std::isfinite(v.lfo_from) || !std::isfinite(v.lfo_to) ||
                     !std::isfinite(v.lfo_switch_from) || std::abs(v.lfo_held) > 1 || std::abs(v.lfo_from) > 1 ||
                     std::abs(v.lfo_to) > 1 || std::abs(v.lfo_switch_from) > 1 || v.lfo_last_shape > 3 ||
-                    v.lfo_fade_remaining > lfo_fade_length || !(lrng[2] & 1u))
+                    !(lrng[2] & 1u))
                     return WS2_INVALID;
+                // The fade duration depends on sample rate. A valid state saved
+                // at a higher rate may have more samples left than this rate's
+                // 10 ms transition; keep it bounded rather than rejecting it.
+                v.lfo_fade_remaining = std::min(v.lfo_fade_remaining, lfo_fade_length);
                 v.lfo_random.restore(
                     {uint64_t(lrng[0]) | uint64_t(lrng[1]) << 32, uint64_t(lrng[2]) | uint64_t(lrng[3]) << 32});
             } else {
