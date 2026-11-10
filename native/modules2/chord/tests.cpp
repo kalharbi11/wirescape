@@ -133,8 +133,8 @@ static void major_and_held_edit() {
     int32_t ids[3]{};
     for (int i = 0; i < 3; ++i) {
         const auto &e = a.r.events[i];
-        REQUIRE(e.type == WS2_NOTE_ON && e.key == expected[i] && e.offset == 13 &&
-                e.source_id == 9 && e.channel == 2 && e.value == .8f);
+        REQUIRE(e.type == WS2_NOTE_ON && e.key == expected[i] && e.offset == 13 && e.source_id == 9 && e.channel == 2 &&
+                e.value == .8f);
         ids[i] = e.note_id;
     }
     REQUIRE(ids[0] != ids[1] && ids[1] != ids[2] && ids[0] != ids[2]);
@@ -198,8 +198,8 @@ static void queue_recovery_and_instance_ids() {
     REQUIRE(a.r.count == 0);
     a.r.clear();
     a.run({});
-    REQUIRE(a.r.count == 1 && a.r.events[0].type == WS2_NOTE_OFF &&
-            a.r.events[0].note_id == accepted && a.r.events[0].offset == 0);
+    REQUIRE(a.r.count == 1 && a.r.events[0].type == WS2_NOTE_OFF && a.r.events[0].note_id == accepted &&
+            a.r.events[0].offset == 0);
     b.r.clear();
     b.run({note(WS2_NOTE_ON, {60})});
     REQUIRE(b.r.count == 3);

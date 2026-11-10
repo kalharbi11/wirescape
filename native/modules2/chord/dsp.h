@@ -52,8 +52,8 @@ struct Chord {
     // Without it, a fan-in of two Chord instances could alias note identities.
     bool prepare(const ws::Setup &s) {
         if (!s.config.data || s.config.bytes != 4) return false;
-        tag = uint32_t(s.config.data[0]) | (uint32_t(s.config.data[1]) << 8) |
-              (uint32_t(s.config.data[2]) << 16) | (uint32_t(s.config.data[3]) << 24);
+        tag = uint32_t(s.config.data[0]) | (uint32_t(s.config.data[1]) << 8) | (uint32_t(s.config.data[2]) << 16) |
+              (uint32_t(s.config.data[3]) << 24);
         tag &= 2047u;
         return true;
     }

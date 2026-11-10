@@ -162,8 +162,7 @@ int main(int argc, char **argv) {
                     engine.register_producer();
                     require(engine.add_node(1, descriptor,
                                             runtime_module_config(descriptor->id, nlohmann::json::object(), 1)) &&
-                                (!has_signal || engine.output(1, signal, 0)) &&
-                                engine.prepare(),
+                                (!has_signal || engine.output(1, signal, 0)) && engine.prepare(),
                             "default module graph failed");
                     const auto digest = has_signal ? hash([&](float *out, uint32_t count) {
                         float *rows[]{out};

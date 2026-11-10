@@ -14,8 +14,8 @@ static void instance_config_union() {
         rejected = true;
     }
     CHECK(rejected);
-    auto pattern = nlohmann::json::parse(
-        R"({"version":2,"bpm":120,"tracks":[{"length":8,"steps":[{"kind":"rest"}]}]})");
+    auto pattern =
+        nlohmann::json::parse(R"({"version":2,"bpm":120,"tracks":[{"length":8,"steps":[{"kind":"rest"}]}]})");
     for (uint32_t instance : {17u, 18u}) {
         const auto bytes = runtime_module_config("sequencing.groove", pattern, instance);
         groove::Config config;
@@ -88,7 +88,7 @@ int main() try {
      }
      CHECK(rejected);
  }
-    instance_config_union();
+ instance_config_union();
  std::puts("PASS bounded typed MIDI and Groove configurations and invalid row rejection");
 } catch(const std::exception& error) {
  std::fprintf(stderr,"FAIL runtime module configuration: %s\n",error.what());return EXIT_FAILURE;
