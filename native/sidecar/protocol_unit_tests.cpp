@@ -131,6 +131,24 @@ int run_tests() {
     check(histogram.percentile(50) == 50 && histogram.percentile(99) == 99);
     check(histogram.percentile(100) == 200 && histogram.max_percent == 255.25);
 
+    // Synthetic absolute deadlines prove equality, delayed wakes, long renders,
+    // and catch-up blocks without relying on host scheduling or sleeping.
+    RenderHistogram timing;
+    using Clock = std::chrono::steady_clock;
+    using Us = std::chrono::microseconds;
+    const Clock::time_point zero{};
+    allocation_watch::count.store(0);
+    allocation_watch::enabled.store(true);
+    timing.record_timing(100, zero, zero + Us(100), zero, zero + Us(100));
+    timing.record_timing(1, zero + Us(201), zero + Us(202), zero + Us(100), zero + Us(200));
+    timing.record_timing(101, zero + Us(200), zero + Us(301), zero + Us(200), zero + Us(300));
+    timing.record_timing(1, zero + Us(500), zero + Us(501), zero + Us(300), zero + Us(400));
+    allocation_watch::enabled.store(false);
+    check(allocation_watch::count.load() == 0);
+    check(timing.blocks == 4 && timing.overruns == 3);
+    check(timing.overrun_render_count == 1 && timing.overrun_render_max_us == 101);
+    check(timing.overrun_wake_count == 2 && timing.overrun_wake_max_us == 200);
+
     midi_hotplug_observation();
     for (const auto &bad : {"{\"x\":1,\"x\":2}", "{\"x\":{\"y\":1,\"y\":2}}", "[]"}) {
         bool refused = false;

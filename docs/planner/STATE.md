@@ -8,8 +8,8 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 - Board #473 is the claim source. Codex Lead keeps it current and holds the owner's
   delegation to approve/merge after independent review and evidence (T2 still needs Claude).
 - **Owner 2026-11-10: ASAP lanes, hold lifted for them:** Chord (#511→#512), MIDI (#500 Learn),
-  OSC (#72 slices A→B→C), Groove (#505 G1 → #509/#510 G2 → #514 G4 chords). Other new starts still wait.
-- Seven closeout PRs remain after486 merged1e20242; this planner refresh484 is one.
+  OSC (#72 slices A→B→C), Groove (#505 G1 → #509/#510 G2 → #514 G4 chords → #523 G5 speed).
+  Other new starts still wait. #521 chord/scale/speed design approved; scale lives in `ui.groove`.
 - Keel rulings 2026-11-10: #511 Chord last-wins for reused explicit IDs, budget 20 files;
   #500 Learn keeps one loadGraph but serializes edits while it's pending; #514 G4 pre-ruled.
 

@@ -23,8 +23,9 @@ struct Backend {
  void* library=nullptr;
  decltype(&Pa_Initialize) initialize=nullptr;decltype(&Pa_Terminate) terminate=nullptr;
  decltype(&Pa_GetDeviceCount) count=nullptr;decltype(&Pa_GetDeviceInfo) info=nullptr;
- decltype(&Pa_GetDefaultOutputDevice) default_device = nullptr;
  decltype(&Pa_GetHostApiInfo) host_api = nullptr;
+ decltype(&Pa_IsFormatSupported) format_supported = nullptr;
+ decltype(&Pa_GetDefaultOutputDevice) default_device = nullptr;
  decltype(&Pa_GetErrorText) text = nullptr;
  decltype(&Pa_OpenStream) open=nullptr;decltype(&Pa_StartStream) start=nullptr;
  decltype(&Pa_StopStream) stop=nullptr;decltype(&Pa_AbortStream) abort=nullptr;
@@ -52,8 +53,9 @@ struct Backend {
   LOAD(terminate, "Pa_Terminate");
   LOAD(count, "Pa_GetDeviceCount");
   LOAD(info, "Pa_GetDeviceInfo");
-  LOAD(default_device, "Pa_GetDefaultOutputDevice");
   LOAD(host_api, "Pa_GetHostApiInfo");
+  LOAD(format_supported, "Pa_IsFormatSupported");
+  LOAD(default_device, "Pa_GetDefaultOutputDevice");
   LOAD(text, "Pa_GetErrorText");
   LOAD(open, "Pa_OpenStream");
   LOAD(start, "Pa_StartStream");
@@ -66,7 +68,10 @@ struct Backend {
   check(initialize());initialized=true;
  }
  ~Backend(){if(initialized)terminate();}
- void check(PaError result){if(result<0)throw std::runtime_error(text(result));}
+ void check(PaError result) {
+     if (result == paInvalidSampleRate) throw RateUnsupported();
+     if (result < 0) throw std::runtime_error(text(result));
+ }
 };
 struct Context {
     std::function<void()> stop_producers;
@@ -98,22 +103,52 @@ int callback(const void *, void *output, unsigned long frames, const PaStreamCal
 }
 } // namespace
 namespace {
-std::vector<Device> enumerate(Backend &b) {
+std::vector<Device> enumerate(Backend &b, const DeviceQuery &query = {}) {
     int count = b.count();
     b.check(count);
     const int fallback = b.default_device();
     std::vector<RawDevice> raw;
     std::vector<Device> result;
+    result.reserve(size_t(count));
+    raw.reserve(size_t(count));
     for (int i = 0; i < count; ++i) {
         const auto *d = b.info(i);
-        if (!d || d->maxOutputChannels < 2) continue;
-        const auto *api = b.host_api(d->hostApi);
-        const std::string host = api && api->name ? api->name : "Audio";
-        raw.push_back({d->name, host});
-        result.push_back({{}, d->name, host, i, i == fallback});
+        if (!d || d->maxOutputChannels == 0) continue;
+        Device entry;
+        entry.name = d->name;
+        entry.index = i;
+        entry.is_default = i == fallback;
+        entry.output_channels = d->maxOutputChannels;
+        entry.default_sample_rate = d->defaultSampleRate;
+        if (const auto *api = b.host_api(d->hostApi)) entry.backend = api->name ? api->name : "Audio";
+        entry.host_api = entry.backend.empty() ? "Audio" : entry.backend;
+        entry.sample_rates.clear();
+        entry.supported = d->maxOutputChannels >= 2;
+        if (!entry.supported) entry.unsupported_reason = "mono-output";
+        result.push_back(std::move(entry));
     }
+    // Preserve published stereo-output ids when adding disabled mono outputs.
+    std::stable_partition(result.begin(), result.end(), [](const Device &d) { return d.output_channels >= 2; });
+    for (const auto &d : result) raw.push_back({d.name, d.host_api});
     auto ids = device_ids(raw);
-    for (size_t i = 0; i < result.size(); ++i) result[i].id = std::move(ids[i]);
+    for (size_t i = 0; i < result.size(); ++i) {
+        auto &entry = result[i];
+        entry.id = std::move(ids[i]);
+        if (!query.probe_rates || !entry.supported || entry.id == query.active_id ||
+            (!query.target_id.empty() && entry.id != query.target_id))
+            continue;
+        const auto *d = b.info(entry.index);
+        PaStreamParameters output{entry.index, 2, paFloat32, d->defaultLowOutputLatency, nullptr};
+        const auto support = classify_rates({b.format_supported(nullptr, &output, 44100),
+                                             b.format_supported(nullptr, &output, 48000),
+                                             b.format_supported(nullptr, &output, 96000)},
+                                            paInvalidSampleRate);
+        entry.sample_rates = support.rates;
+        if (support.known && support.rates.empty()) {
+            entry.supported = false;
+            entry.unsupported_reason = "rate-unsupported";
+        }
+    }
     return result;
 }
 } // namespace
@@ -123,9 +158,9 @@ void list_devices(const std::string &directory) {
         std::cout << d.index << ": " << d.id << (d.is_default ? "  [default]" : "") << " ("
                   << b.info(d.index)->defaultSampleRate << " Hz default)\n";
 }
-std::vector<Device> devices(const std::string &directory) {
+std::vector<Device> devices(const std::string &directory, const DeviceQuery &query) {
     Backend b(directory);
-    return enumerate(b);
+    return enumerate(b, query);
 }
 struct Stream::Impl {
     std::unique_ptr<Backend> backend;
@@ -138,19 +173,22 @@ struct Stream::Impl {
         auto &b = *backend;
         int device = b.default_device();
         if (!selection.name.empty()) {
-            const auto list = enumerate(b);
+            const auto list = enumerate(b, {false, {}, {}});
             const int found = resolve_device(list, selection.name);
             if (found < 0) throw std::runtime_error("No unique audio device matches the selection");
             device = list[size_t(found)].index;
         }
         const auto *info = device >= 0 ? b.info(device) : nullptr;
-        if (!info || info->maxOutputChannels < 2) throw std::runtime_error("No matching stereo output device");
+        if (!info) throw std::runtime_error("No matching audio output device");
+        if (info->maxOutputChannels < 2)
+            throw std::runtime_error(info->maxOutputChannels == 0 ? "no-output" : "mono-output");
+        PaStreamParameters output{device, 2, paFloat32, info->defaultLowOutputLatency, nullptr};
+        b.check(b.format_supported(nullptr, &output, rate));
         context = std::make_unique<Context>(EngineOwner(nullptr, app_engine_destroy), block);
         context->rate = rate;
         context->stop_producers = std::move(producers);
         context->engine = std::move(engine);
         context->live = context->engine.get();
-        PaStreamParameters output{device, 2, paFloat32, info->defaultLowOutputLatency, nullptr};
         auto opened = b.open(&stream, nullptr, &output, rate, block, paNoFlag, callback, context.get());
         if (opened < 0) {
             engine = std::move(context->engine);
@@ -217,7 +255,7 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block);context->stop_producers=stop_producers;int device=b.default_device();
  context->rate = rate;
  if(!name.empty()){size_t consumed=0;try{device=std::stoi(name,&consumed);}catch(const std::exception&){consumed=0;}if(consumed!=name.size()){
-         const auto list = enumerate(b);
+         const auto list = enumerate(b, {false, {}, {}});
          const int found = resolve_device(list, name);
          device = found < 0 ? paNoDevice : list[size_t(found)].index;
  }}
@@ -244,3 +282,4 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  b.check(terminated);
 }
 }
+
