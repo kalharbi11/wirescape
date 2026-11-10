@@ -423,6 +423,7 @@ export class GroovePane {
           lane === 'gate' ? st.gate ?? 1 : st[lane] ?? 0;
         const disabled = lane === 'velocity' && st.kind !== 'note';
         const cell = el('div', 'g-vcell');
+        cell.dataset.i = String(i);
         cell.dataset.testid = 'groove-roll-' + lane + '-' + this.id + '-' + (i + 1);
         cell.setAttribute('role', 'button');
         cell.setAttribute('aria-label', lane + ', step ' + (i + 1) + ': ' + value);
@@ -739,8 +740,19 @@ export class GroovePane {
     for (const n of this.grid.querySelectorAll('.play,.skip')) n.classList.remove('play', 'skip');
     for (const n of this.grid.querySelectorAll('.g-bar.cur')) n.classList.remove('cur');
     if (!ph || s < 0) return;
-    const pad = this.grid.querySelector<HTMLElement>(`.g-pad[data-i="${s}"]`)
-      ?? this.grid.querySelector<HTMLElement>(`.g-roll-cell.note[data-i="${s}"],.g-roll-cell.tie[data-i="${s}"]`);
+    if (this.view.mode === 'roll') {
+      // The measured playhead spans every pitch and value lane, even on rests.
+      for (const cell of this.grid.querySelectorAll<HTMLElement>(
+        `.g-roll-cell[data-i="${s}"],.g-vcell[data-i="${s}"]`
+      )) cell.classList.add('play');
+      if (obs?.[this.t]?.fired === false) {
+        const sounding = this.grid.querySelector<HTMLElement>(
+          `.g-roll-cell.note[data-i="${s}"],.g-roll-cell.tie[data-i="${s}"]`);
+        sounding?.classList.add('skip');
+      }
+      return;
+    }
+    const pad = this.grid.querySelector<HTMLElement>(`.g-pad[data-i="${s}"]`);
     if (!pad) return;
     pad.classList.add('play');
     if (pad.classList.contains('g-pad')) pad.nextElementSibling?.classList.add('play');
