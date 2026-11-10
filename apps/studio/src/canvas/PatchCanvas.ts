@@ -620,10 +620,14 @@ export class PatchCanvas {
         `Connect the stereo pair? ${pair.outA}/${pair.outB} → ${pair.inA}/${pair.inB}.`);
       if (this.s.doc.ui !== view || !this.s.canEdit()) return true;
       if (ok) {
-        this.commitConnection(base, additive);
-        this.commitConnection(
-          { kind, from: { module: out.module, port: pair.outB }, to: { module: inp.module, port: pair.inB } },
-          additive);
+        // All or nothing: if the partner cable is refused, undo the first one.
+        const second: Connection = { kind, from: { module: out.module, port: pair.outB }, to: { module: inp.module, port: pair.inB } };
+        const undoFirst = this.commitConnection(base, additive);
+        if (!undoFirst || this.s.doc.has(second)) return true;
+        if (!this.commitConnection(second, additive)) {
+          undoFirst();
+          this.s.toast('The stereo pair was not connected.', 'error');
+        }
         return true;
       }
     }
@@ -776,9 +780,13 @@ export class PatchCanvas {
    * Add a connection, honouring the replace-or-add rule: a signal input
    * takes one cable by default, and shift-drop adds alongside.
    */
-  private commitConnection(c: Connection, additive: boolean): void {
-    if (!this.s.canEdit()) return;
-    if (this.s.doc.has(c)) { this.s.toast('Already connected.'); return; }
+  /**
+   * Connect one cable, replacing what feeds a single-cable input. Returns a
+   * function that undoes exactly this edit, or null if nothing was connected.
+   */
+  private commitConnection(c: Connection, additive: boolean): (() => void) | null {
+    if (!this.s.canEdit()) return null;
+    if (this.s.doc.has(c)) { this.s.toast('Already connected.'); return null; }
     const replaced: Connection[] = [];
     if (c.kind !== 'modulation' && !additive) {
       replaced.push(...this.s.doc.cablesInto(c.to.module, c.to.port));
@@ -803,7 +811,16 @@ export class PatchCanvas {
       for (const old of replaced) this.s.doc.connect(old);
       this.s.toast(err instanceof Error ? err.message : 'The engine refused that cable.', 'error');
       this.shake(c.to.module);
+      return null;
     }
+    return () => {
+      this.s.doc.disconnect(c);
+      try { this.s.engineDisconnect(c); } catch { /* ignore */ }
+      for (const old of replaced) {
+        this.s.doc.connect(old);
+        try { this.s.engineConnect(old); } catch { /* ignore */ }
+      }
+    };
   }
 
   /** Refused edit: a short shake (DESIGN §8, 280 ms, ±5 px). */
