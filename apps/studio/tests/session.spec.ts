@@ -224,8 +224,10 @@ test.describe('the catalogue', () => {
       return out;
     });
 
-    expect(report).toHaveLength(28);
+    expect(report).toHaveLength(30);
     expect(report.some(r => r.id === 'essentials.quantizer')).toBe(true);
+    expect(report.find(r => r.id === 'osc.in')).toMatchObject({ ports: 9, params: 0 });
+    expect(report.find(r => r.id === 'monitor')).toMatchObject({ ports: 3, params: 0 });
     expect(report.some(r => r.id === 'sequencing.groove')).toBe(true);
     expect(report.some(r => r.id === 'fx.delay')).toBe(true);
     expect(report.some(r => r.id === 'fx.reverb')).toBe(true);

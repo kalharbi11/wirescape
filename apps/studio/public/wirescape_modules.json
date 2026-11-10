@@ -4907,6 +4907,134 @@
     "n10": 14,
     "n11": 15
    }
+  },
+  {
+   "id": "osc.in",
+   "name": "OSC In",
+   "category": "MIDI / control",
+   "ports": [
+    {
+     "id": "row1",
+     "name": "Row 1",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row2",
+     "name": "Row 2",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row3",
+     "name": "Row 3",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row4",
+     "name": "Row 4",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row5",
+     "name": "Row 5",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row6",
+     "name": "Row 6",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row7",
+     "name": "Row 7",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row8",
+     "name": "Row 8",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "messages",
+     "name": "Messages",
+     "direction": "output",
+     "kind": "event",
+     "hint": "ev_message",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [],
+   "version": 1,
+   "legacy_parameters": {}
+  },
+  {
+   "id": "monitor",
+   "name": "Monitor",
+   "category": "Utility",
+   "ports": [
+    {
+     "id": "events",
+     "name": "Events",
+     "direction": "input",
+     "kind": "event",
+     "hint": "ev_message",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "in1",
+     "name": "Signal 1",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "in2",
+     "name": "Signal 2",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [],
+   "version": 1,
+   "legacy_parameters": {}
   }
  ]
 }
