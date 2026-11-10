@@ -47,8 +47,11 @@ test('CHAOS performance strip edits exact values with one Undo and stays in sync
   await page.getByTestId('redo').click();
   await expect.poll(async () => (await state(page)).modules[0].parameters.cutoff).toBe(1337);
 
-  // Editing a full-panel parameter refreshes its compact twin, without a macro fan-out.
-  await page.evaluate(() => window.__wirescapeTest.commitParam(1, 'drift', 0.42));
+  // Editing the full-panel knob refreshes its compact twin, without a macro fan-out.
+  await page.getByTestId('readout-1-drift').click();
+  const fullInput = page.getByTestId('readout-input-1-drift');
+  await fullInput.fill('0.42');
+  await fullInput.press('Enter');
   await expect(strip.getByTestId('performance-readout-1-drift')).toHaveText('0.42');
   expect((await state(page)).modules[0].parameters.cutoff).toBe(1337);
 });
