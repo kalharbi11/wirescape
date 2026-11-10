@@ -141,7 +141,7 @@ struct Sequencer {
     void trigger(ws::Block &b, uint32_t t, uint32_t i) {
         auto &p = players[t];
         const auto &row = pattern.tracks[t].steps[step];
-        p.fired = p.playing && (row.kind == Note || (row.kind == Tie && p.fired));
+        p.fired = p.playing && ((row.kind == Note && row.velocity > 0.f) || (row.kind == Tie && p.fired));
         if (!p.playing || effective_mute(t)) return;
         if (row.kind == Tie && p.sounding.on) return;
         if (row.kind != Note || row.velocity <= 0.f || !flush(b, t, i)) return;
