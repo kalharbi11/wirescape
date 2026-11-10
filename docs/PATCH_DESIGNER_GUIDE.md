@@ -501,6 +501,15 @@ verify actual sound against the offline render/WAV evidence before claiming
 a preset's audio acceptance, and never infer DSP playback from FakeEngine
 control values alone.
 
+**CHAOS performance strip (builds containing #554):** the card adds a compact,
+editable second view of twelve existing parameters: Tone (shape A/B, detune),
+Motion (drift, LFO depth/rate/shape), Edge (roughness, coupling depth), Body
+(body mix, feedback), and Brightness (cutoff). Each mini knob displays its exact
+stored value and uses the same engine parameter/Undo path as the full 01–06
+panel; edits in either view stay synchronized. This is not a macro, preset,
+new parameter, modulation source or change to saved patch format. The full
+controls and existing CHAOS wiring limitations remain available.
+
 ## CHAOS atmospheric lab (merged in #531)
 
 Three original scenes use the current `essentials.chaos_lite` v1:
