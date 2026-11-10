@@ -31,6 +31,8 @@
 .g-ttab.on { background: var(--soft, #ebebe8); }
 .g-tn { font: 600 10px var(--mono, monospace); letter-spacing: .12em; }
 .g-nm { font: 400 11.5px var(--sans, sans-serif); color: var(--graph, #2e2e2d); }
+.g-speed { font: 600 9px var(--mono, monospace); color: var(--graph, #2e2e2d); }
+.g-loop-preview { font: 9px var(--mono, monospace); color: var(--mute, #8c8c88); white-space: nowrap; }
 .g-pos { font: 10px var(--mono, monospace); font-variant-numeric: tabular-nums; color: var(--mute, #8c8c88); min-width: 42px; }
 .groove-pane .g-sd { position: relative; width: 24px; padding: 0; }
 .groove-pane .g-sd::after { content: ''; position: absolute; left: 8.5px; top: calc(50% - 3.5px); width: 7px; height: 7px; border-radius: 50%; border: .75px solid var(--mute, #8c8c88); box-sizing: border-box; }

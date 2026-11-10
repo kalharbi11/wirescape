@@ -3,8 +3,8 @@ import type { Ticker } from '../../runtime/Ticker';
 import type { Telemetry } from '../../engine/EngineClient';
 import { el } from '../../app/dom';
 import {
-  CONDS, GATES, GATE_LABEL, LENGTHS, PEN, condLabel, noteName, parseNote, readConfig, sameCond,
-  setKind, setLength, sourceOf, stepAt, stepFor, trackLength, upgrade,
+  CONDS, DIVS, GATES, GATE_LABEL, LENGTHS, PEN, SPEED_LABEL, condLabel, masterCycle, noteName, parseNote, readConfig, sameCond,
+  setKind, setLength, sourceOf, stepAt, stepFor, trackCycle, trackDiv, trackLength, upgrade,
   type GrooveConfig, type Kind, type Step,
 } from '../../groove/pattern';
 import { ROOTS, SCALES, type Scale, clearBar, copyBar, inScale, movePitch, pasteBar, rollNotes } from '../../groove/editorHelpers';
@@ -259,7 +259,10 @@ export class GroovePane {
       const mute = this.button(`g-tg${track?.mute ? ' on' : ''}`, `mute-${t + 1}`, 'Mute (part of the pattern draft)');
       mute.innerHTML = '<span class="g-led"></span>M';
       mute.addEventListener('click', e => { e.stopPropagation(); this.edit(c => { c.tracks[t]!.mute = !c.tracks[t]!.mute; }); });
-      tab.append(dot, el('span', 'g-tn', `T${t + 1}`), el('span', 'g-nm', t ? 'Bass' : 'Lead'), pos, mute);
+      tab.title = this.cfg ? `Cycle: ${trackCycle(this.cfg, t)} sixteenths` : '';
+      const speed = el('span', 'g-speed', this.cfg && trackDiv(this.cfg, t) !== 1 ? SPEED_LABEL[trackDiv(this.cfg, t)] + '×' : '');
+      speed.dataset.testid = `groove-speed-badge-${this.id}-${t + 1}`;
+      tab.append(dot, el('span', 'g-tn', `T${t + 1}`), el('span', 'g-nm', t ? 'Bass' : 'Lead'), speed, pos, mute);
       tab.addEventListener('click', () => { this.view.t = t; this.closePop(); this.refresh(); });
       this.tracksRow.append(tab);
     }
@@ -271,7 +274,23 @@ export class GroovePane {
       b.addEventListener('click', () => { this.edit(c => setLength(c, this.t, n)); this.layoutChanged(); });
       seg.append(b);
     }
-    this.tracksRow.append(seg);
+    this.tracksRow.append(seg, el('span', 'g-lbl', 'Speed'));
+    const speeds = el('span', 'g-seg');
+    const current = this.cfg ? trackDiv(this.cfg, this.t) : 1;
+    for (const div of DIVS) {
+      const b = this.button(div === current ? 'on' : '', `div-${div}`,
+        `Track speed ${SPEED_LABEL[div]}${div === 1 ? '' : '×'}`, SPEED_LABEL[div] + (div === 1 ? '' : '×'));
+      b.disabled = !this.cfg;
+      b.addEventListener('click', () => this.edit(c => {
+        upgrade(c);
+        if (div === 1) delete c.tracks[this.t]!.div;
+        else c.tracks[this.t]!.div = div;
+      }));
+      speeds.append(b);
+    }
+    const loop = el('span', 'g-loop-preview', this.cfg ? `Loop ${masterCycle(this.cfg)} sixteenths` : '');
+    loop.dataset.testid = `groove-loop-${this.id}`;
+    this.tracksRow.append(speeds, loop);
   }
 
   /**
@@ -801,9 +820,11 @@ export class GroovePane {
     this.play.classList.toggle('on', running);
     this.play.classList.toggle('q', running && this.stopRequested);
     const s = ph?.[this.t] ?? -1;
+    const liveConfig = this.applied ?? this.cfg;
+    const sixteenth = s * (liveConfig ? trackDiv(liveConfig, this.t) : 1);
     this.status.textContent = this.applying ? 'LOADING…'
       : running && this.stopRequested ? 'STOPS at loop end'
-      : running && s >= 0 ? `PLAYING ${Math.floor(s / 16) + 1}.${Math.floor((s % 16) / 4) + 1}.${(s % 4) + 1}`
+      : running && s >= 0 ? `PLAYING ${Math.floor(sixteenth / 16) + 1}.${Math.floor((sixteenth % 16) / 4) + 1}.${(sixteenth % 4) + 1}`
       : running ? 'PLAYING' : 'STOPPED';
     this.draftEl.textContent = draft ? 'Draft · not playing yet' : '';
     this.draftEl.hidden = !draft;

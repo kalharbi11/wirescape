@@ -19,6 +19,8 @@ export interface GrooveConfig { version: number; bpm: number; tracks: Track[]; [
 
 export const GROOVE = 'sequencing.groove';
 export const LENGTHS = [8, 16, 32, 64] as const;
+export const DIVS = [1, 2, 4, 8] as const;
+export const SPEED_LABEL: Record<number, string> = { 1: '1×', 2: '½', 4: '¼', 8: '⅛' };
 export const GATES = [0.25, 0.5, 0.75, 1] as const;
 export const GATE_LABEL: Record<number, string> = { 0.25: '¼', 0.5: '½', 0.75: '¾', 1: '1' };
 /** Picker order: Always, chance, A:B ("loops"), first / not first. */
@@ -82,6 +84,16 @@ export function trackLength(cfg: GrooveConfig, t: number): number {
   const track = cfg.tracks[t] ?? cfg.tracks[0];
   const length = track?.length as number;
   return (LENGTHS as readonly number[]).includes(length) ? length : 16;
+}
+/** UI time is measured in sixteenths; telemetry remains the track's own step index. */
+export function trackDiv(cfg: GrooveConfig, t: number): number {
+  const div = cfg.tracks[t]?.div;
+  return (DIVS as readonly number[]).includes(div as number) ? div as number : 1;
+}
+export const trackCycle = (cfg: GrooveConfig, t: number): number => trackLength(cfg, t) * trackDiv(cfg, t);
+export function masterCycle(cfg: GrooveConfig): number {
+  const armed = cfg.tracks.map((track, t) => track.armed === false ? 0 : trackCycle(cfg, t)).filter(Boolean);
+  return armed.length ? Math.max(...armed) : 16;
 }
 export const stepAt = (cfg: GrooveConfig, t: number, i: number): Step =>
   cfg.tracks[t]?.steps[i] ?? { kind: 'rest' };
@@ -164,6 +176,8 @@ export function engineConfig(raw: unknown): unknown {
       return out;
     });
     const out: Track = { ...(v2 ? { length } : {}), steps: steps.length ? steps : [{ kind: 'rest' }] };
+    // Preserve the exact authored div (including invalid values) for the native refusal path.
+    if ('div' in track) out.div = track.div;
     if (typeof track.armed === 'boolean') out.armed = track.armed;
     if (typeof track.mute === 'boolean') out.mute = track.mute;
     return out;
