@@ -1,0 +1,409 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Scene 3 · Black Ice Choir (CHAOS pad)",
+  "description": "A cold, choir-like pad: play slow chords on the keyboard and let CHAOS-lite's comb body breathe under two slow tides, then drift through a ping-pong ghost echo and a big hall. Try CHAOS body_mix, feedback and route depth for colder or glassier choirs, and the Slow apparition attack and release for how voices fade in and out.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 1103,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "host.keyboard",
+      "version": 1,
+      "parameters": {
+        "voices": 4
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.chaos_lite",
+      "version": 1,
+      "parameters": {
+        "shape_a": 1.93,
+        "shape_b": 1.76,
+        "octave_a": -1,
+        "octave_b": 0,
+        "detune": 7,
+        "route": 2,
+        "depth": 0.56,
+        "level_a": 0.5,
+        "level_b": 0.5,
+        "pan_a": -0.5,
+        "pan_b": 0.5,
+        "body_tune": 0.14,
+        "feedback": 0.68,
+        "damping": 0.7,
+        "body_mix": 0.63,
+        "roughness": 0.07,
+        "drift": 0.46,
+        "jitter": 0.06,
+        "lfo_target": 1,
+        "lfo_rate": 0.08,
+        "lfo_depth": 0.45,
+        "lfo_self": 0.35,
+        "cutoff": 3400,
+        "level": 1.0
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.6,
+        "decay": 1.5,
+        "sustain": 0.8,
+        "release": 2.2
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 2.0
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 2.0
+      }
+    },
+    {
+      "id": 6,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.8,
+        "decay": 4.5,
+        "damping": 0.55,
+        "predelay": 0.04,
+        "width": 1,
+        "motion": 0.35,
+        "mix": 0.4
+      }
+    },
+    {
+      "id": 7,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 8,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 9,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.043,
+        "depth": 0.9
+      }
+    },
+    {
+      "id": 10,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.093,
+        "depth": 0.8
+      }
+    },
+    {
+      "id": 11,
+      "module": "fx.delay",
+      "version": 1,
+      "parameters": {
+        "time": 0.55,
+        "feedback": 0.45,
+        "tone": -0.4,
+        "mode": 1,
+        "mix": 0.22
+      }
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 2,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 2,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 2,
+        "port": "velocity"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 3,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "left"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "right"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 4,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 5,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 11,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 11,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 11,
+        "port": "left"
+      },
+      "to": {
+        "module": 6,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 11,
+        "port": "right"
+      },
+      "to": {
+        "module": 6,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "left"
+      },
+      "to": {
+        "module": 7,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "right"
+      },
+      "to": {
+        "module": 8,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 9,
+        "port": "control"
+      },
+      "to": {
+        "module": 2,
+        "port": "body_tune"
+      },
+      "amount": 0.17
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 10,
+        "port": "control"
+      },
+      "to": {
+        "module": 2,
+        "port": "cutoff"
+      },
+      "amount": 0.28
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 9,
+        "port": "control"
+      },
+      "to": {
+        "module": 2,
+        "port": "roughness"
+      },
+      "amount": 0.07
+    }
+  ],
+  "outputs": [
+    {
+      "module": 7,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 8,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "2": [
+        990,
+        192
+      ],
+      "3": [
+        60,
+        960
+      ],
+      "4": [
+        2220,
+        192
+      ],
+      "5": [
+        2220,
+        864
+      ],
+      "11": [
+        3150,
+        192
+      ],
+      "6": [
+        4080,
+        192
+      ],
+      "7": [
+        5010,
+        192
+      ],
+      "8": [
+        5010,
+        864
+      ],
+      "9": [
+        990,
+        2560
+      ],
+      "10": [
+        1920,
+        2560
+      ]
+    },
+    "labels": {
+      "1": "Keys",
+      "2": "Frozen voices",
+      "3": "Slow apparition",
+      "4": "VCA L",
+      "5": "VCA R",
+      "6": "Frozen hall",
+      "7": "Out L",
+      "8": "Out R",
+      "9": "Body tide",
+      "10": "Filter tide",
+      "11": "Ghost echo"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

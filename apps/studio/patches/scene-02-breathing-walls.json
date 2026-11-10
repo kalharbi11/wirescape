@@ -1,0 +1,523 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Scene 2 · Breathing Walls (noise drone)",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 1102,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "essentials.chaos_lite",
+      "parameters": {
+        "shape_a": 0.55,
+        "shape_b": 1.83,
+        "octave_a": -2,
+        "octave_b": -1,
+        "detune": 23,
+        "route": 2,
+        "depth": 0.83,
+        "level_a": 0.38,
+        "level_b": 0.18,
+        "body_tune": -0.85,
+        "feedback": 0.77,
+        "damping": 0.9,
+        "body_mix": 0.76,
+        "roughness": 0.18,
+        "rough_rate": 13,
+        "drift": 0.72,
+        "jitter": 0.16,
+        "lfo_target": 1,
+        "lfo_rate": 0.13,
+        "lfo_depth": 0.66,
+        "lfo_self": 0.76,
+        "cutoff": 1700,
+        "level": 1
+      },
+      "version": 1
+    },
+    {
+      "id": 2,
+      "module": "essentials.noise",
+      "parameters": {
+        "level": 0.2
+      },
+      "version": 2
+    },
+    {
+      "id": 3,
+      "module": "essentials.mixer",
+      "parameters": {
+        "level_a": 1.6,
+        "level_b": 1.4
+      },
+      "version": 2
+    },
+    {
+      "id": 4,
+      "module": "essentials.ladder",
+      "parameters": {
+        "cutoff": 950,
+        "resonance": 0.4,
+        "drive": 0.2
+      },
+      "version": 2
+    },
+    {
+      "id": 5,
+      "module": "essentials.output",
+      "parameters": {},
+      "version": 2
+    },
+    {
+      "id": 6,
+      "module": "essentials.lfo",
+      "parameters": {
+        "rate": 0.052,
+        "depth": 0.8
+      },
+      "version": 2
+    },
+    {
+      "id": 7,
+      "module": "example.random_source",
+      "parameters": {
+        "smooth": 0.8,
+        "range": 0.5
+      },
+      "version": 1
+    },
+    {
+      "id": 8,
+      "module": "essentials.clock",
+      "parameters": {
+        "bpm": 27,
+        "ticks_per_beat": 1,
+        "duty": 0.35,
+        "run": 1
+      },
+      "version": 2
+    },
+    {
+      "id": 9,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 1.6,
+        "level_b": 1.4
+      }
+    },
+    {
+      "id": 10,
+      "module": "essentials.ladder",
+      "version": 2,
+      "parameters": {
+        "cutoff": 850,
+        "resonance": 0.42,
+        "drive": 0.2
+      }
+    },
+    {
+      "id": 11,
+      "module": "essentials.slew",
+      "version": 2,
+      "parameters": {
+        "rise": 2,
+        "fall": 2
+      }
+    },
+    {
+      "id": 12,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.8,
+        "decay": 9,
+        "damping": 0.55,
+        "predelay": 0.04,
+        "width": 1,
+        "motion": 0.3,
+        "mix": 0.35
+      }
+    },
+    {
+      "id": 13,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 14,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 2,
+        "level_b": 0
+      }
+    },
+    {
+      "id": 15,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 2,
+        "level_b": 0
+      }
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "left"
+      },
+      "to": {
+        "module": 3,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "audio"
+      },
+      "to": {
+        "module": 3,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "audio"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "clock"
+      },
+      "to": {
+        "module": 7,
+        "port": "clock"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 6,
+        "port": "control"
+      },
+      "to": {
+        "module": 1,
+        "port": "feedback"
+      },
+      "amount": 0.11
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 6,
+        "port": "control"
+      },
+      "to": {
+        "module": 1,
+        "port": "roughness"
+      },
+      "amount": 0.1
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 7,
+        "port": "smooth"
+      },
+      "to": {
+        "module": 1,
+        "port": "body_tune"
+      },
+      "amount": 0.19
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "right"
+      },
+      "to": {
+        "module": 9,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "audio"
+      },
+      "to": {
+        "module": 9,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 9,
+        "port": "audio"
+      },
+      "to": {
+        "module": 10,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "smooth"
+      },
+      "to": {
+        "module": 11,
+        "port": "control"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 11,
+        "port": "control"
+      },
+      "to": {
+        "module": 4,
+        "port": "cutoff"
+      },
+      "amount": 0.05
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 11,
+        "port": "control"
+      },
+      "to": {
+        "module": 10,
+        "port": "cutoff"
+      },
+      "amount": -0.04
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 6,
+        "port": "control"
+      },
+      "to": {
+        "module": 10,
+        "port": "cutoff"
+      },
+      "amount": 0.02
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 14,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 10,
+        "port": "audio"
+      },
+      "to": {
+        "module": 15,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 6,
+        "port": "control"
+      },
+      "to": {
+        "module": 3,
+        "port": "level_a"
+      },
+      "amount": 0.25
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 11,
+        "port": "control"
+      },
+      "to": {
+        "module": 9,
+        "port": "level_a"
+      },
+      "amount": -0.3
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 14,
+        "port": "audio"
+      },
+      "to": {
+        "module": 12,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 15,
+        "port": "audio"
+      },
+      "to": {
+        "module": 12,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 12,
+        "port": "left"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 12,
+        "port": "right"
+      },
+      "to": {
+        "module": 13,
+        "port": "audio"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "module": 5,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 13,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        120,
+        128
+      ],
+      "2": [
+        120,
+        1888
+      ],
+      "3": [
+        1290,
+        128
+      ],
+      "4": [
+        2100,
+        128
+      ],
+      "5": [
+        4950,
+        128
+      ],
+      "6": [
+        1110,
+        3000
+      ],
+      "7": [
+        2100,
+        3000
+      ],
+      "8": [
+        3090,
+        3000
+      ],
+      "9": [
+        1290,
+        1888
+      ],
+      "10": [
+        2100,
+        1888
+      ],
+      "11": [
+        2100,
+        3900
+      ],
+      "12": [
+        4020,
+        800
+      ],
+      "13": [
+        4950,
+        1888
+      ],
+      "14": [
+        3090,
+        128
+      ],
+      "15": [
+        3090,
+        1888
+      ]
+    },
+    "labels": {
+      "1": "Bent wall",
+      "2": "Air leakage",
+      "4": "Wall filter L",
+      "5": "Out L",
+      "7": "Slow random wander",
+      "8": "Structural pulse",
+      "9": "Right mix",
+      "10": "Wall filter R",
+      "11": "Slow glide",
+      "12": "Hall",
+      "13": "Out R",
+      "14": "Gain L",
+      "15": "Gain R"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  },
+  "description": "Autoplay: a bent CHAOS-lite wall and a breath of noise swell and sag through two ladder filters, driven by a very slow LFO and a gliding random wander, then spread into a wide hall reverb. Nothing to play; try the ladder cutoffs, noise level, clock BPM (breathing speed) and reverb mix."
+}

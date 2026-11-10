@@ -4262,6 +4262,78 @@
      "hint": "ev_notes",
      "poly": "poly",
      "stereo_pair": null
+    },
+    {
+     "id": "t1_pos",
+     "name": "T1 Position",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_pos",
+     "name": "T2 Position",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t1_loop_lo",
+     "name": "T1 Loop Low",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_loop_lo",
+     "name": "T2 Loop Low",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t1_fired",
+     "name": "T1 Fired",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "gate",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_fired",
+     "name": "T2 Fired",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "gate",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t1_loop_hi",
+     "name": "T1 Loop High",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_loop_hi",
+     "name": "T2 Loop High",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
     }
    ],
    "parameters": [

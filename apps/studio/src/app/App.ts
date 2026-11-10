@@ -20,7 +20,7 @@ import { ComputerKeyboard, isTyping } from './Keyboard';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
-import { STARTERS, DEFAULT_STARTER, type Starter } from './starters';
+import { STARTERS, BUNDLED_STARTERS, DEFAULT_STARTER, type Starter } from './starters';
 import { CURATED_PATCHES } from './curated';
 import { sharedPatches } from './SharedPatches';
 import { playableStarters } from '../web/starters';
@@ -142,6 +142,7 @@ export class App {
       registry: this.registry,
       overrides: this.overrides,
       commitParam: (m, p, v, c) => this.commitParam(m, p, v, c),
+      applyModulePreset: (m, values) => this.applyModulePreset(m, values),
       commitModAmount: (c, a, commit) => this.commitModAmount(c, a, commit),
       listMidiDevices: () => this.engine.listMidiDevices(),
       setModuleEndpoint: (id, endpoint, sys) => this.setMidiEndpoint(id, endpoint, sys),
@@ -861,6 +862,20 @@ export class App {
    * The UI draws a change at once, sends it to the engine, and rolls back
    * with a message if the engine refuses.
    */
+  /** One snapshot for the preset, each value still uses the normal engine setParam. */
+  private applyModulePreset(moduleId: number, values: Readonly<Record<string, number>>): void {
+    if (this.documentBusy) return;
+    const module = this.doc.modules.get(moduleId);
+    const d = module && this.registry.get(module.module);
+    if (!module || !d) return;
+    this.history.flush();
+    for (const param of d.parameters) {
+      const value = values[param.id];
+      if (value !== undefined) this.commitParam(moduleId, param.id, value, true);
+    }
+    this.history.flush();
+  }
+
   private commitParam(moduleId: number, paramId: string, value: number, commit: boolean): void {
     if (this.documentBusy) return;
     const before = this.doc.param(moduleId, paramId);
@@ -1154,52 +1169,90 @@ export class App {
       // The dialog may have been rebuilt while device enumeration was pending.
       if (!b.contains(audioFields)) return;
       if (!devices.length) {
-        const empty = el('div', 'muted', 'No audio devices available.');
+        const missing = this.lastStatus?.audio.deviceId;
+        const empty = el('div', 'muted', missing
+          ? `Selected physical route ${this.lastStatus?.audio.deviceName ?? missing} is unavailable; no audio devices listed.`
+          : 'No audio devices available.');
         empty.dataset.testid = 'audio-no-devices';
         audioFields.append(empty);
         return;
       }
-      const currentId = this.lastStatus?.audio.deviceId ?? devices[0]!.id;
+      const currentId = this.lastStatus?.audio.deviceId ?? '';
+      const routes = devices;
+      // A missing or duplicate remembered identity must not select the first device.
+      const count = (id: string) => routes.filter(d => d.id === id).length;
+      const usable = (d: Device) => count(d.id) === 1 && d.supported !== false;
+      const details = (d: Device) => [
+        d.backend ?? d.hostApi, d.outputChannels === undefined ? undefined : `${d.outputChannels} channels`,
+      ].filter(Boolean).join(' · ');
+      const current = routes.find(d => d.id === currentId && usable(d));
+      const placeholder = currentId
+        ? `Unavailable, ambiguous or unsupported: ${this.lastStatus?.audio.deviceName ?? currentId}`
+        : 'Choose a physical output…';
+      const route = el('div', 'muted', current
+        ? `${this.lastStatus?.audio.state === 'running' ? 'Active' : 'Selected'} physical route: ${current.name}${details(current) ? ` (${details(current)})` : ''}`
+        : `${placeholder}. Select an available output explicitly.`);
+      route.dataset.testid = 'audio-route-status';
+      audioFields.append(route);
+      if (this.lastStatus?.audio.reason === 'rate-unsupported') {
+        const hz = current?.defaultSampleRate;
+        const message = el('div', 'muted', hz
+          ? `This device only runs at ${hz / 1000} kHz in shared mode.`
+          : 'This device does not support the requested sample rate. Choose a supported rate.');
+        message.dataset.testid = 'audio-rate-reason';
+        audioFields.append(message);
+      }
       const rates = select([], '', v => engine.setSampleRate?.(Number(v)));
       rates.dataset.testid = 'audio-rate';
       const refreshRates = (deviceId: string) => {
-        const dev = devices.find(d => d.id === deviceId);
-        rates.replaceChildren(...(dev?.sampleRates ?? [48000]).map(n => {
+        const dev = routes.find(d => d.id === deviceId && usable(d));
+        // Unknown rates are unknown, not proof that 48 kHz is supported.
+        rates.replaceChildren(...(dev?.sampleRates ?? []).map(n => {
           const option = document.createElement('option');
           option.value = String(n); option.textContent = `${(n / 1000).toFixed(1)} kHz`;
           return option;
         }));
-        const actual = String(this.lastStatus?.audio.sampleRate ?? 48000);
+        const actual = String(this.lastStatus?.audio.sampleRate ?? '');
         rates.value = actual;
-        // Do not imply an unsupported rate is active; ask the engine to pick it.
-        if (!rates.value && rates.options.length) {
-          rates.selectedIndex = 0;
-          engine.setSampleRate?.(Number(rates.value));
-        }
+        // Never issue a rate-change command merely by opening Settings.
+        rates.disabled = !dev || rates.options.length === 0;
       };
-      // Windows repeats names across (and within) host APIs; the id tells them apart.
-      const repeats = (d: Device) => devices.filter(o => o.name === d.name).length > 1;
+      let buffer: HTMLSelectElement | undefined;
       const label = (d: Device) => {
-        if (!repeats(d)) return d.name;
-        const n = /#(\d+)$/.exec(d.id)?.[1];
-        return `${d.name} — ${d.hostApi ?? 'audio'}${n ? ` ${n}` : ''}`;
+        const repeated = routes.filter(o => o.name === d.name).length > 1;
+        const ordinal = /#(\d+)$/.exec(d.id)?.[1];
+        const identity = repeated ? ` — ${d.hostApi ?? d.backend ?? 'audio'}${ordinal ? ` ${ordinal}` : ''}` : '';
+        return `${d.name}${identity}${details(d) ? ` · ${details(d)}` : ''}${d.supported === false ? ` — unavailable: ${d.unsupportedReason ?? 'unsupported'}` : ''}`;
       };
-      const sel = select(devices.map(d => ({ value: d.id, label: label(d) })), currentId, v => {
+      const choices = routes.map(d => ({
+        value: d.id,
+        label: label(d),
+      }));
+      if (!current) choices.unshift({ value: '', label: placeholder });
+      const sel = select(choices, current?.id ?? '', v => {
+        const chosen = routes.find(d => d.id === v && usable(d));
+        if (!chosen) return;
         engine.selectAudioDevice(v);
+        route.textContent = `Requested physical route: ${routes.find(d => d.id === v)!.name} (awaiting engine status)`;
         if (engine.setSampleRate) refreshRates(v);
+        if (buffer) buffer.disabled = false;
       });
+      for (const option of sel.options) {
+        if (option.value && !routes.some(d => d.id === option.value && usable(d))) option.disabled = true;
+      }
       sel.dataset.testid = 'audio-device';
-      audioFields.append(field('Output device', sel));
+      audioFields.append(field('Physical output device (not graph Output)', sel));
       if (engine.setSampleRate) {
-        refreshRates(currentId);
+        refreshRates(current?.id ?? '');
         audioFields.append(field('Sample rate', rates));
       }
       if (engine.setBufferFrames) {
-        const buffer = select(
+        buffer = select(
           [64, 128, 256, 512, 1024].map(n => ({ value: String(n), label: `${n} frames` })),
           String(this.lastStatus?.audio.bufferFrames ?? 256),
           v => engine.setBufferFrames?.(Number(v)),
         );
+        buffer.disabled = !current;
         buffer.dataset.testid = 'audio-buffer';
         audioFields.append(field('Buffer size', buffer, 'Lower is tighter, and more likely to drop out'));
       }
@@ -1386,7 +1439,7 @@ export class App {
       } catch (e) { message.textContent = e instanceof Error ? e.message : 'Could not open patch.'; }
     };
     body.append(message, el('h3', 'settings-group', 'BUNDLED · READ ONLY'));
-    const bundled = [...STARTERS.filter(s => s.id.startsWith('qt-')).map(s => ({ name: s.name, patch: s.patch() })),
+    const bundled = [...BUNDLED_STARTERS.map(s => ({ name: s.name, patch: s.patch() })),
       { name: 'Class demo · CHAOS', patch: demoChaos as unknown as PatchV2 },
       { name: 'Class demo · Subtractive', patch: demoSub as unknown as PatchV2 },
       { name: 'Class demo · Macro', patch: demoMacro as unknown as PatchV2 }];

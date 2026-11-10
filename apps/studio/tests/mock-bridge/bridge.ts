@@ -33,7 +33,7 @@ export async function mockBridge(page: Page): Promise<void> {
         catalogue = await (await fetch('/wirescape_modules.json')).json();
       }
       emit({ v: 0, type: 'hello', session: session(), protocol: 0,
-        engine: { version: 'test', sha: 'abc1234' }, capabilities: ['midiLearn'],
+        engine: { version: 'test', sha: 'abc1234' }, capabilities: ['midiLearn', 'telemetry.playhead'],
         catalogue, audio: audioStatus,
         midi: midiStatus() });
     };

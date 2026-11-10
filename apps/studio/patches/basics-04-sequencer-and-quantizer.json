@@ -1,0 +1,382 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 42,
+    "timing_mode": "immediate"
+  },
+  "name": "Basics 4 · Sequencer and Quantizer",
+  "description": "Clock steps the sequencer, the quantizer snaps every pitch to a scale, and the voice plays it. Edit any step pitch in the sequencer and it stays in key; change the Quantizer scale or root to re-colour the tune; change the clock BPM to speed up the delay too.",
+  "modules": [
+    {
+      "id": 1,
+      "module": "essentials.clock",
+      "version": 2,
+      "parameters": {
+        "bpm": 108,
+        "ticks_per_beat": 2,
+        "run": 1
+      }
+    },
+    {
+      "id": 2,
+      "module": "example.step_sequencer",
+      "version": 2,
+      "parameters": {
+        "run": 1,
+        "length": 8,
+        "pitch1": 0.0,
+        "gate1": 1,
+        "vel1": 0.9,
+        "pitch2": 0.333333,
+        "gate2": 1,
+        "vel2": 0.6,
+        "pitch3": 0.583333,
+        "gate3": 1,
+        "vel3": 0.7,
+        "pitch4": 0.75,
+        "gate4": 1,
+        "vel4": 0.8,
+        "pitch5": 1.0,
+        "gate5": 1,
+        "vel5": 0.9,
+        "pitch6": 0.75,
+        "gate6": 1,
+        "vel6": 0.6,
+        "pitch7": 0.583333,
+        "gate7": 1,
+        "vel7": 0.7,
+        "pitch8": 0.333333,
+        "gate8": 0,
+        "vel8": 0.5
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.quantizer",
+      "version": 1,
+      "parameters": {
+        "scale": 9,
+        "root": 0
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 220
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 440
+      }
+    },
+    {
+      "id": 6,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 0.25
+      }
+    },
+    {
+      "id": 7,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 0.42
+      }
+    },
+    {
+      "id": 8,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.005,
+        "decay": 0.18,
+        "sustain": 0.35,
+        "release": 0.25
+      }
+    },
+    {
+      "id": 9,
+      "module": "fx.delay",
+      "version": 1,
+      "parameters": {
+        "division": 4,
+        "feedback": 0.4,
+        "tone": -0.2,
+        "mode": 1,
+        "mix": 0.3
+      }
+    },
+    {
+      "id": 10,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 11,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "clock"
+      },
+      "to": {
+        "module": 2,
+        "port": "clock"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "clock"
+      },
+      "to": {
+        "module": 9,
+        "port": "clock"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 3,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 4,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 5,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "gate"
+      },
+      "to": {
+        "module": 8,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 6,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "audio"
+      },
+      "to": {
+        "module": 4,
+        "port": "fm"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 7,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 7,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 2,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 8,
+        "port": "sustain"
+      },
+      "amount": 0.3
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "audio"
+      },
+      "to": {
+        "module": 9,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 9,
+        "port": "left"
+      },
+      "to": {
+        "module": 10,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 9,
+        "port": "right"
+      },
+      "to": {
+        "module": 11,
+        "port": "audio"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "module": 10,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 11,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "2": [
+        990,
+        192
+      ],
+      "3": [
+        1920,
+        192
+      ],
+      "4": [
+        3600,
+        192
+      ],
+      "5": [
+        3600,
+        864
+      ],
+      "6": [
+        4530,
+        864
+      ],
+      "7": [
+        4530,
+        192
+      ],
+      "8": [
+        3600,
+        1536
+      ],
+      "9": [
+        5460,
+        192
+      ],
+      "10": [
+        6390,
+        192
+      ],
+      "11": [
+        6390,
+        864
+      ]
+    },
+    "labels": {
+      "1": "Clock",
+      "2": "Steps",
+      "3": "Quantizer",
+      "4": "Voice",
+      "5": "FM Mod",
+      "6": "FM Depth",
+      "7": "Voice VCA",
+      "8": "Envelope",
+      "9": "Echo",
+      "10": "Out L",
+      "11": "Out R"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

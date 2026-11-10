@@ -1,16 +1,17 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-09 late, Compass + Keel check-in; Codex Lead closeout refresh. Owner failures preempt features.
+**Updated:** 2026-11-10, Keel (ASAP lanes + rulings). Owner failures preempt features.
 Live heads and completed evidence govern; queued, stale and missing results never pass.
 
 ## Authority and queue
 - Board #473 is the claim source. Codex Lead keeps it current and holds the owner's
   delegation to approve/merge after independent review and evidence (T2 still needs Claude).
-- Owner's subsequent instruction holds new starts until remaining PRs close, even below10.
-- Seven closeout PRs remain after486 merged1e20242; this planner refresh484 is one.
-- Next lane: Groove playable v1 (#432): G1 #496 + G3 #497 (T2, Keel) → G2 #498; then Learn287 → OSC72.
-- 2026-11-10: #495 owner Groove UI merged; #461 merged; #494 Pi smoke fix, #492 model names on auto-merge.
+- **Owner 2026-11-10: ASAP lanes, hold lifted for them:** Chord (#511→#512), MIDI (#500 Learn),
+  OSC (#72 slices A→B→C), Groove (#505 G1 → #509/#510 G2 → #514 G4 chords → #523 G5 speed).
+  Other new starts still wait. #521 chord/scale/speed design approved; scale lives in `ui.groove`.
+- Keel rulings 2026-11-10: #511 Chord last-wins for reused explicit IDs, budget 20 files;
+  #500 Learn keeps one loadGraph but serializes edits while it's pending; #514 G4 pre-ruled.
 
 ## Merged 2026-11-09 (baseline `605da43`, compile repair `1e20242`)
 - #463 Windows runtime, #400 latency, #442 real-app evidence, #474 PLAN D15–D19.

@@ -1,0 +1,386 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Scene 4 · Vowel Apparitions (Macro speech)",
+  "description": "Ghostly sung vowels from the speech-synthesis model, breathing in slowly through a veiled filter and a ping-pong echo into a hall. Hold chords; try Morph, Timbre and the filter cutoff to move between vowels.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 1104,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "host.keyboard",
+      "version": 1,
+      "parameters": {
+        "voices": 4
+      }
+    },
+    {
+      "id": 2,
+      "module": "ports.macro_oscillator",
+      "version": 1,
+      "parameters": {
+        "model": 15,
+        "coarse": 0,
+        "harmonics": 0.3,
+        "timbre": 0.5,
+        "morph": 0.4,
+        "timbre_amount": 0.3,
+        "morph_amount": 0.3,
+        "decay": 0.8,
+        "lpg_colour": 0.5
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.vcf",
+      "version": 2,
+      "parameters": {
+        "cutoff": 3200,
+        "resonance": 0.25
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 0.62
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.6,
+        "decay": 1.5,
+        "sustain": 0.7,
+        "release": 2.5
+      }
+    },
+    {
+      "id": 6,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.082,
+        "depth": 0.65
+      }
+    },
+    {
+      "id": 7,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.031,
+        "depth": 0.71
+      }
+    },
+    {
+      "id": 8,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.057,
+        "depth": 0.6
+      }
+    },
+    {
+      "id": 9,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.8,
+        "decay": 4.5,
+        "damping": 0.5,
+        "predelay": 0.04,
+        "width": 1,
+        "motion": 0.35
+      }
+    },
+    {
+      "id": 10,
+      "module": "fx.delay",
+      "version": 1,
+      "parameters": {
+        "time": 0.52,
+        "feedback": 0.45,
+        "tone": -0.3,
+        "mode": 1,
+        "mix": 0.25
+      }
+    },
+    {
+      "id": 11,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 12,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 2,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 2,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 2,
+        "port": "level"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 5,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "main"
+      },
+      "to": {
+        "module": 3,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "low12"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 4,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 10,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 10,
+        "port": "left"
+      },
+      "to": {
+        "module": 9,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 10,
+        "port": "right"
+      },
+      "to": {
+        "module": 9,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 9,
+        "port": "left"
+      },
+      "to": {
+        "module": 11,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 9,
+        "port": "right"
+      },
+      "to": {
+        "module": 12,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 6,
+        "port": "control"
+      },
+      "to": {
+        "module": 2,
+        "port": "morph"
+      },
+      "amount": 0.35
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 8,
+        "port": "control"
+      },
+      "to": {
+        "module": 2,
+        "port": "timbre"
+      },
+      "amount": 0.15
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 7,
+        "port": "control"
+      },
+      "to": {
+        "module": 3,
+        "port": "cutoff"
+      },
+      "amount": 0.2
+    }
+  ],
+  "outputs": [
+    {
+      "module": 11,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 12,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "2": [
+        990,
+        192
+      ],
+      "3": [
+        1920,
+        192
+      ],
+      "4": [
+        2850,
+        192
+      ],
+      "5": [
+        60,
+        1952
+      ],
+      "6": [
+        990,
+        1952
+      ],
+      "7": [
+        1920,
+        1952
+      ],
+      "8": [
+        990,
+        2624
+      ],
+      "10": [
+        3780,
+        192
+      ],
+      "9": [
+        4710,
+        192
+      ],
+      "11": [
+        5640,
+        192
+      ],
+      "12": [
+        5640,
+        864
+      ]
+    },
+    "labels": {
+      "1": "Keys",
+      "2": "Speech voice",
+      "3": "Vowel veil",
+      "4": "Breath VCA",
+      "5": "Long breath",
+      "6": "Vowel drift",
+      "7": "Veil motion",
+      "8": "Formant drift",
+      "9": "Hall",
+      "10": "Ghost echo",
+      "11": "Out L",
+      "12": "Out R"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

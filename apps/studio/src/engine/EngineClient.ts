@@ -17,6 +17,12 @@ export interface Device {
   sampleRates?: number[];
   /** Audio: PortAudio host API (e.g. "Windows WASAPI"); the id is `hostApi|name[#n]`. */
   hostApi?: string;
+  /** Optional audio backend capabilities, supplied by the native device enumerator. */
+  backend?: string;
+  outputChannels?: number;
+  supported?: boolean;
+  unsupportedReason?: string;
+  defaultSampleRate?: number;
   enabled?: boolean;
   kind: 'audio' | 'midi';
 }
@@ -37,6 +43,8 @@ export interface MidiLearn {
 export interface SystemStatus {
   audio: {
     state: AudioState;
+    /** A refused hardware configuration; it does not imply device loss or retry. */
+    reason?: string;
     deviceId: string | null;
     deviceName: string | null;
     sampleRate: number;
@@ -71,7 +79,19 @@ export interface OscStatus {
 }
 
 /** Live values, pushed ~30x a second. Each message is a complete snapshot. */
+export interface GrooveTrackObservation {
+  /** Measured index, or -1 only after transport and owed releases stop. */
+  step: number;
+  loop: number;
+  playing: boolean;
+  fired: boolean;
+}
+
 export interface Telemetry {
+  /** Actual outer wire generation, attached by RealEngine. */
+  gen?: string;
+  playhead?: Record<number, [number, number]>;
+  groove?: Record<number, [GrooveTrackObservation, GrooveTrackObservation]>;
   /** Monotonic tick counter. */
   tick: number;
   /** Seconds since the engine started. */
@@ -133,6 +153,8 @@ export interface EngineClient {
   panic(): void;
 
   // ---- live values -----------------------------------------------------
+  /** Release-safe, current-generation stopped Apply gate; ACK alone is insufficient. */
+  canApplyGroove?(moduleId: number): boolean;
   onTelemetry(cb: (t: Telemetry) => void): () => void;
   onStatus(cb: (s: SystemStatus) => void): () => void;
   /** Async refusals of optimistic real-engine edits (FakeEngine remains synchronous). */
@@ -151,4 +173,3 @@ export interface EngineClient {
   setBufferFrames?(frames: number): void;
   setOsc?(cfg: Partial<Pick<OscStatus, 'enabled' | 'port' | 'allowNetwork'>>): void;
 }
-

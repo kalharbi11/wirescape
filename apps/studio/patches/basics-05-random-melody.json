@@ -1,0 +1,356 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Basics 5 · Random Melody (Quantizer)",
+  "description": "A clock steps a random source, the quantizer snaps each random pitch to A minor pentatonic, and a noise burst plucks a bell-like resonator on every tick for an endless in-key melody. Try the quantizer scale and root, the clock BPM, the random range, and the mallet envelope decay for a softer or sharper pluck.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 505,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "essentials.clock",
+      "version": 2,
+      "parameters": {
+        "bpm": 105,
+        "ticks_per_beat": 3,
+        "duty": 0.3,
+        "run": 1
+      }
+    },
+    {
+      "id": 2,
+      "module": "example.random_source",
+      "version": 1,
+      "parameters": {
+        "range": 0.8
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.noise",
+      "version": 2,
+      "parameters": {
+        "level": 0.7
+      }
+    },
+    {
+      "id": 10,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.0005,
+        "decay": 0.012,
+        "sustain": 0,
+        "release": 0.01
+      }
+    },
+    {
+      "id": 11,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.quantizer",
+      "version": 1,
+      "parameters": {
+        "scale": 10,
+        "root": 9,
+        "octave": 1
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.resonator",
+      "version": 1,
+      "parameters": {
+        "structure": 3,
+        "decay": 4,
+        "damping": 0.35,
+        "strike_tone": 0.6,
+        "strike_level": 0.8,
+        "mix": 1,
+        "level": 0.85
+      }
+    },
+    {
+      "id": 6,
+      "module": "fx.delay",
+      "version": 1,
+      "parameters": {
+        "division": 6,
+        "feedback": 0.4,
+        "tone": -0.3,
+        "mode": 1,
+        "mix": 0.35
+      }
+    },
+    {
+      "id": 7,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.6,
+        "decay": 3,
+        "damping": 0.5,
+        "mix": 0.35
+      }
+    },
+    {
+      "id": 8,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 9,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "clock"
+      },
+      "to": {
+        "module": 2,
+        "port": "clock"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "step"
+      },
+      "to": {
+        "module": 4,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "clock"
+      },
+      "to": {
+        "module": 10,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 10,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 11,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "audio"
+      },
+      "to": {
+        "module": 11,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 11,
+        "port": "audio"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "clock"
+      },
+      "to": {
+        "module": 4,
+        "port": "trigger"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 5,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "clock"
+      },
+      "to": {
+        "module": 6,
+        "port": "clock"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "left"
+      },
+      "to": {
+        "module": 7,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "right"
+      },
+      "to": {
+        "module": 7,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "left"
+      },
+      "to": {
+        "module": 8,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "right"
+      },
+      "to": {
+        "module": 9,
+        "port": "audio"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "module": 8,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 9,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "2": [
+        990,
+        192
+      ],
+      "3": [
+        990,
+        864
+      ],
+      "4": [
+        1920,
+        192
+      ],
+      "5": [
+        3600,
+        192
+      ],
+      "6": [
+        4530,
+        192
+      ],
+      "7": [
+        5460,
+        192
+      ],
+      "8": [
+        6390,
+        192
+      ],
+      "9": [
+        6390,
+        864
+      ],
+      "10": [
+        990,
+        1536
+      ],
+      "11": [
+        1920,
+        864
+      ]
+    },
+    "labels": {
+      "1": "Clock",
+      "2": "Random Steps",
+      "3": "Mallet Noise",
+      "4": "Scale Quantizer",
+      "5": "Marimba Pluck",
+      "6": "Synced Delay",
+      "7": "Room",
+      "8": "Out L",
+      "9": "Out R",
+      "10": "Mallet Env",
+      "11": "Mallet VCA"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}
