@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { test, expect } from '@playwright/test';
+import type { PatchV2 } from '../src/patch/types';
 import { STARTERS, DEFAULT_STARTER } from '../src/app/starters';
 import { CURATED_PATCHES } from '../src/app/curated';
 import catalogue from '../public/wirescape_modules.json' with { type: 'json' };
@@ -182,7 +183,7 @@ test('all fifteen public Basics/Scene patches have non-overlapping cards in mous
     for (const { file, patch } of patches) {
       expect(Object.keys(patch.ui.positions)).toHaveLength(patch.modules.length);
       await page.evaluate(p => {
-        window.__wirescapeTest.load(p, p.name);
+        window.__wirescapeTest.load(p as unknown as PatchV2, p.name);
         window.__wirescapeTest.fit();
       }, patch);
       await settle(page);
