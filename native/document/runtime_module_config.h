@@ -157,7 +157,8 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
              require(src.is_object(), "OSC row must be an object");
              auto &dest = config.rows[i];
              for (auto it = src.begin(); it != src.end(); ++it) {
-                 const auto &name = it.key(), &item = it.value();
+                 const auto &name = it.key();
+                 const auto &item = it.value();
                  if (name == "pattern") {
                      require(item.is_string(), "OSC pattern must be a string");
                      const auto pattern = item.get<std::string>();
