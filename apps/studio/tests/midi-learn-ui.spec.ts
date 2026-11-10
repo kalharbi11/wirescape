@@ -240,6 +240,33 @@ test.describe('MIDI Learn (#287)', () => {
     expect(mods(s, 'midi.cc_to_cv')[0].config.rows).toEqual([{ channel: 1, controller: 20 }]);
   });
 
+  test('Forget trims the freed CC label and undo restores its saved hint', async ({ page }) => {
+    await boot(page);
+    await load(page, vcf, [], VCF_POS);
+    await learn(page, 2, 'cutoff', { channel: 1, controller: 20 });
+    await learn(page, 2, 'resonance', { channel: 1, controller: 21 });
+    let s = await state(page);
+    const ccId = mods(s, 'midi.cc_to_cv')[0].id;
+    expect(s.ui.ccMap[String(ccId)]).toEqual({ cc1: 20, cc2: 21 });
+    await expect(page.getByTestId(`port-${ccId}-output-cc2`).locator('.cc-label')).toHaveText('CC 21');
+
+    await knob(page, 2, 'resonance').click({ button: 'right' });
+    await page.getByTestId('context-forget').click();
+    await settle(page);
+    s = await state(page);
+    expect(mods(s, 'midi.cc_to_cv')[0].config.rows).toEqual([{ channel: 1, controller: 20 }]);
+    expect(s.ui.ccMap[String(ccId)]).toEqual({ cc1: 20 });
+    await expect(page.getByTestId(`port-${ccId}-output-cc2`).locator('.cc-label')).toHaveText('CC 2');
+
+    await undoAll(page);
+    s = await state(page);
+    expect(mods(s, 'midi.cc_to_cv')[0].config.rows).toEqual([
+      { channel: 1, controller: 20 }, { channel: 1, controller: 21 },
+    ]);
+    expect(s.ui.ccMap[String(ccId)]).toEqual({ cc1: 20, cc2: 21 });
+    await expect(page.getByTestId(`port-${ccId}-output-cc2`).locator('.cc-label')).toHaveText('CC 21');
+  });
+
   test('Esc disarms without touching the patch; later CCs are ignored', async ({ page }) => {
     await boot(page);
     await load(page, vcf, [], VCF_POS);
