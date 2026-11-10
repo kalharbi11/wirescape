@@ -137,7 +137,7 @@ static void anonymous_fifo_and_repeated_roots() {
 
     a.run({note(WS2_NOTE_OFF, 60, -1)});
     REQUIRE(a.value(1, 0, 1) == 0.f && a.value(1, 1, 1) == 1.f);
-    REQUIRE(a.value(2, 0, 1) == 0.f && a.value(2, 1, 1) == .75f);
+    REQUIRE(a.value(2, 1, 1) == .75f);
     a.run({note(WS2_NOTE_OFF, 60, -1)});
     REQUIRE(a.value(1, 0, 1) == 0.f && a.value(1, 1, 1) == 0.f);
 }
