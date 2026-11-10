@@ -37,7 +37,7 @@ test('scale helper is view-only; pitch gestures advance through selected scale',
   await page.getByTestId('groove-scale-1').selectOption('Major');
   expect(JSON.stringify(await cfg(page))).toBe(before);
   // D major: C4 is outside the scale, next permitted note is D4 (62).
-  await pad(page, 2).focus();
+  await pane(page).focus();
   await page.keyboard.press('ArrowUp');
   expect((await cfg(page)).tracks[0].steps[1].key).toBe(62);
   await page.getByTestId('groove-scale-1').selectOption('Chromatic');
