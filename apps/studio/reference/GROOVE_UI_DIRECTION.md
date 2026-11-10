@@ -222,8 +222,8 @@ Data: #514 gives a note step up to 5 keys (the reserved `keys` field). The mocku
 ## Per-track speed (owner request, 2026-11-10; UI only)
 
 - `Speed 1× ½ ¼ ⅛` sits next to `Steps` for the selected track. A track tab shows `½×` / `¼×` / `⅛×` when slowed.
-- A slowed track holds each step for 2/4/8 sixteenths, and its gate lengths scale with it. Example: 16 steps at ¼ = one chord
-  per beat-bar over 4 bars, all in one bar row.
+- A slowed track holds each step for 2/4/8 sixteenths, and its gate lengths scale with it. Example: 16 steps at ¼ = one step per beat,
+  so a 4-bar chord progression fits in one row of 16 pads.
 - The loop end used by Stop / Apply at loop end is the longest track's `length × divisor`, still at most 64 sixteenths ×8.
 - **Not in the build:** per-track speed is plan S4 ("per-track speed" is listed as out of v1). It needs a
   per-track `div` field and a master-cycle rule from Keel; values here are proposals (1, ½, ¼, ⅛; no 2×).
