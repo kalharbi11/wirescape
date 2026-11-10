@@ -78,6 +78,7 @@ export class RealEngine implements EngineClient {
   private stateCbs = new Set<(state: 'real' | 'restarting') => void>();
   private graphErrorCbs = new Set<(error: EngineRefusal) => void>();
   private catalogueCbs = new Set<() => void>();
+  private generationCbs = new Set<(gen: string) => void>();
   setSampleRate?: (hz: number) => void;
   setBufferFrames?: (frames: number) => void;
   midiLearn?: (armed: boolean) => void;
@@ -122,6 +123,46 @@ export class RealEngine implements EngineClient {
   onCatalogue(cb: () => void): () => void {
     this.catalogueCbs.add(cb); return () => this.catalogueCbs.delete(cb);
   }
+  generation(): string { return this.gen; }
+  onGeneration(cb: (gen: string) => void): () => void {
+    this.generationCbs.add(cb); return () => this.generationCbs.delete(cb);
+  }
+  settleUnansweredLoad(applied: boolean): void {
+    const load = this.load;
+    if (!load) return;
+    this.pending.delete(load.id);
+    this.load = undefined;
+    if (applied) {
+      this.confirmed = copy(load.patch);
+      this.usedIds = new Set(this.confirmed.modules.map(m => m.id));
+      this.ready = true; this.loadedOnce = true;
+      load.resolve(); this.setState('real'); this.pumpEdits();
+    } else {
+      this.ready = this.confirmed !== null;
+      load.reject(refusal('unavailable', 'Load was not applied.'));
+    }
+    this.notifySettled();
+  }
+  async waitForReady(): Promise<void> {
+    if (this.ready && this.state === 'real') return;
+    await new Promise<void>(resolve => {
+      let off = () => {};
+      let ready = false;
+      off = this.onConnection(state => {
+        if (state === 'real') { ready = true; off(); resolve(); }
+      });
+      if (ready) off();
+    });
+  }
+  restartEngine(): Promise<void> {
+    const id = this.id(), session = this.session;
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { session, type: 'app.restartEngine', kind: 'restart',
+        resolve: () => resolve(), reject });
+      try { this.bridge.send({ v: 0, id, type: 'app.restartEngine' }); }
+      catch { this.pending.delete(id); reject(refusal('unavailable', 'Could not restart engine.')); }
+    });
+  }
   /** A document switch must keep its owner visible until all inverses have settled. */
   async whenEditsSettled(): Promise<void> {
     while (this.active || this.queue.length || this.load)
@@ -149,8 +190,10 @@ export class RealEngine implements EngineClient {
     for (const cb of this.statusCbs) cb(s);
   }
   private rejectPending(error: EngineRefusal): void {
-    for (const p of this.pending.values()) p.reject?.(error);
-    this.pending.clear();
+    for (const [id, p] of this.pending) {
+      if (p.kind === 'restart') continue;
+      p.reject?.(error); this.pending.delete(id);
+    }
     this.active = undefined;
     this.queue = [];
     this.lastEdit = undefined;
@@ -216,7 +259,13 @@ export class RealEngine implements EngineClient {
     }
     if (message.type?.toString().startsWith('app.menu')) return; // App consumes menu intents.
     if (message.type === 'status' || message.type === 'telemetry' || message.type === 'devices') {
-      if (message.session !== this.session || !this.validGen(message.gen)) return;
+      const pushedGen = generation(message.gen);
+      if (message.session !== this.session || pushedGen === null || pushedGen < BigInt(this.gen)) return;
+      if (pushedGen > BigInt(this.gen)) {
+        this.gen = message.gen as string;
+        this.playhead = {}; this.statusGen = '';
+      }
+      for (const cb of this.generationCbs) cb(this.gen);
       if (message.type === 'status' && isRecord(message.status)) {
         const next = message.status as unknown as SystemStatus;
         this.midiDevices = next.midi?.devices ?? this.midiDevices;
@@ -282,11 +331,6 @@ export class RealEngine implements EngineClient {
       this.pumpEdits();
       this.notifySettled();
     } else p.resolve?.(message);
-  }
-
-  private validGen(gen: unknown): boolean {
-    const n = generation(gen);
-    return n !== null && n === BigInt(this.gen);
   }
 
   async loadGraph(patch: PatchV2): Promise<void> {
