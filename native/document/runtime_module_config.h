@@ -29,6 +29,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
      config.track_count = static_cast<uint32_t>(tracks.size());
      // v1 had no chance conditions; preserving its old render seed is intentional.
      config.instance_seed = version == 2 ? instance_id : 0;
+     config.authored_version = static_cast<uint32_t>(version);
      for (size_t t = 0; t < tracks.size(); ++t) {
          const auto &track = tracks[t];
          require(track.is_object() && track.contains("steps"), "Invalid Groove track");
