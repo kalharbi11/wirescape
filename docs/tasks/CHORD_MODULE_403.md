@@ -63,9 +63,11 @@ don't collide; 1/17/128/max frames; zero allocations. Engine test: keyboard
 → Chord → (test NotesToCv or #421) renders a 3-note chord. Studio: catalogue
 entry and save/reload. Patch guide updated in the same PR.
 
+Size budget per Keel (2026-11-10) includes the review's regressions.
+
 ```acceptance
 tier: T1
-size: <= 1100 changed lines, <= 20 files (Keel 2026-11-10: adds the review's regressions)
+size: <= 1100 changed lines, <= 20 files
 must_pass:
   - bash -lc "python tools/dev.py build --headless --config Release && ctest --test-dir build/native -R 'chord|ui_patch_conformance|sidecar' --output-on-failure --no-tests=error"
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'

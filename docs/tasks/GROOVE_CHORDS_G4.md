@@ -35,18 +35,29 @@ applies one shape to every note; **G4** stores a different chord on each step.
   (#512, or the test NotesToCv) renders 3 voices.
 
 ## G4b: Studio (T1)
-- PatchDoc reads and writes `keys`, preserving unknown data; save/reload round-trip.
-- Roll: shift-click (and long-press on touch) on a step that has a note adds or
-  removes a key; plain click edits the root as today. The Roll already draws
-  every note.
-- Pads: the root as today plus a small "+N" badge. The full multi-note pad design
-  is the owner's work with the UI designer and is out of scope here.
+Design: #521 (`apps/studio/ui/groove-r3-chords.html`, `GROOVE_UI_DIRECTION.md` "Chords"). Build it as drawn:
+- PatchDoc reads and writes `keys` only for 2–5 notes (a single note is saved exactly as
+  today), preserving unknown data; save/reload round-trip.
+- Inspector `Notes ○ Single ○ Chord [picker] ◁ ▷`: the scale chord first, then
+  triads/sevenths/extended; off-scale types greyed; inversions. Note becomes Root.
+- Chord names come from a pure function of keys + root (unit-tested: Am, Cmaj7, G,
+  Cm7/E♭, `A4+2`). **No stored chord type:** drop the mockup's `q`. A chord moves
+  diatonically when its keys equal the scale stack on its root; otherwise it moves in parallel.
+- Pads: the name (slash bass dropped) + the pitch ladder. Roll: clicking a column with a
+  note stacks a key; per-key move/delete; the name above the top key.
+- Held-key entry: holding several keys on the app keyboard or MIDI in writes the chord
+  into the selected step (≤5) and advances on release. Tests use the fake keyboard; no devices.
+- **Scale (Keel + Compass ruling):** saved per Groove module in the patch's `ui` extras
+  as `ui.groove["<moduleId>"] = {"root": 0..11, "scale": "<name>"}`, so it survives
+  save/load, and the engine ignores it. Steps still store plain MIDI keys. The
+  transport-row control and the "Scale notes only" roll fold come from #521; the scale
+  helper itself is G2b's (#516), so build on it.
 - Apply-at-loop-end and the G2 flows are unchanged. Patch guide: chord steps, limits
-  (5 keys) and a Groove → Notes→CV wiring.
+  (5 keys), the scale being UI-only, and a Groove → Notes→CV wiring.
 
 ```acceptance
 tier: T2
-size: <= 900 changed lines, <= 14 files (G4a + G4b may be separate PRs, each within this)
+size: <= 1300 changed lines, <= 16 files
 must_pass:
   - bash -lc "python tools/dev.py build --headless --config Release && ctest --test-dir build/native -R 'groove|ui_patch_conformance|sidecar' --output-on-failure --no-tests=error"
   - bash -lc 'cd apps/studio && npm ci && npm test'
