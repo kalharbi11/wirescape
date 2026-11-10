@@ -99,7 +99,7 @@ export class ModuleCard {
     const slot = el('span', 'module-header-slot');
     header.append(code, this.titleEl, this.polyBadge, el('span', 'module-header-fill'), idTag, slot);
     header.addEventListener('pointerdown', e => {
-      if ((e.target as HTMLElement).closest('.ib,.seg,.view-switch,button')) return;
+      if ((e.target as HTMLElement).closest('.ib,.seg,.view-switch,button,select,.module-presets')) return;
       o.onHeaderPointerDown(e);
     });
     this.titleEl.addEventListener('dblclick', e => { e.stopPropagation(); o.onRenameRequest(); });
@@ -343,6 +343,7 @@ export class ModuleCard {
     const lab = el('span', 'port-label cc-label');
     const def = Number(p.id.replace(/\D/g, '')) || 1;
     const show = () => { lab.textContent = `CC ${this.uiMap<number>('ccMap')[p.id] ?? def}`; };
+    lab.dataset.port = p.id;
     show();
     lab.title = 'Click to type the CC number';
     lab.addEventListener('pointerdown', e => {
@@ -362,6 +363,16 @@ export class ModuleCard {
       inp.addEventListener('pointerdown', ev => ev.stopPropagation());
     });
     return lab;
+  }
+
+  /** Re-read the `CC n` labels after a Learn (or undo) changed `ui.ccMap`. */
+  refreshCcLabels(): void {
+    const map = this.uiMap<number>('ccMap');
+    for (const lab of this.root.querySelectorAll<HTMLElement>('.cc-label')) {
+      if (lab.querySelector('input')) continue;
+      const port = lab.dataset.port ?? '';
+      lab.textContent = `CC ${map[port] ?? (Number(port.replace(/\D/g, '')) || 1)}`;
+    }
   }
 
   /** Reconstruct a missing module's ports from the cables that reference it. */

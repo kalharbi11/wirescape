@@ -49,11 +49,12 @@ Visitors find compatible patches in Starter patches and PATCHES → SHARED PATCH
 Changes appear after a successful deployment and refresh, not at the instant of commit.
 An open PR is a preview/check, not a public deployment.
 
-**Shipped set (2026-11-10).** Every new build ships 16 patches: the fifteen
-library files in that folder (**Basics 1–7** introductory patches,
-`basics-NN-*.json`, and the eight revised cinematic **Scene 1–8** patches,
-`scene-NN-*.json`), plus the bundled desktop-only MIDI example
-`apps/studio/src/app/bundled/midi-keys-and-knobs.json`. That one lives in the
+**Shipped set (2026-11-10).** Before the CHAOS Lab #530 merge, builds ship 16 patches: the fifteen
+library files (**Basics 1–7** and **Scene 1–8**) plus the bundled desktop-only
+MIDI example. Builds containing #530 ship 19: the previous sixteen and
+three additional CHAOS Lab 1–3 patches (`chaos-NN-*.json`). The lab patches
+are not public until their PR merges and deploys. The bundled MIDI example is
+`apps/studio/src/app/bundled/midi-keys-and-knobs.json`; it lives in the
 app because this folder and the web host exclude `midi.*` modules; the web
 Starter list hides it automatically. The six old `qt-*` starters were retired;
 their IDs stay reserved. Historical curated.ts/STARTERS/native ui_starters
@@ -144,7 +145,29 @@ or parameter IDs.
   Finite optional endpoints override the matching bipolar default; inverted and
   constant ranges are valid, existing smoothing still applies, and JSON persists
   the mapping. MIDI modules remain unavailable in the WebAssembly host; use
-  `host.keyboard` in browser patches. MIDI Learn stays separate UI-owned work.
+  `host.keyboard` in browser patches.
+- MIDI Learn (Studio on the desktop engine, #287): right-click a modulatable knob →
+  **MIDI Learn…**, move a controller, **Confirm** (Enter; Esc cancels; the engine
+  stops waiting after 30 s). Studio writes a free `midi.cc_to_cv` row
+  (`channel` = the captured one, or `0` with "any channel"; `controller`), cables
+  `ccN` → that knob as a modulation with amount `1`, and sends the edited patch as
+  one live replan. Until it settles, Studio shows "Applying MIDI Learn…" and
+  blocks patch edits, undo, cables and CC labels; rejection restores the old
+  patch and history before editing resumes. The row goes on a converter whose `midi.in` feed hears the
+  device that moved (`all_enabled`, or that exact `endpoint` + `system_name`); a
+  converter with no feed gets one in the same edit. Otherwise it adds a
+  `midi.cc_to_cv` module fed by a matching `midi.in` (a new one naming the device
+  when none hears it); unrelated routes are untouched. A device unplugged or
+  disabled before Confirm is refused. Wired but unconfigured outputs keep their
+  default CC n (explicit default rows fill the gap, never a hole). Re-learning a
+  mapped knob updates its row, or moves it to a new row when another knob shares
+  that row or its converter does not hear the new device. **Forget MIDI mapping**
+  removes only that knob's CC cable (and a now-unused last row). One undo step
+  each. Learned rows are ordinary `config.rows`, so a saved patch needs no
+  learn state. Modulation is added to the knob's own value, so a full sweep needs
+  the knob near its minimum (0..1 CC onto its range). The `CC n` label on the
+  module follows the learned controller (`ui.ccMap`, display only). Hand-edit
+  JSON is still fine; unavailable in the browser demo (no MIDI).
 - `essentials.vco` is a pure sine. Keep `frequency` 220 for concert tuning when pitch
   is connected (it is a ratio to 220; 261.63 plays three semitones sharp). Its `fm` input is additive Hz from a ±1 signal,
   so it only gives a few Hz of deviation. For audible FM, connect a modulator
@@ -364,3 +387,162 @@ but primarily support the engine's measured editor telemetry; no cable is needed
 for the editor to observe them. For example, a `t1_fired` signal may drive a gate
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
+
+## OSC In and Monitor (portable slice A of #72)
+
+Builds with the portable #72 slice A register `osc.in` and `monitor` as ABI2
+modules. `osc.in` exposes eight CV rows (`row1`…`row8`) and an OSC
+`messages` event output. Each row's defaults listen for
+`/pico1/knob/1`…`/pico1/knob/8`, map numeric 0–1 to CV 0–1, smooth over 5 ms,
+and hold the last value after a 1 s timeout unless configured for stale zero.
+`monitor` has `events`, `in1`, and `in2` inputs, capturing bounded
+messages/signals without logging on the audio thread.
+
+**Availability limit:** registration is not an operational UDP route. Until
+sidecar ownership/localhost ingress and Electron/Monitor presentation (slices
+B/C) ship, incoming network messages do not reach `osc.in` in the app and
+Monitor has no user-facing log. Do not publish a patch claiming live OSC
+control yet. After B/C, the intended wiring is `osc.in.row1 →` a VCA's
+`cv` input and `osc.in.messages → monitor.events`; browser/WASM OSC and
+unconfirmed LAN access remain unavailable. These modules introduce no new
+patch parameters or changes to existing IDs.
+
+## Groove editor in Studio (G2a #498; builds containing this integration)
+
+Studio now edits `sequencing.groove` patterns on its card (Pads view, two lanes: Trig and
+Note). Authoring rules for patch designers:
+- **Format:** Studio reads `config.version` 1 and 2. Opening a v1 pattern changes nothing;
+  the *first edit* rewrites it as v2 and gives each v1 track an explicit `"length":32`
+  (its old meaning), adding an empty second track (same length) if the pattern had only one. A newly added Groove has
+  no `config` until edited; its first edit writes two 16-step tracks of rests at 120 BPM.
+  Unknown keys in `config`, tracks or steps are saved back untouched but are never sent to
+  the engine. A newer `version` is shown read-only.
+- **What it writes:** `length` 8/16/32/64 (shortening a track trims its saved steps),
+  `gate` 0.25/0.5/0.75 (1 is written by omitting `gate`), `cond` from the picker
+  (chance 10/25/50/75/90 %, A:B 1:2, 2:2, 1:4, 2:4, 3:4, 4:4, 1:8, first, not first; any
+  valid hand-authored chance 1–99 or A:B up to b = 8 is kept), `bpm` 20–300, per-track
+  `armed` and `mute`. Rests and ties never carry `key`, `velocity` or `cond`.
+- **Draft and Apply:** edits are a draft; the engine keeps playing the applied pattern.
+  **Apply** is enabled only on a measured, current-generation stop (both tracks report
+  step -1) or while audio is not running; it reloads the whole graph, so the Groove (and
+  other modules) start stopped, and Play starts from step 1. A refused Apply keeps the
+  draft and starts nothing. **Stop & apply** queues the global STOP to the master-cycle
+  end and applies once the stop is measured. **Revert** restores the applied pattern.
+  Play applies a pending draft first. Transport buttons send momentary rising edges to
+  `run`/`stop`/`reset` and `t1_run`/`t1_stop` (`t2_*`); they are not saved.
+- **Live view:** the playhead, track positions and the "skipped this pass" dim (a failed
+  condition) come only from engine telemetry; on an engine without the playhead
+  capability they stay hidden. Chance results are never predicted in the editor.
+- **G2b Roll:** Pads/Roll are two projections of the same MIDI-key pattern. Roll
+  rows are indexed by note; only one pitch can sound on a step today (chords remain
+  reserved for a later version). Click an empty cell to add a note, drag right to tie,
+  drag vertically to change pitch; double-click/right-click to delete. Under the
+  note grid, lollipop lanes edit velocity, gate, Mod 1 and Mod 2. The inspector
+  also accepts typed Mod 1/2 percentages. The Roll scrolls within its card,
+  rather than widening the web page. Roll note buttons are keyboard-focusable:
+  arrow keys move by step or pitch; Enter/Space enters a note, and Backspace
+  removes it. Focus a Roll value slider and use arrow keys or Home/End to edit
+  its value.
+- **Scale and bar tools:** root and Chromatic/Major/Minor/Pentatonic scale selections
+  mark the pitch guide and affect subsequent pitch gestures, not saved note data.
+  The choice is saved with the patch in `ui.groove["<moduleId>"] = {"root": 0..11,
+  "scale": "<name>"}` (one undo step per change); the engine ignores it and the
+  module config never holds it.
+  Copy snapshots the selected (up to 16-step) bar. Paste and Clear each create a
+  single undoable edit; existing unknown step keys are preserved. Each bar of
+  16 steps becomes two rows of eight on narrow screens.
+- **Keyboard:** focus the Groove first. Space Play/Stop, arrows move the selected
+  step or pitch (Shift = octave), A/W/S/E/D/F/T/G/Y/H/U/J/K enter chromatic
+  notes at the selected step, Z/X change keyboard octave, hyphen makes a tie,
+  Backspace clears a trig, 1/2 select track, Ctrl/Cmd+Z undo (Shift = redo).
+- **Looks:** Graphite (default), Oxblood and LED only change the appearance;
+  no style choice or scale setting is saved to the module config.
+  No live per-step editing during playback.
+Example (a 16-step bass, one 50 % trig and one 1:4 trig with a short tie):
+`{"version":2,"bpm":120,"tracks":[{"length":16,"steps":[{"kind":"note","key":36,"velocity":0.9},`
+`{"kind":"tie","gate":0.5},{"kind":"rest"},{"kind":"note","key":43,"velocity":0.7,"cond":{"type":"chance","p":50}},`
+`{"kind":"rest"},{"kind":"rest"},{"kind":"rest"},{"kind":"note","key":48,"velocity":0.8,"cond":{"type":"ab","a":1,"b":4}}]}]}`.
+Hardware listening and Pi display checks of the editor are not claimed.
+
+## CHAOS sound presets (#489; available after Studio PR merges)
+
+The `essentials.chaos_lite` card's **Presets** dropdown supplies eight
+repeatable starting sounds. The first four are from its native README:
+**Warm fifth** (smooth pair/fifth), **Bent wire** (delay bending), **Broken
+bell** (ring-mod strike), and **Slow weather** (slow body motion). The four
+Studio originals are **Basalt drone** (dark sustained comb), **Glass pluck**
+(bright short resonant note), **Iron rain** (metallic high partials), and
+**Tide choir** (slow stereo tonal movement).
+
+A choice sets **all** descriptor parameters to its values or their defaults,
+not merely the named subset, via the existing engine parameter path. Undo
+restores the previous parameter state in one step, and save/reload retains
+those numeric values without writing preset names or changing cables,
+module IDs, or unknown fields. A changed knob shows **Custom**. These are
+sound-design candidates, not separately approved/audio-auditioned patches:
+verify actual sound against the offline render/WAV evidence before claiming
+a preset's audio acceptance, and never infer DSP playback from FakeEngine
+control values alone.
+
+## CHAOS atmospheric lab (merged in #531)
+
+Three original scenes use the current `essentials.chaos_lite` v1:
+`chaos-01-ember-veil-pad` (keyboard pad, clocked smooth random),
+`chaos-02-wireglass-lead` (ring/AM lead with envelope-driven coupling),
+and `chaos-03-orbiting-iron-fx` (autoplay curved metallic pulses).
+`basics-06-chaos-keys` and `scene-03-black-ice-choir` were also revised.
+
+**Critical CHAOS gate rule:** `essentials.chaos_lite.gate` is an immediate
+audio multiplier, not an ADSR generator. To get keyboard release, wire
+`host.keyboard.gate` to `essentials.adsr.gate`, then
+`adsr.envelope` to the two stereo `essentials.vca.gain_cv` ports.
+Leave CHAOS gate **unpatched (default 1)** and set `fall=0`; if the
+keyboard gate goes into CHAOS, a zero at note-off defeats the ADSR release.
+Until an independent pitch fall trigger exists, external CV handles
+note-on pitch contours. Each patch description names useful performance
+parameters; no new CHAOS DSP/control is assumed.
+
+A seeded sine/triangle/sample-and-hold/smooth-random `lfo_shape` is **under review in PR #533, not yet released**. P1 addition and compatibility/test plan:
+`docs/tasks/CHAOS_ATMOSPHERES_530.md`. Eight named module-level
+presets are available from merged #522; a patch still stores its values,
+not its selected preset name. Real device listening remains owner-only.
+
+## CHAOS internal LFO waveforms (PR #533; available only after merge)
+
+`essentials.chaos_lite` appends **`lfo_shape`** at parameter slot 26:
+0=Sine (default, fully compatible with older patches), 1=Triangle,
+2=Sample & hold, 3=Smooth random. S&H and smooth random use their
+own per-voice seeded random stream; the existing drift/jitter and
+roughness RNG sequence is unaffected. Each cycle picks a new held
+value or interpolation target. A 10 ms switch ramp is for shape
+changes, not a new long-cycle envelope. No new input/output port,
+no second LFO, and no sample looper. `lfo_rate` (0.02–12 Hz),
+`lfo_depth` (0–1), `lfo_self` (0–1), and target (A pitch,
+body tuning or cutoff) remain unchanged. Studio's eight CHAOS
+module presets resolve the new selector to default 0 unless
+explicitly specified.
+
+Backward-compatible wiring: keyboard pitch → CHAOS.pitch; keyboard gate
+→ ADSR.gate → VCA.gain_cv; CHAOS left/right → one VCA each → outputs
+0/1. Leave CHAOS gate unpatched for actual ADSR release. A Lab 1 pad
+can replace its external smooth-random CV with internal shape 3
+targeting body tuning **only if its other modulation routes are
+preserved separately**; the internal LFO has one target, so it is
+not a patch-wide modulation matrix. Lab 3's percussive envelope
+remains external. **Downgrade warning:** `lfo_shape=0` retains the earlier
+sine algorithm, but this build saves internal CHAOS state as **version 2**.
+An older CHAOS binary accepts only state version 1 and returns
+`WS2_UNSUPPORTED` for version 2. Do not promise that a newer saved
+session can be opened with an older binary merely by selecting Sine.
+Preserve a backup before downgrading; test the actual host's response
+to unsupported module state and, if necessary, reconstruct from
+parameter values in a matching older build.
+
+The native state reader supports version-1 imports. When importing version-2
+state across sample rates, the 10 ms live-shape fade counter is bounded
+to the receiving sample rate; an old build cannot perform this conversion.
+
+Test native WAV, real WASM catalogue, old patch/state migration
+and CPU before calling this feature released. The 27th parameter
+must appear in generated catalogue and grouped panel. Device/Pi
+listening remains an owner step.
