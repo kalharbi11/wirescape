@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { expect, test, type Page } from '@playwright/test';
 import { boot, settle, state } from './helpers';
+// @ts-expect-error Node is provided by Playwright; Studio's app tsconfig is browser-only.
 import { spawnSync } from 'node:child_process';
+// @ts-expect-error Node is provided by Playwright; Studio's app tsconfig is browser-only.
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+// @ts-expect-error Node is provided by Playwright; Studio's app tsconfig is browser-only.
 import { tmpdir } from 'node:os';
+// @ts-expect-error Node is provided by Playwright; Studio's app tsconfig is browser-only.
 import { join, resolve } from 'node:path';
+// Playwright runs this file in Node; no browser-global process type is needed.
+declare const process: { env: Record<string, string | undefined> };
 import { MODULE_PRESETS, resolvePreset } from '../src/app/modulePresets';
 
 const menu = (page: Page) => page.getByTestId('module-presets-1');
