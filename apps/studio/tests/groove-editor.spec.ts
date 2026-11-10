@@ -39,7 +39,7 @@ test.beforeEach(async ({ page }) => { await boot(page); await addGroove(page); }
 
 test('initial highlight on step 1 does not count as a first selection click', async ({ page }) => {
   expect(await cfg(page)).toBeUndefined();
-  await expect(pad(page, 1)).toHaveClass(/\\bsel\\b/);
+  await expect(pad(page, 1)).toHaveClass(/\bsel\b/);
   await pad(page, 1).click();
   expect(await cfg(page)).toBeUndefined();
   await expect(page.getByTestId('groove-draft-1')).toBeHidden();
