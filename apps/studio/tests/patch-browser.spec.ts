@@ -81,7 +81,7 @@ test('declining the unsaved-edit prompt keeps the current patch and browser open
   expect((await state(page)).modules).toEqual(before.modules);
 });
 
-test('failed bundle reset forces Save As while graph loading is pending', async ({ page }) => {
+test('failed bundle reset defers Save until graph loading finishes and still forces Save As', async ({ page }) => {
   await mockBridge(page);
   await boot(page);
   await page.evaluate(() => {
@@ -93,20 +93,28 @@ test('failed bundle reset forces Save As while graph loading is pending', async 
       if (request?.library === 'reset') throw new Error('Reset failed');
       return { name: 'User patches', text: '[]' };
     };
-    bridge.savePatch = async (_text, options) => {
+    bridge.savePatch = async (text, options) => {
       (window as any).__saveOptions = options;
+      (window as any).__savedPatch = JSON.parse(text);
       return { name: 'Copy.json' };
     };
   });
   await page.getByTestId('open-patch-browser').click();
   await page.getByTestId('bundled-patch-0').click();
   await page.waitForFunction(() => typeof (window as any).__finishGraphLoad === 'function');
-  // The browser remains open while loadGraph awaits; invoke the actual Save
-  // button handler to exercise a concurrent menu/keyboard-style save.
+  const pending = await state(page);
+  // Even a programmatic Save cannot write a document whose load is unsettled.
   await page.evaluate(() => (document.querySelector('[data-testid="save-patch"]') as HTMLButtonElement).click());
-  expect(await page.evaluate(() => (window as any).__saveOptions)).toEqual({ saveAs: true });
+  expect(await page.evaluate(() => (window as any).__saveOptions)).toBeUndefined();
+  expect(await page.evaluate(() => (window as any).__savedPatch)).toBeUndefined();
+  expect(await state(page)).toEqual(pending);
   await page.evaluate(() => (window as any).__finishGraphLoad());
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
   await expect(page.getByTestId('patch-browser')).toBeHidden();
+  expect(await state(page)).toEqual(pending);
+  await page.getByTestId('save-patch').click();
+  expect(await page.evaluate(() => (window as any).__saveOptions)).toEqual({ saveAs: true });
+  expect(await page.evaluate(() => (window as any).__savedPatch)).toEqual(pending);
 });
 
 test('malformed user patch keeps the document and cannot silently redirect Save', async ({ page }) => {

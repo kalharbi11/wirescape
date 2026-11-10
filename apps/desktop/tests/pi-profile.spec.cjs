@@ -90,11 +90,17 @@ test('Pi ARM64: isolated Electron profile, real native round trip and clean shut
         return { canceled: false, filePath: options.defaultPath };
       };
     });
-    const saved = await page.evaluate(() => window.wirescape.savePatch('{"pi":"isolated"}', { saveAs: true }));
+    // Save a real native document: the Electron file boundary refuses arbitrary JSON.
+    // An opaque field also proves exact unknown-data persistence in this isolated profile.
+    const patch = JSON.parse(fs.readFileSync(
+      path.resolve(__dirname, '../../../native/examples/class_demo_2_subtractive.json'), 'utf8'));
+    patch.pi = 'isolated';
+    const bytes = JSON.stringify(patch);
+    const saved = await page.evaluate(text => window.wirescape.savePatch(text, { saveAs: true }), bytes);
     expect(saved.name).toBe('Untitled.json');
     const defaultPath = await instance.evaluate(() => globalThis.__piSaveDefault);
     expect(defaultPath).toBe(path.join(profile, 'userData', 'patches', 'Untitled.json'));
-    expect(fs.readFileSync(defaultPath, 'utf8')).toBe('{"pi":"isolated"}');
+    expect(fs.readFileSync(defaultPath, 'utf8')).toBe(bytes);
     await instance.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 900, height: 680 });
     });
