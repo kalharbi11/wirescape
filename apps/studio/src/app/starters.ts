@@ -2,12 +2,7 @@
 import type { PatchV2 } from '../patch/types';
 import { CURATED_PATCHES } from './curated';
 import catalogue from '../../public/wirescape_modules.json' with { type: 'json' };
-import qtMinimal from './qt-starters/qt-minimal.json' with { type: 'json' };
-import qtLfoFilter from './qt-starters/qt-lfo-filter.json' with { type: 'json' };
-import qtMidi from './qt-starters/qt-midi.json' with { type: 'json' };
-import qtPoly from './qt-starters/qt-poly.json' with { type: 'json' };
-import qtChaos from './qt-starters/qt-chaos.json' with { type: 'json' };
-import qtMacro from './qt-starters/qt-macro.json' with { type: 'json' };
+import midiKeysAndKnobs from './bundled/midi-keys-and-knobs.json' with { type: 'json' };
 
 export interface Starter { id: string; name: string; note: string; patch: () => PatchV2 }
 
@@ -68,53 +63,29 @@ export const STARTERS: Starter[] = [
 
 export const DEFAULT_STARTER = STARTERS[0]!;
 
-// The keyboard voice remains the web audio smoke-test baseline. The five other
-// generic starters leave the interactive catalogue; native test fixtures remain
-// frozen for historical conformance. Bundled Qt/class-demo session patches are kept.
+// The keyboard voice remains the web audio smoke-test baseline. The curated
+// snapshots stay as regression fixtures (hidden from the interactive list); the
+// public library in apps/studio/patches/ supplies the shipped starter patches.
 STARTERS.push(...CURATED_PATCHES.map(({ id, name, note, patch }) => ({
   id, name, note, patch: () => authoredStarter(structuredClone(patch)),
 })));
 
 /**
- * Faithful imports of the Qt starter library (#187 / wirescape PR #192,
- * 96cad1cd7eeef673db6b5cbdcf09d4dc9008ab9d). Bundled JSON works offline.
- * Keep native x/y, settings, config and licence fields intact; bundled presets
- * route audio to both speakers, and ui.positions adapts spacing to browser cards.
+ * Patches bundled in the app instead of the public library: the shared library
+ * (and the WebAssembly host) excludes hardware MIDI modules, so the MIDI example
+ * ships here. Desktop/native only; the web Starter list hides it automatically
+ * because its modules are not in the web registry. The six historical Qt
+ * starters were retired in favour of the library's Basics patches.
  */
-function qtStarter(id: string, name: string, note: string, source: unknown): Starter {
-  return {
-    id, name, note,
-    patch: () => {
-      const patch = structuredClone(source) as PatchV2;
-      // Author bundled presets in stereo without changing generic patch imports.
-      for (const route of patch.outputs ?? []) {
-        if (route.bus_channel !== 0 || patch.outputs!.some(r => r.module === route.module
-          && r.port === route.port && r.bus_channel === 1)) continue;
-        patch.outputs!.push({ ...route, bus_channel: 1 });
-      }
-      patch.ui = {
-        ...patch.ui,
-        positions: Object.fromEntries(patch.modules.map(m => [String(m.id), [
-          Math.round(Number(m.x ?? 0) * 2.6), Math.round(Number(m.y ?? 0) * 2.1),
-        ] as [number, number]])),
-        view: { x: 0, y: 0, zoom: 1 },
-      };
-      return authoredStarter(patch);
-    },
-  };
+function bundledStarter(id: string, note: string, source: unknown): Starter {
+  const title = (source as { name?: unknown }).name;
+  const name = typeof title === 'string' ? title : id;
+  return { id, name, note, patch: () => authoredStarter(structuredClone(source) as PatchV2) };
 }
 
-STARTERS.push(
-  qtStarter('qt-minimal', 'Qt · Minimal oscillator',
-    'VCO → Output. A continuous tone in the real engine; this prototype makes no sound.', qtMinimal),
-  qtStarter('qt-lfo-filter', 'Qt · LFO shaped amplitude',
-    'VCO → VCF → VCA → Output; an LFO drives gain CV. Fake-engine visual preview only.', qtLfoFilter),
-  qtStarter('qt-midi', 'Qt · MIDI pitch to oscillator',
-    'MIDI In → MIDI to CV → VCO → Output. Requires an enabled MIDI device and the real engine for MIDI input and sound.', qtMidi),
-  qtStarter('qt-poly', 'Qt · Four-voice keyboard chords',
-    'Keyboard → VCO → Output, four voices. Play chords with the computer keyboard; sound requires the real polyphonic engine.', qtPoly),
-  qtStarter('qt-chaos', 'Qt · CHAOS-lite',
-    'Keyboard pitch → CHAOS-lite, left/right summed through Mixer → Output. Generic CHAOS panel; real-engine sound only.', qtChaos),
-  qtStarter('qt-macro', 'Qt · Macro Oscillator',
-    'Keyboard pitch, gate and velocity → Macro Oscillator → Output. Play notes with the computer keyboard; fake-engine visual preview only.', qtMacro),
-);
+export const BUNDLED_STARTERS: Starter[] = [
+  bundledStarter('midi-keys-and-knobs',
+    'MIDI In → MIDI to CV and CC to CV: every MIDI output (pitch, gate, velocity, aftertouch, pressure, bend, mod wheel, notes, last note) and CC21–28 wired to sound controls. Desktop app with an enabled MIDI device.',
+    midiKeysAndKnobs),
+];
+STARTERS.push(...BUNDLED_STARTERS);
