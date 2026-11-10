@@ -383,7 +383,8 @@ export class GroovePane {
     const roll = el('div', 'g-roll');
     roll.dataset.testid = 'groove-roll-' + this.id;
     roll.setAttribute('aria-label', 'Groove note roll, horizontally scrollable');
-    for (const key of Array.from(keys).sort((a, b) => b - a)) {
+    const pitches = Array.from(keys).sort((a, b) => b - a);
+    for (const key of pitches) {
       const row = el('div', 'g-rrow');
       const name = el('span', 'g-rlabel', noteName(key));
       if (inScale(key, this.view.root, this.view.scale)) name.classList.add('in-scale');
@@ -398,6 +399,39 @@ export class GroovePane {
         cell.dataset.testid = 'groove-roll-' + this.id + '-' + (i + 1) + '-' + key;
         cell.setAttribute('role', 'button');
         cell.setAttribute('aria-label', 'Step ' + (i + 1) + ', ' + noteName(key) + ': ' + kind);
+        // One tab stop; arrow keys move through the Roll without entering 800+ tabs.
+        cell.tabIndex = i === this.view.sel[t] && key === this.view.pen[t] ? 0 : -1;
+        cell.addEventListener('keydown', e => {
+          const focus = (step: number, pitch: number) => this.grid.querySelector<HTMLElement>(
+            `.g-roll-cell[data-i="${step}"][data-key="${pitch}"]`)?.focus();
+          const vertical = e.key === 'ArrowUp' || e.key === 'ArrowDown';
+          const horizontal = e.key === 'ArrowLeft' || e.key === 'ArrowRight';
+          if (vertical || horizontal) {
+            e.preventDefault(); e.stopPropagation();
+            const step = horizontal ? clamp(i + (e.key === 'ArrowRight' ? 1 : -1), 0, length - 1) : i;
+            const index = pitches.indexOf(key);
+            const pitch = vertical ? pitches[clamp(index + (e.key === 'ArrowDown' ? 1 : -1), 0, pitches.length - 1)]! : key;
+            this.view.pen[t] = pitch;
+            this.select(step);
+            focus(step, pitch);
+          } else if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault(); e.stopPropagation();
+            this.view.pen[t] = key;
+            if (kind === 'rest') this.edit(c => {
+              setKind(stepFor(c, t, i), 'note', key);
+              this.setPitch(c, i, key);
+            });
+            this.select(i); focus(i, key);
+          } else if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.preventDefault(); e.stopPropagation();
+            const src = this.cfg && sourceOf(this.cfg, t, i);
+            if (this.cfg && src !== undefined && src >= 0 &&
+                (stepAt(this.cfg, t, src).key ?? 60) === key) {
+              this.edit(c => setKind(stepFor(c, t, i), 'rest'));
+            }
+            this.view.pen[t] = key; this.select(i); focus(i, key);
+          }
+        });
         if (i === this.view.sel[t]) cell.classList.add('sel');
         if (i % 16 === 0) cell.classList.add('bar-edge');
         if (kind === 'note') {
@@ -425,20 +459,21 @@ export class GroovePane {
         const cell = el('div', 'g-vcell');
         cell.dataset.i = String(i);
         cell.dataset.testid = 'groove-roll-' + lane + '-' + this.id + '-' + (i + 1);
-        cell.setAttribute('role', 'button');
-        cell.setAttribute('aria-label', lane + ', step ' + (i + 1) + ': ' + value);
-        if (disabled) cell.classList.add('disabled');
+        cell.setAttribute('role', 'slider');
+        cell.setAttribute('aria-label', lane + ', step ' + (i + 1));
+        cell.setAttribute('aria-valuemin', '0');
+        cell.setAttribute('aria-valuemax', '1');
+        cell.setAttribute('aria-valuenow', String(value));
+        cell.tabIndex = !disabled && i === this.view.sel[t] ? 0 : -1;
+        if (disabled) { cell.classList.add('disabled'); cell.setAttribute('aria-disabled', 'true'); }
         if (i % 16 === 0) cell.classList.add('bar-edge');
         const stem = el('span', 'g-vstem');
         stem.style.height = (value * 75) + '%';
         const dot = el('span', 'g-vdot');
         stem.append(dot); cell.append(stem);
-        cell.addEventListener('pointerdown', e => {
-          e.preventDefault(); e.stopPropagation();
-          if (disabled) return;
+        const editValue = (fraction: number) => {
           this.view.sel[t] = i; this.view.selected[t] = true;
-          const rect = cell.getBoundingClientRect();
-          const f = clamp(1 - (e.clientY - rect.top) / rect.height, 0, 1);
+          const f = clamp(fraction, 0, 1);
           this.edit(c => {
             const step = stepFor(c, t, i);
             if (lane === 'velocity') step.velocity = Math.round(f * 100) / 100;
@@ -447,6 +482,23 @@ export class GroovePane {
               if (g === 1) delete step.gate; else step.gate = g;
             } else step[lane] = Math.round(f * 100) / 100;
           });
+          this.renderGrid(); this.renderInspector();
+          this.grid.querySelector<HTMLElement>('[data-testid="groove-roll-' + lane +
+            '-' + this.id + '-' + (i + 1) + '"]')?.focus();
+        };
+        cell.addEventListener('pointerdown', e => {
+          e.preventDefault(); e.stopPropagation();
+          if (disabled) return;
+          const rect = cell.getBoundingClientRect();
+          editValue(1 - (e.clientY - rect.top) / rect.height);
+        });
+        cell.addEventListener('keydown', e => {
+          if (disabled) return;
+          const delta = e.key === 'ArrowUp' || e.key === 'ArrowRight' ? 0.05 :
+            e.key === 'ArrowDown' || e.key === 'ArrowLeft' ? -0.05 : null;
+          if (delta === null && e.key !== 'Home' && e.key !== 'End') return;
+          e.preventDefault(); e.stopPropagation();
+          editValue(e.key === 'Home' ? 0 : e.key === 'End' ? 1 : value + delta!);
         });
         cells.append(cell);
       }
