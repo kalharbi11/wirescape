@@ -14,8 +14,7 @@ namespace notes_to_cv {
 struct NotesToCv {
     static constexpr ws::Info info{"essentials.notes_to_cv", "Notes to CV", 1};
     static constexpr std::array inputs{ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
-    static constexpr std::array outputs{ws::port("pitch", "Pitch", WS2_PITCH),
-                                        ws::port("gate", "Gate", WS2_GATE),
+    static constexpr std::array outputs{ws::port("pitch", "Pitch", WS2_PITCH), ws::port("gate", "Gate", WS2_GATE),
                                         ws::port("velocity", "Velocity", WS2_CV_UNI)};
     static constexpr std::array params{
         ws::param("voices", "Voices", 1, 16, 4, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1)};
@@ -30,8 +29,8 @@ struct NotesToCv {
         configured_voices = 0;
     }
     void process(ws::Block &b) {
-        const int desired = std::clamp(static_cast<int>(std::lround(b.param(0).value(0, 0))), 1,
-                                       static_cast<int>(max_channels));
+        const int desired =
+            std::clamp(static_cast<int>(std::lround(b.param(0).value(0, 0))), 1, static_cast<int>(max_channels));
         if (desired != configured_voices) {
             wirescape::voice::Config cfg{};
             cfg.max_voices = static_cast<uint8_t>(desired);

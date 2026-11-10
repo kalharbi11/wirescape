@@ -3,6 +3,11 @@
 #include "../../sdk/examples/test_support.h"
 #include "../../tests2/allocation_watch.h"
 #include "../adsr/dsp.h"
+// Qt's `emit` keyword macro must not consume host.keyboard's event callback
+// identifier when cppcheck parses the entire native Notes→CV test unit.
+#ifdef emit
+#undef emit
+#endif
 #include "../host_keyboard/dsp.h"
 #include "../output/dsp.h"
 #include "../vca/dsp.h"
@@ -120,8 +125,8 @@ static void source_identity_and_choke() {
 }
 static void steal_and_reset() {
     Rig a;
-    a.run({note({WS2_NOTE_ON, 60, 0}), note({WS2_NOTE_ON, 64, 1}),
-           note({WS2_NOTE_ON, 67, 2}), note({WS2_NOTE_ON, 71, 3})});
+    a.run({note({WS2_NOTE_ON, 60, 0}), note({WS2_NOTE_ON, 64, 1}), note({WS2_NOTE_ON, 67, 2}),
+           note({WS2_NOTE_ON, 71, 3})});
     a.run({note({WS2_NOTE_ON, 72, 4, 1, 0, 9})});
     REQUIRE(a.value(1, 0, 9) == 0 && a.value(1, 0, 10) == 1); // one-sample retrigger dip
     REQUIRE(a.value(0, 0, 10) == 1.f);
@@ -195,11 +200,11 @@ static void native_keyboard_graph(const std::array<int, 4> &keys, uint32_t count
     REQUIRE(e.add_node(5, ws::Module<ws2ports::Vca>::descriptor()));
     REQUIRE(e.add_node(6, ws::Module<ws2ports::Output>::descriptor()));
     REQUIRE(e.connect(1, 3, 2, 0) && e.connect(2, 0, 3, 0) && e.connect(2, 1, 4, 0) &&
-            e.connect(3, 0, 5, 0) && e.connect(4, 0, 5, 1) && e.connect(5, 0, 6, 0) &&
-            e.output(6, 0, 0) && e.prepare());
+            e.connect(3, 0, 5, 0) && e.connect(4, 0, 5, 1) && e.connect(5, 0, 6, 0) && e.output(6, 0, 0) &&
+            e.prepare());
     for (uint32_t i = 0; i < count; ++i)
-        REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT,
-                          note({WS2_NOTE_ON, keys[i], keys[i]}), 0) == WS2_OK);
+        REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, note({WS2_NOTE_ON, keys[i], keys[i]}), 0) ==
+                WS2_OK);
 
     float samples[256]{};
     float *out[]{samples};
