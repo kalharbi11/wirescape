@@ -6,7 +6,7 @@
 #include "drift.h"
 namespace chaos_lite {
 struct ChaosLite {
-    static constexpr ws::Info info{"essentials.chaos_lite", "CHAOS-lite", 1};
+    static constexpr ws::Info info{"essentials.chaos_lite", "CHAOS", 1};
     static constexpr std::array inputs{
         ws::port("pitch", "Pitch", WS2_PITCH), ws::port("gate", "Gate", WS2_GATE, WS2_POLY, 1),
         ws::port("velocity", "Velocity", WS2_CV_UNI, WS2_POLY, 1), ws::port("fm", "FM", WS2_CV_BI)};
