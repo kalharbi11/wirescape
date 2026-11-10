@@ -123,6 +123,7 @@ if(WIN32)
   target_link_libraries(wirescape_osc_service PUBLIC ws2_32)
 endif()
 add_executable(abi2_osc_host_service_tests io/net/tests.cpp)
+target_include_directories(abi2_osc_host_service_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sdk)
 target_link_libraries(abi2_osc_host_service_tests PRIVATE wirescape_osc_service)
 add_test(NAME abi2_osc_host_service_tests COMMAND abi2_osc_host_service_tests)
 set_tests_properties(abi2_osc_host_service_tests PROPERTIES TIMEOUT 30)
@@ -130,6 +131,7 @@ set_tests_properties(abi2_osc_host_service_tests PROPERTIES TIMEOUT 30)
 # Offline real engine route: measured worker timestamp, one-block lead and
 # no audio-thread allocation. Only binds a loopback ephemeral UDP socket.
 add_executable(abi2_osc_graph_ingress_tests io/net/graph_tests.cpp tests2/allocation_watch.cpp)
+target_include_directories(abi2_osc_graph_ingress_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sdk)
 target_link_libraries(abi2_osc_graph_ingress_tests PRIVATE
   wirescape_runtime_document wirescape_osc_service nlohmann_json::nlohmann_json)
 add_test(NAME abi2_osc_graph_ingress_tests COMMAND abi2_osc_graph_ingress_tests)

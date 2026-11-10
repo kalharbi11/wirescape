@@ -729,10 +729,10 @@ Json Session::apply(const Json &command) {
         osc_->stop();
         auto resume_osc = [this](void *) noexcept {
             try {
-            start_osc();
-        } catch (...) {
-            osc_->stop();
-        }
+                start_osc();
+            } catch (...) {
+                osc_->stop();
+            }
         };
         std::unique_ptr<void, decltype(resume_osc)> osc_restart(this, resume_osc);
         // Keep candidate taps alive through rollback, until its render thread is joined.
@@ -1028,8 +1028,7 @@ Json Session::midi_status() const {
     return result;
 }
 Json Session::hello() const {
-    Json capabilities =
-        Json::array({"midiLearn", "telemetry.playhead", "setSampleRate", "setBufferFrames", "osc"});
+    Json capabilities = Json::array({"midiLearn", "telemetry.playhead", "setSampleRate", "setBufferFrames", "osc"});
     return {{"v", 0},
             {"session", token_},
             {"type", "hello"},

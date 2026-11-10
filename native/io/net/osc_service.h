@@ -4,8 +4,8 @@
 
 #include <cstdint>
 #include <memory>
-#include <vector>
 #include <string>
+#include <vector>
 namespace wirescape::osc {
 struct Route {
     uint32_t node = 0;

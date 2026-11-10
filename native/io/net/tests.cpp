@@ -56,8 +56,10 @@ int main() {
     const int sent = sendto(sender, reinterpret_cast<const char *>(bytes), int(n), 0,
                             reinterpret_cast<sockaddr *>(&address), sizeof(address));
     REQUIRE(sent == int(n));
-    for (uint32_t i = 0; i < 2000 && c.count.load() < 2; ++i)
+    uint32_t attempts = 0;
+    while (c.count.load() < 2 && attempts++ < 2000) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
     const auto after = std::chrono::steady_clock::now();
     state = local.states();
     REQUIRE(c.count == 2 && c.timestamp != 0);
