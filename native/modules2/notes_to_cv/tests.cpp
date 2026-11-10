@@ -177,21 +177,19 @@ static void voice_count_bounds_and_host_cap() {
         uint32_t host_channels;
         uint32_t expected;
     };
-    for (const Case test : {Case{1.f, 16, 1}, Case{16.f, 16, 16}, Case{0.f, 16, 1},
-                            Case{17.f, 16, 16}, Case{2.6f, 16, 3}, Case{16.f, 3, 3}}) {
+    const Case cases[] = {{1.f, 16, 1}, {16.f, 16, 16}, {0.f, 16, 1}, {17.f, 16, 16}, {2.6f, 16, 3}, {16.f, 3, 3}};
+    for (const Case test : cases) {
         Rig a(48000, test.host_channels);
         a.voice_param = test.requested;
         a.run({note({WS2_NOTE_ON, 60, 9})});
         for (const auto &output : a.outs)
             REQUIRE(output.channels == test.expected && output.channels <= test.host_channels);
         REQUIRE(a.value(1, 0, 1) == 1.f && a.value(2, 0, 1) == .75f);
-        for (uint32_t voice = 1; voice < test.expected; ++voice)
-            REQUIRE(a.value(1, voice, 1) == 0.f);
+        for (uint32_t voice = 1; voice < test.expected; ++voice) REQUIRE(a.value(1, voice, 1) == 0.f);
         a.desc->reset(a.state);
         a.run();
         for (const auto &output : a.outs) REQUIRE(output.channels == test.expected);
-        for (uint32_t voice = 0; voice < test.expected; ++voice)
-            REQUIRE(a.value(1, voice, 1) == 0.f);
+        for (uint32_t voice = 0; voice < test.expected; ++voice) REQUIRE(a.value(1, voice, 1) == 0.f);
     }
 }
 static void block_matrix_and_allocations() {
