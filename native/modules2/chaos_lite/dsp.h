@@ -31,15 +31,21 @@ struct ChaosLite {
         ws::param("lfo_depth", "LFO depth", 0, 1, .1f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 21, 4, 0),
         ws::param("lfo_target", "LFO target", 0, 2, 0, "", stepped, WS2_LINEAR, 22, 4, 1),
         ws::param("lfo_self", "LFO self", 0, 1, .2f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 23, 4, 0), ws::param("cutoff", "Cutoff", 20, 20000, 9000, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 24, 4, 0),
-        ws::param("level", "Output level", 0, 1, .5f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 25, 4, 0)};
+        ws::param("level", "Output level", 0, 1, .5f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 25, 4, 0),
+        // Additive slot 26: omit in old patches -> sine, preserving the existing sound.
+        ws::param("lfo_shape", "LFO shape", 0, 3, 0, "", stepped, WS2_LINEAR, 26, 4, 1)};
     struct Voice {
         CombBody body[2]; Coupler coupler[2]; Drift drift;
         float phase_a = 0, phase_b = 0, lfo = 0, lfo_previous = 0;
         float rough = 0, rough_phase = 0, filter[2]{}, dc_input[2]{}, dc_output[2]{};
+        // Separate seeded stream: random LFO must not disturb drift/roughness.
+        ws::Random lfo_random;
+        float lfo_held = 0, lfo_from = 0, lfo_to = 0, lfo_switch_from = 0;
+        uint32_t lfo_last_shape = 0, lfo_fade_remaining = 0;
     };
     std::array<Voice, 8> voices{};
     float rate = 48000;
-    uint32_t capacity = 1, comb_size = 0, delay_size = 0;
+    uint32_t capacity = 1, comb_size = 0, delay_size = 0, lfo_fade_length = 480;
     uint64_t seed = 0;
     static uint32_t comb_length(double rate) { return static_cast<uint32_t>(std::ceil(rate / 16.0)) + 4; }
     static uint32_t delay_length(double rate) { return static_cast<uint32_t>(std::ceil(rate * .006)) + 4; }
@@ -52,6 +58,7 @@ struct ChaosLite {
     bool prepare(const ws::Setup& s) {
         rate = static_cast<float>(s.sample_rate()); capacity = std::min<uint32_t>(s.max_channels(), 8u); seed = s.config.seed;
         comb_size = comb_length(rate); delay_size = delay_length(rate);
+        lfo_fade_length = std::max(1u, static_cast<uint32_t>(std::lround(rate * .01f)));
         for (uint32_t c = 0; c < capacity; ++c) for (uint32_t side = 0; side < 2; ++side) {
             auto* comb = static_cast<float*>(s.alloc(3 * comb_size * sizeof(float), 32, WS2_LARGE));
             auto* delay = static_cast<float*>(s.alloc(delay_size * sizeof(float), 32, WS2_LARGE));
@@ -67,6 +74,10 @@ struct ChaosLite {
             v.phase_a = v.phase_b = v.lfo = v.lfo_previous = v.rough = v.rough_phase = 0;
             std::fill_n(v.filter, 2, 0.f); std::fill_n(v.dc_input, 2, 0.f); std::fill_n(v.dc_output, 2, 0.f);
             v.drift.reset(seed, c);
+            v.lfo_random.seed(seed ^ 0x9e3779b97f4a7c15ull, c + 17u);
+            v.lfo_held = v.lfo_random.bipolar();
+            v.lfo_from = 0.f; v.lfo_to = v.lfo_random.bipolar();
+            v.lfo_switch_from = 0.f; v.lfo_last_shape = v.lfo_fade_remaining = 0;
         }
     }
     static float wave(float phase, float shape) {
@@ -86,8 +97,32 @@ struct ChaosLite {
                 auto p = [&](uint32_t slot) { return b.param(slot).value(c, i); };
                 const float gate = bound(b.in(1).value(c, i), 0, 1), velocity = bound(b.in(2).value(c, i), 0, 1);
                 const float instability = v.drift.process(gate, p(17), p(18), p(19), rate);
-                const float lfo = std::sin(6.28318530718f * v.lfo);
+                const uint32_t shape = static_cast<uint32_t>(std::clamp(std::lround(p(26)), 0l, 3l));
+                // Shape zero stays on the exact old sine path (no extra blending).
+                float lfo = std::sin(6.28318530718f * v.lfo);
+                if (shape == 1) lfo = 4.f * std::abs(v.lfo - .5f) - 1.f;
+                else if (shape == 2) lfo = v.lfo_held;
+                else if (shape == 3) {
+                    const float u = .5f - .5f * std::cos(3.14159265359f * v.lfo);
+                    lfo = v.lfo_from + (v.lfo_to - v.lfo_from) * u;
+                }
+                if (shape != v.lfo_last_shape) {
+                    v.lfo_switch_from = v.lfo_previous;
+                    v.lfo_fade_remaining = lfo_fade_length;
+                    v.lfo_last_shape = shape;
+                }
+                if (v.lfo_fade_remaining) {
+                    const float t = 1.f - static_cast<float>(v.lfo_fade_remaining) / static_cast<float>(lfo_fade_length);
+                    lfo = v.lfo_switch_from + t * (lfo - v.lfo_switch_from);
+                    --v.lfo_fade_remaining;
+                }
+                const float old_phase = v.lfo;
                 advance(v.lfo, p(20) * std::max(.05f, 1.f + p(23) * v.lfo_previous) / rate);
+                if (v.lfo < old_phase) {
+                    v.lfo_held = v.lfo_random.bipolar();
+                    v.lfo_from = v.lfo_to;
+                    v.lfo_to = v.lfo_random.bipolar();
+                }
                 v.lfo_previous = lfo;
                 const uint32_t target = static_cast<uint32_t>(std::clamp(std::lround(p(22)), 0l, 2l));
                 const float mod = lfo * p(21);
@@ -119,19 +154,28 @@ struct ChaosLite {
     }
     // Patch-state policy: instability state survives; delay/comb/filter history resets.
     int save_state(ws::Writer w) {
-        if (!w.u32(1)) return WS2_CAPACITY;
+        if (!w.u32(2)) return WS2_CAPACITY;
         for (const auto& v : voices) {
             const auto rng = v.drift.random.save();
             for (auto word : {uint32_t(rng.state), uint32_t(rng.state >> 32), uint32_t(rng.sequence), uint32_t(rng.sequence >> 32)}) if (!w.u32(word)) return WS2_CAPACITY;
             for (float value : {v.phase_a, v.phase_b, v.lfo, v.lfo_previous, v.rough, v.rough_phase, v.drift.current, v.drift.target, v.drift.jitter, v.drift.fall}) if (!w.f32(value)) return WS2_CAPACITY;
             if (!w.u32(v.drift.tick) || !w.u32(v.drift.high ? 1u : 0u)) return WS2_CAPACITY;
+            const auto lfo_rng = v.lfo_random.save();
+            for (auto word : {uint32_t(lfo_rng.state), uint32_t(lfo_rng.state >> 32),
+                              uint32_t(lfo_rng.sequence), uint32_t(lfo_rng.sequence >> 32)})
+                if (!w.u32(word)) return WS2_CAPACITY;
+            for (float value : {v.lfo_held, v.lfo_from, v.lfo_to, v.lfo_switch_from})
+                if (!w.f32(value)) return WS2_CAPACITY;
+            if (!w.u32(v.lfo_last_shape) || !w.u32(v.lfo_fade_remaining)) return WS2_CAPACITY;
         }
         return WS2_OK;
     }
     int load_state(ws::Reader r) {
-        uint32_t version; if (!r.u32(version)) return WS2_INVALID; if (version != 1) return WS2_UNSUPPORTED;
+        uint32_t version; if (!r.u32(version)) return WS2_INVALID;
+        if (version != 1 && version != 2) return WS2_UNSUPPORTED;
         auto staged = voices;
-        for (auto& v : staged) {
+        for (uint32_t channel = 0; channel < staged.size(); ++channel) {
+            auto& v = staged[channel];
             uint32_t words[4], high;
             for (auto& word : words) if (!r.u32(word)) return WS2_INVALID;
             float* values[] = {&v.phase_a, &v.phase_b, &v.lfo, &v.lfo_previous, &v.rough, &v.rough_phase, &v.drift.current, &v.drift.target, &v.drift.jitter, &v.drift.fall};
@@ -139,11 +183,38 @@ struct ChaosLite {
             if (!r.u32(v.drift.tick) || v.drift.tick >= 128 || !r.u32(high) || high > 1) return WS2_INVALID;
             if (v.phase_a < 0 || v.phase_a >= 1 || v.phase_b < 0 || v.phase_b >= 1 || v.lfo < 0 || v.lfo >= 1 || v.rough_phase < 0 || v.rough_phase >= 1 || std::abs(v.lfo_previous) > 1 || std::abs(v.rough) > 1 || std::abs(v.drift.current) > 1 || std::abs(v.drift.target) > 1 || std::abs(v.drift.jitter) > 1 || v.drift.fall < 0 || v.drift.fall > 4 || !(words[2] & 1)) return WS2_INVALID;
             v.drift.random.restore({uint64_t(words[0]) | uint64_t(words[1]) << 32, uint64_t(words[2]) | uint64_t(words[3]) << 32}); v.drift.high = high != 0;
+            if (version == 2) {
+                uint32_t lrng[4]{};
+                for (auto& word : lrng) if (!r.u32(word)) return WS2_INVALID;
+                if (!r.f32(v.lfo_held) || !r.f32(v.lfo_from) ||
+                    !r.f32(v.lfo_to) || !r.f32(v.lfo_switch_from) ||
+                    !r.u32(v.lfo_last_shape) || !r.u32(v.lfo_fade_remaining)) return WS2_INVALID;
+                if (!std::isfinite(v.lfo_held) || !std::isfinite(v.lfo_from) ||
+                    !std::isfinite(v.lfo_to) || !std::isfinite(v.lfo_switch_from) ||
+                    std::abs(v.lfo_held) > 1 || std::abs(v.lfo_from) > 1 ||
+                    std::abs(v.lfo_to) > 1 || std::abs(v.lfo_switch_from) > 1 ||
+                    v.lfo_last_shape > 3 || v.lfo_fade_remaining > lfo_fade_length ||
+                    !(lrng[2] & 1u)) return WS2_INVALID;
+                v.lfo_random.restore({uint64_t(lrng[0]) | uint64_t(lrng[1]) << 32,
+                                      uint64_t(lrng[2]) | uint64_t(lrng[3]) << 32});
+            } else {
+                // Existing state-v1 saved only the sine LFO phase. Re-seed new
+                // waveform state without altering old drift and oscillator phases.
+                v.lfo_random.seed(seed ^ 0x9e3779b97f4a7c15ull, channel + 17u);
+                v.lfo_held = v.lfo_random.bipolar();
+                v.lfo_from = 0.f; v.lfo_to = v.lfo_random.bipolar();
+                v.lfo_switch_from = v.lfo_previous;
+                v.lfo_last_shape = v.lfo_fade_remaining = 0;
+            }
         }
         reset();
         for (uint32_t c = 0; c < capacity; ++c) {
             const auto& s = staged[c]; auto& v = voices[c];
             v.drift = s.drift; v.phase_a = s.phase_a; v.phase_b = s.phase_b; v.lfo = s.lfo; v.lfo_previous = s.lfo_previous; v.rough = s.rough; v.rough_phase = s.rough_phase;
+            v.lfo_random = s.lfo_random; v.lfo_held = s.lfo_held;
+            v.lfo_from = s.lfo_from; v.lfo_to = s.lfo_to;
+            v.lfo_switch_from = s.lfo_switch_from; v.lfo_last_shape = s.lfo_last_shape;
+            v.lfo_fade_remaining = s.lfo_fade_remaining;
         }
         return WS2_OK;
     }
