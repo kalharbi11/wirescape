@@ -60,12 +60,12 @@ int main() {
                    reinterpret_cast<sockaddr *>(&address), sizeof(address)) == int(bytes));
     for (uint32_t attempt = 0; attempt < 2000 && sink.result.load(std::memory_order_acquire) == -1; ++attempt)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    service.stop(); // producer stops and joins before render/engine teardown
 #ifdef _WIN32
     closesocket(sender);
 #else
     close(sender);
 #endif
+    service.stop(); // producer stops and joins before render/engine teardown
     REQUIRE(sink.result.load() == WS2_OK && service.counters().received == 1);
     REQUIRE(service.states()[0].received == 1 && service.states()[0].dropped == 0);
     const auto callback_time = app_engine_clock_ns();

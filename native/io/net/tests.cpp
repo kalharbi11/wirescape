@@ -72,12 +72,12 @@ int main() {
     REQUIRE(busy.add({3, local.bound_port(), false}) && busy.start());
     REQUIRE(busy.counters().sockets == 0 && std::strcmp(busy.states()[0].state, "port-busy") == 0);
     busy.stop();
-    local.stop();
 #ifdef _WIN32
     closesocket(sender);
 #else
     close(sender);
 #endif
+    local.stop();
     REQUIRE(local.counters().sockets == 0);
     // LAN/localhost conflicts stay isolated even with explicit permission:
     // no test ever opens a LAN socket.
