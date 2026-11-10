@@ -16,8 +16,8 @@ Exact-head completed evidence governs; pending, historical and missing results n
   Forget stale-hint fix/test pushed. Scope1250/16; never guess unknown graph state.
 - OSC #72: active A builder task/72-osc-slice-a → B sidecar host/consent → C Studio/Monitor.
   Keel's gen/lifetime/localhost/observation ruling governs; B/C cross-family T2. #94 follows its task; codec-only prep may follow A.
-- Groove #505 head592e50d: required/task/Web/Pi pass, Keel approved; auto-merge
-  awaits latest ready-event CI. No new source review blocker.
+- Groove #505 merged9ff49fd after required/task/Web/Pi and Keel approval;
+  Claude509/516 may normally merge that main now.
 - #509 G2a → #516 G2b retain UI builder; malformed tracks must not recurse/throw.
   Scale persists only in ui.groove[id]; engine config stays version/bpm/tracks.
 - Claude UI builder owns both509/516 with normal non-force pushes, then G4b/G5b
@@ -37,10 +37,10 @@ Exact-head completed evidence governs; pending, historical and missing results n
 - #271 hardware, #274 display/performance and #296 actual 3600-second soak stay separate.
 
 ## Closeout and review gates
-- #399 head8c340bb: required CI/Pi pass, Keel approved; root normal main sync needed.
-  D5 #487 remains distinct from strict-soak513.
-- #513/#520 headbbd2e2f: Keel approved; Pi not merge gate per explicit ruling;
-  auto-merge awaits fresh ready-event CI. Deadlines/zero-overrun assertions unchanged.
+- #399 headf36c85f normally integrates main9ff and scheduler;16 Python tests pass,
+  device/probe logic unchanged; fresh required/task/Web/Pi gates. D5 #487 separate.
+- Scheduler #520 mergedc90e3bf with Keel approval; Pi non-gate per explicit ruling.
+  NativeG1 main9ff includes it; deadlines/zero-overrun assertions unchanged.
 - #522: authorized Studio/native WAV task added; exact acceptance pending.
 - #518/#525: slice-A task now authorized; parent72 stays open for B/C.
 - #482 R3a head 9d6658d: exact required CI 42757266679 green; Windows 102/102 and
@@ -48,7 +48,9 @@ Exact-head completed evidence governs; pending, historical and missing results n
 - R3b needs mapped replacements and scoped deletion authority; archive/qt-final is
   annotated once on actual merge parent. No deletion/hash rebaseline in R3a.
 - #481 R4 follows full R3b; R6 ABI1 #470 stays Keel-led and separate.
-- Agent fixes:511 regression builder,512 identity-test helper,500 timeout repair;
-  root399/main integration and519/docs; native526 after505. #482 awaits Claude review.
+- #511 regressions/native tests pass; final G1 adapter union underway. #512 head10f19a8
+  per-voice/FIFO/reset native tests pass; Studio/hosted/Pi pending. #500 bounded recovery
+  repair+tests underway. Native526/528 focused chord/speed/golden tests pass, draft pending.
+- Unclaimed parallel builder529: OSC host B after518; no Groove UI files. #482 needs Claude.
 - Permanent: required guard/Linux/Windows/sanitizers + task/Web/WASM/Pi as applicable.
   No force-push, direct main commits, devices/SSH, assertions removed or thresholds weakened.

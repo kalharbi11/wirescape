@@ -37,9 +37,11 @@ G4a + G5a in one PR.
   The playhead and the loop-end preview use `length × div`.
 - Patch guide: speed values, the master-cycle rule and a "4-bar progression in 16 pads" example.
 
+G5a and G5b may be separate PRs, each within the limits below.
+
 ```acceptance
 tier: T2
-size: <= 700 changed lines, <= 12 files (G5a and G5b may be separate PRs, each within this)
+size: <= 700 changed lines, <= 12 files
 must_pass:
   - bash -lc "python tools/dev.py build --headless --config Release && ctest --test-dir build/native -R 'groove|ui_patch_conformance|sidecar' --output-on-failure --no-tests=error"
   - bash -lc 'cd apps/studio && npm ci && npm test'

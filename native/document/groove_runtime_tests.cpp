@@ -9,6 +9,7 @@
 #undef emit
 #include "../tests2/allocation_watch.h"
 #include "runtime_patch.h"
+#include "runtime_module_config.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -138,7 +139,8 @@ static void test_refusals(AppEngine *cat) {
         Json bad = good;
         switch (c) {
         case 0:
-            bad["version"] = 2;
+            // G1 now accepts authored v2; the next unknown version must refuse.
+            bad["version"] = 3;
             break;
         case 1:
             bad["bpm"] = 0;
@@ -591,6 +593,406 @@ static void test_s1_refusals(AppEngine *cat) {
     }
 }
 
+
+// Direct device-free render fixture for sample-accurate short gates and skipped ties.
+struct GrooveV2Rig {
+    groove::Sequencer seq;
+    std::array<float, 18> values{};
+    std::array<float *, 18> rows{};
+    std::array<ws2_signal_out, 18> outputs{};
+    std::array<ws2_event_out, 18> events{};
+    std::array<float, 10> controls{};
+    std::array<const float *, 10> control_rows{};
+    std::array<ws2_signal, 10> parameters{};
+    std::array<ws2_event, 16> accepted{};
+    uint32_t count = 0;
+    ws2_process raw{};
+    static int WS2_CALL push(void *ctx, uint32_t port, const ws2_event *event) {
+        auto &self = *static_cast<GrooveV2Rig *>(ctx);
+        if (port != 4 || self.count == self.accepted.size()) return WS2_CAPACITY;
+        self.accepted[self.count++] = *event;
+        return WS2_OK;
+    }
+    GrooveV2Rig() {
+        for (uint32_t i = 0; i < outputs.size(); ++i) {
+            rows[i] = &values[i];
+            outputs[i] = {sizeof(ws2_signal_out), &rows[i], 1, 0, 1};
+            events[i] = {sizeof(ws2_event_out), this, i, &GrooveV2Rig::push};
+        }
+        for (uint32_t i = 0; i < parameters.size(); ++i) {
+            control_rows[i] = &controls[i];
+            parameters[i] = {sizeof(ws2_signal), &control_rows[i], 1, WS2_CONSTANT};
+        }
+        raw.frames = 1;
+        raw.output_count = 18;
+        raw.outputs = outputs.data();
+        raw.event_outputs = events.data();
+        raw.param_count = 10;
+        raw.params = parameters.data();
+        seq.pattern.track_count = 1;
+        seq.pattern.tracks[0].length = 8;
+        seq.samples_per_step = 4.;
+        seq.reset();
+    }
+    void render() {
+        ws::Block b(raw);
+        allocation_watch::ThreadScope watch;
+        seq.process(b);
+        check(watch.allocations() == 0, "v2 render performs zero allocations");
+    }
+    void start() {
+        render(); // First-sample high is only a baseline; establish a low.
+        controls[0] = 1.f;
+        render();
+    }
+};
+static void test_v2_gates_and_skipped_ties() {
+    {
+        GrooveV2Rig rig;
+        auto &track = rig.seq.pattern.tracks[0];
+        track.steps[0] = {groove::Note, 60, 1.f, .25f, .75f, 1};
+        track.steps[1] = {groove::Rest};
+        rig.start();
+        check(rig.count == 1 && rig.accepted[0].type == WS2_NOTE_ON && rig.values[1] == 1,
+              "quarter gate admits the correct native note");
+        rig.render();
+        check(rig.count == 2 && rig.accepted[1].type == WS2_NOTE_OFF &&
+              rig.accepted[1].note_id == rig.accepted[0].note_id &&
+              rig.values[1] == 0 && rig.seq.step_t[0] == 0,
+              "quarter gate emits matching OFF one sample after onset before step wrap");
+    }
+    {
+        GrooveV2Rig rig;
+        auto &track = rig.seq.pattern.tracks[0];
+        track.steps[0] = {groove::Note, 60, 1.f, .25f, .75f, 1};
+        track.steps[1] = {groove::Tie, 60, 0.f, 0.f, 0.f, 3};
+        track.steps[2] = {groove::Rest};
+        rig.start();
+        check(rig.count == 1 && rig.seq.players[0].gate_cutoff == 7.,
+              "tie extends the note until three quarters into the last tied cell");
+        for (uint32_t i = 0; i < 6; ++i) rig.render();
+        check(rig.count == 1 && rig.values[1] == 1 &&
+              rig.seq.step_t[0] == 1, "tied note stays admitted through the tied step");
+        rig.render();
+        check(rig.count == 2 && rig.accepted[1].type == WS2_NOTE_OFF &&
+              rig.accepted[1].note_id == rig.accepted[0].note_id &&
+              rig.seq.step_t[0] == 1 && rig.values[1] == 0,
+              "last tie gate releases within its step, not at the next note");
+    }
+    {
+        GrooveV2Rig rig;
+        auto &track = rig.seq.pattern.tracks[0];
+        track.steps[0] = {groove::Note, 60, 1.f, .5f, .25f, 4, groove::AB, 2, 2};
+        track.steps[1] = {groove::Tie, 60, 0.f, .75f, .5f};
+        rig.start();
+        check(rig.count == 0 && !rig.seq.players[0].fired &&
+              rig.values[2] == .5f && rig.values[3] == .25f,
+              "failed A:B note becomes rest but still updates both CV mods");
+        for (uint32_t i = 0; i < 4; ++i) rig.render();
+        check(rig.count == 0 && !rig.seq.players[0].fired && rig.values[1] == 0 &&
+              rig.values[2] == .75f && rig.values[3] == .5f,
+              "a failed condition's tie cannot resurrect a note but still updates both mods");
+    }
+    {
+        GrooveV2Rig rig;
+        rig.seq.pattern.tracks[0].steps[0] = {groove::Note, 60, 1.f, 0.f, 0.f, 4};
+        rig.seq.pattern.tracks[0].steps[1] = {groove::Rest};
+        rig.start();
+        for (uint32_t i = 0; i < 3; ++i) rig.render();
+        check(rig.count == 1 && rig.values[1] == 1,
+              "v1 full-step gate does not release early");
+        rig.render();
+        check(rig.count == 2 && rig.values[1] == 0 &&
+              rig.accepted[1].type == WS2_NOTE_OFF,
+              "full-step gate follows the original boundary release");
+    }
+}
+
+struct GrooveStateBuffer {
+    std::array<uint8_t, 32> bytes{};
+    uint32_t count = 0, cursor = 0;
+    static int WS2_CALL write(void *ctx, const void *source, uint32_t n) {
+        auto &self = *static_cast<GrooveStateBuffer *>(ctx);
+        if (n > self.bytes.size() - self.count) return WS2_CAPACITY;
+        std::memcpy(self.bytes.data() + self.count, source, n);
+        self.count += n;
+        return WS2_OK;
+    }
+    static int WS2_CALL read(void *ctx, void *dest, uint32_t n) {
+        auto &self = *static_cast<GrooveStateBuffer *>(ctx);
+        if (n > self.count - self.cursor) return WS2_INVALID;
+        std::memcpy(dest, self.bytes.data() + self.cursor, n);
+        self.cursor += n;
+        return WS2_OK;
+    }
+};
+
+static void test_v2_config_and_conditions(AppEngine *cat) {
+    using namespace groove;
+    Json v2 = {{"version", 2}, {"bpm", 120}, {"tracks", Json::array()}};
+    Json short_track = {{"length", 8}, {"steps", Json::array()}};
+    short_track["steps"].push_back({{"kind", "note"}, {"key", 60}, {"velocity", 1},
+        {"gate", 0.25}, {"mod1", 0.2}, {"cond", {{"type", "chance"}, {"p", 50}}}});
+    short_track["steps"].push_back({{"kind", "tie"}, {"gate", 0.75}});
+    Json long_track = {{"length", 64}, {"steps", Json::array()}};
+    long_track["steps"].push_back({{"kind", "note"}, {"key", 72}, {"velocity", 1},
+        {"cond", {{"type", "ab"}, {"a", 1}, {"b", 4}}}});
+    v2["tracks"].push_back(short_track);
+    v2["tracks"].push_back(long_track);
+    const auto converted = wirescape::document::runtime_module_config("sequencing.groove", v2, 17);
+    Config decoded;
+    check(decode(converted.data(), static_cast<uint32_t>(converted.size()), decoded), "v2 transient config validates");
+    check(decoded.version == 2 && decoded.authored_version == 2 &&
+          decoded.instance_seed == 17 && decoded.track_count == 2 &&
+          decoded.tracks[0].length == 8 && decoded.tracks[1].length == 64 &&
+          decoded.tracks[0].steps[0].gate_q == 1 &&
+          decoded.tracks[0].steps[0].cond_type == Chance &&
+          decoded.tracks[0].steps[0].cond_a == 50 &&
+          decoded.tracks[0].steps[1].gate_q == 3 &&
+          decoded.tracks[1].steps[0].cond_type == AB &&
+          decoded.tracks[1].steps[0].cond_a == 1 &&
+          decoded.tracks[1].steps[0].cond_b == 4,
+          "v2 length, gate and condition fields map exactly");
+    const auto different = wirescape::document::runtime_module_config("sequencing.groove", v2, 18);
+    Config different_seed;
+    check(decode(different.data(), static_cast<uint32_t>(different.size()), different_seed) &&
+          different_seed.instance_seed != decoded.instance_seed,
+          "distinct graph instances keep independent deterministic seeds");
+
+    const auto legacy = wirescape::document::runtime_module_config("sequencing.groove", pattern(), 19);
+    Config migrated;
+    check(decode(legacy.data(), static_cast<uint32_t>(legacy.size()), migrated) &&
+          migrated.version == 2 && migrated.authored_version == 1 &&
+          migrated.instance_seed == 0 &&
+          migrated.tracks[0].length == 32 &&
+          migrated.tracks[0].steps[0].gate_q == 4 &&
+          migrated.tracks[0].steps[0].cond_type == Always,
+          "authored v1 preserves 32-step, full-gate, unconditional semantics");
+    LegacyConfig native_v1;
+    native_v1.tracks[0].steps[0] = {Note, 72, 0.8f, 0.25f, 0.75f};
+    Config converted_v1;
+    check(decode(reinterpret_cast<const uint8_t *>(&native_v1), sizeof(native_v1), converted_v1) &&
+          converted_v1.tracks[0].steps[0].kind == Note &&
+          converted_v1.tracks[0].steps[0].key == 72 &&
+          converted_v1.tracks[0].steps[0].gate_q == 4,
+          "legacy transient v1 layout decodes without changing note fields");
+
+    auto refused = [&](const Json &candidate) {
+        std::string error;
+        check(!load(patch(candidate), cat, 48000, error) && !error.empty(),
+              "invalid Groove v2 candidate refused by real patch loader");
+    };
+    Json bad = v2;
+    bad["tracks"][0]["length"] = 12; refused(bad);
+    bad = v2;
+    bad["tracks"][0]["steps"][0]["gate"] = 0.3; refused(bad);
+    bad = v2;
+    bad["tracks"][0]["steps"][0]["cond"]["p"] = 100; refused(bad);
+    bad = v2;
+    bad["tracks"][0]["steps"][0]["cond"] = {{"type", "ab"}, {"a", 2}, {"b", 1}}; refused(bad);
+    bad = v2;
+    bad["tracks"][0]["steps"][1]["cond"] = {{"type", "first"}}; refused(bad);
+    bad = v2;
+    bad["tracks"][0]["steps"][0]["keys"] = Json::array({60, 64}); refused(bad);
+    bad = v2;
+    bad["tracks"][0]["steps"] = Json::array();
+    for (uint32_t i = 0; i < 9; ++i) bad["tracks"][0]["steps"].push_back({{"kind", "rest"}});
+    refused(bad);
+    bad = v2; bad["version"] = 3; refused(bad);
+    std::string error;
+    check(bool(load(patch(v2), cat, 48000, error)), "v2 accepted through the real native patch loader");
+
+    Sequencer seq;
+    seq.pattern = decoded;
+    seq.rng_seed = 12345;
+    seq.reset();
+    auto &p = seq.players[0];
+    Step cond = decoded.tracks[0].steps[0];
+    for (uint32_t loop = 1; loop <= 16; ++loop) {
+        p.loop = loop;
+        cond.cond_type = AB; cond.cond_a = 2; cond.cond_b = 4;
+        check(seq.condition_passes(cond, p) == ((loop - 1) % 4 == 1), "A:B repeats on track loops");
+        cond.cond_type = First;
+        check(seq.condition_passes(cond, p) == (loop == 1), "first condition");
+        cond.cond_type = NotFirst;
+        check(seq.condition_passes(cond, p) == (loop != 1), "not-first condition");
+    }
+    // Every supported A:B divisor and position follows that track's own loop.
+    for (uint32_t b = 2; b <= 8; ++b) {
+        for (uint32_t a = 1; a <= b; ++a) {
+            cond.cond_type = AB;
+            cond.cond_a = static_cast<uint8_t>(a);
+            cond.cond_b = static_cast<uint8_t>(b);
+            for (uint32_t loop = 1; loop <= 2 * b; ++loop) {
+                p.loop = loop;
+                check(seq.condition_passes(cond, p) == ((loop - 1) % b == a - 1),
+                      "full A:B condition matrix matches per-track loop number");
+            }
+        }
+    }
+    cond.cond_type = Chance; cond.cond_a = 50; cond.cond_b = 0;
+    p.rng = seq.seed_for(0);
+    uint32_t hits = 0;
+    for (uint32_t i = 0; i < 1000; ++i) hits += seq.condition_passes(cond, p);
+    check(hits >= 450 && hits <= 550, "fixed-seed 50 percent chance remains in bounded distribution band");
+    p.rng = seq.seed_for(0);
+    uint32_t replay = 0;
+    for (uint32_t i = 0; i < 1000; ++i) replay += seq.condition_passes(cond, p);
+    check(hits == replay, "chance RNG repeats after Reset/Start seed");
+    check(seq.seed_for(0) != seq.seed_for(1), "per-track chance streams are independent");
+    Sequencer instance_a, instance_b;
+    instance_a.pattern = decoded;
+    instance_b.pattern = different_seed;
+    instance_a.rng_seed = instance_a.pattern.instance_seed;
+    instance_b.rng_seed = instance_b.pattern.instance_seed;
+    instance_a.reset();
+    instance_b.reset();
+    cond.cond_type = Chance; cond.cond_a = 50; cond.cond_b = 0;
+    bool diverged = false;
+    for (uint32_t i = 0; i < 64; ++i)
+        diverged |= instance_a.condition_passes(cond, instance_a.players[0]) !=
+                    instance_b.condition_passes(cond, instance_b.players[0]);
+    check(diverged, "two real graph instance IDs give different deterministic chance streams");
+
+    GrooveStateBuffer state;
+    seq.players[0].loop = 123;
+    seq.players[0].rng = 456;
+    seq.players[1].loop = 78;
+    seq.players[1].rng = 90;
+    ws2_writer writer{sizeof(ws2_writer), &state, GrooveStateBuffer::write};
+    check(seq.save_state(ws::Writer(&writer)) == WS2_OK && state.count == 20,
+          "Groove state v2 saves version and two loop/RNG pairs");
+    seq.reset();
+    ws2_reader reader{sizeof(ws2_reader), &state, GrooveStateBuffer::read, state.count};
+    check(seq.load_state(ws::Reader(&reader)) == WS2_OK && state.cursor == state.count &&
+          seq.players[0].loop == 123 && seq.players[0].rng == 456 &&
+          seq.players[1].loop == 78 && seq.players[1].rng == 90,
+          "Groove state v2 reload keeps both exact loop counters and RNG states");
+    state.cursor = 0;
+    state.count = 4;
+    const uint32_t old_version = 1;
+    std::memcpy(state.bytes.data(), &old_version, 4);
+    check(seq.load_state(ws::Reader(&reader)) == WS2_OK &&
+          seq.players[0].loop == 1 && seq.players[1].loop == 1 &&
+          seq.players[0].rng == seq.seed_for(0) && seq.players[1].rng == seq.seed_for(1),
+          "legacy Groove state v1 defaults loop and RNG without restoring stale notes");
+    seq.players[0].playing = seq.players[1].playing = true;
+    check(seq.master_steps() == 64, "master cycle follows longest active track");
+    seq.players[1].playing = seq.players[1].armed = false;
+    check(seq.master_steps() == 8, "master cycle follows remaining shorter track");
+    // Native sixteenth-note scheduling without audio devices. No note is sounding,
+    // so the exact boundary path can be driven with an empty event sink.
+    seq.reset();
+    seq.running = true;
+    seq.players[0].playing = seq.players[1].playing = true;
+    ws2_process raw{};
+    raw.frames = 1;
+    ws::Block dummy(raw);
+    for (uint32_t i = 0; i < 8; ++i) seq.boundary(dummy, 0);
+    check(seq.step == 8 && seq.step_t[0] == 0 && seq.step_t[1] == 8 &&
+          seq.players[0].loop == 2 && seq.players[1].loop == 1,
+          "8-step track wraps independently while 64-step track continues");
+    seq.players[0].stop = true;
+    for (uint32_t i = 0; i < 8; ++i) seq.boundary(dummy, 0);
+    check(seq.step == 16 && !seq.players[0].playing && !seq.players[0].armed &&
+          seq.players[1].playing && seq.players[1].loop == 1,
+          "track STOP completes on its own loop, not the master end");
+    seq.players[0].enter = true;
+    seq.players[0].armed = true;
+    for (uint32_t i = 0; i < 16; ++i) seq.boundary(dummy, 0);
+    check(seq.step == 32 && seq.players[0].playing && seq.players[1].playing,
+          "track START enters on a matching 16-step bar boundary");
+    seq.stop_queued = true;
+    for (uint32_t i = 0; i < 31; ++i) {
+        seq.boundary(dummy, 0);
+        check(seq.running && seq.stop_queued, "global STOP stays queued until master end");
+    }
+    seq.boundary(dummy, 0);
+    check(!seq.running && !seq.stop_queued && seq.step == 0 && seq.step_t[0] == 0 &&
+          seq.step_t[1] == 0 && !seq.players[0].playing && !seq.players[1].playing,
+          "global STOP completes only at the 64-step master-cycle boundary");
+    seq.samples_per_step = 100;
+    bool shorter = false;
+    check(seq.gate_duration(0, 0, shorter) == 175. && shorter,
+          "the last tied step's three-quarter gate sets the release span");
+    // A short track still advances the global 16-step bar clock. Adding a
+    // longer track after three 8-step loops must enter at absolute step 32,
+    // not wait until step 40 because the master modulus used to be eight.
+    Sequencer joining;
+    joining.pattern = decoded;
+    joining.reset();
+    joining.running = true;
+    joining.players[0].playing = true;
+    joining.players[1].playing = joining.players[1].armed = false;
+    for (uint32_t i = 0; i < 24; ++i) joining.boundary(dummy, 0);
+    check(joining.step == 24 && joining.step_t[0] == 0,
+          "8-step track does not erase global sixteen-step bar phase");
+    joining.players[1].armed = joining.players[1].enter = true;
+    for (uint32_t i = 0; i < 7; ++i) {
+        joining.boundary(dummy, 0);
+        check(!joining.players[1].playing,
+              "queued long track does not enter before the next real bar");
+    }
+    joining.boundary(dummy, 0);
+    check(joining.step == 32 && joining.players[1].playing &&
+          joining.step_t[1] == 32 && joining.players[1].loop == 1,
+          "64-step track enters at absolute bar32 with matching phase");
+    Sequencer short_stop;
+    short_stop.pattern = decoded;
+    short_stop.reset();
+    short_stop.running = short_stop.players[0].playing = true;
+    short_stop.players[1].armed = false;
+    for (uint32_t i = 0; i < 25; ++i) short_stop.boundary(dummy, 0);
+    short_stop.stop_queued = true;
+    for (uint32_t i = 0; i < 6; ++i) {
+        short_stop.boundary(dummy, 0);
+        check(short_stop.running, "short global STOP awaits next 8-step boundary");
+    }
+    short_stop.boundary(dummy, 0);
+    check(!short_stop.running && short_stop.step == 32,
+          "short-only STOP completes on absolute step32, not a false 64-step wait");
+    // Each allowed native length wraps its loop and completes a queued global
+    // STOP only on its own master-cycle boundary. No graph/device access.
+    for (uint32_t length : {8u, 16u, 32u, 64u}) {
+        Sequencer length_fixture;
+        length_fixture.pattern = decoded;
+        length_fixture.pattern.tracks[0].length = length;
+        length_fixture.pattern.tracks[1].length = length;
+        length_fixture.reset();
+        length_fixture.running = true;
+        length_fixture.players[0].playing = length_fixture.players[1].playing = true;
+        check(length_fixture.master_steps() == length, "length matrix selects correct master cycle");
+        for (uint32_t i = 0; i < 3; ++i) length_fixture.boundary(dummy, 0);
+        length_fixture.stop_queued = true;
+        for (uint32_t i = 3; i + 1 < length; ++i) {
+            length_fixture.boundary(dummy, 0);
+            check(length_fixture.running && length_fixture.players[0].loop == 1 &&
+                  length_fixture.players[1].loop == 1,
+                  "queued global STOP preserves both tracks until cycle end");
+        }
+        length_fixture.boundary(dummy, 0);
+        check(!length_fixture.running && !length_fixture.stop_queued &&
+              length_fixture.step_t[0] == 0 && length_fixture.step_t[1] == 0 &&
+              !length_fixture.players[0].playing && !length_fixture.players[1].playing,
+              "8/16/32/64 global STOP completes exactly at master-cycle wrap");
+    }
+    // Frozen S1 transport regression: v1 track re-entry still waits for the
+    // shared 32-step wrap, rather than G1 v2's new 16-step bar boundary.
+    Sequencer legacy_clock;
+    legacy_clock.pattern = migrated;
+    legacy_clock.reset();
+    legacy_clock.running = true;
+    legacy_clock.players[0].playing = false;
+    legacy_clock.players[0].armed = true;
+    legacy_clock.players[0].enter = true;
+    for (uint32_t i = 0; i < 16; ++i) legacy_clock.boundary(dummy, 0);
+    check(!legacy_clock.players[0].playing && legacy_clock.step == 16,
+          "authored v1 cannot start a track mid-way through its legacy 32-step cycle");
+    for (uint32_t i = 0; i < 16; ++i) legacy_clock.boundary(dummy, 0);
+    check(legacy_clock.players[0].playing && legacy_clock.step == 32,
+          "authored v1 track re-entry remains at 32-step wrap despite the 64-tick global clock");
+}
+
 int main() {
     try {
         ws_engine_config cfg{sizeof(cfg), 48000, 256, 64, 2048};
@@ -598,13 +1000,15 @@ int main() {
         check(bool(cat), "native catalogue creation");
         test_refusals(cat.get());
         test_s1_refusals(cat.get());
+        test_v2_config_and_conditions(cat.get());
+        test_v2_gates_and_skipped_ties();
         test_s1_transport(cat.get());
         test_s1_deliberate_saturation();
         test_s1_many_cycles(cat.get());
         test_s1_engine_saturation_replan();
         for (double rate : {44100., 48000., 96000.})
             for (uint32_t block : {1u, 17u, 64u, 128u, 256u}) test_rate_block(cat.get(), rate, block);
-        std::puts("PASS Groove v1 config/refusal/save-reload/stopped/noalloc/32-step timing");
+        std::puts("PASS Groove v1 compatibility, v2 config/conditions, stopped/noalloc/clock");
     } catch (const std::exception &e) {
         std::fprintf(stderr, "FAIL Groove v1/S1: %s\n", e.what());
         return 1;

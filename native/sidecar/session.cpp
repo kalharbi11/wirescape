@@ -38,6 +38,41 @@ constexpr std::chrono::milliseconds kMuteBudget{1000}, kGapBudget{1000};
 #else
 constexpr std::chrono::milliseconds kMuteBudget{100}, kGapBudget{150};
 #endif
+#ifdef _WIN32
+// Set up before the first render, release only after the sink stops. Loading
+// avrt dynamically keeps MMCSS optional on Windows installations without it.
+class SinkScheduling {
+    using Register = HANDLE(WINAPI *)(LPCWSTR, LPDWORD);
+    using Revert = BOOL(WINAPI *)(HANDLE);
+    HMODULE avrt_ = LoadLibraryW(L"avrt.dll");
+    HANDLE task_ = nullptr;
+    Revert revert_ = nullptr;
+    bool timer_ = timeBeginPeriod(1) == TIMERR_NOERROR;
+    int previous_priority_ = GetThreadPriority(GetCurrentThread());
+    bool fallback_ = false;
+
+  public:
+    SinkScheduling() noexcept {
+        if (avrt_) {
+            const auto register_task =
+                reinterpret_cast<Register>(GetProcAddress(avrt_, "AvSetMmThreadCharacteristicsW"));
+            revert_ = reinterpret_cast<Revert>(GetProcAddress(avrt_, "AvRevertMmThreadCharacteristics"));
+            DWORD index = 0;
+            if (register_task && revert_) task_ = register_task(L"Pro Audio", &index);
+        }
+        if (!task_) fallback_ = SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) != 0;
+    }
+    ~SinkScheduling() {
+        if (task_) revert_(task_);
+        if (fallback_ && previous_priority_ != THREAD_PRIORITY_ERROR_RETURN)
+            SetThreadPriority(GetCurrentThread(), previous_priority_);
+        if (timer_) timeEndPeriod(1);
+        if (avrt_) FreeLibrary(avrt_);
+    }
+    SinkScheduling(const SinkScheduling &) = delete;
+    SinkScheduling &operator=(const SinkScheduling &) = delete;
+};
+#endif
 struct Refusal : std::runtime_error {
     std::string code;
     Refusal(std::string c, const char *m) : std::runtime_error(m), code(std::move(c)) {}
@@ -215,7 +250,11 @@ void Session::shutdown() {
         bench_reported_ = true;
         std::cerr << "bench blocks=" << bench_.blocks << " p50=" << bench_.percentile(50)
                   << " p99=" << bench_.percentile(99) << " max=" << bench_.max_percent
-                  << " overruns=" << bench_.overruns << " faults=" << bench_.faults << '\n';
+                  << " overruns=" << bench_.overruns << " faults=" << bench_.faults
+                  << " overrun_render_count=" << bench_.overrun_render_count
+                  << " overrun_render_max_us=" << bench_.overrun_render_max_us
+                  << " overrun_wake_count=" << bench_.overrun_wake_count
+                  << " overrun_wake_max_us=" << bench_.overrun_wake_max_us << '\n';
     }
 }
 void Session::start_audio(std::chrono::steady_clock::time_point now) {
@@ -259,12 +298,7 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
                          right = std::vector<float>(options_.block)]() mutable {
                 float *rows[] = {left.data(), right.data()};
 #ifdef _WIN32
-                // The default ~15.6 ms Windows timer tick is longer than a block period, so
-                // block-paced waits always wake late. Request 1 ms only while the sink runs.
-                struct TimerResolution {
-                    TimerResolution() { timeBeginPeriod(1); }
-                    ~TimerResolution() { timeEndPeriod(1); }
-                } resolution;
+                SinkScheduling scheduling;
 #endif
                 auto next = std::chrono::steady_clock::now();
                 sink_rendering_.store(true, std::memory_order_release);
@@ -281,9 +315,10 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
                     double percent = std::chrono::duration<double>(after - before).count() *
                                      options_.rate / options_.block * 100;
                     cpu_.store(percent);
+                    const auto scheduled_start = next;
                     next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                         std::chrono::duration<double>(double(options_.block) / options_.rate));
-                    if (options_.bench_summary) bench_.record(percent, after > next);
+                    if (options_.bench_summary) bench_.record_timing(percent, before, after, scheduled_start, next);
                     std::unique_lock<std::mutex> lock(sink_mutex_);
                     sink_wake_.wait_until(lock, next, [this] { return stop_sink_.load(); });
                 }
