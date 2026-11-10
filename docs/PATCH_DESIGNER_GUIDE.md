@@ -53,8 +53,8 @@ An open PR is a preview/check, not a public deployment.
 library files (**Basics 1–7** and **Scene 1–8**) plus the bundled desktop-only
 MIDI example. Builds containing #530 ship 19: the previous sixteen and
 three additional CHAOS Lab 1–3 patches (`chaos-NN-*.json`). The lab patches
-are not public until their PR merges and deploys.
-`apps/studio/src/app/bundled/midi-keys-and-knobs.json`. That one lives in the
+are not public until their PR merges and deploys. The bundled MIDI example is
+`apps/studio/src/app/bundled/midi-keys-and-knobs.json`; it lives in the
 app because this folder and the web host exclude `midi.*` modules; the web
 Starter list hides it automatically. The six old `qt-*` starters were retired;
 their IDs stay reserved. Historical curated.ts/STARTERS/native ui_starters
