@@ -4,7 +4,7 @@
 #define emit
 #include "../modules2/groove/dsp.h"
 #ifndef emit
-#error Groove must restore the caller's Qt keyword macro after including the SDK
+static_assert(false, "Groove must restore the caller's Qt keyword macro after including the SDK");
 #endif
 #undef emit
 #include "../tests2/allocation_watch.h"
