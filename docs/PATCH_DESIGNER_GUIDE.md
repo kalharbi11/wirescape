@@ -91,6 +91,34 @@ setting blocker rather than pretending to merge.
 - Reverb fx.reverb is merged on main (c39af7b): stereo SUM inputs, one wet/dry output per side, not one reverb per note. Unconnected right follows left; size/decay/damping/predelay/width/motion/freeze/mix are available. Use two output-bus routes to preserve stereo; saved state clears the tail.
 - Macro requires48k. No external sample files/services. Do not assume pending
   Chord or Notes→CV exist: inspect the actual catalogue and deployed SHA.
+
+### Macro Oscillator model names (48 kHz only)
+
+These **0-based** model indices follow the exact `plaits::Voice::Init` registration order
+at pinned `pichenettes/eurorack` commit `f4cfa7697095a28d292bff758beb51deb49b5a86`
+(`plaits/dsp/voice.cc`). The index is stored in `ports.macro_oscillator.model`;
+UI names are presentation-only. Do not substitute the older 16-model VCV order.
+
+| Index | Engine | Index | Engine |
+|---|---|---|---|
+| 00 | Virtual analog filter | 12 | Additive synthesis |
+| 01 | Phase distortion | 13 | Wavetable synthesis |
+| 02 | Six-operator FM preset 1 | 14 | Chord synthesis |
+| 03 | Six-operator FM preset 2 | 15 | Speech synthesis |
+| 04 | Six-operator FM preset 3 | 16 | Swarm synthesis |
+| 05 | Wave terrain | 17 | Noise synthesis |
+| 06 | String machine | 18 | Particle synthesis |
+| 07 | Chiptune | 19 | String physical model |
+| 08 | Virtual analog | 20 | Modal resonator |
+| 09 | Waveshaping | 21 | Bass drum |
+| 10 | FM synthesis | 22 | Snare drum |
+| 11 | Granular synthesis | 23 | Hi-hat |
+
+For example, model **07** is Chiptune, **12** is Additive synthesis,
+**15** is Speech synthesis, and **20** is Modal resonator. Three six-operator
+FM presets occupy indices 02–04. The selector does not alter the patch's port
+or parameter IDs.
+
 - Start poly keyboard patches at3–4voices. MIDI→CV supports polyphony in desktop,
   but raw MIDI input and generated note events are different kinds.
 - Desktop/native MIDI: wire `midi.in.midi` to `midi.to_cv.midi`; append-only
@@ -226,6 +254,19 @@ elsewhere still opens normally but is not automatically in that list.
 The real folder is Electron userData/patches, not repository user_data/patches;
 its OS/app-name location can differ, so use the dialog's actual location.
 
+**Proposed in #471 (not available on main until merged):** if the real engine
+refuses a patch switch because it is unavailable or busy, the previous patch
+keeps playing. OPEN REFUSED DRAFT opens the rejected document on the canvas,
+marked **DRAFT · NOT RUNNING**; edits there do not alter the playing graph.
+APPLY DRAFT retries the edited document, while BACK TO PLAYING returns to the
+sound currently running. A further refusal keeps the draft. Save/export may
+store a draft, but saving it does **not** make it run. Unknown patch fields are
+preserved. Switching between draft and playing views makes the next Save ask
+for its target, so one document cannot inherit the other's file. Apply waits for
+prior playing edits to settle and holds an immutable submitted document; menus,
+shortcuts and earlier reads cannot change it during acknowledgement. This is not
+a workaround for unavailable modules or devices.
+
 To bulk copy from a downloaded checkout into that actual local directory:
 ```sh
 python tools/patch_library.py install apps/studio/patches --dest "/your/actual/patch-folder"
@@ -248,3 +289,17 @@ For a longer pattern set `length:16`, author `pitch16` (octaves), `gate16`
 `pitch`/`gate`/`velocity` to an instrument. Shortened patterns retain inactive
 values through edit/undo/save; native/WASM version compatibility remains #405's
 contract. UI/FakeEngine preview alone does not prove DSP or audible playback.
+
+## Groove observation outputs (PR #501)
+
+Groove observation outputs append to its existing pitch/gate/mod/notes ports:
+`t1_pos` and `t2_pos` report 0-based steps while active and -1 only after the global
+transport, the track and all owed note releases finish. Mute and STOP request acknowledgement
+do not mean fully stopped. `t1_fired`/`t2_fired` are 0/1 condition results
+(including a passed trig's continued ties). Exact per-track uint32 loop counts
+use paired `t1_loop_lo`/`t1_loop_hi` and `t2_loop_lo`/`t2_loop_hi` signals,
+each 0..65535; reconstruct as `lo + 65536 * hi`. These ports are patchable,
+but primarily support the engine's measured editor telemetry; no cable is needed
+for the editor to observe them. For example, a `t1_fired` signal may drive a gate
+input to visualize a passed note condition. It is an observation held for the
+step, not an extra note-event route. All original port IDs/order remain stable.

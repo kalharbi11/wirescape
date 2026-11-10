@@ -43,8 +43,9 @@ struct Outgoing {
 // the prepared candidate and all other graph operations remain quiescent.
 // set_telemetry_taps() is quiescent, on a candidate before prepare(). After prepare,
 // read_telemetry() is CONTROL-OWNER-ONLY (the same owner that calls replan), and
-// may overlap render but never replan/layout swaps. Individual values are atomic;
-// a read may mix adjacent blocks. Never read DSP buffers from the control owner.
+// may overlap render but never replan/layout swaps. Output observations belong
+// to one completed block; bounded contention returns frame=0 (unavailable).
+// Never read DSP buffers from the control owner.
 class Engine {
     struct Impl;std::unique_ptr<Impl>p_;
 public:
