@@ -66,7 +66,7 @@ test('invalid injected preset shows a toast and preserves the patch and history'
   const depth = await page.evaluate(() => window.__wirescapeTest.historyDepth().past);
   await page.evaluate(() => {
     // Mutate only this test page's UI preset data; native descriptors stay intact.
-    window.__wirescapeTest.modulePresets['essentials.chaos_lite'][1].params.route = 99;
+    Object.assign(window.__wirescapeTest.modulePresets['essentials.chaos_lite'][1].params, { route: 99 });
   });
   await menu(page).selectOption('Bent wire');
   const toast = page.getByTestId('toast');
@@ -78,7 +78,7 @@ test('invalid injected preset shows a toast and preserves the patch and history'
   await expect(menu(page)).toHaveValue('');
 
   // Corrected data works again without reloading the app.
-  await page.evaluate(() => { window.__wirescapeTest.modulePresets['essentials.chaos_lite'][1].params.route = 2; });
+  await page.evaluate(() => { Object.assign(window.__wirescapeTest.modulePresets['essentials.chaos_lite'][1].params, { route: 2 }); });
   await menu(page).selectOption('Bent wire');
   await expect(menu(page)).toHaveValue('Bent wire');
 });
