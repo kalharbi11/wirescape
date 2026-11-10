@@ -37,6 +37,17 @@ async function flush(page: Page) { await page.evaluate(() => window.__wirescapeT
 
 test.beforeEach(async ({ page }) => { await boot(page); await addGroove(page); });
 
+test('initial highlight on step 1 does not count as a first selection click', async ({ page }) => {
+  expect(await cfg(page)).toBeUndefined();
+  await expect(pad(page, 1)).toHaveClass(/\\bsel\\b/);
+  await pad(page, 1).click();
+  expect(await cfg(page)).toBeUndefined();
+  await expect(page.getByTestId('groove-draft-1')).toBeHidden();
+  await pad(page, 1).click();
+  await expect(pad(page, 1)).toHaveAttribute('data-kind', 'note');
+  expect((await cfg(page)).tracks[0].steps[0].key).toBe(60);
+});
+
 test('first click selects, second click toggles a note; v2 is written on first edit', async ({ page }) => {
   expect(await cfg(page)).toBeUndefined();
   await pad(page, 3).click();
