@@ -312,6 +312,45 @@ For a longer pattern set `length:16`, author `pitch16` (octaves), `gate16`
 values through edit/undo/save; native/WASM version compatibility remains #405's
 contract. UI/FakeEngine preview alone does not prove DSP or audible playback.
 
+## Groove native v2 patterns (G1 #496; available in builds containing this integration)
+
+The original `sequencing.groove` authored config `version:1` remains valid and
+keeps its two synchronized **32-step** tracks, old sample/note ordering and
+implicit full gate. The new `version:2` config allows each track to set
+`length` to **8, 16, 32 or 64** sixteenth notes (default 16 for a newly authored
+v2 track, 32 for v1). A track pads its omitted steps with rests. Active tracks
+follow their own lengths; the longest active track determines the global
+STOP/Apply master-cycle boundary. V2 track START enters at the next
+16-step bar; an authored v1 track retains its original 32-step entry boundary.
+
+On each v2 step, `gate` selects 0.25, 0.5, 0.75 or 1 times one step, default
+1. A tie extends the sounding note through the tied cells, with the *last*
+tie's gate fraction determining the release. Only note trigs accept `cond`:
+`{"type":"chance","p":50}` (integer percent 1..99),
+`{"type":"ab","a":1,"b":4}` (loop 1 of every 4; b 2..8),
+`{"type":"first"}`, or `{"type":"not_first"}`. Omit `cond`
+for always. A failed condition skips note and ties, but still applies that
+step's Mod1/Mod2 values. A:B counts the **track's** loops, not necessarily
+16-step bars. A chance sequence is deterministic from the native graph
+instance ID and track; it never stores a random seed in authored patch JSON.
+
+Example of one track's v2 config, excluding unrelated module settings:
+
+```json
+{"version":2,"bpm":120,"tracks":[{"length":16,"steps":[
+  {"kind":"note","key":60,"velocity":0.9,"gate":0.5,
+   "mod1":0.4,"mod2":0.2,"cond":{"type":"chance","p":50}},
+  {"kind":"tie","gate":0.75},
+  {"kind":"note","key":64,"velocity":0.8,"cond":{"type":"ab","a":1,"b":4}}
+]}]}
+```
+
+The output and transport IDs remain unchanged; G3's appended measurement
+ports appear below. Config `keys` is reserved for future chords and is
+refused in v2. The Studio G2 editor and actual physical listening are separate
+acceptance tasks; do not assume a native G1 patch is editable on older app
+builds or works in a deployed WebAssembly version lacking G1.
+
 ## Groove observation outputs (PR #501)
 
 Groove observation outputs append to its existing pitch/gate/mod/notes ports:
@@ -325,3 +364,60 @@ but primarily support the engine's measured editor telemetry; no cable is needed
 for the editor to observe them. For example, a `t1_fired` signal may drive a gate
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
+
+## Groove editor in Studio (G2a #498; builds containing this integration)
+
+Studio now edits `sequencing.groove` patterns on its card (Pads view, two lanes: Trig and
+Note). Authoring rules for patch designers:
+- **Format:** Studio reads `config.version` 1 and 2. Opening a v1 pattern changes nothing;
+  the *first edit* rewrites it as v2 and gives each v1 track an explicit `"length":32`
+  (its old meaning), adding an empty second track (same length) if the pattern had only one. A newly added Groove has
+  no `config` until edited; its first edit writes two 16-step tracks of rests at 120 BPM.
+  Unknown keys in `config`, tracks or steps are saved back untouched but are never sent to
+  the engine. A newer `version` is shown read-only.
+- **What it writes:** `length` 8/16/32/64 (shortening a track trims its saved steps),
+  `gate` 0.25/0.5/0.75 (1 is written by omitting `gate`), `cond` from the picker
+  (chance 10/25/50/75/90 %, A:B 1:2, 2:2, 1:4, 2:4, 3:4, 4:4, 1:8, first, not first; any
+  valid hand-authored chance 1–99 or A:B up to b = 8 is kept), `bpm` 20–300, per-track
+  `armed` and `mute`. Rests and ties never carry `key`, `velocity` or `cond`.
+- **Draft and Apply:** edits are a draft; the engine keeps playing the applied pattern.
+  **Apply** is enabled only on a measured, current-generation stop (both tracks report
+  step -1) or while audio is not running; it reloads the whole graph, so the Groove (and
+  other modules) start stopped, and Play starts from step 1. A refused Apply keeps the
+  draft and starts nothing. **Stop & apply** queues the global STOP to the master-cycle
+  end and applies once the stop is measured. **Revert** restores the applied pattern.
+  Play applies a pending draft first. Transport buttons send momentary rising edges to
+  `run`/`stop`/`reset` and `t1_run`/`t1_stop` (`t2_*`); they are not saved.
+- **Live view:** the playhead, track positions and the "skipped this pass" dim (a failed
+  condition) come only from engine telemetry; on an engine without the playhead
+  capability they stay hidden. Chance results are never predicted in the editor.
+- **G2b Roll:** Pads/Roll are two projections of the same MIDI-key pattern. Roll
+  rows are indexed by note; only one pitch can sound on a step today (chords remain
+  reserved for a later version). Click an empty cell to add a note, drag right to tie,
+  drag vertically to change pitch; double-click/right-click to delete. Under the
+  note grid, lollipop lanes edit velocity, gate, Mod 1 and Mod 2. The inspector
+  also accepts typed Mod 1/2 percentages. The Roll scrolls within its card,
+  rather than widening the web page. Roll note buttons are keyboard-focusable:
+  arrow keys move by step or pitch; Enter/Space enters a note, and Backspace
+  removes it. Focus a Roll value slider and use arrow keys or Home/End to edit
+  its value.
+- **Scale and bar tools:** root and Chromatic/Major/Minor/Pentatonic scale selections
+  mark the pitch guide and affect subsequent pitch gestures, not saved note data.
+  The choice is saved with the patch in `ui.groove["<moduleId>"] = {"root": 0..11,
+  "scale": "<name>"}` (one undo step per change); the engine ignores it and the
+  module config never holds it.
+  Copy snapshots the selected (up to 16-step) bar. Paste and Clear each create a
+  single undoable edit; existing unknown step keys are preserved. Each bar of
+  16 steps becomes two rows of eight on narrow screens.
+- **Keyboard:** focus the Groove first. Space Play/Stop, arrows move the selected
+  step or pitch (Shift = octave), A/W/S/E/D/F/T/G/Y/H/U/J/K enter chromatic
+  notes at the selected step, Z/X change keyboard octave, hyphen makes a tie,
+  Backspace clears a trig, 1/2 select track, Ctrl/Cmd+Z undo (Shift = redo).
+- **Looks:** Graphite (default), Oxblood and LED only change the appearance;
+  no style choice or scale setting is saved to the module config.
+  No live per-step editing during playback.
+Example (a 16-step bass, one 50 % trig and one 1:4 trig with a short tie):
+`{"version":2,"bpm":120,"tracks":[{"length":16,"steps":[{"kind":"note","key":36,"velocity":0.9},`
+`{"kind":"tie","gate":0.5},{"kind":"rest"},{"kind":"note","key":43,"velocity":0.7,"cond":{"type":"chance","p":50}},`
+`{"kind":"rest"},{"kind":"rest"},{"kind":"rest"},{"kind":"note","key":48,"velocity":0.8,"cond":{"type":"ab","a":1,"b":4}}]}]}`.
+Hardware listening and Pi display checks of the editor are not claimed.

@@ -17,6 +17,7 @@ export type PatchEvent =
   | { t: 'mod-amount'; c: Connection; amount: number }
   | { t: 'position'; id: number }
   | { t: 'label'; id: number }
+  | { t: 'ui'; id: number }
   | { t: 'view' };
 
 type Listener = (e: PatchEvent) => void;
@@ -150,6 +151,8 @@ export class PatchDoc {
     if (Array.isArray(this.extras.outputs)) this.extras.outputs = this.extras.outputs.filter(o => o.module !== id);
     if (this.ui.positions) delete this.ui.positions[String(id)];
     if (this.ui.labels) delete this.ui.labels[String(id)];
+    const g = this.ui.groove;
+    if (g && typeof g === 'object') delete g[String(id)];
     this.emit({ t: 'module-removed', id });
   }
 
@@ -164,6 +167,21 @@ export class PatchDoc {
     const map = { ...(this.ui.cableColors ?? {}) };
     if (name) map[key] = name; else delete map[key];
     this.ui.cableColors = map;
+  }
+
+  /** The Groove scale helper saved for `id`, if it is well formed. */
+  grooveScale(id: number): { root: number; scale: string } | undefined {
+    const g = this.ui.groove, v = g && typeof g === 'object' ? g[String(id)] : undefined;
+    if (!v || typeof v !== 'object' || !Number.isInteger(v.root) || v.root < 0 || v.root > 11
+      || typeof v.scale !== 'string') return undefined;
+    return { root: v.root, scale: v.scale };
+  }
+  /** Save the scale helper in `ui.groove`, keeping other keys there; never touches module config. */
+  setGrooveScale(id: number, root: number, scale: string): void {
+    const g = this.ui.groove && typeof this.ui.groove === 'object' ? this.ui.groove : (this.ui.groove = {});
+    const prev = g[String(id)];
+    g[String(id)] = { ...(prev && typeof prev === 'object' ? prev : {}), root, scale };
+    this.emit({ t: 'ui', id });
   }
 
   label(id: number): string | undefined { return this.ui.labels?.[String(id)]; }
@@ -202,6 +220,14 @@ export class PatchDoc {
     const { system_name: _drop, ...rest } = config;
     m.config = systemName === undefined ? { ...rest, endpoint }
       : { ...rest, endpoint, system_name: systemName };
+    this.emit({ t: 'config', id });
+  }
+
+  /** Replace one module's authored config (Groove editor); unknown keys are the caller's to keep. */
+  setModuleConfig(id: number, config: unknown): void {
+    const m = this.modules.get(id);
+    if (!m) return;
+    if (config === undefined) delete m.config; else m.config = structuredClone(config);
     this.emit({ t: 'config', id });
   }
 
