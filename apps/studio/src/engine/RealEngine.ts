@@ -62,6 +62,7 @@ export class RealEngine implements EngineClient {
   private queue: Edit[] = [];
   private active?: Edit;
   private lastEdit?: Edit;
+  private settledWaiters = new Set<() => void>();
   private confirmed: PatchV2 | null = null;
   private usedIds = new Set<number>();
   private audioDevices: Device[] = [];
@@ -111,6 +112,17 @@ export class RealEngine implements EngineClient {
   onCatalogue(cb: () => void): () => void {
     this.catalogueCbs.add(cb); return () => this.catalogueCbs.delete(cb);
   }
+  /** A document switch must keep its owner visible until all inverses have settled. */
+  async whenEditsSettled(): Promise<void> {
+    while (this.active || this.queue.length || this.load)
+      await new Promise<void>(resolve => this.settledWaiters.add(resolve));
+  }
+  private notifySettled(): void {
+    if (this.active || this.queue.length || this.load) return;
+    for (const resolve of this.settledWaiters) resolve();
+    this.settledWaiters.clear();
+  }
+
   /** Attach an App-owned inverse to the most recently queued optimistic edit. */
   registerRollback(fn: () => void): void { if (this.lastEdit) this.lastEdit.rollback = fn; }
 
@@ -134,6 +146,7 @@ export class RealEngine implements EngineClient {
     this.lastEdit = undefined;
     this.load?.reject(error);
     this.load = undefined;
+    this.notifySettled();
   }
 
   private receive(message: Wire): void {
@@ -222,6 +235,7 @@ export class RealEngine implements EngineClient {
           this.ready = false;
           this.queue = []; this.active = undefined;
           this.load?.reject(err); this.load = undefined;
+          this.notifySettled();
         }
       } else if (p.kind === 'edit' && p.edit) this.failEdit(p.edit, err);
       else p.reject?.(err);
@@ -237,12 +251,14 @@ export class RealEngine implements EngineClient {
         this.load = undefined;
         this.setState('real');
         this.pumpEdits();
+        this.notifySettled();
       }
     } else if (p.kind === 'edit' && p.edit) {
       if (this.confirmed) applyMutation(this.confirmed, p.edit.mutation, this.usedIds);
       this.queue.shift();
       this.active = undefined;
       this.pumpEdits();
+      this.notifySettled();
     } else p.resolve?.(message);
   }
 
@@ -271,7 +287,7 @@ export class RealEngine implements EngineClient {
     this.pending.set(l.id, { session: this.session, type: 'loadGraph', kind: 'load',
       revision: l.revision });
     try { this.send(l.id, 'loadGraph', { patch: l.patch }); }
-    catch { this.pending.delete(l.id); l.reject(refusal('unavailable', 'Bridge unavailable.')); this.load = undefined; }
+    catch { this.pending.delete(l.id); l.reject(refusal('unavailable', 'Bridge unavailable.')); this.load = undefined; this.notifySettled(); }
   }
 
   private enqueue(type: string, payload: Wire): void {
@@ -325,6 +341,7 @@ export class RealEngine implements EngineClient {
     });
     // Revalidation of later queued edits is performed against the last ack.
     this.pumpEdits();
+    this.notifySettled();
   }
   private request(type: string, payload: Wire = {}): Promise<Wire> {
     if (!this.session) return Promise.reject(refusal('unavailable', 'Engine disconnected.'));
