@@ -2,7 +2,7 @@
   "schema_version": 2,
   "abi_version": 2,
   "id": "essentials.chaos_lite",
-  "name": "CHAOS-lite",
+  "name": "CHAOS",
   "library": "ws2_chaos_lite",
   "description": "Original stereo instability instrument; up to eight voices.",
   "license": "GPL-3.0-only",
