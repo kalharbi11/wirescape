@@ -205,6 +205,14 @@ export class PatchDoc {
     this.emit({ t: 'config', id });
   }
 
+  /** Replace one module's authored config (Groove editor); unknown keys are the caller's to keep. */
+  setModuleConfig(id: number, config: unknown): void {
+    const m = this.modules.get(id);
+    if (!m) return;
+    if (config === undefined) delete m.config; else m.config = structuredClone(config);
+    this.emit({ t: 'config', id });
+  }
+
   /** The explicit `config.rows` of a `midi.cc_to_cv` module (rows beyond them keep their CC n defaults). */
   ccRows(id: number): Record<string, unknown>[] {
     const m = this.modules.get(id);

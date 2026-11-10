@@ -216,7 +216,7 @@ test.describe('the catalogue', () => {
         out.push({
           id: m.id,
           knobs: card?.querySelectorAll('.knob-unit').length ?? 0,
-          controls: card?.querySelectorAll('.knob-unit,.segmented,.toggle,.input-select,.control-readout,.control-fader,.control-number').length ?? 0,
+          controls: card?.querySelectorAll('.knob-unit,.segmented,.toggle,.input-select,.control-readout,.control-fader,.control-number,.groove-pane button').length ?? 0,
           ports: card?.querySelectorAll('.port').length ?? 0,
           descriptorPorts: m.ports.length,
           params: m.parameters.length,

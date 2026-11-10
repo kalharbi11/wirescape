@@ -16,6 +16,7 @@ import { Toggle } from './widgets/Toggle';
 import { NumberBox } from './widgets/NumberBox';
 import { Fader } from './widgets/Fader';
 import { buildPane, type Pane } from './panes';
+import type { GrooveHost } from './widgets/GroovePane';
 
 export interface PanelHost {
   doc: PatchDoc;
@@ -31,6 +32,8 @@ export interface PanelHost {
   describeSource(c: Connection): string;
   /** The cable's user-picked colour, as a CSS colour. */
   cableColor(c: Connection): string;
+  /** Groove draft/Apply services (#498); absent hosts get no Groove editor. */
+  groove?: GrooveHost;
 }
 
 interface Widget { root: HTMLElement; refresh(): void; destroy(): void }
@@ -68,6 +71,8 @@ export class Panel {
         getValue: pid => this.value(pid),
         setValue: (pid, v, commit = true) => host.commitParam(moduleId, pid, v, commit),
         options: this.layout.paneOptions[kind] ?? {},
+        groove: host.groove,
+        layoutChanged: () => requestAnimationFrame(() => { if (this.root.isConnected) this.onLayoutChanged?.(); }),
       });
       if (!pane) continue;
       this.panes.push(pane);

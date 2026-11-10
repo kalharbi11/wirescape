@@ -407,6 +407,40 @@ control yet. After B/C, the intended wiring is `osc.in.row1 →` a VCA's
 unconfirmed LAN access remain unavailable. These modules introduce no new
 patch parameters or changes to existing IDs.
 
+## Groove editor in Studio (G2a #498; builds containing this integration)
+
+Studio now edits `sequencing.groove` patterns on its card (Pads view, two lanes: Trig and
+Note). Authoring rules for patch designers:
+- **Format:** Studio reads `config.version` 1 and 2. Opening a v1 pattern changes nothing;
+  the *first edit* rewrites it as v2 and gives each v1 track an explicit `"length":32`
+  (its old meaning), adding an empty second track (same length) if the pattern had only one. A newly added Groove has
+  no `config` until edited; its first edit writes two 16-step tracks of rests at 120 BPM.
+  Unknown keys in `config`, tracks or steps are saved back untouched but are never sent to
+  the engine. A newer `version` is shown read-only.
+- **What it writes:** `length` 8/16/32/64 (shortening a track trims its saved steps),
+  `gate` 0.25/0.5/0.75 (1 is written by omitting `gate`), `cond` from the picker
+  (chance 10/25/50/75/90 %, A:B 1:2, 2:2, 1:4, 2:4, 3:4, 4:4, 1:8, first, not first; any
+  valid hand-authored chance 1–99 or A:B up to b = 8 is kept), `bpm` 20–300, per-track
+  `armed` and `mute`. Rests and ties never carry `key`, `velocity` or `cond`.
+- **Draft and Apply:** edits are a draft; the engine keeps playing the applied pattern.
+  **Apply** is enabled only on a measured, current-generation stop (both tracks report
+  step -1) or while audio is not running; it reloads the whole graph, so the Groove (and
+  other modules) start stopped, and Play starts from step 1. A refused Apply keeps the
+  draft and starts nothing. **Stop & apply** queues the global STOP to the master-cycle
+  end and applies once the stop is measured. **Revert** restores the applied pattern.
+  Play applies a pending draft first. Transport buttons send momentary rising edges to
+  `run`/`stop`/`reset` and `t1_run`/`t1_stop` (`t2_*`); they are not saved.
+- **Live view:** the playhead, track positions and the "skipped this pass" dim (a failed
+  condition) come only from engine telemetry; on an engine without the playhead
+  capability they stay hidden. Chance results are never predicted in the editor.
+- **Not yet:** Roll view, scale helper, copy/paste/clear bar, keyboard entry, the phone
+  layout and the trig-look selector are G2b. No live per-step editing during playback.
+Example (a 16-step bass, one 50 % trig and one 1:4 trig with a short tie):
+`{"version":2,"bpm":120,"tracks":[{"length":16,"steps":[{"kind":"note","key":36,"velocity":0.9},`
+`{"kind":"tie","gate":0.5},{"kind":"rest"},{"kind":"note","key":43,"velocity":0.7,"cond":{"type":"chance","p":50}},`
+`{"kind":"rest"},{"kind":"rest"},{"kind":"rest"},{"kind":"note","key":48,"velocity":0.8,"cond":{"type":"ab","a":1,"b":4}}]}]}`.
+Hardware listening and Pi display checks of the editor are not claimed.
+
 ## CHAOS sound presets (#489; available after Studio PR merges)
 
 The `essentials.chaos_lite` card's **Presets** dropdown supplies eight
