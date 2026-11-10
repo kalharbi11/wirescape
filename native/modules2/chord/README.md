@@ -8,3 +8,11 @@ Chords are events, **not CV**. Route Chord's output into `essentials.notes_to_cv
 Real MIDI devices and audio outputs are not used by module tests. Studio and WASM availability requires the corresponding catalogue/host build.
 
 Reusing a live explicit `(source_id, channel, note_id)` is a producer error. Last wins: the new on releases the old chord, the next matching off releases the current chord, and another off is ignored. Anonymous repeated keys use LIFO release.
+
+## Design and provenance
+
+Original GPL-3.0-only C++ event transformer, with no third-party DSP or copied legacy chord/sequencer code. The public contract is issue #403, Coda's 2026-11-10 ruling, `docs/tasks/CHORD_MODULE_403.md`, and `docs/design/CHORD_GENERATOR_403.md`.
+
+Output note IDs retain the original `source_id` and combine an 11-bit graph-instance tag with a 20-bit non-colliding sequence. Instance IDs differing by multiples of 2048 can alias at downstream fan-in; producers must avoid that configuration until a broader tag policy is approved. Input IDs of zero are valid. Reused explicit identities release their previous activation, but late identical note-offs cannot be distinguished from the replacement's off. Source choke emits only the corresponding owned note-offs, never a broad downstream choke affecting other generators; pending offs retry before new attacks.
+
+Only a state version is persisted: active notes, pending releases and sequence counters are transient and reset silently. The native/document control adapter passes the graph instance ID as four little-endian configuration bytes, and `prepare` refuses missing or invalid instance configuration to prevent output identity collisions.
