@@ -62,8 +62,8 @@ struct Rig {
     ws2_event_list incoming[1]{};
     ws2_process ctx{};
 
-    explicit Rig(double rate = 48000) {
-        const ws2_config cfg{sizeof(cfg), rate, kFrames, 16, 42, nullptr, 0};
+    explicit Rig(double rate = 48000, uint32_t host_channels = 16) {
+        const ws2_config cfg{sizeof(cfg), rate, kFrames, host_channels, 42, nullptr, 0};
         state = desc->create(&host);
         REQUIRE(state && desc->prepare(state, &cfg, &host) == WS2_OK);
         for (int p = 0; p < 3; ++p) {
@@ -171,6 +171,29 @@ static void voice_count_change_and_reset() {
     REQUIRE(a.outs[0].channels == 2);
     REQUIRE(a.value(1, 0, 0) == 0.f && a.value(1, 1, 0) == 0.f);
 }
+static void voice_count_bounds_and_host_cap() {
+    struct Case {
+        float requested;
+        uint32_t host_channels;
+        uint32_t expected;
+    };
+    for (const Case test : {Case{1.f, 16, 1}, Case{16.f, 16, 16}, Case{0.f, 16, 1},
+                            Case{17.f, 16, 16}, Case{2.6f, 16, 3}, Case{16.f, 3, 3}}) {
+        Rig a(48000, test.host_channels);
+        a.voice_param = test.requested;
+        a.run({note({WS2_NOTE_ON, 60, 9})});
+        for (const auto &output : a.outs)
+            REQUIRE(output.channels == test.expected && output.channels <= test.host_channels);
+        REQUIRE(a.value(1, 0, 1) == 1.f && a.value(2, 0, 1) == .75f);
+        for (uint32_t voice = 1; voice < test.expected; ++voice)
+            REQUIRE(a.value(1, voice, 1) == 0.f);
+        a.desc->reset(a.state);
+        a.run();
+        for (const auto &output : a.outs) REQUIRE(output.channels == test.expected);
+        for (uint32_t voice = 0; voice < test.expected; ++voice)
+            REQUIRE(a.value(1, voice, 1) == 0.f);
+    }
+}
 static void block_matrix_and_allocations() {
     for (double rate : {44100., 48000., 96000.})
         for (uint32_t n : {1u, 17u, 128u, 256u}) {
@@ -259,6 +282,7 @@ int main() {
     source_identity_and_choke();
     anonymous_fifo_and_repeated_roots();
     voice_count_change_and_reset();
+    voice_count_bounds_and_host_cap();
     steal_and_reset();
     block_matrix_and_allocations();
     native_keyboard_graph({60, 64, 67, 0}, 3);
