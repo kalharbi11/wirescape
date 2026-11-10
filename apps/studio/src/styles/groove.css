@@ -169,3 +169,15 @@
   background: var(--graph, #2e2e2d); }
 
 
+
+/* The canvas card has an inline desktop width and generous rail gutters.
+   Override both at phone size; hiding the jack visuals never removes patch cables. */
+@media (max-width: 759px) {
+  .module:has(.groove-pane) { width: calc(100vw - 16px) !important; max-width: calc(100vw - 16px); }
+  .module:has(.groove-pane) .module-body {
+    padding-left: 8px !important; padding-right: 8px !important;
+  }
+  .module:has(.groove-pane) .panel-core { padding-left: 0; padding-right: 0; }
+  .module:has(.groove-pane) .port,
+  .module:has(.groove-pane) .port-ctl { display: none; }
+}
