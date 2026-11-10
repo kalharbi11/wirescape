@@ -32,7 +32,8 @@
     "lfo_target": 22,
     "lfo_self": 23,
     "cutoff": 24,
-    "level": 25
+    "level": 25,
+    "lfo_shape": 26
   },
   "inputs": {
     "pitch": "signal",
