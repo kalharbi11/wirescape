@@ -443,7 +443,7 @@ export class GroovePane {
             const step = stepFor(c, t, i);
             if (lane === 'velocity') step.velocity = Math.round(f * 100) / 100;
             else if (lane === 'gate') {
-              const g = GATES[Math.max(0, Math.min(3, Math.round(f * 3)))]!;
+              const g = GATES[Math.max(0, Math.min(3, Math.round(f * 4 - 1)))]!;
               if (g === 1) delete step.gate; else step.gate = g;
             } else step[lane] = Math.round(f * 100) / 100;
           });
