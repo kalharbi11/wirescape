@@ -152,8 +152,7 @@ const depth = (page: Page) => page.evaluate(() => window.__wirescapeTest.history
 const refuseHeld = (page: Page) => page.evaluate(() => (window as any).__mockBridge.refuseHeld('refused'));
 
 async function heldLearn(page: Page) {
-  await mockBridge(page);
-  await boot(page);
+  await mockBridge(page); await boot(page);
   await page.evaluate(p => { window.__wirescapeTest.load(p, 'A'); window.__wirescapeTest.zoomTo(1); }, patchA);
   await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
   await expect.poll(async () => (await graph(page)).modules.length).toBe(1);
@@ -192,15 +191,13 @@ async function expectB(page: Page) {
 }
 
 test('OPEN B while the Learn replan is held: the accepted Learn runs on A, then B opens untouched', async ({ page }) => {
-  await heldLearn(page);
-  await openB(page);
+  await heldLearn(page); await openB(page);
   await page.evaluate(() => (window as any).__mockBridge.acceptHeld());
   await expectB(page);
 });
 
 test('OPEN B while the Learn replan is held: its refusal never restores A over B', async ({ page }) => {
-  await heldLearn(page);
-  await openB(page);
+  await heldLearn(page); await openB(page);
   await refuseHeld(page);
   await expectB(page);
 });
@@ -272,14 +269,10 @@ test('held Learn acknowledgment unlocks editing only after the atomic graph is a
 });
 
 test('Forget replan is also serialized and its refusal retains the learned cable', async ({ page }) => {
-  await mockBridge(page);
-  await boot(page);
-  await page.evaluate(p => { window.__wirescapeTest.load(p, 'A'); window.__wirescapeTest.zoomTo(1); }, patchA);
-  await expect.poll(async () => (await graph(page)).modules.length).toBe(1);
-  await learnKnob(page, 2, 'cutoff', 74);
-  await page.getByTestId('learn-confirm').click();
-  await expect.poll(async () => (await graph(page)).modules.length).toBe(3);
+  await heldLearn(page);
+  await page.evaluate(() => (window as any).__mockBridge.acceptHeld());
   await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+  await expect.poll(async () => (await graph(page)).modules.length).toBe(3);
   const before = await state(page), graphBefore = await graph(page), historyBefore = await depth(page);
   await page.getByTestId('knob-2-cutoff').click({ button: 'right' });
   await page.evaluate(() => (window as any).__mockBridge.holdNext('loadGraph'));
