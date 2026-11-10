@@ -817,6 +817,19 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
         cond.cond_type = NotFirst;
         check(seq.condition_passes(cond, p) == (loop != 1), "not-first condition");
     }
+    // Every supported A:B divisor and position follows that track's own loop.
+    for (uint32_t b = 2; b <= 8; ++b) {
+        for (uint32_t a = 1; a <= b; ++a) {
+            cond.cond_type = AB;
+            cond.cond_a = static_cast<uint8_t>(a);
+            cond.cond_b = static_cast<uint8_t>(b);
+            for (uint32_t loop = 1; loop <= 2 * b; ++loop) {
+                p.loop = loop;
+                check(seq.condition_passes(cond, p) == ((loop - 1) % b == a - 1),
+                      "full A:B condition matrix matches per-track loop number");
+            }
+        }
+    }
     cond.cond_type = Chance; cond.cond_a = 50; cond.cond_b = 0;
     p.rng = seq.seed_for(0);
     uint32_t hits = 0;
@@ -827,6 +840,20 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
     for (uint32_t i = 0; i < 1000; ++i) replay += seq.condition_passes(cond, p);
     check(hits == replay, "chance RNG repeats after Reset/Start seed");
     check(seq.seed_for(0) != seq.seed_for(1), "per-track chance streams are independent");
+    Sequencer instance_a, instance_b;
+    instance_a.pattern = decoded;
+    instance_b.pattern = different_seed;
+    instance_a.rng_seed = instance_a.pattern.instance_seed;
+    instance_b.rng_seed = instance_b.pattern.instance_seed;
+    instance_a.reset();
+    instance_b.reset();
+    cond.cond_type = Chance; cond.cond_a = 50; cond.cond_b = 0;
+    bool diverged = false;
+    for (uint32_t i = 0; i < 64; ++i)
+        diverged |= instance_a.condition_passes(cond, instance_a.players[0]) !=
+                    instance_b.condition_passes(cond, instance_b.players[0]);
+    check(diverged, "two real graph instance IDs give different deterministic chance streams");
+
     GrooveStateBuffer state;
     seq.players[0].loop = 123;
     seq.players[0].rng = 456;
@@ -924,6 +951,31 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
     short_stop.boundary(dummy, 0);
     check(!short_stop.running && short_stop.step == 32,
           "short-only STOP completes on absolute step32, not a false 64-step wait");
+    // Each allowed native length wraps its loop and completes a queued global
+    // STOP only on its own master-cycle boundary. No graph/device access.
+    for (uint32_t length : {8u, 16u, 32u, 64u}) {
+        Sequencer length_fixture;
+        length_fixture.pattern = decoded;
+        length_fixture.pattern.tracks[0].length = length;
+        length_fixture.pattern.tracks[1].length = length;
+        length_fixture.reset();
+        length_fixture.running = true;
+        length_fixture.players[0].playing = length_fixture.players[1].playing = true;
+        check(length_fixture.master_steps() == length, "length matrix selects correct master cycle");
+        for (uint32_t i = 0; i < 3; ++i) length_fixture.boundary(dummy, 0);
+        length_fixture.stop_queued = true;
+        for (uint32_t i = 3; i + 1 < length; ++i) {
+            length_fixture.boundary(dummy, 0);
+            check(length_fixture.running && length_fixture.players[0].loop == 1 &&
+                  length_fixture.players[1].loop == 1,
+                  "queued global STOP preserves both tracks until cycle end");
+        }
+        length_fixture.boundary(dummy, 0);
+        check(!length_fixture.running && !length_fixture.stop_queued &&
+              length_fixture.step_t[0] == 0 && length_fixture.step_t[1] == 0 &&
+              !length_fixture.players[0].playing && !length_fixture.players[1].playing,
+              "8/16/32/64 global STOP completes exactly at master-cycle wrap");
+    }
     // Frozen S1 transport regression: v1 track re-entry still waits for the
     // shared 32-step wrap, rather than G1 v2's new 16-step bar boundary.
     Sequencer legacy_clock;
