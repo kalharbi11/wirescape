@@ -454,6 +454,25 @@ with tempfile.TemporaryDirectory() as osc_dir:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
             sender.sendto(packet, ('127.0.0.1', port))
         assert osc_route_when(lambda route: route['received'] > 0)['received'] >= 1
+        # Successful live edits must restart ingress against the newly committed
+        # generation. The same listener remains localhost-only and usable.
+        edited_gen = osc_engine.call('addModule', moduleId=11, moduleType='essentials.vco')['gen']
+        assert edited_gen != gen
+        assert osc_route_when(lambda route: route['state'] == 'lan-not-confirmed')['port'] == port
+
+        # Removing the source must retire the worker/port before graph disposal.
+        removed_gen = osc_engine.call('removeModule', moduleId=9)['gen']
+        assert removed_gen != edited_gen
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            message = osc_engine.pushes.pop(0) if osc_engine.pushes else osc_engine.receive()
+            if message.get('type') == 'status' and message['gen'] == removed_gen:
+                assert message['status']['osc']['routes'] == []
+                break
+        else:
+            raise AssertionError('OSC source removal did not clear status')
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as released:
+            released.bind(('127.0.0.1', port))  # packet worker was joined/closed
         osc_engine.close()
 
 # Real, short, device-free end-to-end benchmark ingestion on the production sidecar.
