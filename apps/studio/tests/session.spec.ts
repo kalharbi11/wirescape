@@ -238,6 +238,46 @@ test.describe('the catalogue', () => {
     }
   });
 
+  test('Notes→CV patch round-trips voices and poly connections', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__wirescapeTest.zoomTo(0.5));
+    const keyboard = await addModuleAt(page, 'host.keyboard', 80, 220);
+    const notes = await addModuleAt(page, 'essentials.notes_to_cv', 450, 220);
+    const vco = await addModuleAt(page, 'essentials.vco', 820, 220);
+    const adsr = await addModuleAt(page, 'essentials.adsr', 820, 700);
+    const vca = await addModuleAt(page, 'essentials.vca', 1190, 220);
+    const output = await addModuleAt(page, 'essentials.output', 1560, 220);
+
+    await patch(page, { module: keyboard, port: 'notes' }, { module: notes, port: 'notes' });
+    await patch(page, { module: notes, port: 'pitch' }, { module: vco, port: 'pitch' });
+    await patch(page, { module: notes, port: 'gate' }, { module: adsr, port: 'gate' });
+    await patch(page, { module: vco, port: 'audio' }, { module: vca, port: 'audio' });
+    await patch(page, { module: adsr, port: 'envelope' }, { module: vca, port: 'gain_cv' });
+    await patch(page, { module: vca, port: 'audio' }, { module: output, port: 'audio' });
+    await page.evaluate(id => window.__wirescapeTest.commitParam(id, 'voices', 3), notes);
+    await settle(page);
+
+    const saved = await state(page);
+    const savedModule = saved.modules.find((m: any) => m.id === notes);
+    expect(savedModule).toMatchObject({ module: 'essentials.notes_to_cv', parameters: { voices: 3 } });
+    const endpoints = saved.connections.map((c: any) =>
+      [c.kind, c.from.module, c.from.port, c.to.module, c.to.port]);
+    expect(endpoints).toEqual(expect.arrayContaining([
+      ['event', keyboard, 'notes', notes, 'notes'],
+      ['signal', notes, 'pitch', vco, 'pitch'],
+      ['signal', notes, 'gate', adsr, 'gate'],
+    ]));
+
+    await page.evaluate(() => window.__wirescapeTest.autosaveNow());
+    await page.reload();
+    await page.waitForFunction(() => document.body.dataset.ready === 'true');
+    await settle(page);
+    const restored = await state(page);
+    expect(restored.modules.find((m: any) => m.id === notes))
+      .toMatchObject({ module: 'essentials.notes_to_cv', parameters: { voices: 3 } });
+    expect(restored.connections).toEqual(saved.connections);
+  });
+
   test('no module overflows its card, in either hit profile', async ({ page }) => {
     await boot(page);
     for (const hit of ['mouse', 'touch'] as const) {
