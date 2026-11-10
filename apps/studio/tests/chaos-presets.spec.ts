@@ -11,6 +11,7 @@ const menu = (page: Page) => page.getByTestId('module-presets-1');
 const values = async (page: Page) => (await state(page)).modules.find((m: any) => m.id === 1)?.parameters ?? {};
 const flush = (page: Page) => page.evaluate(() => window.__wirescapeTest.flushHistory());
 
+test.describe('CHAOS preset UI', () => {
 test.beforeEach(async ({ page }) => {
   await boot(page);
   await page.evaluate(() => window.__wirescapeTest.addModule('essentials.chaos_lite'));
@@ -88,6 +89,8 @@ test('all presets use finite descriptor-bounded values, preserving unknown modul
     expect(m.futureField).toEqual({ unsupported: true });
     expect((await state(page)).connections).toEqual(base.connections);
   }
+});
+
 });
 
 /** Optional here; the task-acceptance native lane must set CHAOS_RENDER explicitly.
