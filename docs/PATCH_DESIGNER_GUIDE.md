@@ -433,8 +433,31 @@ Note). Authoring rules for patch designers:
 - **Live view:** the playhead, track positions and the "skipped this pass" dim (a failed
   condition) come only from engine telemetry; on an engine without the playhead
   capability they stay hidden. Chance results are never predicted in the editor.
-- **Not yet:** Roll view, scale helper, copy/paste/clear bar, keyboard entry, the phone
-  layout and the trig-look selector are G2b. No live per-step editing during playback.
+- **G2b Roll:** Pads/Roll are two projections of the same MIDI-key pattern. Roll
+  rows are indexed by note; only one pitch can sound on a step today (chords remain
+  reserved for a later version). Click an empty cell to add a note, drag right to tie,
+  drag vertically to change pitch; double-click/right-click to delete. Under the
+  note grid, lollipop lanes edit velocity, gate, Mod 1 and Mod 2. The inspector
+  also accepts typed Mod 1/2 percentages. The Roll scrolls within its card,
+  rather than widening the web page. Roll note buttons are keyboard-focusable:
+  arrow keys move by step or pitch; Enter/Space enters a note, and Backspace
+  removes it. Focus a Roll value slider and use arrow keys or Home/End to edit
+  its value.
+- **Scale and bar tools:** root and Chromatic/Major/Minor/Pentatonic scale selections
+  mark the pitch guide and affect subsequent pitch gestures, not saved note data.
+  The choice is saved with the patch in `ui.groove["<moduleId>"] = {"root": 0..11,
+  "scale": "<name>"}` (one undo step per change); the engine ignores it and the
+  module config never holds it.
+  Copy snapshots the selected (up to 16-step) bar. Paste and Clear each create a
+  single undoable edit; existing unknown step keys are preserved. Each bar of
+  16 steps becomes two rows of eight on narrow screens.
+- **Keyboard:** focus the Groove first. Space Play/Stop, arrows move the selected
+  step or pitch (Shift = octave), A/W/S/E/D/F/T/G/Y/H/U/J/K enter chromatic
+  notes at the selected step, Z/X change keyboard octave, hyphen makes a tie,
+  Backspace clears a trig, 1/2 select track, Ctrl/Cmd+Z undo (Shift = redo).
+- **Looks:** Graphite (default), Oxblood and LED only change the appearance;
+  no style choice or scale setting is saved to the module config.
+  No live per-step editing during playback.
 Example (a 16-step bass, one 50 % trig and one 1:4 trig with a short tie):
 `{"version":2,"bpm":120,"tracks":[{"length":16,"steps":[{"kind":"note","key":36,"velocity":0.9},`
 `{"kind":"tie","gate":0.5},{"kind":"rest"},{"kind":"note","key":43,"velocity":0.7,"cond":{"type":"chance","p":50}},`

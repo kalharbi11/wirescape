@@ -92,3 +92,101 @@
   box-shadow: 0 6px 24px rgba(0,0,0,.08); padding: 10px; display: grid; grid-template-columns: repeat(5, auto); gap: 4px; }
 .g-ph { grid-column: 1 / -1; font: 500 8.5px var(--mono, monospace); letter-spacing: .09em; color: var(--mute, #8c8c88); text-transform: uppercase; padding: 4px 4px 2px; }
 @media (prefers-reduced-motion: reduce) { .g-pad { transition: none; } }
+
+/* G2b: the scale is a visual guide; Roll notes are keyed by MIDI pitch. */
+.g-head { padding-bottom: 11px; }
+.g-identity { font: 600 11px var(--mono, monospace); letter-spacing: .11em; }
+.g-lanes { gap: 5px; }
+.g-select { min-height: 28px; border: 0; border-bottom: 1px dotted var(--hair, #c6c6c2);
+  background: var(--card, #fff); font: 11px var(--mono, monospace); max-width: 112px; }
+.groove-pane:focus { outline: none; }
+.groove-pane:focus-visible { outline: 2px solid var(--hair, #c6c6c2); outline-offset: 2px; }
+.groove-pane[data-look='oxblood'] {
+  --n-bg: #7c2e15; --n-bd: #7c2e15; --t-bg: #eee1db; --t-bd: #d9a58e; --band: #d9a58e;
+}
+.groove-pane[data-look='oxblood'] .g-pad.play.note { background: #d9632e; border-color: #d9632e; }
+.groove-pane[data-look='led'] {
+  --n-bg: #fff; --n-fg: #3a3a38; --n-bd: #5a5a58; --t-bg: #f0f0ee; --t-bd: #b9b9b4;
+}
+.groove-pane[data-look='led'] .g-pad.play.note {
+  background: #fff; border: 2px solid var(--rust, #c2501f);
+}
+.groove-pane[data-look='led'] .g-pad.note + .g-slot { background: #a15e49; }
+.groove-pane[data-look='led'] .g-slot.play { background: var(--rust, #c2501f); }
+.g-roll { overflow: auto; max-width: 100%; max-height: 440px; border: .5px solid var(--hair2, #e2e2df);
+  border-radius: 5px; overscroll-behavior: contain; }
+.g-rrow { display: flex; width: max-content; min-height: 27px; }
+.g-rlabel { position: sticky; left: 0; z-index: 2; width: 44px; flex: 0 0 44px;
+  box-sizing: border-box; padding: 7px 4px; background: var(--card, #fff);
+  font: 9px var(--mono, monospace); color: var(--mute, #8c8c88); text-align: right; }
+.g-rlabel.in-scale { color: var(--graph, #2e2e2d); font-weight: 600; }
+.g-rcells { display: grid; width: max-content; }
+.g-roll-cell { height: 27px; position: relative; box-sizing: border-box; border: .5px solid var(--hair2, #e2e2df);
+  background: var(--card2, #f4f4f2); cursor: crosshair; }
+.g-roll-cell:nth-child(4n + 1) { border-left-color: var(--hair, #c6c6c2); }
+.g-roll-cell.bar-edge { border-left: 1.5px solid var(--graph, #2e2e2d); }
+.g-roll-cell.note { background: var(--n-bg); border-color: var(--n-bd); border-radius: 3px; }
+.g-roll-cell.tie { background: var(--t-bg); border-color: var(--t-bd); }
+.g-roll-cell.sel { box-shadow: inset 0 0 0 1px var(--graph, #2e2e2d); }
+.g-roll-cell.play { outline: 2px solid var(--rust, #c2501f); outline-offset: -2px; }
+.g-roll-cell.skip { opacity: .28; }
+.g-roll-cell.chg::after { content: ''; position: absolute; width: 4px; height: 4px; left: 1px; top: 1px;
+  border-radius: 50%; background: var(--rust, #c2501f); }
+.g-rcond { position: absolute; top: 1px; right: 1px; font: 6.5px var(--mono, monospace); color: var(--n-fg); }
+@media (max-width: 759px) {
+  .groove-pane { --g-pad: clamp(30px, calc((100vw - 60px) / 8), 41px);
+    --g-gap: 3px; --g-group: 6px; --g-hit: 44px; max-width: min(100%, calc(100vw - 24px)); }
+  [data-hit='touch'] .groove-pane { --g-pad: clamp(30px, calc((100vw - 60px) / 8), 41px);
+    --g-gap: 3px; --g-group: 6px; --g-hit: 44px; }
+  .g-transport, .g-tracks, .g-lanes { gap: 5px; }
+  .g-status { min-width: 92px; }
+  .g-ttab { gap: 4px; }
+  .g-nm { display: none; }
+  .g-lanes .g-seg { flex: 0 0 auto; }
+  .g-lanes { overflow-x: auto; flex-wrap: nowrap; max-width: 100%; padding-bottom: 4px; }
+  .g-lanes .g-sp { display: none; }
+  .g-bar { display: block; max-width: 100%; }
+  .g-barn { display: block; width: auto; padding: 0 0 5px; text-align: left; }
+  .g-pads { flex-wrap: wrap; width: calc(var(--g-pad) * 8 + var(--g-gap) * 6 + var(--g-group));
+    max-width: 100%; column-gap: var(--g-group); row-gap: var(--g-group); }
+  .g-pad { border-radius: 5px; }
+  .g-nn { font-size: 10px; }
+  .g-insp { gap: 9px 14px; }
+  .g-roll { max-width: 100%; touch-action: pan-x pan-y; }
+}
+
+.g-pad.note.off-scale .g-nn { text-decoration: underline dotted; text-underline-offset: 3px; }
+
+.g-vrow { border-top: .5px solid var(--hair2, #e2e2df); background: var(--card, #fff); }
+.g-vrow:first-of-type { margin-top: 8px; }
+.g-vcell { height: 35px; box-sizing: border-box; border-left: .5px solid var(--hair2, #e2e2df);
+  position: relative; cursor: ns-resize; }
+.g-vcell.bar-edge { border-left: 1.5px solid var(--graph, #2e2e2d); }
+.g-vcell.disabled { opacity: .2; cursor: default; }
+.g-vstem { position: absolute; bottom: 6px; left: calc(50% - .5px); width: 1px;
+  background: var(--graph, #2e2e2d); pointer-events: none; }
+.g-vdot { position: absolute; left: -2.5px; top: -3px; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--graph, #2e2e2d); }
+
+
+
+/* The canvas card has an inline desktop width and generous rail gutters.
+   Override both at phone size; hiding the jack visuals never removes patch cables. */
+@media (max-width: 759px) {
+  .module:has(.groove-pane) { width: calc(100vw - 16px) !important; max-width: calc(100vw - 16px); }
+  .module:has(.groove-pane) .module-body {
+    padding-left: 8px !important; padding-right: 8px !important;
+  }
+  .module:has(.groove-pane) .panel-core { padding-left: 0; padding-right: 0; }
+  .module:has(.groove-pane) .port,
+  .module:has(.groove-pane) .port-ctl { display: none; }
+}
+
+.g-vcell.play { border-left: 2px solid var(--rust, #c2501f); }
+
+/* Keyboard access to roving Roll note buttons and lollipop value sliders. */
+.g-roll-cell:focus-visible, .g-vcell:focus-visible {
+  position: relative; z-index: 1;
+  outline: 2px solid var(--rust, #c2501f);
+  outline-offset: -2px;
+}

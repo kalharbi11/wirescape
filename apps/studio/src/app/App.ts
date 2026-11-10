@@ -205,6 +205,8 @@ export class App {
         undo: () => this.undo(), redo: () => this.redo(),
         canUndo: () => !!this.history?.canUndo, canRedo: () => !!this.history?.canRedo,
         onChange: cb => this.grooves.onChange(cb),
+        scale: id => this.doc.grooveScale(id),
+        setScale: (id, root, scale) => this.doc.setGrooveScale(id, root, scale), // UI-only: no engine load
       },
       engineDisconnect: c => {
         this.editEngine().disconnect(c);
@@ -1338,7 +1340,12 @@ export class App {
     window.addEventListener('keydown', e => {
       if (this.documentBusy) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       if (isTyping() || this.settings.isOpen || this.shortcuts.isOpen) return;
+      // Groove's focused step editor owns Delete/Backspace and its Undo/Redo.
+      // A global delete would otherwise remove the selected module before it can
+      // clear a step. Let other global shortcuts (Save, Open, etc.) work normally.
       const mod = e.ctrlKey || e.metaKey;
+      if ((e.target as HTMLElement).closest('.groove-pane') &&
+          (e.key === 'Delete' || e.key === 'Backspace' || (mod && e.key.toLowerCase() === 'z'))) return;
       if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); void this.savePatchFile(); return; }
       if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); void this.openPatchFile(); return; }
       if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); this.canvas.selectAll(); return; }
