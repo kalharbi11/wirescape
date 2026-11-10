@@ -50,6 +50,7 @@ export class Panel {
   /** Elements the card puts in its header (e.g. the KNOBS/GRAPH switch). */
   readonly headerEls: HTMLElement[] = [];
   private widgets = new Map<string, Widget>();
+  private performanceWidgets = new Map<string, Widget>();
   private panes: Pane[] = [];
   private sections: { row: HTMLElement; label?: HTMLElement; params: string[] }[] = [];
 
@@ -80,6 +81,7 @@ export class Panel {
       if (pane.headerEl) this.headerEls.push(pane.headerEl);
     }
     if (this.panes.length) this.root.append(displays);
+    if (d.id === 'essentials.chaos_lite') this.root.append(this.buildPerformanceStrip());
 
     const controls = el('div', 'panel-controls');
     for (const s of this.layout.sections) {
@@ -181,12 +183,14 @@ export class Panel {
   /** Re-read every value from the document (after undo, load, or refusal). */
   refresh(): void {
     for (const w of this.widgets.values()) w.refresh();
+    for (const w of this.performanceWidgets.values()) w.refresh();
     this.refreshVisibility();
     for (const p of this.panes) p.refresh?.();
   }
   /** Repaint one parameter's widget, if it has one. */
   refreshParam(id: string): void {
     this.widgets.get(id)?.refresh();
+    this.performanceWidgets.get(id)?.refresh();
     // A manual knob/CC edit changes the current preset match even though
     // the header selector is not a widget for that parameter ID.
     this.widgets.get('preset.header')?.refresh();
@@ -223,7 +227,46 @@ export class Panel {
 
   destroy(): void {
     for (const w of this.widgets.values()) w.destroy();
+    for (const w of this.performanceWidgets.values()) w.destroy();
     for (const p of this.panes) p.destroy();
+  }
+
+  /** A second view of the same parameters; sections 01–06 remain the full editor. */
+  private buildPerformanceStrip(): HTMLElement {
+    const strip = el('section', 'chaos-performance-strip');
+    strip.dataset.testid = `chaos-performance-strip-${this.moduleId}`;
+    strip.setAttribute('aria-label', 'CHAOS performance controls');
+    const groups: [string, string[]][] = [
+      ['Tone', ['shape_a', 'shape_b', 'detune']],
+      ['Motion', ['drift', 'lfo_depth', 'lfo_rate', 'lfo_shape']],
+      ['Edge', ['roughness', 'depth']],
+      ['Body', ['body_mix', 'feedback']],
+      ['Brightness', ['cutoff']],
+    ];
+    for (const [name, ids] of groups) {
+      const group = el('div', 'chaos-performance-group');
+      group.append(el('div', 'chaos-performance-title', name));
+      const row = el('div', 'chaos-performance-knobs');
+      for (const id of ids) {
+        const p = findParam(this.d, id);
+        if (!p) continue;
+        const knob = new Knob({
+          param: { ...p, name: this.layout.short[id] ?? p.name },
+          moduleId: this.moduleId, tier: 'S', variant: 'performance', ticker: this.host.ticker,
+          getValue: () => this.value(id),
+          setValue: (value, commit) => this.host.commitParam(this.moduleId, id, value, commit),
+          getMods: () => this.host.doc.modsInto(this.moduleId, id),
+          describeSource: c => this.host.describeSource(c),
+          cableColor: c => this.host.cableColor(c),
+          sourceValue: c => this.host.ticker.last?.outputs?.[`${c.from.module}:${c.from.port}`] ?? 0,
+        });
+        this.performanceWidgets.set(id, knob);
+        row.append(knob.root);
+      }
+      group.append(row);
+      strip.append(group);
+    }
+    return strip;
   }
 
   private value(id: string): number {
