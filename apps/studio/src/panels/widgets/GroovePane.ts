@@ -703,15 +703,17 @@ export class GroovePane {
         this.edit(cfg => this.moveRollNote(cfg, i, key, next), orig);
       }
     };
-    const up = () => {
+    const up = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
       // Two clicks (no drag) on the same existing note delete it. Counted here because
       // the first click re-renders the grid, so the browser's dblclick never fires.
+      // A pointercancel (touch scroll, gesture takeover) is never a click.
+      const click = !mode && ev.type === 'pointerup';
       const now = performance.now(), prev = this.lastRollPress;
-      this.lastRollPress = !mode && current ? { i, key, at: now } : null;
-      if (!mode && current && prev && prev.i === i && prev.key === key && now - prev.at < 400) {
+      this.lastRollPress = click && current ? { i, key, at: now } : null;
+      if (click && current && prev && prev.i === i && prev.key === key && now - prev.at < 400) {
         this.lastRollPress = null;
         this.deleteRollNote(i, key);
         return;
@@ -769,9 +771,9 @@ export class GroovePane {
     if (handled) { e.preventDefault(); e.stopPropagation(); }
   }
 
-  /** Commit one History entry only when every simultaneously pressed piano key is released. */
   /** Forget held keys without writing anything. */
   private dropHeld(): void { this.held.clear(); this.entry = null; this.heldNotes = []; }
+  /** Commit one History entry only when every simultaneously pressed piano key is released. */
   private keyUp(e: KeyboardEvent): void {
     const key = e.key.toLowerCase();
     if (!this.held.delete(key) || this.held.size || !this.entry || !this.heldNotes.length) return;
