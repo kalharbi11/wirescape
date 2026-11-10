@@ -115,6 +115,18 @@ add_subdirectory(tools/render)
 # Offline analysis tests only; real endpoint capture is always a manual command.
 add_subdirectory(tools/capture)
 
+# Independent localhost UDP worker; production Session integration follows in OSC B.
+add_library(wirescape_osc_service STATIC io/net/osc_service.cpp)
+target_include_directories(wirescape_osc_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(wirescape_osc_service PUBLIC Threads::Threads)
+if(WIN32)
+  target_link_libraries(wirescape_osc_service PUBLIC ws2_32)
+endif()
+add_executable(abi2_osc_host_service_tests io/net/tests.cpp)
+target_link_libraries(abi2_osc_host_service_tests PRIVATE wirescape_osc_service)
+add_test(NAME abi2_osc_host_service_tests COMMAND abi2_osc_host_service_tests)
+set_tests_properties(abi2_osc_host_service_tests PROPERTIES TIMEOUT 30)
+
 # Qt-free stdio engine process; no devices without explicit confirmation.
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
 execute_process(COMMAND git rev-parse --short=12 HEAD WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
