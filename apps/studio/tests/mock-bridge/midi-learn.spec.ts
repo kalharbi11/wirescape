@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { test, expect } from '@playwright/test';
-import { boot } from '../helpers';
+import { boot, state } from '../helpers';
 import { mockBridge } from './bridge';
 
 test('RealEngine capability-gates MIDI Learn and forwards latest CC status', async ({ page }) => {
@@ -74,4 +74,67 @@ test('FakeEngine Learn never edits saved CC rows or opaque document fields', asy
     return { before, after: JSON.stringify(api.state()) };
   });
   expect(state.after).toEqual(state.before);
+});
+
+const learnKnob = async (page: import('@playwright/test').Page, id: number, param: string, controller: number) => {
+  await page.getByTestId(`knob-${id}-${param}`).click({ button: 'right' });
+  await page.getByTestId('context-midi').click();
+  await expect(page.getByTestId('learn-bar')).toBeVisible();
+  // The mock engine arms after its reply delay; a CC sent earlier is ignored, so retry until captured.
+  await expect(async () => {
+    await page.evaluate(c => (window as any).__mockBridge.captureCc('M8 MIDI 1|M8:M8 MIDI 1', 3, c, 64), controller);
+    await expect(page.getByTestId('learn-message')).toHaveText(`CC ${controller} · ch 3 · M8 MIDI 1`, { timeout: 500 });
+  }).toPass({ timeout: 10_000 });
+};
+
+test('Learn over the real bridge sends one loadGraph with the row, cable and MIDI In; Forget sends another', async ({ page }) => {
+  await mockBridge(page);
+  await boot(page);
+  await page.evaluate(() => {
+    window.__wirescapeTest.load({ format: 'wirescape.native.patch', version: 2,
+      modules: [{ id: 2, module: 'essentials.vcf' }], connections: [],
+      ui: { positions: { '2': [900, 80] }, labels: {}, view: { x: 0, y: 0, zoom: 1 } } }, 'Test');
+    window.__wirescapeTest.zoomTo(1);
+  });
+  await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
+  await expect.poll(() => page.evaluate(() => (window as any).__mockBridge.getGraph().modules.length)).toBe(1);
+  await page.evaluate(() => { (window as any).__mockBridge.sent.length = 0; });
+
+  await learnKnob(page, 2, 'cutoff', 74);
+  await page.getByTestId('learn-confirm').click();
+  await expect.poll(() => page.evaluate(() => (window as any).__mockBridge.getGraph().modules.length)).toBe(3);
+  const wire = await page.evaluate(() => (window as any).__mockBridge.sent.filter((m: any) => m.type !== 'midiLearn'
+    && !String(m.type).startsWith('list')));
+  expect(wire.map((m: any) => m.type)).toEqual(['loadGraph']);
+  const graph = await page.evaluate(() => (window as any).__mockBridge.getGraph());
+  const cc = graph.modules.find((m: any) => m.module === 'midi.cc_to_cv');
+  expect(cc.config).toEqual({ rows: [{ channel: 3, controller: 74 }] });
+  expect(graph.connections.filter((c: any) => c.kind === 'modulation').map((c: any) => c.to.port)).toEqual(['cutoff']);
+  expect((await state(page)).modules.find((m: any) => m.module === 'midi.cc_to_cv').config).toEqual(cc.config);
+  const armed = await page.evaluate(() => (window as any).__mockBridge.sent.filter((m: any) => m.type === 'midiLearn').map((m: any) => m.armed));
+  expect(armed).toEqual([true, false]);
+
+  await page.getByTestId('knob-2-cutoff').click({ button: 'right' });
+  await page.getByTestId('context-forget').click();
+  await expect.poll(() => page.evaluate(() =>
+    (window as any).__mockBridge.getGraph().connections.filter((c: any) => c.kind === 'modulation').length)).toBe(0);
+});
+
+test('a refused Learn leaves the document and the engine on the previous graph', async ({ page }) => {
+  await mockBridge(page);
+  await boot(page);
+  await page.evaluate(() => {
+    window.__wirescapeTest.load({ format: 'wirescape.native.patch', version: 2,
+      modules: [{ id: 2, module: 'essentials.vcf' }], connections: [],
+      ui: { positions: { '2': [900, 80] }, labels: {}, view: { x: 0, y: 0, zoom: 1 } } }, 'Test');
+    window.__wirescapeTest.zoomTo(1);
+  });
+  await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
+  await expect.poll(() => page.evaluate(() => (window as any).__mockBridge.getGraph().modules.length)).toBe(1);
+  await learnKnob(page, 2, 'cutoff', 74);
+  await page.evaluate(() => (window as any).__mockBridge.refuseNext('loadGraph', 'refused'));
+  await page.getByTestId('learn-confirm').click();
+  await expect.poll(async () => (await state(page)).modules.length).toBe(1);
+  expect((await state(page)).connections).toEqual([]);
+  expect(await page.evaluate(() => (window as any).__mockBridge.getGraph().modules.length)).toBe(1);
 });

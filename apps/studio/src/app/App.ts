@@ -26,6 +26,8 @@ import { sharedPatches } from './SharedPatches';
 import { playableStarters } from '../web/starters';
 import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } from '../theme/theme';
 import { el } from './dom';
+import { MidiLearn } from './MidiLearn';
+import { commitLearn, forgetLearn, learnedCables, type LearnCapture, type LearnServices, type LearnTarget } from './ccLearn';
 import demoChaos from '../../../../native/examples/class_demo_1_chaos.json' with { type: 'json' };
 import demoSub from '../../../../native/examples/class_demo_2_subtractive.json' with { type: 'json' };
 import demoMacro from '../../../../native/examples/class_demo_3_macro.json' with { type: 'json' };
@@ -67,6 +69,7 @@ export class App {
   private nameEl!: HTMLElement;
   private octaveEl!: HTMLElement;
   private lastStatus: SystemStatus | null = null;
+  private learn!: MidiLearn;
   private fileInput!: HTMLInputElement;
   private history!: History;
   private undoBtn!: HTMLButtonElement;
@@ -118,7 +121,26 @@ export class App {
 
     this.quick = new QuickAdd(this.registry);
 
+    this.learn = new MidiLearn({
+      engine: this.engine,
+      label: t => {
+        const m = this.doc.modules.get(t.module);
+        const d = m && this.registry.get(m.module);
+        const p = d && findParam(d, t.param);
+        return `${this.doc.label(t.module) ?? d?.name ?? '#' + t.module} · ${p?.name ?? t.param}`;
+      },
+      deviceName: id => this.lastStatus?.midi.devices.find(d => d.id === id)?.name ?? id.split('|')[0] ?? id,
+      commit: (t, c, any) => this.commitLearn(t, c, any),
+      toast: (m, tone) => this.toasts.show(m, tone),
+    });
+
     this.canvas = new PatchCanvas({
+      midiLearn: {
+        available: () => this.learn.available(),
+        begin: (m, p) => this.learn.begin(m, p),
+        mapped: (m, p) => learnedCables(this.doc, { module: m, param: p }).length > 0,
+        forget: (m, p) => this.forgetLearn({ module: m, param: p }),
+      },
       doc: this.doc,
       ticker: this.ticker,
       registry: this.registry,
@@ -176,7 +198,7 @@ export class App {
 
     this.root.append(
       this.library.root, main, this.libraryScrim, this.toasts.root, this.quick.root,
-      this.devPanel.root, this.settings.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
+      this.devPanel.root, this.learn.root, this.settings.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
     );
 
     this.attachDropTarget();
@@ -700,6 +722,39 @@ export class App {
       this.toasts.show(err instanceof EngineRefusal ? err.message : 'The engine refused that change.', 'error');
     }
     if (commit && paramId === 'bpm' && this.lastStatus) this.statusBar.update(this.lastStatus);
+  }
+
+  private learnServices(): LearnServices {
+    return {
+      doc: this.doc,
+      allocateId: () => this.allocateId(),
+      reload: previous => {
+        void this.engine.loadGraph(this.doc.toJSON()).catch(err => {
+          this.doc.replace(previous);
+          void this.engine.loadGraph(previous);
+          this.toasts.show(err instanceof Error ? err.message : 'The engine refused that change.', 'error');
+        });
+      },
+    };
+  }
+
+  /** MIDI Learn confirmed (#287): write the CC row, cable it onto the knob, one undo step. */
+  private commitLearn(target: LearnTarget, capture: LearnCapture, anyChannel: boolean): void {
+    try {
+      const r = commitLearn(this.learnServices(), target, capture, anyChannel);
+      const note = r.notes.length ? ` (${r.notes.join('; ')})` : '';
+      this.toasts.show(`CC ${capture.controller} learned${note}.`);
+    } catch (err) {
+      this.toasts.show(err instanceof EngineRefusal || err instanceof Error ? err.message : 'MIDI Learn failed.', 'error');
+    }
+  }
+
+  private forgetLearn(target: LearnTarget): void {
+    try {
+      if (forgetLearn(this.learnServices(), target)) this.toasts.show('MIDI mapping forgotten.');
+    } catch (err) {
+      this.toasts.show(err instanceof Error ? err.message : 'Could not forget the mapping.', 'error');
+    }
   }
 
   private setMidiEndpoint(moduleId: number, endpoint: string, systemName?: string): void {

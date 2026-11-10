@@ -205,6 +205,25 @@ export class PatchDoc {
     this.emit({ t: 'config', id });
   }
 
+  /** The explicit `config.rows` of a `midi.cc_to_cv` module (rows beyond them keep their CC n defaults). */
+  ccRows(id: number): Record<string, unknown>[] {
+    const m = this.modules.get(id);
+    const rows = m?.module === 'midi.cc_to_cv' && m.config && typeof m.config === 'object'
+      ? (m.config as { rows?: unknown }).rows : undefined;
+    return Array.isArray(rows) ? rows.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object') : [];
+  }
+
+  /** Replace a CC module's rows, keeping every other config key it carries. */
+  setCcRows(id: number, rows: Record<string, unknown>[]): void {
+    const m = this.modules.get(id);
+    if (!m || m.module !== 'midi.cc_to_cv') return;
+    const current = m.config;
+    const config = current && typeof current === 'object' && !Array.isArray(current)
+      ? current as Record<string, unknown> : {};
+    m.config = { ...config, rows: structuredClone(rows) };
+    this.emit({ t: 'config', id });
+  }
+
   // ---- connections ------------------------------------------------------
 
   has(c: Connection): boolean {
