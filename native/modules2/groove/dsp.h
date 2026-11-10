@@ -284,9 +284,10 @@ struct Sequencer {
                 b.out(base + 1).ch(0)[i] = p.sounding.on ? 1.f : 0.f;
                 b.out(base + 2).ch(0)[i] = p.mod1;
                 b.out(base + 3).ch(0)[i] = p.mod2;
-                // STOP is complete only after transport and every owed release
-                // have stopped. A refused NOTE_OFF keeps the observed position.
-                const bool active = p.playing || p.pending.on || p.sounding.on;
+                // STOP is complete only after the global transport, this track and
+                // every owed release have stopped. A disarmed track under a running
+                // transport is not stopped; a refused NOTE_OFF keeps the position.
+                const bool active = running || p.playing || p.pending.on || p.sounding.on;
                 b.out(10 + t).ch(0)[i] = active ? static_cast<float>(step) : -1.f;
                 b.out(12 + t).ch(0)[i] = static_cast<float>(p.loop & 0xffffu);
                 b.out(14 + t).ch(0)[i] = p.fired ? 1.f : 0.f;

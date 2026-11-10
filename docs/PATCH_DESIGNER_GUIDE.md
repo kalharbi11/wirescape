@@ -293,8 +293,8 @@ contract. UI/FakeEngine preview alone does not prove DSP or audible playback.
 ## Groove observation outputs (PR #501)
 
 Groove observation outputs append to its existing pitch/gate/mod/notes ports:
-`t1_pos` and `t2_pos` report 0-based steps while active and -1 only after
-transport and all owed note releases finish. Mute and STOP request acknowledgement
+`t1_pos` and `t2_pos` report 0-based steps while active and -1 only after the global
+transport, the track and all owed note releases finish. Mute and STOP request acknowledgement
 do not mean fully stopped. `t1_fired`/`t2_fired` are 0/1 condition results
 (including a passed trig's continued ties). Exact per-track uint32 loop counts
 use paired `t1_loop_lo`/`t1_loop_hi` and `t2_loop_lo`/`t2_loop_hi` signals,

@@ -138,4 +138,11 @@ int main() {
     CHECK(rig.offs == 1 && rig.ons == 1 && rig.values[10] == -1 && rig.values[14] == 0);
     rig.sequencer.reset(); rig.render();
     CHECK(rig.values[10] == -1 && rig.values[12] == 1 && rig.values[16] == 0);
+    // Global transport running with both tracks disarmed is not a completed STOP.
+    Rig idle;
+    idle.render();
+    for (auto &p : idle.sequencer.players) p.armed = false;
+    idle.controls[0] = 1; idle.render();
+    CHECK(idle.sequencer.running && idle.ons == 0);
+    CHECK(idle.values[10] >= 0 && idle.values[11] >= 0);
 }

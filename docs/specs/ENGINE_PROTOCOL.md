@@ -139,7 +139,7 @@ When `hello.capabilities` advertises **`telemetry.playhead`**, optional
 are installed together. Both maps come from the **same render-owned last-frame
 snapshot**, including uncabled Groove observation outputs. `step` (also the
 corresponding `playhead` value) is an integer 0..63 while active, or **-1 only
-when transport has stopped, its gate is zero and all owed NOTE_OFFs have drained**;
+when the global transport and the track have stopped, its gate is zero and all owed NOTE_OFFs have drained** (a disarmed track under a running transport reports the transport step);
 `playing` is exactly `step >= 0`. Mute or a queued STOP/ACK does not prove STOP.
 `loop` is the exact uint32 per-track loop count (starts 1 on Start/Reset);
 the native sampler reconstructs the low/high 16-bit signal halves off-render.
