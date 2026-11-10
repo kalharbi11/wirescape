@@ -411,7 +411,7 @@ listener exists in builds lacking B.
 
 **Example wiring (native Electron after B):** add an `osc.in` with
 `config: {"port":9000,"lan":false}`, patch `osc.in.row1` to the
-`essentials.vca.cv` signal input, and send an OSC 1.0 float message to
+`essentials.vca.gain_cv` signal input, and send an OSC 1.0 float message to
 `127.0.0.1:9000` at address `/pico1/knob/1` with a value in 0–1.
 The `monitor` module's `events`, `in1` and `in2` ports exist, but the
 user-facing Monitor log is a **separate slice C**; do not claim it is visible
