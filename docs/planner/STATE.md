@@ -52,7 +52,8 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 ## Housekeeping notes
 - 2026-11-10 tiers (Keel): seniors Codex Lead + **Coda** (Claude; routine cross-family T2
   via `Coda: T2 batch`), scheduled **helpers** (`lane/helper`). Briefs: docs/planner/LEADS.md.
-  Gate-v4 wording fixed; W_GATE_V4.md moved to done/.
+  v3.1 trim (AGENTS 15→~8 KB, LEADS 26→~13 KB, queue mode); automation and read-surface
+  moves deferred to the cleanup: docs/planner/USAGE_DEFERRED.md.
 - docs/tasks/README.md lists task files still cited by open work; move them to done/
   when those PRs merge.
 - Permanent: required guard/Linux/Windows/sanitizers + task/Web/WASM/Pi as applicable.
