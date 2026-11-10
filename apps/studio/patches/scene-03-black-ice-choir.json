@@ -1,7 +1,7 @@
 {
   "SPDX-License-Identifier": "GPL-3.0-only",
   "name": "Scene 3 · Black Ice Choir (CHAOS pad)",
-  "description": "A cold, choir-like pad: play slow chords on the keyboard and let CHAOS-lite's comb body breathe under two slow tides, then drift through a ping-pong ghost echo and a big hall. Try CHAOS body_mix, feedback and route depth for colder or glassier choirs, and the Slow apparition attack and release for how voices fade in and out.",
+  "description": "A cold, shifting CHAOS pad for sustained keyboard chords. CHAOS gate is intentionally unpatched; poly ADSR-controlled left/right VCAs shape the actual release after note-off. Two slow external LFOs move body tuning and filter cutoff through a ghost echo and long hall. Performance controls to expose: body_mix, body_tune, feedback, cutoff, route/depth, drift, and ADSR attack/release. Avoid large cutoff modulation amounts: they span its entire 20–20,000 Hz range.",
   "format": "wirescape.native.patch",
   "version": 2,
   "settings": {
@@ -49,7 +49,7 @@
         "lfo_depth": 0.45,
         "lfo_self": 0.35,
         "cutoff": 3400,
-        "level": 1.0
+        "level": 1
       }
     },
     {
@@ -68,7 +68,7 @@
       "module": "essentials.vca",
       "version": 2,
       "parameters": {
-        "gain": 2.0
+        "gain": 2
       }
     },
     {
@@ -76,7 +76,7 @@
       "module": "essentials.vca",
       "version": 2,
       "parameters": {
-        "gain": 2.0
+        "gain": 2
       }
     },
     {
@@ -146,17 +146,6 @@
       "to": {
         "module": 2,
         "port": "pitch"
-      }
-    },
-    {
-      "kind": "signal",
-      "from": {
-        "module": 1,
-        "port": "gate"
-      },
-      "to": {
-        "module": 2,
-        "port": "gate"
       }
     },
     {
@@ -362,10 +351,6 @@
         2220,
         864
       ],
-      "11": [
-        3150,
-        192
-      ],
       "6": [
         4080,
         192
@@ -385,6 +370,10 @@
       "10": [
         1920,
         2560
+      ],
+      "11": [
+        3150,
+        192
       ]
     },
     "labels": {
