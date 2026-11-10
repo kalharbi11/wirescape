@@ -593,6 +593,119 @@ static void test_s1_refusals(AppEngine *cat) {
 }
 
 
+// Direct device-free render fixture for sample-accurate short gates and skipped ties.
+struct GrooveV2Rig {
+    groove::Sequencer seq;
+    std::array<float, 18> values{};
+    std::array<float *, 18> rows{};
+    std::array<ws2_signal_out, 18> outputs{};
+    std::array<ws2_event_out, 18> events{};
+    std::array<float, 10> controls{};
+    std::array<const float *, 10> control_rows{};
+    std::array<ws2_signal, 10> parameters{};
+    std::array<ws2_event, 16> accepted{};
+    uint32_t count = 0;
+    ws2_process raw{};
+    static int WS2_CALL push(void *ctx, uint32_t port, const ws2_event *event) {
+        auto &self = *static_cast<GrooveV2Rig *>(ctx);
+        if (port != 4 || self.count == self.accepted.size()) return WS2_CAPACITY;
+        self.accepted[self.count++] = *event;
+        return WS2_OK;
+    }
+    GrooveV2Rig() {
+        for (uint32_t i = 0; i < outputs.size(); ++i) {
+            rows[i] = &values[i];
+            outputs[i] = {sizeof(ws2_signal_out), &rows[i], 1, 0, 1};
+            events[i] = {sizeof(ws2_event_out), this, i, &GrooveV2Rig::push};
+        }
+        for (uint32_t i = 0; i < parameters.size(); ++i) {
+            control_rows[i] = &controls[i];
+            parameters[i] = {sizeof(ws2_signal), &control_rows[i], 1, WS2_CONSTANT};
+        }
+        raw.frames = 1;
+        raw.output_count = 18;
+        raw.outputs = outputs.data();
+        raw.event_outputs = events.data();
+        raw.param_count = 10;
+        raw.params = parameters.data();
+        seq.pattern.track_count = 1;
+        seq.pattern.tracks[0].length = 8;
+        seq.samples_per_step = 4.;
+        seq.reset();
+    }
+    void render() {
+        ws::Block b(raw);
+        allocation_watch::ThreadScope watch;
+        seq.process(b);
+        check(watch.allocations() == 0, "v2 render performs zero allocations");
+    }
+    void start() {
+        render(); // First-sample high is only a baseline; establish a low.
+        controls[0] = 1.f;
+        render();
+    }
+};
+static void test_v2_gates_and_skipped_ties() {
+    {
+        GrooveV2Rig rig;
+        auto &track = rig.seq.pattern.tracks[0];
+        track.steps[0] = {groove::Note, 60, 1.f, .25f, .75f, 1};
+        track.steps[1] = {groove::Rest};
+        rig.start();
+        check(rig.count == 1 && rig.accepted[0].type == WS2_NOTE_ON && rig.values[1] == 1,
+              "quarter gate admits the correct native note");
+        rig.render();
+        check(rig.count == 2 && rig.accepted[1].type == WS2_NOTE_OFF &&
+              rig.accepted[1].note_id == rig.accepted[0].note_id &&
+              rig.values[1] == 0 && rig.seq.step_t[0] == 0,
+              "quarter gate emits matching OFF one sample after onset before step wrap");
+    }
+    {
+        GrooveV2Rig rig;
+        auto &track = rig.seq.pattern.tracks[0];
+        track.steps[0] = {groove::Note, 60, 1.f, .25f, .75f, 1};
+        track.steps[1] = {groove::Tie, 60, 0.f, 0.f, 0.f, 3};
+        track.steps[2] = {groove::Rest};
+        rig.start();
+        check(rig.count == 1 && rig.seq.players[0].gate_cutoff == 7.,
+              "tie extends the note until three quarters into the last tied cell");
+        for (uint32_t i = 0; i < 6; ++i) rig.render();
+        check(rig.count == 1 && rig.values[1] == 1 &&
+              rig.seq.step_t[0] == 1, "tied note stays admitted through the tied step");
+        rig.render();
+        check(rig.count == 2 && rig.accepted[1].type == WS2_NOTE_OFF &&
+              rig.accepted[1].note_id == rig.accepted[0].note_id &&
+              rig.seq.step_t[0] == 1 && rig.values[1] == 0,
+              "last tie gate releases within its step, not at the next note");
+    }
+    {
+        GrooveV2Rig rig;
+        auto &track = rig.seq.pattern.tracks[0];
+        track.steps[0] = {groove::Note, 60, 1.f, .5f, .25f, 4, groove::AB, 2, 2};
+        track.steps[1] = {groove::Tie};
+        rig.start();
+        check(rig.count == 0 && !rig.seq.players[0].fired &&
+              rig.values[2] == .5f && rig.values[3] == .25f,
+              "failed A:B note becomes rest but still updates both CV mods");
+        for (uint32_t i = 0; i < 4; ++i) rig.render();
+        check(rig.count == 0 && !rig.seq.players[0].fired && rig.values[1] == 0,
+              "tie following failed condition cannot resurrect a note");
+    }
+    {
+        GrooveV2Rig rig;
+        rig.seq.pattern.tracks[0].steps[0] = {groove::Note, 60, 1.f, 0.f, 0.f, 4};
+        rig.seq.pattern.tracks[0].steps[1] = {groove::Rest};
+        rig.start();
+        for (uint32_t i = 0; i < 3; ++i) rig.render();
+        check(rig.count == 1 && rig.values[1] == 1,
+              "v1 full-step gate does not release early");
+        rig.render();
+        check(rig.count == 2 && rig.values[1] == 0 &&
+              rig.accepted[1].type == WS2_NOTE_OFF,
+              "full-step gate follows the original boundary release");
+    }
+}
+
 struct GrooveStateBuffer {
     std::array<uint8_t, 32> bytes{};
     uint32_t count = 0, cursor = 0;
@@ -781,6 +894,7 @@ int main() {
         test_refusals(cat.get());
         test_s1_refusals(cat.get());
         test_v2_config_and_conditions(cat.get());
+        test_v2_gates_and_skipped_ties();
         test_s1_transport(cat.get());
         test_s1_deliberate_saturation();
         test_s1_many_cycles(cat.get());
