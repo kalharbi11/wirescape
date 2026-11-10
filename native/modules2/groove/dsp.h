@@ -288,13 +288,16 @@ struct Sequencer {
     // One sixteenth-note tick. Track wraps are independent, while global STOP
     // waits for the longest armed/running track to realign with the master.
     void boundary(ws::Block &b, uint32_t i) {
-        step = (step + 1u) % master_steps();
+        // Preserve absolute 16-step bar alignment when the active track set
+        // changes (e.g. a 64-step track joins an already running 8-step track).
+        // All approved lengths divide 64, so modulo-64 is a bounded clock.
+        step = (step + 1u) % kSteps;
         for (uint32_t t = 0; t < kTracks; ++t) {
             step_t[t] = (step_t[t] + 1u) % pattern.tracks[t].length;
             auto &p = players[t];
             if (p.playing && step_t[t] == 0) ++p.loop;
         }
-        if (step == 0 && stop_queued) {
+        if (step % master_steps() == 0 && stop_queued) {
             release_all(b, i);
             running = stop_queued = reset_wait = false;
             for (auto &p : players) {
@@ -307,7 +310,7 @@ struct Sequencer {
             if (p.stop && step_t[t] == 0) {
                 release(b, t, i);
                 p.playing = p.armed = p.stop = p.enter = p.fired = p.skipped_cond = false;
-            } else if (p.enter && (pattern.authored_version == 1 ? step == 0 : step % 16u == 0)) {
+            } else if (p.enter && (pattern.authored_version == 1 ? step % 32u == 0 : step % 16u == 0)) {
                 p.playing = true;
                 p.enter = false;
                 p.loop = 1;
