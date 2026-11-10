@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { expect, test } from '@playwright/test';
-import catalogue from '../public/wirescape_modules.json';
+import catalogue from '../public/wirescape_modules.json' with { type: 'json' };
 import type { ModuleDescriptor } from '../src/modules/types';
 import { MODULE_PRESETS, matchingPreset, resolvePreset } from '../src/app/modulePresets';
 
