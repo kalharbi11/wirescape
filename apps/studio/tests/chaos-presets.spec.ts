@@ -62,6 +62,8 @@ test('preset resets every omitted parameter, saves/reloads and is exactly one Un
 });
 
 test('invalid injected preset shows a toast and preserves the patch and history', async ({ page }) => {
+  // Settle the module-add undo entry before measuring the invalid selection.
+  await flush(page);
   const before = await state(page);
   const depth = await page.evaluate(() => window.__wirescapeTest.historyDepth().past);
   await page.evaluate(() => {
