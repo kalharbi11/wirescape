@@ -17,7 +17,7 @@ and compare patch audio/state before/after (unchanged by construction).
 tier: T1
 size: <= 150 changed lines, <= 3 files
 must_pass:
-  - bash -lc "cd apps/studio && npm ci && npx playwright test tests/starters.spec.ts"
+  - bash -lc 'cd apps/studio && npm ci && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npx playwright test tests/starters.spec.ts'
   - ci: guard, linux-arm64, windows-x64, sanitizers, web green
 stops: [changing test thresholds, engine code, IDs, patch formats, unrelated layouts]
 ```
