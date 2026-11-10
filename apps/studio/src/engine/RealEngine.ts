@@ -26,7 +26,7 @@ type Edit = {
 type Pending = {
   session: string; type: string; kind: 'load' | 'edit' | 'query' | 'control' | 'restart';
   resolve?: (value: Wire) => void; reject?: (reason: EngineRefusal) => void;
-  revision?: number; edit?: Edit;
+  revision?: number; edit?: Edit; timeout?: number;
 };
 type Load = {
   id: string; patch: PatchV2; revision: number;
@@ -143,24 +143,34 @@ export class RealEngine implements EngineClient {
     }
     this.notifySettled();
   }
-  async waitForReady(): Promise<void> {
-    if (this.ready && this.state === 'real') return;
-    await new Promise<void>(resolve => {
+  private waitForSessionReady(session: string, timeout: number): Promise<void> {
+    if (this.session !== session && this.ready && this.state === 'real') return Promise.resolve();
+    return new Promise((resolve, reject) => {
       let off = () => {};
-      let ready = false;
+      const timer = window.setTimeout(() => {
+        off(); reject(refusal('unavailable', 'Engine restart timed out before the patch loaded.'));
+      }, timeout);
       off = this.onConnection(state => {
-        if (state === 'real') { ready = true; off(); resolve(); }
+        if (this.session !== session && this.ready && state === 'real') {
+          window.clearTimeout(timer); off(); resolve();
+        }
       });
-      if (ready) off();
     });
   }
-  restartEngine(): Promise<void> {
-    const id = this.id(), session = this.session;
+  restartEngine(timeoutMs = 10_000): Promise<void> {
+    const id = this.id(), session = this.session, deadline = Date.now() + timeoutMs;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { session, type: 'app.restartEngine', kind: 'restart',
-        resolve: () => resolve(), reject });
+      const timer = window.setTimeout(() => {
+        this.pending.delete(id); reject(refusal('unavailable', 'Engine restart timed out.'));
+      }, timeoutMs);
+      this.pending.set(id, { session, type: 'app.restartEngine', kind: 'restart', timeout: timer,
+        resolve: () => {
+          window.clearTimeout(timer);
+          void this.waitForSessionReady(session, Math.max(0, deadline - Date.now())).then(resolve, reject);
+        },
+        reject: err => { window.clearTimeout(timer); reject(err); } });
       try { this.bridge.send({ v: 0, id, type: 'app.restartEngine' }); }
-      catch { this.pending.delete(id); reject(refusal('unavailable', 'Could not restart engine.')); }
+      catch { window.clearTimeout(timer); this.pending.delete(id); reject(refusal('unavailable', 'Could not restart engine.')); }
     });
   }
   /** A document switch must keep its owner visible until all inverses have settled. */
@@ -192,6 +202,7 @@ export class RealEngine implements EngineClient {
   private rejectPending(error: EngineRefusal): void {
     for (const [id, p] of this.pending) {
       if (p.kind === 'restart') continue;
+      if (p.timeout !== undefined) window.clearTimeout(p.timeout);
       p.reject?.(error); this.pending.delete(id);
     }
     this.active = undefined;
@@ -293,6 +304,7 @@ export class RealEngine implements EngineClient {
     const g = generation(message.gen);
     if (p.kind !== 'restart' && (g === null || g < BigInt(this.gen))) return;
     this.pending.delete(message.re);
+    if (p.timeout !== undefined) window.clearTimeout(p.timeout);
     if (g !== null && g > BigInt(this.gen) && p.kind !== 'restart') {
       this.gen = message.gen as string;
       this.playhead = {}; this.statusGen = '';
