@@ -62,13 +62,13 @@ test('keyboard held notes write one chord on final release, then advance; 1 key 
   await page.keyboard.down('g');
   await page.keyboard.up('a');
   await page.keyboard.up('d');
-  expect((await cfg(page)).tracks[0].steps[1]?.kind ?? 'rest').toBe('rest');
+  expect((await cfg(page))?.tracks[0]?.steps[1]?.kind ?? 'rest').toBe('rest'); // nothing written yet
   await page.keyboard.up('g');
   expect((await cfg(page)).tracks[0].steps[1].keys).toEqual([60, 64, 67]);
   await expect(page.getByTestId('groove-pad-1-3')).toHaveClass(/sel/);
   await flush(page);
   await page.getByTestId('groove-undo-1').click();
-  await expect.poll(async () => (await cfg(page)).tracks[0].steps[1]?.kind ?? 'rest').toBe('rest');
+  await expect.poll(async () => (await cfg(page))?.tracks[0]?.steps[1]?.kind ?? 'rest').toBe('rest');
   await page.getByTestId('groove-redo-1').click();
   await expect.poll(async () => (await cfg(page)).tracks[0].steps[1]?.keys).toEqual([60, 64, 67]);
   await pane(page).focus();
@@ -93,8 +93,27 @@ test('six held keys still wait until every keyup, but save no more than five voi
   for (const key of ['a', 'w', 's', 'e', 'd', 'f']) await page.keyboard.down(key);
   await expect(pane(page).locator('.g-toast')).toHaveText('5 notes per step');
   for (const key of ['a', 'w', 's', 'e', 'd']) await page.keyboard.up(key);
-  expect((await cfg(page)).tracks[0].steps[4]?.kind ?? 'rest').toBe('rest');
+  expect((await cfg(page))?.tracks[0]?.steps[4]?.kind ?? 'rest').toBe('rest'); // nothing written yet
   await page.keyboard.up('f');
   expect((await cfg(page)).tracks[0].steps[4].keys).toEqual([60, 61, 62, 63, 64]);
   await expect(page.getByTestId('groove-pad-1-6')).toHaveClass(/sel/);
+});
+
+test('a window blur mid-chord drops the held keys; the next key enters a single note in one undo step', async ({ page }) => {
+  await page.getByTestId('groove-pad-1-2').click();
+  await pane(page).focus();
+  await page.keyboard.down('a');
+  await page.keyboard.down('d');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.keyboard.up('a');
+  await page.keyboard.up('d');
+  expect((await cfg(page))?.tracks[0]?.steps[1]?.kind ?? 'rest').toBe('rest'); // nothing written
+  await page.keyboard.down('g');
+  await page.keyboard.up('g');
+  const step = (await cfg(page)).tracks[0].steps[1];
+  expect(step).toMatchObject({ kind: 'note', key: 67 });
+  expect(step.keys).toBeUndefined();
+  await flush(page);
+  await page.getByTestId('groove-undo-1').click();
+  await expect.poll(async () => (await cfg(page))?.tracks[0]?.steps[1]?.kind ?? 'rest').toBe('rest');
 });

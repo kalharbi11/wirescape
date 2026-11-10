@@ -77,6 +77,7 @@ export function validKeys(key: number | undefined, keys: unknown): boolean {
  * otherwise uses the lowest. Writes `keys` (root first, rest ascending) only for
  * 2-5 notes; a single note deletes `keys` so it saves exactly as before G4.
  */
+// Caps at MAX_KEYS (lowest five kept); the editor toasts before a sixth note is offered.
 export function setNotes(step: { key?: number; keys?: unknown }, notes: readonly number[], root?: number): void {
   const uniq = [...new Set(notes.filter(k => Number.isInteger(k) && k >= 0 && k <= 127))].sort(asc).slice(0, MAX_KEYS);
   if (!uniq.length) return;

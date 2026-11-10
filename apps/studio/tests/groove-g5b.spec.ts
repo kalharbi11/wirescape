@@ -21,7 +21,8 @@ test.beforeEach(async ({ page }) => {
 
 test('Speed omits 1 and writes 2/4/8; Steps changes preserve speed and Undo/Redo', async ({ page }) => {
   const speed = (n: number) => page.getByTestId('groove-div-' + n + '-1');
-  expect((await config(page)).tracks[0].div).toBeUndefined();
+  // An untouched module saves no config at all, so no `div` either.
+  expect((await config(page))?.tracks?.[0]?.div).toBeUndefined();
   for (const div of [2, 4, 8]) {
     await speed(div).click();
     expect((await config(page)).tracks[0].div).toBe(div);

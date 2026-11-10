@@ -79,6 +79,7 @@ export class GroovePane {
   private toastTimer: number | undefined;
   private readonly held = new Map<string, number>();
   private heldNotes: number[] = [];
+  private lastRollPress: { i: number; key: number; at: number } | null = null;
   private entry: { track: number; step: number } | null = null;
   private unbind: (() => void)[] = [];
 
@@ -99,6 +100,17 @@ export class GroovePane {
     const released = (e: KeyboardEvent) => this.keyUp(e);
     window.addEventListener('keyup', released);
     this.unbind.push(() => window.removeEventListener('keyup', released));
+    // A key released while the window or pane lacks focus never reaches keyUp:
+    // drop the partial chord instead of letting it join the next key press.
+    const drop = () => this.dropHeld();
+    const hidden = () => { if (document.hidden) this.dropHeld(); };
+    window.addEventListener('blur', drop);
+    document.addEventListener('visibilitychange', hidden);
+    this.unbind.push(() => { window.removeEventListener('blur', drop); document.removeEventListener('visibilitychange', hidden); });
+    this.root.addEventListener('focusout', e => {
+      const to = e.relatedTarget as Node | null;
+      if (to && !this.root.contains(to)) this.dropHeld();
+    });
     this.root.dataset.look = this.view.look;
     this.root.dataset.testid = `groove-${id}`;
     this.status.dataset.testid = `groove-status-${id}`;
@@ -695,6 +707,15 @@ export class GroovePane {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
+      // Two clicks (no drag) on the same existing note delete it. Counted here because
+      // the first click re-renders the grid, so the browser's dblclick never fires.
+      const now = performance.now(), prev = this.lastRollPress;
+      this.lastRollPress = !mode && current ? { i, key, at: now } : null;
+      if (!mode && current && prev && prev.i === i && prev.key === key && now - prev.at < 400) {
+        this.lastRollPress = null;
+        this.deleteRollNote(i, key);
+        return;
+      }
       if (!mode && !current) this.enterRollNote(i, key);
       else if (!mode) this.select(i);
       this.grid.querySelector<HTMLElement>(
@@ -749,6 +770,8 @@ export class GroovePane {
   }
 
   /** Commit one History entry only when every simultaneously pressed piano key is released. */
+  /** Forget held keys without writing anything. */
+  private dropHeld(): void { this.held.clear(); this.entry = null; this.heldNotes = []; }
   private keyUp(e: KeyboardEvent): void {
     const key = e.key.toLowerCase();
     if (!this.held.delete(key) || this.held.size || !this.entry || !this.heldNotes.length) return;
