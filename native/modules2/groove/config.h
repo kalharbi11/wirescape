@@ -20,11 +20,14 @@ struct Step {
     uint8_t cond_type = Always;
     uint8_t cond_a = 0; // Chance percent or A in A:B.
     uint8_t cond_b = 0; // B in A:B.
+    uint8_t key_count = 1; // One note when the authored step omits "keys".
+    std::array<int32_t, 5> keys{{60, 0, 0, 0, 0}};
 };
 struct Track {
     uint32_t armed = 1;
     uint32_t mute = 0;
     uint32_t length = 32; // Legacy default; the v2 JSON adapter defaults new tracks to 16.
+    uint32_t div = 1; // Sixteenth ticks per track step (1, 2, 4 or 8).
     std::array<Step, 64> steps{};
 };
 struct Config {
@@ -35,7 +38,7 @@ struct Config {
     uint32_t authored_version = 1; // Preserve old 32-step entry timing for v1; v2 enters at bar 16.
     std::array<Track, 4> tracks{};
 };
-static_assert(sizeof(Step) == 24 && sizeof(Track) == 1548 && sizeof(Config) == 6212,
+static_assert(sizeof(Step) == 48 && sizeof(Track) == 3088 && sizeof(Config) == 12372,
               "Groove v2 fixed 4x64 POD layout requires contract review");
 
 // The previous transient v1 layout is read only for compatibility with direct
@@ -67,7 +70,12 @@ inline bool valid_step(const Step &s) {
         !std::isfinite(s.mod1) || s.mod1 < 0 || s.mod1 > 1 ||
         !std::isfinite(s.mod2) || s.mod2 < 0 || s.mod2 > 1 ||
         s.gate_q < 1 || s.gate_q > 4 || s.cond_type > NotFirst) return false;
-    if (s.kind != Note && s.cond_type != Always) return false;
+    if (s.kind != Note && (s.cond_type != Always || s.key_count != 1)) return false;
+    if (s.key_count < 1 || s.key_count > 5 || s.keys[0] != s.key) return false;
+    for (uint32_t i = 1; i < s.key_count; ++i) {
+        if (s.keys[i] < 0 || s.keys[i] > 127 || s.keys[i] == s.key ||
+            (i > 1 && s.keys[i] <= s.keys[i - 1])) return false;
+    }
     switch (s.cond_type) {
     case Always: case First: case NotFirst: return s.cond_a == 0 && s.cond_b == 0;
     case Chance: return s.cond_a >= 1 && s.cond_a <= 99 && s.cond_b == 0;
@@ -93,6 +101,7 @@ inline bool decode(const uint8_t *data, uint32_t bytes, Config &out) {
                 auto &to = next.tracks[t].steps[i];
                 to.kind = from.kind;
                 to.key = from.key;
+                to.keys[0] = from.key;
                 to.velocity = from.velocity;
                 to.mod1 = from.mod1;
                 to.mod2 = from.mod2;
@@ -107,7 +116,8 @@ inline bool decode(const uint8_t *data, uint32_t bytes, Config &out) {
         (next.authored_version != 1 && next.authored_version != 2)) return false;
     for (const auto &track : next.tracks) {
         if (track.armed > 1 || track.mute > 1 ||
-            (track.length != 8 && track.length != 16 && track.length != 32 && track.length != 64))
+            (track.length != 8 && track.length != 16 && track.length != 32 && track.length != 64) ||
+            (track.div != 1 && track.div != 2 && track.div != 4 && track.div != 8))
             return false;
         for (const auto &step : track.steps)
             if (!valid_step(step)) return false;

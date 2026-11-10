@@ -63,6 +63,68 @@ int main() try {
      }
      CHECK(rejected);
  }
+ const auto v2 = nlohmann::json::parse(
+     R"({"version":2,"bpm":120,"tracks":[{"length":16,"steps":[{"kind":"note","key":64,"velocity":0.8}]}]})");
+ auto accepted_groove = [&](const nlohmann::json &doc) {
+     const auto raw = runtime_module_config("sequencing.groove", doc);
+     groove::Config out;
+     CHECK(groove::decode(raw.data(), static_cast<uint32_t>(raw.size()), out));
+     return out;
+ };
+ auto refused_groove = [&](const nlohmann::json &doc) {
+     bool refused = false;
+     try { runtime_module_config("sequencing.groove", doc); }
+     catch (const std::exception &) { refused = true; }
+     CHECK(refused);
+ };
+ CHECK(accepted_groove(v2).tracks[0].steps[0].key_count == 1);
+ for (const auto &notes : {nlohmann::json::array({64}),
+                           nlohmann::json::array({64, 60, 67}),
+                           nlohmann::json::array({64, 60, 62, 67, 71})}) {
+     auto doc = v2;
+     doc["tracks"][0]["steps"][0]["keys"] = notes;
+     const auto decoded = accepted_groove(doc);
+     CHECK(decoded.tracks[0].steps[0].key_count == notes.size());
+     for (size_t i = 0; i < notes.size(); ++i)
+         CHECK(decoded.tracks[0].steps[0].keys[i] == notes[i].get<int>());
+ }
+ for (const auto &notes : {nlohmann::json::array(), nlohmann::json::array({64, 60, 62, 67, 71, 72}),
+                           nlohmann::json::array({64, -1}), nlohmann::json::array({64, 128}),
+                           nlohmann::json::array({64, 60.5}), nlohmann::json::array({64, "60"}),
+                           nlohmann::json::array({64, true}), nlohmann::json::array({60, 64}),
+                           nlohmann::json::array({64, 64}), nlohmann::json::array({64, 60, 60}),
+                           nlohmann::json::array({64, 67, 60})}) {
+     auto doc = v2;
+     doc["tracks"][0]["steps"][0]["keys"] = notes;
+     refused_groove(doc);
+ }
+ for (const char *kind : {"rest", "tie"}) {
+     auto doc = v2;
+     doc["tracks"][0]["steps"][0] = {{"kind", kind}, {"keys", nlohmann::json::array({64})}};
+     refused_groove(doc);
+ }
+ for (const auto &speed : {1, 2, 4, 8}) {
+     auto doc = v2;
+     doc["tracks"][0]["div"] = speed;
+     CHECK(accepted_groove(doc).tracks[0].div == static_cast<uint32_t>(speed));
+ }
+ CHECK(accepted_groove(v2).tracks[0].div == 1);
+ for (const auto &speed : {nlohmann::json(0), nlohmann::json(3), nlohmann::json(16),
+                           nlohmann::json(-2), nlohmann::json(2.0), nlohmann::json("2"),
+                           nlohmann::json(true), nlohmann::json(nullptr)}) {
+     auto doc = v2;
+     doc["tracks"][0]["div"] = speed;
+     refused_groove(doc);
+ }
+ {
+     auto doc = nlohmann::json::parse(
+         R"({"version":1,"bpm":120,"tracks":[{"steps":[{"kind":"note","key":64,"velocity":0.8}]}]})");
+     doc["tracks"][0]["div"] = 2;
+     refused_groove(doc);
+     doc["tracks"][0].erase("div");
+     doc["tracks"][0]["steps"][0]["keys"] = nlohmann::json::array({64});
+     refused_groove(doc);
+ }
  std::puts("PASS bounded typed MIDI and Groove configurations and invalid row rejection");
 } catch(const std::exception& error) {
  std::fprintf(stderr,"FAIL runtime module configuration: %s\n",error.what());return EXIT_FAILURE;
