@@ -235,6 +235,21 @@ button { cursor: pointer; }
 .panel-core.shape-wide > .panel-controls { flex: 1; }
 .panel-core.graph-mode > .panel-controls { display: none; }
 .panel-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 8px 10px; margin: 0 auto; }
+/* CHAOS performance strip: a compact second view, not another parameter bank. */
+.chaos-performance-strip {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start;
+  align-self: stretch; gap: 8px 12px; padding: 5px 0 9px;
+  border-bottom: 0.5px solid var(--hair2);
+}
+.chaos-performance-group { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.chaos-performance-title {
+  font: 500 8px var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--graph);
+}
+.chaos-performance-knobs { display: flex; align-items: flex-start; justify-content: center; gap: 6px; }
+.chaos-performance-knobs .knob-unit { min-width: 52px; }
+.chaos-performance-knobs .control-label { font-size: 7px; letter-spacing: .03em; }
+.chaos-performance-knobs .knob-labels .control-readout { font-size: 9px; }
+
 .section-label {
   align-self: stretch; font: 500 8.5px var(--mono); letter-spacing: 0.09em; text-transform: uppercase;
   color: var(--mute); border-top: 0.5px solid var(--hair2); padding-top: 6px;
