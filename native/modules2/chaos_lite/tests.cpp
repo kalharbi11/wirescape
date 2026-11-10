@@ -172,7 +172,7 @@ static void lfo_shapes_and_legacy_state() {
     Rig restored;
     REQUIRE(restored.load(legacy) == WS2_OK);
     const Bytes new_state = restored.save();
-    for (uint32_t c = 0; c < 8; ++c) {
+    for (size_t c = 0; c < 8; ++c) {
         REQUIRE(std::equal(legacy.begin() + 4 + c * 64,
                            legacy.begin() + 4 + (c + 1) * 64,
                            new_state.begin() + 4 + c * (64 + 40)));
