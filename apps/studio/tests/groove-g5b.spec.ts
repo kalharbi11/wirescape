@@ -56,3 +56,12 @@ test('master loop is max armed track cycle, not sum; reload preserves div', asyn
   expect((await config(page)).tracks.map((t: any) => t.div)).toEqual([4, 8]);
   await expect(page.getByTestId('groove-loop-1')).toContainText('512 sixteenths');
 });
+test('slow track converts inspector bars and Roll bar lines using its div, not raw step count', async ({ page }) => {
+  await page.getByTestId('groove-div-4-1').click();
+  await expect(page.locator('[data-testid="groove-1"] .g-barn').first()).toHaveText('1–4');
+  await page.getByTestId('groove-pad-1-5').click();
+  await expect(page.locator('[data-testid="groove-1"] .g-istep small')).toContainText('bar 2');
+  await page.getByTestId('groove-view-roll-1').click();
+  await expect(page.getByTestId('groove-roll-1-5-60')).toHaveClass(/bar-edge/);
+  await expect(page.getByTestId('groove-roll-1-4-60')).not.toHaveClass(/bar-edge/);
+});

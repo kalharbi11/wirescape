@@ -400,7 +400,9 @@ export class GroovePane {
         }
         if (grp.childElementCount) pads.append(grp);
       }
-      bar.append(el('span', 'g-barn', String(b + 1)), pads);
+      const div = trackDiv(c, t);
+      const barFrom = b * div + 1, barTo = Math.min(b * div + div, L * div / 16);
+      bar.append(el('span', 'g-barn', div === 1 || barFrom === barTo ? String(barFrom) : `${barFrom}–${barTo}`), pads);
       this.grid.append(bar);
     }
   }
@@ -569,7 +571,7 @@ export class GroovePane {
           }
         });
         if (i === this.view.sel[t]) cell.classList.add('sel');
-        if (i % 16 === 0) cell.classList.add('bar-edge');
+        if ((i * trackDiv(cfg, t)) % 16 === 0) cell.classList.add('bar-edge');
         if (kind === 'note') {
           const st = stepAt(cfg, t, i), condition = st.cond, pitches = notesOf(st);
           if (condition) cell.append(el('span', 'g-rcond', condLabel(condition)));
@@ -604,7 +606,7 @@ export class GroovePane {
         cell.setAttribute('aria-valuenow', String(value));
         cell.tabIndex = !disabled && i === this.view.sel[t] ? 0 : -1;
         if (disabled) { cell.classList.add('disabled'); cell.setAttribute('aria-disabled', 'true'); }
-        if (i % 16 === 0) cell.classList.add('bar-edge');
+        if ((i * trackDiv(cfg, t)) % 16 === 0) cell.classList.add('bar-edge');
         const stem = el('span', 'g-vstem');
         stem.style.height = (value * 75) + '%';
         const dot = el('span', 'g-vdot');
@@ -768,7 +770,7 @@ export class GroovePane {
     if (!this.cfg) return;
     const t = this.t, i = this.view.sel[t], s = this.step(i), src = sourceOf(this.cfg, t, i);
     const head = el('div', 'g-istep', `STEP ${String(i + 1).padStart(2, '0')}`);
-    head.append(el('small', '', `bar ${Math.floor(i / 16) + 1} · T${t + 1}`));
+    head.append(el('small', '', `bar ${Math.floor(i * trackDiv(this.cfg!, t) / 16) + 1} · T${t + 1}`));
     const field = (label: string, ...kids: HTMLElement[]) => {
       const f = el('div', 'g-f'); f.append(el('span', 'g-lbl', label), ...kids); return f;
     };
@@ -906,7 +908,9 @@ export class GroovePane {
     CONDS.forEach((c, n) => {
       if (n === 0) head('Always');
       if (n === 1) head('Chance');
-      if (n === 6) head(this.len() === 16 ? 'A:B · plays on loop A of every B (loops = bars here)' : 'A:B · plays on loop A of every B loops');
+      if (n === 6) head(this.cfg && trackCycle(this.cfg, t) === 16
+        ? 'A:B · plays on loop A of every B (loops = bars here)'
+        : 'A:B · plays on loop A of every B loops');
       if (n === 13) head('Loop');
       const b = this.button(sameCond(c, current) ? 'on' : '', `cond-opt-${n}`, condLabel(c, true), condLabel(c, true));
       b.addEventListener('click', ev => {
