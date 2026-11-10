@@ -734,8 +734,9 @@ export class GroovePane {
       if (!e.repeat && !this.held.has(k)) {
         if (!this.entry) { this.entry = { track: t, step: i }; this.heldNotes = []; }
         const pitch = clamp((this.view.octave + 1) * 12 + piano[k]!, 0, 127);
+        // Count every physical key for release, even when its pitch exceeds the five-voice limit.
+        this.held.set(k, pitch);
         if (this.heldNotes.includes(pitch) || this.heldNotes.length < MAX_KEYS) {
-          this.held.set(k, pitch);
           if (!this.heldNotes.includes(pitch)) this.heldNotes.push(pitch);
         } else this.toast('5 notes per step');
       }

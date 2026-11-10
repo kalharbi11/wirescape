@@ -87,3 +87,14 @@ test('keyboard held notes write one chord on final release, then advance; 1 key 
   expect(triad.keys).toEqual([60, 64, 67]);
   expect(five.keys).toEqual([60, 62, 64, 65, 67]);
 });
+test('six held keys still wait until every keyup, but save no more than five voices', async ({ page }) => {
+  await page.getByTestId('groove-pad-1-5').click();
+  await pane(page).focus();
+  for (const key of ['a', 'w', 's', 'e', 'd', 'f']) await page.keyboard.down(key);
+  await expect(pane(page).locator('.g-toast')).toHaveText('5 notes per step');
+  for (const key of ['a', 'w', 's', 'e', 'd']) await page.keyboard.up(key);
+  expect((await cfg(page)).tracks[0].steps[4]?.kind ?? 'rest').toBe('rest');
+  await page.keyboard.up('f');
+  expect((await cfg(page)).tracks[0].steps[4].keys).toEqual([60, 61, 62, 63, 64]);
+  await expect(page.getByTestId('groove-pad-1-6')).toHaveClass(/sel/);
+});
