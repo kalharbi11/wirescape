@@ -47,6 +47,7 @@
       "label": "05 / INTERNAL LFO + OUT",
       "columns": 6,
       "params": [
+        "lfo_shape",
         "lfo_rate",
         "lfo_depth",
         "lfo_self",
@@ -82,7 +83,8 @@
     "lfo_rate": "LFO RATE",
     "lfo_depth": "LFO DEPTH",
     "lfo_self": "LFO SELF",
-    "level": "OUT LEVEL"
+    "level": "OUT LEVEL",
+    "lfo_shape": "LFO SHAPE"
   },
   "roles": {
     "rough_rate": "secondary"

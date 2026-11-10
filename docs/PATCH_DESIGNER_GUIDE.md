@@ -388,6 +388,25 @@ for the editor to observe them. For example, a `t1_fired` signal may drive a gat
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
 
+## OSC In and Monitor (portable slice A of #72)
+
+Builds with the portable #72 slice A register `osc.in` and `monitor` as ABI2
+modules. `osc.in` exposes eight CV rows (`row1`…`row8`) and an OSC
+`messages` event output. Each row's defaults listen for
+`/pico1/knob/1`…`/pico1/knob/8`, map numeric 0–1 to CV 0–1, smooth over 5 ms,
+and hold the last value after a 1 s timeout unless configured for stale zero.
+`monitor` has `events`, `in1`, and `in2` inputs, capturing bounded
+messages/signals without logging on the audio thread.
+
+**Availability limit:** registration is not an operational UDP route. Until
+sidecar ownership/localhost ingress and Electron/Monitor presentation (slices
+B/C) ship, incoming network messages do not reach `osc.in` in the app and
+Monitor has no user-facing log. Do not publish a patch claiming live OSC
+control yet. After B/C, the intended wiring is `osc.in.row1 →` a VCA's
+`cv` input and `osc.in.messages → monitor.events`; browser/WASM OSC and
+unconfirmed LAN access remain unavailable. These modules introduce no new
+patch parameters or changes to existing IDs.
+
 ## Groove editor in Studio (G2a #498; builds containing this integration)
 
 Studio now edits `sequencing.groove` patterns on its card (Pads view, two lanes: Trig and
@@ -525,7 +544,7 @@ verify actual sound against the offline render/WAV evidence before claiming
 a preset's audio acceptance, and never infer DSP playback from FakeEngine
 control values alone.
 
-## CHAOS atmospheric lab (experimental #530; not public until merged)
+## CHAOS atmospheric lab (merged in #531)
 
 Three original scenes use the current `essentials.chaos_lite` v1:
 `chaos-01-ember-veil-pad` (keyboard pad, clocked smooth random),
@@ -543,8 +562,47 @@ Until an independent pitch fall trigger exists, external CV handles
 note-on pitch contours. Each patch description names useful performance
 parameters; no new CHAOS DSP/control is assumed.
 
-A standalone seeded sine/tri/S&H/smooth-random `lfo_shape` is **proposed,
-not available**. P1 addition and compatibility/test plan:
+A seeded sine/triangle/sample-and-hold/smooth-random `lfo_shape` is **under review in PR #533, not yet released**. P1 addition and compatibility/test plan:
 `docs/tasks/CHAOS_ATMOSPHERES_530.md`. Eight named module-level
 presets are available from merged #522; a patch still stores its values,
 not its selected preset name. Real device listening remains owner-only.
+
+## CHAOS internal LFO waveforms (PR #533; available only after merge)
+
+`essentials.chaos_lite` appends **`lfo_shape`** at parameter slot 26:
+0=Sine (default, fully compatible with older patches), 1=Triangle,
+2=Sample & hold, 3=Smooth random. S&H and smooth random use their
+own per-voice seeded random stream; the existing drift/jitter and
+roughness RNG sequence is unaffected. Each cycle picks a new held
+value or interpolation target. A 10 ms switch ramp is for shape
+changes, not a new long-cycle envelope. No new input/output port,
+no second LFO, and no sample looper. `lfo_rate` (0.02–12 Hz),
+`lfo_depth` (0–1), `lfo_self` (0–1), and target (A pitch,
+body tuning or cutoff) remain unchanged. Studio's eight CHAOS
+module presets resolve the new selector to default 0 unless
+explicitly specified.
+
+Backward-compatible wiring: keyboard pitch → CHAOS.pitch; keyboard gate
+→ ADSR.gate → VCA.gain_cv; CHAOS left/right → one VCA each → outputs
+0/1. Leave CHAOS gate unpatched for actual ADSR release. A Lab 1 pad
+can replace its external smooth-random CV with internal shape 3
+targeting body tuning **only if its other modulation routes are
+preserved separately**; the internal LFO has one target, so it is
+not a patch-wide modulation matrix. Lab 3's percussive envelope
+remains external. **Downgrade warning:** `lfo_shape=0` retains the earlier
+sine algorithm, but this build saves internal CHAOS state as **version 2**.
+An older CHAOS binary accepts only state version 1 and returns
+`WS2_UNSUPPORTED` for version 2. Do not promise that a newer saved
+session can be opened with an older binary merely by selecting Sine.
+Preserve a backup before downgrading; test the actual host's response
+to unsupported module state and, if necessary, reconstruct from
+parameter values in a matching older build.
+
+The native state reader supports version-1 imports. When importing version-2
+state across sample rates, the 10 ms live-shape fade counter is bounded
+to the receiving sample rate; an old build cannot perform this conversion.
+
+Test native WAV, real WASM catalogue, old patch/state migration
+and CPU before calling this feature released. The 27th parameter
+must appear in generated catalogue and grouped panel. Device/Pi
+listening remains an owner step.

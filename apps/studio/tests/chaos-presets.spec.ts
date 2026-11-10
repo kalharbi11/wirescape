@@ -46,9 +46,10 @@ test('preset resets every omitted parameter, saves/reloads and is exactly one Un
   const next = await values(page);
   expect(next.route).toBe(2);
   expect(next.depth).toBe(0.8);
+  expect(next.lfo_shape).toBe(0); // Old named presets retain original sine behavior.
   expect(next.feedback).toBe(0.7);
   expect(next.cutoff).toBe(9000); // descriptor default, not the prior manual setting
-  expect(Object.keys(next)).toHaveLength(26);
+  expect(Object.keys(next)).toHaveLength(27);
   expect(await page.evaluate(() => window.__wirescapeTest.historyDepth().past)).toBe(depth + 1);
   await page.getByTestId('undo').click();
   await expect.poll(async () => await values(page)).toEqual(previous);
