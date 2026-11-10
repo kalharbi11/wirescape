@@ -139,7 +139,8 @@ static void test_refusals(AppEngine *cat) {
         Json bad = good;
         switch (c) {
         case 0:
-            bad["version"] = 2;
+            // G1 now accepts authored v2; the next unknown version must refuse.
+            bad["version"] = 3;
             break;
         case 1:
             bad["bpm"] = 0;
