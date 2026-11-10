@@ -12,16 +12,17 @@ Exact-head completed evidence governs; pending, historical and missing results n
 - Chord #403/#511 and Notes→CV #421/#512 may merge independently. Preserve both registrations.
   Keel: explicit identity reuse is last-wins. Coda: Notes→CV anonymous offs are FIFO.
 - #517 reconciles Notes→CV task to FIFO and ≤18 files; ≤900 lines/tests unchanged.
-- MIDI #500 head8b909a5: Forget stale-hint fix/test pushed; unanswered-load High awaits
-  Keel fail-closed recovery ruling. Scope1250/16; never assume timeout means rejection.
+- MIDI #500: Keel gen-based3s/10s/restart ruling posted; repair builder resumed.
+  Forget stale-hint fix/test pushed. Scope1250/16; never guess unknown graph state.
 - OSC #72: active A builder task/72-osc-slice-a → B sidecar host/consent → C Studio/Monitor.
   Keel's gen/lifetime/localhost/observation ruling governs; B/C cross-family T2. #94 follows its task; codec-only prep may follow A.
-- Groove: #505 integrated main7cb25d9 at592e50d; observation test passes locally;
-  exact required/task/Web/Pi and Claude T2 re-review remain.
+- Groove #505 head592e50d: required/task/Web/Pi pass, Keel approved; auto-merge
+  awaits latest ready-event CI. No new source review blocker.
 - #509 G2a → #516 G2b retain UI builder; malformed tracks must not recurse/throw.
   Scale persists only in ui.groove[id]; engine config stays version/bpm/tracks.
-- #521 design/#524 rulings merged: #514 G4 chords → #523 G5 speed, one native
-  builder after G1; one UI builder after G2. No stored q; div1/2/4/8, max cycle512.
+- Claude UI builder owns both509/516 with normal non-force pushes, then G4b/G5b
+  on claude/adoring-shannon-viv6lm; dedicated T1 task527. No duplicate UI writer.
+- Native526 has one builder G4a→G5a afterG1; keys rootfirst, no q; div1/2/4/8, cycle512.
 
 ## Completed baseline and owner evidence
 - Merged: #486 compile repair, #484 planner, #461 saturation, #480 refused draft,
@@ -36,10 +37,10 @@ Exact-head completed evidence governs; pending, historical and missing results n
 - #271 hardware, #274 display/performance and #296 actual 3600-second soak stay separate.
 
 ## Closeout and review gates
-- #399 head8c340bb: authorized Windows rerun/all required CI pass; Pi passed.
-  Claude probe/cache High re-review remains. D5 #487 is distinct from strict-soak513.
-- #513/#520 headbbd2e2f: required Windows/Linux/sanitizers/task green. Actual private
-  Pi and Claude T2 review remain; absolute deadlines/zero-overrun assertions unchanged.
+- #399 head8c340bb: required CI/Pi pass, Keel approved; root normal main sync needed.
+  D5 #487 remains distinct from strict-soak513.
+- #513/#520 headbbd2e2f: Keel approved; Pi not merge gate per explicit ruling;
+  auto-merge awaits fresh ready-event CI. Deadlines/zero-overrun assertions unchanged.
 - #522: authorized Studio/native WAV task added; exact acceptance pending.
 - #518/#525: slice-A task now authorized; parent72 stays open for B/C.
 - #482 R3a head 9d6658d: exact required CI 42757266679 green; Windows 102/102 and
@@ -47,6 +48,7 @@ Exact-head completed evidence governs; pending, historical and missing results n
 - R3b needs mapped replacements and scoped deletion authority; archive/qt-final is
   annotated once on actual merge parent. No deletion/hash rebaseline in R3a.
 - #481 R4 follows full R3b; R6 ABI1 #470 stays Keel-led and separate.
-- Coda T2 batch posted on #473: #482, #399, then changed #505 and future #513.
+- Agent fixes:511 regression builder,512 identity-test helper,500 timeout repair;
+  root399/main integration and519/docs; native526 after505. #482 awaits Claude review.
 - Permanent: required guard/Linux/Windows/sanitizers + task/Web/WASM/Pi as applicable.
   No force-push, direct main commits, devices/SSH, assertions removed or thresholds weakened.
