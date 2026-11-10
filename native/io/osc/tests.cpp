@@ -84,6 +84,18 @@ int main() {
     });
     REQUIRE(orderedParsed);
     REQUIRE(calls == 2);
+    // A later malformed child must suppress *all* callbacks, including the
+    // otherwise valid first child. The same applies to an invalid child length.
+    auto malformed = ordered;
+    malformed[offset + 4] = 'x'; // second address no longer starts with '/'
+    calls = 0;
+    REQUIRE(!parse(malformed.data(), malformed.size(), [&](const Message &) { ++calls; }));
+    REQUIRE(calls == 0);
+    auto overlong = ordered;
+    put32(overlong.data() + offset, uint32_t(second.size() + 4));
+    calls = 0;
+    REQUIRE(!parse(overlong.data(), overlong.size(), [&](const Message &) { ++calls; }));
+    REQUIRE(calls == 0);
     auto nested = bundle;
     for (int depth = 0; depth < 4; ++depth) {
         std::vector<uint8_t> next(20 + nested.size());

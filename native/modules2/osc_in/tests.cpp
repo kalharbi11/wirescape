@@ -93,6 +93,25 @@ int main() {
     r.run({message(ten), message(three), message(fire)});
     REQUIRE(r.outputs[0].channels == 2 && r.data->values[0][0][0] == .3f && r.data->values[0][1][0] == 1);
     REQUIRE(r.emitted == 3 && r.data->values[1][0][31] == 1);
+    // Valid first bundle child + invalid second child is one rejected packet:
+    // neither CV nor the raw Messages event output may change.
+    auto invalid = three;
+    invalid[0] = 'x';
+    std::vector<uint8_t> malformed(16);
+    std::memcpy(malformed.data(), "#bundle\0", 8);
+    for (const auto *child : {&ten, &invalid}) {
+        const size_t at = malformed.size();
+        malformed.resize(at + 4 + child->size());
+        osc::put32(malformed.data() + at, uint32_t(child->size()));
+        std::memcpy(malformed.data() + at + 4, child->data(), child->size());
+    }
+    osc::Statistics rejectedStats;
+    auto rejectedConfig = cfg;
+    rejectedConfig.statistics = &rejectedStats;
+    Rig rejected(rejectedConfig);
+    rejected.run({message(malformed)});
+    REQUIRE(rejectedStats.received == 0 && rejectedStats.malformed == 1);
+    REQUIRE(rejected.emitted == 0 && rejected.data->values[0][0][0] == 0);
     r.run();
     REQUIRE(r.data->values[0][0][15] == .3f && r.data->values[0][0][16] == 0);
     REQUIRE(r.data->values[1][0][15] == 1 && r.data->values[1][0][16] == 0);

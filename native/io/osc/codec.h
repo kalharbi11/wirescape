@@ -90,34 +90,42 @@ template <class Emit> bool parse(const uint8_t *bytes, size_t size, Emit receive
         uint32_t depth;
         bool entered;
     };
-    std::array<Frame, 5> stack{};
     if (depth > 4) return false;
-    size_t used = 1;
-    stack[0] = {bytes, size, 0, depth, false};
-    while (used) {
-        auto &frame = stack[used - 1];
-        if (!frame.entered) {
-            if (!frame.bytes || !frame.size || frame.size > 65507 || (frame.size & 3)) return false;
-            if (frame.size < 8 || std::memcmp(frame.bytes, "#bundle\0", 8) != 0) {
-                if (!detail::parse_message(frame.bytes, frame.size, receive)) return false;
+    // Validate the entire bounded tree before invoking a callback. Otherwise a
+    // valid first child can mutate the engine before a later child rejects.
+    // Rewalking costs no heap allocation and keeps the existing depth/size limits.
+    auto discard = [](const Message &) {};
+    for (uint32_t pass = 0; pass < 2; ++pass) {
+        std::array<Frame, 5> stack{};
+        size_t used = 1;
+        stack[0] = {bytes, size, 0, depth, false};
+        while (used) {
+            auto &frame = stack[used - 1];
+            if (!frame.entered) {
+                if (!frame.bytes || !frame.size || frame.size > 65507 || (frame.size & 3)) return false;
+                if (frame.size < 8 || std::memcmp(frame.bytes, "#bundle\0", 8) != 0) {
+                    const bool valid = pass == 0 ? detail::parse_message(frame.bytes, frame.size, discard)
+                                                 : detail::parse_message(frame.bytes, frame.size, receive);
+                    if (!valid) return false;
+                    --used;
+                    continue;
+                }
+                if (frame.size < 16 || frame.depth == 4) return false;
+                frame.entered = true;
+                frame.at = 16; // J deliberately ignores timetags.
+            }
+            if (frame.at == frame.size) {
                 --used;
                 continue;
             }
-            if (frame.size < 16 || frame.depth == 4) return false;
-            frame.entered = true;
-            frame.at = 16; // J deliberately ignores timetags.
+            if (frame.size - frame.at < 4) return false;
+            const uint32_t length = big32(frame.bytes + frame.at);
+            frame.at += 4;
+            if (!length || length > frame.size - frame.at || used == stack.size()) return false;
+            const auto *child = frame.bytes + frame.at;
+            frame.at += length;
+            stack[used++] = {child, length, 0, frame.depth + 1, false};
         }
-        if (frame.at == frame.size) {
-            --used;
-            continue;
-        }
-        if (frame.size - frame.at < 4) return false;
-        const uint32_t length = big32(frame.bytes + frame.at);
-        frame.at += 4;
-        if (!length || length > frame.size - frame.at || used == stack.size()) return false;
-        const auto *child = frame.bytes + frame.at;
-        frame.at += length;
-        stack[used++] = {child, length, 0, frame.depth + 1, false};
     }
     return true;
 }
