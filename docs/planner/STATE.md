@@ -12,7 +12,6 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 - Seven closeout PRs remain after486 merged1e20242; this planner refresh484 is one.
 - Keel rulings 2026-11-10: #511 Chord last-wins for reused explicit IDs, budget 20 files;
   #500 Learn keeps one loadGraph but serializes edits while it's pending; #514 G4 pre-ruled.
-- 2026-11-10: #495 owner Groove UI merged; #461 merged; #494 Pi smoke fix, #492 model names on auto-merge.
 
 ## Merged 2026-11-09 (baseline `605da43`, compile repair `1e20242`)
 - #463 Windows runtime, #400 latency, #442 real-app evidence, #474 PLAN D15–D19.
