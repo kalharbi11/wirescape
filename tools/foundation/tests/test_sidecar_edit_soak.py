@@ -48,7 +48,9 @@ for line in sys.stdin:
     if kind in ('loadGraph', 'addModule', 'connect', 'disconnect', 'removeModule'):
         gen += 1
     print(json.dumps(dict(v=0, session=session, re=command['id'], ok=True, gen=str(gen))), flush=True)
-bench = 'bench blocks=1000 p50=1 p99=2 max=3.5 overruns=0 faults=0'
+bench = ('bench blocks=1000 p50=1 p99=2 max=3.5 overruns=0 faults=0 '
+         'overrun_render_count=0 overrun_render_max_us=0 '
+         'overrun_wake_count=0 overrun_wake_max_us=0')
 if mode == 'short-blocks':
     bench = bench.replace('blocks=1000', 'blocks=0')
 elif mode == 'overruns':
@@ -68,7 +70,7 @@ elif mode == 'bad-float':
 elif mode == 'extra-fields':
     bench += ' other=7'
 elif mode == 'truncated':
-    bench = bench.removesuffix(' faults=0')
+    bench = bench.rsplit(' ', 1)[0]
 if mode != 'missing-bench':
     print(bench, file=sys.stderr, flush=True)
 if mode == 'duplicate-bench':
@@ -113,7 +115,25 @@ class EditSoakTests(unittest.TestCase):
         self.assertEqual(a['steps'], 2 + 9 * a['cycles'])
         self.assertEqual(a['performance_evidence'],
                          {'blocks': 1000, 'p50': 1.0, 'p99': 2.0, 'max': 3.5,
-                          'overruns': 0, 'faults': 0})
+                          'overruns': 0, 'faults': 0, 'overrun_render_count': 0,
+                          'overrun_render_max_us': 0.0, 'overrun_wake_count': 0,
+                          'overrun_wake_max_us': 0.0})
+
+    def test_overrun_diagnostics_preserved_in_failure(self):
+        line = ('bench blocks=1000 p50=1 p99=2 max=3.5 overruns=1 faults=0 '
+                'overrun_render_count=0 overrun_render_max_us=42 '
+                'overrun_wake_count=1 overrun_wake_max_us=6000')
+        with self.assertRaises(soak.SoakFailure) as caught:
+            soak.parse_bench([line], 2)
+        self.assertIn('overruns=1', str(caught.exception))
+        self.assertIn('overrun_render_max_us=42.0', str(caught.exception))
+        self.assertIn('overrun_wake_max_us=6000.0', str(caught.exception))
+        for field, invalid in (('overrun_render_count=0', 'overrun_render_count=2'),
+                               ('overrun_wake_count=1', 'overrun_wake_count=18446744073709551616'),
+                               ('overrun_render_max_us=42', 'overrun_render_max_us=-1'),
+                               ('overrun_wake_max_us=6000', 'overrun_wake_max_us=1e309')):
+            with self.subTest(field=field), self.assertRaises(soak.SoakFailure):
+                soak.parse_bench([line.replace(field, invalid)], 2)
 
     def assert_failed(self, mode, fragment, timeout=.2):
         with self.engine(mode), self.assertRaises(soak.SoakFailure) as caught:
@@ -169,7 +189,9 @@ class EditSoakTests(unittest.TestCase):
                 self.assert_failed(mode, message)
 
     def test_bench_parser_boundary_conditions(self):
-        good = 'bench blocks=34 p50=0 p99=1 max=1.5 overruns=0 faults=0'
+        good = ('bench blocks=34 p50=0 p99=1 max=1.5 overruns=0 faults=0 '
+                'overrun_render_count=0 overrun_render_max_us=0 '
+                'overrun_wake_count=0 overrun_wake_max_us=0')
         self.assertEqual(soak.parse_bench([good], .2)['blocks'], 34)
         for lines in ([], [good, good], ['not a metric'], [good + ' ']):
             with self.subTest(lines=lines), self.assertRaises(soak.SoakFailure):
@@ -189,7 +211,9 @@ class EditSoakTests(unittest.TestCase):
 
     def test_incomplete_bench_candidate_fails_even_when_it_is_the_only_record(self):
         from types import SimpleNamespace
-        good = b'bench blocks=1000 p50=1 p99=2 max=3.5 overruns=0 faults=0'
+        good = (b'bench blocks=1000 p50=1 p99=2 max=3.5 overruns=0 faults=0 '
+                b'overrun_render_count=0 overrun_render_max_us=0 '
+                b'overrun_wake_count=0 overrun_wake_max_us=0')
         for raw in (good, b'bench ' + b'x' * 2100 + b'\n'):
             with self.subTest(bytes=len(raw)):
                 client = soak.Sidecar.__new__(soak.Sidecar)

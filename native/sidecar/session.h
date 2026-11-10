@@ -6,6 +6,7 @@
 #include "devices.h"
 #include "midi_host.h"
 #include <array>
+#include <chrono>
 #include <optional>
 #include <set>
 namespace wirescape::sidecar {
@@ -19,6 +20,8 @@ struct RenderHistogram {
     std::array<uint64_t, 201> bins{}; // 0..199%, plus >=200%
     uint64_t blocks = 0, overruns = 0, faults = 0, previous_faults = 0;
     double max_percent = 0;
+    uint64_t overrun_render_count = 0, overrun_wake_count = 0;
+    double overrun_render_max_us = 0, overrun_wake_max_us = 0;
 
     // Sample the existing Engine2 render-fault meter on the sink thread.
     // A replan may reset the engine counter; retain all observed deltas.
@@ -31,6 +34,22 @@ struct RenderHistogram {
         ++blocks;
         if (late) ++overruns;
         if (percent > max_percent) max_percent = percent;
+    }
+    // Reporting only: lateness still means completion past the absolute deadline.
+    // Both causes can contribute to the same overrun; counts are not exclusive.
+    void record_timing(double percent, std::chrono::steady_clock::time_point before,
+                       std::chrono::steady_clock::time_point after,
+                       std::chrono::steady_clock::time_point start,
+                       std::chrono::steady_clock::time_point deadline) noexcept {
+        const bool late = after > deadline;
+        record(percent, late);
+        if (!late) return;
+        const double render_us = std::chrono::duration<double, std::micro>(after - before).count();
+        const double wake_us = std::chrono::duration<double, std::micro>(before - start).count();
+        if (render_us > overrun_render_max_us) overrun_render_max_us = render_us;
+        if (wake_us > overrun_wake_max_us) overrun_wake_max_us = wake_us;
+        if (after - before > deadline - start) ++overrun_render_count;
+        if (before > start) ++overrun_wake_count;
     }
     uint32_t percentile(uint32_t pct) const noexcept {
         if (!blocks) return 0;
