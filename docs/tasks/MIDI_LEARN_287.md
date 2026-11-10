@@ -24,7 +24,9 @@ never writes the document; `ui.ccMap` stays a display hint.
 - Ownership (#500, Keel ruling): Learn/Forget go to the current playing/draft edit target.
   While the one-graph replan or refusal recovery is pending, document edits (including
   undo, cables, CC rows and labels) are blocked and visibly marked as applying.
-  Refusal restores the prior document and history exactly before editing resumes.
+  Refusal restores the prior document and history exactly before editing resumes. A lost load
+  uses `gen` to decide whether it applied; after 10 s without a push or on `app.engineExited`,
+  Studio offers `app.restartEngine` and stays locked until the pre-Learn patch is reloaded.
 - Wired implicit-default outputs keep their meaning (holes are filled with explicit
   default rows). Fourteen-bit rows drop the flag when a controller above 31 is learned.
 - One user gesture is one undo step.
@@ -39,8 +41,9 @@ protocol for a later narrow edit path; nothing here removes it.
 
 ```acceptance
 tier: T1
-size: <= 1250 changed lines, <= 16 files
+size: <= 1450 changed lines, <= 16 files
 must_pass:
+  - mock bridge lost-load cases: higher-gen keep, same-gen revert, late reply ignored, 10 s no-push restart, and `app.engineExited` restart/reload
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npx playwright test tests/midi-learn-ui.spec.ts tests/mock-bridge/midi-learn.spec.ts --trace off'
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
   - bash -lc "cd apps/studio && npm run typecheck"
