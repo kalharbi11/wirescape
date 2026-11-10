@@ -3,6 +3,8 @@
 const fs = require('node:fs');
 const readline = require('node:readline');
 const flags = process.argv.slice(2);
+// Explicitly record forwarded flags in a device/network-free child fixture.
+if (process.env.STUB_FLAGS_FILE) fs.writeFileSync(process.env.STUB_FLAGS_FILE, JSON.stringify(flags));
 if (!flags.includes('--null-audio') ||
     flags.some(a => a === '--confirm-audio' || a === '--confirm-midi')) {
   process.stderr.write('Test stub requires --null-audio and no confirm flags\n');

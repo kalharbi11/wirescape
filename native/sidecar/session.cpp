@@ -171,6 +171,7 @@ Options parse_options(int argc, char **argv) {
         std::string arg = argv[i];
         if (arg == "--confirm-audio") o.audio = true;
         else if (arg == "--confirm-midi") o.midi = true;
+        else if (arg == "--confirm-lan") o.lan = true;
         else if (arg == "--null-audio") o.null_audio = true;
         else if (arg == "--bench-summary") o.bench_summary = true;
         else if (arg == "--device" || arg == "--settings" || arg == "--rate" || arg == "--block") {

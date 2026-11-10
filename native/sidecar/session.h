@@ -11,7 +11,7 @@
 #include <set>
 namespace wirescape::sidecar {
 struct Options {
-    bool audio = false, midi = false, null_audio = false, bench_summary = false;
+    bool audio = false, midi = false, lan = false, null_audio = false, bench_summary = false;
     std::string device, settings = "user_data/settings.json", directory;
     uint32_t rate = 48000, block = 256;
 };
