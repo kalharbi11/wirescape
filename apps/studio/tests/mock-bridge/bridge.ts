@@ -108,7 +108,8 @@ export async function mockBridge(page: Page): Promise<void> {
       if (cmd.type === 'app.restartEngine') {
         restarts++;
         exit(true);
-        setTimeout(() => reply(cmd, true, {}, session(), '0'), 0);
+        if (!dropRestartReply) setTimeout(() => reply(cmd, true, {}, session(), '0'), 0);
+        dropRestartReply = false;
         return;
       }
       const s = session();
@@ -119,7 +120,7 @@ export async function mockBridge(page: Page): Promise<void> {
     let holdOpen = false;
     let pendingOpen: (() => void) | undefined;
     const saves: Message[] = [];
-    let opens = 0, restarts = 0;
+    let opens = 0, restarts = 0, dropRestartReply = false;
     const exit = (expected = false) => {
       emit({ v: 0, type: 'app.engineExited', exitCode: expected ? 0 : null,
         signal: null, expected });
@@ -150,6 +151,7 @@ export async function mockBridge(page: Page): Promise<void> {
     (window as any).__mockBridge = {
       sent, getGraph: () => copy(graph), getSession: session, generation: () => String(gen),
       getSaved: () => saved, getSaves: () => copy(saves), openCount: () => opens, restartCount: () => restarts,
+      dropNextRestartReply: () => { dropRestartReply = true; },
       loseHeldWithPush: (applied: boolean) => {
         if (applied) for (const h of held) if (h.cmd.type === 'loadGraph' && h.session === session()) {
           graph = copy(h.cmd.patch); gen++;
