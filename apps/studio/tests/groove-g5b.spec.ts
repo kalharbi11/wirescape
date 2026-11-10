@@ -9,6 +9,14 @@ test.beforeEach(async ({ page }) => {
   await boot(page);
   await page.evaluate(() => window.__wirescapeTest.addModule('sequencing.groove'));
   await settle(page);
+  await page.evaluate(() => {
+    const v = window.__wirescapeTest.canvas.viewport;
+    v.setView(v.view.x, v.view.y, 1);
+    const c = document.querySelector('[data-testid="groove-1"]')!.getBoundingClientRect();
+    const r = v.rect();
+    v.setView(v.view.x - (c.left - r.left) + 35, v.view.y - (c.top - r.top) + 45, 1);
+  });
+  await settle(page);
 });
 
 test('Speed omits 1 and writes 2/4/8; Steps changes preserve speed and Undo/Redo', async ({ page }) => {

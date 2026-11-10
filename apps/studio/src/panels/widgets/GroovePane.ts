@@ -473,6 +473,11 @@ export class GroovePane {
     if (!this.cfg) return;
     const t = this.t, src = sourceOf(this.cfg, t, i);
     if (src < 0 || !notesOf(stepAt(this.cfg, t, src)).includes(key)) return;
+    // Deleting a sustained cell ends that tie; it does not destroy the origin chord.
+    if (stepAt(this.cfg, t, i).kind === 'tie') {
+      this.edit(c => setKind(stepFor(c, t, i), 'rest'));
+      return;
+    }
     this.edit(c => {
       const step = stepFor(c, t, src), remaining = notesOf(step).filter(k => k !== key);
       if (remaining.length) setNotes(step, remaining, step.key);

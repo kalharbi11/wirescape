@@ -373,13 +373,14 @@ Note). Authoring rules for patch designers:
   the *first edit* rewrites it as v2 and gives each v1 track an explicit `"length":32`
   (its old meaning), adding an empty second track (same length) if the pattern had only one. A newly added Groove has
   no `config` until edited; its first edit writes two 16-step tracks of rests at 120 BPM.
-  Unknown keys in `config`, tracks or steps are saved back untouched but are never sent to
-  the engine. A newer `version` is shown read-only.
+  Unknown keys in `config`, tracks or steps are saved back untouched in the document;
+  the engine projection omits unrelated extras but forwards the known `keys` and `div`
+  fields unchanged (including values an old engine refuses). A newer `version` is shown read-only.
 - **What it writes:** `length` 8/16/32/64 (shortening a track trims its saved steps),
   `gate` 0.25/0.5/0.75 (1 is written by omitting `gate`), `cond` from the picker
   (chance 10/25/50/75/90 %, A:B 1:2, 2:2, 1:4, 2:4, 3:4, 4:4, 1:8, first, not first; any
   valid hand-authored chance 1–99 or A:B up to b = 8 is kept), `bpm` 20–300, per-track
-  `armed` and `mute`. Rests and ties never carry `key`, `velocity` or `cond`.
+  `armed` and `mute`. Rests and ties never carry `key`, `keys`, `velocity` or `cond`.
 - **Draft and Apply:** edits are a draft; the engine keeps playing the applied pattern.
   **Apply** is enabled only on a measured, current-generation stop (both tracks report
   step -1) or while audio is not running; it reloads the whole graph, so the Groove (and
@@ -391,10 +392,11 @@ Note). Authoring rules for patch designers:
 - **Live view:** the playhead, track positions and the "skipped this pass" dim (a failed
   condition) come only from engine telemetry; on an engine without the playhead
   capability they stay hidden. Chance results are never predicted in the editor.
-- **G2b Roll:** Pads/Roll are two projections of the same MIDI-key pattern. Roll
-  rows are indexed by note; only one pitch can sound on a step today (chords remain
-  reserved for a later version). Click an empty cell to add a note, drag right to tie,
-  drag vertically to change pitch; double-click/right-click to delete. Under the
+- **Roll:** Pads/Roll are two projections of the same MIDI-key pattern. Roll
+  rows are indexed by MIDI note, including every note of a chord. Clicking an empty
+  note cell on a note step adds a voice, up to five notes per step; dragging a note
+  moves only that voice. Drag right to tie; double-click, right-click or press
+  Backspace on a focused note cell to delete that voice. Under the
   note grid, lollipop lanes edit velocity, gate, Mod 1 and Mod 2. The inspector
   also accepts typed Mod 1/2 percentages. The Roll scrolls within its card,
   rather than widening the web page. Roll note buttons are keyboard-focusable:
@@ -411,7 +413,8 @@ Note). Authoring rules for patch designers:
   16 steps becomes two rows of eight on narrow screens.
 - **Keyboard:** focus the Groove first. Space Play/Stop, arrows move the selected
   step or pitch (Shift = octave), A/W/S/E/D/F/T/G/Y/H/U/J/K enter chromatic
-  notes at the selected step, Z/X change keyboard octave, hyphen makes a tie,
+  notes at the selected step (hold multiple piano keys to write one chord when
+  they are all released; the multi-key cursor advances), Z/X change keyboard octave, hyphen makes a tie,
   Backspace clears a trig, 1/2 select track, Ctrl/Cmd+Z undo (Shift = redo).
 - **Looks:** Graphite (default), Oxblood and LED only change the appearance;
   no style choice or scale setting is saved to the module config.
@@ -421,3 +424,60 @@ Example (a 16-step bass, one 50 % trig and one 1:4 trig with a short tie):
 `{"kind":"tie","gate":0.5},{"kind":"rest"},{"kind":"note","key":43,"velocity":0.7,"cond":{"type":"chance","p":50}},`
 `{"kind":"rest"},{"kind":"rest"},{"kind":"rest"},{"kind":"note","key":48,"velocity":0.8,"cond":{"type":"ab","a":1,"b":4}}]}]}`.
 Hardware listening and Pi display checks of the editor are not claimed.
+
+## Groove chord steps and per-track speed (Studio G4b/G5b, #527)
+
+**Availability:** These are authoring controls, not yet live sound on a G1-only
+engine. Native **#526** is required for chord and per-track-speed playback. Until
+then, Apply forwards the authored data to the engine, which refuses unsupported
+`keys`/`div`; the draft remains saved, the engine's refusal reason is displayed,
+and Play never starts the refused draft. No engine protocol or version is changed.
+
+- **Chord data:** A `kind:"note"` step has its original `key` (MIDI 0–127)
+  as the root and, **only for 2–5 distinct keys**, a `keys` array with that
+  root first. Remaining notes are sorted; a single note saves exactly as before
+  with no `keys`. No chord-quality (`q`) field is stored. Rest and tie
+  steps never carry `keys`. All voices share onset, velocity, gate, ties, mods
+  and trig condition. The inspector's Notes Single/Chord control, picker, inversions,
+  the chord name/ladder on pads and individual-note Roll edits are authoring aids.
+  Its scale (Chromatic/Major/Minor/Pentatonic) is **UI-only**, stored under
+  `ui.groove`, and changes neither the note format nor the engine.
+- **Speed data:** Each track optionally stores `div:2`, `div:4` or `div:8`
+  for **½×, ¼× or ⅛×** speed; 1× omits `div` and is unchanged from G1. A
+  track's cycle is `length × div` sixteenth notes, up to 512. The master
+  loop, including queued global STOP and Apply-at-loop-end, is the **maximum**
+  such cycle over armed tracks (not the sum). `t*_pos` telemetry stays the
+  track's own 0-based step index. Changing Steps preserves `div`.
+
+**Four bars in sixteen pads at ¼ speed:** Choose Steps **16**, Speed **¼**
+(`div:4`) on T1. Each pad occupies one quarter-note beat, so pads 1–16
+span **64 sixteenths = four 4/4 bars**. Place C major on pad 1, F major on
+pad 5, G major on pad 9 and C major on pad 13; tie the three intervening
+pads after each note when you want the chord sustained for a whole bar.
+One possible note-only skeleton (unspecified cells are rests):
+```json
+{
+  "version": 2, "bpm": 120,
+  "tracks": [{
+    "length": 16, "div": 4,
+    "steps": [
+      {"kind":"note","key":60,"keys":[60,64,67]},
+      {"kind":"tie"},{"kind":"tie"},{"kind":"tie"},
+      {"kind":"note","key":65,"keys":[65,69,72]},
+      {"kind":"tie"},{"kind":"tie"},{"kind":"tie"},
+      {"kind":"note","key":67,"keys":[67,71,74]},
+      {"kind":"tie"},{"kind":"tie"},{"kind":"tie"},
+      {"kind":"note","key":60,"keys":[60,64,67]},
+      {"kind":"tie"},{"kind":"tie"},{"kind":"tie"}
+    ]
+  }]
+}
+```
+The final tie extends to the end of the 64-sixteenth track cycle.
+For polyphonic CV, connect `sequencing.groove.t1_notes` (note events)
+→ `essentials.notes_to_cv`'s notes-event input → its per-voice pitch/gate
+CV outputs → a polyphonic instrument/voice allocation path → mixer and
+`essentials.output`. Do not substitute Groove's legacy mono pitch/gate
+ports for a five-note chord. Verify the destination module's exposed
+port names in the installed catalogue before patching; audible chord
+playback requires native #526.
