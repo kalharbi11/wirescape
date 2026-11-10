@@ -27,5 +27,6 @@ must_pass:
   - ci: linux-arm64
   - ci: windows-x64
   - ci: sanitizers
+  - pi-run: ctest --test-dir build/native -R 'sidecar' --output-on-failure --no-tests=error
 stops: [test weakening, ABI header edit, new dependency, device access, LAN access, CI change, size overrun]
 ```
