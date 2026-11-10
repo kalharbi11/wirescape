@@ -224,7 +224,8 @@ test.describe('the catalogue', () => {
       return out;
     });
 
-    expect(report).toHaveLength(28);
+    expect(report).toHaveLength(29);
+    expect(report.some(r => r.id === 'essentials.chord')).toBe(true);
     expect(report.some(r => r.id === 'essentials.quantizer')).toBe(true);
     expect(report.some(r => r.id === 'sequencing.groove')).toBe(true);
     expect(report.some(r => r.id === 'fx.delay')).toBe(true);
