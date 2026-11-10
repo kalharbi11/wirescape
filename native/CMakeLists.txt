@@ -131,6 +131,10 @@ set_tests_properties(abi2_osc_host_service_tests PROPERTIES TIMEOUT 30)
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
 execute_process(COMMAND git rev-parse --short=12 HEAD WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   OUTPUT_VARIABLE engine_sha OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+add_library(wirescape_osc_host STATIC control/osc_host.cpp)
+target_include_directories(wirescape_osc_host PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/control)
+target_link_libraries(wirescape_osc_host PUBLIC wirescape_osc_service wirescape_runtime_document
+  nlohmann_json::nlohmann_json)
 add_executable(wirescape_engine_sidecar sidecar/main.cpp sidecar/protocol.cpp sidecar/session.cpp sidecar/devices.cpp)
 set_target_properties(wirescape_engine_sidecar PROPERTIES OUTPUT_NAME wirescape-engine)
 # Compile native catalogue categories from the same presentation source as
@@ -152,7 +156,7 @@ file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/wirescape_sidecar_categories.h
 target_include_directories(wirescape_engine_sidecar PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(wirescape_engine_sidecar PRIVATE WIRESCAPE_ENGINE_SHA="${engine_sha}")
 target_link_libraries(wirescape_engine_sidecar PRIVATE wirescape_runtime_document wirescape_audio_service
-  wirescape_midi_host nlohmann_json::nlohmann_json Threads::Threads)
+  wirescape_midi_host wirescape_osc_host nlohmann_json::nlohmann_json Threads::Threads)
 add_test(NAME abi2_sidecar_protocol_tests COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/sidecar/protocol_tests.py
   $<TARGET_FILE:wirescape_engine_sidecar> ${PROJECT_SOURCE_DIR}/examples)
 set_tests_properties(abi2_sidecar_protocol_tests PROPERTIES TIMEOUT 90)
@@ -161,7 +165,7 @@ add_test(NAME sidecar_golden COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURC
 set_tests_properties(sidecar_golden PROPERTIES TIMEOUT 180)
 add_executable(sidecar_protocol_unit_tests sidecar/protocol_unit_tests.cpp sidecar/protocol.cpp sidecar/devices.cpp tests2/allocation_watch.cpp)
 target_link_libraries(sidecar_protocol_unit_tests PRIVATE wirescape_runtime_document wirescape_audio_service
-  wirescape_midi_host nlohmann_json::nlohmann_json Threads::Threads)
+  wirescape_midi_host wirescape_osc_host nlohmann_json::nlohmann_json Threads::Threads)
 add_test(NAME abi2_sidecar_unit_tests COMMAND sidecar_protocol_unit_tests)
 set_tests_properties(abi2_sidecar_unit_tests PROPERTIES TIMEOUT 30)
 add_executable(sidecar_audio_recovery_tests sidecar/audio_recovery_tests.cpp sidecar/session.cpp io/audio/device_identity.cpp
@@ -170,6 +174,6 @@ target_include_directories(sidecar_audio_recovery_tests PRIVATE "${CMAKE_CURRENT
 target_compile_definitions(sidecar_audio_recovery_tests PRIVATE WIRESCAPE_ENGINE_SHA="${engine_sha}")
 # Deliberately omit wirescape_audio_service: the test supplies its fake boundary.
 target_link_libraries(sidecar_audio_recovery_tests PRIVATE wirescape_runtime_document
-  wirescape_midi_host nlohmann_json::nlohmann_json Threads::Threads)
+  wirescape_midi_host wirescape_osc_host nlohmann_json::nlohmann_json Threads::Threads)
 add_test(NAME abi2_sidecar_audio_recovery_tests COMMAND sidecar_audio_recovery_tests)
 set_tests_properties(abi2_sidecar_audio_recovery_tests PROPERTIES TIMEOUT 30)
