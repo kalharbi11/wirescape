@@ -303,7 +303,7 @@ export class RealEngine implements EngineClient {
         // A refused loadGraph leaves the engine on its previous graph (sidecar rollback).
         (err.detail as { engine?: true }).engine = true;
         if (p.revision === this.revision) {
-          this.ready = false;
+          this.ready = this.confirmed !== null; // the atomic refusal leaves the confirmed graph untouched
           this.queue = []; this.active = undefined;
           this.load?.reject(err); this.load = undefined;
           this.notifySettled();
