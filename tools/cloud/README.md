@@ -15,3 +15,10 @@ require exact hostnames or leading wildcards, add the exact redirect hostname
 reported by a blocked download rather than a partial wildcard. Preserve existing
 network rules. `tools/ci_logs.py` uses existing `GITHUB_TOKEN` or `GH_TOKEN`
 authentication; never enter credential values in chat or checked-in files.
+
+If the proxy blocks `codeload.github.com` (FetchContent tarballs return 403),
+`setup.sh` runs `tools/cloud/git_deps.py`, which clones each native dependency at
+its pinned SHA into `build/deps-cache/`, applies the Macro Oscillator patches and
+writes `build/deps-cache/fetchcontent.cmake`; `tools/dev.py build` passes it to
+CMake with `-C`. Run `python tools/cloud/git_deps.py --clean` to go back to normal
+downloads. When bumping a pinned SHA in a CMakeLists, update `git_deps.py` too.

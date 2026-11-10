@@ -227,6 +227,10 @@ def command_build(args: argparse.Namespace) -> int:
         _print_record(record, report, args.json)
         return 2
     configure.append(f"-DWIRESCAPE_BUILD_UI={'OFF' if args.headless else 'ON'}")
+    # Cloud fallback: tools/cloud/git_deps.py writes this when codeload is blocked.
+    git_deps_cache = ROOT / "build" / "deps-cache" / "fetchcontent.cmake"
+    if git_deps_cache.is_file():
+        configure[1:1] = ["-C", str(git_deps_cache)]
     env = os.environ.copy()
     configure_result = run_logged(configure, ROOT, _unique_report_path("build-configure", ".log"), env)
     steps = [{"name": "configure", **configure_result}]

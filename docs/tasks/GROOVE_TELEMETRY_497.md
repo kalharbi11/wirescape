@@ -13,10 +13,10 @@ non-render read returns frame zero (unknown), never a mixed STOP proof.
 
 ```acceptance
 tier: T2
-size: <= 1600 changed lines, <= 22 files
+size: <= 1600 changed lines, <= 24 files
 must_pass:
   - bash -lc "python tools/dev.py build --headless --config Release && ctest --test-dir build/native -R groove --output-on-failure --no-tests=error"
-  - bash -lc "cd apps/studio && npm ci && npm test"
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
   - pi-run: ctest --test-dir build/native -R groove --output-on-failure --no-tests=error
   - ci: guard, linux-arm64, windows-x64 and sanitizers green on the exact head
 stops: [existing Groove parameter/port ID change, v1 rendering change, live editing during playback, chords, more than 2 tracks, protocol change outside §7 telemetry]

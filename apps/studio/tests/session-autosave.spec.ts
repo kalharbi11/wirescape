@@ -18,7 +18,7 @@ function withoutView(patch: any) {
 
 test('switching between clean starters recovers the last selected one', async ({ page }) => {
   await boot(page, { blank: false });
-  const [first, last] = STARTERS.filter(s => s.id === 'keyboard-voice' || s.id === 'qt-minimal');
+  const [first, last] = STARTERS.filter(s => s.id === 'keyboard-voice' || s.id === 'midi-keys-and-knobs');
   await page.getByTestId('starter-select').selectOption(first!.id);
   await page.getByTestId('starter-select').selectOption(last!.id);
   const selected = await state(page);

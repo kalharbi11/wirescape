@@ -1,0 +1,282 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Basics 7 · Macro Oscillator Keys",
+  "description": "Play the on-screen keyboard (or MIDI) to hear the Macro Oscillator, a 24-engine voice. Turn the Model knob to step through all 24 engines, and try Harmonics, Timbre and Morph on each; a slow LFO gently moves the timbre.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 42,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "host.keyboard",
+      "version": 1,
+      "parameters": {
+        "voices": 4
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.02,
+        "decay": 0.4,
+        "sustain": 0.7,
+        "release": 0.5
+      }
+    },
+    {
+      "id": 3,
+      "module": "ports.macro_oscillator",
+      "version": 1,
+      "parameters": {
+        "model": 8,
+        "coarse": 0,
+        "harmonics": 0.45,
+        "timbre": 0.5,
+        "morph": 0.5,
+        "timbre_amount": 0,
+        "morph_amount": 0,
+        "decay": 0.6,
+        "lpg_colour": 0.6
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 0.45
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.12,
+        "depth": 1
+      }
+    },
+    {
+      "id": 6,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.6,
+        "decay": 2.5,
+        "damping": 0.5,
+        "predelay": 0.02,
+        "width": 1,
+        "motion": 0.2,
+        "mix": 0.25
+      }
+    },
+    {
+      "id": 8,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 9,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 3,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 3,
+        "port": "trigger"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 3,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 3,
+        "port": "level"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 2,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "main"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 4,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "left"
+      },
+      "to": {
+        "module": 8,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "right"
+      },
+      "to": {
+        "module": 9,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 5,
+        "port": "control"
+      },
+      "to": {
+        "module": 3,
+        "port": "timbre"
+      },
+      "amount": 0.15
+    }
+  ],
+  "outputs": [
+    {
+      "module": 8,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 9,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "2": [
+        990,
+        192
+      ],
+      "5": [
+        990,
+        864
+      ],
+      "3": [
+        1920,
+        192
+      ],
+      "4": [
+        2850,
+        192
+      ],
+      "6": [
+        3780,
+        192
+      ],
+      "8": [
+        4710,
+        192
+      ],
+      "9": [
+        4710,
+        864
+      ]
+    },
+    "labels": {
+      "1": "Keys",
+      "2": "Note envelope",
+      "3": "Macro Oscillator",
+      "4": "Level",
+      "5": "Slow timbre LFO",
+      "6": "Room",
+      "8": "Out L",
+      "9": "Out R"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

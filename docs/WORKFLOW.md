@@ -12,7 +12,7 @@
 - **Devices:** no agent opens an audio/MIDI device or a LAN socket. Localhost is fine. Real devices only behind `--confirm-*`, run by the owner.
 
 ## 2. Picking up work
-1. Find an open issue in the current phase (`phase/<n>` label, or the plan's checkboxes) with `status/todo`, or one whose last claim is stale (24 h with no push or handoff; 6 h for Codex Lead on critical-path work).
+1. Find an open issue in the current phase (`phase/<n>` label, or the plan's checkboxes) with `status/todo`, or one whose last claim is stale (24 h with no push or handoff; 6 h for Codex Lead or Coda on critical-path work).
 2. Comment `Claimed: <agent + model>, <date>`, then set `status/in-progress`.
 3. Read the issue's latest handoff and the task file; then code.
 4. If you continue someone else's branch, say so in the claim (`Continuing from <sha7>`). Never force-push over their commits.
@@ -30,10 +30,10 @@ Every handoff, review and approval comment ends with `Signed: <agent + model>, <
 | **T2** | engine threading/realtime, patch format/migration, host protocol, ABI/SDK, merge control/CI | the above, with the reviewer from a **different model family** than the author |
 
 - The tier comes from the task file. If the diff touches a higher tier's paths, the higher tier wins.
-- **Approval line** (gate v4, `docs/tasks/W_GATE_V4.md`): a standalone line `Approved for merge <sha7>` followed by a `Signed:` line. A new push needs a new line. Until gate v4 merges, use the old `<Name>: approved for auto-merge <sha7>` line with your **own** name. Protected paths need a `Claude:` line until then.
+- **Approval line** (gate v4, `docs/tasks/done/W_GATE_V4.md`): a standalone line `Approved for merge <sha7>` followed by a `Signed:` line, in the same comment. A new push needs a new line. The old `<Name>: approved for auto-merge` lines are legacy; don't post new ones. Who may sign: `docs/planner/LEADS.md` "Authority".
 - **Self-review first:** before `status/ready-to-merge` the author runs `python tools/review_pack.py <PR#>`, checks it against the checklist (realtime, IDs, state/versioning, thresholds, licences, devices) and posts a `Self-review` comment. The reviewer starts from the same pack.
 - Any reviewer can stop a PR with a High + `status/blocked`. The gate never merges a blocked PR, and an author never approves over an open High.
-- Builders don't click merge; only Compass and Keel merge directly (`AGENTS.md`). The merge gate (`.github/workflows/merge_gate.yml` + `tools/merge_gate.py`) enables auto-merge; GitHub waits for the required checks. Stacked PRs wait for retargeting to `main`, then re-run their acceptance against `main`.
+- Builders and helpers don't click merge; only Compass, Keel, and Codex Lead or Coda under delegation (b) merge directly (`AGENTS.md`). The merge gate (`.github/workflows/merge_gate.yml` + `tools/merge_gate.py`) enables auto-merge; GitHub waits for the required checks. Stacked PRs wait for retargeting to `main`, then re-run their acceptance against `main`.
 - Owner-only: licence changes, `legacy/**`, `docs/history/**`, branch protection, real-device results, `allow-test-removal`.
 
 ## 5. Decisions a builder may make alone
@@ -45,7 +45,7 @@ Record each under `Self-decisions` in the PR body and the handoff:
 - picking among options the task or plan already lists; small refactors inside touched files;
 - design choices the spec leaves open that change no IDs, formats, ABI, protocol or realtime behaviour.
 
-Everything else in `AGENTS.md` "Stops" goes to a lead via the issue (Codex Lead first; Keel for technical stops, Compass for plan stops). Only that item blocks; take another item meanwhile.
+Everything else in `AGENTS.md` "Stops" goes one tier up via the issue (helpers → builders/seniors; builders → Codex Lead or Coda; seniors → Keel for technical stops, Compass for plan stops). Only that item blocks; take another item meanwhile.
 
 ## 6. Task files and acceptance blocks
 Every issue points to a `docs/tasks/` file ending in a fenced `acceptance` block that `tools/dev.py accept` parses:
@@ -79,12 +79,16 @@ in the task text and are collected at checkpoints.
 At the end of Phases 1, 2 and 4 (`docs/PLAN.md`): tag `checkpoint-<X>`, build the review pack for the phase, and hold one owner + Compass session. Decisions go at the top of `docs/PLAN.md`. Work on the next phase continues during the review; a High blocks only the sections it touches.
 
 ## 8. Usage hygiene
-- Start a fresh thread per issue. Read narrowly (the read map in `AGENTS.md`). Never paste whole logs; tail on failure.
-- Don't run the full suite locally when CI will. Run the tests for the files you touched, push, and read the CI summary.
-- Pi evidence only for compiled-code changes. No re-runs after a merge from `main` that touches no compiled code.
-- Use the cheaper model for mechanical edits and the stronger one for T2 work, reviews and architecture.
-- Delegate, don't wait: hand mechanical work to a cheaper agent (ChatGPT chat, another Codex chat, a subagent) with a self-contained brief, and keep working. Don't poll CI; the gate merges on green.
-- Near a usage limit: push, post handoffs, and leave paste-ready briefs for agents that still have budget (`docs/planner/LEADS.md`, wrap-up mode).
+- **Read less.** Every session pays for what it loads. AGENTS.md is the only always-loaded file; briefs live in `docs/planner/LEADS.md`, area rules in nested guides (`apps/studio/AGENTS.md`). Builders read PLAN "Now" only; leads add "Decisions". Task files stay ≤ ~3 KB (long background goes in a linked design doc). Never read `docs/tasks/done/`, `legacy/`, `docs/history/` or generated files.
+- **Queue mode.** When an item is green and handed off, take the next unclaimed item in your lane in the same session. Fewer cold starts means fewer re-reads of the rules. Stop at the run's item limit or near a usage limit.
+- **One item per context.** Start a fresh thread or clear/compact between items; long threads re-send everything each turn. The handoff is the memory.
+- **Bundle.** Target size/m. Group related small items (one review's doc fixes, packets that touch the same editor) into one issue and PR. If a diff is smaller than its handoff + review comments, it should have been bundled.
+- **Batch T2 asks** into one `Coda: T2 batch` (or `Keel: T2 batch`) per day, not per PR.
+- **Model per job:** Claude Opus for rulings and T2 only; Sonnet subagents for mechanical repo work inside a Claude session; Haiku for read-only search and log tails; Codex `-mini` at low/medium for helpers, rebases, formatting, CI triage; the full Codex model at high for realtime and engine bugs; ChatGPT chats for task files, briefs, test plans and log summaries.
+- **Briefs live in issue comments**, not chat, so the owner pastes "work on #NNN" instead of a whole brief.
+- Don't run the full suite locally when CI will. Run the tests for the files you touched, push, and read the CI summary. Pi evidence only for compiled-code changes; no re-runs after a merge from `main` that touches no compiled code.
+- Don't poll CI; the gate merges on green. Near a usage limit: push, post handoffs, and leave paste-ready briefs for agents that still have budget (`docs/planner/LEADS.md`, Codex Lead wrap-up).
+- STATE.md is updated inside the session's last real PR, not in a separate docs PR.
 
 ## 9. Not worth it
-Agent-orchestration dashboards, scheduled agent check-ins that run with nothing to do, and per-agent queues. The board (issues + this plan) is the queue.
+Agent-orchestration dashboards, scheduled runs that keep going with nothing to do, and per-agent queues. The board (issues + this plan) is the queue; `lane/helper` is a filter on it, not a separate queue. Scheduled helper runs are fine because they exit within a few calls when their lane is empty (`docs/planner/LEADS.md`, Helpers).
