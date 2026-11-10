@@ -10,7 +10,7 @@ selector (#522), and the owner's original CHAOS v0.1 source archive (October 202
 The scary-music study guide informs roughness, detuning, spectra, and sound mass;
 **no throat/full-throat/singing/vocal formant scope**.
 
-CHAOS-lite v1 has 26 parameter IDs (slots 0–25), two saw→square→sine morph
+CHAOS v1 has 26 parameter IDs (slots 0–25), two saw→square→sine morph
 oscillators, parallel / ring-AM / delay-bend routes, stereo three-comb body,
 seeded drift and jitter, roughness (1–150 Hz), one sine-only self-modulated
 LFO targeting A pitch/body tuning/cutoff, lowpass and output limiting. It has
