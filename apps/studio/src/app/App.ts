@@ -26,6 +26,8 @@ import { sharedPatches } from './SharedPatches';
 import { playableStarters } from '../web/starters';
 import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } from '../theme/theme';
 import { el } from './dom';
+import { MidiLearn } from './MidiLearn';
+import { commitLearn, forgetLearn, learnedCables, type LearnCapture, type LearnServices, type LearnTarget } from './ccLearn';
 import demoChaos from '../../../../native/examples/class_demo_1_chaos.json' with { type: 'json' };
 import demoSub from '../../../../native/examples/class_demo_2_subtractive.json' with { type: 'json' };
 import demoMacro from '../../../../native/examples/class_demo_3_macro.json' with { type: 'json' };
@@ -66,6 +68,9 @@ export class App {
   private dirtyDot!: HTMLElement;
   private nameEl!: HTMLElement;
   private draftLabel!: HTMLElement;
+  private learnApplyingEl!: HTMLElement;
+  private learnRestartPrompt: HTMLElement | null = null;
+  private learnSettled: Promise<void> | null = null;
   private openDraftButton!: HTMLButtonElement;
   private applyDraftButton!: HTMLButtonElement;
   private backToPlayingButton!: HTMLButtonElement;
@@ -81,6 +86,8 @@ export class App {
   } | null = null;
   private octaveEl!: HTMLElement;
   private lastStatus: SystemStatus | null = null;
+  private learn!: MidiLearn;
+  private learnEpoch = -1;
   private fileInput!: HTMLInputElement;
   private history!: History;
   private undoBtn!: HTMLButtonElement;
@@ -135,7 +142,26 @@ export class App {
 
     this.quick = new QuickAdd(this.registry);
 
+    this.learn = new MidiLearn({
+      engine: this.engine,
+      label: t => {
+        const m = this.doc.modules.get(t.module);
+        const d = m && this.registry.get(m.module);
+        const p = d && findParam(d, t.param);
+        return `${this.doc.label(t.module) ?? d?.name ?? '#' + t.module} · ${p?.name ?? t.param}`;
+      },
+      deviceName: id => this.lastStatus?.midi.devices.find(d => d.id === id)?.name ?? id.split('|')[0] ?? id,
+      commit: (t, c, any) => this.commitLearn(t, c, any),
+      toast: (m, tone) => this.toasts.show(m, tone),
+    });
+
     this.canvas = new PatchCanvas({
+      midiLearn: {
+        available: () => this.learn.available(),
+        begin: (m, p) => { this.learnEpoch = this.viewEpoch; this.learn.begin(m, p); },
+        mapped: (m, p) => learnedCables(this.doc, { module: m, param: p }).length > 0,
+        forget: (m, p) => this.forgetLearn({ module: m, param: p }),
+      },
       doc: this.doc,
       canEdit: () => !this.documentBusy,
       ticker: this.ticker,
@@ -195,7 +221,7 @@ export class App {
 
     this.root.append(
       this.library.root, main, this.libraryScrim, this.toasts.root, this.quick.root,
-      this.devPanel.root, this.settings.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
+      this.devPanel.root, this.learn.root, this.settings.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
     );
 
     this.attachDropTarget();
@@ -224,7 +250,11 @@ export class App {
     const path = el('div', 'patch-path');
     this.draftLabel = el('span', 'patch-prefix', 'DRAFT · NOT RUNNING');
     this.draftLabel.dataset.testid = 'draft-not-running';
-    path.append(el('span', 'patch-prefix', 'PATCH /'), this.nameEl, this.dirtyDot, this.draftLabel);
+    this.learnApplyingEl = el('span', 'patch-prefix', 'Applying MIDI Learn…');
+    this.learnApplyingEl.dataset.testid = 'midi-learn-applying';
+    this.learnApplyingEl.hidden = true;
+    this.learnApplyingEl.style.display = 'none';
+    path.append(el('span', 'patch-prefix', 'PATCH /'), this.nameEl, this.dirtyDot, this.draftLabel, this.learnApplyingEl);
     left.append(menuBtn, path);
 
     const right = el('div', 'topbar-right');
@@ -901,6 +931,160 @@ export class App {
     if (commit && paramId === 'bpm' && this.lastStatus) this.statusBar.update(this.lastStatus);
   }
 
+  private learnServices(): LearnServices {
+    return { doc: this.doc, allocateId: () => this.allocateId(), devices: () => this.lastStatus?.midi.devices ?? [] };
+  }
+
+  /** MIDI Learn confirmed (#287): write the CC row, feed and cable onto the knob, one undo step. */
+  private commitLearn(target: LearnTarget, capture: LearnCapture, anyChannel: boolean): void {
+    if (this.learnEpoch !== this.viewEpoch) {
+      this.toasts.show('The patch changed while learning; nothing was mapped.', 'error');
+      return;
+    }
+    this.applyLearn(() => {
+      const r = commitLearn(this.learnServices(), target, capture, anyChannel);
+      const note = r.notes.length ? ` (${r.notes.join('; ')})` : '';
+      return { revert: r.revert, message: `CC ${capture.controller} learned${note}.` };
+    }, 'MIDI Learn');
+  }
+
+  private forgetLearn(target: LearnTarget): void {
+    this.applyLearn(() => {
+      const r = forgetLearn(this.learnServices(), target);
+      return r && { revert: r.revert, message: 'MIDI mapping forgotten.' };
+    }, 'Forget MIDI mapping');
+  }
+
+  /** Keel #500: serialize Learn/Forget and its recovery replan with all document edits. */
+  private applyLearn(change: () => { message: string } | null, what: string): void {
+    if (this.documentBusy) return;
+    const restoreHistory = this.history.checkpoint();
+    const previous = this.doc.toJSON(), wasDirty = this.doc.dirty;
+    let result: { message: string } | null;
+    try { result = change(); } catch (err) {
+      this.doc.replace(previous);
+      if (!wasDirty) this.doc.markClean();
+      restoreHistory();
+      this.refreshDirty();
+      this.toasts.show(err instanceof Error ? err.message : `${what} failed.`, 'error');
+      return;
+    }
+    if (!result) return;
+    this.history.flush(); // one gesture, one undo step, even when confirmed with Enter
+    const submitted = this.doc.toJSON();
+    const epoch = this.viewEpoch, engine = this.editEngine();
+
+    this.beginDocumentOperation(); // protects patch, cables, rows, labels, undo and Save
+    this.learnApplyingEl.hidden = false;
+    this.learnApplyingEl.style.display = '';
+    this.toasts.show('Applying MIDI Learn…');
+    const real = engine instanceof RealEngine ? engine : null;
+    const gen0 = real?.generation();
+    let phase: 'reply' | 'wait-gen' | 'applied' | 'not-applied' | 'restart-required' | 'restart' = 'reply';
+    let genTimer = 0, pushTimer = 0, restored = false;
+    let removeGen = () => {}, removeConnection = () => {};
+    let clickRestart = () => {}, resolveRecovery = () => {};
+    let restartClick = new Promise<void>(resolve => { clickRestart = resolve; });
+    const recoveryDone = new Promise<void>(resolve => { resolveRecovery = resolve; });
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      this.doc.replace({ ...previous, ui: { ...(previous.ui ?? {}), view: this.doc.ui.view } });
+      if (!wasDirty) this.doc.markClean();
+      restoreHistory();
+      requestAnimationFrame(() => this.canvas.invalidateAnchors());
+      this.refreshDirty();
+    };
+    const showRestart = () => {
+      if (phase === 'reply' || phase === 'wait-gen') phase = 'restart-required';
+      if (this.learnRestartPrompt || !real) return;
+      const panel = el('div', 'learn-restart-prompt', 'Engine not responding. ');
+      panel.dataset.testid = 'midi-learn-restart-prompt';
+      panel.setAttribute('role', 'alert');
+      Object.assign(panel.style, { position: 'fixed', inset: 'auto 1rem 1rem auto', zIndex: '10000',
+        padding: '1rem', background: '#211d1a', color: '#fff', border: '1px solid #e58b58' });
+      const button = el('button', 'learn-restart-button', 'Restart engine') as HTMLButtonElement;
+      button.dataset.testid = 'midi-learn-restart';
+      button.addEventListener('click', () => {
+        button.disabled = true;
+        this.learnRestartPrompt?.remove();
+        this.learnRestartPrompt = null;
+        phase = 'restart';
+        clickRestart();
+      });
+      panel.append(button);
+      document.body.append(panel);
+      this.learnRestartPrompt = panel;
+    };
+    const recover = async () => {
+      restore();
+      while (true) {
+        await restartClick;
+        restartClick = new Promise<void>(resolve => { clickRestart = resolve; });
+        try {
+          await real!.restartEngine();
+          phase = 'applied';
+          this.toasts.show('Engine restarted; the pre-Learn patch is running.', 'error');
+          resolveRecovery();
+          return;
+        } catch (err) {
+          phase = 'restart-required';
+          this.toasts.show(err instanceof Error ? err.message : 'Could not restart engine.', 'error');
+          showRestart();
+        }
+      }
+    };
+    let recovering = false;
+    const requireRestart = () => {
+      if (phase === 'applied' || phase === 'not-applied') return;
+      window.clearTimeout(genTimer); window.clearTimeout(pushTimer);
+      removeGen(); removeConnection();
+      showRestart();
+      if (!recovering && real) { recovering = true; void recover(); }
+    };
+    if (real && gen0 !== undefined) {
+      genTimer = window.setTimeout(() => { if (phase === 'reply') phase = 'wait-gen'; }, 3000);
+      pushTimer = window.setTimeout(requireRestart, 10_000);
+      removeGen = real.onGeneration(gen => {
+        if (phase !== 'wait-gen') return;
+        const applied = BigInt(gen) > BigInt(gen0);
+        phase = applied ? 'applied' : 'not-applied';
+        window.clearTimeout(genTimer); window.clearTimeout(pushTimer); removeGen();
+        if (!applied) restore();
+        real.settleUnansweredLoad(applied);
+      });
+      removeConnection = real.onConnection(state => {
+        if (state === 'restarting' && phase !== 'applied' && phase !== 'not-applied') requireRestart();
+      });
+    }
+    const pending = engine.loadGraph(submitted).then(() => {
+      if (phase !== 'not-applied' && phase !== 'restart-required' && phase !== 'restart') {
+        phase = 'applied';
+        this.toasts.show(result.message);
+      }
+    }).catch(async err => {
+      window.clearTimeout(genTimer); window.clearTimeout(pushTimer);
+      if (phase === 'not-applied') return;
+      if (phase === 'restart-required' || phase === 'restart') { await recoveryDone; return; }
+      if (this.viewEpoch !== epoch || this.editEngine() !== engine) return;
+      const reason = err instanceof EngineRefusal && err.detail.engine
+        ? `${what} was refused: ${err.message}` : (err instanceof Error ? err.message : `${what} failed.`);
+      restore();
+      if (err instanceof EngineRefusal && err.detail.engine) {
+        this.toasts.show(`${reason}. It was taken back out of the patch.`, 'error');
+      } else this.toasts.show(reason, 'error');
+    }).finally(() => {
+      window.clearTimeout(genTimer); window.clearTimeout(pushTimer);
+      removeGen(); removeConnection();
+      this.learnRestartPrompt?.remove(); this.learnRestartPrompt = null;
+      this.learnSettled = null;
+      this.learnApplyingEl.hidden = true;
+      this.learnApplyingEl.style.display = 'none';
+      this.endDocumentOperation();
+    });
+    this.learnSettled = pending;
+  }
+
   private setMidiEndpoint(moduleId: number, endpoint: string, systemName?: string): void {
     if (this.documentBusy) return;
     const previous = this.doc.toJSON();
@@ -1482,6 +1666,9 @@ export class App {
 
   /** Native dialogs belong to Electron main; browser-only use keeps file input/export. */
   private async openPatchFile(): Promise<void> {
+    // Native OPEN requested during an atomic Learn is queued, not performed
+    // against a half-applied document (nor silently discarded).
+    if (this.learnSettled) await this.learnSettled;
     if (this.documentBusy) return;
     if (!window.wirescape) { this.fileInput.click(); return; }
     const request = ++this.readEpoch, view = this.viewEpoch;
