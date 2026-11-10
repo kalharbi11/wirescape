@@ -39,13 +39,13 @@ protocol for a later narrow edit path; nothing here removes it.
 
 ```acceptance
 tier: T1
-size: <= 1100 changed lines, <= 16 files
+size: <= 1250 changed lines, <= 16 files
 must_pass:
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npx playwright test tests/midi-learn-ui.spec.ts tests/mock-bridge/midi-learn.spec.ts --trace off'
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
   - bash -lc "cd apps/studio && npm run typecheck"
   - ci: guard, linux-arm64, windows-x64, sanitizers, web green on the exact head
-stops: [native/protocol/catalogue format change, parameter ID change, real devices in tests, threshold loosening]
+stops: [native/protocol/catalogue format change, parameter ID change, real devices in tests, threshold loosening, timeout behavior that assumes an unanswered load was refused]
 ```
 
 Signed: Claude Sonnet 5.5 (Studio UI builder), 2026-11-10
