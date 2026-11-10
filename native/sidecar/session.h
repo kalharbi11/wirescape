@@ -69,7 +69,7 @@ class Session {
     ObservedMidi *observer_ = nullptr;
     std::unique_ptr<midi::Host> midi_;
     Json patch_, preferences_ = Json::object(), audio_devices_, midi_devices_;
-    std::string token_, device_, audio_state_ = "no-device";
+    std::string token_, device_, audio_state_ = "no-device", audio_reason_;
     uint64_t generation_ = 0, tick_ = 0;
     std::set<uint32_t> used_ids_;
     document::telemetry::Sampler telemetry_;
@@ -94,7 +94,7 @@ class Session {
     void stop_audio();
     void start_midi();
     void persist();
-    bool refresh_devices(bool audio = true);
+    bool refresh_devices(bool audio = true, bool probe_rates = true, const std::string &target = {});
     Json execution(Json);
     void commit(Json, bool);
     Json apply(const Json &);
@@ -117,3 +117,4 @@ class Session {
 };
 Options parse_options(int, char **);
 } // namespace wirescape::sidecar
+

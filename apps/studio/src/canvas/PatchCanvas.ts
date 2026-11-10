@@ -36,6 +36,13 @@ export interface CanvasServices extends PanelHost {
   /** Send a connect to the engine; throws EngineRefusal if it is refused. */
   engineConnect(c: Connection): void;
   engineDisconnect(c: Connection): void;
+  /** MIDI Learn (#287). Absent or `available() === false` when the engine cannot observe CCs. */
+  midiLearn?: {
+    available(): boolean;
+    begin(moduleId: number, paramId: string): void;
+    mapped(moduleId: number, paramId: string): boolean;
+    forget(moduleId: number, paramId: string): void;
+  };
 }
 
 type Pending = {
@@ -212,6 +219,7 @@ export class PatchCanvas {
         this.refreshKnobsFor(e.c);
         break;
       case 'mod-amount': this.syncCables(); this.placeCableTools(); break;
+      case 'config': this.cards.get(e.id)?.refreshCcLabels(); break;
       case 'param': {
         this.cards.get(e.id)?.panel?.refreshParam(e.paramId);
         this.cards.get(e.id)?.refreshMissing();
@@ -693,7 +701,14 @@ export class PatchCanvas {
 
   private knobMenu(e: MouseEvent, moduleId: number, param: string): void {
     e.preventDefault(); e.stopPropagation();
-    this.showMenu(e, [['Map from a source…', () => this.beginMapping({ to: { module: moduleId, param } })]]);
+    const items: [string, () => void][] = [['Map from a source…', () => this.beginMapping({ to: { module: moduleId, param } })]];
+    const learn = this.s.midiLearn;
+    const p = this.descriptorOf(moduleId) && findParam(this.descriptorOf(moduleId)!, param);
+    if (learn?.available() && p?.modulatable) {
+      items.push(['MIDI Learn…', () => learn.begin(moduleId, param)]);
+      if (learn.mapped(moduleId, param)) items.push(['Forget MIDI mapping', () => learn.forget(moduleId, param)]);
+    }
+    this.showMenu(e, items);
   }
 
   private showMenu(e: MouseEvent, items: [string, () => void][]): void {
