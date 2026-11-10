@@ -39,7 +39,9 @@ test.beforeEach(async ({ page }) => {
 test('disarmed running, queued STOP and pre-boundary samples keep Apply off; measured [-1,-1] applies stopped', async ({ page }) => {
   await telemetry(page, { 1: [4, 4] }); // running global transport with both tracks disarmed
   await expect(page.getByTestId('groove-status-1')).toHaveText('PLAYING 1.2.1');
-  await page.getByTestId('groove-pad-1-1').click(); // already selected: toggles the note off
+  await page.getByTestId('groove-pad-1-1').click(); // initially highlighted, but not selected by a click yet
+  await expect(page.getByTestId('groove-draft-1')).toBeHidden();
+  await page.getByTestId('groove-pad-1-1').click(); // second click toggles the note off
   await expect(page.getByTestId('groove-draft-1')).toBeVisible();
   await expect(apply(page)).toBeDisabled();
   await page.getByTestId('groove-play-1').click(); // queue global STOP
@@ -71,6 +73,7 @@ test('disarmed running, queued STOP and pre-boundary samples keep Apply off; mea
 test('a refused Apply keeps the draft and starts nothing; Stop & apply waits for the measured stop', async ({ page }) => {
   await telemetry(page, { 1: [-1, -1] });
   await page.getByTestId('groove-pad-1-1').click();
+  await page.getByTestId('groove-pad-1-1').click();
   await expect(apply(page)).toBeEnabled();
   await page.evaluate(() => (window as any).__mockBridge.refuseNext('loadGraph', 'invalid'));
   const before = (await sent(page)).length;
@@ -99,6 +102,7 @@ test('a refused Apply keeps the draft and starts nothing; Stop & apply waits for
 
 test('undo/redo reloads never carry an unapplied draft to the engine', async ({ page }) => {
   await page.getByTestId('groove-pad-1-1').click();
+  await page.getByTestId('groove-pad-1-1').click();
   await page.evaluate(() => window.__wirescapeTest.flushHistory());
   await page.evaluate(() => window.__wirescapeTest.addModule('essentials.noise'));
   await page.evaluate(() => window.__wirescapeTest.flushHistory());
@@ -122,6 +126,36 @@ test('playhead and skipped-this-pass dim come only from telemetry', async ({ pag
   await telemetry(page, { 1: [1, -1] });
   await expect(page.getByTestId('groove-pad-1-2')).toHaveClass(/play/);
   await expect(page.getByTestId('groove-pad-1-1')).not.toHaveClass(/play|skip/);
+});
+
+test('refused whole-draft Apply restores the playing Groove for an unrelated undo reload with overlapping IDs', async ({ page }) => {
+  // A new document reuses module ID 1 but changes the note. A refused load leaves the original playing.
+  const candidate = JSON.parse(JSON.stringify(patch));
+  candidate.modules[0].config.tracks[0].steps[0] = { kind: 'note', key: 72, velocity: 0.8 };
+  await page.evaluate(() => (window as any).__mockBridge.refuseNext('loadGraph', 'busy'));
+  await page.evaluate(async p => window.__wirescapeTest.load(p, 'Refused Groove'), candidate);
+  await expect(page.getByTestId('open-refused-draft')).toBeVisible();
+  await page.getByTestId('open-refused-draft').click();
+  await expect(page.getByTestId('draft-not-running')).toBeVisible();
+  expect((await page.evaluate(() => window.__wirescapeTest.state())).modules[0].config.tracks[0].steps[0].key).toBe(72);
+
+  await page.evaluate(() => (window as any).__mockBridge.refuseNext('loadGraph', 'unavailable'));
+  await page.getByTestId('apply-refused-draft').click();
+  await expect(page.getByTestId('draft-not-running')).toBeVisible();
+  expect((await graphConfig(page)).tracks[0].steps[0]).toEqual(steps[0]);
+  await page.getByTestId('back-to-playing').click();
+  await expect(page.getByTestId('patch-name')).toHaveText('Groove');
+
+  // Undoing an unrelated topology edit invokes the whole-graph projection again.
+  // It must not replay the rejected candidate's config for the same module ID.
+  await page.evaluate(() => window.__wirescapeTest.addModule('essentials.noise'));
+  await page.evaluate(() => window.__wirescapeTest.flushHistory());
+  const before = (await sent(page)).length;
+  await page.evaluate(() => window.__wirescapeTest.undo());
+  await expect.poll(async () => (await sent(page)).slice(before).filter(m => m.type === 'loadGraph').length).toBe(1);
+  const reload = (await sent(page)).slice(before).find(m => m.type === 'loadGraph');
+  expect(reload.patch.modules.find((m: any) => m.id === 1).config.tracks[0].steps[0]).toEqual(steps[0]);
+  await expect.poll(async () => (await graphConfig(page)).tracks[0].steps[0]).toEqual(steps[0]);
 });
 
 test('G2b Roll/bar edits stay in draft until a measured stop and explicit Apply', async ({ page }) => {
