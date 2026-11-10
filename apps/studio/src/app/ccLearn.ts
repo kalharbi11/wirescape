@@ -17,8 +17,8 @@
  * implicit CC n defaults, so a slot past the end is reached by writing those
  * defaults explicitly (no holes) and a wired implicit output never changes meaning.
  *
- * Every document change is recorded with a guarded inverse, so the App can take
- * a refused Learn back out of a document that has since been edited further.
+ * Edits retain inverses for local construction errors. App serializes the
+ * atomic load and restores its pre-Learn snapshot on a later refusal.
  */
 import type { Device } from '../engine/EngineClient';
 import type { PatchDoc } from '../patch/PatchDoc';
