@@ -424,8 +424,8 @@ export class GroovePane {
             this.select(i); focus(i, key);
           } else if (e.key === 'Delete' || e.key === 'Backspace') {
             e.preventDefault(); e.stopPropagation();
-            const src = this.cfg && sourceOf(this.cfg, t, i);
-            if (this.cfg && src !== undefined && src >= 0 &&
+            const src = this.cfg ? sourceOf(this.cfg, t, i) : -1;
+            if (this.cfg && src >= 0 &&
                 (stepAt(this.cfg, t, src).key ?? 60) === key) {
               this.edit(c => setKind(stepFor(c, t, i), 'rest'));
             }
