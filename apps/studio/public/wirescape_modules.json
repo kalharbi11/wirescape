@@ -492,6 +492,24 @@
      "step": 0,
      "decimals": 3,
      "modulatable": true
+    },
+    {
+     "id": "lfo_shape",
+     "name": "LFO shape",
+     "minimum": 0,
+     "maximum": 3,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false,
+     "choices": [
+      {"value": 0, "label": "Sine"},
+      {"value": 1, "label": "Triangle"},
+      {"value": 2, "label": "Sample & hold"},
+      {"value": 3, "label": "Smooth random"}
+     ]
     }
    ],
    "version": 1,
@@ -521,7 +539,8 @@
     "lfo_target": 22,
     "lfo_self": 23,
     "cutoff": 24,
-    "level": 25
+    "level": 25,
+    "lfo_shape": 26
    }
   },
   {
