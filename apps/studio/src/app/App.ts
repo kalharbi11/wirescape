@@ -934,6 +934,7 @@ export class App {
   }
 
   /** Rising-edge transport request: a high then low value on the engine only, never in the document. */
+  /** Transport request as a 1 → 0 pulse; the engine acts on the rising edge, so 60 ms spans many blocks. */
   private grooveCommand(id: number, param: string): void {
     if (this.documentBusy || this.draftVisible) return;
     try {
