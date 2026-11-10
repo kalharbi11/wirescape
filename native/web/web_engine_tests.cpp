@@ -121,12 +121,14 @@ int main(int argc, char **argv) {
 
     // Groove observations are uncabled last-frame outputs from the same sampler
     // used by the sidecar. A commit and a repeated read both clear the maps.
-    Json groove_patch = {{"format", "wirescape.native.patch"}, {"version", 2},
-        {"settings", Json::object()},
-        {"modules", Json::array({{{"id", 1}, {"module", "sequencing.groove"},
-            {"config", {{"version", 1}, {"bpm", 300},
-                {"tracks", Json::array({{{"steps", Json::array({{{"kind", "note"}, {"key", 60}}})}}})}}},
-            {{"id", 7}, {"module", "essentials.output"}}})}, {"connections", Json::array()}};
+    Json groove_patch = Json::parse(R"json({
+        "format": "wirescape.native.patch", "version": 2, "settings": {},
+        "modules": [
+            {"id": 1, "module": "sequencing.groove",
+             "config": {"version": 1, "bpm": 300,
+                        "tracks": [{"steps": [{"kind": "note", "key": 60, "velocity": 1}]}]}},
+            {"id": 7, "module": "essentials.output"}],
+        "connections": []})json");
     CHECK(command({{"type", "loadGraph"}, {"patch", groove_patch}})["ok"] == true);
     auto no_frame = Json::parse(wsw_telemetry());
     CHECK(no_frame["playhead"].empty() && no_frame["groove"].empty());
