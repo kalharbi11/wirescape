@@ -32,9 +32,10 @@ struct Config {
     float bpm = 120.f;
     uint32_t track_count = 1;
     uint32_t instance_seed = 0; // Off-render graph numeric ID, never authored JSON.
+    uint32_t authored_version = 1; // Preserve old 32-step entry timing for v1; v2 enters at bar 16.
     std::array<Track, 4> tracks{};
 };
-static_assert(sizeof(Step) == 24 && sizeof(Track) == 1548 && sizeof(Config) == 6208,
+static_assert(sizeof(Step) == 24 && sizeof(Track) == 1548 && sizeof(Config) == 6212,
               "Groove v2 fixed 4x64 POD layout requires contract review");
 
 // The previous transient v1 layout is read only for compatibility with direct
@@ -102,7 +103,8 @@ inline bool decode(const uint8_t *data, uint32_t bytes, Config &out) {
         std::memcpy(&next, data, bytes);
     }
     if (next.version != 2 || !std::isfinite(next.bpm) || next.bpm < 20 || next.bpm > 300 ||
-        next.track_count < 1 || next.track_count > 2) return false;
+        next.track_count < 1 || next.track_count > 2 ||
+        (next.authored_version != 1 && next.authored_version != 2)) return false;
     for (const auto &track : next.tracks) {
         if (track.armed > 1 || track.mute > 1 ||
             (track.length != 8 && track.length != 16 && track.length != 32 && track.length != 64))
