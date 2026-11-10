@@ -40,7 +40,7 @@ authorized here.
 tier: T1
 size: <= 300 changed lines, <= 10 files
 must_pass:
-  - bash -lc "cd apps/studio && npm ci && npm test"
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
   - bash -lc "cd apps/studio && npm run typecheck"
   - ci: guard, linux-arm64, windows-x64, sanitizers, web green on the exact head
 stops: [model ID or value change, native/protocol change, names not traced to the pinned upstream order]
