@@ -93,6 +93,22 @@ test('single-note Roll adds, ties and deletes; save/reload retains authored keys
   const start = page.getByTestId('groove-roll-1-2-60');
   await start.click();
   expect((await cfg(page)).tracks[0].steps[1]).toMatchObject({ kind: 'note', key: 60 });
+  // The Roll's lollipop lanes edit the same authored step values.
+  const setRollValue = async (field: string, fraction: number) => {
+    const cell = page.getByTestId('groove-roll-' + field + '-1-2');
+    const b = (await cell.boundingBox())!;
+    await page.mouse.click(b.x + b.width / 2, b.y + b.height * (1 - fraction));
+  };
+  await setRollValue('velocity', 0.75);
+  await setRollValue('gate', 0.5);
+  await setRollValue('mod1', 0.8);
+  const afterValues = (await cfg(page)).tracks[0].steps[1];
+  expect(afterValues.velocity).toBeCloseTo(0.75, 2);
+  expect(afterValues.gate).toBe(0.5);
+  expect(afterValues.mod1).toBeCloseTo(0.8, 2);
+  await page.getByTestId('groove-mod2-1').fill('65');
+  await page.getByTestId('groove-mod2-1').press('Enter');
+  expect((await cfg(page)).tracks[0].steps[1].mod2).toBeCloseTo(0.65, 2);
   const end = page.getByTestId('groove-roll-1-5-60');
   const a = (await start.boundingBox())!, b = (await end.boundingBox())!;
   await page.mouse.move(a.x + 10, a.y + 12);
