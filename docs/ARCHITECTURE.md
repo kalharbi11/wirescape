@@ -3,7 +3,8 @@
 
 This is the implemented native architecture after the M0 clean-copy migration.
 The roadmap is in [PLAN.md](PLAN.md); evidence and limits are in [STATUS.md](STATUS.md).
-The app is alpha. Experimental offline ABI2 proofs are distinct from the live ABI1 app.
+The app is alpha. Offline ABI2 proofs and the active ABI2-backed sidecar
+have separate acceptance and hardware-evidence boundaries.
 
 ## Product boundaries
 
@@ -58,7 +59,6 @@ These additions are merged, but each device or runtime claim has its own gate:
   and the [Studio editor](https://github.com/kalharbi11/wirescape/pull/509)
   with [roll/bar/scale tools](https://github.com/kalharbi11/wirescape/pull/516).
   These are merged capabilities, not evidence of later chord/speed work.
-
 
 The root `web` workflow uses hosted Ubuntu and pinned Node 22 for `npm ci`,
 typecheck, build and Playwright with the runner's Chromium. Failures retain
