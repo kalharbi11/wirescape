@@ -325,3 +325,22 @@ but primarily support the engine's measured editor telemetry; no cable is needed
 for the editor to observe them. For example, a `t1_fired` signal may drive a gate
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
+
+## OSC In and Monitor (portable slice A of #72)
+
+Builds with the portable #72 slice A register `osc.in` and `monitor` as ABI2
+modules. `osc.in` exposes eight CV rows (`row1`…`row8`) and an OSC
+`messages` event output. Each row's defaults listen for
+`/pico1/knob/1`…`/pico1/knob/8`, map numeric 0–1 to CV 0–1, smooth over 5 ms,
+and hold the last value after a 1 s timeout unless configured for stale zero.
+`monitor` has `events`, `in1`, and `in2` inputs, capturing bounded
+messages/signals without logging on the audio thread.
+
+**Availability limit:** registration is not an operational UDP route. Until
+sidecar ownership/localhost ingress and Electron/Monitor presentation (slices
+B/C) ship, incoming network messages do not reach `osc.in` in the app and
+Monitor has no user-facing log. Do not publish a patch claiming live OSC
+control yet. After B/C, the intended wiring is `osc.in.row1 →` a VCA's
+`cv` input and `osc.in.messages → monitor.events`; browser/WASM OSC and
+unconfirmed LAN access remain unavailable. These modules introduce no new
+patch parameters or changes to existing IDs.
