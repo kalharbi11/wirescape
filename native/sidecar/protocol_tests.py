@@ -384,11 +384,16 @@ with tempfile.TemporaryDirectory() as directory:
              if line.startswith('bench ')]
     assert len(lines) == 1, lines
     match = re.fullmatch(
-        r'bench blocks=(\d+) p50=(\d+) p99=(\d+) max=(\d+(?:\.\d+)?(?:e[+-]?\d+)?) overruns=(\d+) faults=(\d+)',
+        r'bench blocks=(\d+) p50=(\d+) p99=(\d+) max=(\d+(?:\.\d+)?(?:e[+-]?\d+)?) overruns=(\d+) faults=(\d+) '
+        r'overrun_render_count=(\d+) overrun_render_max_us=([0-9.e+-]+) '
+        r'overrun_wake_count=(\d+) overrun_wake_max_us=([0-9.e+-]+)',
         lines[0])
     assert match, lines[0]
-    blocks, p50, p99, maximum, overruns, faults = map(float, match.groups())
+    blocks, p50, p99, maximum, overruns, faults = map(float, match.groups()[:6])
     assert blocks > 0 and 0 <= p50 <= p99 <= maximum and overruns >= 0 and faults == 0
+    render_count, render_max_us, wake_count, wake_max_us = map(float, match.groups()[6:])
+    assert 0 <= render_count <= overruns and 0 <= wake_count <= overruns
+    assert 0 <= render_max_us < float('inf') and 0 <= wake_max_us < float('inf')
     # Long block periods cannot delay hello or EOF teardown. 8 kHz x 4096 frames is the
     # longest supported period (~512 ms); the engine refuses rates below 8 kHz.
     started = time.monotonic()
