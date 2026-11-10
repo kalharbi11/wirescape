@@ -1,16 +1,17 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-09 late, Compass + Keel check-in; Codex Lead closeout refresh. Owner failures preempt features.
+**Updated:** 2026-11-10, Keel (ASAP lanes + rulings). Owner failures preempt features.
 Live heads and completed evidence govern; queued, stale and missing results never pass.
 
 ## Authority and queue
 - Board #473 is the claim source. Codex Lead keeps it current and holds the owner's
   delegation to approve/merge after independent review and evidence (T2 still needs Claude).
-- Owner's subsequent instruction holds new starts until remaining PRs close, even below10.
+- **Owner 2026-11-10: ASAP lanes, hold lifted for them:** Chord (#511→#512), MIDI (#500 Learn),
+  OSC (#72 slices A→B→C), Groove (#505 G1 → #509/#510 G2 → #514 G4 chords). Other new starts still wait.
 - Seven closeout PRs remain after486 merged1e20242; this planner refresh484 is one.
-- Next lane: Groove playable v1 (#432): G1 #496 + G3 #497 (T2, Keel) → G2 #498; then Learn287 → OSC72.
-- 2026-11-10: #495 owner Groove UI merged; #461 merged; #494 Pi smoke fix, #492 model names on auto-merge.
+- Keel rulings 2026-11-10: #511 Chord last-wins for reused explicit IDs, budget 20 files;
+  #500 Learn keeps one loadGraph but serializes edits while it's pending; #514 G4 pre-ruled.
 
 ## Merged 2026-11-09 (baseline `605da43`, compile repair `1e20242`)
 - #463 Windows runtime, #400 latency, #442 real-app evidence, #474 PLAN D15–D19.
@@ -50,8 +51,8 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 - #481 R4 follows R3. R6 ABI1 #470 is Keel's, after R3.
 
 ## Housekeeping notes
-- AGENTS.md/WORKFLOW.md still say "until gate v4 merges"; gate v4 merged (#407).
-  Fix with the next allow-protected rules PR (W_GATE_V4.md stays until then).
+- 2026-11-10 (Keel): tiers seniors Codex Lead + **Coda** (`Coda: T2 batch`), helpers (`lane/helper`);
+  v3.1 doc trim + queue mode (LEADS.md). Deferred to cleanup: docs/planner/USAGE_DEFERRED.md.
 - docs/tasks/README.md lists task files still cited by open work; move them to done/
   when those PRs merge.
 - Permanent: required guard/Linux/Windows/sanitizers + task/Web/WASM/Pi as applicable.

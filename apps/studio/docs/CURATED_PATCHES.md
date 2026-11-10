@@ -1,6 +1,12 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Curated patches: cinematic studies
 
+> **2026-11-10:** the shipped, editable versions of these eight studies are now
+> `apps/studio/patches/scene-01-…` to `scene-08-…` (renamed **Scene 1–8**, revised
+> with reverb, delay, quantizer and 16-step sequences), alongside **Basics 1–7**.
+> See `apps/studio/patches/README.md`. The table below describes the historical
+> `curated.ts` snapshots, which stay as regression fixtures only.
+
 Eight authored patch-v2 documents are available from **Starter patches** and the
 read-only **Patch browser** in Studio (desktop and the WebAssembly browser demo).
 They do not overwrite user-saved patches. The browser needs its **Start with
@@ -37,9 +43,11 @@ For headphone listening, start with a low output volume.
 
 ## Preservation and scope
 
-- The six **Qt** bundled patches are preserved byte-for-byte in
-  `apps/studio/src/app/qt-starters/`; their read-only Patch browser entries
-  remain available for historical session regression checks.
+- The six **Qt** bundled patches (`qt-*`) were retired on 2026-11-10. Their
+  roles are covered by the library's **Basics 1–7** patches and the bundled
+  desktop **MIDI · Keys, Knobs and Wheels** patch
+  (`apps/studio/src/app/bundled/`). The `qt-*` IDs stay reserved; the native
+  `ui_starters.json` conformance fixture is unchanged. Git history keeps the files.
 - The three **Class demo** patches in `native/examples/class_demo_*.json` are
   preserved unchanged. They were created for the owner's Pi/M8 test sessions
   (see `docs/tasks/done/P0A_DEMO_PATCHES.md` and `docs/DEMO_CLASS.md`).

@@ -6,7 +6,14 @@ import { mockBridge } from './mock-bridge/bridge';
 test('browser preserves built-in test bundles separately from editable shared patches', async ({ page }) => {
   await boot(page);
   await page.getByTestId('open-patch-browser').click();
-  await expect(page.getByTestId('patch-browser').locator('[data-testid^="bundled-patch-"]')).toHaveCount(9);
+  const bundles = page.getByTestId('patch-browser').locator('[data-testid^="bundled-patch-"]');
+  // The six retired Qt starters no longer occupy the read-only bundle list.
+  // MIDI and the three class demos remain in the browser.
+  await expect(bundles).toHaveCount(4);
+  await expect(bundles.nth(0)).toContainText('MIDI · Keys, Knobs and Wheels');
+  await expect(bundles.nth(1)).toContainText('Class demo · CHAOS');
+  await expect(bundles.nth(2)).toContainText('Class demo · Subtractive');
+  await expect(bundles.nth(3)).toContainText('Class demo · Macro');
   await page.getByTestId('bundled-patch-0').click();
   await expect(page.getByTestId('patch-browser')).toBeHidden();
   expect((await state(page)).modules.length).toBeGreaterThan(0);
