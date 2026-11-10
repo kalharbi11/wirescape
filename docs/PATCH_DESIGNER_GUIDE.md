@@ -49,10 +49,11 @@ Visitors find compatible patches in Starter patches and PATCHES → SHARED PATCH
 Changes appear after a successful deployment and refresh, not at the instant of commit.
 An open PR is a preview/check, not a public deployment.
 
-**Shipped set (2026-11-10).** Every new build ships 16 patches: the fifteen
-library files in that folder (**Basics 1–7** introductory patches,
-`basics-NN-*.json`, and the eight revised cinematic **Scene 1–8** patches,
-`scene-NN-*.json`), plus the bundled desktop-only MIDI example
+**Shipped set (2026-11-10).** Before the CHAOS Lab #530 merge, builds ship 16 patches: the fifteen
+library files (**Basics 1–7** and **Scene 1–8**) plus the bundled desktop-only
+MIDI example. Builds containing #530 ship 19: the previous sixteen and
+three additional CHAOS Lab 1–3 patches (`chaos-NN-*.json`). The lab patches
+are not public until their PR merges and deploys.
 `apps/studio/src/app/bundled/midi-keys-and-knobs.json`. That one lives in the
 app because this folder and the web host exclude `midi.*` modules; the web
 Starter list hides it automatically. The six old `qt-*` starters were retired;
@@ -364,3 +365,28 @@ but primarily support the engine's measured editor telemetry; no cable is needed
 for the editor to observe them. For example, a `t1_fired` signal may drive a gate
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
+
+
+## CHAOS atmospheric lab (experimental #530; not public until merged)
+
+Three original scenes use the current `essentials.chaos_lite` v1:
+`chaos-01-ember-veil-pad` (keyboard pad, clocked smooth random),
+`chaos-02-wireglass-lead` (ring/AM lead with envelope-driven coupling),
+and `chaos-03-orbiting-iron-fx` (autoplay curved metallic pulses).
+`basics-06-chaos-keys` and `scene-03-black-ice-choir` were also revised.
+
+**Critical CHAOS gate rule:** `essentials.chaos_lite.gate` is an immediate
+audio multiplier, not an ADSR generator. To get keyboard release, wire
+`host.keyboard.gate` to `essentials.adsr.gate`, then
+`adsr.envelope` to the two stereo `essentials.vca.gain_cv` ports.
+Leave CHAOS gate **unpatched (default 1)** and set `fall=0`; if the
+keyboard gate goes into CHAOS, a zero at note-off defeats the ADSR release.
+Until an independent pitch fall trigger exists, external CV handles
+note-on pitch contours. Each patch description names useful performance
+parameters; no new CHAOS DSP/control is assumed.
+
+A standalone seeded sine/tri/S&H/smooth-random `lfo_shape` is **proposed,
+not available**. P1 addition and compatibility/test plan:
+`docs/design/CHAOS_ATMOSPHERES_NEXT.md`. Eight named module-level
+presets are available from merged #522; a patch still stores its values,
+not its selected preset name. Real device listening remains owner-only.
