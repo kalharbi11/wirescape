@@ -59,6 +59,7 @@ struct Sequencer {
         uint32_t loop = 1;
         uint32_t rng = 1;
         bool fired = false;
+        bool skipped_cond = false; // Only failed v2 note conditions propagate to following ties.
         double gate_age = 0., gate_cutoff = 0.;
         bool short_gate = false;
     };
@@ -239,9 +240,10 @@ struct Sequencer {
         const auto &row = pattern.tracks[t].steps[step_t[t]];
         const bool continued = p.fired && p.sounding.on;
         p.fired = false;
-        if (!p.playing) return;
+        if (!p.playing) { p.skipped_cond = false; return; }
         if (row.kind == Note && row.velocity > 0.f) {
             p.fired = condition_passes(row, p);
+            p.skipped_cond = !p.fired;
             if (!p.fired) {
                 // A failed condition acts as a rest for notes/ties, not for the
                 // stepped CV modulation: the skipped trig still updates both mods.
@@ -251,7 +253,13 @@ struct Sequencer {
             }
         } else if (row.kind == Tie) {
             p.fired = continued;
-        }
+            if (p.skipped_cond) {
+                // A rejected note's following ties are rests for notes but
+                // still update their authored modulation values.
+                p.mod1 = row.mod1;
+                p.mod2 = row.mod2;
+            }
+        } else p.skipped_cond = false;
         if (effective_mute(t)) return;
         if (row.kind == Tie && p.sounding.on) return;
         if (row.kind != Note || row.velocity <= 0.f || !p.fired || !flush(b, t, i)) return;
@@ -289,14 +297,16 @@ struct Sequencer {
         if (step == 0 && stop_queued) {
             release_all(b, i);
             running = stop_queued = reset_wait = false;
-            for (auto &p : players) p.playing = p.enter = p.stop = p.fired = false;
+            for (auto &p : players) {
+                p.playing = p.enter = p.stop = p.fired = p.skipped_cond = false;
+            }
             return; // No step-1 NOTE_ON after the completed global STOP.
         }
         for (uint32_t t = 0; t < kTracks; ++t) {
             auto &p = players[t];
             if (p.stop && step_t[t] == 0) {
                 release(b, t, i);
-                p.playing = p.armed = p.stop = p.enter = p.fired = false;
+                p.playing = p.armed = p.stop = p.enter = p.fired = p.skipped_cond = false;
             } else if (p.enter && step % 16u == 0) {
                 p.playing = true;
                 p.enter = false;
@@ -341,7 +351,7 @@ struct Sequencer {
                 reset_wait = running;
                 stop_queued = false;
                 for (auto &p : players) {
-                    p.enter = p.stop = p.fired = false;
+                    p.enter = p.stop = p.fired = p.skipped_cond = false;
                     p.loop = 1;
                     p.rng = seed_for(static_cast<uint32_t>(&p - players.data()));
                     p.playing = running && p.armed;
@@ -385,7 +395,7 @@ struct Sequencer {
                         for (uint32_t t = 0; t < kTracks; ++t) {
                             auto &p = players[t];
                             p.playing = t < pattern.track_count && p.armed;
-                            p.enter = p.stop = p.fired = false;
+                            p.enter = p.stop = p.fired = p.skipped_cond = false;
                             p.loop = 1;
                             p.rng = seed_for(t);
                         }
