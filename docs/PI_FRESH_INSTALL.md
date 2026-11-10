@@ -14,7 +14,7 @@ The #463 runtime fixes are also on main. They must pass preflight and the
 real ARM64 app smoke at **one combined source revision** before this becomes
 an owner-ready recipe. Do not mix their separate branch build outputs.
 
-## Current preparation status (2026-11-09)
+## Current preparation status (2026-11-10)
 
 The owner's first Windows session is complete. The owner confirmed Node
 22.23.4/npm 10.9.9 and Xvfb/xauth for the Pi runner. The cache/read-only,
@@ -24,7 +24,7 @@ profile/settings-path and short-ELF review findings have been repaired.
 |---|---|---|
 | #450 preflight | [`1074cfa`: 28 passed, zero blocked](https://github.com/kalharbi11/wirescape/pull/450#issuecomment-6741944378) | Separate PR head |
 | #452 app smoke | [`e6df3d2`: ARM64 Electron + native device-off smoke passed](https://github.com/kalharbi11/wirescape/pull/452#issuecomment-6746232670) | Functional display only; separate PR head |
-| Combined #463 + #450 + #452 source | Pending #483 on the existing #453 branch | No accepted SHA yet |
+| Combined #463 + #450 + #452 source | [`550b2ea` (docs-only over main `cd7999e`): preflight 28/28 and ARM64 Electron + native smoke passed](https://github.com/kalharbi11/wirescape-pi/actions/runs/42720681421) | Accepted SHA `cd7999e` (Keel evidence-transfer rule, #483) |
 | Physical display, sound and MIDI | Owner-only and pending | Xvfb cannot certify physical display performance |
 
 Keep the SHA guard below. #453 must integrate current main, including the
@@ -94,13 +94,13 @@ legacy document tests have their own Qt Core requirement in
 
 ## 3. Select the single accepted source revision
 
-**Wait here until the reviewed combined SHA and owner go-ahead exist.** The
-placeholder intentionally prevents running an unverified first install.
+The accepted source is main `cd7999e4a02308df0db918cfbab6974b97b6782f`, validated on the Pi
+runner ([run](https://github.com/kalharbi11/wirescape-pi/actions/runs/42720681421)). Use exactly this SHA; a later main needs new Pi evidence.
 Run this in a new terminal; all environment changes below affect this shell.
 
 ```sh
 set -eu
-AcceptedSha='PENDING_COMBINED_PI_VALIDATION'
+AcceptedSha='cd7999e4a02308df0db918cfbab6974b97b6782f'
 case "$AcceptedSha" in ''|*[!0-9a-f]*) echo 'No accepted Pi SHA yet'; exit 1 ;; esac
 [ "${#AcceptedSha}" -eq 40 ] || { echo 'Use a full 40-character accepted SHA'; exit 1; }
 Root="$HOME/Projects/wirescape-pi-fresh"

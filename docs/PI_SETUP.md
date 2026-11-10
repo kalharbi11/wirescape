@@ -62,9 +62,9 @@ Do not substitute `origin/main`, an unverified commit or separate PR build outpu
 
 The runbook preserves the old checkout, patches, shortcuts and profiles, then
 checks prerequisites, builds the pinned source and runs the actual ARM64 app with
-a temporary profile and devices off. It deliberately stops while
-`AcceptedSha='PENDING_COMBINED_PI_VALIDATION'`. #463, #450 and #452 are merged,
-but their separate results do not certify one combined source revision.
+a temporary profile and devices off. The accepted combined source is main
+`cd7999e4a02308df0db918cfbab6974b97b6782f` (#463, #450, #452 and #494), validated by Pi preflight and the
+ARM64 app smoke ([run](https://github.com/kalharbi11/wirescape-pi/actions/runs/42720681421)).
 
 Node 22.23.4/npm 10.9.9 and Xvfb/xauth were confirmed by the owner for the runner.
 The scripts still verify prerequisites at the selected source; do not relax
