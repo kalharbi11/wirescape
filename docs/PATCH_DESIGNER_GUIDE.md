@@ -403,6 +403,9 @@ Note). Authoring rules for patch designers:
   its value.
 - **Scale and bar tools:** root and Chromatic/Major/Minor/Pentatonic scale selections
   mark the pitch guide and affect subsequent pitch gestures, not saved note data.
+  The choice is saved with the patch in `ui.groove["<moduleId>"] = {"root": 0..11,
+  "scale": "<name>"}` (one undo step per change); the engine ignores it and the
+  module config never holds it.
   Copy snapshots the selected (up to 16-step) bar. Paste and Clear each create a
   single undoable edit; existing unknown step keys are preserved. Each bar of
   16 steps becomes two rows of eight on narrow screens.

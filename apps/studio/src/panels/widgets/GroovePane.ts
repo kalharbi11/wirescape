@@ -25,6 +25,9 @@ export interface GrooveHost {
   command(id: number, param: string): void;
   undo(): void; redo(): void; canUndo(): boolean; canRedo(): boolean;
   onChange(cb: () => void): () => void;
+  /** Scale helper saved in the patch `ui.groove` (UI-only; one undo step per change). */
+  scale(id: number): { root: number; scale: string } | undefined;
+  setScale(id: number, root: number, scale: string): void;
 }
 
 interface View { t: number; sel: [number, number]; selected: [boolean, boolean]; lane: 'trig' | 'note'; pen: [number, number];
@@ -173,6 +176,12 @@ export class GroovePane {
    * Play/Stop button state only. Without telemetry it falls back to `startedBlind`;
    * the playhead and the Apply gate (`host.canApply`) never read it.
    */
+  private seenScale: string | undefined;
+  private saveScale(): void {
+    this.host.setScale(this.id, this.view.root, this.view.scale);
+    this.seenScale = JSON.stringify(this.host.scale(this.id) ?? null);
+    this.renderGrid();
+  }
   private running(): boolean {
     const ph = this.measured();
     return ph ? ph[0] >= 0 || ph[1] >= 0 : this.startedBlind;
@@ -205,6 +214,14 @@ export class GroovePane {
 
   refresh(): void {
     this.cfg = readConfig(this.host.config(this.id));
+    // Adopt the saved scale only when the patch's copy changed (load, undo, redo);
+    // the pane's own edits are written through `saveScale`.
+    const saved = this.host.scale(this.id), seen = JSON.stringify(saved ?? null);
+    if (seen !== this.seenScale) {
+      this.seenScale = seen;
+      this.view.root = saved?.root ?? 0;
+      this.view.scale = saved && saved.scale in SCALES ? saved.scale as Scale : 'Chromatic';
+    }
     this.applied = readConfig(this.host.appliedRaw(this.id));
     if (this.view.sel[this.t] >= this.len()) this.view.sel[this.t] = this.len() - 1;
     if (document.activeElement !== this.bpm) this.bpm.value = String(this.cfg?.bpm ?? 120);
@@ -257,13 +274,13 @@ export class GroovePane {
     this.tracksRow.append(seg);
   }
 
-  private renderLanes(): void {
-    const seg = el('span', 'g-seg underline');
-    for (const [lane, label] of [['trig', 'Trig'], ['note', 'Note']] as const) {
-      const b = this.button(lane === this.view.lane ? 'on' : '', 'lane-' + lane, '', label);
-      b.addEventListener('click', () => { this.view.lane = lane; this.refresh(); });
-      seg.append(b);
-    }
+  /**
+   * The scale and look selectors are built once and kept across refreshes, so a
+   * re-render while the user is choosing never drops the change.
+   */
+  private selectEls?: { root: HTMLSelectElement; scale: HTMLSelectElement; look: HTMLSelectElement };
+  private selects(): { root: HTMLSelectElement; scale: HTMLSelectElement; look: HTMLSelectElement } {
+    if (this.selectEls) return this.selectEls;
     const root = el('select', 'g-select') as HTMLSelectElement;
     root.dataset.testid = 'groove-scale-root-' + this.id;
     root.setAttribute('aria-label', 'Scale root');
@@ -271,8 +288,7 @@ export class GroovePane {
       const opt = el('option', '', name) as HTMLOptionElement;
       opt.value = String(i); root.append(opt);
     });
-    root.value = String(this.view.root);
-    root.addEventListener('change', () => { this.view.root = Number(root.value); this.renderGrid(); });
+    root.addEventListener('change', () => { this.view.root = Number(root.value); this.saveScale(); });
     const scale = el('select', 'g-select') as HTMLSelectElement;
     scale.dataset.testid = 'groove-scale-' + this.id;
     scale.setAttribute('aria-label', 'Scale helper (display and pitch gestures only)');
@@ -280,8 +296,29 @@ export class GroovePane {
       const opt = el('option', '', name) as HTMLOptionElement;
       opt.value = name; scale.append(opt);
     });
+    scale.addEventListener('change', () => { this.view.scale = scale.value as Scale; this.saveScale(); });
+    const look = el('select', 'g-select') as HTMLSelectElement;
+    look.dataset.testid = 'groove-look-' + this.id;
+    look.setAttribute('aria-label', 'Trig look');
+    for (const name of ['graphite', 'oxblood', 'led'] as const) {
+      const opt = el('option', '', name === 'led' ? 'LED' : name[0]!.toUpperCase() + name.slice(1)) as HTMLOptionElement;
+      opt.value = name; look.append(opt);
+    }
+    look.addEventListener('change', () => { this.view.look = look.value as View['look']; this.root.dataset.look = this.view.look; });
+    return (this.selectEls = { root, scale, look });
+  }
+
+  private renderLanes(): void {
+    const seg = el('span', 'g-seg underline');
+    for (const [lane, label] of [['trig', 'Trig'], ['note', 'Note']] as const) {
+      const b = this.button(lane === this.view.lane ? 'on' : '', 'lane-' + lane, '', label);
+      b.addEventListener('click', () => { this.view.lane = lane; this.refresh(); });
+      seg.append(b);
+    }
+    const { root, scale, look } = this.selects();
+    root.value = String(this.view.root);
     scale.value = this.view.scale;
-    scale.addEventListener('change', () => { this.view.scale = scale.value as Scale; this.renderGrid(); });
+    look.value = this.view.look;
     const copy = this.button('', 'copy-bar', 'Copy the selected 16-step bar', 'Copy');
     copy.disabled = !this.cfg;
     copy.addEventListener('click', () => { if (this.cfg) { this.clipboard = copyBar(this.cfg, this.t, this.view.sel[this.t]); this.renderLanes(); } });
@@ -293,15 +330,6 @@ export class GroovePane {
     const clear = this.button('', 'clear-bar', 'Clear the selected bar as one undo step', 'Clear');
     clear.disabled = !this.cfg;
     clear.addEventListener('click', () => this.edit(c => clearBar(c, this.t, this.view.sel[this.t])));
-    const look = el('select', 'g-select') as HTMLSelectElement;
-    look.dataset.testid = 'groove-look-' + this.id;
-    look.setAttribute('aria-label', 'Trig look');
-    for (const name of ['graphite', 'oxblood', 'led'] as const) {
-      const opt = el('option', '', name === 'led' ? 'LED' : name[0]!.toUpperCase() + name.slice(1)) as HTMLOptionElement;
-      opt.value = name; look.append(opt);
-    }
-    look.value = this.view.look;
-    look.addEventListener('change', () => { this.view.look = look.value as View['look']; this.root.dataset.look = this.view.look; });
     this.lanesRow.replaceChildren(seg, el('span', 'g-lbl', 'Scale'), root, scale, el('span', 'g-sp'),
       copy, paste, clear, look);
     if (!this.cfg) this.lanesRow.append(el('span', 'g-note',

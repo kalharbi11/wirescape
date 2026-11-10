@@ -96,6 +96,7 @@ test('single-note Roll adds, ties and deletes; save/reload retains authored keys
   // The Roll's lollipop lanes edit the same authored step values.
   const setRollValue = async (field: string, fraction: number) => {
     const cell = page.getByTestId('groove-roll-' + field + '-1-2');
+    await expect(cell).toBeVisible(); // the lane re-renders after each edit
     const b = (await cell.boundingBox())!;
     await page.mouse.click(b.x + b.width / 2, b.y + b.height * (1 - fraction));
   };
@@ -179,4 +180,40 @@ test('Graphite is default, looks do not rewrite config, phone pads wrap into two
   await expect(roll).toBeVisible();
   const sizes = await roll.evaluate(el => ({ client: el.clientWidth, scroll: el.scrollWidth }));
   expect(sizes.scroll).toBeGreaterThan(sizes.client);
+});
+
+test('scale helper is saved in ui.groove, survives reload and undo, and stays out of the engine config', async ({ page }) => {
+  await page.evaluate(() => {
+    const s = window.__wirescapeTest.state();
+    s.ui = { ...(s.ui ?? {}), groove: { 1: { root: 0, scale: 'Chromatic', future: 1 }, 9: { root: 4, scale: 'x' } }, other: true };
+    window.__wirescapeTest.load(s, 'Extras');
+  });
+  await showGroove(page);
+  const before = await cfg(page);
+  await page.getByTestId('groove-scale-root-1').selectOption('9');
+  await flush(page);
+  await page.getByTestId('groove-scale-1').selectOption('Minor');
+  await flush(page);
+  const s = await state(page);
+  expect(s.ui.groove).toEqual({ 1: { root: 9, scale: 'Minor', future: 1 }, 9: { root: 4, scale: 'x' } });
+  expect(s.ui.other).toBe(true);
+  expect(await cfg(page)).toEqual(before); // engine-facing config is unchanged
+  expect(Object.keys(await cfg(page) ?? {}).sort()).not.toContain('scale');
+  // Each change is one undo step; redo brings both back.
+  await page.getByTestId('groove-undo-1').click();
+  await expect(page.getByTestId('groove-scale-1')).toHaveValue('Chromatic');
+  await expect(page.getByTestId('groove-scale-root-1')).toHaveValue('9');
+  await page.getByTestId('groove-undo-1').click();
+  await expect(page.getByTestId('groove-scale-root-1')).toHaveValue('0');
+  expect((await state(page)).ui.groove['1']).toEqual({ root: 0, scale: 'Chromatic', future: 1 });
+  await page.getByTestId('groove-redo-1').click();
+  await page.getByTestId('groove-redo-1').click();
+  await expect(page.getByTestId('groove-scale-1')).toHaveValue('Minor');
+  // Save and reload: the selectors come back from the patch.
+  const saved = await page.evaluate(() => JSON.stringify(window.__wirescapeTest.save()));
+  await page.evaluate(p => window.__wirescapeTest.load(JSON.parse(p), 'Reloaded'), saved);
+  await showGroove(page);
+  await expect(page.getByTestId('groove-scale-root-1')).toHaveValue('9');
+  await expect(page.getByTestId('groove-scale-1')).toHaveValue('Minor');
+  expect((await state(page)).ui.groove).toEqual(s.ui.groove);
 });

@@ -178,6 +178,8 @@ export class App {
         undo: () => this.undo(), redo: () => this.redo(),
         canUndo: () => !!this.history?.canUndo, canRedo: () => !!this.history?.canRedo,
         onChange: cb => this.grooves.onChange(cb),
+        scale: id => this.doc.grooveScale(id),
+        setScale: (id, root, scale) => this.doc.setGrooveScale(id, root, scale), // UI-only: no engine load
       },
       engineDisconnect: c => {
         this.editEngine().disconnect(c);
