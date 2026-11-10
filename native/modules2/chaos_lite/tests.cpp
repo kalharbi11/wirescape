@@ -144,7 +144,8 @@ static void lfo_shapes_and_legacy_state() {
             whole.values[21] = cut.values[21] = .6f;
             REQUIRE(render(whole, 256) == render(cut, 17));
             for (uint32_t k = 0; k < 24; ++k) {
-                whole.run(256); cut.run(256);
+                whole.run(256);
+                cut.run(256);
             }
             REQUIRE(whole.save() == cut.save());
         }
@@ -173,8 +174,7 @@ static void lfo_shapes_and_legacy_state() {
     REQUIRE(restored.load(legacy) == WS2_OK);
     const Bytes new_state = restored.save();
     for (size_t c = 0; c < 8; ++c) {
-        REQUIRE(std::equal(legacy.begin() + 4 + c * 64,
-                           legacy.begin() + 4 + (c + 1) * 64,
+        REQUIRE(std::equal(legacy.begin() + 4 + c * 64, legacy.begin() + 4 + (c + 1) * 64,
                            new_state.begin() + 4 + c * (64 + 40)));
     }
     restored.run(256); // accepts a migrated old patch without changing old ID semantics
@@ -203,5 +203,9 @@ static int benchmark() {
 }
 int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark();
-    matrix(); state_and_extremes(); components(); lfo_shapes_and_legacy_state(); std::puts("CHAOS-lite callback matrix/state/extremes/allocation checks passed");
+    matrix();
+    state_and_extremes();
+    components();
+    lfo_shapes_and_legacy_state();
+    std::puts("CHAOS-lite callback matrix/state/extremes/allocation checks passed");
 }

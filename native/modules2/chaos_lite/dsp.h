@@ -15,22 +15,33 @@ struct ChaosLite {
         ws::port("right", "Right", WS2_AUDIO, WS2_POLY, 0, "stereo")};
     static constexpr uint32_t stepped = WS2_STEPPED | WS2_AUTOMATABLE;
     static constexpr std::array params{
-        ws::param("shape_a", "A shape", 0, 2, .4f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 0), ws::param("shape_b", "B shape", 0, 2, 1.6f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 0),
+        ws::param("shape_a", "A shape", 0, 2, .4f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 0),
+        ws::param("shape_b", "B shape", 0, 2, 1.6f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 1, 4, 0),
         ws::param("detune", "B detune", -60, 60, 7, "cent", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 2, 4, 0),
         ws::param("octave_a", "A octave", -3, 3, 0, "oct", stepped, WS2_LINEAR, 3, 4, 1),
         ws::param("octave_b", "B octave", -3, 3, -1, "oct", stepped, WS2_LINEAR, 4, 4, 1),
-        ws::param("level_a", "A level", 0, 1, .55f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 5, 4, 0), ws::param("level_b", "B level", 0, 1, .35f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 6, 4, 0),
-        ws::param("pan_a", "A pan", -1, 1, -.3f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 7, 4, 0), ws::param("pan_b", "B pan", -1, 1, .3f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 8, 4, 0),
+        ws::param("level_a", "A level", 0, 1, .55f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 5, 4, 0),
+        ws::param("level_b", "B level", 0, 1, .35f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 6, 4, 0),
+        ws::param("pan_a", "A pan", -1, 1, -.3f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 7, 4, 0),
+        ws::param("pan_b", "B pan", -1, 1, .3f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 8, 4, 0),
         ws::param("route", "Route", 0, 2, 0, "", stepped, WS2_LINEAR, 9, 4, 1),
-        ws::param("depth", "Coupling", 0, 1, .5f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 10, 4, 0), ws::param("body_tune", "Body tune", -2, 2, 0, "oct", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 11, 4, 0),
-        ws::param("feedback", "Body feedback", 0, .92f, .3f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 12, 4, 0), ws::param("damping", "Body damping", 0, .99f, .4f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 13, 4, 0),
-        ws::param("body_mix", "Body mix", 0, 1, .25f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 14, 4, 0), ws::param("roughness", "Roughness", 0, 1, .1f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 15, 4, 0),
-        ws::param("rough_rate", "Roughness rate", 1, 150, 70, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 16, 4, 0),
-        ws::param("drift", "Drift", 0, 1, .1f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 17, 4, 0), ws::param("jitter", "Jitter", 0, 1, .02f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 18, 4, 0),
-        ws::param("fall", "Fall", 0, 1, 0, "oct/s", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 19, 4, 0), ws::param("lfo_rate", "LFO rate", .02f, 12, .3f, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 20, 4, 0),
+        ws::param("depth", "Coupling", 0, 1, .5f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 10, 4, 0),
+        ws::param("body_tune", "Body tune", -2, 2, 0, "oct", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 11, 4, 0),
+        ws::param("feedback", "Body feedback", 0, .92f, .3f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 12, 4,
+                  0),
+        ws::param("damping", "Body damping", 0, .99f, .4f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 13, 4, 0),
+        ws::param("body_mix", "Body mix", 0, 1, .25f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 14, 4, 0),
+        ws::param("roughness", "Roughness", 0, 1, .1f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 15, 4, 0),
+        ws::param("rough_rate", "Roughness rate", 1, 150, 70, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 16,
+                  4, 0),
+        ws::param("drift", "Drift", 0, 1, .1f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 17, 4, 0),
+        ws::param("jitter", "Jitter", 0, 1, .02f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 18, 4, 0),
+        ws::param("fall", "Fall", 0, 1, 0, "oct/s", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 19, 4, 0),
+        ws::param("lfo_rate", "LFO rate", .02f, 12, .3f, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 20, 4, 0),
         ws::param("lfo_depth", "LFO depth", 0, 1, .1f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 21, 4, 0),
         ws::param("lfo_target", "LFO target", 0, 2, 0, "", stepped, WS2_LINEAR, 22, 4, 1),
-        ws::param("lfo_self", "LFO self", 0, 1, .2f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 23, 4, 0), ws::param("cutoff", "Cutoff", 20, 20000, 9000, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 24, 4, 0),
+        ws::param("lfo_self", "LFO self", 0, 1, .2f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 23, 4, 0),
+        ws::param("cutoff", "Cutoff", 20, 20000, 9000, "Hz", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 24, 4, 0),
         ws::param("level", "Output level", 0, 1, .5f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 25, 4, 0),
         // Additive slot 26: omit in old patches -> sine, preserving the existing sound.
         ws::param("lfo_shape", "LFO shape", 0, 3, 0, "", stepped, WS2_LINEAR, 26, 4, 1)};
@@ -76,8 +87,10 @@ struct ChaosLite {
             v.drift.reset(seed, c);
             v.lfo_random.seed(seed ^ 0x9e3779b97f4a7c15ull, c + 17u);
             v.lfo_held = v.lfo_random.bipolar();
-            v.lfo_from = 0.f; v.lfo_to = v.lfo_random.bipolar();
-            v.lfo_switch_from = 0.f; v.lfo_last_shape = v.lfo_fade_remaining = 0;
+            v.lfo_from = 0.f;
+            v.lfo_to = v.lfo_random.bipolar();
+            v.lfo_switch_from = 0.f;
+            v.lfo_last_shape = v.lfo_fade_remaining = 0;
         }
     }
     static float wave(float phase, float shape) {
@@ -112,7 +125,8 @@ struct ChaosLite {
                     v.lfo_last_shape = shape;
                 }
                 if (v.lfo_fade_remaining) {
-                    const float t = 1.f - static_cast<float>(v.lfo_fade_remaining) / static_cast<float>(lfo_fade_length);
+                    const float t =
+                        1.f - static_cast<float>(v.lfo_fade_remaining) / static_cast<float>(lfo_fade_length);
                     lfo = v.lfo_switch_from + t * (lfo - v.lfo_switch_from);
                     --v.lfo_fade_remaining;
                 }
@@ -161,8 +175,8 @@ struct ChaosLite {
             for (float value : {v.phase_a, v.phase_b, v.lfo, v.lfo_previous, v.rough, v.rough_phase, v.drift.current, v.drift.target, v.drift.jitter, v.drift.fall}) if (!w.f32(value)) return WS2_CAPACITY;
             if (!w.u32(v.drift.tick) || !w.u32(v.drift.high ? 1u : 0u)) return WS2_CAPACITY;
             const auto lfo_rng = v.lfo_random.save();
-            for (auto word : {uint32_t(lfo_rng.state), uint32_t(lfo_rng.state >> 32),
-                              uint32_t(lfo_rng.sequence), uint32_t(lfo_rng.sequence >> 32)})
+            for (auto word : {uint32_t(lfo_rng.state), uint32_t(lfo_rng.state >> 32), uint32_t(lfo_rng.sequence),
+                              uint32_t(lfo_rng.sequence >> 32)})
                 if (!w.u32(word)) return WS2_CAPACITY;
             for (float value : {v.lfo_held, v.lfo_from, v.lfo_to, v.lfo_switch_from})
                 if (!w.f32(value)) return WS2_CAPACITY;
@@ -171,11 +185,12 @@ struct ChaosLite {
         return WS2_OK;
     }
     int load_state(ws::Reader r) {
-        uint32_t version; if (!r.u32(version)) return WS2_INVALID;
+        uint32_t version;
+        if (!r.u32(version)) return WS2_INVALID;
         if (version != 1 && version != 2) return WS2_UNSUPPORTED;
         auto staged = voices;
         for (uint32_t channel = 0; channel < staged.size(); ++channel) {
-            auto& v = staged[channel];
+            auto &v = staged[channel];
             uint32_t words[4], high;
             for (auto& word : words) if (!r.u32(word)) return WS2_INVALID;
             float* values[] = {&v.phase_a, &v.phase_b, &v.lfo, &v.lfo_previous, &v.rough, &v.rough_phase, &v.drift.current, &v.drift.target, &v.drift.jitter, &v.drift.fall};
@@ -185,24 +200,25 @@ struct ChaosLite {
             v.drift.random.restore({uint64_t(words[0]) | uint64_t(words[1]) << 32, uint64_t(words[2]) | uint64_t(words[3]) << 32}); v.drift.high = high != 0;
             if (version == 2) {
                 uint32_t lrng[4]{};
-                for (auto& word : lrng) if (!r.u32(word)) return WS2_INVALID;
-                if (!r.f32(v.lfo_held) || !r.f32(v.lfo_from) ||
-                    !r.f32(v.lfo_to) || !r.f32(v.lfo_switch_from) ||
-                    !r.u32(v.lfo_last_shape) || !r.u32(v.lfo_fade_remaining)) return WS2_INVALID;
-                if (!std::isfinite(v.lfo_held) || !std::isfinite(v.lfo_from) ||
-                    !std::isfinite(v.lfo_to) || !std::isfinite(v.lfo_switch_from) ||
-                    std::abs(v.lfo_held) > 1 || std::abs(v.lfo_from) > 1 ||
-                    std::abs(v.lfo_to) > 1 || std::abs(v.lfo_switch_from) > 1 ||
-                    v.lfo_last_shape > 3 || v.lfo_fade_remaining > lfo_fade_length ||
-                    !(lrng[2] & 1u)) return WS2_INVALID;
-                v.lfo_random.restore({uint64_t(lrng[0]) | uint64_t(lrng[1]) << 32,
-                                      uint64_t(lrng[2]) | uint64_t(lrng[3]) << 32});
+                for (auto &word : lrng)
+                    if (!r.u32(word)) return WS2_INVALID;
+                if (!r.f32(v.lfo_held) || !r.f32(v.lfo_from) || !r.f32(v.lfo_to) || !r.f32(v.lfo_switch_from) ||
+                    !r.u32(v.lfo_last_shape) || !r.u32(v.lfo_fade_remaining))
+                    return WS2_INVALID;
+                if (!std::isfinite(v.lfo_held) || !std::isfinite(v.lfo_from) || !std::isfinite(v.lfo_to) ||
+                    !std::isfinite(v.lfo_switch_from) || std::abs(v.lfo_held) > 1 || std::abs(v.lfo_from) > 1 ||
+                    std::abs(v.lfo_to) > 1 || std::abs(v.lfo_switch_from) > 1 || v.lfo_last_shape > 3 ||
+                    v.lfo_fade_remaining > lfo_fade_length || !(lrng[2] & 1u))
+                    return WS2_INVALID;
+                v.lfo_random.restore(
+                    {uint64_t(lrng[0]) | uint64_t(lrng[1]) << 32, uint64_t(lrng[2]) | uint64_t(lrng[3]) << 32});
             } else {
                 // Existing state-v1 saved only the sine LFO phase. Re-seed new
                 // waveform state without altering old drift and oscillator phases.
                 v.lfo_random.seed(seed ^ 0x9e3779b97f4a7c15ull, channel + 17u);
                 v.lfo_held = v.lfo_random.bipolar();
-                v.lfo_from = 0.f; v.lfo_to = v.lfo_random.bipolar();
+                v.lfo_from = 0.f;
+                v.lfo_to = v.lfo_random.bipolar();
                 v.lfo_switch_from = v.lfo_previous;
                 v.lfo_last_shape = v.lfo_fade_remaining = 0;
             }
@@ -211,9 +227,12 @@ struct ChaosLite {
         for (uint32_t c = 0; c < capacity; ++c) {
             const auto& s = staged[c]; auto& v = voices[c];
             v.drift = s.drift; v.phase_a = s.phase_a; v.phase_b = s.phase_b; v.lfo = s.lfo; v.lfo_previous = s.lfo_previous; v.rough = s.rough; v.rough_phase = s.rough_phase;
-            v.lfo_random = s.lfo_random; v.lfo_held = s.lfo_held;
-            v.lfo_from = s.lfo_from; v.lfo_to = s.lfo_to;
-            v.lfo_switch_from = s.lfo_switch_from; v.lfo_last_shape = s.lfo_last_shape;
+            v.lfo_random = s.lfo_random;
+            v.lfo_held = s.lfo_held;
+            v.lfo_from = s.lfo_from;
+            v.lfo_to = s.lfo_to;
+            v.lfo_switch_from = s.lfo_switch_from;
+            v.lfo_last_shape = s.lfo_last_shape;
             v.lfo_fade_remaining = s.lfo_fade_remaining;
         }
         return WS2_OK;
