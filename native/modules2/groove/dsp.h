@@ -109,6 +109,36 @@ struct Sequencer {
         next_id = 1;
     }
 
+    // Quiescent module-state envelope; never part of authored config JSON.
+    // State v1 predates native per-track loop/RNG persistence.
+    int save_state(ws::Writer writer) const {
+        if (!writer.u32(2)) return WS2_CAPACITY;
+        for (const auto &p : players)
+            if (!writer.u32(p.loop) || !writer.u32(p.rng)) return WS2_CAPACITY;
+        return WS2_OK;
+    }
+    int load_state(ws::Reader reader) {
+        uint32_t version = 0;
+        if (!reader.u32(version)) return WS2_INVALID;
+        if (version == 1) {
+            for (uint32_t t = 0; t < kTracks; ++t) {
+                players[t].loop = 1;
+                players[t].rng = seed_for(t);
+            }
+            return WS2_OK;
+        }
+        if (version != 2) return WS2_INVALID;
+        std::array<uint32_t, kTracks> loops{}, rngs{};
+        for (uint32_t t = 0; t < kTracks; ++t)
+            if (!reader.u32(loops[t]) || !reader.u32(rngs[t]) ||
+                loops[t] == 0 || rngs[t] == 0) return WS2_INVALID;
+        for (uint32_t t = 0; t < kTracks; ++t) {
+            players[t].loop = loops[t];
+            players[t].rng = rngs[t];
+        }
+        return WS2_OK;
+    }
+
     uint32_t seed_for(uint32_t track) const {
         uint32_t x = rng_seed ^ (0x9e3779b9u * (track + 1u));
         x ^= x >> 16u; x *= 0x7feb352du;
