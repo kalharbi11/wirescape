@@ -2,7 +2,7 @@
 #define emit
 #include "dsp.h"
 #ifndef emit
-#error "Chord must restore the caller's Qt keyword macro"
+static_assert(false, "Chord must restore the caller's Qt keyword macro");
 #endif
 #undef emit
 #include "../../engine2/engine2.h"
