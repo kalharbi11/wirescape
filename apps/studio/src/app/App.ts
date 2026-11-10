@@ -1008,7 +1008,6 @@ export class App {
         restartClick = new Promise<void>(resolve => { clickRestart = resolve; });
         try {
           await real!.restartEngine();
-          await real!.waitForReady();
           phase = 'applied';
           this.toasts.show('Engine restarted; the pre-Learn patch is running.', 'error');
           resolveRecovery();
@@ -1060,6 +1059,7 @@ export class App {
         this.toasts.show(`${reason}. It was taken back out of the patch.`, 'error');
       } else this.toasts.show(reason, 'error');
     }).finally(() => {
+      window.clearTimeout(genTimer); window.clearTimeout(pushTimer);
       removeGen(); removeConnection();
       this.learnRestartPrompt?.remove(); this.learnRestartPrompt = null;
       this.learnSettled = null;
