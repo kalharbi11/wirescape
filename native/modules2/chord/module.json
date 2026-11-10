@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "id": "essentials.chord",
+  "name": "Chord",
+  "abi_version": 2,
+  "library": "ws2_chord",
+  "description": "Turn each incoming note into a root plus up to four simultaneous semitone transpositions, preserving per-activation note ownership.",
+  "parameters": {
+    "enable1": 0,
+    "shift1": 1,
+    "enable2": 2,
+    "shift2": 3,
+    "enable3": 4,
+    "shift3": 5,
+    "enable4": 6,
+    "shift4": 7
+  },
+  "inputs": {
+    "notes": "event"
+  },
+  "outputs": {
+    "notes": "event"
+  },
+  "license": "GPL-3.0-only"
+}
