@@ -173,8 +173,9 @@ static void block_matrix_and_allocations() {
             REQUIRE(allocations == 0 && a.outs[0].channels == 4);
         }
 }
-static void native_keyboard_graph() {
+static void native_keyboard_graph(const std::array<int, 4> &keys, uint32_t count) {
     using namespace wirescape::engine2;
+    REQUIRE(count == 3 || count == 4);
     Config cfg;
     cfg.sample_rate = 48000;
     cfg.max_block = 256;
@@ -190,25 +191,60 @@ static void native_keyboard_graph() {
             e.connect(2, 1, 4, 0) && e.connect(3, 0, 5, 0) &&
             e.connect(4, 0, 5, 1) && e.connect(5, 0, 6, 0) &&
             e.output(6, 0, 0) && e.prepare());
-    for (int key : {60, 64, 67, 71})
+    for (uint32_t i = 0; i < count; ++i)
         REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT,
-                          note(WS2_NOTE_ON, key, key), 0) == WS2_OK);
+                          note(WS2_NOTE_ON, keys[i], keys[i]), 0) == WS2_OK);
+
     float samples[256]{};
     float *out[]{samples};
-    size_t allocations = 0;
-    {
-        allocation_watch::Scope scope;
-        REQUIRE(e.render(out, 1, 256) == WS2_OK);
-        allocations = scope.allocations();
+    REQUIRE(e.render(out, 1, 256) == WS2_OK);
+    REQUIRE(e.output_channels(2, 0) == 4 && e.output_channels(5, 0) == 4);
+
+    std::array<uint32_t, 4> voice_for{};
+    std::array<bool, 16> assigned{};
+    for (uint32_t i = 0; i < count; ++i) {
+        const float expected_pitch = static_cast<float>(keys[i] - 60) / 12.f;
+        bool found = false;
+        for (uint32_t voice = 0; voice < 4; ++voice) {
+            if (assigned[voice] || e.output_sample(2, 1, voice, 128) != 1.f ||
+                e.output_sample(2, 2, voice, 128) != .75f ||
+                std::abs(e.output_sample(2, 0, voice, 128) - expected_pitch) > .00001f)
+                continue;
+            assigned[voice] = true;
+            voice_for[i] = voice;
+            found = true;
+
+            // Inspect each VCA channel before the Output node sums voices to its bus.
+            double energy = 0;
+            for (uint32_t frame = 0; frame < 256; ++frame) {
+                const float sample = e.output_sample(5, 0, voice, frame);
+                REQUIRE(std::isfinite(sample));
+                energy += static_cast<double>(sample) * sample;
+            }
+            REQUIRE(std::sqrt(energy / 256.0) > .0001);
+            break;
+        }
+        REQUIRE(found);
     }
-    REQUIRE(allocations == 0 && e.output_channels(2, 0) == 4);
+
     float peak = 0;
-    for (const float v : samples) {
-        REQUIRE(std::isfinite(v));
-        peak = std::max(peak, std::abs(v));
+    for (const float sample : samples) {
+        REQUIRE(std::isfinite(sample));
+        peak = std::max(peak, std::abs(sample));
     }
-    REQUIRE(peak > .00001f); // real native audio through production modules
+    REQUIRE(peak > .00001f); // retain the real summed production audio assertion
+
+    // Release each note separately and prove the other voice gates stay high.
+    for (uint32_t released = 0; released < count; ++released) {
+        const uint64_t frame = e.meter().frame;
+        REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT,
+                          note(WS2_NOTE_OFF, keys[released], keys[released]), frame) == WS2_OK);
+        REQUIRE(e.render(out, 1, 256) == WS2_OK);
+        for (uint32_t i = 0; i < count; ++i)
+            REQUIRE(e.output_sample(2, 1, voice_for[i], 128) == (i == released ? 0.f : 1.f));
+    }
 }
+
 int main() {
     poly_triads_and_offs();
     source_identity_and_choke();
@@ -216,5 +252,6 @@ int main() {
     voice_count_change_and_reset();
     steal_and_reset();
     block_matrix_and_allocations();
-    native_keyboard_graph();
+    native_keyboard_graph({60, 64, 67, 0}, 3);
+    native_keyboard_graph({60, 64, 67, 71}, 4);
 }
