@@ -291,7 +291,15 @@ struct Sequencer {
             }
         }
         for (uint32_t i = 0; i < b.frames(); ++i) {
-            for (uint32_t t = 0; t < kTracks; ++t) flush(b, t, i);
+            for (uint32_t t = 0; t < kTracks; ++t) {
+                auto &p = players[t];
+                // Only shortened final gates expire between step boundaries.
+                // A full gate, including every legacy v1 pattern, continues to
+                // use the original step boundary for byte-identical release.
+                if (p.sounding.on && p.short_gate && p.gate_age >= p.gate_cutoff)
+                    release(b, t, i);
+                flush(b, t, i);
+            }
             std::array<bool, kParams> rise{};
             for (uint32_t p = 0; p < kParams; ++p) rise[p] = edge(b, p, i);
             bool started = false;
@@ -299,11 +307,13 @@ struct Sequencer {
                 release_all(b, i);
                 phase = 0.;
                 step = 0;
+                step_t.fill(0);
                 reset_wait = running;
                 stop_queued = false;
                 for (auto &p : players) {
                     p.enter = p.stop = p.fired = false;
                     p.loop = 1;
+                    p.rng = seed_for(static_cast<uint32_t>(&p - players.data()));
                     p.playing = running && p.armed;
                 }
             } else {
@@ -341,11 +351,13 @@ struct Sequencer {
                         stop_queued = reset_wait = false;
                         phase = 0.;
                         step = 0;
+                        step_t.fill(0);
                         for (uint32_t t = 0; t < kTracks; ++t) {
                             auto &p = players[t];
                             p.playing = t < pattern.track_count && p.armed;
                             p.enter = p.stop = p.fired = false;
                             p.loop = 1;
+                            p.rng = seed_for(t);
                         }
                         trigger_all(b, i);
                         started = true;
@@ -357,10 +369,10 @@ struct Sequencer {
                         phase -= samples_per_step;
                         if (reset_wait) {
                             step = 0;
+                            step_t.fill(0);
                             reset_wait = false;
                         } else {
-                            step = (step + 1) % kSteps;
-                            if (step == 0) boundary(b, i);
+                            boundary(b, i);
                         }
                         if (running) trigger_all(b, i);
                     }
@@ -377,10 +389,11 @@ struct Sequencer {
                 // every owed release have stopped. A disarmed track under a running
                 // transport is not stopped; a refused NOTE_OFF keeps the position.
                 const bool active = running || p.playing || p.pending.on || p.sounding.on;
-                b.out(10 + t).ch(0)[i] = active ? static_cast<float>(step) : -1.f;
+                b.out(10 + t).ch(0)[i] = active ? static_cast<float>(step_t[t]) : -1.f;
                 b.out(12 + t).ch(0)[i] = static_cast<float>(p.loop & 0xffffu);
                 b.out(14 + t).ch(0)[i] = p.fired ? 1.f : 0.f;
                 b.out(16 + t).ch(0)[i] = static_cast<float>(p.loop >> 16u);
+                if (p.sounding.on) players[t].gate_age += 1.;
             }
         }
     }
