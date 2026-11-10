@@ -158,10 +158,14 @@ async function heldLearn(page: Page) {
   await expect(page.getByTestId('status-engine')).toHaveText('engine: real');
   await expect.poll(async () => (await graph(page)).modules.length).toBe(1);
   await learnKnob(page, 2, 'cutoff', 74);
+  const before = await state(page), graphBefore = await graph(page), historyBefore = await depth(page);
   await page.evaluate(() => (window as any).__mockBridge.holdNext('loadGraph'));
   await page.getByTestId('learn-confirm').click();
   await expect.poll(async () => (await state(page)).modules.length).toBe(3);
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', true);
+  await expect(page.getByTestId('midi-learn-applying')).toBeVisible();
   expect(await depth(page)).toEqual({ past: 1, future: 0 });
+  return { before, graphBefore, historyBefore };
 }
 
 async function openB(page: Page) {
@@ -201,33 +205,93 @@ test('OPEN B while the Learn replan is held: its refusal never restores A over B
   await expectB(page);
 });
 
-test('UNDO while the Learn replan is held supersedes it; its late reply changes nothing', async ({ page }) => {
-  await heldLearn(page);
+test('UNDO is refused during held Learn; after settlement undo and redo are exact', async ({ page }) => {
+  const { before, graphBefore, historyBefore } = await heldLearn(page);
+  const submitted = await state(page);
+  await page.evaluate(() => window.__wirescapeTest.undo());
+  expect(await state(page)).toEqual(submitted); // no intermediate document mutation
+  expect(await depth(page)).toEqual({ past: 1, future: 0 });
+  await refuseHeld(page);
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+  expect(await state(page)).toEqual(before);
+  await expect.poll(() => graph(page)).toEqual(graphBefore);
+  expect(await depth(page)).toEqual(historyBefore);
+
+  // A later, accepted Learn is a single undo step after the pending window.
+  await learnKnob(page, 2, 'cutoff', 74);
+  await page.getByTestId('learn-confirm').click();
+  await expect.poll(async () => (await graph(page)).modules.length).toBe(3);
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
   await page.evaluate(() => window.__wirescapeTest.undo());
   await expect.poll(async () => (await graph(page)).modules.length).toBe(1);
-  await refuseHeld(page);
-  const s = await state(page);
-  expect(s.modules.map((m: any) => m.id)).toEqual([2]);
-  expect(s.connections).toEqual([]);
-  expect(await depth(page)).toEqual({ past: 0, future: 1 });
-  await expect(page.getByTestId('toast').filter({ hasText: 'taken back' })).toHaveCount(0);
+  expect(await state(page)).toEqual(before);
   await page.evaluate(() => window.__wirescapeTest.redo());
   await expect.poll(async () => (await graph(page)).modules.length).toBe(3);
   expect((await state(page)).modules).toHaveLength(3);
 });
 
-test('a delayed genuine refusal after a newer edit takes only the Learn back out', async ({ page }) => {
-  await heldLearn(page);
-  await page.evaluate(() => window.__wirescapeTest.commitParam(2, 'resonance', 0.4));
+test('held Learn rejects dependent edits, then restores exact graph, document and history on refusal', async ({ page }) => {
+  const { before, graphBefore, historyBefore } = await heldLearn(page);
+  const submitted = await state(page);
+  const cc = submitted.modules.find((m: any) => m.module === 'midi.cc_to_cv')!;
+  const originalGraph = await graph(page);
+  await page.evaluate(id => {
+    const api = window.__wirescapeTest;
+    api.commitParam(2, 'resonance', 0.4);
+    api.connect({ kind: 'modulation', from: { module: id, port: 'cc2' },
+      to: { module: 2, port: 'resonance' }, amount: 1 });
+    api.addModule('essentials.noise');
+    api.undo();
+  }, cc.id);
+  expect(await state(page)).toEqual(submitted);
+  expect(await graph(page)).toEqual(originalGraph);
+  expect(await page.evaluate(() => window.__wirescapeTest.canEdit())).toBe(false);
   await refuseHeld(page);
-  await expect.poll(async () => (await state(page)).modules.map((m: any) => m.id)).toEqual([2]);
-  const s = await state(page);
-  expect(s.connections).toEqual([]);
-  expect(s.modules[0].parameters.resonance).toBe(0.4);
-  expect(s.ui.ccMap).toBeUndefined();
-  await expect.poll(async () => {
-    const g = await graph(page);
-    return { ids: g.modules.map((m: any) => m.id), res: g.modules[0]?.parameters?.resonance, cables: g.connections.length };
-  }).toEqual({ ids: [2], res: 0.4, cables: 0 });
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+  await expect(page.getByTestId('midi-learn-applying')).toBeHidden();
+  expect(await state(page)).toEqual(before);
+  await expect.poll(() => graph(page)).toEqual(graphBefore);
+  expect(await depth(page)).toEqual(historyBefore);
   await expect(page.getByTestId('toast').last()).toContainText('taken back');
+
+  // A change submitted AFTER refusal has settled is allowed.
+  await page.evaluate(() => window.__wirescapeTest.commitParam(2, 'resonance', 0.4));
+  await expect.poll(async () => (await graph(page)).modules[0]?.parameters?.resonance).toBe(0.4);
+});
+
+test('held Learn acknowledgment unlocks editing only after the atomic graph is accepted', async ({ page }) => {
+  await heldLearn(page);
+  await page.evaluate(() => window.__wirescapeTest.commitParam(2, 'resonance', 0.5));
+  expect((await state(page)).modules.find((m: any) => m.id === 2).parameters?.resonance).toBeUndefined();
+  await page.evaluate(() => (window as any).__mockBridge.acceptHeld());
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+  await expect(page.getByTestId('midi-learn-applying')).toBeHidden();
+  await expect.poll(async () => (await graph(page)).modules.length).toBe(3);
+  await page.evaluate(() => window.__wirescapeTest.commitParam(2, 'resonance', 0.5));
+  await expect.poll(async () => (await graph(page)).modules.find((m: any) => m.id === 2).parameters.resonance).toBe(0.5);
+});
+
+test('Forget replan is also serialized and its refusal retains the learned cable', async ({ page }) => {
+  await mockBridge(page);
+  await boot(page);
+  await page.evaluate(p => { window.__wirescapeTest.load(p, 'A'); window.__wirescapeTest.zoomTo(1); }, patchA);
+  await expect.poll(async () => (await graph(page)).modules.length).toBe(1);
+  await learnKnob(page, 2, 'cutoff', 74);
+  await page.getByTestId('learn-confirm').click();
+  await expect.poll(async () => (await graph(page)).modules.length).toBe(3);
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+  const before = await state(page), graphBefore = await graph(page), historyBefore = await depth(page);
+  await page.getByTestId('knob-2-cutoff').click({ button: 'right' });
+  await page.evaluate(() => (window as any).__mockBridge.holdNext('loadGraph'));
+  await page.getByTestId('context-forget').click();
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', true);
+  const submitted = await state(page);
+  expect(submitted.connections.filter((c: any) => c.kind === 'modulation')).toHaveLength(0);
+  await page.evaluate(() => window.__wirescapeTest.commitParam(2, 'resonance', 0.3));
+  expect(await state(page)).toEqual(submitted);
+  await refuseHeld(page);
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+  expect(await state(page)).toEqual(before);
+  await expect.poll(() => graph(page)).toEqual(graphBefore);
+  expect(await depth(page)).toEqual(historyBefore);
 });
