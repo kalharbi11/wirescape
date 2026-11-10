@@ -49,11 +49,12 @@ Visitors find compatible patches in Starter patches and PATCHES → SHARED PATCH
 Changes appear after a successful deployment and refresh, not at the instant of commit.
 An open PR is a preview/check, not a public deployment.
 
-**Shipped set (2026-11-10).** Every new build ships 16 patches: the fifteen
-library files in that folder (**Basics 1–7** introductory patches,
-`basics-NN-*.json`, and the eight revised cinematic **Scene 1–8** patches,
-`scene-NN-*.json`), plus the bundled desktop-only MIDI example
-`apps/studio/src/app/bundled/midi-keys-and-knobs.json`. That one lives in the
+**Shipped set (2026-11-10).** Before the CHAOS Lab #530 merge, builds ship 16 patches: the fifteen
+library files (**Basics 1–7** and **Scene 1–8**) plus the bundled desktop-only
+MIDI example. Builds containing #530 ship 19: the previous sixteen and
+three additional CHAOS Lab 1–3 patches (`chaos-NN-*.json`). The lab patches
+are not public until their PR merges and deploys. The bundled MIDI example is
+`apps/studio/src/app/bundled/midi-keys-and-knobs.json`; it lives in the
 app because this folder and the web host exclude `midi.*` modules; the web
 Starter list hides it automatically. The six old `qt-*` starters were retired;
 their IDs stay reserved. Historical curated.ts/STARTERS/native ui_starters
@@ -387,7 +388,7 @@ for the editor to observe them. For example, a `t1_fired` signal may drive a gat
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
 
-## CHAOS-lite sound presets (#489; available after Studio PR merges)
+## CHAOS sound presets (#489; available after Studio PR merges)
 
 The `essentials.chaos_lite` card's **Presets** dropdown supplies eight
 repeatable starting sounds. The first four are from its native README:
@@ -407,11 +408,32 @@ verify actual sound against the offline render/WAV evidence before claiming
 a preset's audio acceptance, and never infer DSP playback from FakeEngine
 control values alone.
 
+## CHAOS atmospheric lab (merged in #531)
 
+Three original scenes use the current `essentials.chaos_lite` v1:
+`chaos-01-ember-veil-pad` (keyboard pad, clocked smooth random),
+`chaos-02-wireglass-lead` (ring/AM lead with envelope-driven coupling),
+and `chaos-03-orbiting-iron-fx` (autoplay curved metallic pulses).
+`basics-06-chaos-keys` and `scene-03-black-ice-choir` were also revised.
 
-## CHAOS additive internal LFO modes (branch #532; only when integrated)
+**Critical CHAOS gate rule:** `essentials.chaos_lite.gate` is an immediate
+audio multiplier, not an ADSR generator. To get keyboard release, wire
+`host.keyboard.gate` to `essentials.adsr.gate`, then
+`adsr.envelope` to the two stereo `essentials.vca.gain_cv` ports.
+Leave CHAOS gate **unpatched (default 1)** and set `fall=0`; if the
+keyboard gate goes into CHAOS, a zero at note-off defeats the ADSR release.
+Until an independent pitch fall trigger exists, external CV handles
+note-on pitch contours. Each patch description names useful performance
+parameters; no new CHAOS DSP/control is assumed.
 
-`essentials.chaos_lite` appends **`lfo_shape`** at parameter slot26:
+A seeded sine/triangle/sample-and-hold/smooth-random `lfo_shape` is **under review in PR #533, not yet released**. P1 addition and compatibility/test plan:
+`docs/tasks/CHAOS_ATMOSPHERES_530.md`. Eight named module-level
+presets are available from merged #522; a patch still stores its values,
+not its selected preset name. Real device listening remains owner-only.
+
+## CHAOS internal LFO waveforms (PR #533; available only after merge)
+
+`essentials.chaos_lite` appends **`lfo_shape`** at parameter slot 26:
 0=Sine (default, fully compatible with older patches), 1=Triangle,
 2=Sample & hold, 3=Smooth random. S&H and smooth random use their
 own per-voice seeded random stream; the existing drift/jitter and
@@ -427,11 +449,22 @@ explicitly specified.
 Backward-compatible wiring: keyboard pitch → CHAOS.pitch; keyboard gate
 → ADSR.gate → VCA.gain_cv; CHAOS left/right → one VCA each → outputs
 0/1. Leave CHAOS gate unpatched for actual ADSR release. A Lab 1 pad
-can replace its external smooth-random CV with internal shape3
+can replace its external smooth-random CV with internal shape 3
 targeting body tuning **only if its other modulation routes are
 preserved separately**; the internal LFO has one target, so it is
 not a patch-wide modulation matrix. Lab 3's percussive envelope
-remains external. Keep saved patches for older builds at shape0.
+remains external. **Downgrade warning:** `lfo_shape=0` retains the earlier
+sine algorithm, but this build saves internal CHAOS state as **version 2**.
+An older CHAOS binary accepts only state version 1 and returns
+`WS2_UNSUPPORTED` for version 2. Do not promise that a newer saved
+session can be opened with an older binary merely by selecting Sine.
+Preserve a backup before downgrading; test the actual host's response
+to unsupported module state and, if necessary, reconstruct from
+parameter values in a matching older build.
+
+The native state reader supports version-1 imports. When importing version-2
+state across sample rates, the 10 ms live-shape fade counter is bounded
+to the receiving sample rate; an old build cannot perform this conversion.
 
 Test native WAV, real WASM catalogue, old patch/state migration
 and CPU before calling this feature released. The 27th parameter
