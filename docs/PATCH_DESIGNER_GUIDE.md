@@ -428,6 +428,6 @@ parameters; no new CHAOS DSP/control is assumed.
 
 A standalone seeded sine/tri/S&H/smooth-random `lfo_shape` is **proposed,
 not available**. P1 addition and compatibility/test plan:
-`docs/design/CHAOS_ATMOSPHERES_NEXT.md`. Eight named module-level
+`docs/tasks/CHAOS_ATMOSPHERES_530.md`. Eight named module-level
 presets are available from merged #522; a patch still stores its values,
 not its selected preset name. Real device listening remains owner-only.
