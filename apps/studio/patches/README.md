@@ -58,5 +58,5 @@ All three new patches should be *structurally* validated in native/WASM and
 *auditioned by the owner* before anyone claims a particular timbre, stereo
 balance, CPU margin, or final preset quality. The slow random source is
 clocked externally; the current CHAOS internal LFO remains sine-only.
-See `docs/design/CHAOS_ATMOSPHERES_NEXT.md` for the proposed layout and
+See `docs/tasks/CHAOS_ATMOSPHERES_530.md` for the proposed layout and
 Codex/Coda implementation notes.
