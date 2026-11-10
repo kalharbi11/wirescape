@@ -145,4 +145,12 @@ int main() {
     idle.controls[0] = 1; idle.render();
     CHECK(idle.sequencer.running && idle.ons == 0);
     CHECK(idle.values[10] >= 0 && idle.values[11] >= 0);
+    // A velocity-0 note is a rest: neither it nor its following tie has fired.
+    Rig silent;
+    silent.sequencer.pattern.tracks[0].steps[0].velocity = 0;
+    silent.render();
+    silent.controls[0] = 1; silent.render();
+    CHECK(silent.ons == 0 && silent.values[14] == 0);
+    silent.render();
+    CHECK(silent.values[14] == 0);
 }

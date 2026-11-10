@@ -1,0 +1,1057 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "MIDI · Keys, Knobs and Wheels",
+  "description": "Reference patch for a MIDI keyboard or controller (desktop only). Play warm 4-voice additive keys; velocity sets loudness and brightness, mod wheel or pressure adds vibrato, aftertouch opens the filter, pitch bend bends ±2 semitones, and the held sub follows your last note. Knobs on CC 21-28: cutoff, resonance, attack, release, vibrato rate, delay mix, reverb mix, level.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 42,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "midi.in",
+      "version": 1,
+      "parameters": {},
+      "config": {
+        "endpoint": "all_enabled"
+      }
+    },
+    {
+      "id": 2,
+      "module": "midi.to_cv",
+      "version": 1,
+      "parameters": {
+        "voice_count": 4,
+        "allocation_mode": 0,
+        "apply_bend": 1,
+        "pitch_bend_range_semitones": 2,
+        "channel_filter": 0
+      }
+    },
+    {
+      "id": 3,
+      "module": "midi.cc_to_cv",
+      "version": 1,
+      "parameters": {},
+      "config": {
+        "rows": [
+          {
+            "channel": 0,
+            "controller": 21,
+            "fourteen_bit": false,
+            "bipolar": false,
+            "min": 0.0,
+            "max": 1.0,
+            "smoothing_ms": 10
+          },
+          {
+            "channel": 0,
+            "controller": 22,
+            "fourteen_bit": false,
+            "bipolar": false,
+            "min": 0.0,
+            "max": 0.8,
+            "smoothing_ms": 10
+          },
+          {
+            "channel": 0,
+            "controller": 23,
+            "fourteen_bit": false,
+            "bipolar": false,
+            "min": 0.0,
+            "max": 1.0,
+            "smoothing_ms": 10
+          },
+          {
+            "channel": 0,
+            "controller": 24,
+            "fourteen_bit": false,
+            "bipolar": false,
+            "min": 0.0,
+            "max": 1.0,
+            "smoothing_ms": 10
+          },
+          {
+            "channel": 0,
+            "controller": 25,
+            "fourteen_bit": false,
+            "bipolar": false,
+            "min": 0.0,
+            "max": 1.0,
+            "smoothing_ms": 10
+          },
+          {
+            "channel": 0,
+            "controller": 26,
+            "fourteen_bit": false,
+            "bipolar": false,
+            "min": 0.0,
+            "max": 1.0,
+            "smoothing_ms": 10
+          },
+          {
+            "channel": 0,
+            "controller": 27,
+            "fourteen_bit": false,
+            "bipolar": false,
+            "min": 0.0,
+            "max": 1.0,
+            "smoothing_ms": 10
+          },
+          {
+            "channel": 0,
+            "controller": 28,
+            "fourteen_bit": false,
+            "bipolar": false,
+            "min": 0.0,
+            "max": 1.0,
+            "smoothing_ms": 10
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 440.0
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 660.0
+      }
+    },
+    {
+      "id": 6,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 220.0
+      }
+    },
+    {
+      "id": 7,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 220.9
+      }
+    },
+    {
+      "id": 8,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 0.35,
+        "level_b": 0.25
+      }
+    },
+    {
+      "id": 25,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 0.6,
+        "level_b": 0.4
+      }
+    },
+    {
+      "id": 26,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 1.0,
+        "level_b": 0.3
+      }
+    },
+    {
+      "id": 9,
+      "module": "essentials.vcf",
+      "version": 2,
+      "parameters": {
+        "cutoff": 2600.0,
+        "resonance": 0.15
+      }
+    },
+    {
+      "id": 10,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.02,
+        "decay": 0.4,
+        "sustain": 0.65,
+        "release": 0.5
+      }
+    },
+    {
+      "id": 11,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 0.26
+      }
+    },
+    {
+      "id": 12,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 5.0,
+        "depth": 0.0
+      }
+    },
+    {
+      "id": 13,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 110.0
+      }
+    },
+    {
+      "id": 14,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.03,
+        "decay": 0.3,
+        "sustain": 0.9,
+        "release": 0.4
+      }
+    },
+    {
+      "id": 15,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 0.08
+      }
+    },
+    {
+      "id": 16,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 220.0
+      }
+    },
+    {
+      "id": 17,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.5,
+        "decay": 0.5,
+        "sustain": 0.8,
+        "release": 1.0
+      }
+    },
+    {
+      "id": 18,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 0.05
+      }
+    },
+    {
+      "id": 23,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 1.0,
+        "level_b": 1.0
+      }
+    },
+    {
+      "id": 24,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 1.0,
+        "level_b": 1.0
+      }
+    },
+    {
+      "id": 19,
+      "module": "fx.delay",
+      "version": 1,
+      "parameters": {
+        "time": 0.375,
+        "feedback": 0.4,
+        "tone": -0.2,
+        "mode": 1,
+        "mix": 0.15
+      }
+    },
+    {
+      "id": 20,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.6,
+        "decay": 3.0,
+        "damping": 0.45,
+        "mix": 0.2
+      }
+    },
+    {
+      "id": 21,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 22,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "event",
+      "from": {
+        "module": 1,
+        "port": "midi"
+      },
+      "to": {
+        "module": 2,
+        "port": "midi"
+      }
+    },
+    {
+      "kind": "event",
+      "from": {
+        "module": 1,
+        "port": "midi"
+      },
+      "to": {
+        "module": 3,
+        "port": "midi"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 4,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 5,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 6,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 7,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 25,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 25,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 25,
+        "port": "audio"
+      },
+      "to": {
+        "module": 26,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "audio"
+      },
+      "to": {
+        "module": 26,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "audio"
+      },
+      "to": {
+        "module": 8,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "audio"
+      },
+      "to": {
+        "module": 8,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 26,
+        "port": "audio"
+      },
+      "to": {
+        "module": 9,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "gate"
+      },
+      "to": {
+        "module": 10,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 9,
+        "port": "low24"
+      },
+      "to": {
+        "module": 11,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 10,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 11,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 11,
+        "port": "audio"
+      },
+      "to": {
+        "module": 24,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 23,
+        "port": "audio"
+      },
+      "to": {
+        "module": 24,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 24,
+        "port": "audio"
+      },
+      "to": {
+        "module": 19,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 19,
+        "port": "left"
+      },
+      "to": {
+        "module": 20,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 19,
+        "port": "right"
+      },
+      "to": {
+        "module": 20,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 20,
+        "port": "left"
+      },
+      "to": {
+        "module": 21,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 20,
+        "port": "right"
+      },
+      "to": {
+        "module": 22,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "last_note"
+      },
+      "to": {
+        "module": 13,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "gate"
+      },
+      "to": {
+        "module": 14,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 13,
+        "port": "audio"
+      },
+      "to": {
+        "module": 15,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 14,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 15,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 15,
+        "port": "audio"
+      },
+      "to": {
+        "module": 23,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "event",
+      "from": {
+        "module": 2,
+        "port": "notes"
+      },
+      "to": {
+        "module": 16,
+        "port": "notes"
+      }
+    },
+    {
+      "kind": "event",
+      "from": {
+        "module": 2,
+        "port": "notes"
+      },
+      "to": {
+        "module": 17,
+        "port": "notes"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 16,
+        "port": "audio"
+      },
+      "to": {
+        "module": 18,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 17,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 18,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 18,
+        "port": "audio"
+      },
+      "to": {
+        "module": 23,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 2,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 11,
+        "port": "gain"
+      },
+      "amount": 0.06
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 2,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 26,
+        "port": "level_b"
+      },
+      "amount": 0.35
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 2,
+        "port": "aftertouch"
+      },
+      "to": {
+        "module": 9,
+        "port": "cutoff"
+      },
+      "amount": 0.2
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 2,
+        "port": "pressure"
+      },
+      "to": {
+        "module": 12,
+        "port": "depth"
+      },
+      "amount": 0.5
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 2,
+        "port": "mod"
+      },
+      "to": {
+        "module": 12,
+        "port": "depth"
+      },
+      "amount": 0.9
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 2,
+        "port": "bend"
+      },
+      "to": {
+        "module": 9,
+        "port": "cutoff"
+      },
+      "amount": 0.08
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 12,
+        "port": "control"
+      },
+      "to": {
+        "module": 6,
+        "port": "frequency"
+      },
+      "amount": 0.0002
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 12,
+        "port": "control"
+      },
+      "to": {
+        "module": 7,
+        "port": "frequency"
+      },
+      "amount": 0.0002
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 12,
+        "port": "control"
+      },
+      "to": {
+        "module": 4,
+        "port": "frequency"
+      },
+      "amount": 0.0004
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 12,
+        "port": "control"
+      },
+      "to": {
+        "module": 5,
+        "port": "frequency"
+      },
+      "amount": 0.0006
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 3,
+        "port": "cc1"
+      },
+      "to": {
+        "module": 9,
+        "port": "cutoff"
+      },
+      "amount": 0.45
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 3,
+        "port": "cc2"
+      },
+      "to": {
+        "module": 9,
+        "port": "resonance"
+      },
+      "amount": 0.7
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 3,
+        "port": "cc3"
+      },
+      "to": {
+        "module": 10,
+        "port": "attack"
+      },
+      "amount": 0.1
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 3,
+        "port": "cc4"
+      },
+      "to": {
+        "module": 10,
+        "port": "release"
+      },
+      "amount": 0.1
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 3,
+        "port": "cc5"
+      },
+      "to": {
+        "module": 12,
+        "port": "rate"
+      },
+      "amount": 0.5
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 3,
+        "port": "cc6"
+      },
+      "to": {
+        "module": 19,
+        "port": "mix"
+      },
+      "amount": 0.6
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 3,
+        "port": "cc7"
+      },
+      "to": {
+        "module": 20,
+        "port": "mix"
+      },
+      "amount": 0.5
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 3,
+        "port": "cc8"
+      },
+      "to": {
+        "module": 11,
+        "port": "gain"
+      },
+      "amount": 0.5
+    }
+  ],
+  "outputs": [
+    {
+      "module": 21,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 22,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        40,
+        120
+      ],
+      "2": [
+        660,
+        120
+      ],
+      "3": [
+        40,
+        700
+      ],
+      "4": [
+        1280,
+        120
+      ],
+      "5": [
+        1280,
+        1860
+      ],
+      "6": [
+        1280,
+        540
+      ],
+      "7": [
+        1280,
+        960
+      ],
+      "8": [
+        1900,
+        700
+      ],
+      "25": [
+        1900,
+        120
+      ],
+      "26": [
+        2520,
+        120
+      ],
+      "9": [
+        2520,
+        540
+      ],
+      "10": [
+        1900,
+        1120
+      ],
+      "11": [
+        3140,
+        540
+      ],
+      "12": [
+        660,
+        1000
+      ],
+      "13": [
+        1280,
+        1380
+      ],
+      "14": [
+        1900,
+        1540
+      ],
+      "15": [
+        2520,
+        1380
+      ],
+      "16": [
+        1280,
+        3020
+      ],
+      "17": [
+        1900,
+        2120
+      ],
+      "18": [
+        2520,
+        1960
+      ],
+      "23": [
+        3140,
+        1500
+      ],
+      "24": [
+        3140,
+        1900
+      ],
+      "19": [
+        3760,
+        1100
+      ],
+      "20": [
+        3760,
+        540
+      ],
+      "21": [
+        4380,
+        540
+      ],
+      "22": [
+        4380,
+        960
+      ]
+    },
+    "labels": {
+      "1": "MIDI In (all enabled devices)",
+      "2": "Keys: MIDI to CV (4 voices, bend ±2 st)",
+      "3": "Knobs: CC 21-28 (cc1-cc8)",
+      "4": "2nd harmonic VCO",
+      "5": "3rd harmonic VCO",
+      "6": "Carrier VCO",
+      "7": "Detuned VCO (warmth)",
+      "8": "Fundamental + detuned",
+      "25": "2nd + 3rd harmonics",
+      "26": "Body + harmonics (velocity = brighter)",
+      "9": "Filter (CC21 cutoff, CC22 res)",
+      "10": "Amp envelope (CC23 attack, CC24 release)",
+      "11": "Amp VCA (CC28 level, velocity)",
+      "12": "Vibrato LFO (mod wheel depth, CC25 rate)",
+      "13": "Mono sub VCO (last_note, -1 octave)",
+      "14": "Sub envelope",
+      "15": "Sub VCA",
+      "16": "Notes-event pad VCO (unbent)",
+      "17": "Pad swell envelope",
+      "18": "Pad VCA",
+      "23": "Sub + pad layers",
+      "24": "Main + layers",
+      "19": "Delay (CC26 mix)",
+      "20": "Reverb (CC27 mix)",
+      "21": "Out L",
+      "22": "Out R"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

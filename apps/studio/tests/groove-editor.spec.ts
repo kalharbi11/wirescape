@@ -185,3 +185,27 @@ test('v1 patterns load as 32 steps and are written as v2 on the first edit', asy
   expect(c.tracks[0].steps.slice(0, 2)).toEqual(v1.tracks[0].steps);
   expect(c.tracks).toHaveLength(2);
 });
+
+test('malformed track lists load read-only without crashing and stay as saved', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', e => errors.push(String(e)));
+  const bad = [
+    { version: 2, bpm: 120, tracks: [] },
+    { version: 2, bpm: 120, tracks: [null] },
+    { version: 2, bpm: 120, tracks: [{ length: 16 }] },
+    { version: 2, bpm: 120, tracks: [{ steps: 'x' }] },
+    { version: 2, bpm: 120, tracks: [{ steps: [] }, { steps: [] }, { steps: [] }] },
+  ];
+  for (const c of bad) {
+    await page.evaluate(c => window.__wirescapeTest.load({ format: 'wirescape.native.patch', version: 2,
+      modules: [{ id: 1, module: 'sequencing.groove', version: 2, config: c }], connections: [] }, 'Bad'), c);
+    await showGroove(page);
+    await expect(page.locator('[data-testid="groove-1"]')).toContainText('read-only');
+    const pads = page.locator('[data-testid="groove-1"] .g-pad');
+    if (await pads.count()) await pads.first().click();
+    await page.keyboard.press('Control+z');
+    await flush(page);
+    expect(await cfg(page)).toEqual(c);
+  }
+  expect(errors).toEqual([]);
+});

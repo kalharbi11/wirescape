@@ -61,8 +61,9 @@ test('disarmed running, queued STOP and pre-boundary samples keep Apply off; mea
   const before = (await sent(page)).length;
   await apply(page).click();
   await expect(page.getByTestId('groove-draft-1')).toBeHidden();
+  // The draft badge hides when Apply is staged; the bridge records the load a moment later.
+  await expect.poll(async () => (await graphConfig(page)).tracks[0].steps[0]).toEqual({ kind: 'rest' });
   const config = await graphConfig(page);
-  expect(config.tracks[0].steps[0]).toEqual({ kind: 'rest' });
   expect(config.extra).toBeUndefined(); // unknown keys stay in the document only
   expect((await page.evaluate(() => window.__wirescapeTest.state())).modules[0].config.extra).toBe('ui-only');
   const after = (await sent(page)).slice(before);

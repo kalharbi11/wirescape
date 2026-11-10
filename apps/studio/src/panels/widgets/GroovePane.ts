@@ -169,6 +169,10 @@ export class GroovePane {
   // ---- transport ----------------------------------------------------------
 
   private measured(): [number, number] | undefined { return this.last?.playhead?.[this.id]; }
+  /**
+   * Play/Stop button state only. Without telemetry it falls back to `startedBlind`;
+   * the playhead and the Apply gate (`host.canApply`) never read it.
+   */
   private running(): boolean {
     const ph = this.measured();
     return ph ? ph[0] >= 0 || ph[1] >= 0 : this.startedBlind;
@@ -301,7 +305,7 @@ export class GroovePane {
     this.lanesRow.replaceChildren(seg, el('span', 'g-lbl', 'Scale'), root, scale, el('span', 'g-sp'),
       copy, paste, clear, look);
     if (!this.cfg) this.lanesRow.append(el('span', 'g-note',
-      'This Groove pattern uses a newer format; it is kept as saved and is read-only here.'));
+      'This Groove pattern is newer or malformed; it is kept as saved and is read-only here.'));
   }
 
   private renderGrid(): void {

@@ -61,18 +61,27 @@ export const defaultConfig = (): GrooveConfig => ({ version: 2, bpm: 120, tracks
 /** The editable copy, or null for a version this editor does not understand (shown read-only). */
 export function readConfig(raw: unknown): GrooveConfig | null {
   if (raw === undefined || (isObj(raw) && !Object.keys(raw).length)) return defaultConfig();
-  if (!isObj(raw) || (raw.version !== 1 && raw.version !== 2) || !Array.isArray(raw.tracks)) return null;
+  if (!wellFormed(raw)) return null;
   const cfg = clone(raw) as GrooveConfig;
   if (typeof cfg.bpm !== 'number') cfg.bpm = 120;
-  for (const t of cfg.tracks) if (!Array.isArray(t.steps)) t.steps = [];
   return cfg;
+}
+/**
+ * The structure the native adapter accepts: version 1 or 2 and 1-2 track objects,
+ * each with a `steps` array. Anything else is shown read-only and never repaired.
+ */
+function wellFormed(raw: unknown): raw is GrooveConfig {
+  if (!isObj(raw) || (raw.version !== 1 && raw.version !== 2) || !Array.isArray(raw.tracks)) return false;
+  const tracks = raw.tracks as unknown[];
+  return tracks.length >= 1 && tracks.length <= 2 && tracks.every(t => isObj(t) && Array.isArray(t.steps));
 }
 
 export function trackLength(cfg: GrooveConfig, t: number): number {
-  const track = cfg.tracks[t];
-  if (!track) return trackLength(cfg, 0) || 16;
   if (cfg.version === 1) return 32;
-  return (LENGTHS as readonly number[]).includes(track.length as number) ? track.length as number : 16;
+  // A missing second track takes the first's length; never recurse (tracks may be empty).
+  const track = cfg.tracks[t] ?? cfg.tracks[0];
+  const length = track?.length as number;
+  return (LENGTHS as readonly number[]).includes(length) ? length : 16;
 }
 export const stepAt = (cfg: GrooveConfig, t: number, i: number): Step =>
   cfg.tracks[t]?.steps[i] ?? { kind: 'rest' };
@@ -133,7 +142,8 @@ function engineCond(c: unknown): Cond | undefined {
  * Absent, empty or unknown-version configs pass through untouched (the engine decides).
  */
 export function engineConfig(raw: unknown): unknown {
-  if (!isObj(raw) || !Object.keys(raw).length || (raw.version !== 1 && raw.version !== 2) || !Array.isArray(raw.tracks))
+  // Malformed configs go to the engine unchanged so it refuses them truthfully.
+  if (!isObj(raw) || !Object.keys(raw).length || !wellFormed(raw))
     return raw === undefined ? undefined : clone(raw);
   const v2 = raw.version === 2;
   const tracks = (raw.tracks as unknown[]).slice(0, 2).map(t => {
