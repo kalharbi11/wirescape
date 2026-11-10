@@ -695,6 +695,37 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
     check(seq.master_steps() == 64, "master cycle follows longest active track");
     seq.players[1].playing = seq.players[1].armed = false;
     check(seq.master_steps() == 8, "master cycle follows remaining shorter track");
+    // Native sixteenth-note scheduling without audio devices. No note is sounding,
+    // so the exact boundary path can be driven with an empty event sink.
+    seq.reset();
+    seq.running = true;
+    seq.players[0].playing = seq.players[1].playing = true;
+    ws2_process raw{};
+    raw.frames = 1;
+    ws::Block dummy(raw);
+    for (uint32_t i = 0; i < 8; ++i) seq.boundary(dummy, 0);
+    check(seq.step == 8 && seq.step_t[0] == 0 && seq.step_t[1] == 8 &&
+          seq.players[0].loop == 2 && seq.players[1].loop == 1,
+          "8-step track wraps independently while 64-step track continues");
+    seq.players[0].stop = true;
+    for (uint32_t i = 0; i < 8; ++i) seq.boundary(dummy, 0);
+    check(seq.step == 16 && !seq.players[0].playing && !seq.players[0].armed &&
+          seq.players[1].playing && seq.players[1].loop == 1,
+          "track STOP completes on its own loop, not the master end");
+    seq.players[0].enter = true;
+    seq.players[0].armed = true;
+    for (uint32_t i = 0; i < 16; ++i) seq.boundary(dummy, 0);
+    check(seq.step == 32 && seq.players[0].playing && seq.players[1].playing,
+          "track START enters on a matching 16-step bar boundary");
+    seq.stop_queued = true;
+    for (uint32_t i = 0; i < 31; ++i) {
+        seq.boundary(dummy, 0);
+        check(seq.running && seq.stop_queued, "global STOP stays queued until master end");
+    }
+    seq.boundary(dummy, 0);
+    check(!seq.running && !seq.stop_queued && seq.step == 0 && seq.step_t[0] == 0 &&
+          seq.step_t[1] == 0 && !seq.players[0].playing && !seq.players[1].playing,
+          "global STOP completes only at the 64-step master-cycle boundary");
     seq.samples_per_step = 100;
     bool shorter = false;
     check(seq.gate_duration(0, 0, shorter) == 175. && shorter,
