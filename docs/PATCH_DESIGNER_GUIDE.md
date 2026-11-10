@@ -385,3 +385,33 @@ verify actual sound against the offline render/WAV evidence before claiming
 a preset's audio acceptance, and never infer DSP playback from FakeEngine
 control values alone.
 
+
+
+## CHAOS additive internal LFO modes (branch #532; only when integrated)
+
+`essentials.chaos_lite` appends **`lfo_shape`** at parameter slot26:
+0=Sine (default, fully compatible with older patches), 1=Triangle,
+2=Sample & hold, 3=Smooth random. S&H and smooth random use their
+own per-voice seeded random stream; the existing drift/jitter and
+roughness RNG sequence is unaffected. Each cycle picks a new held
+value or interpolation target. A 10 ms switch ramp is for shape
+changes, not a new long-cycle envelope. No new input/output port,
+no second LFO, and no sample looper. `lfo_rate` (0.02–12 Hz),
+`lfo_depth` (0–1), `lfo_self` (0–1), and target (A pitch,
+body tuning or cutoff) remain unchanged. Studio's eight CHAOS
+module presets resolve the new selector to default 0 unless
+explicitly specified.
+
+Backward-compatible wiring: keyboard pitch → CHAOS.pitch; keyboard gate
+→ ADSR.gate → VCA.gain_cv; CHAOS left/right → one VCA each → outputs
+0/1. Leave CHAOS gate unpatched for actual ADSR release. A Lab 1 pad
+can replace its external smooth-random CV with internal shape3
+targeting body tuning **only if its other modulation routes are
+preserved separately**; the internal LFO has one target, so it is
+not a patch-wide modulation matrix. Lab 3's percussive envelope
+remains external. Keep saved patches for older builds at shape0.
+
+Test native WAV, real WASM catalogue, old patch/state migration
+and CPU before calling this feature released. The 27th parameter
+must appear in generated catalogue and grouped panel. Device/Pi
+listening remains an owner step.
