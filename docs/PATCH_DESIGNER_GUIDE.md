@@ -49,11 +49,12 @@ Visitors find compatible patches in Starter patches and PATCHES → SHARED PATCH
 Changes appear after a successful deployment and refresh, not at the instant of commit.
 An open PR is a preview/check, not a public deployment.
 
-**Shipped set (2026-11-10).** Every new build ships 16 patches: the fifteen
-library files in that folder (**Basics 1–7** introductory patches,
-`basics-NN-*.json`, and the eight revised cinematic **Scene 1–8** patches,
-`scene-NN-*.json`), plus the bundled desktop-only MIDI example
-`apps/studio/src/app/bundled/midi-keys-and-knobs.json`. That one lives in the
+**Shipped set (2026-11-10).** Before the CHAOS Lab #530 merge, builds ship 16 patches: the fifteen
+library files (**Basics 1–7** and **Scene 1–8**) plus the bundled desktop-only
+MIDI example. Builds containing #530 ship 19: the previous sixteen and
+three additional CHAOS Lab 1–3 patches (`chaos-NN-*.json`). The lab patches
+are not public until their PR merges and deploys. The bundled MIDI example is
+`apps/studio/src/app/bundled/midi-keys-and-knobs.json`; it lives in the
 app because this folder and the web host exclude `midi.*` modules; the web
 Starter list hides it automatically. The six old `qt-*` starters were retired;
 their IDs stay reserved. Historical curated.ts/STARTERS/native ui_starters
@@ -144,7 +145,29 @@ or parameter IDs.
   Finite optional endpoints override the matching bipolar default; inverted and
   constant ranges are valid, existing smoothing still applies, and JSON persists
   the mapping. MIDI modules remain unavailable in the WebAssembly host; use
-  `host.keyboard` in browser patches. MIDI Learn stays separate UI-owned work.
+  `host.keyboard` in browser patches.
+- MIDI Learn (Studio on the desktop engine, #287): right-click a modulatable knob →
+  **MIDI Learn…**, move a controller, **Confirm** (Enter; Esc cancels; the engine
+  stops waiting after 30 s). Studio writes a free `midi.cc_to_cv` row
+  (`channel` = the captured one, or `0` with "any channel"; `controller`), cables
+  `ccN` → that knob as a modulation with amount `1`, and sends the edited patch as
+  one live replan. Until it settles, Studio shows "Applying MIDI Learn…" and
+  blocks patch edits, undo, cables and CC labels; rejection restores the old
+  patch and history before editing resumes. The row goes on a converter whose `midi.in` feed hears the
+  device that moved (`all_enabled`, or that exact `endpoint` + `system_name`); a
+  converter with no feed gets one in the same edit. Otherwise it adds a
+  `midi.cc_to_cv` module fed by a matching `midi.in` (a new one naming the device
+  when none hears it); unrelated routes are untouched. A device unplugged or
+  disabled before Confirm is refused. Wired but unconfigured outputs keep their
+  default CC n (explicit default rows fill the gap, never a hole). Re-learning a
+  mapped knob updates its row, or moves it to a new row when another knob shares
+  that row or its converter does not hear the new device. **Forget MIDI mapping**
+  removes only that knob's CC cable (and a now-unused last row). One undo step
+  each. Learned rows are ordinary `config.rows`, so a saved patch needs no
+  learn state. Modulation is added to the knob's own value, so a full sweep needs
+  the knob near its minimum (0..1 CC onto its range). The `CC n` label on the
+  module follows the learned controller (`ui.ccMap`, display only). Hand-edit
+  JSON is still fine; unavailable in the browser demo (no MIDI).
 - `essentials.vco` is a pure sine. Keep `frequency` 220 for concert tuning when pitch
   is connected (it is a ratio to 220; 261.63 plays three semitones sharp). Its `fm` input is additive Hz from a ±1 signal,
   so it only gives a few Hz of deviation. For audible FM, connect a modulator
@@ -481,3 +504,47 @@ CV outputs → a polyphonic instrument/voice allocation path → mixer and
 ports for a five-note chord. Verify the destination module's exposed
 port names in the installed catalogue before patching; audible chord
 playback requires native #526.
+
+## CHAOS sound presets (#489; available after Studio PR merges)
+
+The `essentials.chaos_lite` card's **Presets** dropdown supplies eight
+repeatable starting sounds. The first four are from its native README:
+**Warm fifth** (smooth pair/fifth), **Bent wire** (delay bending), **Broken
+bell** (ring-mod strike), and **Slow weather** (slow body motion). The four
+Studio originals are **Basalt drone** (dark sustained comb), **Glass pluck**
+(bright short resonant note), **Iron rain** (metallic high partials), and
+**Tide choir** (slow stereo tonal movement).
+
+A choice sets **all** descriptor parameters to its values or their defaults,
+not merely the named subset, via the existing engine parameter path. Undo
+restores the previous parameter state in one step, and save/reload retains
+those numeric values without writing preset names or changing cables,
+module IDs, or unknown fields. A changed knob shows **Custom**. These are
+sound-design candidates, not separately approved/audio-auditioned patches:
+verify actual sound against the offline render/WAV evidence before claiming
+a preset's audio acceptance, and never infer DSP playback from FakeEngine
+control values alone.
+
+## CHAOS atmospheric lab (experimental #530; not public until merged)
+
+Three original scenes use the current `essentials.chaos_lite` v1:
+`chaos-01-ember-veil-pad` (keyboard pad, clocked smooth random),
+`chaos-02-wireglass-lead` (ring/AM lead with envelope-driven coupling),
+and `chaos-03-orbiting-iron-fx` (autoplay curved metallic pulses).
+`basics-06-chaos-keys` and `scene-03-black-ice-choir` were also revised.
+
+**Critical CHAOS gate rule:** `essentials.chaos_lite.gate` is an immediate
+audio multiplier, not an ADSR generator. To get keyboard release, wire
+`host.keyboard.gate` to `essentials.adsr.gate`, then
+`adsr.envelope` to the two stereo `essentials.vca.gain_cv` ports.
+Leave CHAOS gate **unpatched (default 1)** and set `fall=0`; if the
+keyboard gate goes into CHAOS, a zero at note-off defeats the ADSR release.
+Until an independent pitch fall trigger exists, external CV handles
+note-on pitch contours. Each patch description names useful performance
+parameters; no new CHAOS DSP/control is assumed.
+
+A standalone seeded sine/tri/S&H/smooth-random `lfo_shape` is **proposed,
+not available**. P1 addition and compatibility/test plan:
+`docs/tasks/CHAOS_ATMOSPHERES_530.md`. Eight named module-level
+presets are available from merged #522; a patch still stores its values,
+not its selected preset name. Real device listening remains owner-only.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include "midi_backend.h"
+#include "../io/audio/portaudio_service.h"
 #include "protocol.h"
 #include <array>
 #include <atomic>
@@ -63,9 +64,10 @@ class ObservedMidi final : public midi::Backend {
     bool inject(const midi::Endpoint &, const uint8_t *, size_t, uint64_t);
     bool inject_ump(const midi::Endpoint &, const uint32_t *, size_t, uint64_t);
 };
-Json audio_devices(const std::string &directory, bool fake);
+Json audio_devices(const std::string &directory, bool fake, const audio::DeviceQuery &query = {});
 struct MidiDeviceListing {
     std::vector<midi::Endpoint> available, enabled;
 };
 Json midi_devices(const MidiDeviceListing &, bool authorized);
 } // namespace wirescape::sidecar
+

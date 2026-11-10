@@ -1,0 +1,415 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "CHAOS Lab 1 · Ember Veil (evolving pad)",
+  "description": "Play held chords for a warm, slowly wandering stereo pad. Smooth near-sine A/B oscillators remain mostly parallel while the comb body adds a quiet halo; a poly ADSR gives a long release. Independent slow LFOs animate body mix and cutoff; clocked smooth random supplies sparse per-voice micro-detune and body drift. CHAOS gate stays unconnected so release is audible. Expose: shape_a, shape_b, detune, body_mix, feedback, cutoff, drift, ADSR attack/release, and random range/smooth. Future internal option: seeded smooth-random LFO shape.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 5301,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "host.keyboard",
+      "version": 1,
+      "parameters": {
+        "voices": 4
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.chaos_lite",
+      "version": 1,
+      "parameters": {
+        "shape_a": 1.91,
+        "shape_b": 1.72,
+        "detune": 6.5,
+        "octave_a": -1,
+        "octave_b": -1,
+        "level_a": 0.48,
+        "level_b": 0.32,
+        "pan_a": -0.48,
+        "pan_b": 0.48,
+        "route": 0,
+        "depth": 0,
+        "body_tune": 0.06,
+        "feedback": 0.42,
+        "damping": 0.76,
+        "body_mix": 0.28,
+        "roughness": 0.025,
+        "rough_rate": 38,
+        "drift": 0.18,
+        "jitter": 0.015,
+        "fall": 0,
+        "lfo_target": 2,
+        "lfo_rate": 0.07,
+        "lfo_depth": 0.12,
+        "lfo_self": 0.12,
+        "cutoff": 3600,
+        "level": 0.9
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.85,
+        "decay": 1.3,
+        "sustain": 0.75,
+        "release": 3.5
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1.65
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1.65
+      }
+    },
+    {
+      "id": 6,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.74,
+        "decay": 6.5,
+        "damping": 0.52,
+        "predelay": 0.036,
+        "width": 1,
+        "motion": 0.27,
+        "mix": 0.36
+      }
+    },
+    {
+      "id": 7,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 8,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 9,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.047,
+        "depth": 0.8
+      }
+    },
+    {
+      "id": 10,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.13,
+        "depth": 0.7
+      }
+    },
+    {
+      "id": 11,
+      "module": "essentials.clock",
+      "version": 2,
+      "parameters": {
+        "bpm": 24,
+        "ticks_per_beat": 1,
+        "duty": 0.12,
+        "run": 1
+      }
+    },
+    {
+      "id": 12,
+      "module": "example.random_source",
+      "version": 1,
+      "parameters": {
+        "voices": 4,
+        "smooth": 0.9,
+        "range": 0.4
+      }
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 2,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 2,
+        "port": "velocity"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 3,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "left"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "right"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 4,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 5,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "left"
+      },
+      "to": {
+        "module": 7,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "right"
+      },
+      "to": {
+        "module": 8,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 11,
+        "port": "clock"
+      },
+      "to": {
+        "module": 12,
+        "port": "clock"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 9,
+        "port": "control"
+      },
+      "to": {
+        "module": 2,
+        "port": "body_mix"
+      },
+      "amount": 0.13
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 10,
+        "port": "control"
+      },
+      "to": {
+        "module": 2,
+        "port": "cutoff"
+      },
+      "amount": 0.06
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 12,
+        "port": "smooth"
+      },
+      "to": {
+        "module": 2,
+        "port": "detune"
+      },
+      "amount": 0.06
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 12,
+        "port": "smooth"
+      },
+      "to": {
+        "module": 2,
+        "port": "body_tune"
+      },
+      "amount": 0.02
+    }
+  ],
+  "outputs": [
+    {
+      "module": 7,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 8,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "2": [
+        990,
+        192
+      ],
+      "3": [
+        60,
+        960
+      ],
+      "4": [
+        2220,
+        192
+      ],
+      "5": [
+        2220,
+        864
+      ],
+      "6": [
+        3150,
+        192
+      ],
+      "7": [
+        4080,
+        192
+      ],
+      "8": [
+        4080,
+        864
+      ],
+      "9": [
+        990,
+        1700
+      ],
+      "10": [
+        1920,
+        1700
+      ],
+      "11": [
+        60,
+        1700
+      ],
+      "12": [
+        60,
+        2360
+      ]
+    },
+    "labels": {
+      "1": "Keys",
+      "2": "Warm CHAOS",
+      "3": "Long ADSR",
+      "4": "VCA L",
+      "5": "VCA R",
+      "6": "Velvet hall",
+      "7": "Out L",
+      "8": "Out R",
+      "9": "Body tide",
+      "10": "Brightness tide",
+      "11": "Slow random clock",
+      "12": "Per-voice weather"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}
