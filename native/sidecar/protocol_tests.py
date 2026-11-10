@@ -4,6 +4,8 @@ import atexit
 import json
 import queue
 import re
+import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -406,6 +408,54 @@ with tempfile.TemporaryDirectory() as directory:
     for flags in [('--unknown',), ('--rate', '0'), ('--block', '4097'), ('--device',), ('--bench-summary',)]:
         result = subprocess.run([BINARY, *flags], input=b'', capture_output=True, timeout=10)
         assert result.returncode != 0 and not result.stdout
+# OSC B: no physical devices and no LAN bind. An unconfirmed per-route
+# lan:true still accepts the patch and listens only on 127.0.0.1.
+with tempfile.TemporaryDirectory() as osc_dir:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as occupied:
+        occupied.bind(('127.0.0.1', 0))
+        port = occupied.getsockname()[1]
+        osc_engine = Engine(Path(osc_dir) / 'settings.json')
+        assert 'osc' in osc_engine.hello['capabilities']
+        osc_patch = minimal()
+        osc_patch['modules'].append(dict(id=9, module='osc.in',
+                                         config=dict(port=port, lan=True,
+                                                     rows=[dict(pattern='/pico1/knob/1', kind='cv',
+                                                                smoothing_ms=0)])))
+        gen = osc_engine.call('loadGraph', patch=osc_patch)['gen']
+
+        def osc_route_when(predicate):
+            until = time.monotonic() + 8
+            while time.monotonic() < until:
+                message = osc_engine.pushes.pop(0) if osc_engine.pushes else osc_engine.receive()
+                if message.get('type') != 'status' or message.get('gen') != osc_engine.last_gen:
+                    continue
+                routes = message['status']['osc']['routes']
+                if len(routes) == 1 and predicate(routes[0]):
+                    return routes[0]
+            raise AssertionError('No matching OSC route status: ' + osc_engine.stderr())
+
+        failure = osc_route_when(lambda route: route['state'] == 'port-busy')
+        assert failure['port'] == port and failure['received'] == 0 and failure['dropped'] == 0
+        assert failure['module'] == '9'
+        invalid = json.loads(json.dumps(osc_patch))
+        invalid['modules'][1]['config']['port'] = 65536
+        assert osc_engine.call('loadGraph', False, patch=invalid)['gen'] == gen
+        # A refusal must retain the same committed busy route and generation.
+        assert osc_route_when(lambda route: route['state'] == 'port-busy')['module'] == '9'
+        occupied.close()
+        # Recommit must clean up the old listener and retry the same port.
+        osc_engine.call('loadGraph', patch=minimal())
+        osc_engine.call('loadGraph', patch=osc_patch)
+        listening = osc_route_when(lambda route: route['state'] == 'lan-not-confirmed')
+        assert listening['bind'] == '127.0.0.1' and listening['port'] == port
+        packet = b'/pico1/knob/1\0'
+        packet += b'\0' * ((-len(packet)) % 4)
+        packet += b',f\0\0' + struct.pack('>f', 0.5)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+            sender.sendto(packet, ('127.0.0.1', port))
+        assert osc_route_when(lambda route: route['received'] > 0)['received'] >= 1
+        osc_engine.close()
+
 # Real, short, device-free end-to-end benchmark ingestion on the production sidecar.
 harness = Path(__file__).resolve().parents[2] / 'tools' / 'sidecar_edit_soak.py'
 smoke = subprocess.run([sys.executable, str(harness), '--engine', BINARY,
