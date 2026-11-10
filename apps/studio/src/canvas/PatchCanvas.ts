@@ -130,7 +130,7 @@ export class PatchCanvas {
     card.root.style.top = `${y}px`;
     card.root.style.zIndex = String(++this.zCounter);
     card.root.addEventListener('pointerdown', e => {
-      if ((e.target as HTMLElement).closest('.port,.knob,.seg,.toggle,.control-readout,.readout-input,.step-gate,.step-pitch,.module-header,.control-number,.control-fader,.input-select,.ib,.ibox,.filter-pane'))
+      if ((e.target as HTMLElement).closest('.port,.knob,.seg,.toggle,.control-readout,.readout-input,.step-gate,.step-pitch,.module-header,.control-number,.control-fader,.input-select,.ib,.ibox,.filter-pane,.groove-pane'))
         return;
       this.selectModule(id, e.shiftKey);
     });
