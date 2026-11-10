@@ -7,9 +7,10 @@ The app is alpha. Experimental offline ABI2 proofs are distinct from the live AB
 
 ## Product boundaries
 
-The existing native application uses Qt Quick with a C++17 headless engine.
-The imported web UI below is the renderer for the planned standalone Electron app.
-Qt, Python build tools and device APIs stay outside DSP processing.
+The current desktop application uses the Electron shell, Studio renderer and
+Qt-free C++17 `wirescape-engine` sidecar. The earlier Qt Quick/ABI1 application
+remains in-tree during staged retirement, but is not the Electron renderer.
+Python build tools and device APIs stay outside DSP processing.
 The original Python/browser prototype lives in `legacy/` as reference only, is not built or maintained,
 and has no bundled Surge binaries. It preserves earlier musical/design ideas, not the current runtime.
 
@@ -29,7 +30,35 @@ selects P1C's `RealEngine` when the native bridge is present and retains
 `FakeEngine` for browser tests. Native File-menu intents use that bridge without
 exposing file paths to the renderer.
 A protocol stub with null audio/fake MIDI is used by desktop Playwright tests.
-The Qt UI remains buildable.
+The Qt UI remains buildable as a migration baseline.
+
+### Merged feature integrations (2026-11-10)
+
+These additions are merged, but each device or runtime claim has its own gate:
+
+- [Audio route metadata](https://github.com/kalharbi11/wirescape/pull/399) reports
+  backend/output identity and compatible rates. The settings UI refuses a
+  missing, ambiguous, mono or unsupported route rather than silently replacing it.
+- [MIDI Learn](https://github.com/kalharbi11/wirescape/pull/500) maps a modulatable
+  knob to a `midi.cc_to_cv` route through Studio with one undoable document edit;
+  Forget removes only that mapping. Physical-controller tests remain separate.
+- [OSC slice A](https://github.com/kalharbi11/wirescape/pull/518) registers the
+  bounded `osc.in` and `monitor` ABI2 modules and their codec/tests. A current
+  sidecar UDP worker, consent handling and Monitor presentation are not yet
+  delivered by this slice; they remain separate work under #72.
+- [CHAOS UI presets](https://github.com/kalharbi11/wirescape/pull/522)
+  add eight unsaved preset labels and one-step Undo; the additive
+  [LFO shapes](https://github.com/kalharbi11/wirescape/pull/533) preserve old
+  parameter IDs and the sine default; the
+  [CHAOS Lab patches](https://github.com/kalharbi11/wirescape/pull/531)
+  add three release-safe library examples.
+- The Groove feature inventory now includes
+  [measured playhead/loop telemetry](https://github.com/kalharbi11/wirescape/pull/501),
+  [native track lengths/gates/conditions](https://github.com/kalharbi11/wirescape/pull/505)
+  and the [Studio editor](https://github.com/kalharbi11/wirescape/pull/509)
+  with [roll/bar/scale tools](https://github.com/kalharbi11/wirescape/pull/516).
+  These are merged capabilities, not evidence of later chord/speed work.
+
 
 The root `web` workflow uses hosted Ubuntu and pinned Node 22 for `npm ci`,
 typecheck, build and Playwright with the runner's Chromium. Failures retain
