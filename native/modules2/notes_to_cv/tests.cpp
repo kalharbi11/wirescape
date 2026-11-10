@@ -241,7 +241,7 @@ static void native_keyboard_graph(const std::array<int, 4> &keys, uint32_t count
                           note(WS2_NOTE_OFF, keys[released], keys[released]), frame) == WS2_OK);
         REQUIRE(e.render(out, 1, 256) == WS2_OK);
         for (uint32_t i = 0; i < count; ++i)
-            REQUIRE(e.output_sample(2, 1, voice_for[i], 128) == (i == released ? 0.f : 1.f));
+            REQUIRE(e.output_sample(2, 1, voice_for[i], 128) == (i <= released ? 0.f : 1.f));
     }
 }
 
