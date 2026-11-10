@@ -279,7 +279,15 @@ destroy the retired graph on the control thread. The device is never reopened
 for a graph change, so Windows stream setup cannot break the 150 ms gap budget.
 Stopped, not-yet-rendering and device-loss streams keep the stop/swap/start
 path. Audio outputs are identified as `hostApi|name[#n]`. The null sink publishes render
-liveness to control. Only accepted swaps advance the protocol generation.
+liveness to control. On Windows its thread registers MMCSS "Pro Audio", falling
+back to `THREAD_PRIORITY_TIME_CRITICAL`, and holds a successful 1 ms timer request
+until stop. These scopes are released after the final render without device access.
+`--bench-summary` reports fixed-size overrun diagnostics after the sink joins:
+render duration and positive wake lateness maxima in microseconds, with counts
+for renders longer than one period and starts after their scheduled time, among
+overrun blocks only. Counts can overlap; neither changes the absolute completion
+deadline test (`after > next`), including catch-up blocks.
+Only accepted swaps advance the protocol generation.
 
 ## Stdio engine sidecar (P1B)
 
