@@ -1,0 +1,361 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Scene 5 · Glass Cathedrals (Macro chords)",
+  "description": "Shimmering additive-synthesis chords through a gently moving ladder filter, a ping-pong prism echo and a big cathedral reverb. Play slow chords; the Macro Timbre and Harmonics knobs shift the glassy overtones.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 1105,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "host.keyboard",
+      "version": 1,
+      "parameters": {
+        "voices": 4
+      }
+    },
+    {
+      "id": 2,
+      "module": "ports.macro_oscillator",
+      "version": 1,
+      "parameters": {
+        "model": 12,
+        "coarse": 0,
+        "harmonics": 0.34,
+        "timbre": 0.6,
+        "morph": 0.42,
+        "timbre_amount": 0.25,
+        "morph_amount": 0.3,
+        "decay": 0.3,
+        "lpg_colour": 0.58
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.mixer",
+      "version": 2,
+      "parameters": {
+        "level_a": 0.32,
+        "level_b": 0.1
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.ladder",
+      "version": 2,
+      "parameters": {
+        "cutoff": 5000,
+        "resonance": 0.18,
+        "drive": 0.05
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.11,
+        "depth": 0.75
+      }
+    },
+    {
+      "id": 6,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.047,
+        "depth": 0.7
+      }
+    },
+    {
+      "id": 7,
+      "module": "fx.delay",
+      "version": 1,
+      "parameters": {
+        "time": 0.375,
+        "feedback": 0.35,
+        "tone": 0.3,
+        "mode": 1,
+        "mix": 0.25
+      }
+    },
+    {
+      "id": 8,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.9,
+        "decay": 12,
+        "damping": 0.3,
+        "predelay": 0.03,
+        "width": 1,
+        "motion": 0.4
+      }
+    },
+    {
+      "id": 9,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 10,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 11,
+      "module": "essentials.slew",
+      "version": 2,
+      "parameters": {
+        "rise": 0.4,
+        "fall": 0.8
+      }
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 2,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 2,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 11,
+        "port": "control"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 11,
+        "port": "control"
+      },
+      "to": {
+        "module": 4,
+        "port": "cutoff"
+      },
+      "amount": 0.25
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "main"
+      },
+      "to": {
+        "module": 3,
+        "port": "a"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "aux"
+      },
+      "to": {
+        "module": 3,
+        "port": "b"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "audio"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 7,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "left"
+      },
+      "to": {
+        "module": 8,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "right"
+      },
+      "to": {
+        "module": 8,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "left"
+      },
+      "to": {
+        "module": 9,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 8,
+        "port": "right"
+      },
+      "to": {
+        "module": 10,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 5,
+        "port": "control"
+      },
+      "to": {
+        "module": 2,
+        "port": "timbre"
+      },
+      "amount": 0.18
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 6,
+        "port": "control"
+      },
+      "to": {
+        "module": 4,
+        "port": "cutoff"
+      },
+      "amount": 0.2
+    }
+  ],
+  "outputs": [
+    {
+      "module": 9,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 10,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "11": [
+        60,
+        864
+      ],
+      "2": [
+        990,
+        192
+      ],
+      "3": [
+        1920,
+        192
+      ],
+      "4": [
+        2850,
+        192
+      ],
+      "5": [
+        990,
+        1952
+      ],
+      "6": [
+        2850,
+        864
+      ],
+      "7": [
+        3780,
+        192
+      ],
+      "8": [
+        4710,
+        192
+      ],
+      "9": [
+        5640,
+        192
+      ],
+      "10": [
+        5640,
+        864
+      ]
+    },
+    "labels": {
+      "1": "Keys",
+      "2": "Additive glass",
+      "3": "Overtone blend",
+      "4": "Glass ladder",
+      "5": "Glass shimmer",
+      "6": "Slow shadow",
+      "7": "Prism echo",
+      "8": "Cathedral",
+      "9": "Out L",
+      "10": "Out R",
+      "11": "Touch smoother"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

@@ -249,3 +249,37 @@ test('a refused patch load commits a pending gesture to the restored history', a
   await page.evaluate(() => window.__wirescapeTest.undo());
   expect(await page.evaluate(() => window.__wirescapeTest.doc.param(1, 'frequency'))).not.toBe(880);
 });
+
+
+test('Groove Apply requires current measured STOP, not request ACK or stale generation', async ({ page }) => {
+  await page.evaluate(() => window.__wirescapeTest.addModule('sequencing.groove'));
+  await expect.poll(() => page.evaluate(() => (window as any).__mockBridge.getGraph().modules.length)).toBe(1);
+  const allowed = () => page.evaluate(() => window.__wirescapeTest.engine.canApplyGroove(1));
+  expect(await allowed()).toBe(false);
+  await page.evaluate(() => {
+    const e = window.__wirescapeTest.engine;
+    (window as any).__mockBridge.telemetry({ playhead: { 1: [3, 3] } });
+    e.setParam(1, 'stop', 1);
+  });
+  await expect.poll(() => page.evaluate(() => (window as any).__mockBridge.getGraph().modules[0].parameters.stop)).toBe(1);
+  expect(await allowed()).toBe(false);
+  await page.evaluate(() => (window as any).__mockBridge.telemetry({ playhead: { 1: [-1, -1] } }, '0'));
+  expect(await allowed()).toBe(false);
+  await page.evaluate(() => (window as any).__mockBridge.telemetry({ playhead: { 1: [-1, 31] } }));
+  expect(await allowed()).toBe(false); // second track still owes release
+  await page.evaluate(() => (window as any).__mockBridge.telemetry({ playhead: { 1: [-1, -1] } }));
+  expect(await allowed()).toBe(true);
+  await page.evaluate(() => (window as any).__mockBridge.telemetry({ playhead: {} }));
+  expect(await allowed()).toBe(false); // complete snapshots replace old STOP
+  await page.evaluate(() => {
+    (window as any).__mockBridge.telemetry({ playhead: { 1: [-1, -1] } });
+    window.__wirescapeTest.engine.addModule(2, 'essentials.output');
+  });
+  expect(await allowed()).toBe(false); // mutating dispatch invalidates evidence immediately
+  await expect.poll(() => page.evaluate(() => (window as any).__mockBridge.getGraph().modules.length)).toBe(2);
+  expect(await allowed()).toBe(false);
+  await page.evaluate(() => (window as any).__mockBridge.status({ state: 'no-device' }));
+  expect(await allowed()).toBe(true);
+  await page.evaluate(() => (window as any).__mockBridge.status({ state: 'running' }));
+  expect(await allowed()).toBe(false);
+});

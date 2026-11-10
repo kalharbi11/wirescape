@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# #403: Chord module (build task)
+# CHORD-403: Chord module (build task)
 
 Issue #403. Product surface confirmed by Codex Lead (#406 comment 6722798879);
 the technical identity contract is ruled by Coda on #403 under the owner's
@@ -30,9 +30,12 @@ design note is `docs/design/CHORD_GENERATOR_403.md` on branch
    source then never collide downstream (for graph IDs < 2048, documented).
 2. **Input matching:** explicit `note_id >= 0` (0 is valid) by
    (source_id, channel, note_id); a NOTE_ON that reuses an active explicit
-   identity first releases the old activation, and a later off for it is
-   ignored. Anonymous IDs by (source_id, channel, key), LIFO. Unmatched offs
-   are ignored (no wildcard release).
+   identity first releases the old activation (**last wins**, Keel 2026-11-10 on
+   #511): an OFF with that tuple then releases the *current* activation.
+   A stale OFF can't be told apart without a generation field, which would be an
+   event-format change, and reusing a live explicit ID is a producer error. Document
+   this in the patch guide. Anonymous IDs by (source_id, channel, key), LIFO.
+   Unmatched offs are ignored (no wildcard release).
 3. **Expression:** a per-note expression (note_id >= 0 matching an activation)
    is re-emitted for every voice of that activation with its output IDs.
    Channel-wide expressions (note_id < 0) pass through unchanged.
@@ -53,16 +56,18 @@ Until #421 merges, the native tests use `native/tests2/test_modules.h::NotesToCv
 Native `abi2_chord_tests` (callback sink): root 60 → 60/64/67 at identical offset
 and velocity with distinct IDs; minor/custom/negative shifts and out-of-range
 omission (1–5 voices); input ID 0; two sources; channels 0/15; repeated root;
-explicit-ID reuse; anonymous LIFO; held param edit releases the old pitches;
+explicit-ID reuse (last wins: the second OFF finds nothing); anonymous LIFO; held param edit releases the old pitches;
 expression fan-out; choke targeted/wildcard; capacity refusal of on/off across
 blocks and recovery; ID wrap skips live IDs; two Chord instances into one sink
 don't collide; 1/17/128/max frames; zero allocations. Engine test: keyboard
 → Chord → (test NotesToCv or #421) renders a 3-note chord. Studio: catalogue
 entry and save/reload. Patch guide updated in the same PR.
 
+Size budget per Keel (2026-11-10) includes the review's regressions.
+
 ```acceptance
 tier: T1
-size: <= 1000 changed lines, <= 14 files
+size: <= 1100 changed lines, <= 20 files
 must_pass:
   - bash -lc "python tools/dev.py build --headless --config Release && ctest --test-dir build/native -R 'chord|ui_patch_conformance|sidecar' --output-on-failure --no-tests=error"
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'

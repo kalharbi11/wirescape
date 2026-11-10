@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include "wirescape_sdk.h"
-#include <array>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+
+// Qt and cppcheck may define emit as a macro; restore the caller's definition.
+#pragma push_macro("emit")
+#undef emit
 
 namespace chord {
 
@@ -27,7 +31,10 @@ struct Chord {
         ws::param("shift4", "Shift 4", -24, 24, -12, "st", kStepped, WS2_LINEAR, 7, 4, 1)};
 
     static constexpr uint32_t kActivations = 16, kNotes = 5, kPending = 80, kSeqMask = (1u << 20) - 1;
-    struct Voice { int key = 0; int32_t id = -1; };
+    struct Voice {
+        int key = 0;
+        int32_t id = -1;
+    };
     struct Activation {
         bool used = false;
         uint32_t source = 0;
@@ -59,13 +66,15 @@ struct Chord {
     }
     uint32_t active_voice_count() const {
         uint32_t n = 0;
-        for (const auto &a : active) if (a.used) n += a.count;
+        for (const auto &a : active)
+            if (a.used) n += a.count;
         return n;
     }
     bool reserved(int32_t id) const {
         for (const auto &a : active)
-            if (a.used) for (uint32_t i = 0; i < a.count; ++i)
-                if (a.voices[i].id == id) return true;
+            if (a.used)
+                for (uint32_t i = 0; i < a.count; ++i)
+                    if (a.voices[i].id == id) return true;
         for (uint32_t i = 0; i < pending_count; ++i)
             if (pending[i].note_id == id) return true;
         return false;
@@ -79,13 +88,13 @@ struct Chord {
         }
         return -1;
     }
-    static ws2_event outbound(const ws2_event &input, uint32_t type, int key, int32_t id) {
+    static ws2_event outbound(const ws2_event &input, const Voice &voice, uint32_t type) {
         auto e = input;
         e.struct_size = sizeof(e);
         e.port = 0;
         e.type = type;
-        e.key = key;
-        e.note_id = id;
+        e.key = voice.key;
+        e.note_id = voice.id;
         e.value = type == WS2_NOTE_ON ? input.value : 0.f;
         e.ump_words = 0;
         e.bytes = 0;
@@ -103,7 +112,7 @@ struct Chord {
     }
     void release(const ws::Block &b, Activation &a, const ws2_event &cause) {
         for (uint32_t i = 0; i < a.count; ++i) {
-            const auto e = outbound(cause, WS2_NOTE_OFF, a.voices[i].key, a.voices[i].id);
+            const auto e = outbound(cause, a.voices[i], WS2_NOTE_OFF);
             // Override the NOTE_OFF's identity with the activation's exact source/channel.
             auto off = e;
             off.source_id = a.source;
@@ -112,13 +121,12 @@ struct Chord {
         }
         a = {};
     }
-    Activation* find(const ws2_event &e) {
+    Activation *find(const ws2_event &e) {
         Activation *match = nullptr;
         for (auto &a : active) {
             if (!a.used || a.source != e.source_id || a.channel != e.channel) continue;
             if (e.note_id >= 0 && a.input_id == e.note_id) return &a;
-            if (e.note_id < 0 && a.input_id < 0 && a.key == e.key &&
-                (!match || a.order > match->order)) match = &a;
+            if (e.note_id < 0 && a.input_id < 0 && a.key == e.key && (!match || a.order > match->order)) match = &a;
         }
         return e.note_id < 0 ? match : nullptr;
     }
@@ -139,7 +147,11 @@ struct Chord {
         // subsequently refuses several NOTE_ON events in this chord.
         if (pending_count + active_voice_count() + count > kPending) return;
         Activation *slot = nullptr;
-        for (auto &a : active) if (!a.used) { slot = &a; break; }
+        for (auto &a : active)
+            if (!a.used) {
+                slot = &a;
+                break;
+            }
         if (!slot) return;
         Activation a{};
         a.used = true;
@@ -151,7 +163,7 @@ struct Chord {
         for (uint32_t i = 0; i < count; ++i) {
             const int32_t id = next_id();
             if (id < 0) break;
-            const auto out = outbound(e, WS2_NOTE_ON, keys[i], id);
+            const auto out = outbound(e, {keys[i], id}, WS2_NOTE_ON);
             if (b.emit(0, out)) a.voices[a.count++] = {keys[i], id};
         }
         if (a.count) *slot = a;
@@ -189,8 +201,10 @@ struct Chord {
             const auto *last = it + 1;
             while (last != end && last->offset == it->offset) ++last;
             // Release/express before new attacks at the same sample offset.
-            for (auto *p = it; p != last; ++p) if (p->type != WS2_NOTE_ON) other(b, *p);
-            for (auto *p = it; p != last; ++p) if (p->type == WS2_NOTE_ON) note_on(b, *p);
+            for (auto *p = it; p != last; ++p)
+                if (p->type != WS2_NOTE_ON) other(b, *p);
+            for (auto *p = it; p != last; ++p)
+                if (p->type == WS2_NOTE_ON) note_on(b, *p);
             it = last;
         }
     }
@@ -205,3 +219,4 @@ struct Chord {
 };
 
 } // namespace chord
+#pragma pop_macro("emit")
