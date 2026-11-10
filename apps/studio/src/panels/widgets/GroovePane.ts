@@ -26,7 +26,7 @@ export interface GrooveHost {
   onChange(cb: () => void): () => void;
 }
 
-interface View { t: number; sel: [number, number]; lane: 'trig' | 'note'; pen: [number, number] }
+interface View { t: number; sel: [number, number]; selected: [boolean, boolean]; lane: 'trig' | 'note'; pen: [number, number] }
 /** Per-module view state survives card rebuilds (undo, load). */
 const views = new Map<number, View>();
 const ICON_PLAY = '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 1.5v9l7.5-4.5z"/></svg>';
@@ -69,7 +69,7 @@ export class GroovePane {
 
   constructor(private readonly id: number, ticker: Ticker, private readonly host: GrooveHost,
     private readonly layoutChanged: () => void = () => undefined) {
-    this.view = views.get(id) ?? { t: 0, sel: [0, 0], lane: 'trig', pen: [PEN[0]!, PEN[1]!] };
+    this.view = views.get(id) ?? { t: 0, sel: [0, 0], selected: [false, false], lane: 'trig', pen: [PEN[0]!, PEN[1]!] };
     views.set(id, this.view);
     this.play = this.button('g-pbtn', 'play', 'Play / stop at loop end');
     this.apply = this.button('soft', 'apply', '', 'Apply');
@@ -131,6 +131,7 @@ export class GroovePane {
   }
   private select(i: number): void {
     this.view.sel[this.t] = clamp(i, 0, this.len() - 1);
+    this.view.selected[this.t] = true;
     this.closePop();
     this.renderGrid(); this.renderInspector();
   }
@@ -382,7 +383,7 @@ export class GroovePane {
     const pad = (e.target as HTMLElement).closest<HTMLElement>('.g-pad');
     if (!pad || e.button !== 0 || !this.cfg) return;
     e.preventDefault(); e.stopPropagation();
-    const t = this.t, i0 = Number(pad.dataset.i), wasSel = this.view.sel[t] === i0;
+    const t = this.t, i0 = Number(pad.dataset.i), wasSel = this.view.selected[t] && this.view.sel[t] === i0;
     const orig = JSON.parse(JSON.stringify(this.cfg)) as GrooveConfig;
     const src = sourceOf(orig, t, i0), key0 = src >= 0 ? stepAt(orig, t, src).key ?? 60 : null;
     let mode: 'pitch' | 'tie' | null = null, lastKey = key0, lastTie = i0;
@@ -434,7 +435,7 @@ export class GroovePane {
     if (Math.abs(this.wheelAcc) < 40) return;
     const n = this.wheelAcc < 0 ? 1 : -1;
     this.wheelAcc = 0;
-    if (this.view.sel[t] !== i) this.view.sel[t] = i;
+    if (this.view.sel[t] !== i || !this.view.selected[t]) this.select(i);
     const key = this.stepPitch(stepAt(this.cfg, t, src).key ?? 60, n, e.shiftKey);
     this.edit(c => this.setPitch(c, i, key));
   }
