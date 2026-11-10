@@ -44,9 +44,11 @@ applies one shape to every note; **G4** stores a different chord on each step.
 - Apply-at-loop-end and the G2 flows are unchanged. Patch guide: chord steps, limits
   (5 keys) and a Groove → Notes→CV wiring.
 
+G4a and G4b may be separate PRs, each within the size limits below.
+
 ```acceptance
 tier: T2
-size: <= 900 changed lines, <= 14 files (G4a + G4b may be separate PRs, each within this)
+size: <= 900 changed lines, <= 14 files
 must_pass:
   - bash -lc "python tools/dev.py build --headless --config Release && ctest --test-dir build/native -R 'groove|ui_patch_conformance|sidecar' --output-on-failure --no-tests=error"
   - bash -lc 'cd apps/studio && npm ci && npm test'
