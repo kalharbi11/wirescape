@@ -8,6 +8,7 @@ import type { ModuleRegistry } from '../modules/registry';
 import { findParam, formatValue } from '../modules/registry';
 import { resolveLayout, type PanelOverride, type ResolvedLayout } from './layouts';
 import { el } from '../app/dom';
+import { MODULE_PRESETS, matchingPreset, resolvePreset } from '../app/modulePresets';
 import { Knob } from './widgets/Knob';
 import { Segmented } from './widgets/Segmented';
 import { Selector } from './widgets/Selector';
@@ -22,6 +23,8 @@ export interface PanelHost {
   registry: ModuleRegistry;
   /** Write a parameter through the engine; rolls back if it refuses. */
   commitParam(moduleId: number, paramId: string, value: number, commit: boolean): void;
+  /** Bundle existing setParam commands into one undoable gesture. */
+  applyModulePreset(moduleId: number, values: Readonly<Record<string, number>>): void;
   commitModAmount(c: Connection, amount: number, commit: boolean): void;
   listMidiDevices(): Promise<Device[]>;
   setModuleEndpoint(moduleId: number, endpoint: string, systemName?: string): void;
@@ -137,6 +140,35 @@ export class Panel {
       this.widgets.set('config.endpoint', { root: row, refresh: () => { void refresh(); },
         destroy() { /* contained by the card */ } });
     }
+    const presets = MODULE_PRESETS[d.id];
+    if (presets?.length) {
+      const wrap = el('label', 'module-presets');
+      const select = el('select', 'module-preset-select') as HTMLSelectElement;
+      select.dataset.testid = 'module-presets-' + moduleId;
+      select.setAttribute('aria-label', 'Presets for ' + d.name);
+      const option = (name: string, value: string) => {
+        const o = el('option', '', name) as HTMLOptionElement;
+        o.value = value; return o;
+      };
+      select.append(option('Custom', ''), ...presets.map(p => option(p.name, p.name)));
+      const refreshPreset = () => {
+        const params = host.doc.modules.get(moduleId)?.parameters ?? {};
+        select.value = matchingPreset(d, params) ?? '';
+      };
+      select.addEventListener('change', () => {
+        const preset = presets.find(p => p.name === select.value);
+        if (!preset) { refreshPreset(); return; }
+        host.applyModulePreset(moduleId, resolvePreset(d, preset));
+        refreshPreset();
+      });
+      wrap.append(el('span', 'module-preset-label', 'Presets'), select);
+      this.headerEls.push(wrap);
+      this.widgets.set('preset.header', {
+        root: wrap, refresh: refreshPreset, destroy() { /* owned by module card */ },
+      });
+      refreshPreset();
+    }
+
     this.root.append(controls);
     this.refreshVisibility();
   }
