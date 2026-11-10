@@ -72,7 +72,7 @@ chokes precede reconnect callbacks. Sidecar device pushes reflect worker snapsho
 while enabled selections remain remembered. Fake hot-plug tests cover these paths
 without opening hardware; no audio-thread polling or new protocol command is used.
 
-## Active application: ABI1
+## Legacy Qt application: ABI1 (retained during retirement)
 
 - `native/include/wirescape/module.h`: experimental C module boundary; immutable descriptors,
   mono float AUDIO/CONTROL ports, numeric parameter IDs, lifecycle/event/process callbacks.
@@ -115,11 +115,13 @@ Ordinary modules are folders under `native/modules/` with module.cpp/json/CMakeL
 root CMake discovers them. The app discovers `ws_` libraries beside its executable.
 Source copying alone does not install a module. Native code is trusted, not isolated.
 
-## Isolated ABI2 foundation (review required)
+## ABI2 foundation (SDK still experimental)
 
 `native/include/wirescape/module2.h`, `native/sdk/`, `native/engine2/`, `native/voice/`,
-`native/modules2/` and `native/tests2/` contain a second, offline contract/engine proof.
-It is not selected by the application and `ws2_` libraries do not replace ABI1 plugins.
+`native/modules2/` and `native/tests2/` contain the ABI2 engine, module contract
+and offline proofs. The Electron sidecar uses ABI2 through `AppEngine`; its SDK
+and port equivalence tests are not substitutes for live-device verification.
+The Qt/ABI1 plugin host remains a separate legacy build during retirement.
 
 The proof includes planar1–16 voice signals, CONSTANT views, normalized parameter modulation,
 event outputs, deterministic SCC/back-edge delays, transport context, bounded producer queues,
