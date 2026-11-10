@@ -67,6 +67,20 @@ export class App {
   private zoomLabel!: HTMLElement;
   private dirtyDot!: HTMLElement;
   private nameEl!: HTMLElement;
+  private draftLabel!: HTMLElement;
+  private openDraftButton!: HTMLButtonElement;
+  private applyDraftButton!: HTMLButtonElement;
+  private backToPlayingButton!: HTMLButtonElement;
+  private readonly draftEngine: FakeEngine;
+  private refusedDraft: { patch: PatchV2; name: string; bundled: boolean } | null = null;
+  private draftVisible = false;
+  private documentBusy = false;
+  private viewEpoch = 0;
+  private readEpoch = 0;
+  private playingSnapshot: {
+    patch: PatchV2; name: string; bundled: boolean; dirty: boolean;
+    restoreHistory?: () => void;
+  } | null = null;
   private octaveEl!: HTMLElement;
   private lastStatus: SystemStatus | null = null;
   private learn!: MidiLearn;
@@ -90,8 +104,11 @@ export class App {
     if (detectSlowDevice() && this.prefs.profile === 'normal') this.prefs.profile = 'pi';
     applyPrefs(this.prefs);
     this.engine = window.wirescape
-      ? new RealEngine(window.wirescape, () => this.doc.toJSON(), registry)
+      ? new RealEngine(window.wirescape, () => this.draftVisible && this.playingSnapshot
+        ? this.playingSnapshot.patch : this.doc.toJSON(), registry)
       : new FakeEngine(registry);
+    // Never started: edits to a refused draft must not reach the playing graph.
+    this.draftEngine = new FakeEngine(registry);
     this.root = el('div', 'app');
     this.root.dataset.testid = 'app';
   }
@@ -142,6 +159,7 @@ export class App {
         forget: (m, p) => this.forgetLearn({ module: m, param: p }),
       },
       doc: this.doc,
+      canEdit: () => !this.documentBusy,
       ticker: this.ticker,
       registry: this.registry,
       overrides: this.overrides,
@@ -157,11 +175,11 @@ export class App {
       onSelectionChange: s => this.onSelectionChange(s),
       rename: id => this.renameModule(id),
       engineConnect: c => {
-        this.engine.connect(c);
+        this.editEngine().connect(c);
         this.trackRollback(() => { this.doc.disconnect(c); this.canvas.shake(c.to.module); });
       },
       engineDisconnect: c => {
-        this.engine.disconnect(c);
+        this.editEngine().disconnect(c);
         this.trackRollback(() => { if (!this.doc.has(c)) this.doc.connect(c); });
       },
     });
@@ -225,7 +243,9 @@ export class App {
     this.dirtyDot.dataset.testid = 'dirty-dot';
     this.dirtyDot.title = 'Unsaved changes';
     const path = el('div', 'patch-path');
-    path.append(el('span', 'patch-prefix', 'PATCH /'), this.nameEl, this.dirtyDot);
+    this.draftLabel = el('span', 'patch-prefix', 'DRAFT · NOT RUNNING');
+    this.draftLabel.dataset.testid = 'draft-not-running';
+    path.append(el('span', 'patch-prefix', 'PATCH /'), this.nameEl, this.dirtyDot, this.draftLabel);
     left.append(menuBtn, path);
 
     const right = el('div', 'topbar-right');
@@ -275,7 +295,11 @@ export class App {
     this.redoBtn.title = 'Redo (Ctrl/Cmd + Shift + Z)';
     const history = el('div', 'zoom-group history-group');
     history.append(this.undoBtn, this.redoBtn);
+    this.openDraftButton = this.action('OPEN REFUSED DRAFT', () => void this.openRefusedDraft(), 'open-refused-draft');
+    this.applyDraftButton = this.action('APPLY DRAFT', () => void this.applyRefusedDraft(), 'apply-refused-draft');
+    this.backToPlayingButton = this.action('BACK TO PLAYING', () => this.backToPlaying(), 'back-to-playing');
     tools.append(
+      this.openDraftButton, this.applyDraftButton, this.backToPlayingButton,
       keys,
       this.action('NEW', () => this.newPatch(), 'new-patch'),
       this.action('OPEN', () => void this.openPatchFile(), 'open-patch'),
@@ -287,6 +311,7 @@ export class App {
     // Keep zoom at the start of the scrollable mobile toolbar, after patches.
     right.append(starters, this.octaveEl, zoomGroup, history, tools);
     bar.append(left, right);
+    this.refreshDraftControls();
     return bar;
   }
 
@@ -332,7 +357,7 @@ export class App {
     this.history.onChange(() => this.refreshHistory());
     this.ticker.throttleHz = this.prefs.profile === 'pi' ? 30 : 0;
     this.ticker.start();
-    this.engine.onTelemetry(t => this.ticker.push(t));
+    this.engine.onTelemetry(t => { if (!this.draftVisible) this.ticker.push(t); });
     this.engine.onStatus(s => { this.announceStatus(this.lastStatus, s); this.lastStatus = s; this.statusBar.update(s); });
     this.engine.onRefusal?.(r => this.toasts.show(r.detail.message, 'error'));
     if (this.engine instanceof RealEngine) {
@@ -359,8 +384,8 @@ export class App {
     } catch { /* storage unavailable: keep ordinary startup usable */ }
     const saved = unclean ? this.readAutosave() : null;
     this.recoveryPending = !!saved;
-    const restored = !saved && this.restoreAutosave();
-    if (!restored) this.loadPatch(DEFAULT_STARTER.patch(), DEFAULT_STARTER.name);
+    const restored = !saved && await this.restoreAutosave();
+    if (!restored) await this.loadPatch(DEFAULT_STARTER.patch(), DEFAULT_STARTER.name);
     if (saved) this.offerRecovery('app', saved);
 
     requestAnimationFrame(() => { this.canvas.fit(); this.canvas.invalidateAnchors(); });
@@ -390,10 +415,10 @@ export class App {
     } catch { return null; }
   }
 
-  private restoreAutosave(): boolean {
+  private async restoreAutosave(): Promise<boolean> {
     const saved = this.readAutosave();
     if (!saved) return false;
-    void this.loadPatch(saved.patch, saved.name);
+    await this.loadPatch(saved.patch, saved.name);
     this.toasts.show('Restored your last patch.');
     return true;
   }
@@ -433,50 +458,193 @@ export class App {
 
   // ---- patch lifecycle --------------------------------------------------
 
-  async loadPatch(patch: PatchV2, name = 'Untitled', forceSaveAs = false, restoring = false): Promise<void> {
-    // What is showing (and, if it ran, still sounding) before this load.
-    const previous = restoring ? undefined : { patch: this.doc.toJSON(), name: this.patchName,
-      dirty: this.doc.dirty, bundled: this.bundledPatch, restoreHistory: this.history?.checkpoint() };
-    this.ticker.resetTelemetry();
-    this.doc.replace(patch);
-    this.patchName = name;
-    this.nameEl.textContent = name;
-    this.maxModuleId = Math.max(0, ...(patch.modules ?? []).map(m => m.id));
-    const running = this.engine.loadGraph(this.doc.toJSON());
-    const v = patch.ui?.view;
-    // Restoring/fitting the viewport is presentation, not a source-document edit.
-    const loadedUi = this.doc.ui;
-    const restoreView = () => {
-      if (this.doc.ui !== loadedUi) return;
-      const view = this.doc.ui.view;
-      if (v && v.zoom) this.canvas.viewport.setView(v.x, v.y, v.zoom);
-      else this.canvas.fit();
-      if (view === undefined) delete this.doc.ui.view;
-      else this.doc.ui.view = view;
+  /** Patch edits are simulated while the real sidecar keeps the previous graph running. */
+  private editEngine(): EngineClient {
+    return this.draftVisible ? this.draftEngine : this.engine;
+  }
+
+  private refreshDraftControls(): void {
+    const show = (button: HTMLButtonElement, visible: boolean) => {
+      button.hidden = !visible;
+      button.style.display = visible ? '' : 'none';
     };
-    if (v && v.zoom) restoreView();
-    else requestAnimationFrame(restoreView);
-    requestAnimationFrame(() => this.canvas.invalidateAnchors());
-    this.doc.markClean();
+    show(this.openDraftButton, !!this.refusedDraft && !this.draftVisible);
+    show(this.applyDraftButton, this.draftVisible);
+    show(this.backToPlayingButton, this.draftVisible);
+    this.draftLabel.hidden = !this.draftVisible;
+    this.draftLabel.style.display = this.draftVisible ? '' : 'none';
     this.refreshDirty();
-    this.history?.reset();
-    this.autosave(true);
-    this.pasteCount = 0;
-    this.bundledPatch = forceSaveAs;
-    try { await running; }
-    catch (e) {
-      // The engine refused to switch (audio swap, busy) and kept the previous graph.
-      // Never leave this patch on screen while the previous one sounds and takes MIDI.
-      if (previous && e instanceof EngineRefusal && e.detail.engine &&
-          (e.detail.code === 'unavailable' || e.detail.code === 'busy')) {
-        this.toasts.show(`${name} could not start: ${e.message}. Still playing ${previous.name}.`, 'error');
-        await this.loadPatch(previous.patch, previous.name, previous.bundled, true);
-        previous.restoreHistory?.();
-        if (previous.dirty) { this.doc.markDirty(); this.refreshDirty(); }
+  }
+
+  /** Reframe the newly displayed document without changing its saved viewport. */
+  private restoreDraftView(): void {
+    const ui = this.doc.ui;
+    const view = ui.view;
+    const restore = () => {
+      if (this.doc.ui !== ui) return;
+      const before = this.doc.ui.view;
+      if (view?.zoom) this.canvas.viewport.setView(view.x, view.y, view.zoom);
+      else this.canvas.fit();
+      if (before === undefined) delete this.doc.ui.view;
+      else this.doc.ui.view = before;
+    };
+    if (view?.zoom) restore();
+    else requestAnimationFrame(restore);
+  }
+
+  private beginDocumentOperation(): void {
+    this.documentBusy = true;
+    this.root.inert = true;
+    this.quick.close(true);
+    ++this.readEpoch; // invalidate reads/dialogs started for an earlier document operation
+    this.keyboard.releaseAll();
+  }
+  private endDocumentOperation(): void { this.documentBusy = false; this.root.inert = false; }
+  private async settlePlayingEdits(): Promise<void> {
+    if (this.engine instanceof RealEngine) await this.engine.whenEditsSettled();
+  }
+
+  /** The playing patch is untouched: only the editor and its fake edit target change. */
+  private async openRefusedDraft(): Promise<void> {
+    if (!this.refusedDraft || this.draftVisible || this.documentBusy) return;
+    this.beginDocumentOperation();
+    try {
+      await this.settlePlayingEdits();
+      this.playingSnapshot = { patch: this.doc.toJSON(), name: this.patchName,
+        dirty: this.doc.dirty, bundled: this.bundledPatch, restoreHistory: this.history.checkpoint() };
+      const draft = this.refusedDraft;
+      this.draftVisible = true;
+      ++this.viewEpoch;
+      this.doc.replace(draft.patch);
+      this.patchName = draft.name;
+      this.nameEl.textContent = draft.name;
+      this.bundledPatch = true; // Electron has one target; every view switch requires Save As.
+      this.maxModuleId = Math.max(0, ...(draft.patch.modules ?? []).map(m => m.id));
+      void this.draftEngine.loadGraph(this.doc.toJSON());
+      this.doc.markDirty(); // A draft must never appear clean, even after Save.
+      this.history.reset();
+      this.ticker.resetTelemetry();
+      this.canvas.select({ kind: 'none' });
+      this.restoreDraftView();
+      this.canvas.invalidateAnchors();
+      this.refreshDraftControls();
+    } finally { this.endDocumentOperation(); }
+  }
+
+  private backToPlaying(): void {
+    if (!this.draftVisible || !this.playingSnapshot || this.documentBusy) return;
+    this.refusedDraft = { patch: this.doc.toJSON(), name: this.patchName, bundled: this.bundledPatch };
+    const playing = this.playingSnapshot;
+    this.draftVisible = false;
+    this.playingSnapshot = null;
+    ++this.viewEpoch; ++this.readEpoch;
+    this.doc.replace(playing.patch);
+    this.patchName = playing.name;
+    this.nameEl.textContent = playing.name;
+    this.bundledPatch = true; // Never inherit the draft's native Save target.
+    this.maxModuleId = Math.max(0, ...(playing.patch.modules ?? []).map(m => m.id));
+    this.doc.markClean();
+    if (playing.dirty) this.doc.markDirty();
+    this.history.reset();
+    playing.restoreHistory?.();
+    this.ticker.resetTelemetry();
+    this.canvas.select({ kind: 'none' });
+    this.restoreDraftView();
+    this.canvas.invalidateAnchors();
+    this.refreshDraftControls();
+  }
+
+  private async applyRefusedDraft(): Promise<void> {
+    if (!this.draftVisible || this.documentBusy) return;
+    this.beginDocumentOperation();
+    this.applyDraftButton.disabled = true;
+    const epoch = this.viewEpoch, candidate = this.doc.toJSON(), name = this.patchName;
+    const bytes = JSON.stringify(candidate);
+    try {
+      await this.engine.loadGraph(candidate);
+      // Only this immutable submitted document may become labelled running.
+      if (this.viewEpoch !== epoch || JSON.stringify(this.doc.toJSON()) !== bytes) {
+        this.playingSnapshot = { patch: candidate, name, bundled: true, dirty: true };
+        this.toasts.show('Submitted version is running; newer draft edits are not running.');
         return;
       }
-      this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error');
+      this.draftVisible = false;
+      this.refusedDraft = null;
+      this.playingSnapshot = null;
+      this.doc.markDirty();
+      this.history.reset();
+      this.ticker.resetTelemetry();
+      this.autosave(true);
+      this.refreshDraftControls();
+      this.toasts.show(`${name} is now running.`);
+    } catch (e) {
+      this.toasts.show(e instanceof Error ? e.message : 'Draft could not run; still playing the previous patch.', 'error');
+    } finally {
+      this.endDocumentOperation();
+      this.applyDraftButton.disabled = false;
     }
+  }
+
+  async loadPatch(patch: PatchV2, name = 'Untitled', forceSaveAs = true, restoring = false): Promise<void> {
+    if (this.documentBusy && !restoring) return;
+    if (this.draftVisible) this.backToPlaying();
+    const coordinated = this.engine instanceof RealEngine;
+    if (!restoring && coordinated) this.beginDocumentOperation();
+    try {
+      if (coordinated) await this.settlePlayingEdits();
+      ++this.viewEpoch;
+      // What is showing (and, if it ran, still sounding) before this load.
+      const previous = restoring ? undefined : { patch: this.doc.toJSON(), name: this.patchName,
+        dirty: this.doc.dirty, bundled: this.bundledPatch, restoreHistory: this.history?.checkpoint() };
+      this.ticker.resetTelemetry();
+      this.doc.replace(patch);
+      this.patchName = name;
+      this.nameEl.textContent = name;
+      this.maxModuleId = Math.max(0, ...(patch.modules ?? []).map(m => m.id));
+      const running = this.engine.loadGraph(this.doc.toJSON());
+      const v = patch.ui?.view;
+      // Restoring/fitting the viewport is presentation, not a source-document edit.
+      const loadedUi = this.doc.ui;
+      const restoreView = () => {
+        if (this.doc.ui !== loadedUi) return;
+        const view = this.doc.ui.view;
+        if (v && v.zoom) this.canvas.viewport.setView(v.x, v.y, v.zoom);
+        else this.canvas.fit();
+        if (view === undefined) delete this.doc.ui.view;
+        else this.doc.ui.view = view;
+      };
+      if (v && v.zoom) restoreView();
+      else requestAnimationFrame(restoreView);
+      requestAnimationFrame(() => this.canvas.invalidateAnchors());
+      this.doc.markClean();
+      this.refreshDirty();
+      this.history?.reset();
+      this.autosave(true);
+      this.pasteCount = 0;
+      this.bundledPatch = forceSaveAs || restoring;
+      try {
+        await running;
+        if (!restoring) {
+          this.refusedDraft = null;
+          this.playingSnapshot = null;
+          this.refreshDraftControls();
+        }
+      } catch (e) {
+        // The engine refused to switch (audio swap, busy) and kept the previous graph.
+        // Never leave this patch on screen while the previous one sounds and takes MIDI.
+        if (previous && e instanceof EngineRefusal && e.detail.engine &&
+            (e.detail.code === 'unavailable' || e.detail.code === 'busy')) {
+          this.refusedDraft = { patch: this.doc.toJSON(), name, bundled: forceSaveAs };
+          this.toasts.show(`${name} could not start: ${e.message}. Still playing ${previous.name}. Open the refused draft to edit it.`, 'error');
+          await this.loadPatch(previous.patch, previous.name, previous.bundled, true);
+          previous.restoreHistory?.();
+          if (previous.dirty) { this.doc.markDirty(); this.refreshDirty(); }
+          this.refreshDraftControls();
+          return;
+        }
+        this.toasts.show(e instanceof Error ? e.message : 'Patch could not run; the editable document was kept.', 'error');
+      }
+    } finally { if (!restoring && coordinated) this.endDocumentOperation(); }
   }
 
   // ---- system (phase 5) ---------------------------------------------------
@@ -528,20 +696,23 @@ export class App {
   // ---- undo / redo --------------------------------------------------------
 
   undo(): void {
+    if (this.documentBusy) return;
     if (!this.history.undo()) { this.toasts.show('Nothing to undo.'); return; }
   }
 
   redo(): void {
+    if (this.documentBusy) return;
     if (!this.history.redo()) { this.toasts.show('Nothing to redo.'); return; }
   }
 
   /** Put a history snapshot back, keeping the view where it is. */
   private restoreSnapshot(p: PatchV2): void {
+    if (this.documentBusy) return;
     const view = this.doc.ui.view;
     this.canvas.select({ kind: 'none' });
     this.ticker.resetTelemetry();
     this.doc.replace({ ...p, ui: { ...(p.ui ?? {}), view } });
-    void this.engine.loadGraph(this.doc.toJSON()).catch(e =>
+    void this.editEngine().loadGraph(this.doc.toJSON()).catch(e =>
       this.toasts.show(e instanceof Error ? e.message : 'The snapshot could not run.', 'error'));
     requestAnimationFrame(() => this.canvas.invalidateAnchors());
     this.refreshDirty();
@@ -555,6 +726,7 @@ export class App {
   // ---- copy / paste --------------------------------------------------------
 
   private copySelection(): boolean {
+    if (this.documentBusy) return false;
     const s = this.canvas.currentSelection;
     if (s.kind !== 'modules' || !s.ids.length) return false;
     const ids = new Set(s.ids);
@@ -575,6 +747,7 @@ export class App {
   }
 
   private copy(): void {
+    if (this.documentBusy) return;
     const s = this.canvas.currentSelection;
     if (!this.copySelection()) { this.toasts.show('Select modules to copy.'); return; }
     const n = s.kind === 'modules' ? s.ids.length : 0;
@@ -582,11 +755,13 @@ export class App {
   }
 
   private cut(): void {
+    if (this.documentBusy) return;
     if (!this.copySelection()) { this.toasts.show('Select modules to cut.'); return; }
     this.deleteSelection();
   }
 
   private duplicate(): void {
+    if (this.documentBusy) return;
     if (!this.copySelection()) { this.toasts.show('Select modules to duplicate.'); return; }
     this.paste();
   }
@@ -598,6 +773,7 @@ export class App {
    * of the view.
    */
   paste(): void {
+    if (this.documentBusy) return;
     let clip = this.clip;
     if (!clip) {
       try { clip = JSON.parse(localStorage.getItem(CLIPBOARD_KEY) ?? 'null') as Clip | null; } catch { clip = null; }
@@ -620,7 +796,7 @@ export class App {
     for (const m of clip.modules) {
       const id = this.allocateId();
       const params = m.parameters ?? {};
-      try { this.engine.addModule(id, m.module, params); }
+      try { this.editEngine().addModule(id, m.module, params); }
       catch { skipped.push(m.module); continue; }
       this.doc.addModule(m.module, params, m.pos[0] + dx, m.pos[1] + dy, id);
       this.trackRollback(() => this.doc.removeModule(id));
@@ -635,7 +811,7 @@ export class App {
       const nc: Connection = { ...c, from: { ...c.from, module: from }, to: { ...c.to, module: to } };
       if (this.doc.has(nc)) continue;
       this.doc.connect(nc);
-      try { this.engine.connect(nc); this.trackRollback(() => this.doc.disconnect(nc)); }
+      try { this.editEngine().connect(nc); this.trackRollback(() => this.doc.disconnect(nc)); }
       catch { this.doc.disconnect(nc); continue; }
       const col = clip.colors[connKey(c)];
       if (col) this.doc.setCableColor(connKey(nc), col);
@@ -649,6 +825,7 @@ export class App {
   }
 
   private newPatch(): void {
+    if (this.documentBusy) return;
     this.loadPatch({
       format: 'wirescape.native.patch', version: 2, modules: [], connections: [],
       ui: { positions: {}, labels: {}, view: { x: 0, y: 0, zoom: 1 } },
@@ -657,6 +834,7 @@ export class App {
   }
 
   private exportPatch(): void {
+    if (this.documentBusy) return;
     const json = JSON.stringify(this.doc.toJSON(), null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -674,12 +852,17 @@ export class App {
   private async importFile(): Promise<void> {
     const f = this.fileInput.files?.[0];
     if (!f) return;
+    if (this.documentBusy) return;
+    const request = ++this.readEpoch, view = this.viewEpoch;
+    this.bundledPatch = true;
     try {
-      const patch = JSON.parse(await f.text()) as PatchV2;
+      const text = await f.text();
+      if (this.documentBusy || request !== this.readEpoch || view !== this.viewEpoch) return;
+      const patch = JSON.parse(text) as PatchV2;
       if (!Array.isArray(patch.modules) || !Array.isArray(patch.connections)) {
         throw new Error('That file is not a Wirescape patch.');
       }
-      this.loadPatch(patch, f.name.replace(/\.(wirescape\.)?json$/i, ''));
+      await this.loadPatch(patch, f.name.replace(/\.(wirescape\.)?json$/i, ''), true);
       const unknown = [...this.doc.modules.values()].filter(m => !this.registry.has(m.module));
       this.toasts.show(unknown.length
         ? `Patch opened. ${unknown.length} unknown module${unknown.length > 1 ? 's' : ''} kept as-is.`
@@ -691,7 +874,7 @@ export class App {
   }
 
   private refreshDirty(): void {
-    this.dirtyDot.classList.toggle('on', this.doc.dirty);
+    this.dirtyDot.classList.toggle('on', this.doc.dirty || this.draftVisible);
   }
 
   // ---- edits through the engine -----------------------------------------
@@ -701,10 +884,11 @@ export class App {
    * with a message if the engine refuses.
    */
   private commitParam(moduleId: number, paramId: string, value: number, commit: boolean): void {
+    if (this.documentBusy) return;
     const before = this.doc.param(moduleId, paramId);
     this.doc.setParam(moduleId, paramId, value);
     try {
-      this.engine.setParam(moduleId, paramId, value);
+      this.editEngine().setParam(moduleId, paramId, value);
       this.trackRollback(() => {
         const m = this.doc.modules.get(moduleId);
         if (before === undefined && m?.parameters) delete m.parameters[paramId];
@@ -758,19 +942,21 @@ export class App {
   }
 
   private setMidiEndpoint(moduleId: number, endpoint: string, systemName?: string): void {
+    if (this.documentBusy) return;
     const previous = this.doc.toJSON();
     this.doc.setModuleEndpoint(moduleId, endpoint, systemName);
-    void this.engine.loadGraph(this.doc.toJSON()).catch(err => {
+    void this.editEngine().loadGraph(this.doc.toJSON()).catch(err => {
       this.doc.replace(previous);
-      void this.engine.loadGraph(previous);
+      void this.editEngine().loadGraph(previous);
       this.toasts.show(err instanceof Error ? err.message : 'MIDI endpoint change was refused.', 'error');
     });
   }
 
   private commitModAmount(c: Connection, amount: number, _commit: boolean): void {
+    if (this.documentBusy) return;
     const previous = this.doc.connections.find(x => connKey(x) === connKey(c))?.amount;
     this.doc.setModAmount(c, amount);
-    this.engine.setModAmount(c, amount);
+    this.editEngine().setModAmount(c, amount);
     this.trackRollback(() => this.doc.setModAmount(c, previous ?? 0));
   }
 
@@ -790,6 +976,7 @@ export class App {
   }
 
   private addModuleAt(type: string, clientX: number, clientY: number, centre = false): number | null {
+    if (this.documentBusy) return null;
     const d = this.registry.get(type);
     if (!d) { this.toasts.show(`Unknown module "${type}".`, 'error'); return null; }
     const world = this.canvas.viewport.toWorld(clientX, clientY);
@@ -798,7 +985,7 @@ export class App {
 
     const id = this.allocateId();
     try {
-      this.engine.addModule(id, type, params);
+      this.editEngine().addModule(id, type, params);
     } catch (err) {
       this.toasts.show(err instanceof EngineRefusal ? err.message : 'The engine refused that module.', 'error');
       return null;
@@ -843,14 +1030,19 @@ export class App {
     need: { direction: PortDirection; kind: string } | null,
     then?: (id: number) => void,
   ): void {
+    if (this.documentBusy) return;
+    const epoch = this.viewEpoch;
     const client = this.canvas.viewport.toClient(world.x, world.y);
     this.quick.open({
       at: client,
       need,
       choose: type => {
+        if (this.documentBusy || this.viewEpoch !== epoch) return;
         const id = this.addModuleAt(type, client.x, client.y);
         if (id !== null && then) {
-          requestAnimationFrame(() => { then(id); this.canvas.invalidateAnchors(); });
+          requestAnimationFrame(() => {
+            if (!this.documentBusy && this.viewEpoch === epoch) { then(id); this.canvas.invalidateAnchors(); }
+          });
         }
       },
       cancel: () => { /* nothing was added */ },
@@ -882,10 +1074,11 @@ export class App {
   }
 
   private deleteSelection(): void {
+    if (this.documentBusy) return;
     const s = this.canvas.currentSelection;
     if (s.kind === 'cable') {
       this.doc.disconnect(s.c);
-      try { this.engine.disconnect(s.c); this.trackRollback(() => this.doc.connect(s.c)); }
+      try { this.editEngine().disconnect(s.c); this.trackRollback(() => this.doc.connect(s.c)); }
       catch { /* ignore */ }
       this.canvas.select({ kind: 'none' });
       this.toasts.show('Cable removed.');
@@ -897,7 +1090,7 @@ export class App {
         const pos = this.doc.position(id), label = this.doc.label(id);
         const cables = this.doc.connections.filter(c => c.from.module === id || c.to.module === id).map(c => structuredClone(c));
         this.doc.removeModule(id);
-        this.engine.removeModule(id);
+        this.editEngine().removeModule(id);
         this.trackRollback(() => {
           this.doc.addModule(original.module, original.parameters ?? {}, pos[0], pos[1], id);
           Object.assign(this.doc.modules.get(id)!, original);
@@ -911,6 +1104,7 @@ export class App {
   }
 
   private renameModule(id: number): void {
+    if (this.documentBusy) return;
     const current = this.doc.label(id) ?? '';
     const next = window.prompt('Instance label (empty clears it)', current);
     if (next === null) return;
@@ -918,6 +1112,7 @@ export class App {
   }
 
   private renamePatch(): void {
+    if (this.documentBusy) return;
     const next = window.prompt('Patch name', this.patchName);
     if (next === null) return;
     this.patchName = next.trim() || 'Untitled';
@@ -926,6 +1121,7 @@ export class App {
   }
 
   private toggleClock(running: boolean): void {
+    if (this.documentBusy) return;
     for (const [id, m] of this.doc.modules) {
       if (m.module !== 'essentials.clock') continue;
       this.commitParam(id, 'run', running ? 1 : 0, true);
@@ -937,6 +1133,7 @@ export class App {
 
   private attachShortcuts(): void {
     window.addEventListener('keydown', e => {
+      if (this.documentBusy) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       if (isTyping() || this.settings.isOpen || this.shortcuts.isOpen) return;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); void this.savePatchFile(); return; }
@@ -955,7 +1152,7 @@ export class App {
       if (e.key === '`' || (e.shiftKey && e.key.toLowerCase() === 'd')) { e.preventDefault(); this.devPanel.toggle(); return; }
       if (e.key === '0' && mod) { e.preventDefault(); this.canvas.viewport.zoomTo(1); return; }
       if (e.key === '1' && mod) { e.preventDefault(); this.canvas.fit(); return; }
-    });
+    }, true);
   }
 
   private buildShortcutSheet(): void {
@@ -1202,8 +1399,14 @@ export class App {
 
 
   private async loadBundledPatch(patch: PatchV2, name: string): Promise<void> {
+    if (this.documentBusy) return;
+    const request = ++this.readEpoch, view = this.viewEpoch;
+    this.bundledPatch = true;
     try { await window.wirescape?.openPatch({ library: 'reset' }); }
     catch { /* Save As below protects the previous native target if reset fails. */ }
+    if (this.documentBusy || request !== this.readEpoch || view !== this.viewEpoch) {
+      this.bundledPatch = true; return;
+    }
     const loading = this.loadPatch(patch, name, true);
     const loadedUi = this.doc.ui;
     await loading;
@@ -1215,20 +1418,25 @@ export class App {
   }
 
   private async openPatchBrowser(): Promise<void> {
+    if (this.documentBusy) return;
     const body = this.patchBrowser.body;
     body.replaceChildren();
     const message = el('p', '', '');
     const choose = async (read: () => Promise<{ patch: PatchV2; name: string } | null>, bundled: boolean) => {
-      if (this.doc.dirty && !window.confirm('Discard unsaved edits and switch patches?')) return;
+      if (this.documentBusy || (this.doc.dirty && !window.confirm('Discard unsaved edits and switch patches?'))) return;
+      const request = ++this.readEpoch, view = this.viewEpoch;
       try {
         // A native read can adopt its save target before renderer validation.
         // Until this document loads successfully, plain Save must ask for a path.
         this.bundledPatch = true;
         const selected = await read();
+        if (this.documentBusy || request !== this.readEpoch || view !== this.viewEpoch) {
+          this.bundledPatch = true; return;
+        }
         if (!selected) return;
         if (!Array.isArray(selected.patch.modules) || !Array.isArray(selected.patch.connections)) throw new Error('Invalid patch.');
         if (bundled) await this.loadBundledPatch(selected.patch, selected.name);
-        else await this.loadPatch(selected.patch, selected.name);
+        else await this.loadPatch(selected.patch, selected.name, false);
         this.patchBrowser.close();
       } catch (e) { message.textContent = e instanceof Error ? e.message : 'Could not open patch.'; }
     };
@@ -1276,22 +1484,33 @@ export class App {
 
   /** Native dialogs belong to Electron main; browser-only use keeps file input/export. */
   private async openPatchFile(): Promise<void> {
+    if (this.documentBusy) return;
     if (!window.wirescape) { this.fileInput.click(); return; }
+    const request = ++this.readEpoch, view = this.viewEpoch;
+    this.bundledPatch = true; // The native dialog can rebind before its result reaches this view.
     try {
       const file = await window.wirescape.openPatch();
+      if (this.documentBusy || request !== this.readEpoch || view !== this.viewEpoch) {
+        this.bundledPatch = true; return;
+      }
       if (!file) return;
       const parsed = JSON.parse(file.text) as PatchV2;
       if (!Array.isArray(parsed.modules) || !Array.isArray(parsed.connections)) throw new Error('Invalid patch.');
-      await this.loadPatch(parsed, file.name);
+      await this.loadPatch(parsed, file.name, false);
     } catch (e) {
       this.toasts.show(e instanceof Error ? e.message : 'Could not open patch.', 'error');
     }
   }
 
   private async savePatchFile(saveAs = false): Promise<void> {
+    if (this.documentBusy) return;
     if (!window.wirescape) { this.exportPatch(); return; }
+    const request = ++this.readEpoch, view = this.viewEpoch;
     try {
-      const result = await window.wirescape.savePatch(JSON.stringify(this.doc.toJSON(), null, 2), { saveAs: saveAs || this.bundledPatch });
+      const result = await window.wirescape.savePatch(JSON.stringify(this.doc.toJSON(), null, 2), { saveAs: saveAs || this.bundledPatch || this.documentBusy });
+      if (this.documentBusy || request !== this.readEpoch || view !== this.viewEpoch) {
+        this.bundledPatch = true; return; // A late Save may bind main, never this different view.
+      }
       if (!result) return;
       this.bundledPatch = false;
       this.patchName = result.name;
@@ -1307,13 +1526,13 @@ export class App {
 
   /** Never recycle numeric IDs within a loaded document on the real sidecar. */
   private allocateId(): number {
-    if (!(this.engine instanceof RealEngine)) return this.doc.nextId();
+    if (this.draftVisible || !(this.engine instanceof RealEngine)) return this.doc.nextId();
     this.maxModuleId = Math.max(this.maxModuleId, ...this.doc.modules.keys(), 0) + 1;
     return this.maxModuleId;
   }
 
   private trackRollback(undo: () => void): void {
-    if (this.engine instanceof RealEngine) this.engine.registerRollback(undo);
+    if (!this.draftVisible && this.engine instanceof RealEngine) this.engine.registerRollback(undo);
   }
 
   // ---- test hooks -------------------------------------------------------
@@ -1327,6 +1546,7 @@ export class App {
       load: (p: PatchV2, name?: string) => this.loadPatch(p, name),
       save: () => this.doc.toJSON(),
       doc: this.doc,
+      canEdit: () => !this.documentBusy,
       engine: this.engine,
       commitParam: (m: number, p: string, v: number, commit = true) => this.commitParam(m, p, v, commit),
       ticker: this.ticker,
@@ -1338,8 +1558,9 @@ export class App {
       fit: () => this.canvas.fit(),
       addModule: (type: string) => this.addModuleCentred(type),
       connect: (c: Connection) => {
+        if (this.documentBusy) return;
         this.doc.connect(c);
-        try { this.engine.connect(c); this.trackRollback(() => this.doc.disconnect(c)); }
+        try { this.editEngine().connect(c); this.trackRollback(() => this.doc.disconnect(c)); }
         catch (e) { this.doc.disconnect(c); throw e; }
       },
       deleteSelection: () => this.deleteSelection(),

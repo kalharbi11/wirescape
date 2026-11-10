@@ -50,8 +50,8 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 - #481 R4 follows R3. R6 ABI1 #470 is Keel's, after R3.
 
 ## Housekeeping notes
-- AGENTS.md/WORKFLOW.md still say "until gate v4 merges"; gate v4 merged (#407).
-  Fix with the next allow-protected rules PR (W_GATE_V4.md stays until then).
+- 2026-11-10 (Keel): tiers seniors Codex Lead + **Coda** (`Coda: T2 batch`), helpers (`lane/helper`);
+  v3.1 doc trim + queue mode (LEADS.md). Deferred to cleanup: docs/planner/USAGE_DEFERRED.md.
 - docs/tasks/README.md lists task files still cited by open work; move them to done/
   when those PRs merge.
 - Permanent: required guard/Linux/Windows/sanitizers + task/Web/WASM/Pi as applicable.

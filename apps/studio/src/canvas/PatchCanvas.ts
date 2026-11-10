@@ -23,6 +23,7 @@ export interface CanvasServices extends PanelHost {
   registry: ModuleRegistry;
   overrides: PanelOverrides;
   doc: PatchDoc;
+  canEdit(): boolean;
   ticker: Ticker;
   toast(message: string, tone?: 'info' | 'error'): void;
   /** Offer a filtered quick-add when a cable is dropped on empty canvas. */
@@ -614,8 +615,10 @@ export class PatchCanvas {
     // Stereo pairs: offer to connect L and R together as one step.
     const pair = this.stereoCounterpart(out.module, out.port, inp.module, inp.port);
     if (pair && !additive) {
+      const view = this.s.doc.ui;
       const ok = await this.s.confirmStereo(
         `Connect the stereo pair? ${pair.outA}/${pair.outB} → ${pair.inA}/${pair.inB}.`);
+      if (this.s.doc.ui !== view || !this.s.canEdit()) return true;
       if (ok) {
         this.commitConnection(base, additive);
         this.commitConnection(
@@ -774,6 +777,7 @@ export class PatchCanvas {
    * takes one cable by default, and shift-drop adds alongside.
    */
   private commitConnection(c: Connection, additive: boolean): void {
+    if (!this.s.canEdit()) return;
     if (this.s.doc.has(c)) { this.s.toast('Already connected.'); return; }
     const replaced: Connection[] = [];
     if (c.kind !== 'modulation' && !additive) {
