@@ -199,12 +199,10 @@ static void native_keyboard_graph(const std::array<int, 4> &keys, uint32_t count
     REQUIRE(e.add_node(4, ws::Module<ws2ports::Adsr>::descriptor()));
     REQUIRE(e.add_node(5, ws::Module<ws2ports::Vca>::descriptor()));
     REQUIRE(e.add_node(6, ws::Module<ws2ports::Output>::descriptor()));
-    REQUIRE(e.connect(1, 3, 2, 0) && e.connect(2, 0, 3, 0) && e.connect(2, 1, 4, 0) &&
-            e.connect(3, 0, 5, 0) && e.connect(4, 0, 5, 1) && e.connect(5, 0, 6, 0) && e.output(6, 0, 0) &&
-            e.prepare());
+    REQUIRE(e.connect(1, 3, 2, 0) && e.connect(2, 0, 3, 0) && e.connect(2, 1, 4, 0) && e.connect(3, 0, 5, 0) &&
+            e.connect(4, 0, 5, 1) && e.connect(5, 0, 6, 0) && e.output(6, 0, 0) && e.prepare());
     for (uint32_t i = 0; i < count; ++i)
-        REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, note({WS2_NOTE_ON, keys[i], keys[i]}), 0) ==
-                WS2_OK);
+        REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, note({WS2_NOTE_ON, keys[i], keys[i]}), 0) == WS2_OK);
 
     float samples[256]{};
     float *out[]{samples};
@@ -248,8 +246,8 @@ static void native_keyboard_graph(const std::array<int, 4> &keys, uint32_t count
     // Release each note separately and prove the other voice gates stay high.
     for (uint32_t released = 0; released < count; ++released) {
         const uint64_t frame = e.meter().frame;
-        REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT,
-                          note({WS2_NOTE_OFF, keys[released], keys[released]}), frame) == WS2_OK);
+        REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, note({WS2_NOTE_OFF, keys[released], keys[released]}),
+                          frame) == WS2_OK);
         REQUIRE(e.render(out, 1, 256) == WS2_OK);
         for (uint32_t i = 0; i < count; ++i)
             REQUIRE(e.output_sample(2, 1, voice_for[i], 128) == (i <= released ? 0.f : 1.f));
