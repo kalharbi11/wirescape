@@ -26,6 +26,8 @@ import { sharedPatches } from './SharedPatches';
 import { playableStarters } from '../web/starters';
 import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } from '../theme/theme';
 import { el } from './dom';
+import { GrooveSession } from '../groove/GrooveSession';
+import type { GrooveConfig } from '../groove/pattern';
 import { MidiLearn } from './MidiLearn';
 import { commitLearn, forgetLearn, learnedCables, type LearnCapture, type LearnServices, type LearnTarget } from './ccLearn';
 import demoChaos from '../../../../native/examples/class_demo_1_chaos.json' with { type: 'json' };
@@ -43,6 +45,8 @@ interface Clip { modules: ClipModule[]; connections: Connection[]; colors: Recor
 export class App {
   readonly root: HTMLElement;
   private doc = new PatchDoc();
+  /** Applied vs draft Groove patterns; every whole-graph load is projected through it (#498). */
+  private readonly grooves = new GrooveSession(this.doc);
   private ticker = new Ticker();
   private engine: FakeEngine | RealEngine;
   private maxModuleId = 0;
@@ -113,6 +117,9 @@ export class App {
       : new FakeEngine(registry);
     // Never started: edits to a refused draft must not reach the playing graph.
     this.draftEngine = new FakeEngine(registry);
+    // Unapplied Groove drafts never ride along with a reload, an undo or an engine restart.
+    const load = this.engine.loadGraph.bind(this.engine);
+    this.engine.loadGraph = (patch: PatchV2) => load(this.grooves.project(patch));
     this.root = el('div', 'app');
     this.root.dataset.testid = 'app';
   }
@@ -182,6 +189,24 @@ export class App {
       engineConnect: c => {
         this.editEngine().connect(c);
         this.trackRollback(() => { this.doc.disconnect(c); this.canvas.shake(c.to.module); });
+      },
+      groove: {
+        config: id => this.doc.modules.get(id)?.config,
+        setConfig: (id, cfg: GrooveConfig) => { if (!this.documentBusy) this.doc.setModuleConfig(id, cfg); },
+        canApply: id => !this.draftVisible && !this.documentBusy && this.engine.canApplyGroove(id),
+        isDraft: id => this.grooves.isDraft(id),
+        appliedRaw: id => this.grooves.appliedRaw(id),
+        apply: id => this.applyGroove(id),
+        revert: id => {
+          if (this.documentBusy) return;
+          this.doc.setModuleConfig(id, this.grooves.appliedRaw(id));
+        },
+        command: (id, param) => this.grooveCommand(id, param),
+        undo: () => this.undo(), redo: () => this.redo(),
+        canUndo: () => !!this.history?.canUndo, canRedo: () => !!this.history?.canRedo,
+        onChange: cb => this.grooves.onChange(cb),
+        scale: id => this.doc.grooveScale(id),
+        setScale: (id, root, scale) => this.doc.setGrooveScale(id, root, scale), // UI-only: no engine load
       },
       engineDisconnect: c => {
         this.editEngine().disconnect(c);
@@ -363,7 +388,7 @@ export class App {
     } catch { /* Offline/missing library must not block saved patches or the default voice. */ }
     this.fillStarters();
     this.history = new History(this.doc, p => this.restoreSnapshot(p));
-    this.history.onChange(() => this.refreshHistory());
+    this.history.onChange(() => { this.refreshHistory(); this.grooves.changed(); });
     this.ticker.throttleHz = this.prefs.profile === 'pi' ? 30 : 0;
     this.ticker.start();
     this.engine.onTelemetry(t => { if (!this.draftVisible) this.ticker.push(t); });
@@ -569,7 +594,9 @@ export class App {
     this.applyDraftButton.disabled = true;
     const epoch = this.viewEpoch, candidate = this.doc.toJSON(), name = this.patchName;
     const bytes = JSON.stringify(candidate);
+    const restoreGrooves = this.grooves.checkpoint();
     try {
+      this.grooves.forget();
       await this.engine.loadGraph(candidate);
       // Only this immutable submitted document may become labelled running.
       if (this.viewEpoch !== epoch || JSON.stringify(this.doc.toJSON()) !== bytes) {
@@ -587,6 +614,8 @@ export class App {
       this.refreshDraftControls();
       this.toasts.show(`${name} is now running.`);
     } catch (e) {
+      // Rejected candidate never became the playing Groove, even when IDs overlap.
+      restoreGrooves();
       this.toasts.show(e instanceof Error ? e.message : 'Draft could not run; still playing the previous patch.', 'error');
     } finally {
       this.endDocumentOperation();
@@ -610,6 +639,7 @@ export class App {
       this.patchName = name;
       this.nameEl.textContent = name;
       this.maxModuleId = Math.max(0, ...(patch.modules ?? []).map(m => m.id));
+      this.grooves.forget();
       const running = this.engine.loadGraph(this.doc.toJSON());
       const v = patch.ui?.view;
       // Restoring/fitting the viewport is presentation, not a source-document edit.
@@ -929,6 +959,37 @@ export class App {
       this.toasts.show(err instanceof EngineRefusal ? err.message : 'The engine refused that change.', 'error');
     }
     if (commit && paramId === 'bpm' && this.lastStatus) this.statusBar.update(this.lastStatus);
+  }
+
+  /**
+   * Stopped Groove Apply (#498): only on a current-generation measured stop,
+   * through the existing whole-graph load. The new graph starts stopped; a
+   * refusal keeps the draft and never starts anything.
+   */
+  private async applyGroove(id: number): Promise<boolean> {
+    if (this.documentBusy || this.draftVisible || !this.engine.canApplyGroove(id)) return false;
+    const unstage = this.grooves.stage(id);
+    try {
+      await this.engine.loadGraph(this.doc.toJSON());
+      this.toasts.show('Pattern loaded · press play to start from step 1.');
+      return true;
+    } catch (e) {
+      unstage();
+      this.toasts.show(`Pattern not applied, the draft is kept: ${e instanceof Error ? e.message : 'refused'}`, 'error');
+      return false;
+    }
+  }
+
+  /** Rising-edge transport request: a high then low value on the engine only, never in the document. */
+  /** Transport request as a 1 → 0 pulse; the engine acts on the rising edge, so 60 ms spans many blocks. */
+  private grooveCommand(id: number, param: string): void {
+    if (this.documentBusy || this.draftVisible) return;
+    try {
+      this.engine.setParam(id, param, 1);
+      setTimeout(() => { try { this.engine.setParam(id, param, 0); } catch { /* engine gone */ } }, 60);
+    } catch (e) {
+      this.toasts.show(e instanceof Error ? e.message : 'The engine refused that request.', 'error');
+    }
   }
 
   private learnServices(): LearnServices {
@@ -1279,7 +1340,12 @@ export class App {
     window.addEventListener('keydown', e => {
       if (this.documentBusy) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       if (isTyping() || this.settings.isOpen || this.shortcuts.isOpen) return;
+      // Groove's focused step editor owns Delete/Backspace and its Undo/Redo.
+      // A global delete would otherwise remove the selected module before it can
+      // clear a step. Let other global shortcuts (Save, Open, etc.) work normally.
       const mod = e.ctrlKey || e.metaKey;
+      if ((e.target as HTMLElement).closest('.groove-pane') &&
+          (e.key === 'Delete' || e.key === 'Backspace' || (mod && e.key.toLowerCase() === 'z'))) return;
       if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); void this.savePatchFile(); return; }
       if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); void this.openPatchFile(); return; }
       if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); this.canvas.selectAll(); return; }

@@ -19,8 +19,8 @@ static void require(bool ok,const char*s){if(!ok)throw std::runtime_error(s);}
 int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  require(argc==4,"modules, demo and legacy fixtures arguments");ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>cat(app_engine_create(&cfg),app_engine_destroy);
- require(app_engine_module_count(cat.get()) == 29,
-         "Twenty-seven builtins (including Chord, Groove and Quantizer) plus two SDK sources in catalogue");
+ require(app_engine_module_count(cat.get()) == 31,
+         "Twenty-nine builtins (including Chord, OSC In and Monitor) plus two SDK sources in catalogue");
  for (const char *expected : {"essentials.vco",
                               "essentials.lfo",
                               "essentials.vcf",
@@ -40,6 +40,8 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
                               "midi.to_cv",
                               "midi.cc_to_cv",
                               "essentials.chord",
+                              "osc.in",
+                              "monitor",
                               "ports.macro_oscillator",
                               "example.step_sequencer",
                               "example.random_source"}) {
