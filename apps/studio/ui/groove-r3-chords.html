@@ -322,12 +322,12 @@ const S={
   applied:null,t:0,sel:[0,0],lane:'trig',rlane:'vel',root:9,scale:'minor',pen:[69,45],oct:[4,2],rollTop:[84,60],fold:true,skips:new Set()
 };
 const clone=x=>JSON.parse(JSON.stringify(x));
-const snapApplied=()=>S.tracks.map(t=>({len:t.len,steps:clone(t.steps)}));
+const snapApplied=()=>S.tracks.map(t=>({len:t.len,div:t.div||1,steps:clone(t.steps)}));
 S.applied=snapApplied();
 const stepsOf=t=>S.tracks[t].steps;
 const same=(a,b)=>a.k===b.k&&a.key===b.key&&String(a.keys||'')===String(b.keys||'')&&a.vel===b.vel&&a.len===b.len&&a.m1===b.m1&&a.m2===b.m2&&a.c===b.c;
 const changed=(t,i)=>!same(stepsOf(t)[i],S.applied[t].steps[i]);
-function nChanged(){let n=0;for(let t=0;t<2;t++){if(S.tracks[t].len!==S.applied[t].len)n++;for(let i=0;i<S.tracks[t].len;i++)if(changed(t,i))n++;}return n}
+function nChanged(){let n=0;for(let t=0;t<2;t++){if(S.tracks[t].len!==S.applied[t].len||(S.tracks[t].div||1)!==S.applied[t].div)n++;for(let i=0;i<S.tracks[t].len;i++)if(changed(t,i))n++;}return n}
 const dirty=()=>nChanged()>0;
 const inScale=k=>SCALES[S.scale].includes((((k-S.root)%12)+12)%12);
 function degStep(k,d){let x=k,n=Math.abs(d),s=Math.sign(d);while(n>0){x+=s;if(x<0||x>127)return k;if(inScale(x))n--;}return x}
@@ -336,12 +336,12 @@ function srcIndex(st,i){for(let j=i;j>=0;j--){if(st[j].k==='note')return j;if(st
 function runEnd(st,i,len){let j=i;while(j+1<len&&st[j+1].k==='tie')j++;return j}
 
 let hist=[],fut=[],inG=false;
-const snap=()=>JSON.stringify(S.tracks.map(t=>({len:t.len,steps:t.steps})));
+const snap=()=>JSON.stringify(S.tracks.map(t=>({len:t.len,div:t.div||1,steps:t.steps})));
 function push(){hist.push(snap());if(hist.length>200)hist.shift();fut=[]}
 function edit(fn){if(!inG)push();fn();render()}
 function beginG(){if(!inG){push();inG=true}}
 function endG(){inG=false}
-function restore(s){JSON.parse(s).forEach((x,t)=>{S.tracks[t].len=x.len;S.tracks[t].steps=x.steps});clampSel();render()}
+function restore(s){JSON.parse(s).forEach((x,t)=>{S.tracks[t].len=x.len;S.tracks[t].div=x.div||1;S.tracks[t].steps=x.steps});clampSel();render()}
 function undo(){if(!hist.length)return;fut.push(snap());restore(hist.pop())}
 function redo(){if(!fut.length)return;hist.push(snap());restore(fut.pop())}
 function clampSel(){S.tracks.forEach((tr,t)=>{if(S.sel[t]>=tr.len)S.sel[t]=tr.len-1})}
@@ -371,7 +371,7 @@ function shiftStep(t,i,o,n,oct){const st=stepsOf(t),j=srcIndex(st,i);if(j<0||!o)
   if(nk.some(k=>k<0||k>127))return;s.key=root;if(ks.length>1)s.keys=nk;S.pen[t]=root}
 
 /* ---------------- transport (demo clock) ---------------- */
-const master=()=>Math.max(...S.applied.map(a=>a.len));
+const master=()=>Math.max(...S.applied.map(a=>a.len*a.div));
 const stepDur=()=>60/S.bpm/4;
 let acc=0,last=0,raf=0;
 function loop(ts){if(!S.running){raf=0;return}const dt=Math.min(.1,(ts-last)/1000);last=ts;acc+=dt;
@@ -388,7 +388,8 @@ function tick(){
     S.tracks.forEach(tr=>{if(tr.st==='qstart'){tr.st='running';tr.loop=0;tr.pos=-1}else if(tr.st==='qstop'){tr.st='off';tr.pos=-1}});
   }
   S.g++;S.skips.clear();
-  S.tracks.forEach((tr,t)=>{if(tr.st!=='running'&&tr.st!=='qstop')return;const L=S.applied[t].len;
+  S.tracks.forEach((tr,t)=>{if(tr.st!=='running'&&tr.st!=='qstop')return;const L=S.applied[t].len,dv=S.applied[t].div;
+    if(tr.pos>=0&&(tr.sub=(tr.sub||0)+1)<dv)return;tr.sub=0;
     tr.pos=(tr.pos+1)%L;if(tr.pos===0&&S.g>0)tr.loop++;fire(t)});
   paintPlay();
   if(S.g%16===0)render();
@@ -399,7 +400,7 @@ function condOK(c,loop){if(!c)return true;
   const [a,b]=c.split(':').map(Number);return loop%b===a-1}
 function fire(t){const tr=S.tracks[t],st=S.applied[t].steps,s=st[tr.pos];if(s.k!=='note'||s.vel<=0)return;
   if(!condOK(s.c,tr.loop)){S.skips.add(t+':'+tr.pos);return}
-  if(tr.mute)return;const e=runEnd(st,tr.pos,S.applied[t].len),ks=notesOf(s);ks.forEach(k=>blip(t,k,s.vel/Math.sqrt(ks.length),(e-tr.pos+st[e].len)*stepDur()));pulse(t)}
+  if(tr.mute)return;const e=runEnd(st,tr.pos,S.applied[t].len),ks=notesOf(s);ks.forEach(k=>blip(t,k,s.vel/Math.sqrt(ks.length),(e-tr.pos+st[e].len)*stepDur()*S.applied[t].div));pulse(t)}
 function play(){if(S.loading)return;if(S.running){if(S.stopQueued){S.stopQueued=false;render()}else{S.stopQueued=true;render()}return}
   if(dirty())doApply(startClock);else startClock()}
 function reset(){S.stopQueued=false;S.applyQueued=false;if(S.running){S.g=-1;acc=stepDur();S.tracks.forEach(tr=>{tr.pos=-1;tr.loop=0})}render();toast('Reset · step 1')}
@@ -471,11 +472,11 @@ function tracks(){
   const tabs=S.tracks.map((tr,t)=>{const sd=tr.st==='running'?'run':tr.st.startsWith('q')?'q':tr.st==='armed'?'armed':'';
     const pos=S.running&&tr.pos>=0?`${String(tr.pos+1).padStart(2,'0')}/${S.applied[t].len}`:`${tr.len} st`;
     return `<div class="ttab ${t===S.t?'on':''}" data-act="track" data-v="${t}" role="button" tabindex="0">
-      <span class="sd ${sd}" data-act="tbtn" data-v="${t}" title="Start / stop track"></span><span class="tn">T${t+1}</span><span class="nm">${tr.name}</span>
+      <span class="sd ${sd}" data-act="tbtn" data-v="${t}" title="Start / stop track"></span><span class="tn">T${t+1}</span>${(tr.div||1)>1?`<span class="tst">${({2:'½',4:'¼',8:'⅛'})[tr.div]}×</span>`:''}<span class="nm">${tr.name}</span>
       <span class="pos" id="pos${t}">${pos}</span><span class="tst">${STL[tr.st]}</span>
       <button class="tg ${tr.mute?'on':''}" data-act="mute" data-v="${t}" title="Mute"><span class="led"></span>M</button></div>`}).join('');
   const L=S.tracks[S.t].len;
-  return `<div class="row r-tracks">${tabs}<span class="sp"></span><span class="lbl">Steps</span>${seg('len'+S.t,[['8','8'],['16','16'],['32','32'],['64','64']],String(L),'len')}</div>`}
+  return `<div class="row r-tracks">${tabs}<span class="sp"></span><span class="lbl">Steps</span>${seg('len'+S.t,[['8','8'],['16','16'],['32','32'],['64','64']],String(L),'len')}<span style="width:10px"></span><span class="lbl">Speed</span>${seg('div'+S.t,[['1','1×'],['2','½'],['4','¼'],['8','⅛']],String(S.tracks[S.t].div||1),'div')}</div>`}
 
 /* ---------------- pads ---------------- */
 const LANES=[['trig','Trig'],['note','Note'],['vel','Velocity'],['len','Length'],['m1','Mod 1'],['m2','Mod 2'],['cond','Condition']];
@@ -611,6 +612,7 @@ document.addEventListener('click',e=>{
     case 'tbtn':e.stopPropagation();trackBtn(+v);break;
     case 'mute':e.stopPropagation();S.tracks[+v].mute=!S.tracks[+v].mute;render();break;
     case 'len':edit(()=>{S.tracks[S.t].len=+v;clampSel()});break;
+    case 'div':edit(()=>{S.tracks[S.t].div=+v});break;
     case 'lane':S.lane=v;render();break;
     case 'rlane':S.rlane=v;render();break;
     case 'kind':edit(()=>{const s=stepsOf(S.t)[S.sel[S.t]];if(v==='note'&&s.k!=='note')makeNote(S.t,S.sel[S.t],s.key);else s.k=v});break;
