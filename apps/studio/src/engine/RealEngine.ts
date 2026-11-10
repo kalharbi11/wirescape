@@ -145,7 +145,7 @@ export class RealEngine implements EngineClient {
   }
   private waitForSessionReady(session: string, timeout: number): Promise<void> {
     if (this.session !== session && this.ready && this.state === 'real') return Promise.resolve();
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       let off = () => {};
       const timer = window.setTimeout(() => {
         off(); reject(refusal('unavailable', 'Engine restart timed out before the patch loaded.'));
@@ -159,7 +159,7 @@ export class RealEngine implements EngineClient {
   }
   restartEngine(timeoutMs = 10_000): Promise<void> {
     const id = this.id(), session = this.session, deadline = Date.now() + timeoutMs;
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const timer = window.setTimeout(() => {
         this.pending.delete(id); reject(refusal('unavailable', 'Engine restart timed out.'));
       }, timeoutMs);
