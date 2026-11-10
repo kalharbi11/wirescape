@@ -103,6 +103,9 @@ test('all presets use finite descriptor-bounded values, preserving unknown modul
  * The renderer uses production app_engine + runtime_patch, never FakeEngine audio.
  */
 test('offline WAV: all eight presets render finite, audible left/right bus levels', async () => {
+  // Sixteen production process invocations exceed the 30 s browser-test default.
+  // Each process still has its independent 60 s timeout and no test is skipped in native acceptance.
+  test.setTimeout(5 * 60_000);
   test.skip(!process.env.CHAOS_RENDER, 'Native WAV renderer is built in the task acceptance lane');
   const renderer = resolve(process.env.CHAOS_RENDER!);
   const catalog = JSON.parse(readFileSync(resolve('public/wirescape_modules.json'), 'utf8'));
