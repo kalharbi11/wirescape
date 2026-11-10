@@ -61,6 +61,28 @@ test('preset resets every omitted parameter, saves/reloads and is exactly one Un
   await expect(menu(page)).toHaveValue('Bent wire');
 });
 
+test('invalid injected preset shows a toast and preserves the patch and history', async ({ page }) => {
+  const before = await state(page);
+  const depth = await page.evaluate(() => window.__wirescapeTest.historyDepth().past);
+  await page.evaluate(() => {
+    // Mutate only this test page's UI preset data; native descriptors stay intact.
+    window.__wirescapeTest.modulePresets['essentials.chaos_lite'][1].params.route = 99;
+  });
+  await menu(page).selectOption('Bent wire');
+  const toast = page.getByTestId('toast');
+  await expect(toast).toContainText('Invalid preset value: essentials.chaos_lite:route');
+  await expect(toast).toHaveClass(/error/);
+  await flush(page);
+  expect(await state(page)).toEqual(before);
+  expect(await page.evaluate(() => window.__wirescapeTest.historyDepth().past)).toBe(depth);
+  await expect(menu(page)).toHaveValue('');
+
+  // Corrected data works again without reloading the app.
+  await page.evaluate(() => { window.__wirescapeTest.modulePresets['essentials.chaos_lite'][1].params.route = 2; });
+  await menu(page).selectOption('Bent wire');
+  await expect(menu(page)).toHaveValue('Bent wire');
+});
+
 test('manual parameter changes show Custom without writing preset names', async ({ page }) => {
   await menu(page).selectOption('Warm fifth');
   await flush(page);
