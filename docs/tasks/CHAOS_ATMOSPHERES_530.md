@@ -179,7 +179,7 @@ size: <= 1800 changed lines, <= 8 files
 must_pass:
   - python tools/patch_library.py check apps/studio/patches --shared
   - python -m unittest discover -s tools/foundation/tests -p test_patch_library.py
-  - node --test apps/studio/tests-node/patch-library.test.mjs
+  - bash -lc "node --test apps/studio/tests-node/patch-library.test.mjs"
   - ci: guard, linux-arm64, windows-x64, sanitizers, web green
 stops: [DSP or protocol changes, existing parameter IDs/ranges changed, real-device tests, code or UI modifications]
 ```
