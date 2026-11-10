@@ -190,17 +190,14 @@ async function expectB(page: Page) {
   expect(JSON.parse(save.text).modules.map((m: any) => m.id)).toEqual([7]);
 }
 
-test('OPEN B while the Learn replan is held: the accepted Learn runs on A, then B opens untouched', async ({ page }) => {
-  await heldLearn(page); await openB(page);
-  await page.evaluate(() => (window as any).__mockBridge.acceptHeld());
-  await expectB(page);
-});
-
-test('OPEN B while the Learn replan is held: its refusal never restores A over B', async ({ page }) => {
-  await heldLearn(page); await openB(page);
-  await refuseHeld(page);
-  await expectB(page);
-});
+for (const outcome of ['accepted', 'refused'] as const) {
+  test(`OPEN B during held Learn: ${outcome} replan settles before B opens untouched`, async ({ page }) => {
+    await heldLearn(page); await openB(page);
+    if (outcome === 'accepted') await page.evaluate(() => (window as any).__mockBridge.acceptHeld());
+    else await refuseHeld(page);
+    await expectB(page);
+  });
+}
 
 test('UNDO is refused during held Learn; after settlement undo and redo are exact', async ({ page }) => {
   const { before, graphBefore, historyBefore } = await heldLearn(page);
@@ -219,6 +216,7 @@ test('UNDO is refused during held Learn; after settlement undo and redo are exac
   await page.getByTestId('learn-confirm').click();
   await expect.poll(async () => (await graph(page)).modules.length).toBe(3);
   await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
+  await expect(page.getByTestId('midi-learn-applying')).toBeHidden();
   await page.evaluate(() => window.__wirescapeTest.undo());
   await expect.poll(async () => (await graph(page)).modules.length).toBe(1);
   expect(await state(page)).toEqual(before);
@@ -254,18 +252,6 @@ test('held Learn rejects dependent edits, then restores exact graph, document an
   // A change submitted AFTER refusal has settled is allowed.
   await page.evaluate(() => window.__wirescapeTest.commitParam(2, 'resonance', 0.4));
   await expect.poll(async () => (await graph(page)).modules[0]?.parameters?.resonance).toBe(0.4);
-});
-
-test('held Learn acknowledgment unlocks editing only after the atomic graph is accepted', async ({ page }) => {
-  await heldLearn(page);
-  await page.evaluate(() => window.__wirescapeTest.commitParam(2, 'resonance', 0.5));
-  expect((await state(page)).modules.find((m: any) => m.id === 2).parameters?.resonance).toBeUndefined();
-  await page.evaluate(() => (window as any).__mockBridge.acceptHeld());
-  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
-  await expect(page.getByTestId('midi-learn-applying')).toBeHidden();
-  await expect.poll(async () => (await graph(page)).modules.length).toBe(3);
-  await page.evaluate(() => window.__wirescapeTest.commitParam(2, 'resonance', 0.5));
-  await expect.poll(async () => (await graph(page)).modules.find((m: any) => m.id === 2).parameters.resonance).toBe(0.5);
 });
 
 test('Forget replan is also serialized and its refusal retains the learned cable', async ({ page }) => {
