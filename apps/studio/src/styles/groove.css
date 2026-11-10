@@ -183,3 +183,10 @@
 }
 
 .g-vcell.play { border-left: 2px solid var(--rust, #c2501f); }
+
+/* Keyboard access to roving Roll note buttons and lollipop value sliders. */
+.g-roll-cell:focus-visible, .g-vcell:focus-visible {
+  position: relative; z-index: 1;
+  outline: 2px solid var(--rust, #c2501f);
+  outline-offset: -2px;
+}
