@@ -145,6 +145,9 @@ test('Graphite is default, looks do not rewrite config, phone pads wrap into two
   expect(groups[2]!.y).toBeGreaterThan(groups[0]!.y);
   const width = await pane(page).evaluate(el => el.getBoundingClientRect().width);
   expect(width).toBeLessThanOrEqual(366);
+  const cardWidth = await page.getByTestId('module-1').evaluate(el => el.getBoundingClientRect().width);
+  expect(cardWidth).toBeLessThanOrEqual(374); // the outer card, not just its Groove child
+  await expect(page.getByTestId('module-1').locator('.port').first()).toBeHidden();
   await page.getByTestId('groove-view-roll-1').click();
   const roll = page.getByTestId('groove-roll-1');
   await expect(roll).toBeVisible();
