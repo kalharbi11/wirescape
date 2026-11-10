@@ -6,7 +6,11 @@ A successful main **Web demo** deployment publishes this folder to the web app:
 **Starter patches** and **PATCHES → SHARED PATCHES**. Refresh after deployment.
 No source registration, generated manifest or per-patch build-code edit is needed.
 
-The existing eight cinematic patches are here as editable JSON.
+Shipped set (2026-11-10): **Basics 1–7** (`basics-NN-*.json`, introductory: first tone,
+FM/filter/LFO, echo and reverb, sequencer and quantizer, random melody, CHAOS keys, Macro keys)
+and **Scene 1–8** (`scene-NN-*.json`, the revised cinematic patches). The MIDI example is bundled
+in the app (`src/app/bundled/`) because this folder excludes `midi.*` modules. The old
+`hollow-chapel`…`neon-elegy` files were replaced by the `scene-*` versions; Qt starters are retired.
 Your private saved patches are not uploaded automatically.
 Keep filenames lowercase-with-hyphens.json; put the display title in patch.name.
 Use Studio's saved/exported native patch-v2 format at48k, stereo0/1.

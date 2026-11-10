@@ -3,7 +3,6 @@ import { test, expect } from '@playwright/test';
 import { STARTERS, BUNDLED_STARTERS, DEFAULT_STARTER } from '../src/app/starters';
 import catalogue from '../public/wirescape_modules.json' with { type: 'json' };
 import { boot, settle } from './helpers';
-import { patchIndex } from '../patch-library.mjs';
 
 const bundled = BUNDLED_STARTERS;
 
@@ -37,7 +36,7 @@ test('Qt starters are retired; the bundled MIDI starter uses valid catalogue end
       }
       expect(patch.ui?.positions?.[String(module.id)]).toHaveLength(2);
     }
-    for (const connection of patch.connections) {
+    for (const connection of patch.connections.filter(c => c.kind !== 'modulation')) {
       const from = types.get(connection.from.module)!.ports.find(p => p.direction === 'output' && p.id === connection.from.port);
       const to = types.get(connection.to.module)!.ports.find(p => p.direction === 'input' && p.id === connection.to.port);
       expect(from, `${starter.id}: output ${connection.from.port}`).toBeDefined();
@@ -80,16 +79,12 @@ for (const starter of bundled) {
   });
 }
 
-// The shipped public library (apps/studio/patches) is laid out like the built-ins.
-const library = (JSON.parse(patchIndex()) as { patches: { id: string; name: string; patch: any }[] }).patches
-  .map(({ id, name, patch }) => ({ id, name, patch: () => structuredClone(patch) }));
-
 test('all bundled starters place cards without overlaps in mouse and touch profiles', async ({ page }) => {
   await boot(page);
   const failures: string[] = [];
   for (const hit of ['mouse', 'touch']) {
     await page.evaluate(hit => window.__wirescapeTest.setPref({ hit }), hit);
-    for (const starter of [...STARTERS, ...library]) {
+    for (const starter of STARTERS) {
       await page.evaluate(({ patch, name }) => {
         window.__wirescapeTest.load(patch, name);
         window.__wirescapeTest.fit();

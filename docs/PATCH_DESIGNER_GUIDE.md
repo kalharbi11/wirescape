@@ -126,6 +126,12 @@ For example, model **07** is Chiptune, **12** is Additive synthesis,
 FM presets occupy indices 02–04. The selector does not alter the patch's port
 or parameter IDs.
 
+- Macro `level` input: when connected it overrides `gate`, so keyboard velocity
+  patched into `level` keeps the internal low-pass gate open after note-off and the
+  note never releases. Drive the Macro from `pitch` + `gate` (or `trigger`). If you
+  want velocity on `level`, put an ADSR → VCA after the Macro for the release.
+  Speech synthesis (model 15) with `harmonics` above about 0.35 plays a short word
+  and then stops; keep `harmonics` ≤0.35 for sustained vowels.
 - Start poly keyboard patches at3–4voices. MIDI→CV supports polyphony in desktop,
   but raw MIDI input and generated note events are different kinds.
 - Desktop/native MIDI: wire `midi.in.midi` to `midi.to_cv.midi`; append-only
@@ -139,7 +145,8 @@ or parameter IDs.
   constant ranges are valid, existing smoothing still applies, and JSON persists
   the mapping. MIDI modules remain unavailable in the WebAssembly host; use
   `host.keyboard` in browser patches. MIDI Learn stays separate UI-owned work.
-- `essentials.vco` is a pure sine. Its `fm` input is additive Hz from a ±1 signal,
+- `essentials.vco` is a pure sine. Keep `frequency` 220 for concert tuning when pitch
+  is connected (it is a ratio to 220; 261.63 plays three semitones sharp). Its `fm` input is additive Hz from a ±1 signal,
   so it only gives a few Hz of deviation. For audible FM, connect a modulator
   VCO's `audio` with a **modulation** cable to the carrier's `frequency`
   parameter (amount ≈0.05–0.2). With pitch connected, `frequency` is a tuning
