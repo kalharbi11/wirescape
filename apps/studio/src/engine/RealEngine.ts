@@ -228,7 +228,8 @@ export class RealEngine implements EngineClient {
         if (this.status) this.emitStatus({ ...this.status, midi: { ...this.status.midi, devices: this.midiDevices } });
       } else if (message.type === 'telemetry' && isRecord(message.telemetry)) {
         const t = { ...message.telemetry, gen: message.gen } as unknown as Telemetry;
-        this.playhead = this.playheadEnabled && isRecord(t.playhead) ? t.playhead : {};
+        // Older/absent generations are unknown: never let them authorize Apply.
+        this.playhead = this.playheadEnabled && message.gen === this.gen && isRecord(t.playhead) ? t.playhead : {};
         if (!this.playheadEnabled) { delete t.playhead; delete t.groove; }
         // v0 transmits JSON arrays, never invent absent scope/effective/outputs.
         t.scope = Object.fromEntries(Object.entries(t.scope ?? {}).map(([k, v]) =>
