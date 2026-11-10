@@ -68,6 +68,8 @@ export class App {
   private dirtyDot!: HTMLElement;
   private nameEl!: HTMLElement;
   private draftLabel!: HTMLElement;
+  private learnApplyingEl!: HTMLElement;
+  private learnSettled: Promise<void> | null = null;
   private openDraftButton!: HTMLButtonElement;
   private applyDraftButton!: HTMLButtonElement;
   private backToPlayingButton!: HTMLButtonElement;
@@ -246,7 +248,11 @@ export class App {
     const path = el('div', 'patch-path');
     this.draftLabel = el('span', 'patch-prefix', 'DRAFT · NOT RUNNING');
     this.draftLabel.dataset.testid = 'draft-not-running';
-    path.append(el('span', 'patch-prefix', 'PATCH /'), this.nameEl, this.dirtyDot, this.draftLabel);
+    this.learnApplyingEl = el('span', 'patch-prefix', 'Applying MIDI Learn…');
+    this.learnApplyingEl.dataset.testid = 'midi-learn-applying';
+    this.learnApplyingEl.hidden = true;
+    this.learnApplyingEl.style.display = 'none';
+    path.append(el('span', 'patch-prefix', 'PATCH /'), this.nameEl, this.dirtyDot, this.draftLabel, this.learnApplyingEl);
     left.append(menuBtn, path);
 
     const right = el('div', 'topbar-right');
@@ -934,18 +940,16 @@ export class App {
   }
 
   /**
-   * Learn and Forget are one document edit sent as one live replan to the current
-   * edit target (the playing engine, or the refused draft's fake). Only a genuine
-   * engine refusal of THIS replan takes the edit back, and only within the document
-   * it was made in: a superseded load (an undo, a patch switch) belongs to whoever
-   * replaced it. With no later edits the document, history and dirty state return
-   * exactly; after later edits only the Learn's own changes are taken back out.
+   * Learn/Forget replan is atomic with respect to authored edits. Keel #500:
+   * while it is pending, refuse edits rather than try to invert changes made
+   * to new CC modules/rows by other gestures. Do not release the UI lock until
+   * a refused load's restoration replan has also settled.
    */
-  private applyLearn(change: () => { revert(): void; message: string } | null, what: string): void {
+  private applyLearn(change: () => { message: string } | null, what: string): void {
     if (this.documentBusy) return;
     const restoreHistory = this.history.checkpoint();
     const previous = this.doc.toJSON(), wasDirty = this.doc.dirty;
-    let result: { revert(): void; message: string } | null;
+    let result: { message: string } | null;
     try { result = change(); } catch (err) {
       this.doc.replace(previous);
       if (!wasDirty) this.doc.markClean();
@@ -956,25 +960,47 @@ export class App {
     }
     if (!result) return;
     this.history.flush(); // one gesture, one undo step, even when confirmed with Enter
-    const content = (p: PatchV2) => JSON.stringify({ ...p, ui: { ...(p.ui ?? {}), view: undefined } });
-    const submitted = this.doc.toJSON(), bytes = content(submitted);
-    const epoch = this.viewEpoch, engine = this.editEngine(), revert = result.revert;
-    this.toasts.show(result.message);
-    void engine.loadGraph(submitted).catch(err => {
-      if (!(err instanceof EngineRefusal) || !err.detail.engine) return;
+    const submitted = this.doc.toJSON();
+    const epoch = this.viewEpoch, engine = this.editEngine();
+
+    this.beginDocumentOperation(); // protects patch, cables, rows, labels, undo and Save
+    this.learnApplyingEl.hidden = false;
+    this.learnApplyingEl.style.display = '';
+    this.toasts.show('Applying MIDI Learn…');
+    const pending = engine.loadGraph(submitted).then(() => {
+      this.toasts.show(result.message);
+    }).catch(async err => {
+      if (!(err instanceof EngineRefusal) || !err.detail.engine) {
+        this.toasts.show(err instanceof Error ? err.message : `${what} failed.`, 'error');
+        return;
+      }
       const reason = `${what} was refused: ${err.message}`;
-      if (this.viewEpoch !== epoch || this.editEngine() !== engine) { this.toasts.show(reason, 'error'); return; }
-      if (content(this.doc.toJSON()) === bytes) {
-        this.doc.replace({ ...previous, ui: { ...(previous.ui ?? {}), view: this.doc.ui.view } });
-        if (!wasDirty) this.doc.markClean();
-        restoreHistory();
-      } else revert();
+      // An external restart can supersede the replan. Never restore the old
+      // document over a newer one if its view or edit target has changed.
+      if (this.viewEpoch !== epoch || this.editEngine() !== engine) {
+        this.toasts.show(reason, 'error');
+        return;
+      }
+      this.doc.replace({ ...previous, ui: { ...(previous.ui ?? {}), view: this.doc.ui.view } });
+      if (!wasDirty) this.doc.markClean();
+      restoreHistory();
       requestAnimationFrame(() => this.canvas.invalidateAnchors());
       this.refreshDirty();
-      void engine.loadGraph(this.doc.toJSON()).catch(e =>
-        this.toasts.show(e instanceof Error ? e.message : 'The patch could not run.', 'error'));
+      try {
+        await engine.loadGraph(this.doc.toJSON());
+      } catch (e) {
+        this.toasts.show(e instanceof Error ? e.message : 'The patch could not run.', 'error');
+        return;
+      }
       this.toasts.show(`${reason}. It was taken back out of the patch.`, 'error');
+    }).finally(() => {
+      // The read and view epochs remain guarded by beginDocumentOperation.
+      this.learnSettled = null;
+      this.learnApplyingEl.hidden = true;
+      this.learnApplyingEl.style.display = 'none';
+      this.endDocumentOperation();
     });
+    this.learnSettled = pending;
   }
 
   private setMidiEndpoint(moduleId: number, endpoint: string, systemName?: string): void {
@@ -1520,6 +1546,9 @@ export class App {
 
   /** Native dialogs belong to Electron main; browser-only use keeps file input/export. */
   private async openPatchFile(): Promise<void> {
+    // Native OPEN requested during an atomic Learn is queued, not performed
+    // against a half-applied document (nor silently discarded).
+    if (this.learnSettled) await this.learnSettled;
     if (this.documentBusy) return;
     if (!window.wirescape) { this.fileInput.click(); return; }
     const request = ++this.readEpoch, view = this.viewEpoch;
