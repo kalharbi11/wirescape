@@ -25,7 +25,6 @@ the corresponding Git revision.
 - [S1_1_SPECTRAL.md](S1_1_SPECTRAL.md) — #302 (closed)
 - [STUDIO_LFO_WAVE_TAIL_351.md](STUDIO_LFO_WAVE_TAIL_351.md) — #351 (open)
 - [STUDIO_UI_PARITY_347.md](STUDIO_UI_PARITY_347.md) — #347 (open)
-- [W_GATE_V4.md](W_GATE_V4.md) — #236 (closed)
 - [We_BENCH_GATE.md](We_BENCH_GATE.md) — #91 (open)
 - [Wh_FUZZ.md](Wh_FUZZ.md) — #94 (open)
 
@@ -55,4 +54,3 @@ These remain in place; an old-looking title is not proof of a closed issue.
 - R1_QT_FREE_BUILD.md, R2_DOCUMENT_COVERAGE.md (cited by R3 #482 / R4 #481)
 - GROOVE_UI_STUDY_457.md (Groove S1(b) under #432), W_WIN_REAL_AUDIO_RUNTIME.md (#399/#480)
 - S1_1_SPECTRAL.md (read by `tools/foundation/tests/test_module_cpu_probe.py`)
-- W_GATE_V4.md (cited by AGENTS.md and WORKFLOW.md until the next rules PR)
