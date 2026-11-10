@@ -68,7 +68,7 @@ struct Rig {
         REQUIRE(state && desc->prepare(state, &cfg, &host) == WS2_OK);
         for (int p = 0; p < 3; ++p) {
             for (uint32_t c = 0; c < 16; ++c) out_rows[p][c] = storage->output[p][c];
-            outs[p] = {sizeof(ws2_signal_out), out_rows[p], 0, 0, 16};
+            outs[p] = {sizeof(ws2_signal_out), out_rows[p], 0, 0, host_channels};
         }
         input[0] = {sizeof(ws2_signal), nullptr, 0, 0};
         ctx.struct_size = sizeof(ctx);
