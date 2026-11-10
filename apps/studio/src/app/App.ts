@@ -142,6 +142,7 @@ export class App {
       registry: this.registry,
       overrides: this.overrides,
       commitParam: (m, p, v, c) => this.commitParam(m, p, v, c),
+      applyModulePreset: (m, values) => this.applyModulePreset(m, values),
       commitModAmount: (c, a, commit) => this.commitModAmount(c, a, commit),
       listMidiDevices: () => this.engine.listMidiDevices(),
       setModuleEndpoint: (id, endpoint, sys) => this.setMidiEndpoint(id, endpoint, sys),
@@ -861,6 +862,20 @@ export class App {
    * The UI draws a change at once, sends it to the engine, and rolls back
    * with a message if the engine refuses.
    */
+  /** One snapshot for the preset, each value still uses the normal engine setParam. */
+  private applyModulePreset(moduleId: number, values: Readonly<Record<string, number>>): void {
+    if (this.documentBusy) return;
+    const module = this.doc.modules.get(moduleId);
+    const d = module && this.registry.get(module.module);
+    if (!module || !d) return;
+    this.history.flush();
+    for (const param of d.parameters) {
+      const value = values[param.id];
+      if (value !== undefined) this.commitParam(moduleId, param.id, value, true);
+    }
+    this.history.flush();
+  }
+
   private commitParam(moduleId: number, paramId: string, value: number, commit: boolean): void {
     if (this.documentBusy) return;
     const before = this.doc.param(moduleId, paramId);

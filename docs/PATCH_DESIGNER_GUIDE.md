@@ -364,3 +364,24 @@ but primarily support the engine's measured editor telemetry; no cable is needed
 for the editor to observe them. For example, a `t1_fired` signal may drive a gate
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
+
+## CHAOS-lite sound presets (#489; available after Studio PR merges)
+
+The `essentials.chaos_lite` card's **Presets** dropdown supplies eight
+repeatable starting sounds. The first four are from its native README:
+**Warm fifth** (smooth pair/fifth), **Bent wire** (delay bending), **Broken
+bell** (ring-mod strike), and **Slow weather** (slow body motion). The four
+Studio originals are **Basalt drone** (dark sustained comb), **Glass pluck**
+(bright short resonant note), **Iron rain** (metallic high partials), and
+**Tide choir** (slow stereo tonal movement).
+
+A choice sets **all** descriptor parameters to its values or their defaults,
+not merely the named subset, via the existing engine parameter path. Undo
+restores the previous parameter state in one step, and save/reload retains
+those numeric values without writing preset names or changing cables,
+module IDs, or unknown fields. A changed knob shows **Custom**. These are
+sound-design candidates, not separately approved/audio-auditioned patches:
+verify actual sound against the offline render/WAV evidence before claiming
+a preset's audio acceptance, and never infer DSP playback from FakeEngine
+control values alone.
+

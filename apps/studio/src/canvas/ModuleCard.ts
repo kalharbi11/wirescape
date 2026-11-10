@@ -99,7 +99,7 @@ export class ModuleCard {
     const slot = el('span', 'module-header-slot');
     header.append(code, this.titleEl, this.polyBadge, el('span', 'module-header-fill'), idTag, slot);
     header.addEventListener('pointerdown', e => {
-      if ((e.target as HTMLElement).closest('.ib,.seg,.view-switch,button')) return;
+      if ((e.target as HTMLElement).closest('.ib,.seg,.view-switch,button,select,.module-presets')) return;
       o.onHeaderPointerDown(e);
     });
     this.titleEl.addEventListener('dblclick', e => { e.stopPropagation(); o.onRenameRequest(); });

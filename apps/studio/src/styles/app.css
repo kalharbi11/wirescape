@@ -215,6 +215,16 @@ button { cursor: pointer; }
   border: 0.5px solid var(--hair); border-radius: 1px; padding: 0 3px;
 }
 .module-header-slot { display: flex; align-items: center; flex: none; }
+.module-presets { display: flex; align-items: center; gap: 5px; cursor: default; user-select: auto; }
+.module-preset-label { font: 500 8px var(--mono); letter-spacing: .04em; color: var(--mute); }
+.module-preset-select { max-width: 126px; height: 25px; border: 1px solid var(--hair);
+  border-radius: 3px; background: var(--card); color: var(--graph);
+  font: 10px var(--mono); cursor: pointer; }
+@media (max-width: 760px) {
+  .module-preset-label { display: none; }
+  .module-preset-select { max-width: 104px; }
+}
+
 .module-header { flex: none; }
 .module-body { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center; padding-top: 22px; padding-bottom: 24px; }
 .panel-core { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0 12px; }
