@@ -150,7 +150,9 @@ or parameter IDs.
   stops waiting after 30 s). Studio writes a free `midi.cc_to_cv` row
   (`channel` = the captured one, or `0` with "any channel"; `controller`), cables
   `ccN` → that knob as a modulation with amount `1`, and sends the edited patch as
-  one live replan. The row goes on a converter whose `midi.in` feed hears the
+  one live replan. Until it settles, Studio shows "Applying MIDI Learn…" and
+  blocks patch edits, undo, cables and CC labels; rejection restores the old
+  patch and history before editing resumes. The row goes on a converter whose `midi.in` feed hears the
   device that moved (`all_enabled`, or that exact `endpoint` + `system_name`); a
   converter with no feed gets one in the same edit. Otherwise it adds a
   `midi.cc_to_cv` module fed by a matching `midi.in` (a new one naming the device
