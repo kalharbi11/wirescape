@@ -24,7 +24,11 @@ FLOAT = r'[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?'
 BENCH = re.compile(
     rf'bench blocks=(?P<blocks>[0-9]{{1,20}}) '
     rf'p50=(?P<p50>{FLOAT}) p99=(?P<p99>{FLOAT}) max=(?P<max>{FLOAT}) '
-    rf'overruns=(?P<overruns>[0-9]{{1,20}}) faults=(?P<faults>[0-9]{{1,20}})')
+    rf'overruns=(?P<overruns>[0-9]{{1,20}}) faults=(?P<faults>[0-9]{{1,20}}) '
+    rf'overrun_render_count=(?P<overrun_render_count>[0-9]{{1,20}}) '
+    rf'overrun_render_max_us=(?P<overrun_render_max_us>{FLOAT}) '
+    rf'overrun_wake_count=(?P<overrun_wake_count>[0-9]{{1,20}}) '
+    rf'overrun_wake_max_us=(?P<overrun_wake_max_us>{FLOAT})')
 
 
 def parse_bench(lines, seconds):
@@ -34,12 +38,12 @@ def parse_bench(lines, seconds):
     if not match:
         raise SoakFailure('malformed bench metrics')
     values = {}
-    for name in ('blocks', 'overruns', 'faults'):
+    for name in ('blocks', 'overruns', 'faults', 'overrun_render_count', 'overrun_wake_count'):
         number = int(match[name])
         if number > 2**64 - 1:
             raise SoakFailure(f'bench {name} exceeds u64')
         values[name] = number
-    for name in ('p50', 'p99', 'max'):
+    for name in ('p50', 'p99', 'max', 'overrun_render_max_us', 'overrun_wake_max_us'):
         number = float(match[name])
         if not math.isfinite(number) or number < 0:
             raise SoakFailure(f'bench {name} invalid')
@@ -48,8 +52,13 @@ def parse_bench(lines, seconds):
         raise SoakFailure('bench percentiles out of order')
     if values['blocks'] < 0.9 * seconds * 48000 / 256:
         raise SoakFailure('insufficient bench blocks')
+    for name in ('overrun_render_count', 'overrun_wake_count'):
+        if values[name] > values['overruns']:
+            raise SoakFailure(f'bench {name} exceeds overruns')
     if values['overruns'] or values['faults']:
-        raise SoakFailure(f'bench overruns={values["overruns"]} faults={values["faults"]}')
+        raise SoakFailure('bench ' + ' '.join(f'{name}={values[name]}' for name in (
+            'overruns', 'faults', 'overrun_render_count', 'overrun_render_max_us',
+            'overrun_wake_count', 'overrun_wake_max_us')))
     return values
 
 

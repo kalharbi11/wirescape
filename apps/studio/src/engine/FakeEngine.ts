@@ -9,7 +9,7 @@ import { findParam, findPort, normToValue, valueToNorm } from '../modules/regist
 
 const TICK_HZ = 30;
 
-interface Node { id: number; type: string; params: Record<string, number> }
+interface Node { id: number; type: string; params: Record<string, number>; ccRows?: Record<string, unknown>[] }
 interface Voice { note: number; velocity: number; on: boolean; since: number; level: number; stage: 'a' | 'd' | 's' | 'r' | 'off' }
 
 export interface DebugSwitches {
@@ -103,7 +103,9 @@ export class FakeEngine implements EngineClient {
     this.phases.clear(); this.randomHold.clear(); this.seqStep.clear();
     this.currentEffective.clear(); this.meterPeak.clear(); this.eventActivity.clear();
     for (const m of patch.modules) {
-      this.nodes.set(m.id, { id: m.id, type: m.module, params: { ...(m.parameters ?? {}) } });
+      const rows = (m.config as { rows?: unknown } | undefined)?.rows;
+      this.nodes.set(m.id, { id: m.id, type: m.module, params: { ...(m.parameters ?? {}) },
+        ...(m.module === 'midi.cc_to_cv' && Array.isArray(rows) ? { ccRows: (rows as Record<string, unknown>[]).map(r => ({ ...r })) } : {}) });
     }
     for (const c of patch.connections) {
       try { this.validateConnection(c); this.conns.push({ ...c }); }
@@ -151,6 +153,9 @@ export class FakeEngine implements EngineClient {
     const found = this.conns.find(x => key(x) === k);
     if (found) found.amount = amount;
   }
+
+  /** Test hook: the rows the running fake graph holds for a CC module. */
+  ccRowsOf(moduleId: number): Record<string, unknown>[] { return (this.nodes.get(moduleId)?.ccRows ?? []).map(r => ({ ...r })); }
 
   private validateConnection(c: Connection): void {
     if (c.kind === 'modulation') {

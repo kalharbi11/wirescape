@@ -144,7 +144,29 @@ or parameter IDs.
   Finite optional endpoints override the matching bipolar default; inverted and
   constant ranges are valid, existing smoothing still applies, and JSON persists
   the mapping. MIDI modules remain unavailable in the WebAssembly host; use
-  `host.keyboard` in browser patches. MIDI Learn stays separate UI-owned work.
+  `host.keyboard` in browser patches.
+- MIDI Learn (Studio on the desktop engine, #287): right-click a modulatable knob →
+  **MIDI Learn…**, move a controller, **Confirm** (Enter; Esc cancels; the engine
+  stops waiting after 30 s). Studio writes a free `midi.cc_to_cv` row
+  (`channel` = the captured one, or `0` with "any channel"; `controller`), cables
+  `ccN` → that knob as a modulation with amount `1`, and sends the edited patch as
+  one live replan. Until it settles, Studio shows "Applying MIDI Learn…" and
+  blocks patch edits, undo, cables and CC labels; rejection restores the old
+  patch and history before editing resumes. The row goes on a converter whose `midi.in` feed hears the
+  device that moved (`all_enabled`, or that exact `endpoint` + `system_name`); a
+  converter with no feed gets one in the same edit. Otherwise it adds a
+  `midi.cc_to_cv` module fed by a matching `midi.in` (a new one naming the device
+  when none hears it); unrelated routes are untouched. A device unplugged or
+  disabled before Confirm is refused. Wired but unconfigured outputs keep their
+  default CC n (explicit default rows fill the gap, never a hole). Re-learning a
+  mapped knob updates its row, or moves it to a new row when another knob shares
+  that row or its converter does not hear the new device. **Forget MIDI mapping**
+  removes only that knob's CC cable (and a now-unused last row). One undo step
+  each. Learned rows are ordinary `config.rows`, so a saved patch needs no
+  learn state. Modulation is added to the knob's own value, so a full sweep needs
+  the knob near its minimum (0..1 CC onto its range). The `CC n` label on the
+  module follows the learned controller (`ui.ccMap`, display only). Hand-edit
+  JSON is still fine; unavailable in the browser demo (no MIDI).
 - `essentials.vco` is a pure sine. Keep `frequency` 220 for concert tuning when pitch
   is connected (it is a ratio to 220; 261.63 plays three semitones sharp). Its `fm` input is additive Hz from a ±1 signal,
   so it only gives a few Hz of deviation. For audible FM, connect a modulator
@@ -312,6 +334,45 @@ For a longer pattern set `length:16`, author `pitch16` (octaves), `gate16`
 values through edit/undo/save; native/WASM version compatibility remains #405's
 contract. UI/FakeEngine preview alone does not prove DSP or audible playback.
 
+## Groove native v2 patterns (G1 #496; available in builds containing this integration)
+
+The original `sequencing.groove` authored config `version:1` remains valid and
+keeps its two synchronized **32-step** tracks, old sample/note ordering and
+implicit full gate. The new `version:2` config allows each track to set
+`length` to **8, 16, 32 or 64** sixteenth notes (default 16 for a newly authored
+v2 track, 32 for v1). A track pads its omitted steps with rests. Active tracks
+follow their own lengths; the longest active track determines the global
+STOP/Apply master-cycle boundary. V2 track START enters at the next
+16-step bar; an authored v1 track retains its original 32-step entry boundary.
+
+On each v2 step, `gate` selects 0.25, 0.5, 0.75 or 1 times one step, default
+1. A tie extends the sounding note through the tied cells, with the *last*
+tie's gate fraction determining the release. Only note trigs accept `cond`:
+`{"type":"chance","p":50}` (integer percent 1..99),
+`{"type":"ab","a":1,"b":4}` (loop 1 of every 4; b 2..8),
+`{"type":"first"}`, or `{"type":"not_first"}`. Omit `cond`
+for always. A failed condition skips note and ties, but still applies that
+step's Mod1/Mod2 values. A:B counts the **track's** loops, not necessarily
+16-step bars. A chance sequence is deterministic from the native graph
+instance ID and track; it never stores a random seed in authored patch JSON.
+
+Example of one track's v2 config, excluding unrelated module settings:
+
+```json
+{"version":2,"bpm":120,"tracks":[{"length":16,"steps":[
+  {"kind":"note","key":60,"velocity":0.9,"gate":0.5,
+   "mod1":0.4,"mod2":0.2,"cond":{"type":"chance","p":50}},
+  {"kind":"tie","gate":0.75},
+  {"kind":"note","key":64,"velocity":0.8,"cond":{"type":"ab","a":1,"b":4}}
+]}]}
+```
+
+The output and transport IDs remain unchanged; G3's appended measurement
+ports appear below. Config `keys` is reserved for future chords and is
+refused in v2. The Studio G2 editor and actual physical listening are separate
+acceptance tasks; do not assume a native G1 patch is editable on older app
+builds or works in a deployed WebAssembly version lacking G1.
+
 ## Groove observation outputs (PR #501)
 
 Groove observation outputs append to its existing pitch/gate/mod/notes ports:
@@ -344,3 +405,24 @@ control yet. After B/C, the intended wiring is `osc.in.row1 →` a VCA's
 `cv` input and `osc.in.messages → monitor.events`; browser/WASM OSC and
 unconfirmed LAN access remain unavailable. These modules introduce no new
 patch parameters or changes to existing IDs.
+
+## CHAOS-lite sound presets (#489; available after Studio PR merges)
+
+The `essentials.chaos_lite` card's **Presets** dropdown supplies eight
+repeatable starting sounds. The first four are from its native README:
+**Warm fifth** (smooth pair/fifth), **Bent wire** (delay bending), **Broken
+bell** (ring-mod strike), and **Slow weather** (slow body motion). The four
+Studio originals are **Basalt drone** (dark sustained comb), **Glass pluck**
+(bright short resonant note), **Iron rain** (metallic high partials), and
+**Tide choir** (slow stereo tonal movement).
+
+A choice sets **all** descriptor parameters to its values or their defaults,
+not merely the named subset, via the existing engine parameter path. Undo
+restores the previous parameter state in one step, and save/reload retains
+those numeric values without writing preset names or changing cables,
+module IDs, or unknown fields. A changed knob shows **Custom**. These are
+sound-design candidates, not separately approved/audio-auditioned patches:
+verify actual sound against the offline render/WAV evidence before claiming
+a preset's audio acceptance, and never infer DSP playback from FakeEngine
+control values alone.
+
