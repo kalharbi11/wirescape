@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
-#include "wirescape_sdk.h"
 #include "../../voice/note_to_cv.h"
+#include "wirescape_sdk.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -13,15 +13,12 @@ namespace notes_to_cv {
 // existing NoteToCv/Allocator code (including anonymous IDs and steals).
 struct NotesToCv {
     static constexpr ws::Info info{"essentials.notes_to_cv", "Notes to CV", 1};
-    static constexpr std::array inputs{
-        ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
-    static constexpr std::array outputs{
-        ws::port("pitch", "Pitch", WS2_PITCH),
-        ws::port("gate", "Gate", WS2_GATE),
-        ws::port("velocity", "Velocity", WS2_CV_UNI)};
+    static constexpr std::array inputs{ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
+    static constexpr std::array outputs{ws::port("pitch", "Pitch", WS2_PITCH),
+                                        ws::port("gate", "Gate", WS2_GATE),
+                                        ws::port("velocity", "Velocity", WS2_CV_UNI)};
     static constexpr std::array params{
-        ws::param("voices", "Voices", 1, 16, 4, "",
-                  WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1)};
+        ws::param("voices", "Voices", 1, 16, 4, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 0, 4, 1)};
 
     wirescape::voice::NoteToCv core;
     uint32_t max_channels = 16;
@@ -33,8 +30,8 @@ struct NotesToCv {
         configured_voices = 0;
     }
     void process(ws::Block &b) {
-        const int desired = std::clamp(static_cast<int>(std::lround(b.param(0).value(0, 0))),
-                                       1, static_cast<int>(max_channels));
+        const int desired = std::clamp(static_cast<int>(std::lround(b.param(0).value(0, 0))), 1,
+                                       static_cast<int>(max_channels));
         if (desired != configured_voices) {
             wirescape::voice::Config cfg{};
             cfg.max_voices = static_cast<uint8_t>(desired);
@@ -55,16 +52,15 @@ struct NotesToCv {
                         b.out(0).ch(c)[i] = v.pitch;
                         // A stolen/retriggered voice drops gate for one sample,
                         // allowing the downstream envelope to retrigger.
-                        b.out(1).ch(c)[i] =
-                            v.gate && !(v.trigger && v.retrigger) ? 1.f : 0.f;
+                        b.out(1).ch(c)[i] = v.gate && !(v.trigger && v.retrigger) ? 1.f : 0.f;
                         b.out(2).ch(c)[i] = v.velocity;
                     }
                     core.allocator().clear_triggers();
                 }
             },
             [&](const ws2_event &e) {
-                if (e.type == WS2_NOTE_ON || e.type == WS2_NOTE_OFF ||
-                    e.type == WS2_NOTE_CHOKE || e.type == WS2_NOTE_EXPRESSION) {
+                if (e.type == WS2_NOTE_ON || e.type == WS2_NOTE_OFF || e.type == WS2_NOTE_CHOKE ||
+                    e.type == WS2_NOTE_EXPRESSION) {
                     // NotesToCv has signal outputs only. The allocator handles
                     // releases and expressions internally; it does not emit here.
                     core.event(e, [](const ws2_event &) {});

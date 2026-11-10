@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
+#include "../../engine2/engine2.h"
 #include "../../sdk/examples/test_support.h"
 #include "../../tests2/allocation_watch.h"
-#include "../../engine2/engine2.h"
-#include "../host_keyboard/dsp.h"
-#include "../vco/dsp.h"
 #include "../adsr/dsp.h"
-#include "../vca/dsp.h"
+#include "../host_keyboard/dsp.h"
 #include "../output/dsp.h"
+#include "../vca/dsp.h"
+#include "../vco/dsp.h"
 #include "dsp.h"
 #include <algorithm>
 #include <array>
@@ -17,17 +17,25 @@
 using notes_to_cv::NotesToCv;
 static constexpr uint32_t kFrames = 256;
 
-static ws2_event note(uint32_t type, int key, int32_t id = 0, uint32_t source = 1,
-                      int channel = 0, uint32_t offset = 0) {
+// Named fields prevent accidental reordering of similarly typed event values.
+struct NoteSpec {
+    uint32_t type;
+    int key;
+    int32_t id = 0;
+    uint32_t source = 1;
+    int channel = 0;
+    uint32_t offset = 0;
+};
+static ws2_event note(const NoteSpec &spec) {
     ws2_event e{};
     e.struct_size = sizeof(e);
-    e.type = type;
+    e.type = spec.type;
     e.port = 0;
-    e.key = key;
-    e.note_id = id;
-    e.source_id = source;
-    e.channel = channel;
-    e.offset = offset;
+    e.key = spec.key;
+    e.note_id = spec.id;
+    e.source_id = spec.source;
+    e.channel = spec.channel;
+    e.offset = spec.offset;
     e.value = .75f;
     return e;
 }
@@ -36,7 +44,9 @@ struct Rig {
     ws2_host host{sizeof(host), &pool, allocate};
     const ws2_descriptor *desc = ws::Module<NotesToCv>::descriptor();
     void *state = nullptr;
-    struct Buffers { float output[3][16][kFrames]{}; };
+    struct Buffers {
+        float output[3][16][kFrames]{};
+    };
     std::unique_ptr<Buffers> storage = std::make_unique<Buffers>();
     float *out_rows[3][16]{};
     ws2_signal_out outs[3]{};
@@ -79,46 +89,43 @@ struct Rig {
         REQUIRE(desc->process(state, &ctx) == WS2_OK);
         ctx.frame_position += frames;
     }
-    float value(uint32_t p, uint32_t voice, uint32_t frame) const {
-        return storage->output[p][voice][frame];
-    }
+    float value(uint32_t p, uint32_t voice, uint32_t frame) const { return storage->output[p][voice][frame]; }
 };
 static void poly_triads_and_offs() {
     Rig a;
-    a.run({note(WS2_NOTE_ON, 60, 0, 3, 2, 11), note(WS2_NOTE_ON, 64, 1, 3, 2, 11),
-           note(WS2_NOTE_ON, 67, 2, 3, 2, 11)});
+    a.run({note({WS2_NOTE_ON, 60, 0, 3, 2, 11}), note({WS2_NOTE_ON, 64, 1, 3, 2, 11}),
+           note({WS2_NOTE_ON, 67, 2, 3, 2, 11})});
     REQUIRE(a.outs[0].channels == 4);
     REQUIRE(a.value(0, 0, 11) == 0.f);
     REQUIRE(std::abs(a.value(0, 1, 11) - 4.f / 12.f) < .00001f);
     REQUIRE(std::abs(a.value(0, 2, 11) - 7.f / 12.f) < .00001f);
     for (uint32_t c = 0; c < 3; ++c)
-        REQUIRE(a.value(1, c, 10) == 0.f && a.value(1, c, 12) == 1.f &&
-                a.value(2, c, 12) == .75f);
-    a.run({note(WS2_NOTE_OFF, 64, 1, 3, 2, 19)});
+        REQUIRE(a.value(1, c, 10) == 0.f && a.value(1, c, 12) == 1.f && a.value(2, c, 12) == .75f);
+    a.run({note({WS2_NOTE_OFF, 64, 1, 3, 2, 19})});
     REQUIRE(a.value(1, 0, 20) == 1 && a.value(1, 1, 20) == 0 && a.value(1, 2, 20) == 1);
-    a.run({note(WS2_NOTE_ON, 71, 3, 3, 2, 17)});
+    a.run({note({WS2_NOTE_ON, 71, 3, 3, 2, 17})});
     REQUIRE(std::abs(a.value(0, 3, 20) - 11.f / 12.f) < .00001f);
     REQUIRE(a.value(1, 3, 20) == 1.f);
 }
 static void source_identity_and_choke() {
     Rig a;
-    a.run({note(WS2_NOTE_ON, 60, 0, 10), note(WS2_NOTE_ON, 64, 0, 11)});
-    a.run({note(WS2_NOTE_OFF, 60, 0, 10)});
+    a.run({note({WS2_NOTE_ON, 60, 0, 10}), note({WS2_NOTE_ON, 64, 0, 11})});
+    a.run({note({WS2_NOTE_OFF, 60, 0, 10})});
     REQUIRE(a.value(1, 0, 1) == 0 && a.value(1, 1, 1) == 1);
-    a.run({note(WS2_NOTE_ON, 67, 9, 10)});
-    a.run({note(WS2_NOTE_CHOKE, 0, -1, 11)});
+    a.run({note({WS2_NOTE_ON, 67, 9, 10})});
+    a.run({note({WS2_NOTE_CHOKE, 0, -1, 11})});
     REQUIRE(a.value(1, 1, 1) == 0 && a.value(1, 2, 1) == 1);
-    a.run({note(WS2_NOTE_CHOKE, 0, -1, UINT32_MAX)});
+    a.run({note({WS2_NOTE_CHOKE, 0, -1, UINT32_MAX})});
     for (int c = 0; c < 4; ++c) REQUIRE(a.value(1, c, 1) == 0);
 }
 static void steal_and_reset() {
     Rig a;
-    a.run({note(WS2_NOTE_ON, 60, 0), note(WS2_NOTE_ON, 64, 1),
-           note(WS2_NOTE_ON, 67, 2), note(WS2_NOTE_ON, 71, 3)});
-    a.run({note(WS2_NOTE_ON, 72, 4, 1, 0, 9)});
+    a.run({note({WS2_NOTE_ON, 60, 0}), note({WS2_NOTE_ON, 64, 1}),
+           note({WS2_NOTE_ON, 67, 2}), note({WS2_NOTE_ON, 71, 3})});
+    a.run({note({WS2_NOTE_ON, 72, 4, 1, 0, 9})});
     REQUIRE(a.value(1, 0, 9) == 0 && a.value(1, 0, 10) == 1); // one-sample retrigger dip
     REQUIRE(a.value(0, 0, 10) == 1.f);
-    a.run({note(WS2_NOTE_OFF, 60, 0)});
+    a.run({note({WS2_NOTE_OFF, 60, 0})});
     REQUIRE(a.value(1, 0, 1) == 1); // old off cannot close the stolen voice
     a.desc->reset(a.state);
     a.run();
@@ -126,8 +133,8 @@ static void steal_and_reset() {
 }
 static void anonymous_fifo_and_repeated_roots() {
     Rig a;
-    auto older = note(WS2_NOTE_ON, 60, -1);
-    auto newer = note(WS2_NOTE_ON, 60, -1);
+    auto older = note({WS2_NOTE_ON, 60, -1});
+    auto newer = note({WS2_NOTE_ON, 60, -1});
     older.value = .25f;
     newer.value = .75f;
     a.run({older, newer});
@@ -135,16 +142,16 @@ static void anonymous_fifo_and_repeated_roots() {
     REQUIRE(a.value(1, 0, 1) == 1.f && a.value(1, 1, 1) == 1.f);
     REQUIRE(a.value(2, 0, 1) == .25f && a.value(2, 1, 1) == .75f);
 
-    a.run({note(WS2_NOTE_OFF, 60, -1)});
+    a.run({note({WS2_NOTE_OFF, 60, -1})});
     REQUIRE(a.value(1, 0, 1) == 0.f && a.value(1, 1, 1) == 1.f);
     REQUIRE(a.value(2, 1, 1) == .75f);
-    a.run({note(WS2_NOTE_OFF, 60, -1)});
+    a.run({note({WS2_NOTE_OFF, 60, -1})});
     REQUIRE(a.value(1, 0, 1) == 0.f && a.value(1, 1, 1) == 0.f);
 }
 
 static void voice_count_change_and_reset() {
     Rig a;
-    a.run({note(WS2_NOTE_ON, 60, 0)});
+    a.run({note({WS2_NOTE_ON, 60, 0})});
     REQUIRE(a.outs[0].channels == 4 && a.value(1, 0, 1) == 1.f);
 
     a.voice_param = 2.f;
@@ -152,7 +159,7 @@ static void voice_count_change_and_reset() {
     REQUIRE(a.outs[0].channels == 2);
     REQUIRE(a.value(1, 0, 0) == 0.f && a.value(1, 1, 0) == 0.f);
 
-    a.run({note(WS2_NOTE_ON, 64, 1)});
+    a.run({note({WS2_NOTE_ON, 64, 1})});
     REQUIRE(a.outs[0].channels == 2 && a.value(1, 0, 1) == 1.f);
     a.desc->reset(a.state);
     a.run();
@@ -166,8 +173,8 @@ static void block_matrix_and_allocations() {
             size_t allocations = 0;
             {
                 allocation_watch::Scope scope;
-                a.run({note(WS2_NOTE_ON, 60)}, n);
-                a.run({note(WS2_NOTE_OFF, 60)}, n);
+                a.run({note({WS2_NOTE_ON, 60})}, n);
+                a.run({note({WS2_NOTE_OFF, 60})}, n);
                 allocations = scope.allocations();
             }
             REQUIRE(allocations == 0 && a.outs[0].channels == 4);
@@ -187,13 +194,12 @@ static void native_keyboard_graph(const std::array<int, 4> &keys, uint32_t count
     REQUIRE(e.add_node(4, ws::Module<ws2ports::Adsr>::descriptor()));
     REQUIRE(e.add_node(5, ws::Module<ws2ports::Vca>::descriptor()));
     REQUIRE(e.add_node(6, ws::Module<ws2ports::Output>::descriptor()));
-    REQUIRE(e.connect(1, 3, 2, 0) && e.connect(2, 0, 3, 0) &&
-            e.connect(2, 1, 4, 0) && e.connect(3, 0, 5, 0) &&
-            e.connect(4, 0, 5, 1) && e.connect(5, 0, 6, 0) &&
+    REQUIRE(e.connect(1, 3, 2, 0) && e.connect(2, 0, 3, 0) && e.connect(2, 1, 4, 0) &&
+            e.connect(3, 0, 5, 0) && e.connect(4, 0, 5, 1) && e.connect(5, 0, 6, 0) &&
             e.output(6, 0, 0) && e.prepare());
     for (uint32_t i = 0; i < count; ++i)
         REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT,
-                          note(WS2_NOTE_ON, keys[i], keys[i]), 0) == WS2_OK);
+                          note({WS2_NOTE_ON, keys[i], keys[i]}), 0) == WS2_OK);
 
     float samples[256]{};
     float *out[]{samples};
@@ -238,7 +244,7 @@ static void native_keyboard_graph(const std::array<int, 4> &keys, uint32_t count
     for (uint32_t released = 0; released < count; ++released) {
         const uint64_t frame = e.meter().frame;
         REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT,
-                          note(WS2_NOTE_OFF, keys[released], keys[released]), frame) == WS2_OK);
+                          note({WS2_NOTE_OFF, keys[released], keys[released]}), frame) == WS2_OK);
         REQUIRE(e.render(out, 1, 256) == WS2_OK);
         for (uint32_t i = 0; i < count; ++i)
             REQUIRE(e.output_sample(2, 1, voice_for[i], 128) == (i <= released ? 0.f : 1.f));
