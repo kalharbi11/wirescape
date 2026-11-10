@@ -593,6 +593,25 @@ static void test_s1_refusals(AppEngine *cat) {
 }
 
 
+struct GrooveStateBuffer {
+    std::array<uint8_t, 32> bytes{};
+    uint32_t count = 0, cursor = 0;
+    static int WS2_CALL write(void *ctx, const void *source, uint32_t n) {
+        auto &self = *static_cast<GrooveStateBuffer *>(ctx);
+        if (n > self.bytes.size() - self.count) return WS2_CAPACITY;
+        std::memcpy(self.bytes.data() + self.count, source, n);
+        self.count += n;
+        return WS2_OK;
+    }
+    static int WS2_CALL read(void *ctx, void *dest, uint32_t n) {
+        auto &self = *static_cast<GrooveStateBuffer *>(ctx);
+        if (n > self.count - self.cursor) return WS2_INVALID;
+        std::memcpy(dest, self.bytes.data() + self.cursor, n);
+        self.cursor += n;
+        return WS2_OK;
+    }
+};
+
 static void test_v2_config_and_conditions(AppEngine *cat) {
     using namespace groove;
     Json v2 = {{"version", 2}, {"bpm", 120}, {"tracks", Json::array()}};
@@ -691,6 +710,28 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
     for (uint32_t i = 0; i < 1000; ++i) replay += seq.condition_passes(cond, p);
     check(hits == replay, "chance RNG repeats after Reset/Start seed");
     check(seq.seed_for(0) != seq.seed_for(1), "per-track chance streams are independent");
+    GrooveStateBuffer state;
+    seq.players[0].loop = 123;
+    seq.players[0].rng = 456;
+    seq.players[1].loop = 78;
+    seq.players[1].rng = 90;
+    ws2_writer writer{sizeof(ws2_writer), &state, GrooveStateBuffer::write};
+    check(seq.save_state(ws::Writer(&writer)) == WS2_OK && state.count == 20,
+          "Groove state v2 saves version and two loop/RNG pairs");
+    seq.reset();
+    ws2_reader reader{sizeof(ws2_reader), &state, GrooveStateBuffer::read, state.count};
+    check(seq.load_state(ws::Reader(&reader)) == WS2_OK && state.cursor == state.count &&
+          seq.players[0].loop == 123 && seq.players[0].rng == 456 &&
+          seq.players[1].loop == 78 && seq.players[1].rng == 90,
+          "Groove state v2 reload keeps both exact loop counters and RNG states");
+    state.cursor = 0;
+    state.count = 4;
+    const uint32_t old_version = 1;
+    std::memcpy(state.bytes.data(), &old_version, 4);
+    check(seq.load_state(ws::Reader(&reader)) == WS2_OK &&
+          seq.players[0].loop == 1 && seq.players[1].loop == 1 &&
+          seq.players[0].rng == seq.seed_for(0) && seq.players[1].rng == seq.seed_for(1),
+          "legacy Groove state v1 defaults loop and RNG without restoring stale notes");
     seq.players[0].playing = seq.players[1].playing = true;
     check(seq.master_steps() == 64, "master cycle follows longest active track");
     seq.players[1].playing = seq.players[1].armed = false;
