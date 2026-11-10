@@ -126,6 +126,32 @@ test('single-note Roll adds, ties and deletes; save/reload retains authored keys
   expect((await cfg(page)).tracks[0].steps[4].kind).toBe('rest');
 });
 
+test('Roll note buttons and value sliders are keyboard-accessible', async ({ page }) => {
+  await page.getByTestId('groove-view-roll-1').click();
+  const note = page.getByTestId('groove-roll-1-2-60');
+  await expect(note).toHaveAttribute('role', 'button');
+  await note.focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await cfg(page)).tracks[0].steps[1].kind).toBe('note');
+  await page.getByTestId('groove-roll-1-2-60').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('groove-roll-1-3-60')).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect.poll(async () => (await cfg(page)).tracks[0].steps[2].kind).toBe('note');
+  const slider = page.getByTestId('groove-roll-mod1-1-3');
+  await expect(slider).toHaveAttribute('role', 'slider');
+  await slider.focus();
+  await page.keyboard.press('End');
+  await expect.poll(async () => (await cfg(page)).tracks[0].steps[2].mod1).toBe(1);
+  await expect(page.getByTestId('groove-roll-mod1-1-3')).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect.poll(async () => (await cfg(page)).tracks[0].steps[2].mod1).toBe(0);
+  await page.getByTestId('groove-roll-1-3-60').focus();
+  await page.keyboard.press('Backspace');
+  await expect.poll(async () => (await cfg(page)).tracks[0].steps[2].kind).toBe('rest');
+  await expect(page.getByTestId('groove-roll-1-3-60')).toBeFocused();
+});
+
 test('Graphite is default, looks do not rewrite config, phone pads wrap into two rows', async ({ page }) => {
   expect(await pane(page).getAttribute('data-look')).toBe('graphite');
   const before = JSON.stringify(await state(page));
