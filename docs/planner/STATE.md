@@ -9,7 +9,8 @@ Live heads and completed evidence govern; queued, stale and missing results neve
   delegation to approve/merge after independent review and evidence (T2 still needs Claude).
 - Owner's subsequent instruction holds new starts until remaining PRs close, even below10.
 - Seven closeout PRs remain after486 merged1e20242; this planner refresh484 is one.
-- Later: Learn287 → Groove432 → OSC72; Chord403/421 still waits for S1(b).
+- Next lane: Groove playable v1 (#432): G1 #496 + G3 #497 (T2, Keel) → G2 #498; then Learn287 → OSC72.
+- 2026-11-10: #495 owner Groove UI merged; #461 merged; #494 Pi smoke fix, #492 model names on auto-merge.
 
 ## Merged 2026-11-09 (baseline `605da43`, compile repair `1e20242`)
 - #463 Windows runtime, #400 latency, #442 real-app evidence, #474 PLAN D15–D19.
