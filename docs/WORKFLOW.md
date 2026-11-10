@@ -12,7 +12,7 @@
 - **Devices:** no agent opens an audio/MIDI device or a LAN socket. Localhost is fine. Real devices only behind `--confirm-*`, run by the owner.
 
 ## 2. Picking up work
-1. Find an open issue in the current phase (`phase/<n>` label, or the plan's checkboxes) with `status/todo`, or one whose last claim is stale (24 h with no push or handoff; 6 h for Codex Lead on critical-path work).
+1. Find an open issue in the current phase (`phase/<n>` label, or the plan's checkboxes) with `status/todo`, or one whose last claim is stale (24 h with no push or handoff; 6 h for Codex Lead or Coda on critical-path work).
 2. Comment `Claimed: <agent + model>, <date>`, then set `status/in-progress`.
 3. Read the issue's latest handoff and the task file; then code.
 4. If you continue someone else's branch, say so in the claim (`Continuing from <sha7>`). Never force-push over their commits.
@@ -30,10 +30,10 @@ Every handoff, review and approval comment ends with `Signed: <agent + model>, <
 | **T2** | engine threading/realtime, patch format/migration, host protocol, ABI/SDK, merge control/CI | the above, with the reviewer from a **different model family** than the author |
 
 - The tier comes from the task file. If the diff touches a higher tier's paths, the higher tier wins.
-- **Approval line** (gate v4, `docs/tasks/W_GATE_V4.md`): a standalone line `Approved for merge <sha7>` followed by a `Signed:` line. A new push needs a new line. Until gate v4 merges, use the old `<Name>: approved for auto-merge <sha7>` line with your **own** name. Protected paths need a `Claude:` line until then.
+- **Approval line** (gate v4, `docs/tasks/done/W_GATE_V4.md`): a standalone line `Approved for merge <sha7>` followed by a `Signed:` line, in the same comment. A new push needs a new line. The old `<Name>: approved for auto-merge` lines are legacy; don't post new ones. Who may sign: T0 any tier including helpers; T1 builders and up (not the author's session); T2 the cross-family reviewer's tier and up; protected paths Compass or Keel (Codex Lead or Coda for `docs/tasks/**` and `docs/planner/STATE.md`).
 - **Self-review first:** before `status/ready-to-merge` the author runs `python tools/review_pack.py <PR#>`, checks it against the checklist (realtime, IDs, state/versioning, thresholds, licences, devices) and posts a `Self-review` comment. The reviewer starts from the same pack.
 - Any reviewer can stop a PR with a High + `status/blocked`. The gate never merges a blocked PR, and an author never approves over an open High.
-- Builders don't click merge; only Compass and Keel merge directly (`AGENTS.md`). The merge gate (`.github/workflows/merge_gate.yml` + `tools/merge_gate.py`) enables auto-merge; GitHub waits for the required checks. Stacked PRs wait for retargeting to `main`, then re-run their acceptance against `main`.
+- Builders and helpers don't click merge; only Compass, Keel, and Codex Lead or Coda under delegation (b) merge directly (`AGENTS.md`). The merge gate (`.github/workflows/merge_gate.yml` + `tools/merge_gate.py`) enables auto-merge; GitHub waits for the required checks. Stacked PRs wait for retargeting to `main`, then re-run their acceptance against `main`.
 - Owner-only: licence changes, `legacy/**`, `docs/history/**`, branch protection, real-device results, `allow-test-removal`.
 
 ## 5. Decisions a builder may make alone
@@ -45,7 +45,7 @@ Record each under `Self-decisions` in the PR body and the handoff:
 - picking among options the task or plan already lists; small refactors inside touched files;
 - design choices the spec leaves open that change no IDs, formats, ABI, protocol or realtime behaviour.
 
-Everything else in `AGENTS.md` "Stops" goes to a lead via the issue (Codex Lead first; Keel for technical stops, Compass for plan stops). Only that item blocks; take another item meanwhile.
+Everything else in `AGENTS.md` "Stops" goes one tier up via the issue (helpers → builders/seniors; builders → Codex Lead or Coda; seniors → Keel for technical stops, Compass for plan stops). Only that item blocks; take another item meanwhile.
 
 ## 6. Task files and acceptance blocks
 Every issue points to a `docs/tasks/` file ending in a fenced `acceptance` block that `tools/dev.py accept` parses:
@@ -87,4 +87,4 @@ At the end of Phases 1, 2 and 4 (`docs/PLAN.md`): tag `checkpoint-<X>`, build th
 - Near a usage limit: push, post handoffs, and leave paste-ready briefs for agents that still have budget (`docs/planner/LEADS.md`, wrap-up mode).
 
 ## 9. Not worth it
-Agent-orchestration dashboards, scheduled agent check-ins that run with nothing to do, and per-agent queues. The board (issues + this plan) is the queue.
+Agent-orchestration dashboards, scheduled runs that keep going with nothing to do, and per-agent queues. The board (issues + this plan) is the queue; `lane/helper` is a filter on it, not a separate queue. Scheduled helper runs are fine because they exit within a few calls when their lane is empty (`docs/planner/LEADS.md`, Helpers).
