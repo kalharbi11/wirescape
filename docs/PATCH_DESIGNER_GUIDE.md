@@ -330,6 +330,45 @@ For a longer pattern set `length:16`, author `pitch16` (octaves), `gate16`
 values through edit/undo/save; native/WASM version compatibility remains #405's
 contract. UI/FakeEngine preview alone does not prove DSP or audible playback.
 
+## Groove native v2 patterns (G1 #496; available in builds containing this integration)
+
+The original `sequencing.groove` authored config `version:1` remains valid and
+keeps its two synchronized **32-step** tracks, old sample/note ordering and
+implicit full gate. The new `version:2` config allows each track to set
+`length` to **8, 16, 32 or 64** sixteenth notes (default 16 for a newly authored
+v2 track, 32 for v1). A track pads its omitted steps with rests. Active tracks
+follow their own lengths; the longest active track determines the global
+STOP/Apply master-cycle boundary. V2 track START enters at the next
+16-step bar; an authored v1 track retains its original 32-step entry boundary.
+
+On each v2 step, `gate` selects 0.25, 0.5, 0.75 or 1 times one step, default
+1. A tie extends the sounding note through the tied cells, with the *last*
+tie's gate fraction determining the release. Only note trigs accept `cond`:
+`{"type":"chance","p":50}` (integer percent 1..99),
+`{"type":"ab","a":1,"b":4}` (loop 1 of every 4; b 2..8),
+`{"type":"first"}`, or `{"type":"not_first"}`. Omit `cond`
+for always. A failed condition skips note and ties, but still applies that
+step's Mod1/Mod2 values. A:B counts the **track's** loops, not necessarily
+16-step bars. A chance sequence is deterministic from the native graph
+instance ID and track; it never stores a random seed in authored patch JSON.
+
+Example of one track's v2 config, excluding unrelated module settings:
+
+```json
+{"version":2,"bpm":120,"tracks":[{"length":16,"steps":[
+  {"kind":"note","key":60,"velocity":0.9,"gate":0.5,
+   "mod1":0.4,"mod2":0.2,"cond":{"type":"chance","p":50}},
+  {"kind":"tie","gate":0.75},
+  {"kind":"note","key":64,"velocity":0.8,"cond":{"type":"ab","a":1,"b":4}}
+]}]}
+```
+
+The output and transport IDs remain unchanged; G3's appended measurement
+ports appear below. Config `keys` is reserved for future chords and is
+refused in v2. The Studio G2 editor and actual physical listening are separate
+acceptance tasks; do not assume a native G1 patch is editable on older app
+builds or works in a deployed WebAssembly version lacking G1.
+
 ## Groove observation outputs (PR #501)
 
 Groove observation outputs append to its existing pitch/gate/mod/notes ports:

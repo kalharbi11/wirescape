@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
+#define emit
+#include "dsp.h"
+#ifndef emit
+#error "Chord must restore the caller's Qt keyword macro"
+#endif
+#undef emit
 #include "../../engine2/engine2.h"
 #include "../../sdk/examples/test_support.h"
 #include "../../tests2/allocation_watch.h"
 #include "../../tests2/test_modules.h"
 #include "../host_keyboard/dsp.h"
-#include "dsp.h"
 #include <algorithm>
 #include <array>
 #include <memory>

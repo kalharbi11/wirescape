@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
+// Qt and cppcheck may define emit as a macro; restore the caller's definition.
+#ifdef emit
+#pragma push_macro("emit")
+#undef emit
+#define CHORD_RESTORE_EMIT
+#endif
 #include "wirescape_sdk.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-
-// Qt and cppcheck may define emit as a macro; restore the caller's definition.
-#pragma push_macro("emit")
-#undef emit
 
 namespace chord {
 
@@ -219,4 +221,7 @@ struct Chord {
 };
 
 } // namespace chord
+#ifdef CHORD_RESTORE_EMIT
 #pragma pop_macro("emit")
+#undef CHORD_RESTORE_EMIT
+#endif

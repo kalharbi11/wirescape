@@ -4,7 +4,33 @@
 #include <cstdlib>
 using namespace wirescape::document;
 #define CHECK(x) do{if(!(x))std::abort();}while(0)
+static void instance_config_union() {
+    const auto chord = runtime_module_config("essentials.chord", nlohmann::json::object(), 0x12345678);
+    CHECK(chord == std::vector<uint8_t>({0x78, 0x56, 0x34, 0x12}));
+    bool rejected = false;
+    try {
+        runtime_module_config("essentials.chord", {{"unknown", 1}}, 17);
+    } catch (const std::exception &) {
+        rejected = true;
+    }
+    CHECK(rejected);
+    auto pattern = nlohmann::json::parse(
+        R"({"version":2,"bpm":120,"tracks":[{"length":8,"steps":[{"kind":"rest"}]}]})");
+    for (uint32_t instance : {17u, 18u}) {
+        const auto bytes = runtime_module_config("sequencing.groove", pattern, instance);
+        groove::Config config;
+        CHECK(groove::decode(bytes.data(), static_cast<uint32_t>(bytes.size()), config));
+        CHECK(config.instance_seed == instance && config.authored_version == 2 && config.tracks[0].length == 8);
+    }
+    pattern["version"] = 1;
+    pattern["tracks"][0].erase("length");
+    const auto legacy = runtime_module_config("sequencing.groove", pattern, 19);
+    groove::Config config;
+    CHECK(groove::decode(legacy.data(), static_cast<uint32_t>(legacy.size()), config));
+    CHECK(config.instance_seed == 0 && config.authored_version == 1 && config.tracks[0].length == 32);
+}
 int main() try {
+ instance_config_union();
  auto encode=[](const char*s){return runtime_module_config("midi.cc_to_cv",nlohmann::json::parse(s));};
  auto bytes=encode(R"({"rows":[{"channel":16,"controller":31,"fourteen_bit":true,"bipolar":true,"smoothing_ms":0}]})");
  wirescape::midi::CcConfiguration config;CHECK(wirescape::midi::cc_configuration(bytes.data(),static_cast<uint32_t>(bytes.size()),config));
