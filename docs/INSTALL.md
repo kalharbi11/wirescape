@@ -58,7 +58,13 @@ node --version                  # must be v22.*
   from Electron's build tooling; ignore them and **don't** run
   `npm audit fix --force` (it changes pinned versions).
 
-The setup script checks every tool and stops with a message if one is missing.
+The setup script prints a **Tool / Found / Required / OK** table for all
+prerequisites, then reports every missing or incompatible tool together. If
+`cl.exe` is missing but Visual Studio C++ tools are installed, setup attempts
+an x64 developer-shell import in its own process. It also looks for the pinned
+CMake/Ninja versions in Python 3.12's user Scripts directory before reporting
+a mismatch. Neither step changes your machine-wide PATH or installs software.
+An elevated shell produces a warning; use a normal user shell when possible.
 
 ### 2. Get a clean checkout of the version
 
@@ -93,8 +99,11 @@ The script:
 - builds Studio and the desktop app;
 - opens the real app once with audio off, as a smoke test.
 
-The last line it prints is
-`status=windows-device-off-smoke-passed` in `build_reports\windows-setup\summary.txt`.
+The final status is `status=windows-device-off-smoke-passed` in
+`build_reports\windows-setup\summary.txt`. After the isolated Electron test,
+setup also launches the actual `Wirescape.cmd --null-audio` briefly and
+terminates that smoke-test process tree. It does **not** open audio or MIDI
+devices. The script prints the exact launcher path and summary path when done.
 If you see `W1 failed: …`, the message and `build_reports\windows-setup\`
 say which step failed.
 
