@@ -42,33 +42,88 @@ function Run([string]$exe, [string[]]$parameters) {
 }
 function Preflight {
     Assert-GeneratedOutputs
-    if (-not [Environment]::Is64BitProcess -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64') {
-        throw 'Use Windows x64 Developer PowerShell for VS 2022/2026.'
+    # Developer PowerShell shortcuts sometimes select an x86 environment.
+    # Recover an x64 shell in this process only, without changing the machine.
+    $vswhere = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio\Installer\vswhere.exe'
+    $vs = ''
+    if (Test-Path -LiteralPath $vswhere) {
+        $vs = & $vswhere -latest -version '[17.0,19.0)' -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if ($LASTEXITCODE -ne 0) { $vs = '' }
     }
-    foreach ($tool in @('git','py','cmake','ninja','node','npm','cl.exe')) {
-        if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
-            throw "$tool missing. Install the x64 tool and reopen VS 2022/2026 Developer PowerShell."
+    $devShellError = ''
+    if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue) -and $vs) {
+        $module = Join-Path $vs 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll'
+        try {
+            if (Test-Path -LiteralPath $module) {
+                Import-Module $module -ErrorAction Stop
+                Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64' | Out-Null
+            }
+        } catch { $devShellError = $_.Exception.Message }
+    }
+
+    $pyCmd = Get-Command py -ErrorAction SilentlyContinue
+    $pyVersion = 'missing'
+    if ($pyCmd) {
+        $pyVersion = (& py -3.12 -c "import sys; print(str(sys.version_info.major)+'.'+str(sys.version_info.minor)+' '+str(sys.maxsize > 2**32))" 2>$null | Select-Object -First 1)
+        if ($LASTEXITCODE -ne 0 -or -not $pyVersion) { $pyVersion = 'missing' }
+    }
+    $cmakeCmd = Get-Command cmake -ErrorAction SilentlyContinue
+    $ninjaCmd = Get-Command ninja -ErrorAction SilentlyContinue
+    $cmakeVersion = if ($cmakeCmd) { ((& cmake --version 2>$null | Select-Object -First 1) -replace '^cmake version ', '').Trim() } else { 'missing' }
+    $ninjaVersion = if ($ninjaCmd) { ((& ninja --version 2>$null | Select-Object -First 1)).Trim() } else { 'missing' }
+    if ($pyVersion -eq '3.12 True' -and ($cmakeVersion -ne '4.2.3' -or $ninjaVersion -ne '1.13.0')) {
+        # Pinned pip tools may exist outside PATH. Only this process changes.
+        $scripts = & py -3.12 -c "import sysconfig; print(sysconfig.get_path('scripts','nt_user'))" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $scripts -and (Test-Path -LiteralPath $scripts)) {
+            $env:Path = "$scripts;$env:Path"
+            $cmakeCmd = Get-Command cmake -ErrorAction SilentlyContinue
+            $ninjaCmd = Get-Command ninja -ErrorAction SilentlyContinue
+            $cmakeVersion = if ($cmakeCmd) { ((& cmake --version 2>$null | Select-Object -First 1) -replace '^cmake version ', '').Trim() } else { 'missing' }
+            $ninjaVersion = if ($ninjaCmd) { ((& ninja --version 2>$null | Select-Object -First 1)).Trim() } else { 'missing' }
         }
     }
-    if (-not $env:WindowsSdkDir) { throw 'Windows SDK not active; open VS 2022/2026 x64 Developer PowerShell.' }
-    $vswhere = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio\Installer\vswhere.exe'
-    if (-not (Test-Path -LiteralPath $vswhere)) { throw 'VS 2022/2026 C++ Build Tools missing.' }
-    $vs = & $vswhere -latest -version '[17.0,19.0)' -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-    if ($LASTEXITCODE -ne 0 -or -not $vs) { throw 'Install VS 2022/2026 C++ x64 workload and Windows SDK.' }
-    $py = & py -3.12 -c "import sys; print(str(sys.version_info.major)+'.'+str(sys.version_info.minor)+' '+str(sys.maxsize > 2**32))"
-    if ($LASTEXITCODE -ne 0 -or $py -ne '3.12 True') { throw 'Python 3.12 x64 with py launcher required.' }
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    $nodeVersion = if ($nodeCmd) { (& node --version 2>$null | Select-Object -First 1) } else { 'missing' }
+    $nodeArch = if ($nodeCmd) { (& node -p 'process.arch' 2>$null | Select-Object -First 1) } else { 'missing' }
+    $sdk = if ($env:WindowsSDKVersion) { $env:WindowsSDKVersion.TrimEnd('\') } else { 'missing' }
+    $rc = Get-Command rc.exe -ErrorAction SilentlyContinue
+    $cl = Get-Command cl.exe -ErrorAction SilentlyContinue
+    $isX64 = [Environment]::Is64BitProcess -and $env:PROCESSOR_ARCHITECTURE -eq 'AMD64'
+    $elevated = $false
+    try {
+        $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+        $elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    } catch { }
+    if ($elevated) { Write-Warning 'An elevated window is not recommended: build outputs may become Administrator-owned.' }
+
+    function CheckRow([string]$tool, [string]$found, [string]$required, [bool]$ok) {
+        [pscustomobject]@{ Tool = $tool; Found = $found; Required = $required; OK = $ok }
+    }
+    $checks = @(
+        (CheckRow 'Process' $(if ($isX64) { 'x64' } else { 'x86/other' }) 'Windows x64' $isX64)
+        (CheckRow 'Git' $(if (Get-Command git -ErrorAction SilentlyContinue) { 'found' } else { 'missing' }) 'installed' ([bool](Get-Command git -ErrorAction SilentlyContinue)))
+        (CheckRow 'Visual Studio' $(if ($vs) { $vs } else { 'missing' }) '2022/2026 C++ x64' ([bool]$vs))
+        (CheckRow 'cl.exe' $(if ($cl) { $cl.Source } else { "missing $devShellError" }) 'x64 C++ compiler' ([bool]$cl))
+        (CheckRow 'Windows SDK' $sdk 'active WindowsSDKVersion' ($sdk -ne 'missing' -and [bool]$env:WindowsSdkDir))
+        (CheckRow 'rc.exe' $(if ($rc) { $rc.Source } else { 'missing' }) 'Windows SDK resource compiler' ([bool]$rc))
+        (CheckRow 'Python' $pyVersion '3.12 x64' ($pyVersion -eq '3.12 True'))
+        (CheckRow 'CMake' $cmakeVersion '4.2.3' ($cmakeVersion -eq '4.2.3'))
+        (CheckRow 'Ninja' $ninjaVersion '1.13.0' ($ninjaVersion -eq '1.13.0'))
+        (CheckRow 'Node' "$nodeVersion ($nodeArch)" '22.x x64' ($nodeVersion -match '^v22\.' -and $nodeArch -eq 'x64'))
+        (CheckRow 'npm' $(if (Get-Command npm -ErrorAction SilentlyContinue) { 'found' } else { 'missing' }) 'installed' ([bool](Get-Command npm -ErrorAction SilentlyContinue)))
+    )
+    Write-Host ($checks | Format-Table Tool, Found, Required, OK -AutoSize | Out-String)
+    $failures = @($checks | Where-Object { -not $_.OK })
+    if ($failures.Count) {
+        $details = ($failures | ForEach-Object { "$($_.Tool): $($_.Found), need $($_.Required)" }) -join '; '
+        throw "Preflight failed ($($failures.Count) checks): $details"
+    }
+    $env:npm_config_update_notifier = 'false'
     $script:generator = & py -3.12 -B -c "import sys; sys.path.insert(0, sys.argv[1]); from foundation.helpers import discover_toolchain; print(discover_toolchain()['generator'])" (Join-Path $root 'tools')
     if ($LASTEXITCODE -ne 0 -or $script:generator -notmatch '^Visual Studio (17 2022|18 2026)$') {
         throw 'A supported VS 2022/2026 x64 C++ generator is required.'
     }
-    $nodeVersion = & node --version
-    $nodeArch = & node -p 'process.arch'
-    if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v22\.' -or $nodeArch -ne 'x64') {
-        throw 'Node.js 22 LTS x64 required.'
-    }
     Run npm @('--version')
-    Run cmake @('--version')
-    Run ninja @('--version')
     $actual = (& git -C $root rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0 -or $actual -notmatch '^[0-9a-f]{40}$') { throw 'Invalid Git checkout.' }
     if ($Ref -and ($Ref -notmatch '^[0-9a-fA-F]{40}$' -or $actual -ne $Ref.ToLowerInvariant())) {
@@ -97,7 +152,7 @@ if ($CheckOnly) {
     return
 }
 if ($Ref -notmatch '^[0-9a-fA-F]{40}$') {
-    throw 'Specify -Ref with the accepted full SHA AFTER #463 merges.'
+    throw 'Specify -Ref with the full 40-character commit SHA of the version (docs/INSTALL.md).'
 }
 # Process-local quarantine of inherited Qt; no global PATH or installer mutations.
 foreach ($name in @('WIRESCAPE_QT_DIR','WIRESCAPE_PORTAUDIO','CMAKE_PREFIX_PATH',
