@@ -1106,8 +1106,8 @@ Json Session::midi_status() const {
     return result;
 }
 Json Session::hello() const {
-    Json capabilities = Json::array({"midiLearn", "telemetry.playhead", "telemetry.monitor", "setSampleRate",
-                                     "setBufferFrames", "osc"});
+    Json capabilities = Json::array(
+        {"midiLearn", "telemetry.playhead", "telemetry.monitor", "setSampleRate", "setBufferFrames", "osc"});
     return {{"v", 0},
             {"session", token_},
             {"type", "hello"},
