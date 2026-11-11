@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#include "dsp.h"
+#include "../../engine2/engine2.h"
 #include "../../sdk/examples/test_support.h"
 #include "../../tests2/allocation_watch.h"
-#include "../../engine2/engine2.h"
-#include <vector>
+#include "dsp.h"
 #include <chrono>
+#include <cstring>
 #include <string>
+#include <vector>
 
 struct Arena {
     std::vector<unsigned char> bytes = std::vector<unsigned char>(4 * 1024 * 1024);
@@ -193,6 +194,57 @@ static void lfo_shapes_and_legacy_state() {
     lower_rate.run(256);
 }
 
+// State-byte offsets for voice 0 (state v2: 4-byte header, 104 bytes per voice).
+static float state_float(const Bytes &state, size_t offset) {
+    float v;
+    std::memcpy(&v, state.items + offset, 4);
+    return v;
+}
+static void lfo_switch_steps_and_triangle_phase() {
+    constexpr size_t phase_offset = 4 + 16 + 2 * 4, previous_offset = 4 + 16 + 3 * 4;
+    constexpr size_t last_shape_offset = 4 + 64 + 32, fade_offset = last_shape_offset + 4;
+    // Switching lfo_shape mid-note crossfades (10 ms): the LFO value moves by at most
+    // |difference| / fade length plus the target shape's own slope per sample. Sampled
+    // one sample at a time at 48 kHz, 12 Hz, no self-modulation, before the first wrap.
+    for (uint32_t from = 0; from < 4; ++from) {
+        for (uint32_t to = 0; to < 4; ++to) {
+            if (from == to) continue;
+            Rig r(48000, 1);
+            r.values[20] = 12.f;
+            r.values[21] = .5f;
+            r.values[23] = 0.f;
+            r.values[26] = static_cast<float>(from);
+            r.run(256);
+            r.run(256);
+            r.run(88); // Initial crossfade is over; phase is far from a wrap (4000 samples).
+            float last = state_float(r.save(), previous_offset);
+            float worst = 0;
+            r.values[26] = static_cast<float>(to);
+            for (int i = 0; i < 500; ++i) {
+                r.run(1);
+                const float now = state_float(r.save(), previous_offset);
+                worst = std::max(worst, std::abs(now - last));
+                last = now;
+            }
+            REQUIRE(worst < 2.f / 480.f + .002f); // 0.0062: crossfade step + shape slope
+        }
+    }
+    // Triangle phase: at phase 0 the triangle is +1 (peak), 4|phase - .5| - 1.
+    Rig t(48000, 1);
+    t.run(1);
+    Bytes state = t.save();
+    const float zero = 0.f;
+    const uint32_t one = 1, none = 0;
+    std::memcpy(state.items + phase_offset, &zero, 4);
+    std::memcpy(state.items + last_shape_offset, &one, 4);
+    std::memcpy(state.items + fade_offset, &none, 4);
+    t.values[26] = 1.f;
+    t.values[23] = 0.f;
+    REQUIRE(t.load(state) == WS2_OK);
+    t.run(1);
+    REQUIRE(std::abs(state_float(t.save(), previous_offset) - 1.f) < 1e-6f);
+}
+
 static int benchmark() {
     using namespace wirescape::engine2;
     Config config; config.max_block = 128; config.max_channels = 4; config.seed = 42;
@@ -220,5 +272,6 @@ int main(int argc, char** argv) {
     state_and_extremes();
     components();
     lfo_shapes_and_legacy_state();
+    lfo_switch_steps_and_triangle_phase();
     std::puts("CHAOS-lite callback matrix/state/extremes/allocation checks passed");
 }

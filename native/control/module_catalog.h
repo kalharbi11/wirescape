@@ -3,6 +3,7 @@
 #include "../modules2/adsr/dsp.h"
 #include "../modules2/blend/dsp.h"
 #include "../modules2/chaos_lite/dsp.h"
+#include "../modules2/chord/dsp.h"
 #include "../modules2/clock/dsp.h"
 #include "../modules2/delay/dsp.h"
 #include "../modules2/function_envelope/dsp.h"

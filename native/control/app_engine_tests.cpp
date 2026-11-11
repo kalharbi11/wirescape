@@ -16,8 +16,8 @@ using App=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
 static App make(){ws_engine_config c{sizeof(c),48000,128,32,2048};App e(app_engine_create(&c),app_engine_destroy);check(bool(e),"create app engine");return e;}
 static void shim(const char*library){
     auto source = make();
-    check(app_engine_module_count(source.get()) == 30,
-          "Twenty-eight builtins (including OSC In and Monitor) plus the two SDK sources");
+    check(app_engine_module_count(source.get()) == 31,
+          "Twenty-nine builtins (including Chord, OSC In and Monitor) plus two SDK sources");
     for (auto *native : wirescape::app::builtin_modules()) {
         const ws_module_descriptor *metadata = nullptr;
         for (uint32_t i = 0; i < app_engine_module_count(source.get()); ++i) {
