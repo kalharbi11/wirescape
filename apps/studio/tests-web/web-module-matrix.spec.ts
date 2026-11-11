@@ -83,7 +83,12 @@ for (const scenario of scenarios) {
     await page.evaluate(patch =>
       (window as any).__wirescapeTest.load(patch, 'Matrix reload'), saved);
     await expect(page.getByTestId('patch-name')).toContainText('Matrix reload');
-    expect((await liveModules(page)).length).toBeGreaterThan(0);
+    const reloaded = await page.evaluate(() =>
+      (window as unknown as { __wirescapeTest: {
+        save(): { modules: { module: string }[]; connections: unknown[] };
+      } }).__wirescapeTest.save());
+    expect(reloaded.modules.map(m => m.module).sort()).toEqual(moduleTypes.slice().sort());
+    expect(reloaded.connections).toHaveLength(scenario.patch.connections.length);
   });
 }
 
