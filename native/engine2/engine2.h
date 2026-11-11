@@ -20,7 +20,8 @@ struct Config {
 // Output taps default to the maximum last-frame sample across active channels;
 // use First for a phase-like output whose channel 0 has semantic meaning.
 struct Tap {
-    enum Kind : uint8_t { Param, Output, EventOut } kind=Param;
+    enum Kind : uint8_t { Param, Output, EventOut, OscPitch } kind=Param;
+    // OscPitch is host-internal: no port/parameter/ABI change. index must be zero.
     uint32_t node=0,index=0;
     enum Reduction : uint8_t { First, Maximum } reduction=Maximum;
 };
