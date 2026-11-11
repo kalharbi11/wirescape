@@ -29,6 +29,7 @@ import { el } from './dom';
 import { GrooveSession } from '../groove/GrooveSession';
 import type { GrooveConfig } from '../groove/pattern';
 import { MidiLearn } from './MidiLearn';
+import { MODULE_PRESETS } from './modulePresets';
 import { commitLearn, forgetLearn, learnedCables, type LearnCapture, type LearnServices, type LearnTarget } from './ccLearn';
 import demoChaos from '../../../../native/examples/class_demo_1_chaos.json' with { type: 'json' };
 import demoSub from '../../../../native/examples/class_demo_2_subtractive.json' with { type: 'json' };
@@ -1803,6 +1804,7 @@ export class App {
       ticker: this.ticker,
       canvas: this.canvas,
       registry: this.registry,
+      modulePresets: MODULE_PRESETS, // Test hook for malformed preset metadata.
       starters: this.selectableStarters,
       setPref: (p: Partial<Preferences>) => this.setPref(p),
       zoomTo: (s: number) => this.canvas.viewport.zoomTo(s),
