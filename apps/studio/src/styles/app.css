@@ -358,6 +358,9 @@ body.hide-port-labels .port-label { display: none; }
 .tier-S .knob-labels .control-readout { font-size: 9.5px; }
 .knob-live { font: 9px var(--mono); color: var(--rust); height: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tier-S .knob-live { display: none; }
+/* Measured nominal oscillator pitch is separate from rust modulation markers. */
+.knob-pitch-caption { margin-top: 3px; font: 7px var(--mono); letter-spacing: .045em; color: var(--mute); }
+.knob-pitch-value { font: 9px var(--mono); min-height: 12px; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .knob-chips { display: flex; gap: 4px; margin-top: 2px; }
 .knob-chips:empty { display: none; }
 .knob-chips i { font: normal 8px var(--mono); padding: 0 3px; border: 0.5px solid var(--hair); color: var(--mute); border-radius: 1px; }
