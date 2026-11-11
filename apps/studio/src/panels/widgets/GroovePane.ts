@@ -3,11 +3,15 @@ import type { Ticker } from '../../runtime/Ticker';
 import type { Telemetry } from '../../engine/EngineClient';
 import { el } from '../../app/dom';
 import {
-  CONDS, GATES, GATE_LABEL, LENGTHS, PEN, condLabel, noteName, parseNote, readConfig, sameCond,
-  setKind, setLength, sourceOf, stepAt, stepFor, trackLength, upgrade,
+  CONDS, DIVS, GATES, GATE_LABEL, LENGTHS, PEN, SPEED_LABEL, condLabel, masterCycle, noteName, parseNote, readConfig, sameCond,
+  setKind, setLength, sourceOf, stepAt, stepFor, trackCycle, trackDiv, trackLength, upgrade,
   type GrooveConfig, type Kind, type Step,
 } from '../../groove/pattern';
 import { ROOTS, SCALES, type Scale, clearBar, copyBar, inScale, movePitch, pasteBar, rollNotes } from '../../groove/editorHelpers';
+import {
+  MAX_KEYS, PICKER_GROUPS, chordName, inScale as chordInScale, invert, moveNotes, notesOf,
+  qualityKeys, scaleStack, setNotes, stepLabel, type ScaleCtx,
+} from '../../groove/chords';
 import '../../styles/groove.css';
 
 /** What the Groove editor may ask of the app. Nothing here starts audio on its own. */
@@ -71,6 +75,12 @@ export class GroovePane {
   private pop: HTMLElement | null = null;
   private wheelAcc = 0;
   private clipboard: Step[] | null = null;
+  private readonly toastEl = el('span', 'g-toast');
+  private toastTimer: number | undefined;
+  private readonly held = new Map<string, number>();
+  private heldNotes: number[] = [];
+  private lastRollPress: { i: number; key: number; at: number } | null = null;
+  private entry: { track: number; step: number } | null = null;
   private unbind: (() => void)[] = [];
 
   constructor(private readonly id: number, ticker: Ticker, private readonly host: GrooveHost,
@@ -87,6 +97,20 @@ export class GroovePane {
     this.root = el('div', 'groove-pane');
     this.root.tabIndex = 0;
     this.root.addEventListener('keydown', e => this.keyDown(e));
+    const released = (e: KeyboardEvent) => this.keyUp(e);
+    window.addEventListener('keyup', released);
+    this.unbind.push(() => window.removeEventListener('keyup', released));
+    // A key released while the window or pane lacks focus never reaches keyUp:
+    // drop the partial chord instead of letting it join the next key press.
+    const drop = () => this.dropHeld();
+    const hidden = () => { if (document.hidden) this.dropHeld(); };
+    window.addEventListener('blur', drop);
+    document.addEventListener('visibilitychange', hidden);
+    this.unbind.push(() => { window.removeEventListener('blur', drop); document.removeEventListener('visibilitychange', hidden); });
+    this.root.addEventListener('focusout', e => {
+      const to = e.relatedTarget as Node | null;
+      if (to && !this.root.contains(to)) this.dropHeld();
+    });
     this.root.dataset.look = this.view.look;
     this.root.dataset.testid = `groove-${id}`;
     this.status.dataset.testid = `groove-status-${id}`;
@@ -121,7 +145,7 @@ export class GroovePane {
       viewSwitch.append(b);
     }
     head.append(viewSwitch);
-    this.root.append(head, transport, this.tracksRow, this.lanesRow, this.grid, this.insp);
+    this.root.append(head, transport, this.tracksRow, this.lanesRow, this.grid, this.insp, this.toastEl);
     this.grid.addEventListener('pointerdown', e => {
       if ((e.target as HTMLElement).closest('.g-roll-cell')) this.rollDown(e);
       else this.padDown(e);
@@ -143,6 +167,18 @@ export class GroovePane {
   private get t(): number { return this.view.t; }
   private len(t = this.t): number { return this.cfg ? trackLength(this.cfg, t) : 16; }
   private step(i: number, t = this.t): Step { return this.cfg ? stepAt(this.cfg, t, i) : { kind: 'rest' }; }
+  private scaleCtx(): ScaleCtx { return { root: this.view.root, intervals: SCALES[this.view.scale] }; }
+  private moveStep(c: GrooveConfig, i: number, n: number, octave: boolean): void {
+    const src = sourceOf(c, this.t, i);
+    if (src < 0) return;
+    const step = stepFor(c, this.t, src), keys = notesOf(step), root = step.key ?? keys[0]!;
+    if (keys.length < 2) {
+      this.setPitch(c, i, this.stepPitch(root, n, octave));
+    } else {
+      const moved = moveNotes(keys, root, n, this.scaleCtx(), octave);
+      if (moved) { setNotes(step, moved.keys, moved.root); this.view.pen[this.t] = moved.root; }
+    }
+  }
   /** Pitch move by `n` units: chromatic now; G2b's scale helper replaces this. */
   private stepPitch(key: number, n: number, octave: boolean): number {
     return octave ? clamp(key + n * 12, 0, 127) : movePitch(key, n, this.view.root, this.view.scale);
@@ -159,8 +195,11 @@ export class GroovePane {
     let j = sourceOf(c, this.t, i);
     if (j < 0) { setKind(stepFor(c, this.t, i), 'note', key); j = i; }
     const s = stepFor(c, this.t, j);
-    s.key = clamp(key, 0, 127);
-    this.view.pen[this.t] = s.key;
+    const root = s.key ?? 60, newRoot = clamp(key, 0, 127);
+    const shifted = notesOf(s).map(k => k + newRoot - root);
+    if (shifted.some(k => k < 0 || k > 127)) return;
+    setNotes(s, shifted, newRoot);
+    this.view.pen[this.t] = newRoot;
   }
   private select(i: number): void {
     this.view.sel[this.t] = clamp(i, 0, this.len() - 1);
@@ -259,7 +298,10 @@ export class GroovePane {
       const mute = this.button(`g-tg${track?.mute ? ' on' : ''}`, `mute-${t + 1}`, 'Mute (part of the pattern draft)');
       mute.innerHTML = '<span class="g-led"></span>M';
       mute.addEventListener('click', e => { e.stopPropagation(); this.edit(c => { c.tracks[t]!.mute = !c.tracks[t]!.mute; }); });
-      tab.append(dot, el('span', 'g-tn', `T${t + 1}`), el('span', 'g-nm', t ? 'Bass' : 'Lead'), pos, mute);
+      tab.title = this.cfg ? `Cycle: ${trackCycle(this.cfg, t)} sixteenths` : '';
+      const speed = el('span', 'g-speed', this.cfg && trackDiv(this.cfg, t) !== 1 ? SPEED_LABEL[trackDiv(this.cfg, t)] + '×' : '');
+      speed.dataset.testid = `groove-speed-badge-${this.id}-${t + 1}`;
+      tab.append(dot, el('span', 'g-tn', `T${t + 1}`), el('span', 'g-nm', t ? 'Bass' : 'Lead'), speed, pos, mute);
       tab.addEventListener('click', () => { this.view.t = t; this.closePop(); this.refresh(); });
       this.tracksRow.append(tab);
     }
@@ -271,7 +313,23 @@ export class GroovePane {
       b.addEventListener('click', () => { this.edit(c => setLength(c, this.t, n)); this.layoutChanged(); });
       seg.append(b);
     }
-    this.tracksRow.append(seg);
+    this.tracksRow.append(seg, el('span', 'g-lbl', 'Speed'));
+    const speeds = el('span', 'g-seg');
+    const current = this.cfg ? trackDiv(this.cfg, this.t) : 1;
+    for (const div of DIVS) {
+      const b = this.button(div === current ? 'on' : '', `div-${div}`,
+        `Track speed ${SPEED_LABEL[div]}${div === 1 ? '' : '×'}`, SPEED_LABEL[div] + (div === 1 ? '' : '×'));
+      b.disabled = !this.cfg;
+      b.addEventListener('click', () => this.edit(c => {
+        upgrade(c);
+        if (div === 1) delete c.tracks[this.t]!.div;
+        else c.tracks[this.t]!.div = div;
+      }));
+      speeds.append(b);
+    }
+    const loop = el('span', 'g-loop-preview', this.cfg ? `Loop ${masterCycle(this.cfg)} sixteenths` : '');
+    loop.dataset.testid = `groove-loop-${this.id}`;
+    this.tracksRow.append(speeds, loop);
   }
 
   /**
@@ -354,7 +412,9 @@ export class GroovePane {
         }
         if (grp.childElementCount) pads.append(grp);
       }
-      bar.append(el('span', 'g-barn', String(b + 1)), pads);
+      const div = trackDiv(c, t);
+      const barFrom = b * div + 1, barTo = Math.min(b * div + div, L * div / 16);
+      bar.append(el('span', 'g-barn', div === 1 || barFrom === barTo ? String(barFrom) : `${barFrom}–${barTo}`), pads);
       this.grid.append(bar);
     }
   }
@@ -369,9 +429,23 @@ export class GroovePane {
     pad.dataset.testid = `groove-pad-${this.id}-${i + 1}`;
     pad.dataset.kind = s.kind;
     pad.setAttribute('role', 'button');
-    pad.setAttribute('aria-label', `Step ${i + 1}: ${s.kind === 'note' ? noteName(s.key ?? 60) : s.kind}`);
+    pad.setAttribute('aria-label', `Step ${i + 1}: ${s.kind === 'note' ? stepLabel(s) : s.kind}`);
     if (s.kind === 'note') {
-      pad.append(el('span', 'g-nn', noteName(s.key ?? 60)));
+      const keys = notesOf(s);
+      const label = el('span', 'g-nn', keys.length > 1 ? stepLabel(s, true) : noteName(s.key ?? 60));
+      if (keys.length > 1) {
+        label.classList.add('chd');
+        if (label.textContent!.length > 5) label.classList.add('long');
+        const ladder = el('span', 'cue-ch');
+        const lowest = Math.min(...keys);
+        for (const k of keys) {
+          const tick = el('i');
+          tick.style.bottom = `${clamp((k - lowest) / 24, 0, 1) * 100}%`;
+          ladder.append(tick);
+        }
+        pad.append(ladder);
+      }
+      pad.append(label);
       if (!inScale(s.key ?? 60, this.view.root, this.view.scale)) pad.classList.add('off-scale');
       const vel = el('span', 'cue-vel'); vel.style.width = `${Math.round((s.velocity ?? 0.8) * 100)}%`;
       pad.append(vel);
@@ -402,7 +476,58 @@ export class GroovePane {
     return cell;
   }
 
-  /** Single-note Roll projected into a note-keyed grid; pitch rows are display-only. */
+  private toast(message: string): void {
+    this.toastEl.textContent = message;
+    if (this.toastTimer !== undefined) window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => { this.toastEl.textContent = ''; this.toastTimer = undefined; }, 2200);
+  }
+
+  /** A note is edited on the shared step; removing its last voice makes a rest. */
+  private deleteRollNote(i: number, key: number): void {
+    if (!this.cfg) return;
+    const t = this.t, src = sourceOf(this.cfg, t, i);
+    if (src < 0 || !notesOf(stepAt(this.cfg, t, src)).includes(key)) return;
+    // Deleting a sustained cell ends that tie; it does not destroy the origin chord.
+    if (stepAt(this.cfg, t, i).kind === 'tie') {
+      this.edit(c => setKind(stepFor(c, t, i), 'rest'));
+      return;
+    }
+    this.edit(c => {
+      const step = stepFor(c, t, src), remaining = notesOf(step).filter(k => k !== key);
+      if (remaining.length) setNotes(step, remaining, step.key);
+      else setKind(step, 'rest');
+    });
+  }
+
+  private enterRollNote(i: number, key: number): void {
+    if (!this.cfg) return;
+    const t = this.t, step = stepAt(this.cfg, t, i);
+    if (step.kind === 'note') {
+      const keys = notesOf(step);
+      if (keys.includes(key)) return;
+      if (keys.length >= MAX_KEYS) { this.toast('5 notes per step'); return; }
+      this.edit(c => {
+        const st = stepFor(c, t, i);
+        setNotes(st, [...notesOf(st), key], st.key);
+      });
+    } else {
+      this.edit(c => {
+        const st = stepFor(c, t, i);
+        setKind(st, 'note', key);
+        setNotes(st, [key]);
+      });
+    }
+  }
+
+  private moveRollNote(c: GrooveConfig, i: number, from: number, to: number): void {
+    const src = sourceOf(c, this.t, i);
+    if (src < 0 || to < 0 || to > 127) return;
+    const st = stepFor(c, this.t, src), keys = notesOf(st);
+    if (!keys.includes(from) || (to !== from && keys.includes(to))) return;
+    setNotes(st, keys.map(k => k === from ? to : k), st.key === from ? to : st.key);
+  }
+
+  /** Roll projected into MIDI-key rows: each chord note has its own cell. */
   private renderRoll(): void {
     if (!this.cfg) return;
     const cfg = this.cfg, t = this.t, length = this.len();
@@ -449,26 +574,21 @@ export class GroovePane {
           } else if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault(); e.stopPropagation();
             this.view.pen[t] = key;
-            if (kind === 'rest') this.edit(c => {
-              setKind(stepFor(c, t, i), 'note', key);
-              this.setPitch(c, i, key);
-            });
+            if (kind === 'rest') this.enterRollNote(i, key);
             this.select(i); focus(i, key);
           } else if (e.key === 'Delete' || e.key === 'Backspace') {
             e.preventDefault(); e.stopPropagation();
-            const src = this.cfg ? sourceOf(this.cfg, t, i) : -1;
-            if (this.cfg && src >= 0 &&
-                (stepAt(this.cfg, t, src).key ?? 60) === key) {
-              this.edit(c => setKind(stepFor(c, t, i), 'rest'));
-            }
+            this.deleteRollNote(i, key);
             this.view.pen[t] = key; this.select(i); focus(i, key);
           }
         });
         if (i === this.view.sel[t]) cell.classList.add('sel');
-        if (i % 16 === 0) cell.classList.add('bar-edge');
+        if ((i * trackDiv(cfg, t)) % 16 === 0) cell.classList.add('bar-edge');
         if (kind === 'note') {
-          const condition = stepAt(cfg, t, i).cond;
+          const st = stepAt(cfg, t, i), condition = st.cond, pitches = notesOf(st);
           if (condition) cell.append(el('span', 'g-rcond', condLabel(condition)));
+          if (pitches.length > 1 && key === Math.max(...pitches))
+            cell.append(el('span', 'g-rch', stepLabel(st)));
         }
         if (appliedNotes && kind !== (appliedNotes.get(key)?.get(i) ?? 'rest'))
           cell.classList.add('chg');
@@ -498,7 +618,7 @@ export class GroovePane {
         cell.setAttribute('aria-valuenow', String(value));
         cell.tabIndex = !disabled && i === this.view.sel[t] ? 0 : -1;
         if (disabled) { cell.classList.add('disabled'); cell.setAttribute('aria-disabled', 'true'); }
-        if (i % 16 === 0) cell.classList.add('bar-edge');
+        if ((i * trackDiv(cfg, t)) % 16 === 0) cell.classList.add('bar-edge');
         const stem = el('span', 'g-vstem');
         stem.style.height = (value * 75) + '%';
         const dot = el('span', 'g-vdot');
@@ -544,9 +664,9 @@ export class GroovePane {
     if (!cell || !this.cfg || this.view.mode !== 'roll') return;
     const i = Number(cell.dataset.i), key = Number(cell.dataset.key), t = this.t;
     const src = sourceOf(this.cfg, t, i);
-    if (src < 0 || (stepAt(this.cfg, t, src).key ?? 60) !== key) return;
+    if (src < 0 || !notesOf(stepAt(this.cfg, t, src)).includes(key)) return;
     e.preventDefault(); e.stopPropagation();
-    this.edit(cfg => setKind(stepFor(cfg, t, i), 'rest'));
+    this.deleteRollNote(i, key);
   }
 
   /** Empty cells enter a note; dragging right extends ties; dragging up/down changes pitch. */
@@ -554,7 +674,7 @@ export class GroovePane {
     const cell = (e.target as HTMLElement).closest<HTMLElement>('.g-roll-cell');
     if (!cell || e.button !== 0 || !this.cfg) return;
     e.preventDefault(); e.stopPropagation();
-    this.root.focus();
+    cell.focus();
     const t = this.t, i = Number(cell.dataset.i), key = Number(cell.dataset.key);
     const orig = JSON.parse(JSON.stringify(this.cfg)) as GrooveConfig;
     const current = rollNotes(orig, t).get(key)?.get(i);
@@ -572,26 +692,36 @@ export class GroovePane {
         if (end <= i || end === last) return;
         last = end;
         this.edit(cfg => {
-          setKind(stepFor(cfg, t, i), 'note', key);
-          this.setPitch(cfg, i, key);
+          const st = stepFor(cfg, t, i);
+          if (st.kind !== 'note') { setKind(st, 'note', key); setNotes(st, [key]); }
           for (let j = i + 1; j <= end; j++) setKind(stepFor(cfg, t, j), 'tie');
         }, orig);
       } else if (mode === 'pitch') {
         const next = this.stepPitch(key, Math.round(-dy / 24), ev.shiftKey);
         if (next === last) return;
         last = next;
-        this.edit(cfg => this.setPitch(cfg, i, next), orig);
+        this.edit(cfg => this.moveRollNote(cfg, i, key, next), orig);
       }
     };
-    const up = () => {
+    const up = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
-      if (!mode && !current) this.edit(cfg => {
-        setKind(stepFor(cfg, t, i), 'note', key);
-        this.setPitch(cfg, i, key);
-      });
+      // Two clicks (no drag) on the same existing note delete it. Counted here because
+      // the first click re-renders the grid, so the browser's dblclick never fires.
+      // A pointercancel (touch scroll, gesture takeover) is never a click.
+      const click = !mode && ev.type === 'pointerup';
+      const now = performance.now(), prev = this.lastRollPress;
+      this.lastRollPress = click && current ? { i, key, at: now } : null;
+      if (click && current && prev && prev.i === i && prev.key === key && now - prev.at < 400) {
+        this.lastRollPress = null;
+        this.deleteRollNote(i, key);
+        return;
+      }
+      if (!mode && !current) this.enterRollNote(i, key);
       else if (!mode) this.select(i);
+      this.grid.querySelector<HTMLElement>(
+        `.g-roll-cell[data-i="${i}"][data-key="${key}"]`)?.focus();
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -619,11 +749,21 @@ export class GroovePane {
     else if (e.key === 'ArrowRight') this.select(i + 1);
     else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       const src = sourceOf(this.cfg, t, i);
-      const current = src >= 0 ? stepAt(this.cfg, t, src).key ?? this.view.pen[t] : this.view.pen[t];
-      this.edit(cfg => this.setPitch(cfg, i, this.stepPitch(current, e.key === 'ArrowUp' ? 1 : -1, e.shiftKey)));
+      if (src < 0) this.edit(cfg => this.setPitch(cfg, i, this.stepPitch(this.view.pen[t], e.key === 'ArrowUp' ? 1 : -1, e.shiftKey)));
+      else this.edit(cfg => this.moveStep(cfg, i, e.key === 'ArrowUp' ? 1 : -1, e.shiftKey));
     } else if (k === 'z') { this.view.octave = clamp(this.view.octave - 1, -1, 9); }
     else if (k === 'x') { this.view.octave = clamp(this.view.octave + 1, -1, 9); }
-    else if (k in piano) this.edit(cfg => this.setPitch(cfg, i, clamp((this.view.octave + 1) * 12 + piano[k]!, 0, 127)));
+    else if (k in piano) {
+      if (!e.repeat && !this.held.has(k)) {
+        if (!this.entry) { this.entry = { track: t, step: i }; this.heldNotes = []; }
+        const pitch = clamp((this.view.octave + 1) * 12 + piano[k]!, 0, 127);
+        // Count every physical key for release, even when its pitch exceeds the five-voice limit.
+        this.held.set(k, pitch);
+        if (this.heldNotes.includes(pitch) || this.heldNotes.length < MAX_KEYS) {
+          if (!this.heldNotes.includes(pitch)) this.heldNotes.push(pitch);
+        } else this.toast('5 notes per step');
+      }
+    }
     else if (k === '-') this.edit(cfg => setKind(stepFor(cfg, t, i), 'tie'));
     else if (e.key === 'Backspace' || e.key === 'Delete') this.edit(cfg => setKind(stepFor(cfg, t, i), 'rest'));
     else if (k === '1' || k === '2') { this.view.t = Number(k) - 1; this.refresh(); }
@@ -631,12 +771,32 @@ export class GroovePane {
     if (handled) { e.preventDefault(); e.stopPropagation(); }
   }
 
+  /** Forget held keys without writing anything. */
+  private dropHeld(): void { this.held.clear(); this.entry = null; this.heldNotes = []; }
+  /** Commit one History entry only when every simultaneously pressed piano key is released. */
+  private keyUp(e: KeyboardEvent): void {
+    const key = e.key.toLowerCase();
+    if (!this.held.delete(key) || this.held.size || !this.entry || !this.heldNotes.length) return;
+    const { track, step } = this.entry, keys = [...this.heldNotes], root = keys[0]!;
+    this.entry = null; this.heldNotes = [];
+    this.view.t = track;
+    this.view.pen[track] = root;
+    // Preserve G2b's one-key cursor semantics; a held chord advances on release.
+    this.view.sel[track] = keys.length > 1 ? (step + 1) % this.len(track) : step;
+    this.view.selected[track] = true;
+    this.edit(c => {
+      const st = stepFor(c, track, step);
+      setKind(st, 'note', root);
+      setNotes(st, keys, root);
+    });
+  }
+
   private renderInspector(): void {
     this.insp.replaceChildren();
     if (!this.cfg) return;
     const t = this.t, i = this.view.sel[t], s = this.step(i), src = sourceOf(this.cfg, t, i);
     const head = el('div', 'g-istep', `STEP ${String(i + 1).padStart(2, '0')}`);
-    head.append(el('small', '', `bar ${Math.floor(i / 16) + 1} · T${t + 1}`));
+    head.append(el('small', '', `bar ${Math.floor(i * trackDiv(this.cfg!, t) / 16) + 1} · T${t + 1}`));
     const field = (label: string, ...kids: HTMLElement[]) => {
       const f = el('div', 'g-f'); f.append(el('span', 'g-lbl', label), ...kids); return f;
     };
@@ -645,6 +805,41 @@ export class GroovePane {
       const b = this.button(s.kind === k ? 'on' : '', `kind-${k}`, '', k[0]!.toUpperCase() + k.slice(1));
       b.addEventListener('click', () => this.edit(c => setKind(stepFor(c, t, i), k, this.view.pen[t])));
       kind.append(b);
+    }
+    const sourceStep = src >= 0 ? this.step(src) : s;
+    const isChord = src >= 0 && notesOf(sourceStep).length > 1;
+    const notes = el('span', 'g-seg g-note-kind');
+    for (const mode of ['Single', 'Chord'] as const) {
+      const b = this.button((mode === 'Chord') === isChord ? 'on' : '', 'notes-' + mode.toLowerCase(), '', mode);
+      b.disabled = src < 0;
+      b.addEventListener('click', () => {
+        if (src < 0) return;
+        if (mode === 'Single' && isChord) this.edit(c => {
+          const st = stepFor(c, t, src);
+          setNotes(st, [st.key ?? 60]);
+        });
+        else if (mode === 'Chord' && !isChord) this.edit(c => {
+          const st = stepFor(c, t, src), root = st.key ?? 60;
+          setNotes(st, this.view.scale === 'Chromatic'
+            ? qualityKeys(root, 'maj') : scaleStack(root, 3, this.scaleCtx()), root);
+        });
+      });
+      notes.append(b);
+    }
+    const chordControls = el('span', 'g-chord-controls');
+    if (isChord) {
+      const picker = this.button('g-ccbtn', 'chord-picker', 'Chord voicing and quality', stepLabel(sourceStep) + ' ▾');
+      picker.addEventListener('click', e => { e.stopPropagation(); this.openChord(picker, src); });
+      chordControls.append(picker);
+      for (const [sign, delta] of [['◁', -1], ['▷', 1]] as const) {
+        const b = this.button('', delta < 0 ? 'invert-down' : 'invert-up', 'Invert chord', sign);
+        b.addEventListener('click', () => this.edit(c => {
+          const st = stepFor(c, t, src);
+          const result = invert(notesOf(st), st.key ?? 60, delta);
+          if (result) setNotes(st, result.keys, result.root);
+        }));
+        chordControls.append(b);
+      }
     }
     const note = el('input', 'g-in big') as HTMLInputElement;
     note.dataset.testid = `groove-note-${this.id}`;
@@ -689,9 +884,45 @@ export class GroovePane {
     const cond = this.button('g-ccbtn', 'cond', 'Trig condition (note trigs only)', condLabel(s.cond, true));
     cond.disabled = s.kind !== 'note';
     cond.addEventListener('click', e => { e.stopPropagation(); this.openCond(cond, i); });
-    this.insp.append(head, field('Trig', kind), field('Note', note), field('Velocity %', vel),
+    this.insp.append(head, field('Trig', kind), field(isChord ? 'Root' : 'Note', note),
+      field('Notes', notes, chordControls), field('Velocity %', vel),
       field('Length', gate), field('Mod 1 %', modField('mod1')), field('Mod 2 %', modField('mod2')),
       field('Condition', cond));
+  }
+
+  private openChord(anchor: HTMLElement, i: number): void {
+    this.closePop();
+    const t = this.t, s = this.step(i), root = s.key ?? 60, scale = this.scaleCtx();
+    const pop = el('div', 'g-pop g-chord-pop');
+    pop.dataset.testid = `groove-chord-pop-${this.id}`;
+    const group = (name: string) => pop.append(el('div', 'g-ph', name));
+    const option = (value: string, keys: number[], label?: string) => {
+      const b = this.button(keys.every(k => chordInScale(k, scale)) ? '' : 'out',
+        'chord-opt-' + value, keys.map(noteName).join(' '), label ?? chordName(keys, root) ?? noteName(root));
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        this.closePop();
+        this.edit(c => {
+          const st = stepFor(c, t, i);
+          setNotes(st, keys, value === 'single' ? st.key : keys[0]);
+        });
+      });
+      pop.append(b);
+    };
+    if (this.view.scale !== 'Chromatic') {
+      group(`In ${ROOTS[this.view.root]} ${this.view.scale}`);
+      option('scale3', scaleStack(root, 3, scale));
+      option('scale4', scaleStack(root, 4, scale));
+    }
+    for (const [name, qualities] of PICKER_GROUPS) {
+      group(name);
+      for (const quality of qualities) option(quality, qualityKeys(root, quality));
+    }
+    group('One note');
+    option('single', [root], noteName(root));
+    pop.addEventListener('pointerdown', e => e.stopPropagation());
+    anchor.after(pop);
+    this.pop = pop;
   }
 
   private openCond(anchor: HTMLElement, i: number): void {
@@ -703,7 +934,9 @@ export class GroovePane {
     CONDS.forEach((c, n) => {
       if (n === 0) head('Always');
       if (n === 1) head('Chance');
-      if (n === 6) head(this.len() === 16 ? 'A:B · plays on loop A of every B (loops = bars here)' : 'A:B · plays on loop A of every B loops');
+      if (n === 6) head(this.cfg && trackCycle(this.cfg, t) === 16
+        ? 'A:B · plays on loop A of every B (loops = bars here)'
+        : 'A:B · plays on loop A of every B loops');
       if (n === 13) head('Loop');
       const b = this.button(sameCond(c, current) ? 'on' : '', `cond-opt-${n}`, condLabel(c, true), condLabel(c, true));
       b.addEventListener('click', ev => {
@@ -735,7 +968,7 @@ export class GroovePane {
     const t = this.t, i0 = Number(pad.dataset.i), wasSel = this.view.selected[t] && this.view.sel[t] === i0;
     const orig = JSON.parse(JSON.stringify(this.cfg)) as GrooveConfig;
     const src = sourceOf(orig, t, i0), key0 = src >= 0 ? stepAt(orig, t, src).key ?? 60 : null;
-    let mode: 'pitch' | 'tie' | null = null, lastKey = key0, lastTie = i0;
+    let mode: 'pitch' | 'tie' | null = null, lastKey = 0, lastTie = i0;
     this.root.focus();
     if (!wasSel) this.select(i0);
     const move = (ev: PointerEvent) => {
@@ -745,8 +978,8 @@ export class GroovePane {
         else if (Math.abs(dx) > Math.abs(dy) && this.padAt(ev.clientX, ev.clientY) > i0) mode = 'tie';
       }
       if (mode === 'pitch' && key0 !== null) {
-        const k = this.stepPitch(key0, Math.round(-dy / 14), ev.shiftKey);
-        if (k !== lastKey) { lastKey = k; this.edit(c => this.setPitch(c, i0, k), orig); }
+        const n = Math.round(-dy / 14);
+        if (n !== lastKey) { lastKey = n; this.edit(c => this.moveStep(c, i0, n, ev.shiftKey), orig); }
       } else if (mode === 'tie') {
         const i = this.padAt(ev.clientX, ev.clientY);
         if (i < 0 || i === lastTie) return;
@@ -786,8 +1019,7 @@ export class GroovePane {
     const n = this.wheelAcc < 0 ? 1 : -1;
     this.wheelAcc = 0;
     if (this.view.sel[t] !== i || !this.view.selected[t]) this.select(i);
-    const key = this.stepPitch(stepAt(this.cfg, t, src).key ?? 60, n, e.shiftKey);
-    this.edit(c => this.setPitch(c, i, key));
+    this.edit(c => this.moveStep(c, i, n, e.shiftKey));
   }
 
   // ---- live (telemetry only) ------------------------------------------------
@@ -801,9 +1033,11 @@ export class GroovePane {
     this.play.classList.toggle('on', running);
     this.play.classList.toggle('q', running && this.stopRequested);
     const s = ph?.[this.t] ?? -1;
+    const liveConfig = this.applied ?? this.cfg;
+    const sixteenth = s * (liveConfig ? trackDiv(liveConfig, this.t) : 1);
     this.status.textContent = this.applying ? 'LOADING…'
       : running && this.stopRequested ? 'STOPS at loop end'
-      : running && s >= 0 ? `PLAYING ${Math.floor(s / 16) + 1}.${Math.floor((s % 16) / 4) + 1}.${(s % 4) + 1}`
+      : running && s >= 0 ? `PLAYING ${Math.floor(sixteenth / 16) + 1}.${Math.floor((sixteenth % 16) / 4) + 1}.${(sixteenth % 4) + 1}`
       : running ? 'PLAYING' : 'STOPPED';
     this.draftEl.textContent = draft ? 'Draft · not playing yet' : '';
     this.draftEl.hidden = !draft;
@@ -848,6 +1082,7 @@ export class GroovePane {
 
   destroy(): void {
     this.closePop();
+    if (this.toastTimer !== undefined) window.clearTimeout(this.toastTimer);
     for (const u of this.unbind) u();
   }
 }

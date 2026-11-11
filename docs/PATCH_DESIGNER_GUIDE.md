@@ -445,8 +445,9 @@ deployed engine.
 
 The output and transport IDs remain unchanged; G3's appended measurement
 ports appear below. Engines without #526 refuse `keys` and `div` rather
-than silently misplay them. Studio availability and physical listening are
-separate acceptance tasks; check deployed SHAs for native and WebAssembly
+than silently misplay them. Studio authoring for both is described in
+"Groove chord steps and per-track speed in Studio" below; physical listening
+is a separate owner check. Check deployed SHAs for native and WebAssembly
 support.
 
 ## Groove observation outputs (PR #501)
@@ -490,13 +491,14 @@ Note). Authoring rules for patch designers:
   the *first edit* rewrites it as v2 and gives each v1 track an explicit `"length":32`
   (its old meaning), adding an empty second track (same length) if the pattern had only one. A newly added Groove has
   no `config` until edited; its first edit writes two 16-step tracks of rests at 120 BPM.
-  Unknown keys in `config`, tracks or steps are saved back untouched but are never sent to
-  the engine. A newer `version` is shown read-only.
+  Unknown keys in `config`, tracks or steps are saved back untouched in the document;
+  the engine projection omits unrelated extras but forwards the known `keys` and `div`
+  fields unchanged (including values an old engine refuses). A newer `version` is shown read-only.
 - **What it writes:** `length` 8/16/32/64 (shortening a track trims its saved steps),
   `gate` 0.25/0.5/0.75 (1 is written by omitting `gate`), `cond` from the picker
   (chance 10/25/50/75/90 %, A:B 1:2, 2:2, 1:4, 2:4, 3:4, 4:4, 1:8, first, not first; any
   valid hand-authored chance 1–99 or A:B up to b = 8 is kept), `bpm` 20–300, per-track
-  `armed` and `mute`. Rests and ties never carry `key`, `velocity` or `cond`.
+  `armed` and `mute`. Rests and ties never carry `key`, `keys`, `velocity` or `cond`.
 - **Draft and Apply:** edits are a draft; the engine keeps playing the applied pattern.
   **Apply** is enabled only on a measured, current-generation stop (both tracks report
   step -1) or while audio is not running; it reloads the whole graph, so the Groove (and
@@ -508,10 +510,11 @@ Note). Authoring rules for patch designers:
 - **Live view:** the playhead, track positions and the "skipped this pass" dim (a failed
   condition) come only from engine telemetry; on an engine without the playhead
   capability they stay hidden. Chance results are never predicted in the editor.
-- **G2b Roll:** Pads/Roll are two projections of the same MIDI-key pattern. Roll
-  rows are indexed by note; only one pitch can sound on a step today (chords remain
-  reserved for a later version). Click an empty cell to add a note, drag right to tie,
-  drag vertically to change pitch; double-click/right-click to delete. Under the
+- **Roll:** Pads/Roll are two projections of the same MIDI-key pattern. Roll
+  rows are indexed by MIDI note, including every note of a chord. Clicking an empty
+  note cell on a note step adds a voice, up to five notes per step; dragging a note
+  moves only that voice. Drag right to tie; double-click, right-click or press
+  Backspace on a focused note cell to delete that voice. Under the
   note grid, lollipop lanes edit velocity, gate, Mod 1 and Mod 2. The inspector
   also accepts typed Mod 1/2 percentages. The Roll scrolls within its card,
   rather than widening the web page. Roll note buttons are keyboard-focusable:
@@ -528,7 +531,8 @@ Note). Authoring rules for patch designers:
   16 steps becomes two rows of eight on narrow screens.
 - **Keyboard:** focus the Groove first. Space Play/Stop, arrows move the selected
   step or pitch (Shift = octave), A/W/S/E/D/F/T/G/Y/H/U/J/K enter chromatic
-  notes at the selected step, Z/X change keyboard octave, hyphen makes a tie,
+  notes at the selected step (hold multiple piano keys to write one chord when
+  they are all released; the multi-key cursor advances), Z/X change keyboard octave, hyphen makes a tie,
   Backspace clears a trig, 1/2 select track, Ctrl/Cmd+Z undo (Shift = redo).
 - **Looks:** Graphite (default), Oxblood and LED only change the appearance;
   no style choice or scale setting is saved to the module config.
@@ -538,6 +542,37 @@ Example (a 16-step bass, one 50 % trig and one 1:4 trig with a short tie):
 `{"kind":"tie","gate":0.5},{"kind":"rest"},{"kind":"note","key":43,"velocity":0.7,"cond":{"type":"chance","p":50}},`
 `{"kind":"rest"},{"kind":"rest"},{"kind":"rest"},{"kind":"note","key":48,"velocity":0.8,"cond":{"type":"ab","a":1,"b":4}}]}]}`.
 Hardware listening and Pi display checks of the editor are not claimed.
+
+## Groove chord steps and per-track speed in Studio (G4b/G5b, #527)
+
+**Available with native #526.** The stored format, limits, master-cycle rule and a
+Groove → Notes→CV wiring are in "Groove native chords and per-track speed" above;
+Studio writes exactly that format: `keys` only for 2–5 distinct notes (root first,
+the rest ascending), no `keys` for a single note, and `div` 2/4/8 with 1× omitted.
+No chord-quality field is stored; names are derived from the notes.
+
+- **Notes Single/Chord** in the inspector. Choosing Chord on one note builds the
+  scale chord (or a major triad on Chromatic); the picker lists the scale's triad and
+  seventh first, then triads, sevenths and extended chords, greying types that leave
+  the scale. ◁ ▷ invert. The Note field is labelled Root on a chord step.
+- **Moving a chord:** drag, wheel or ↑↓. A chord equal to the scale stack on its root
+  moves within the key (Am → B° → C in A minor); any other chord moves as a block.
+  Shift moves by octaves.
+- **Pads** show the chord name (slash bass dropped) and a small pitch ladder.
+- **Roll:** click an empty cell in a note's column to add a note (up to 5); drag one
+  note on its own; double-click, right-click or Backspace removes one note, and the
+  last note removes the step's note. All notes share the step's start, gate, ties,
+  velocity, mods and condition.
+- **Held keys:** hold several piano keys on the computer keyboard; the chord is
+  written to the selected step when all are released, then the selection advances.
+  Leaving the window mid-chord drops it without writing.
+- **Speed `1× ½ ¼ ⅛`** next to Steps, per track; the track tab shows ½×/¼×/⅛×, and the
+  loop/position display uses `length × div`. Changing Steps keeps the speed.
+- The scale helper stays UI-only (`ui.groove`), as in G2b.
+
+**Four bars in sixteen pads:** Steps **16**, Speed **¼** on T1. Each pad is one beat,
+so pads 1–16 span four 4/4 bars. Chords on pads 1, 5, 9 and 13 (C, F, G, C), each
+followed by three ties, hold one chord per bar.
 
 ## CHAOS sound presets (#489; available after Studio PR merges)
 
