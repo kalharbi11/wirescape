@@ -196,7 +196,7 @@
   }
   .module:has(.groove-pane) .panel-core { padding-left: 0; padding-right: 0; }
   /* The signal/event jacks and their +/− expander stay interactive on phones.
-     Suppress labels only: the hit targets retain descriptive titles/ARIA. */
+     Suppress labels only: the hit targets retain descriptive titles. */
   .module:has(.groove-pane) .port-label { display: none; }
   .module:has(.groove-pane) .port.output { right: calc(var(--port-jack) / -2); }
 }
