@@ -128,7 +128,6 @@ struct Sequencer {
         clock_connected = run_connected = reset_connected = false;
         clock_seen = run_start_pending = false;
         clock_samples = 0;
-        samples_per_step = internal_samples_per_step;
     }
 
     // Quiescent module-state envelope; never part of authored config JSON.
