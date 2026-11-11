@@ -30,12 +30,12 @@ Uploading to this repository makes the JSON PUBLIC. Remove private device bindin
 A compatible Pi/Windows build includes the same library on its next UI rebuild;
 personal OPEN/SAVE never requires Git or a rebuild.
 
-## CHAOS atmospheric lab (draft #530)
+## CHAOS atmospheric lab (merged #531; LFO shapes merged #533)
 
 These use **existing** `essentials.chaos_lite` v1 and current module IDs. They do
 not require an unfinished CHAOS control, looper, waveshaper or subpatch. The
 new scenes are original rather than copies of the five legacy Python presets.
-Descriptions include performance parameters to expose in a future front panel.
+Descriptions name useful controls for sound design; no extra PERFORM strip is needed.
 
 | Patch | Musical job / test action | Performance controls to foreground |
 |---|---|---|
@@ -44,19 +44,23 @@ Descriptions include performance parameters to expose in a future front panel.
 | `chaos-01-ember-veil-pad` | Warm evolving keyboard pad / long notes | shape A/B, detune, body mix, feedback, cutoff, drift, slow random range |
 | `chaos-02-wireglass-lead` | Expressive metallic keyboard lead / legato notes | route/depth, rough rate/depth, internal vibrato, body tune, envelope and echo |
 | `chaos-03-orbiting-iron-fx` | Autoplay irregular-feeling metallic accents / listen for space between hits | clock rate/duty, function rise/fall/curve, coupling, roughness, body, delay/reverb |
+| `chaos-04-radio-static-fx` (PR #555) | Autoplay stepped metallic static, internal **S&H LFO** (shape 2) to cutoff | LFO rate/depth/target, roughness, cutoff, clock, function fall, delay/reverb |
+| `chaos-05-moonlit-drift-pad` (PR #555) | Held-keyboard pad, internal **smooth-random LFO** (shape 3) to body tuning | LFO rate/depth/target, body tune/mix, drift, ADSR release, reverb |
 
 **Important release fix:** CHAOS's `gate` multiplies audio by zero at
 note-off, so an external ADSR cannot produce a release if the keyboard gate
-is also connected to CHAOS. Both revised keyboard patches and the three new
-patches deliberately leave CHAOS `gate` **unpatched**, where its documented
-default is 1. Keyboard gate controls the ADSR; the envelope controls left
+is also connected to CHAOS. The keyboard CHAOS patches deliberately leave CHAOS `gate` **unpatched**,
+where its documented default is 1. Keyboard gate controls the ADSR; the envelope controls left
 and right VCA gain. This means the internal `fall` reset is unavailable
 for those patches; leave `fall=0`. For falling-pitch transients use an
 external modulation route or plan a future separate pitch-fall trigger.
 
-All three new patches should be *structurally* validated in native/WASM and
-*auditioned by the owner* before anyone claims a particular timbre, stereo
-balance, CPU margin, or final preset quality. The slow random source is
-clocked externally; the current CHAOS internal LFO remains sine-only.
-See `docs/tasks/CHAOS_ATMOSPHERES_530.md` for the proposed layout and
-Codex/Coda implementation notes.
+All patches require structural validation and *owner audition* before claims
+about timbre, stereo balance, CPU margin or final sound quality. The first
+three CHAOS Lab patches predate the internal LFO shape expansion; the two
+#555 candidates use the **native** shape control added in merged #533:
+0=Sine (legacy default), 1=Triangle, 2=Sample & hold, 3=Smooth random.
+The pad's keyboard gate reaches its ADSR and the stereo VCAs, not CHAOS;
+the autoplay FX uses a clocked function envelope for its stereo VCAs.
+See `docs/tasks/CHAOS_ATMOSPHERES_530.md` and
+`docs/tasks/CHAOS_LFO_PATCHES_555.md` for task acceptance.
