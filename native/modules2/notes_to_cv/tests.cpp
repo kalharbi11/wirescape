@@ -3,6 +3,7 @@
 #include "../../sdk/examples/test_support.h"
 #include "../../tests2/allocation_watch.h"
 #include "../adsr/dsp.h"
+#include "../chord/dsp.h"
 #include "../host_keyboard/dsp.h"
 #include "../output/dsp.h"
 #include "../vca/dsp.h"
@@ -201,7 +202,7 @@ static void block_matrix_and_allocations() {
             REQUIRE(allocations == 0 && a.outs[0].channels == 4);
         }
 }
-static void native_keyboard_graph(const std::array<int, 4> &keys, uint32_t count) {
+static void native_keyboard_graph(const std::array<int, 4> &keys, uint32_t count, bool generated = false) {
     using namespace wirescape::engine2;
     REQUIRE(count == 3 || count == 4);
     Config cfg;
@@ -210,19 +211,37 @@ static void native_keyboard_graph(const std::array<int, 4> &keys, uint32_t count
     Engine e(cfg);
     const auto producer = e.register_producer();
     REQUIRE(e.add_node(1, ws::Module<ws2ports::HostKeyboard>::descriptor()));
+    if (generated) {
+        // Exercise the shipped Chord and Notes-to-CV descriptors together,
+        // not the test-only NotesToCv adapter used by Chord's own unit tests.
+        REQUIRE(e.add_node(7, ws::Module<chord::Chord>::descriptor(), {7, 0, 0, 0}));
+        if (count == 4) {
+            REQUIRE(e.set_parameter(7, 4, 1.f));  // Enable a seventh interval.
+            REQUIRE(e.set_parameter(7, 5, 11.f)); // C4 -> B4, not the default octave.
+        }
+    }
     REQUIRE(e.add_node(2, ws::Module<NotesToCv>::descriptor()));
     REQUIRE(e.add_node(3, ws::Module<ws2ports::Vco>::descriptor()));
     REQUIRE(e.add_node(4, ws::Module<ws2ports::Adsr>::descriptor()));
     REQUIRE(e.add_node(5, ws::Module<ws2ports::Vca>::descriptor()));
     REQUIRE(e.add_node(6, ws::Module<ws2ports::Output>::descriptor()));
-    REQUIRE(e.connect(1, 3, 2, 0) && e.connect(2, 0, 3, 0) && e.connect(2, 1, 4, 0) && e.connect(3, 0, 5, 0) &&
+    if (generated) {
+        REQUIRE(e.connect(1, 3, 7, 0) && e.connect(7, 0, 2, 0));
+    } else {
+        REQUIRE(e.connect(1, 3, 2, 0));
+    }
+    REQUIRE(e.connect(2, 0, 3, 0) && e.connect(2, 1, 4, 0) && e.connect(3, 0, 5, 0) &&
             e.connect(4, 0, 5, 1) && e.connect(5, 0, 6, 0) && e.output(6, 0, 0) && e.prepare());
-    for (uint32_t i = 0; i < count; ++i)
+    for (uint32_t i = 0; i < (generated ? 1u : count); ++i)
         REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, note({WS2_NOTE_ON, keys[i], keys[i]}), 0) == WS2_OK);
 
     float samples[256]{};
     float *out[]{samples};
-    REQUIRE(e.render(out, 1, 256) == WS2_OK);
+    {
+        allocation_watch::Scope scope;
+        REQUIRE(e.render(out, 1, 256) == WS2_OK);
+        REQUIRE(scope.allocations() == 0);
+    }
     REQUIRE(e.output_channels(2, 0) == 4 && e.output_channels(5, 0) == 4);
 
     std::array<uint32_t, 4> voice_for{};
@@ -259,15 +278,25 @@ static void native_keyboard_graph(const std::array<int, 4> &keys, uint32_t count
     }
     REQUIRE(peak > .00001f); // retain the real summed production audio assertion
 
-    // Release each note separately and prove the other voice gates stay high.
-    for (uint32_t released = 0; released < count; ++released) {
+    if (generated) {
+        // A single root release must independently close all generated voices.
         const uint64_t frame = e.meter().frame;
-        REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, note({WS2_NOTE_OFF, keys[released], keys[released]}),
-                          frame) == WS2_OK);
+        REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, note({WS2_NOTE_OFF, keys[0], keys[0]}), frame) ==
+                WS2_OK);
         REQUIRE(e.render(out, 1, 256) == WS2_OK);
-        for (uint32_t i = 0; i < count; ++i)
-            REQUIRE(e.output_sample(2, 1, voice_for[i], 128) == (i <= released ? 0.f : 1.f));
+        for (uint32_t i = 0; i < count; ++i) REQUIRE(e.output_sample(2, 1, voice_for[i], 128) == 0.f);
+    } else {
+        // Direct four-note MIDI-like baseline: each off leaves other gates open.
+        for (uint32_t released = 0; released < count; ++released) {
+            const uint64_t frame = e.meter().frame;
+            REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT,
+                              note({WS2_NOTE_OFF, keys[released], keys[released]}), frame) == WS2_OK);
+            REQUIRE(e.render(out, 1, 256) == WS2_OK);
+            for (uint32_t i = 0; i < count; ++i)
+                REQUIRE(e.output_sample(2, 1, voice_for[i], 128) == (i <= released ? 0.f : 1.f));
+        }
     }
+    REQUIRE(e.meter().faults == 0);
 }
 
 int main() {
@@ -280,4 +309,6 @@ int main() {
     block_matrix_and_allocations();
     native_keyboard_graph({60, 64, 67, 0}, 3);
     native_keyboard_graph({60, 64, 67, 71}, 4);
+    native_keyboard_graph({60, 64, 67, 0}, 3, true);
+    native_keyboard_graph({60, 64, 67, 71}, 4, true);
 }
