@@ -1,4 +1,6 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
+# #627 — Native ASIO diagnostics and safe preferred-buffer retry
+
 **Keel ruling (supersedes the "unsupported_reason" idea in #610).** A driver that fails `ASIOInit` never appears in `Pa_GetDeviceInfo`, and device IDs must not change, so failed drivers go in a **separate optional list**, not the device list:
 1. **Unavailable drivers (Windows only):** in device enumeration (control thread, never audio), read the installed ASIO driver names from `HKLM\SOFTWARE\ASIO` (read-only `RegOpenKeyEx`/`RegEnumKeyEx`; advapi32 is a system library, not a new dependency). Any name with no matching PortAudio ASIO device is reported as `audio.unavailableDrivers: [{hostApi:"ASIO", name, reason:"driver-init-failed"}]`, at most 16 entries with names truncated to 64 bytes, in the `listAudioDevices` reply and the `devices` push. Omitted on Linux and when empty. Not selectable.
 2. **Open errors:** `session.cpp` keeps the exception text. On a failed open, `status.audio.error` = an optional string ≤200 bytes built from `Pa_GetErrorText`, plus `Pa_GetLastHostErrorInfo` text for ASIO. It is cleared on the next successful open. Studio shows it in the status bar (covered by #616 or a follow-up there).
