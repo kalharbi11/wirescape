@@ -131,6 +131,29 @@ test('VCO pitch cable removal and reconnect refresh the mounted Tune dial', asyn
   expect((await state(page)).modules[0].parameters.frequency).toBe(440);
 });
 
+test('nominal pitch readout follows FakeEngine observations and clears replaced snapshots', async ({ page }) => {
+  await boot(page);
+  await vco(page, 440, false);
+  const live = page.getByTestId('pitch-1');
+  await expect(live).toHaveText('A4 +0 ct · 440 Hz');
+  await expect(page.getByTestId('knob-1-frequency').locator('.knob-pitch-caption'))
+    .toHaveText('NOMINAL BASE · FM NOT SHOWN');
+  await page.evaluate(() => window.__wirescapeTest.noteOn(72));
+  // No note cable: the native oscillator stays at its free-running base.
+  await expect(live).toHaveText('A4 +0 ct · 440 Hz');
+  await vco(page, 220, true);
+  await page.evaluate(() => window.__wirescapeTest.noteOn(69));
+  await expect(live).toHaveText('A4 +0 ct · 440 Hz');
+  await vco(page, 220, false);
+  await expect(live).toHaveText('A3 +0 ct · 220 Hz');
+  // The complete-map contract evicts an old observation even when the card stays mounted.
+  await page.evaluate(() => window.__wirescapeTest.ticker.push({
+    tick: 999, time: 0, effective: {}, effective_pitch: {}, phase: {},
+    envelope: {}, meters: {}, scope: {}, eventActivity: {}, heldNotes: [],
+  }));
+  await expect(live).toHaveText('—');
+});
+
 test('Macro coarse displays C4-relative notes without writing new parameters', async ({ page }) => {
   await boot(page);
   await page.evaluate(() => window.__wirescapeTest.load({
