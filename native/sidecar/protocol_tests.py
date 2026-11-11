@@ -141,7 +141,7 @@ def telemetry_when(engine, gen, predicate, timeout=8.0):
         if message.get('type') == 'telemetry' and message['gen'] == gen:
             data = message['telemetry']
             assert all(isinstance(data[key], dict)
-                       for key in ('effective', 'phase', 'envelope', 'eventActivity'))
+                       for key in ('effective', 'phase', 'envelope', 'eventActivity', 'effective_pitch'))
             if predicate(data):
                 return data
     raise AssertionError(f'no matching telemetry at gen {gen}: {engine.stderr()}')
@@ -351,6 +351,21 @@ with tempfile.TemporaryDirectory() as directory:
     # Replacing the graph must remove phase immediately, even with reused IDs.
     no_lfo = observed.call('loadGraph', patch=minimal())['gen']
     telemetry_when(observed, no_lfo, lambda t: t['phase'] == {})
+    # OSC-3 nominal pitch on the same render-backed map, including unpatched
+    # oscillators and unpitched Plaits models (nominal ≠ audible fundamental).
+    pitch_patch = minimal()
+    pitch_patch['modules'] += [
+        dict(id=9, module='essentials.vco', parameters=dict(frequency=440)),
+        dict(id=8, module='ports.macro_oscillator', parameters=dict(coarse=9)),
+    ]
+    pitch_gen = observed.call('loadGraph', patch=pitch_patch)['gen']
+    observed_pitch = telemetry_when(observed, pitch_gen, lambda t:
+        '9' in t['effective_pitch'] and '8' in t['effective_pitch'])
+    assert abs(observed_pitch['effective_pitch']['9'] - 69) < 0.02
+    assert abs(observed_pitch['effective_pitch']['8'] - 69) < 0.02
+    # Successful graph replacements must evict the previous instance values.
+    blank_gen = observed.call('loadGraph', patch=minimal())['gen']
+    telemetry_when(observed, blank_gen, lambda t: t['effective_pitch'] == {})
     # Same-generation Groove tuples and typed tracks are one uncabled render snapshot.
     assert 'telemetry.playhead' in observed.hello['capabilities']
     groove_patch = minimal()
