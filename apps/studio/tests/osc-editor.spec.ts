@@ -104,6 +104,23 @@ test('presets fill all rows, while config unknowns only drop on editor save', as
   expect(saved.ownerExtension).toEqual({ survive: 1 });
 });
 
+test('Reset to Pico defaults restores UDP port and clears LAN request before save', async ({ page }) => {
+  await open(page);
+  await page.getByTestId('osc-editor-port').fill('9123');
+  await page.getByTestId('osc-editor-lan').check();
+  await page.getByTestId('osc-row1-pattern').fill('/changed');
+  await page.getByTestId('osc-preset-reset').click();
+  await expect(page.getByTestId('osc-editor-port')).toHaveValue('9000');
+  await expect(page.getByTestId('osc-editor-lan')).not.toBeChecked();
+  await expect(page.getByTestId('osc-row1-pattern')).toHaveValue('/pico1/knob/1');
+  await expect(page.getByTestId('osc-send-example')).toContainText('127.0.0.1:9000');
+  await page.getByTestId('osc-editor-save').click();
+  await expect(page.getByTestId('osc-editor')).toBeHidden();
+  const saved = await state(page);
+  expect(saved.modules[0].config).toMatchObject({ port: 9000, lan: false });
+  expect(saved.modules[0].config.rows[0].pattern).toBe('/pico1/knob/1');
+});
+
 test('LAN checkbox requests a route but cannot authorize a LAN socket', async ({ page }) => {
   await open(page);
   await page.getByTestId('osc-editor-lan').check();
