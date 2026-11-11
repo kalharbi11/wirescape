@@ -10,6 +10,7 @@
 namespace fake {
 std::vector<wirescape::audio::Device> outputs;
 std::vector<std::string> attempts;
+std::vector<std::string> installed_asio;
 bool active = true, refuse = false, enumeration_throws = false, render = false;
 uint32_t rejected_rate = 0;
 std::string rate_refused_id;
@@ -23,6 +24,7 @@ wirescape::audio::Device output(const std::string &name, int index, bool is_defa
     return {name, name, "", index, is_default};
 }
 namespace wirescape::audio {
+std::vector<std::string> installed_asio_drivers() { return fake::installed_asio; }
 std::vector<Device> devices(const std::string &, const DeviceQuery &query) {
     fake::queries.push_back(query);
     if (fake::enumeration_throws) throw std::runtime_error("fake enumeration failure");
@@ -106,6 +108,18 @@ int main() {
         check(invalid.known && invalid.rates.empty(), "only invalid-rate results prove no supported rate");
         check(!busy.known && busy.rates.empty() && !mixed.known && mixed.rates.empty(),
               "busy/unknown errors omit the set, including mixed success and unknown results");
+        const auto missing_asio = wirescape::audio::unavailable_asio_drivers(
+            {"ASIO4ALL v2", "FlexASIO"}, {{"ASIO4ALL v2", "ASIO"}, {"Headphones", "Windows WASAPI"}});
+        check(missing_asio == std::vector<std::string>{"FlexASIO"},
+              "registry drivers missing from PortAudio are distinct, never selectable devices");
+        std::vector<std::string> many_asio;
+        for (int i = 0; i < 30; ++i) many_asio.push_back("Unseen ASIO " + std::to_string(i));
+        check(wirescape::audio::unavailable_asio_drivers(many_asio, {}).size() == 16,
+              "registry diagnostics are limited to sixteen entries");
+        const std::string long_asio = std::string(63, 'a') + "\xc3\xa9" + "driver";
+        const auto clipped = wirescape::audio::unavailable_asio_drivers({long_asio, long_asio}, {});
+        check(clipped.size() == 1 && clipped.front() == std::string(63, 'a'),
+              "ASIO names truncate at UTF-8 boundaries and are deduplicated");
         Options options;
         options.audio = true; // fake linked service, never the physical backend
         options.settings = (root / "settings.json").string();
@@ -457,6 +471,42 @@ int main() {
             s.shutdown();
         }
         fake::render = false;
+        // Registry and PortAudio enumeration are separately faked: no OS registry,
+        // PortAudio DLL or physical device is ever touched by this test executable.
+        fake::installed_asio = {"ASIO4ALL v2", "FlexASIO"};
+        fake::outputs = {{"ASIO|ASIO4ALL v2", "ASIO4ALL v2", "ASIO", 3, true}};
+        options.settings = (root / "asio-diagnostics.json").string();
+        {
+            Session s(options);
+            s.start(base);
+            const auto all = s.devices();
+            check(all["audioDevices"].size() == 1 && all["audioDevices"][0]["id"] == "ASIO|ASIO4ALL v2",
+                  "existing PortAudio identity is preserved");
+            check(all["audio"]["unavailableDrivers"].size() == 1 &&
+                      all["audio"]["unavailableDrivers"][0]["name"] == "FlexASIO" &&
+                      all["audio"]["unavailableDrivers"][0]["hostApi"] == "ASIO" &&
+                      all["audio"]["unavailableDrivers"][0]["reason"] == "driver-init-failed",
+                  "missing ASIO init is a separate optional diagnostic, not a selectable endpoint");
+            const auto listed = s.reply({{{"v", 0}, {"id", "asio-list"}, {"type", "listAudioDevices"}}, {}, {}});
+            check(listed["ok"] == true && listed["result"]["devices"].size() == 1 &&
+                      listed["result"]["audio"]["unavailableDrivers"].size() == 1 &&
+                      s.hello()["audio"]["unavailableDrivers"].size() == 1,
+                  "hello and explicit enumeration expose the same optional unavailable-driver diagnostic");
+        }
+        fake::refuse = true;
+        options.settings = (root / "asio-error.json").string();
+        {
+            Session s(options);
+            s.start(base);
+            check(audio(s)["state"] == "reconnecting" &&
+                      audio(s)["error"] == "fake unavailable/ambiguous output",
+                  "control-thread opening failure must reach bounded audio status");
+            fake::refuse = false;
+            s.poll(base + 100ms);
+            check(audio(s)["state"] == "running" && !audio(s).contains("error"),
+                  "successful ASIO recovery clears the preceding failure text");
+        }
+        fake::installed_asio.clear();
         std::cout << "audio recovery fake-backend tests passed\n";
     } catch (const std::exception &e) {
         std::cerr << e.what() << '\n';
