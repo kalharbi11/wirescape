@@ -501,8 +501,9 @@ verify actual sound against the offline render/WAV evidence before claiming
 a preset's audio acceptance, and never infer DSP playback from FakeEngine
 control values alone.
 
-**CHAOS performance strip (builds containing #554):** the card adds a compact,
-editable second view of twelve existing parameters: Tone (shape A/B, detune),
+**CHAOS performance strip (builds containing #554):** the card's **PERFORM**
+header button opens a compact, editable second view of twelve existing parameters
+(without enlarging saved starter cards until opened): Tone (shape A/B, detune),
 Motion (drift, LFO depth/rate/shape), Edge (roughness, coupling depth), Body
 (body mix, feedback), and Brightness (cutoff). Each mini knob displays its exact
 stored value and uses the same engine parameter/Undo path as the full 01–06
