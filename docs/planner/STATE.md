@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-10, Codex Lead quick live-queue pass.
-Current-head completed evidence governs; queued, historical and missing checks never pass.
+**Updated:** 2026-11-11, Keel (finish-first rulings). Owner failures preempt features.
+Live heads and completed evidence govern; queued, stale and missing results never pass.
 
 ## Authority and queue
 - Board #473 and newest SEND THESE comment are the live claim source; retain fresh claims.
@@ -31,6 +31,15 @@ Current-head completed evidence governs; queued, historical and missing checks n
   Windows/Web evidence. Existing writer integrates main and reruns full acceptance.
 - #553 atef3294b: strict emit guard source reviewed, no findings; required/Static
   checks incomplete at review, Windows absent. No approval until final evidence.
+
+## 2026-11-11 Keel (owner: finish MIDI/OSC/Groove/CHAOS + existing-module fixes, then move on)
+- Merged since: Chord #511, Groove native #528 + UI #534 (closes #514/#523/#526/#527), Windows wake #572,
+  patch offline smoke #568, Qt probe retirement #567.
+- #554/#565 CHAOS performer strip dropped (not planned); branch kept as archive, tag pending (Codex Lead).
+- Rulings: #528 G1 IDs byte-identical, chord IDs untagged but unique; #529 ENGINE_PROTOCOL authorized
+  (hello `osc`, `status.osc`, `--confirm-lan`); #337 nominal-pitch readout; #564 docs-only evidence transfer.
+- #569 CI speed: PR-only cancel for sanitizers/acceptance + ccache sanitizers (Codex T2).
+- Qt tests left are R3 only; Qt-only `allow-test-removal` pre-authorized once R2 replaces golden/app_patch coverage.
 
 ## Completed baseline and owner evidence
 - Newly verified merged: #399 device routes, #500 MIDI Learn, #505 G1, #509 G2a,
