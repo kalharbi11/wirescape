@@ -168,6 +168,6 @@ folder's `tools\windows\Wirescape.cmd`.
 | `Node.js 22 LTS x64 required.` | Install Node 22 LTS x64. Node 24/26 are not supported on Windows yet. |
 | `Python 3.12 x64 with py launcher required.` | Install Python 3.12 x64 and tick "py launcher". |
 | `Stale/Qt-enabled CMake cache.` | You reused an old folder. Do step 2 again in a new folder. |
-| `Source worktree is dirty` | You changed files in the checkout. Use a fresh folder. |
+| `Source worktree is dirty` | Setup builds only an exact commit. Move stray files (logs) out of the folder; for edited repo files, `git stash` them. To try a local hotfix, commit it locally and pass that commit: `git commit -am "local fix"`, then `$Ref = (git rev-parse HEAD).Trim()`. Report the fix so it lands on `main`. |
 | No sound | Check the output device and rate in Settings, close any DAW that holds the device, try 48 kHz / 256. |
 | Crackles | Try an `ASIO` device (FlexASIO or your interface driver), then a 512 buffer; copy any `overrun` lines from the terminal into your report. |

@@ -48,6 +48,25 @@ class WindowsSetupContract(unittest.TestCase):
         self.assertIn("sidecar_golden", SCRIPT)
         self.assertIn("(Skipped|Not Run)", SCRIPT)
 
+    def test_no_assignment_to_powershell_automatic_variables(self):
+        # Owner report: `$home = ...` is the read-only $HOME (names are
+        # case-insensitive) and aborted re-runs with an existing CMake cache.
+        import re
+        automatic = ("home", "host", "input", "args", "error", "pid", "pwd", "true",
+                     "false", "null", "this", "matches", "psitem", "_", "shellid",
+                     "executioncontext", "myinvocation", "pscmdlet", "psscriptroot",
+                     "pscommandpath", "lastexitcode", "foreach", "switch", "profile")
+        for script in (SCRIPT,):
+            for match in re.finditer(r"\$([A-Za-z_][A-Za-z0-9_]*)\s*=(?!=)", script):
+                self.assertNotIn(match.group(1).lower(), automatic, match.group(0))
+
+    def test_pinned_cmake_is_preferred_without_files_changing(self):
+        self.assertIn("function Use-PinnedCMake", SCRIPT)
+        self.assertIn("'cmake version 4.2.3'", SCRIPT)
+        self.assertIn("sysconfig.get_path('scripts','$kind')", SCRIPT)
+        prefix = SCRIPT.split("if ($CheckOnly)", 1)[0]
+        self.assertIn("Use-PinnedCMake", prefix.split("function Preflight", 1)[1])
+
     def test_launcher_starts_electron_exe_not_the_npm_shim(self):
         # Owner install report: start "" ".bin\electron.cmd" broke cmd quoting.
         self.assertIn("node_modules\\electron\\dist\\electron.exe", LAUNCHER)
