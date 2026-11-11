@@ -31,9 +31,12 @@ const command = (page: Page, message: Record<string, unknown>) =>
 
 const outputMeter = (page: Page, node: number) => page.evaluate(id => {
   const sample = (window as unknown as { __wirescapeTest: { ticker: {
-    last?: { meters?: Record<string, number[]>; scope?: Record<string, number[]> }
+    last?: { meters?: Record<string, number[]>; scope?: Record<string, number[] | Record<string, number>> }
   } } }).__wirescapeTest.ticker.last;
-  return { meter: sample?.meters?.[String(id)] ?? [], scope: sample?.scope?.[String(id)] ?? [] };
+  // Telemetry can cross the WASM bridge as a numeric-keyed object rather than
+  // an Array; normalize the received snapshot without changing its values.
+  const scope = sample?.scope?.[String(id)] ?? {};
+  return { meter: sample?.meters?.[String(id)] ?? [], scope: Object.values(scope) };
 }, node);
 
 test('real WASM catalogue can load a curated CHAOS scene and report output-meter peaks', async ({ page }) => {
