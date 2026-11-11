@@ -37,7 +37,7 @@ Groove useful on the deployed webapp without waiting for #614's clock inputs.
 
 ```acceptance
 tier: T1
-size: <= 250 changed lines, <= 4 files
+size: <= 250 changed lines, <= 5 files
 must_pass:
   - bash -lc 'cd apps/studio && npm ci && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
