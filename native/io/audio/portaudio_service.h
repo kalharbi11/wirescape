@@ -41,8 +41,8 @@ struct RawDevice {
 // Read-only Windows registry names; no PortAudio init or device opening. Linux returns empty.
 std::vector<std::string> installed_asio_drivers();
 // Pure, device-off comparison shared by the real enumerator and fake-backend tests.
-inline std::vector<std::string> unavailable_asio_drivers(const std::vector<std::string> &installed,
-                                                        const std::vector<RawDevice> &visible) {
+using AsioNames = std::vector<std::string>;
+inline AsioNames unavailable_asio_drivers(const AsioNames &installed, const std::vector<RawDevice> &visible) {
     std::vector<std::string> missing;
     for (const auto &name : installed) {
         if (name.empty()) continue;
