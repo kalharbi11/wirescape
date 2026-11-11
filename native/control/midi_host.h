@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+namespace wirescape::monitor { class Capture; }
 namespace wirescape::midi {
 class Service;struct Counters;
 // Control owner only. Stop joins ingress before its borrowed engine is replaced.
@@ -16,11 +17,13 @@ class Host {
     bool authorized_ = false;
     std::string last_statistics_;
     std::vector<Endpoint> enabled_;
+    monitor::Capture *monitor_ = nullptr;
     static int deliver(void *, uint32_t, const ws2_event &, uint64_t) noexcept;
 
   public:
     explicit Host(bool authorized = false, std::unique_ptr<Backend> fake = {});
     ~Host();
+    void observe(monitor::Capture *capture) noexcept { monitor_ = capture; }
     bool authorized() const noexcept { return authorized_; }
     void authorize(bool);
     std::vector<Endpoint> endpoints();
