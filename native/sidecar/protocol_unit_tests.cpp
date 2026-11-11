@@ -156,6 +156,14 @@ void sink_wait_deadline_regression() {
         deadline, [&] { return zero; }, [&](int64_t) { return SinkWaitResult::unavailable; });
     check(unavailable == SinkWaitResult::unavailable);
     arms = 0;
+    const auto early_storm = sink_wait_until(
+        deadline, [&] { return zero; }, [&](int64_t due) {
+            check(due == -53334);
+            ++arms;
+            return SinkWaitResult::deadline;
+        });
+    check(early_storm == SinkWaitResult::unavailable && arms == 16);
+    arms = 0;
     const auto overdue = sink_wait_until(
         zero, [&] { return zero + Us(1); }, [&](int64_t) {
             ++arms;
