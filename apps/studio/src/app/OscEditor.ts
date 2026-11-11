@@ -133,8 +133,8 @@ export function showOscEditor(modal: Modal, raw: unknown,
         const defaults = picoDefaults();
         port.value = String(defaults.port);
         lan.checked = defaults.lan;
-        refreshExample();
       }
+      refreshExample();
       errors.textContent = '';
     });
     presets.append(button);
@@ -147,10 +147,13 @@ export function showOscEditor(modal: Modal, raw: unknown,
   const example = el('code', 'osc-example');
   example.dataset.testid = 'osc-send-example';
   const refreshExample = () => {
-    example.textContent = `send /pico1/knob/1 0.5 to 127.0.0.1:${port.value || '9000'} (UDP)`;
+    const pattern = fields.find(c => c.pattern.value.startsWith('/'))?.pattern.value ?? '/pico1/knob/1';
+    const address = pattern.replaceAll('*', '1');
+    example.textContent = `send ${address} 0.5 to 127.0.0.1:${port.value || '9000'} (UDP)`;
   };
   refreshExample();
   port.addEventListener('input', refreshExample);
+  fields.forEach(c => c.pattern.addEventListener('input', refreshExample));
   const copy = el('button', 'btn', 'Copy example') as HTMLButtonElement;
   copy.type = 'button'; copy.dataset.testid = 'osc-copy-example';
   copy.addEventListener('click', () => {
