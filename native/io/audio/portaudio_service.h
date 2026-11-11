@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include "app_engine.h"
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -37,6 +38,32 @@ struct Device {
 struct RawDevice {
     std::string name, host_api;
 };
+// Read-only Windows registry names; no PortAudio init or device opening. Linux returns empty.
+std::vector<std::string> installed_asio_drivers();
+// Pure, device-off comparison shared by the real enumerator and fake-backend tests.
+inline std::vector<std::string> unavailable_asio_drivers(const std::vector<std::string> &installed,
+                                                        const std::vector<RawDevice> &visible) {
+    std::vector<std::string> missing;
+    for (const auto &name : installed) {
+        if (name.empty()) continue;
+        if (std::any_of(visible.begin(), visible.end(), [&](const RawDevice &device) {
+                return device.host_api == "ASIO" && device.name == name;
+            }))
+            continue;
+        std::string bounded = name;
+        if (bounded.size() > 64) {
+            size_t end = 64;
+            // Preserve UTF-8 when the registry name crosses the wire-size boundary.
+            while (end && (static_cast<unsigned char>(bounded[end]) & 0xc0u) == 0x80u) --end;
+            bounded.resize(end);
+        }
+        if (bounded.empty() || std::find(missing.begin(), missing.end(), bounded) != missing.end()) continue;
+        missing.push_back(std::move(bounded));
+        if (missing.size() == 16) break;
+    }
+    return missing;
+}
+
 std::vector<std::string> device_ids(const std::vector<RawDevice> &devices);
 // Resolves a selection to a position in `devices`: an exact id first, then a legacy
 // bare name only when exactly one device has it. Returns -1 when missing or ambiguous.
