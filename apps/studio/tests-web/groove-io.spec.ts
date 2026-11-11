@@ -86,5 +86,29 @@ test.describe('mobile Groove output jacks', () => {
     expect(sizes.naturalWidth).toBe(1250);
     expect(sizes.visible).toBe('flex');
     expect(sizes.rightGap).toBeLessThan(28);
+    // After a real canvas pan/zoom, create a cable using the offscreen jack.
+    await page.evaluate(() => {
+      const api = (window as any).__wirescapeTest;
+      const patch = api.save();
+      patch.connections = patch.connections.filter((c: any) =>
+        !(c.from.module === 1 && c.from.port === 't1_pitch'));
+      api.load(patch, 'Mobile Groove');
+      const v = api.canvas.viewport;
+      const r = v.rect();
+      v.setView(r.width / 2 - 1340 * 0.65, r.height / 2 - 240 * 0.65, 0.65);
+    });
+    const output = page.getByTestId('port-1-output-t1_pitch');
+    const input = page.getByTestId('port-2-input-pitch');
+    await expect(output).toBeInViewport();
+    await expect(input).toBeInViewport();
+    const a = (await output.boundingBox())!, b = (await input.boundingBox())!;
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() =>
+      (window as any).__wirescapeTest.save().connections.some((c: any) =>
+        c.from.module === 1 && c.from.port === 't1_pitch' &&
+        c.to.module === 2 && c.to.port === 'pitch'))).toBe(true);
   });
 });
