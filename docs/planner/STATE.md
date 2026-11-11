@@ -22,7 +22,7 @@ Exact-head completed evidence governs; queued, stale and missing checks never pa
 - #569 ate92ced5: Codex cross-family delta review complete, no High/Medium;
   main concurrency fixed, required checks green, 35 focused tests pass locally.
   Keel final protected CI-policy approval requested; no senior approval issued.
-- #584 → #588: Keel's new parallel-sanitizer CI change; independent Codex T2 next.
+- #584 → #588 atc63b66b: Codex T2 source review clear; 16 gate outcomes verified.
   #585 diagnostics, #586 fail/skip/cancel gate proof and #587 timing are separate;
   preserve every sanitizer flag/test/threshold and required aggregate check name.
 - #573 → #578 atc13e614: senior normal main merge keeps canonical task and all
