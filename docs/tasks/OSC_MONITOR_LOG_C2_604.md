@@ -34,7 +34,7 @@ Read first: `docs/specs/ENGINE_PROTOCOL.md` §7 (telemetry, `eventActivity`), `n
 tier: T2
 size: <= 900 changed lines, <= 14 files
 must_pass:
-  - bash -lc 'cd apps/studio && npm ci && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [render-path capture or allocation, any protocol change beyond the ruled field, LAN bind or device open in tests, ID changes, new dependency]
 ```
