@@ -119,6 +119,26 @@ int main(int argc, char **argv) {
     CHECK(wsw_render(4096) == nullptr);
     CHECK(loudest(10) >= 0);
 
+    // OSC-3: same optional effective_pitch map as native sidecar; stale
+    // generation and no completed render never expose an old oscillator pitch.
+    Json pitch_patch = Json::parse(R"json({
+        "format": "wirescape.native.patch", "version": 2,
+        "modules": [
+            {"id": 7, "module": "essentials.output"},
+            {"id": 9, "module": "essentials.vco", "parameters": {"frequency": 440}},
+            {"id": 8, "module": "ports.macro_oscillator", "parameters": {"coarse": 9}}
+        ], "connections": []})json");
+    CHECK(command({{"type", "loadGraph"}, {"patch", pitch_patch}})["ok"] == true);
+    CHECK(Json::parse(wsw_telemetry())["effective_pitch"].empty());
+    loudest(1);
+    auto pitches = Json::parse(wsw_telemetry())["effective_pitch"];
+    CHECK(std::fabs(pitches["9"].get<double>() - 69.) < .02);
+    CHECK(std::fabs(pitches["8"].get<double>() - 69.) < .02);
+    CHECK(Json::parse(wsw_telemetry())["effective_pitch"].empty()); // repeated read
+    CHECK(command({{"type", "loadGraph"}, {"patch", load(examples + "/chaos_two.json")}})["ok"] == true);
+    loudest(1);
+    CHECK(Json::parse(wsw_telemetry())["effective_pitch"].empty());
+
     // Groove observations are uncabled last-frame outputs from the same sampler
     // used by the sidecar. A commit and a repeated read both clear the maps.
     Json groove_patch = Json::parse(R"json({
