@@ -458,6 +458,31 @@ than silently misplay them. Studio authoring for both is described in
 is a separate owner check. Check deployed SHAs for native and WebAssembly
 support.
 
+## Groove external-clock patching (#614; builds containing this integration)
+
+`sequencing.groove` now has three optional **mono** input jacks: `clock`
+(trigger), `run` (gate), and `reset` (trigger). Connect
+`essentials.clock:clock` to `sequencing.groove:clock` with
+`ticks_per_beat=4`: each rising edge advances one sixteenth-note tick.
+The Clock module's BPM sets the tempo; Groove's BPM is disabled in Studio
+and an **EXT** badge appears while the `clock` cable is present. Tracks'
+`div` values still divide ticks. Between pulses, Groove does not free-run,
+although already-sounding short gates release on schedule. The first two
+pulses use Groove's BPM as a fallback until a pulse period is measured.
+
+An optional sustained 0→1 gate on `run` starts Groove at step 1 on the
+next tick; its falling edge releases notes immediately. Use
+`essentials.scale_offset:control` with unpatched input and `offset=1`
+as a constant run gate. A rising `reset` pulse returns to step 1.
+The transport buttons still work. Without the new cables, existing Groove
+patterns and their internal BPM timing are unchanged. These are additive
+port IDs: saved pattern versions, note/CV outputs and parameter IDs stay
+the same. They do not implement MIDI clock or DAW sync.
+
+The library example `basics-08-clocked-groove` wires Clock → Groove
+`clock`, constant run gate → Groove `run`, `t1_pitch` → Quantizer → VCO,
+and `t1_gate` → ADSR → VCA → Delay → stereo Output.
+
 ## Groove observation outputs (PR #501)
 
 Groove observation outputs append to its existing pitch/gate/mod/notes ports:
