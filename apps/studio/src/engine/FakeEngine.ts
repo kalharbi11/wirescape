@@ -347,7 +347,7 @@ export class FakeEngine implements EngineClient {
     }
     // Evaluate meters only after every modulated effective value has been computed.
     for (const n of this.nodes.values()) {
-      if (n.type === 'essentials.lfo' || n.type === 'example.random_source' || n.type === 'essentials.clock') {
+      if (n.type === 'essentials.lfo' || n.type === 'essentials.clock') {
         phase[n.id] = this.phases.get(n.id) ?? 0;
       }
       if (n.type === 'example.step_sequencer') {
@@ -394,6 +394,15 @@ export class FakeEngine implements EngineClient {
 
     // Current value of every connected signal output (optional telemetry field).
     const outputs: Record<string, number> = {};
+    // Random Source has no phase tap. Report both measured fake outputs even
+    // when no cable is connected so its history pane can be inspected.
+    for (const n of this.nodes.values()) {
+      if (n.type !== 'example.random_source') continue;
+      const random = this.randomHold.get(n.id);
+      if (!random) continue;
+      outputs[`${n.id}:step`] = random.target;
+      outputs[`${n.id}:smooth`] = random.value;
+    }
     for (const c of this.conns) {
       if (c.kind === 'event') continue;
       const k = `${c.from.module}:${c.from.port}`;
@@ -451,7 +460,6 @@ export class FakeEngine implements EngineClient {
         const smooth = Math.max(0.001, n.params.smooth ?? 0.05);
         st.value += (st.target - st.value) * Math.min(1, dt / smooth);
         this.randomHold.set(n.id, st);
-        this.phases.set(n.id, (st.value + 1) / 2);
         break;
       }
       case 'example.step_sequencer': {
