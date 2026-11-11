@@ -319,7 +319,6 @@ jobs:
       run:
         shell: bash
     steps:
-      - run: sleep 600
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
