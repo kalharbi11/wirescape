@@ -113,6 +113,7 @@ int main() {
         check(missing_asio == std::vector<std::string>{"FlexASIO"},
               "registry drivers missing from PortAudio are distinct, never selectable devices");
         std::vector<std::string> many_asio;
+        many_asio.reserve(30);
         for (int i = 0; i < 30; ++i) many_asio.push_back("Unseen ASIO " + std::to_string(i));
         check(wirescape::audio::unavailable_asio_drivers(many_asio, {}).size() == 16,
               "registry diagnostics are limited to sixteen entries");
@@ -498,8 +499,8 @@ int main() {
         {
             Session s(options);
             s.start(base);
-            check(audio(s)["state"] == "reconnecting" &&
-                      audio(s)["error"] == "fake unavailable/ambiguous output",
+            const auto status = audio(s);
+            check(status["state"] == "reconnecting" && status["error"] == "fake unavailable/ambiguous output",
                   "control-thread opening failure must reach bounded audio status");
             fake::refuse = false;
             s.poll(base + 100ms);
