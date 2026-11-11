@@ -4205,6 +4205,33 @@
    "category": "Sequencer",
    "ports": [
     {
+     "id": "clock",
+     "name": "Clock",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "trigger",
+     "poly": "first",
+     "stereo_pair": null
+    },
+    {
+     "id": "run",
+     "name": "Run",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "gate",
+     "poly": "first",
+     "stereo_pair": null
+    },
+    {
+     "id": "reset",
+     "name": "Reset",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "trigger",
+     "poly": "first",
+     "stereo_pair": null
+    },
+    {
      "id": "t1_pitch",
      "name": "T1 Pitch",
      "direction": "output",
