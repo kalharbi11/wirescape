@@ -152,8 +152,11 @@ export class PatchCanvas {
       card.measure();
       // Add: drops in (DESIGN §8, 240 ms, --bounce, from -10 px / 0.96).
       if (!motionOff()) {
-        card.root.animate([{ opacity: 0, transform: 'translateY(-10px) scale(.96)' }, { opacity: 1, transform: 'none' }],
+        // Bounce only the drop; scale eases without overshoot so a full-width phone card never
+        // renders wider than its box (scale > 1) while the animation settles.
+        card.root.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }],
           { duration: 240, easing: BOUNCE });
+        card.root.animate([{ scale: '.96' }, { scale: '1' }], { duration: 240, easing: 'ease-out' });
       }
     }
     this.applyPolyBadge(id);

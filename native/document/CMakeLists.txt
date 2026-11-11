@@ -83,7 +83,7 @@ set_tests_properties(abi2_app_patch_tests PROPERTIES
   ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_executable(golden_render ../tests/golden_render.cpp)
-target_link_libraries(golden_render PRIVATE wirescape_document)
+target_link_libraries(golden_render PRIVATE wirescape_document nlohmann_json::nlohmann_json)
 target_compile_definitions(golden_render PRIVATE QT_NO_KEYWORDS)
 add_test(NAME golden_render_hashes COMMAND "${Python3_EXECUTABLE}"
   "${PROJECT_SOURCE_DIR}/../tools/golden.py" check --renderer $<TARGET_FILE:golden_render>)
