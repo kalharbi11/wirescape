@@ -101,6 +101,12 @@ export interface Telemetry {
    * `effective[moduleId][paramId] = value in the parameter's own units`.
    */
   effective: Record<number, Record<string, number>>;
+  /**
+   * Optional complete observation map: module ID -> nominal equal-tempered MIDI
+   * note (floating-point semitones, 60 = C4), pre-FM. One most recently
+   * triggered voice per VCO/Macro instance, never a measured post-FM fundamental.
+   */
+  effective_pitch?: Record<number, number>;
   /** LFO-ish phase 0..1 per module, for phase dots. */
   phase: Record<number, number>;
   /** Envelope position 0..1 per module (the loudest live voice). */
