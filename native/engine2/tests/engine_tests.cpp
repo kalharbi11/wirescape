@@ -274,6 +274,12 @@ static void oscillator_pitch() {
     }
     CHECK(!plain.set_telemetry_taps({Tap{Tap::OscPitch, 1, 1}}));
     CHECK(!plain.set_telemetry_taps({Tap{Tap::OscPitch, 99, 0}}));
+    for (const char *id : {"essentials.vco", "ports.macro_oscillator"}) {
+        auto desc = *ws::Module<Source>::descriptor();
+        desc.id = id;
+        Engine incomplete;
+        CHECK(incomplete.add_node(1, &desc) && !incomplete.set_telemetry_taps({pitch}));
+    }
     CHECK(plain.set_telemetry_taps({}));
     CHECK(observed.set_telemetry_taps({pitch}));
     CHECK(plain.prepare() && observed.prepare());
