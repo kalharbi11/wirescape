@@ -12,7 +12,7 @@ How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) liv
 - **1.1 queue (in order; builders may start the T0/T1 items now on `main`):**
   1. Cleanup per `docs/planner/CLEANUP.md` "Status and order": R3a #482 → R3b (#571 folded in) → R5c → R4 #481, plus a task sweep helper.
   2. Stereo Output #600 (T2; UX signed off on the issue).
-  3. Groove clock/sync inputs (#597 item 11; needs a task file).
+  3. Groove external clock/run/reset inputs #614 (T1; `docs/tasks/GROOVE_CLOCK_SYNC_INPUTS.md`; may start now).
   4. CI speed #584–#588/#596.
   5. Pi 1.0 evidence (#271, #296).
   6. Engine debt #487/#91.
