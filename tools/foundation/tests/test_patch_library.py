@@ -101,7 +101,8 @@ class ChaosKeyboardReleaseWiringTests(unittest.TestCase):
         by_module = {}
         for m in patch["modules"]:
             by_module.setdefault(m["module"], []).append(m["id"])
-        one = lambda mod: by_module.get(mod, [None])[0]
+        def one(mod):
+            return by_module.get(mod, [None])[0]
         kb, chaos, adsr = one("host.keyboard"), one("essentials.chaos_lite"), one("essentials.adsr")
         vcas = by_module.get("essentials.vca", [])
         links = {(c["from"]["module"], c["from"]["port"], c["to"]["module"], c["to"]["port"])
