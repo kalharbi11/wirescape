@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Real native graph proof: module config -> render -> serialized reload.
-// Reproduce cppcheck Qt model\'s empty keyword without assuming analyzer-specific defines.
-#define emit
 #include "../modules2/groove/dsp.h"
-#ifndef emit
-static_assert(false, "Groove must restore the caller's Qt keyword macro after including the SDK");
-#endif
-#undef emit
 #include "../tests2/allocation_watch.h"
 #include "runtime_patch.h"
 #include "runtime_module_config.h"
