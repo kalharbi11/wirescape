@@ -72,8 +72,7 @@ inline Plan plan(const Json &patch, AppEngine *catalogue, bool phase_enabled = f
         const std::string type = descriptor->id;
         const bool envelope = type == "essentials.adsr" || type == "essentials.function_envelope";
         if (type == "essentials.vco" || type == "ports.macro_oscillator")
-            add({Tap::OscPitch, id, 0, Tap::First}, type == "essentials.vco" ? Field::PitchHz : Field::PitchNote,
-                "");
+            add({Tap::OscPitch, id, 0, Tap::First}, type == "essentials.vco" ? Field::PitchHz : Field::PitchNote, "");
         for (uint32_t i = 0; i < descriptor->output_count; ++i) {
             const auto &port = descriptor->outputs[i];
             if (envelope && port.kind == WS2_SIGNAL && std::string(port.id) == "envelope")
@@ -127,8 +126,11 @@ class Sampler {
         std::swap(last_frame_, other.last_frame_);
     }
     Json sample(AppEngine *engine) {
-        Json out = {{"effective", Json::object()}, {"phase", Json::object()}, {"envelope", Json::object()},
-                    {"eventActivity", Json::object()}, {"effective_pitch", Json::object()}};
+        Json out = {{"effective", Json::object()},
+                    {"phase", Json::object()},
+                    {"envelope", Json::object()},
+                    {"eventActivity", Json::object()},
+                    {"effective_pitch", Json::object()}};
         if (plan_.groove_enabled) {
             out["playhead"] = Json::object();
             out["groove"] = Json::object();
