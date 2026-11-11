@@ -612,7 +612,8 @@ void Session::commit(Json patch, bool new_namespace) {
             if (midi_->replan(candidate.get(), patch_bytes, timeout_ns, error)) {
                 patch_.swap(patch);
                 used_ids_.swap(ids);
-                monitor_->configure(patch_); // Rebuild direct-only routing and clear old ring on commit.
+                // Rebuild direct-only routing and clear old ring on commit.
+                monitor_->configure(patch_);
                 telemetry_.swap(next_telemetry); // Engine2 counts restart at every replan.
                 ++generation_;
                 std::cerr << "commit path=live gen=" << generation_ << '\n';
@@ -732,7 +733,8 @@ void Session::commit(Json patch, bool new_namespace) {
     ++generation_;
     keyboard_.fill(false);
     used_ids_.swap(ids);
-    monitor_->configure(patch_); // No old-generation messages survive a successful graph commit.
+    // No old-generation messages survive a successful graph commit.
+    monitor_->configure(patch_);
     telemetry_.swap(next_telemetry); // D5 also resets all last-seen event counts.
     std::cerr << "commit path=d5 gen=" << generation_ << '\n';
 }
@@ -1104,8 +1106,8 @@ Json Session::midi_status() const {
     return result;
 }
 Json Session::hello() const {
-    Json capabilities = Json::array({"midiLearn", "telemetry.playhead", "telemetry.monitor",
-                                     "setSampleRate", "setBufferFrames", "osc"});
+    Json capabilities = Json::array({"midiLearn", "telemetry.playhead", "telemetry.monitor", "setSampleRate",
+                                     "setBufferFrames", "osc"});
     return {{"v", 0},
             {"session", token_},
             {"type", "hello"},
