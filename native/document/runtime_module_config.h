@@ -11,7 +11,12 @@ namespace wirescape::document {
 inline std::vector<uint8_t> runtime_module_config(const std::string&type,
     const nlohmann::json&value, uint32_t instance_id = 0) {
  auto require=[](bool ok,const char*s){if(!ok)throw std::runtime_error(s);};
- require(value.is_object(),"Module config must be an object");if(value.empty())return {};
+ require(value.is_object(), "Module config must be an object");
+ if (type == "essentials.chord") {
+     require(value.empty(), "Chord has no native configuration keys");
+     return {uint8_t(instance_id), uint8_t(instance_id >> 8), uint8_t(instance_id >> 16), uint8_t(instance_id >> 24)};
+ }
+ if (value.empty()) return {};
  if (type == "sequencing.groove") {
      using namespace groove;
      require(value.size() == 3 && value.contains("version") && value.contains("bpm") && value.contains("tracks"),

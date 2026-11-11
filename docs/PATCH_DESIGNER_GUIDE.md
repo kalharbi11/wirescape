@@ -99,6 +99,24 @@ setting blocker rather than pretending to merge.
 - Reverb fx.reverb is merged on main (c39af7b): stereo SUM inputs, one wet/dry output per side, not one reverb per note. Unconnected right follows left; size/decay/damping/predelay/width/motion/freeze/mix are available. Use two output-bus routes to preserve stereo; saved state clears the tail.
 - Macro requires48k. No external sample files/services. Do not assume pending
   Chord or Notes→CV exist: inspect the actual catalogue and deployed SHA.
+- **Chord (builds containing #403):** `essentials.chord` accepts and outputs
+  `notes` event cables. Route `host.keyboard.notes` or a sequencer's
+  `notes` output into `essentials.chord.notes`. The root is always present;
+  four optional enabled semitone shifts (-24..+24) default to +4/+7 enabled,
+  +12/-12 disabled. Each note activation owns distinct output note IDs;
+  same-pitch duplicates are distinct voices, and held intervals don't retune.
+  Reusing a live explicit `(source_id, channel, note_id)` is a producer error:
+  last wins, releasing the old chord; the next matching off releases the current
+  chord, and another off is ignored. The event has no generation discriminator.
+  Capacity is 16 input activations and 80 emitted/pending voices; new notes are
+  declined when full. Chord instances sharing a source need distinct graph IDs
+  modulo 2048 to keep their output note identities separate at fan-in.
+  Chord is not a sequencer or a CV source. **A production polyphonic audio
+  chain requires `essentials.notes_to_cv` (#421)**: Chord `notes` →
+  Notes→CV `notes` → poly `pitch`/`gate`/`velocity` → instrument/Output.
+  Until #421 is actually merged into the target build, don't promise that
+  route; `midi.to_cv.midi` is raw-MIDI-only and cannot accept Chord's note
+  events. No hardware/MIDI or listening validation is implied.
 
 ### Other shipped module IDs (catalogue cross-reference)
 
