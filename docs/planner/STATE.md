@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-10, Keel (ASAP lanes + rulings). Owner failures preempt features.
+**Updated:** 2026-11-11, Keel (finish-first rulings). Owner failures preempt features.
 Live heads and completed evidence govern; queued, stale and missing results never pass.
 
 ## Authority and queue
@@ -12,6 +12,14 @@ Live heads and completed evidence govern; queued, stale and missing results neve
   Other new starts still wait. #521 chord/scale/speed design approved; scale lives in `ui.groove`.
 - Keel rulings 2026-11-10: #511 Chord last-wins for reused explicit IDs, budget 20 files;
   #500 Learn keeps one loadGraph but serializes edits while it's pending; #514 G4 pre-ruled.
+
+## 2026-11-11 Keel (owner: finish MIDI/OSC/Groove/CHAOS + existing-module fixes, then move on)
+- #554/#565 CHAOS performer strip dropped (not planned); branch kept as archive, tag pending (Codex Lead).
+- Rulings: #528 G1 IDs byte-identical, chord IDs untagged but unique; #529 ENGINE_PROTOCOL authorized
+  (hello `osc`, `status.osc`, `--confirm-lan`); #337 nominal-pitch readout; #564 docs-only evidence transfer,
+  Windows wake overrun gets a real T2 fix. #432 closed (superseded by G-series).
+- #569 CI speed: PR-only cancel for sanitizers/acceptance + ccache sanitizers (needs Codex T2).
+- Qt tests left are R3 only; Qt-only `allow-test-removal` pre-authorized once R2 replaces golden/app_patch coverage.
 
 ## Merged 2026-11-09 (baseline `605da43`, compile repair `1e20242`)
 - #463 Windows runtime, #400 latency, #442 real-app evidence, #474 PLAN D15–D19.
