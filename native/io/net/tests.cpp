@@ -118,6 +118,49 @@ int main() {
 #endif
     bounded.stop();
     REQUIRE(bounded.counters().sockets == 0);
+    // One UDP datagram can contain dozens of OSC bundle elements. A 80-message
+    // bundle must deliver no more than 64, even though it is one small packet.
+    Service bundled({&c, Capture::deliver});
+    REQUIRE(bundled.add({1, 0, false}) && bundled.start());
+    auto bundle_sender = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    sockaddr_in bundle_address{};
+    bundle_address.sin_family = AF_INET;
+    bundle_address.sin_port = htons(bundled.bound_port());
+    bundle_address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    Message short_message;
+    short_message.address = "/x";
+    short_message.count = 1;
+    short_message.arguments[0].type = 'f';
+    short_message.arguments[0].real = 0.25f;
+    uint8_t short_packet[1472]{};
+    bool short_truncated = false;
+    const auto short_bytes = encode(short_message, short_packet, sizeof(short_packet), short_truncated);
+    REQUIRE(short_bytes > 0 && !short_truncated);
+    std::array<uint8_t, 2048> bundle{};
+    std::memcpy(bundle.data(), "#bundle", 7);
+    size_t used = 16; // bundle marker + zero timetag
+    for (uint32_t element = 0; element < 80; ++element) {
+        REQUIRE(used + 4 + short_bytes <= bundle.size());
+        put32(bundle.data() + used, uint32_t(short_bytes));
+        used += 4;
+        std::memcpy(bundle.data() + used, short_packet, short_bytes);
+        used += short_bytes;
+    }
+    REQUIRE(sendto(bundle_sender, reinterpret_cast<const char *>(bundle.data()), int(used), 0,
+                   reinterpret_cast<sockaddr *>(&bundle_address), sizeof(bundle_address)) == int(used));
+    for (uint32_t wait = 0; wait < 2000 && bundled.states()[0].received < 64; ++wait)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    REQUIRE(bundled.counters().received == 1);
+    REQUIRE(bundled.states()[0].received == 64);
+    REQUIRE(bundled.states()[0].dropped == 16);
+    REQUIRE(bundled.counters().dropped == 16);
+#ifdef _WIN32
+    closesocket(bundle_sender);
+#else
+    close(bundle_sender);
+#endif
+    bundled.stop();
+    REQUIRE(bundled.counters().sockets == 0);
     // LAN/localhost conflicts stay isolated even with explicit permission:
     // no test ever opens a LAN socket.
     Service mismatch({&c, Capture::deliver}, true);

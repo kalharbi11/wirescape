@@ -180,6 +180,7 @@ struct Service::Impl {
             for (uint32_t j = 0; j < count; ++j) {
                 if (!(descriptors[j].revents & POLLIN)) continue;
                 const uint32_t i = indices[j];
+                uint32_t messages = 0; // a bundle may contain many messages per datagram
                 for (uint32_t packets = 0; packets < 64 && running.load(std::memory_order_relaxed); ++packets) {
                     auto *packet_data = reinterpret_cast<char *>(packet.data());
                     const auto length = recv(listeners[i].socket, packet_data, int(packet.size()), 0);
@@ -189,14 +190,21 @@ struct Service::Impl {
                         dropped.fetch_add(1, std::memory_order_relaxed);
                         continue;
                     }
-                    if (!parse(packet.data(), size_t(length), [](const Message &) {})) {
-                        malformed.fetch_add(1, std::memory_order_relaxed);
-                        continue;
-                    }
                     const auto observed = std::chrono::steady_clock::now().time_since_epoch();
                     const auto timestamp =
                         uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(observed).count());
-                    parse(packet.data(), size_t(length), [&](const Message &message) {
+                    // codec::parse validates the entire bundle before invoking a sink.
+                    // Cap decoded messages as well as datagrams to prevent a single
+                    // bundle from monopolizing the worker's delivery budget.
+                    const bool valid = parse(packet.data(), size_t(length), [&](const Message &message) {
+                        if (messages >= 64) {
+                            dropped.fetch_add(1, std::memory_order_relaxed);
+                            for (uint32_t r = 0; r < route_count; ++r)
+                                if (route_enabled[r] && routes[r].port == listeners[i].requested)
+                                    route_dropped[r].fetch_add(1, std::memory_order_relaxed);
+                            return;
+                        }
+                        ++messages;
                         bool shortened = false;
                         const auto bytes = encode(message, normalized.data(), normalized.size(), shortened);
                         if (!bytes) {
@@ -223,6 +231,7 @@ struct Service::Impl {
                             }
                         }
                     });
+                    if (!valid) malformed.fetch_add(1, std::memory_order_relaxed);
                 }
             }
         }
