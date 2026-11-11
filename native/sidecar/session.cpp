@@ -1046,8 +1046,17 @@ Json Session::status() const {
     auto value = base();
     value["type"] = "status";
     value["status"] = {{"audio", audio_status()}, {"midi", midi_status()}};
+    // Snapshot only on the control thread. Summary fields are aggregate actual
+    // bind state; multi-port details stay in the bounded per-route list.
+    Json osc_status = {{"enabled", false}, {"bind", "127.0.0.1"}, {"port", 0}, {"lan", false}};
     Json osc_routes = Json::array();
+    bool any_bound = false, any_lan = false, port_busy = false;
     for (const auto &route : osc_->states()) {
+        if (osc_routes.empty()) osc_status["port"] = route.port;
+        const bool listening = std::string(route.state) != "port-busy";
+        any_bound |= listening;
+        any_lan |= listening && route.lan_bound;
+        port_busy |= !listening;
         Json entry = Json::object();
         entry["module"] = std::to_string(route.node);
         entry["port"] = route.port;
@@ -1057,7 +1066,12 @@ Json Session::status() const {
         entry["dropped"] = route.dropped;
         osc_routes.push_back(std::move(entry));
     }
-    value["status"]["osc"] = {{"routes", std::move(osc_routes)}};
+    osc_status["enabled"] = any_bound;
+    osc_status["lan"] = any_lan;
+    osc_status["bind"] = any_lan ? "0.0.0.0" : "127.0.0.1";
+    if (port_busy) osc_status["last_error"] = "port-busy";
+    osc_status["routes"] = std::move(osc_routes);
+    value["status"]["osc"] = std::move(osc_status);
     return value;
 }
 Json Session::telemetry() {

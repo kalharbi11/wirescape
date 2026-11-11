@@ -214,7 +214,7 @@ int main() {
             };
             auto hello = s.hello();
             check(hello["audioDevices"].size() == 2 &&
-                      hello["capabilities"] == Json::array({"midiLearn", "telemetry.playhead", "setSampleRate", "setBufferFrames"}),
+                      hello["capabilities"] == Json::array({"midiLearn", "telemetry.playhead", "setSampleRate", "setBufferFrames", "osc"}),
                   "hello must expose the supported device catalogue and methods");
             auto listed = call("list", "listAudioDevices")["result"]["devices"];
             check(listed.size() == 2 && listed[0]["backend"] == "FakeAudio" && listed[0]["outputChannels"] == 2 &&

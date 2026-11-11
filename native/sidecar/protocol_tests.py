@@ -415,7 +415,8 @@ with tempfile.TemporaryDirectory() as osc_dir:
         occupied.bind(('127.0.0.1', 0))
         port = occupied.getsockname()[1]
         osc_engine = Engine(Path(osc_dir) / 'settings.json')
-        assert 'osc' in osc_engine.hello['capabilities']
+        assert osc_engine.hello['capabilities'] == ['midiLearn', 'telemetry.playhead',
+                                                    'setSampleRate', 'setBufferFrames', 'osc']
         osc_patch = minimal()
         osc_patch['modules'].append(dict(id=9, module='osc.in',
                                          config=dict(port=port, lan=True,
@@ -429,8 +430,15 @@ with tempfile.TemporaryDirectory() as osc_dir:
                 message = osc_engine.pushes.pop(0) if osc_engine.pushes else osc_engine.receive()
                 if message.get('type') != 'status' or message.get('gen') != osc_engine.last_gen:
                     continue
-                routes = message['status']['osc']['routes']
+                osc = message['status']['osc']
+                assert {'enabled', 'bind', 'port', 'lan', 'routes'} <= osc.keys()
+                assert osc['port'] == port and osc['bind'] == '127.0.0.1'
+                assert osc['lan'] is False
+                routes = osc['routes']
                 if len(routes) == 1 and predicate(routes[0]):
+                    assert osc['enabled'] == (routes[0]['state'] != 'port-busy')
+                    assert (osc.get('last_error') == 'port-busy') == (
+                        routes[0]['state'] == 'port-busy')
                     return routes[0]
             raise AssertionError('No matching OSC route status: ' + osc_engine.stderr())
 
@@ -467,7 +475,8 @@ with tempfile.TemporaryDirectory() as osc_dir:
         while time.monotonic() < deadline:
             message = osc_engine.pushes.pop(0) if osc_engine.pushes else osc_engine.receive()
             if message.get('type') == 'status' and message['gen'] == removed_gen:
-                assert message['status']['osc']['routes'] == []
+                assert message['status']['osc'] == dict(
+                    enabled=False, bind='127.0.0.1', port=0, lan=False, routes=[])
                 break
         else:
             raise AssertionError('OSC source removal did not clear status')
