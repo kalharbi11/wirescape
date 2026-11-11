@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# #573: lock CHAOS keyboard ADSR to stereo VCA release wiring
+# CHAOS keyboard ADSR to stereo VCA release wiring (#573)
 
 Issue #573, T0 helper. Test-only regression in
 `tools/foundation/tests/test_patch_library.py` for the shipped keyboard CHAOS
