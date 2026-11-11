@@ -4,6 +4,7 @@ import {
   setKind, sourceOf, stepAt, stepFor, trackLength,
   type GrooveConfig, type Kind, type Step,
 } from './pattern';
+import { notesOf } from './chords';
 
 export type Scale = 'Chromatic' | 'Major' | 'Minor' | 'Pentatonic';
 export const SCALES: Record<Scale, readonly number[]> = {
@@ -30,7 +31,7 @@ export function movePitch(key: number, degrees: number, root: number, scale: Sca
 }
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-const FIELDS = ['kind', 'key', 'velocity', 'gate', 'cond', 'mod1', 'mod2'] as const;
+const FIELDS = ['kind', 'key', 'keys', 'velocity', 'gate', 'cond', 'mod1', 'mod2'] as const;
 export function barStart(step: number): number { return Math.floor(step / 16) * 16; }
 export function copyBar(cfg: GrooveConfig, track: number, step: number): Step[] {
   const start = barStart(step), end = Math.min(start + 16, trackLength(cfg, track));
@@ -59,17 +60,16 @@ export function clearBar(cfg: GrooveConfig, track: number, step: number): void {
   }
 }
 
-/** Per-pitch roll projection. The authored pattern remains single-note per step today.
- * The note-keyed inner map can later hold multiple pitches without changing the roll renderer.
- */
+/** Per-pitch roll projection: all voices of a step share its start and ties. */
 export function rollNotes(cfg: GrooveConfig, track: number): Map<number, Map<number, Kind>> {
   const result = new Map<number, Map<number, Kind>>();
   for (let i = 0; i < trackLength(cfg, track); i++) {
     const s = stepAt(cfg, track, i), src = sourceOf(cfg, track, i);
     if (src < 0 || (s.kind !== 'note' && s.kind !== 'tie')) continue;
-    const key = stepAt(cfg, track, src).key ?? 60;
-    if (!result.has(key)) result.set(key, new Map());
-    result.get(key)!.set(i, s.kind);
+    for (const key of notesOf(stepAt(cfg, track, src))) {
+      if (!result.has(key)) result.set(key, new Map());
+      result.get(key)!.set(i, s.kind);
+    }
   }
   return result;
 }

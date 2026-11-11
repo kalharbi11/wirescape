@@ -186,3 +186,38 @@ test('G2b Roll/bar edits stay in draft until a measured stop and explicit Apply'
   expect((await sent(page)).slice(before).filter(m => m.type === 'loadGraph')).toHaveLength(1);
   expect((await sent(page)).slice(before).some(m => m.type === 'setParam' && m.paramId === 'run')).toBe(false);
 });
+
+test('G4b chord Apply is refused by an old engine: keys reach loadGraph, draft and reason remain, no run', async ({ page }) => {
+  await telemetry(page, { 1: [-1, -1] });
+  await page.getByTestId('groove-notes-chord-1').click();
+  const authored = await page.evaluate(() => window.__wirescapeTest.state().modules[0].config);
+  expect(authored.tracks[0].steps[0].keys).toEqual([60, 64, 67]);
+  await page.evaluate(() => (window as any).__mockBridge.refuseNext('loadGraph', 'invalid'));
+  const before = (await sent(page)).length;
+  await apply(page).click();
+  await expect(page.getByTestId('groove-draft-1')).toBeVisible();
+  await expect(page.getByTestId('toast')).toContainText('Scripted invalid');
+  expect((await graphConfig(page)).tracks[0].steps[0]).toEqual(steps[0]);
+  const messages = (await sent(page)).slice(before);
+  expect(messages.filter(m => m.type === 'loadGraph')).toHaveLength(1);
+  expect(messages.find(m => m.type === 'loadGraph').patch.modules[0].config.tracks[0].steps[0].keys)
+    .toEqual([60, 64, 67]);
+  expect(messages.some(m => m.type === 'setParam' && m.paramId === 'run')).toBe(false);
+});
+
+test('G5b speed Apply is refused by an old engine: div reaches loadGraph, draft and reason remain, no run', async ({ page }) => {
+  await telemetry(page, { 1: [-1, -1] });
+  await page.getByTestId('groove-div-4-1').click();
+  const authored = await page.evaluate(() => window.__wirescapeTest.state().modules[0].config);
+  expect(authored.tracks[0].div).toBe(4);
+  await page.evaluate(() => (window as any).__mockBridge.refuseNext('loadGraph', 'invalid'));
+  const before = (await sent(page)).length;
+  await apply(page).click();
+  await expect(page.getByTestId('groove-draft-1')).toBeVisible();
+  await expect(page.getByTestId('toast')).toContainText('Scripted invalid');
+  expect((await graphConfig(page)).tracks[0].div).toBeUndefined();
+  const messages = (await sent(page)).slice(before);
+  expect(messages.filter(m => m.type === 'loadGraph')).toHaveLength(1);
+  expect(messages.find(m => m.type === 'loadGraph').patch.modules[0].config.tracks[0].div).toBe(4);
+  expect(messages.some(m => m.type === 'setParam' && m.paramId === 'run')).toBe(false);
+});

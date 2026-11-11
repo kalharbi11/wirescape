@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "session.h"
+#include "null_sink_wait.h"
 #include "runtime_patch.h"
 #include "wirescape_sidecar_categories.h"
 #include <algorithm>
@@ -50,9 +51,16 @@ class SinkScheduling {
     bool timer_ = timeBeginPeriod(1) == TIMERR_NOERROR;
     int previous_priority_ = GetThreadPriority(GetCurrentThread());
     bool fallback_ = false;
+    HANDLE waitable_ = nullptr;
 
   public:
     SinkScheduling() noexcept {
+        // The 5.33 ms / 48 kHz block period is shorter than Windows' typical
+        // condition-variable wake granularity. Request the high-resolution
+        // kernel timer, falling back to the ordinary waitable timer on older OSes.
+        constexpr DWORD kHighResolution = 0x00000002; // Windows 10 1803+
+        waitable_ = CreateWaitableTimerExW(nullptr, nullptr, kHighResolution, TIMER_ALL_ACCESS);
+        if (!waitable_) waitable_ = CreateWaitableTimerW(nullptr, FALSE, nullptr);
         if (avrt_) {
             const auto register_task =
                 reinterpret_cast<Register>(GetProcAddress(avrt_, "AvSetMmThreadCharacteristicsW"));
@@ -63,6 +71,7 @@ class SinkScheduling {
         if (!task_) fallback_ = SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) != 0;
     }
     ~SinkScheduling() {
+        if (waitable_) CloseHandle(waitable_);
         if (task_) revert_(task_);
         if (fallback_ && previous_priority_ != THREAD_PRIORITY_ERROR_RETURN)
             SetThreadPriority(GetCurrentThread(), previous_priority_);
@@ -71,6 +80,29 @@ class SinkScheduling {
     }
     SinkScheduling(const SinkScheduling &) = delete;
     SinkScheduling &operator=(const SinkScheduling &) = delete;
+
+    void wait_until(std::chrono::steady_clock::time_point deadline, HANDLE stop_event, std::mutex &mutex,
+                    std::condition_variable &wake, const std::atomic<bool> &stop) {
+        if (waitable_ && stop_event) {
+            const auto result = sink_wait_until(
+                deadline, [] { return std::chrono::steady_clock::now(); },
+                [&](int64_t due) {
+                    LARGE_INTEGER relative{};
+                    relative.QuadPart = due;
+                    if (!SetWaitableTimer(waitable_, &relative, 0, nullptr, nullptr, FALSE))
+                        return SinkWaitResult::unavailable;
+                    const HANDLE handles[] = {stop_event, waitable_};
+                    const DWORD signal = WaitForMultipleObjects(2, handles, FALSE, INFINITE);
+                    if (signal == WAIT_OBJECT_0) return SinkWaitResult::stopped;
+                    if (signal == WAIT_OBJECT_0 + 1) return SinkWaitResult::deadline;
+                    return SinkWaitResult::unavailable;
+                });
+            if (result != SinkWaitResult::unavailable) return;
+        }
+        // Resource/API failure: preserve the original interruptible CV path.
+        std::unique_lock<std::mutex> lock(mutex);
+        wake.wait_until(lock, deadline, [&] { return stop.load(); });
+    }
 };
 #endif
 struct Refusal : std::runtime_error {
@@ -330,9 +362,14 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
         }
     } else {
         active_ = engine_.get();
-        sink_ =
-            std::thread([this, live = active_, left = std::vector<float>(options_.block),
-                         right = std::vector<float>(options_.block)]() mutable {
+#ifdef _WIN32
+        // The control thread owns this event until after join; the kernel wait
+        // can be interrupted immediately even for the 512 ms long-block case.
+        sink_stop_event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+#endif
+        try {
+            sink_ = std::thread([this, live = active_, left = std::vector<float>(options_.block),
+                                 right = std::vector<float>(options_.block)]() mutable {
                 float *rows[] = {left.data(), right.data()};
 #ifdef _WIN32
                 SinkScheduling scheduling;
@@ -349,24 +386,43 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
                     }
                     if (render != WS_OK) break;
                     auto after = std::chrono::steady_clock::now();
-                    double percent = std::chrono::duration<double>(after - before).count() *
-                                     options_.rate / options_.block * 100;
+                    double percent =
+                        std::chrono::duration<double>(after - before).count() * options_.rate / options_.block * 100;
                     cpu_.store(percent);
                     const auto scheduled_start = next;
                     next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                         std::chrono::duration<double>(double(options_.block) / options_.rate));
                     if (options_.bench_summary) bench_.record_timing(percent, before, after, scheduled_start, next);
+#ifdef _WIN32
+                    scheduling.wait_until(next, static_cast<HANDLE>(sink_stop_event_), sink_mutex_, sink_wake_,
+                                          stop_sink_);
+#else
                     std::unique_lock<std::mutex> lock(sink_mutex_);
                     sink_wake_.wait_until(lock, next, [this] { return stop_sink_.load(); });
+#endif
                 }
                 sink_rendering_.store(false, std::memory_order_release);
             });
+        } catch (...) {
+#ifdef _WIN32
+            if (sink_stop_event_) CloseHandle(static_cast<HANDLE>(sink_stop_event_));
+            sink_stop_event_ = nullptr;
+#endif
+            throw;
+        }
     }
 }
 void Session::stop_audio() {
     stop_sink_.store(true);
+#ifdef _WIN32
+    if (sink_stop_event_) SetEvent(static_cast<HANDLE>(sink_stop_event_));
+#endif
     sink_wake_.notify_all();
     if (sink_.joinable()) sink_.join();
+#ifdef _WIN32
+    if (sink_stop_event_) CloseHandle(static_cast<HANDLE>(sink_stop_event_));
+    sink_stop_event_ = nullptr;
+#endif
     sink_rendering_.store(false, std::memory_order_release);
     if (stream_) {
         engine_ = stream_->stop();

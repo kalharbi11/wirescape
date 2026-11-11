@@ -26,6 +26,7 @@ export interface PanelHost {
   commitParam(moduleId: number, paramId: string, value: number, commit: boolean): void;
   /** Bundle existing setParam commands into one undoable gesture. */
   applyModulePreset(moduleId: number, values: Readonly<Record<string, number>>): void;
+  toast(message: string, tone?: 'info' | 'error'): void;
   commitModAmount(c: Connection, amount: number, commit: boolean): void;
   listMidiDevices(): Promise<Device[]>;
   setModuleEndpoint(moduleId: number, endpoint: string, systemName?: string): void;
@@ -158,12 +159,23 @@ export class Panel {
       select.append(option('Custom', ''), ...presets.map(p => option(p.name, p.name)));
       const refreshPreset = () => {
         const params = host.doc.modules.get(moduleId)?.parameters ?? {};
-        select.value = matchingPreset(d, params) ?? '';
+        try { select.value = matchingPreset(d, params) ?? ''; }
+        catch { select.value = ''; } // Invalid preset data must not break card refresh.
       };
       select.addEventListener('change', () => {
         const preset = presets.find(p => p.name === select.value);
         if (!preset) { refreshPreset(); return; }
-        host.applyModulePreset(moduleId, resolvePreset(d, preset));
+        let values: Readonly<Record<string, number>>;
+        try {
+          // Only invalid metadata is caught here; engine/application failures
+          // must not be misreported as validation errors after a partial edit.
+          values = resolvePreset(d, preset);
+        } catch (error) {
+          host.toast(error instanceof Error ? error.message : 'Invalid module preset.', 'error');
+          refreshPreset();
+          return;
+        }
+        host.applyModulePreset(moduleId, values);
         refreshPreset();
       });
       wrap.append(el('span', 'module-preset-label', 'Presets'), select);
