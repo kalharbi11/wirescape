@@ -145,8 +145,7 @@ bool valid_tap(const Node *node, const Tap &tap) {
     if (!node || tap.kind > Tap::OscPitch) return false;
     if (tap.kind == Tap::OscPitch)
         return !node->legacy && tap.index == 0 &&
-               (!std::strcmp(node->d->id, "essentials.vco") ||
-                !std::strcmp(node->d->id, "ports.macro_oscillator"));
+               (!std::strcmp(node->d->id, "essentials.vco") || !std::strcmp(node->d->id, "ports.macro_oscillator"));
     if (tap.kind == Tap::Param) return !node->legacy && tap.index < node->parameters.size();
     return tap.index < node->outputs.size() &&
            node->outputs[tap.index].kind == (tap.kind == Tap::EventOut ? WS2_EVENT : WS2_SIGNAL);
@@ -655,9 +654,10 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         auto signal = [&](SignalIndex at) {
             const auto &buffer = n.in[at.input];
             const uint32_t channel = std::min(at.channel, buffer.channels - 1);
-            const uint32_t sample = (buffer.flags & WS2_CONSTANT)
-                                        ? 0u
-                                        : (buffer.read[channel] == buffer.data[channel] ? at.sample : start + at.sample);
+            const uint32_t sample =
+                (buffer.flags & WS2_CONSTANT)
+                    ? 0u
+                    : (buffer.read[channel] == buffer.data[channel] ? at.sample : start + at.sample);
             return buffer.read[channel][sample];
         };
         auto parameter = [&](uint32_t index, uint32_t channel) {
@@ -701,8 +701,8 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
             if (std::isfinite(hz) && hz > 0) n.pitch.value = static_cast<float>(hz);
         } else {
             // Macro tap stores nominal MIDI note. FM and Plaits internal FM excluded.
-            n.pitch.value = 60.f + parameter(1, channel) +
-                            std::clamp(12.f * signal({0, channel, frames - 1}), -96.f, 96.f);
+            n.pitch.value =
+                60.f + parameter(1, channel) + std::clamp(12.f * signal({0, channel, frames - 1}), -96.f, 96.f);
         }
     }
 }
