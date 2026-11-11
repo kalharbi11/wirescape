@@ -623,10 +623,13 @@ export class PatchCanvas {
         `Connect the stereo pair? ${pair.outA}/${pair.outB} → ${pair.inA}/${pair.inB}.`);
       if (this.s.doc.ui !== view || !this.s.canEdit()) return true;
       if (ok) {
-        this.commitConnection(base, additive);
-        this.commitConnection(
-          { kind, from: { module: out.module, port: pair.outB }, to: { module: inp.module, port: pair.inB } },
-          additive);
+        const second: Connection = { kind, from: { module: out.module, port: pair.outB }, to: { module: inp.module, port: pair.inB } };
+        // Do not create half a pair if either edge already exists.
+        if (this.s.doc.has(base) || this.s.doc.has(second)) {
+          this.s.toast('A pair cable already exists. Choose JUST THIS ONE to change a single side.', 'error');
+          return true;
+        }
+        this.commitStereoPair(base, second);
         return true;
       }
     }
@@ -776,7 +779,50 @@ export class PatchCanvas {
   }
 
   /**
-   * Add a connection, honouring the replace-or-add rule: a signal input
+   * Replace both stereo inputs as one engine transaction. Only publish document
+   * edits after both engine connects succeed: a refused second edge cannot add
+   * a history entry, dirty the patch, or leave the first edge in the document.
+   */
+  private commitStereoPair(first: Connection, second: Connection): void {
+    if (!this.s.canEdit()) return;
+    const replaced = [
+      ...this.s.doc.cablesInto(first.to.module, first.to.port),
+      ...this.s.doc.cablesInto(second.to.module, second.to.port),
+    ].filter((c, i, all) => all.findIndex(other => connKey(other) === connKey(c)) === i);
+    const removed: Connection[] = [], added: Connection[] = [];
+    try {
+      for (const old of replaced) { this.s.engineDisconnect(old); removed.push(old); }
+      for (const cable of [first, second]) { this.s.engineConnect(cable); added.push(cable); }
+    } catch (err) {
+      let restored = true;
+      // Reverse successful engine operations. Only mirror exceptional rollback
+      // failures into the document, so it never advertises a missing engine edge.
+      for (const cable of added.reverse()) {
+        try { this.s.engineDisconnect(cable); }
+        catch { restored = false; this.s.doc.connect(cable); }
+      }
+      for (const old of removed) {
+        try { this.s.engineConnect(old); }
+        catch { restored = false; this.s.doc.disconnect(old); }
+      }
+      this.s.toast(restored
+        ? (err instanceof Error ? err.message : 'The engine refused the stereo pair.')
+        : 'The engine could not restore every previous cable; the patch reflects the remaining connections.', 'error');
+      this.shake(second.to.module);
+      return;
+    }
+    for (const old of replaced) this.s.doc.disconnect(old);
+    this.s.doc.connect(first);
+    this.s.doc.connect(second);
+    this.s.toast('Stereo pair connected.');
+    for (const c of [first, second]) {
+      this.cards.get(c.from.module)?.pulsePort('output', c.from.port);
+      this.cards.get(c.to.module)?.pulsePort('input', c.to.port);
+    }
+  }
+
+  /**
+   * Add one cable, honouring the replace-or-add rule: a signal input
    * takes one cable by default, and shift-drop adds alongside.
    */
   private commitConnection(c: Connection, additive: boolean): void {
@@ -794,7 +840,6 @@ export class PatchCanvas {
     try {
       this.s.engineConnect(c);
       this.s.toast(c.kind === 'modulation' ? 'Modulation connected.' : 'Connected.');
-      // Connected: the target card pops slightly and the ports pulse (DESIGN §8).
       const from = this.cards.get(c.from.module), to = this.cards.get(c.to.module);
       from?.pulsePort('output', c.from.port);
       if (c.kind !== 'modulation') to?.pulsePort('input', c.to.port);
@@ -803,7 +848,10 @@ export class PatchCanvas {
       }
     } catch (err) {
       this.s.doc.disconnect(c);
-      for (const old of replaced) this.s.doc.connect(old);
+      for (const old of replaced) {
+        try { this.s.engineConnect(old); this.s.doc.connect(old); }
+        catch { this.s.toast('Could not restore a previous cable in the engine; it remains disconnected.', 'error'); }
+      }
       this.s.toast(err instanceof Error ? err.message : 'The engine refused that cable.', 'error');
       this.shake(c.to.module);
     }
