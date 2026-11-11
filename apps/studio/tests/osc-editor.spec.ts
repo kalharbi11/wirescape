@@ -52,10 +52,11 @@ test('editor round-trips eight rows with stable module ID and patch extras', asy
   const saved = await state(page);
   expect(saved.modules[0]).toMatchObject({ id: 1, ownerNote: 'keep me' });
   expect(saved.ownerExtension).toEqual({ survive: 1 });
-  expect(saved.modules[0].config).toMatchObject({
-    port: 9001, lan: false, rows: [{ pattern: '/show/voice/*', kind: 'gate', argument: 1, input_max: 2 }],
-  });
+  expect(saved.modules[0].config).toMatchObject({ port: 9001, lan: false });
   expect(saved.modules[0].config.rows).toHaveLength(8);
+  expect(saved.modules[0].config.rows[0]).toMatchObject({
+    pattern: '/show/voice/*', kind: 'gate', argument: 1, input_max: 2,
+  });
   await open(page);
   await expect(page.getByTestId('osc-row1-pattern')).toHaveValue('/show/voice/*');
   await expect(page.getByTestId('osc-editor-port')).toHaveValue('9001');
