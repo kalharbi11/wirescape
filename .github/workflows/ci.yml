@@ -311,6 +311,10 @@ jobs:
     timeout-minutes: 30
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '4'
+      CCACHE_DIR: ${{ github.workspace }}/.tools/ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: 'true'
     defaults:
       run:
         shell: bash
@@ -322,20 +326,43 @@ jobs:
       - name: Install build tools
         run: |
           python -m pip install cmake==4.2.3 ninja==1.13.0
+          sudo apt-get update
+          sudo apt-get install -y ccache
           echo "nproc=$(nproc)"; free -m
+      # Compiler cache only (#569): ccache hashes compiler, flags and preprocessed source, so
+      # every test still runs against a fresh link. PRs restore; only main pushes save.
+      - uses: actions/cache/restore@v6
+        with:
+          path: .tools/ccache
+          key: ccache-asan-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: |
+            ccache-asan-${{ runner.arch }}-
+            ccache-sanitizers-${{ runner.arch }}-
       - name: ASan and UBSan
         run: |
           set -euo pipefail
-          cmake -S native -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer'
+          cmake -S native -B build/asan -G Ninja -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer'
           cmake --build build/asan --parallel 4
           free -m
           ctest --test-dir build/asan -R abi2 --output-on-failure
+      - name: Compiler cache stats
+        if: always()
+        run: ccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY" || true
+      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6
+        with:
+          path: .tools/ccache
+          key: ccache-asan-${{ runner.arch }}-${{ github.sha }}
   sanitizers-tsan:
     name: sanitizers / TSan + cost
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '4'
+      CCACHE_DIR: ${{ github.workspace }}/.tools/ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: 'true'
     defaults:
       run:
         shell: bash
@@ -348,15 +375,32 @@ jobs:
         run: |
           python -m pip install cmake==4.2.3 ninja==1.13.0
           sudo apt-get update
-          sudo apt-get install -y valgrind
+          sudo apt-get install -y valgrind ccache
           echo "nproc=$(nproc)"; free -m
+      # Compiler cache only (#569): ccache hashes compiler, flags and preprocessed source, so
+      # every test still runs against a fresh link. PRs restore; only main pushes save.
+      - uses: actions/cache/restore@v6
+        with:
+          path: .tools/ccache
+          key: ccache-tsan-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: |
+            ccache-tsan-${{ runner.arch }}-
+            ccache-sanitizers-${{ runner.arch }}-
       - name: TSan
         run: |
           set -euo pipefail
-          cmake -S native -B build/tsan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=thread -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=thread -fno-omit-frame-pointer'
+          cmake -S native -B build/tsan -G Ninja -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=thread -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=thread -fno-omit-frame-pointer'
           cmake --build build/tsan --parallel 4
           free -m
           ctest --test-dir build/tsan -R abi2 -E '^abi2_benchmark$' --output-on-failure
+      - name: Compiler cache stats
+        if: always()
+        run: ccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY" || true
+      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6
+        with:
+          path: .tools/ccache
+          key: ccache-tsan-${{ runner.arch }}-${{ github.sha }}
       - name: Callgrind instructions per block
         run: |
           set -euo pipefail

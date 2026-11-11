@@ -11,7 +11,9 @@ replaced. Remove `native`'s `ci-${{ github.ref }}` job group. Run the ASan+UBSan
 parallel with the TSan → Callgrind lane. Keep the required check name: the
 `sanitizers` job has `if: always()` and is green only when both lane results are
 exactly `success`. Trial `--parallel 4` on Linux ARM64 (4 vCPU / 16 GB) and
-print `nproc` and `free -m`; Windows stays at 2.
+print `nproc` and `free -m`; Windows stays at 2. Keep #569's ccache in both
+lanes (per-lane keys, falling back to #569's `ccache-sanitizers-` key). PRs
+only restore; main pushes save, so PR runs don't churn the 10 GB repo cache.
 
 **Unchanged:** sanitizer flags, CTest selections (`-R abi2`, TSan
 `-E '^abi2_benchmark$'`), cost gate and thresholds, no suppressions.
