@@ -24,17 +24,17 @@ std::vector<std::string> installed_asio_drivers() {
     // Registry enumeration is read-only on the control thread. A missing hive
     // is ordinary (e.g. test runners and machines with no ASIO driver).
     HKEY key = nullptr;
-    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\ASIO", 0, KEY_READ | KEY_WOW64_64KEY, &key) !=
-        ERROR_SUCCESS)
-        return result;
+    const auto opened = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\ASIO", 0, KEY_READ | KEY_WOW64_64KEY, &key);
+    if (opened != ERROR_SUCCESS) return result;
     for (DWORD index = 0; index < 128; ++index) {
         wchar_t name[256]{};
         DWORD length = 255;
         const auto status = RegEnumKeyExW(key, index, name, &length, nullptr, nullptr, nullptr, nullptr);
         if (status == ERROR_NO_MORE_ITEMS) break;
         if (status != ERROR_SUCCESS || !length) continue;
-        const int bytes = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, name, int(length), nullptr, 0,
-                                              nullptr, nullptr);
+        const int chars = int(length);
+        const int bytes = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, name, chars, nullptr, 0, nullptr,
+                                              nullptr);
         if (bytes <= 0) continue;
         std::string utf8(size_t(bytes), '\0');
         if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, name, int(length), utf8.data(), bytes, nullptr,
