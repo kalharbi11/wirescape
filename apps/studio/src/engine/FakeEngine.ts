@@ -513,7 +513,7 @@ export class FakeEngine implements EngineClient {
       case 'midi.to_cv': {
         const v = this.voices.filter(v => v.on).at(-1);
         if (!v) return portId === 'gate' ? 0 : 0;
-        if (portId === 'pitch') return (v.note - 60) / 60;
+        if (portId === 'pitch') return (v.note - 60) / 12; // 1/octave, 0 = C4 (native keyboard contract)
         if (portId === 'gate') return 1;
         if (portId === 'velocity') return v.velocity;
         return 0;
