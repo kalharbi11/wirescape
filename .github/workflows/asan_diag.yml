@@ -29,7 +29,7 @@ jobs:
         run: |
           cmake -S native -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer' -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           cmake --build build/asan --parallel 2 --target abi2_chaos_lite_tests abi2_resonator_tests
-      - name: Host and compile diagnostics, timing helper
+      - name: Host and compile diagnostics
         continue-on-error: true
         timeout-minutes: 2
         run: |
@@ -39,82 +39,60 @@ jobs:
           getconf PAGESIZE
           cat /proc/sys/vm/mmap_rnd_bits
           grep -E '(chaos_lite|resonator)/tests\.cpp' build/asan/compile_commands.json || true
-          cat > "$RUNNER_TEMP/measure.sh" <<'EOF'
+      - name: All timings, cheap evidence first
+        continue-on-error: true
+        timeout-minutes: 30
+        run: |
           measure() {
-            local binary rc=0
-            binary=$(find "build/$1" -name "$3" -type f -print -quit)
-            if [[ -z "$binary" ]]; then echo "RESULT|$2|$3|missing" | tee -a "$RUNNER_TEMP/results"; return; fi
-            /usr/bin/time -f '%e' -o "$RUNNER_TEMP/elapsed" "$binary" > "$RUNNER_TEMP/test-output" 2>&1 || rc=$?
-            echo "RESULT|$2|$3|$(cat "$RUNNER_TEMP/elapsed")|rc=$rc" | tee -a "$RUNNER_TEMP/results"
-            tail -n 3 "$RUNNER_TEMP/test-output"
+            local variant="$1" test="$2" rc=0 started ended elapsed output
+            shift 2
+            output=$(mktemp)
+            started=$(date +%s.%N)
+            if [[ $# -eq 0 ]]; then
+              rc=127
+            elif [[ -z "$1" ]]; then
+              rc=127
+            else
+              "$@" > "$output" 2>&1 || rc=$?
+            fi
+            ended=$(date +%s.%N)
+            elapsed=$(awk -v a="$started" -v b="$ended" 'BEGIN {printf "%.3f", b-a}')
+            printf 'RESULT %s %s %s %s\n' "$variant" "$test" "$elapsed" "$rc"
+            tail -n 3 "$output"
+            rm -f "$output"
           }
-          EOF
-      - name: Direct GCC ASan and UBSan timings
-        continue-on-error: true
-        timeout-minutes: 10
-        run: |
-          source "$RUNNER_TEMP/measure.sh"; measure asan gcc-asan-ubsan abi2_chaos_lite_tests
-          measure asan gcc-asan-ubsan abi2_resonator_tests
-      - name: CTest GCC ASan and UBSan timing
-        continue-on-error: true
-        timeout-minutes: 10
-        run: /usr/bin/time -p ctest --test-dir build/asan -R 'abi2_(chaos_lite|resonator)_tests' --output-on-failure
-      - name: ASAN_OPTIONS experiments 1 and 2
-        continue-on-error: true
-        timeout-minutes: 10
-        run: |
-          source "$RUNNER_TEMP/measure.sh"
-          for opt in detect_stack_use_after_return=0 malloc_context_size=0; do
-            export ASAN_OPTIONS="$opt"
-            measure asan "ASAN_OPTIONS=$opt" abi2_chaos_lite_tests
+          chaos=$(find build/asan -name abi2_chaos_lite_tests -type f -print -quit)
+          resonator=$(find build/asan -name abi2_resonator_tests -type f -print -quit)
+          measure gcc-asan-ubsan chaos_lite "$chaos"
+          measure gcc-asan-ubsan resonator "$resonator"
+          measure gcc-asan-ubsan-ctest chaos_lite ctest --test-dir build/asan -R '^abi2_chaos_lite_tests$' --output-on-failure
+          measure gcc-asan-ubsan-ctest resonator ctest --test-dir build/asan -R '^abi2_resonator_tests$' --output-on-failure
+          cmake -S native -B build/asanonly -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=address -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=address -fno-omit-frame-pointer' &&
+            cmake --build build/asanonly --parallel 2 --target abi2_chaos_lite_tests abi2_resonator_tests || echo 'ASan-only build failed'
+          measure gcc-asan-only chaos_lite "$(find build/asanonly -name abi2_chaos_lite_tests -type f -print -quit)"
+          measure gcc-asan-only resonator "$(find build/asanonly -name abi2_resonator_tests -type f -print -quit)"
+          cmake -S native -B build/ubsan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=undefined -fno-sanitize-recover=undefined' -DCMAKE_C_FLAGS='-fsanitize=undefined -fno-sanitize-recover=undefined' &&
+            cmake --build build/ubsan --parallel 2 --target abi2_chaos_lite_tests abi2_resonator_tests || echo 'UBSan-only build failed'
+          measure gcc-ubsan-only chaos_lite "$(find build/ubsan -name abi2_chaos_lite_tests -type f -print -quit)"
+          measure gcc-ubsan-only resonator "$(find build/ubsan -name abi2_resonator_tests -type f -print -quit)"
+          for opt in detect_stack_use_after_return=0 malloc_context_size=0 fast_unwind_on_malloc=1 detect_leaks=0 allocator_may_return_null=1; do
+            measure "asan:$opt" chaos_lite env ASAN_OPTIONS="$opt" "$chaos"
           done
-      - name: ASAN_OPTIONS experiments 3 and 4
-        continue-on-error: true
-        timeout-minutes: 10
-        run: |
-          source "$RUNNER_TEMP/measure.sh"
-          for opt in fast_unwind_on_malloc=1 detect_leaks=0; do
-            export ASAN_OPTIONS="$opt"
-            measure asan "ASAN_OPTIONS=$opt" abi2_chaos_lite_tests
-          done
-      - name: ASAN and UBSAN remaining options
-        continue-on-error: true
-        timeout-minutes: 10
-        run: |
-          source "$RUNNER_TEMP/measure.sh"
-          ASAN_OPTIONS=allocator_may_return_null=1 measure asan "ASAN_OPTIONS=allocator_may_return_null=1" abi2_chaos_lite_tests
-          UBSAN_OPTIONS=print_stacktrace=0 measure asan "UBSAN_OPTIONS=print_stacktrace=0" abi2_chaos_lite_tests
-      - name: GCC ASan only
-        continue-on-error: true
-        timeout-minutes: 10
-        run: |
-          cmake -S native -B build/asanonly -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=address -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=address -fno-omit-frame-pointer'
-          cmake --build build/asanonly --parallel 2 --target abi2_chaos_lite_tests abi2_resonator_tests
-          source "$RUNNER_TEMP/measure.sh"; measure asanonly gcc-asan-only abi2_chaos_lite_tests
-          measure asanonly gcc-asan-only abi2_resonator_tests
-      - name: GCC UBSan only
-        continue-on-error: true
-        timeout-minutes: 10
-        run: |
-          cmake -S native -B build/ubsan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=undefined -fno-sanitize-recover=undefined' -DCMAKE_C_FLAGS='-fsanitize=undefined -fno-sanitize-recover=undefined'
-          cmake --build build/ubsan --parallel 2 --target abi2_chaos_lite_tests abi2_resonator_tests
-          source "$RUNNER_TEMP/measure.sh"; measure ubsan gcc-ubsan-only abi2_chaos_lite_tests
-          measure ubsan gcc-ubsan-only abi2_resonator_tests
-      - name: Clang ASan and UBSan
-        continue-on-error: true
-        timeout-minutes: 10
-        run: |
+          measure ubsan:print_stacktrace=0 chaos_lite env UBSAN_OPTIONS=print_stacktrace=0 "$chaos"
           clang --version | head -1
-          cmake -S native -B build/clang -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer'
-          cmake --build build/clang --parallel 2 --target abi2_chaos_lite_tests abi2_resonator_tests
-          source "$RUNNER_TEMP/measure.sh"; measure clang clang-asan-ubsan abi2_chaos_lite_tests
-          measure clang clang-asan-ubsan abi2_resonator_tests
+          cmake -S native -B build/clang -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer' &&
+            cmake --build build/clang --parallel 2 --target abi2_chaos_lite_tests abi2_resonator_tests || echo 'Clang build failed'
+          measure clang-asan-ubsan chaos_lite "$(find build/clang -name abi2_chaos_lite_tests -type f -print -quit)"
+          measure clang-asan-ubsan resonator "$(find build/clang -name abi2_resonator_tests -type f -print -quit)"
       - name: Try perf top functions
         continue-on-error: true
         timeout-minutes: 5
         run: |
           if sudo apt-get install -y linux-tools-common "linux-tools-$(uname -r)"; then
+            sudo sysctl -w kernel.perf_event_paranoid=1 || true
             binary=$(find build/asan -name abi2_chaos_lite_tests -type f -print -quit)
-            perf record -g -- timeout 20s "$binary" || true
-            perf report --stdio | head -60 || true
+            if [[ -n "$binary" ]]; then
+              sudo perf record -g -o perf.data -- timeout 20s "$binary" || true
+              sudo perf report -i perf.data --stdio --no-children | head -60 || true
+            fi
           fi
