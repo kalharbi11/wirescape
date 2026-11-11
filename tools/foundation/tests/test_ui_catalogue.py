@@ -68,3 +68,91 @@ class UiCatalogueTests(unittest.TestCase):
         path.write_text(json.dumps(data))
         generated = json.loads(generator.generate(self.root))['modules'][0]['parameters'][0]
         self.assertEqual(generated, param)
+
+
+class ChaosCatalogueContractTests(unittest.TestCase):
+    """Keep native CHAOS IDs, generated descriptors, and its Studio panel in sync."""
+
+    ORIGINAL_PARAMS = (
+        "shape_a", "shape_b", "detune", "octave_a", "octave_b", "level_a",
+        "level_b", "pan_a", "pan_b", "route", "depth", "body_tune",
+        "feedback", "damping", "body_mix", "roughness", "rough_rate", "drift",
+        "jitter", "fall", "lfo_rate", "lfo_depth", "lfo_target", "lfo_self",
+        "cutoff", "level",
+    )
+    SHAPES = ("Sine", "Triangle", "Sample & hold", "Smooth random")
+
+    @classmethod
+    def problems(cls, manifest, catalogue, panel):
+        problems = []
+        expected = (*cls.ORIGINAL_PARAMS, "lfo_shape")
+        ids = manifest.get("parameters", {})
+        if manifest.get("id") != "essentials.chaos_lite":
+            problems.append("native module ID changed")
+        if set(ids) != set(expected):
+            problems.append("native parameter IDs changed")
+        if any(ids.get(name) != index for index, name in enumerate(expected)):
+            problems.append("native parameter slot changed")
+
+        modules = [m for m in catalogue.get("modules", [])
+                   if m.get("id") == "essentials.chaos_lite"]
+        if len(modules) != 1:
+            return problems + ["generated CHAOS descriptor missing or duplicated"]
+        generated = modules[0]
+        # Compare names to their source; don't freeze a display name in this test.
+        if generated.get("name") != manifest.get("name"):
+            problems.append("generated descriptor name differs from native manifest")
+        if generated.get("legacy_parameters") != ids:
+            problems.append("generated parameter slots differ from native manifest")
+        parameters = generated.get("parameters", [])
+        if [param.get("id") for param in parameters] != list(expected):
+            problems.append("generated parameter ordering changed")
+        shapes = [param for param in parameters if param.get("id") == "lfo_shape"]
+        if len(shapes) != 1:
+            problems.append("generated lfo_shape missing or duplicated")
+        else:
+            shape = shapes[0]
+            if (shape.get("default"), shape.get("minimum"),
+                    shape.get("maximum"), shape.get("step")) != (0, 0, 3, 1):
+                problems.append("lfo_shape range/default changed")
+            choices = [(item.get("value"), item.get("label"))
+                       for item in shape.get("choices", [])]
+            if choices != list(enumerate(cls.SHAPES)):
+                problems.append("lfo_shape choices changed")
+
+        if panel.get("code") != "CHAOS":
+            problems.append("CHAOS panel code changed")
+        panel_ids = [name for section in panel.get("sections", [])
+                     for name in section.get("params", [])]
+        if len(panel_ids) != len(set(panel_ids)) or set(panel_ids) != set(expected):
+            problems.append("CHAOS panel parameters missing, duplicate, or unknown")
+        return problems
+
+    @staticmethod
+    def metadata():
+        root = ROOT
+        return (
+            json.loads((root / "native/modules2/chaos_lite/module.json").read_text()),
+            json.loads((root / "apps/studio/public/wirescape_modules.json").read_text()),
+            json.loads((root / "apps/studio/public/panels/essentials.chaos_lite.json").read_text()),
+        )
+
+    def test_current_chaos_descriptor_and_panel_match(self):
+        self.assertEqual(self.problems(*self.metadata()), [])
+
+    def test_mutated_native_slot_and_panel_param_are_detected(self):
+        native, catalogue, panel = self.metadata()
+        bad_native = json.loads(json.dumps(native))
+        bad_native["parameters"]["lfo_shape"] = 25
+        self.assertIn("native parameter slot changed",
+                      self.problems(bad_native, catalogue, panel))
+        bad_panel = json.loads(json.dumps(panel))
+        bad_panel["sections"][0]["params"][0] = "unknown_parameter"
+        self.assertIn("CHAOS panel parameters missing, duplicate, or unknown",
+                      self.problems(native, catalogue, bad_panel))
+        bad_catalogue = json.loads(json.dumps(catalogue))
+        module = next(m for m in bad_catalogue["modules"]
+                      if m["id"] == "essentials.chaos_lite")
+        next(p for p in module["parameters"] if p["id"] == "lfo_shape")["choices"].pop()
+        self.assertIn("lfo_shape choices changed",
+                      self.problems(native, bad_catalogue, panel))
