@@ -18,6 +18,9 @@ struct Rig {
     std::array<float, 10> controls{};
     std::array<const float *, 10> control_rows{};
     std::array<ws2_signal, 10> params{};
+    std::array<float, 3> input_values{};
+    std::array<const float *, 3> input_rows{};
+    std::array<ws2_signal, 3> inputs{};
     ws2_process raw{};
     bool refuse_off = false;
     uint32_t ons = 0, offs = 0;
@@ -45,7 +48,12 @@ struct Rig {
             control_rows[i] = &controls[i];
             params[i] = {sizeof(ws2_signal), &control_rows[i], 1, WS2_CONSTANT};
         }
-        raw.frames = 1; raw.output_count = 18; raw.param_count = 10;
+        for (uint32_t i = 0; i < inputs.size(); ++i) {
+            input_rows[i] = &input_values[i];
+            inputs[i] = {sizeof(ws2_signal), &input_rows[i], 1, WS2_CONSTANT};
+        }
+        raw.frames = 1; raw.input_count = 3; raw.output_count = 18; raw.param_count = 10;
+        raw.inputs = inputs.data();
         raw.outputs = outputs.data(); raw.params = params.data(); raw.event_outputs = events.data();
         auto &track = sequencer.pattern.tracks[0];
         for (auto &step : track.steps) step.kind = groove::Tie;
@@ -413,7 +421,85 @@ static void coherent_snapshots() {
     render.join();
     CHECK(observed > 0);
 }
+static void external_clock_contract() {
+    const char *names[]{"clock", "run", "reset"};
+    CHECK(groove::Sequencer::inputs.size() == 3);
+    for (uint32_t i = 0; i < 3; ++i)
+        CHECK(std::strcmp(names[i], groove::Sequencer::inputs[i].id) == 0);
+
+    // The first pulse uses the authored BPM. The second supplies a real period.
+    Rig clocked;
+    clocked.sequencer.internal_samples_per_step = clocked.sequencer.samples_per_step = 16;
+    clocked.sequencer.pattern.tracks[0].div = 2;
+    clocked.inputs[0].flags |= WS2_CONNECTED;
+    clocked.render();
+    clocked.controls[0] = 1;
+    clocked.render();
+    CHECK(clocked.sequencer.running && clocked.sequencer.step == 0);
+    clocked.input_values[0] = 1;
+    clocked.render();
+    CHECK(clocked.sequencer.step == 1 && clocked.sequencer.step_t[0] == 0);
+    clocked.input_values[0] = 0;
+    for (uint32_t i = 0; i < 3; ++i) clocked.render();
+    clocked.input_values[0] = 1;
+    clocked.render();
+    CHECK(clocked.sequencer.step == 2 && clocked.sequencer.step_t[0] == 1);
+    CHECK(clocked.sequencer.samples_per_step == 5);
+    clocked.input_values[0] = 0;
+    for (uint32_t i = 0; i < 40; ++i) clocked.render();
+    CHECK(clocked.sequencer.step == 2); // Missing master pulses never free-run.
+    clocked.inputs[0].flags &= ~uint32_t(WS2_CONNECTED);
+    clocked.render();
+    CHECK(clocked.sequencer.samples_per_step == 16); // Disconnect restores BPM.
+
+    // A short note expires even when the external pulse train goes missing.
+    Rig gate;
+    gate.sequencer.internal_samples_per_step = gate.sequencer.samples_per_step = 16;
+    for (auto &row : gate.sequencer.pattern.tracks[0].steps) row.kind = groove::Rest;
+    gate.sequencer.pattern.tracks[0].steps[0].kind = groove::Note;
+    gate.sequencer.pattern.tracks[0].steps[0].velocity = 1;
+    gate.sequencer.pattern.tracks[0].steps[0].gate_q = 1;
+    gate.inputs[0].flags |= WS2_CONNECTED;
+    gate.render(); gate.controls[0] = 1; gate.render();
+    CHECK(gate.ons == 1 && gate.offs == 0);
+    for (uint32_t i = 0; i < 6; ++i) gate.render();
+    CHECK(gate.offs == 1 && gate.values[1] == 0);
+
+    // The run input starts on the NEXT pulse, unlike the existing manual START.
+    Rig transport;
+    transport.inputs[0].flags |= WS2_CONNECTED;
+    transport.inputs[1].flags |= WS2_CONNECTED;
+    transport.inputs[2].flags |= WS2_CONNECTED;
+    transport.render();
+    transport.input_values[1] = 1;
+    transport.render();
+    CHECK(!transport.sequencer.running && transport.ons == 0);
+    transport.input_values[0] = 1;
+    transport.render();
+    CHECK(transport.sequencer.running && transport.sequencer.step == 0 && transport.ons == 1);
+    transport.input_values[0] = 0;
+    transport.render();
+    transport.input_values[0] = 1;
+    transport.render();
+    CHECK(transport.sequencer.step == 1);
+    transport.input_values[0] = 0;
+    transport.render();
+    transport.input_values[2] = 1;
+    transport.input_values[0] = 1; // RESET wins over a simultaneous clock tick.
+    transport.render();
+    CHECK(transport.sequencer.step == 0 && transport.offs == 1);
+    transport.input_values[2] = 0;
+    transport.input_values[0] = 0;
+    transport.render();
+    transport.input_values[1] = 0;
+    transport.render();
+    CHECK(!transport.sequencer.running && transport.values[1] == 0);
+    transport.input_values[0] = 1;
+    transport.render();
+    CHECK(!transport.sequencer.running);
+}
 int main() {
+    external_clock_contract();
     chord_egress_contract();
     chord_identity_lifetime();
     speed_clock_contract();
