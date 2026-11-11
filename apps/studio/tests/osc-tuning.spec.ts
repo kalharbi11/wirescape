@@ -147,10 +147,11 @@ test('nominal pitch readout follows FakeEngine observations and clears replaced 
   await vco(page, 220, false);
   await expect(live).toHaveText('A3 +0 ct · 220 Hz');
   // The complete-map contract evicts an old observation even when the card stays mounted.
-  await page.evaluate(() => window.__wirescapeTest.ticker.push({
+  // Stop the fake clock so a fresh sample cannot race the absence assertion.
+  await page.evaluate(() => { window.__wirescapeTest.engine.stop(); window.__wirescapeTest.ticker.push({
     tick: 999, time: 0, effective: {}, effective_pitch: {}, phase: {},
     envelope: {}, meters: {}, scope: {}, eventActivity: {}, heldNotes: [],
-  }));
+  }); });
   await expect(live).toHaveText('—');
 });
 
