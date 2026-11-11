@@ -6,6 +6,7 @@ import { EngineRefusal } from './EngineClient';
 import type { PatchV2, Connection } from '../patch/types';
 import type { ModuleRegistry } from '../modules/registry';
 import { findParam, findPort, normToValue, valueToNorm } from '../modules/registry';
+import { hzToMidi } from '../modules/musicalPitch';
 
 const TICK_HZ = 30;
 
@@ -33,6 +34,7 @@ export class FakeEngine implements EngineClient {
   private nodes = new Map<number, Node>();
   private conns: Connection[] = [];
   private voices: Voice[] = [];
+  private lastNote: number | null = null;
   private telemetryCbs = new Set<(t: Telemetry) => void>();
   private statusCbs = new Set<(s: SystemStatus) => void>();
   private timer: number | undefined;
@@ -102,7 +104,7 @@ export class FakeEngine implements EngineClient {
   canApplyGroove(_moduleId: number): boolean { return true; }
 
   async loadGraph(patch: PatchV2): Promise<void> {
-    this.nodes.clear(); this.conns = []; this.voices = [];
+    this.nodes.clear(); this.conns = []; this.voices = []; this.lastNote = null;
     this.phases.clear(); this.randomHold.clear(); this.seqStep.clear();
     this.currentEffective.clear(); this.meterPeak.clear(); this.eventActivity.clear();
     for (const m of patch.modules) {
@@ -196,6 +198,7 @@ export class FakeEngine implements EngineClient {
   // ---- EngineClient: playing -------------------------------------------
 
   noteOn(note: number, velocity: number): void {
+    this.lastNote = note;
     const existing = this.voices.find(v => v.note === note);
     if (existing) { existing.on = true; existing.since = this.time; existing.stage = 'a'; existing.velocity = velocity; return; }
     this.voices.push({ note, velocity, on: true, since: this.time, level: 0, stage: 'a' });
@@ -206,7 +209,7 @@ export class FakeEngine implements EngineClient {
     if (v) { v.on = false; v.since = this.time; v.stage = 'r'; }
   }
 
-  panic(): void { this.voices = []; }
+  panic(): void { this.voices = []; this.lastNote = null; }
 
   // ---- EngineClient: subscriptions -------------------------------------
 
@@ -295,6 +298,7 @@ export class FakeEngine implements EngineClient {
 
     const cache = new Map<string, number>();
     const effective: Record<number, Record<string, number>> = {};
+    const effective_pitch: Record<number, number> = {};
     this.currentEffective.clear();
     const phase: Record<number, number> = {};
     const envelope: Record<number, number> = {};
@@ -320,6 +324,26 @@ export class FakeEngine implements EngineClient {
         this.currentEffective.set(`${n.id}:${p.id}`, modulated[p.id]!);
       }
       if (Object.keys(modulated).length) effective[n.id] = modulated;
+    }
+    // Mirror the native nominal, pre-FM pitch contract. Signal values come
+    // from the fake graph, never from the displayed knob's Hz label alone.
+    for (const n of this.nodes.values()) {
+      if (n.type !== 'essentials.vco' && n.type !== 'ports.macro_oscillator') continue;
+      const pitchCable = this.conns.find(c => c.kind === 'signal'
+        && c.to.module === n.id && c.to.port === 'pitch');
+      const cv = pitchCable ? this.sourceValue(pitchCable, cache) : 0;
+      if (n.type === 'essentials.vco') {
+        const frequency = effective[n.id]?.frequency ?? n.params.frequency ?? 220;
+        const notesConnected = this.conns.some(c => c.kind === 'event'
+          && c.to.module === n.id && c.to.port === 'notes');
+        const hz = pitchCable ? 261.6255653005986 * 2 ** cv * (frequency / 220)
+          : notesConnected && this.lastNote !== null ? 440 * 2 ** ((this.lastNote - 69) / 12)
+            : frequency;
+        effective_pitch[n.id] = hzToMidi(hz);
+      } else {
+        const coarse = effective[n.id]?.coarse ?? n.params.coarse ?? 0;
+        effective_pitch[n.id] = 60 + coarse + Math.max(-96, Math.min(96, cv * 12));
+      }
     }
     // Evaluate meters only after every modulated effective value has been computed.
     for (const n of this.nodes.values()) {
@@ -382,7 +406,7 @@ export class FakeEngine implements EngineClient {
 
     const t: Telemetry = {
       tick: this.tick, time: this.time,
-      effective, phase, envelope, meters, scope, eventActivity, outputs,
+      effective, effective_pitch, phase, envelope, meters, scope, eventActivity, outputs,
       heldNotes: this.voices.filter(v => v.on).map(v => v.note),
     };
     for (const cb of this.telemetryCbs) cb(t);
