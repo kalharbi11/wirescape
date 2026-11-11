@@ -109,15 +109,12 @@ int main() {
         // The UI's driver picker receives a real host-API string through the
         // sidecar protocol, exercised here with link-time fakes (no devices opened).
         const auto opens_before_list = fake::attempts.size();
-        fake::outputs = {{"ASIO|ASIO4ALL v2", "ASIO4ALL v2", "ASIO", 7, false,
-                          "ASIO", 2, {48000}, true, ""}};
+        fake::outputs = {{"ASIO|ASIO4ALL v2", "ASIO4ALL v2", "ASIO", 7, false, "ASIO", 2, {48000}, true, ""}};
         const auto asio_list = audio_devices("", false);
-        check(asio_list.size() == 1 && asio_list[0]["hostApi"] == "ASIO" &&
-                  asio_list[0]["backend"] == "ASIO" &&
+        check(asio_list.size() == 1 && asio_list[0]["hostApi"] == "ASIO" && asio_list[0]["backend"] == "ASIO" &&
                   asio_list[0]["id"] == "ASIO|ASIO4ALL v2",
               "ASIO fake host API is published with its stable device ID");
-        check(fake::attempts.size() == opens_before_list,
-              "listAudioDevices never opens a fake or real stream");
+        check(fake::attempts.size() == opens_before_list, "listAudioDevices never opens a fake or real stream");
 
         Options options;
         options.audio = true; // fake linked service, never the physical backend
