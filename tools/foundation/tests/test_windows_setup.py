@@ -19,6 +19,9 @@ SCRIPT = (Path(__file__).resolve().parents[2] / "windows" / "setup.ps1").read_te
 
 SMOKE = (Path(__file__).resolve().parents[3] / "apps" / "desktop" / "tests" /
          "windows-setup.spec.cjs").read_text(encoding="utf-8")
+LAUNCHER = (Path(__file__).resolve().parents[2] / "windows" / "Wirescape.cmd").read_text(
+    encoding="utf-8"
+)
 SHELL = shutil.which("powershell.exe") or shutil.which("pwsh")
 
 
@@ -44,6 +47,13 @@ class WindowsSetupContract(unittest.TestCase):
         self.assertIn("Get-FileHash", SCRIPT)
         self.assertIn("sidecar_golden", SCRIPT)
         self.assertIn("(Skipped|Not Run)", SCRIPT)
+
+    def test_launcher_starts_electron_exe_not_the_npm_shim(self):
+        # Owner install report: start "" ".bin\electron.cmd" broke cmd quoting.
+        self.assertIn("node_modules\\electron\\dist\\electron.exe", LAUNCHER)
+        self.assertNotIn("electron.cmd", LAUNCHER)
+        self.assertIn('if not exist "%ELECTRON%"', LAUNCHER)
+        self.assertIn("--confirm-audio --confirm-midi %*", LAUNCHER)
 
     def test_asio_sdk_is_pinned_checked_and_optional(self):
         # Owner v1 request: ASIO drivers (FlexASIO, ASIO4ALL, interface drivers).

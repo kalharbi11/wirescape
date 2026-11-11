@@ -12,4 +12,12 @@ if not exist "%ROOT%\apps\desktop\build\main.js" (
   echo Run npm run build in apps\desktop first.
   exit /b 1
 )
-start "" "%ROOT%\apps\desktop\node_modules\.bin\electron.cmd" "%ROOT%\apps\desktop\build\main.js" --engine "%ENGINE%" --confirm-audio --confirm-midi %*
+set "ELECTRON=%ROOT%\apps\desktop\node_modules\electron\dist\electron.exe"
+if not exist "%ELECTRON%" (
+  echo Electron is missing. Run tools\windows\setup.ps1 first.
+  exit /b 1
+)
+:: Launch electron.exe directly. "start" on the npm .bin shim made cmd
+:: strip the outer quotes ("The filename, directory name, or volume label
+:: syntax is incorrect"), owner install report 2026-11-11.
+start "Wirescape" "%ELECTRON%" "%ROOT%\apps\desktop\build\main.js" --engine "%ENGINE%" --confirm-audio --confirm-midi %*
