@@ -752,8 +752,7 @@ Json Session::apply(const Json &command) {
     if (type == "listAudioDevices") {
         refresh_devices();
         Json result = {{"devices", audio_devices_}};
-        if (!unavailable_audio_drivers_.empty())
-            result["audio"] = {{"unavailableDrivers", unavailable_audio_drivers_}};
+        if (!unavailable_audio_drivers_.empty()) result["audio"] = {{"unavailableDrivers", unavailable_audio_drivers_}};
         return result;
     }
     if (type == "listMidiDevices") return {{"devices", midi_devices_}};
@@ -1211,8 +1210,7 @@ Json Session::devices() {
     value["type"] = "devices";
     value["audioDevices"] = audio_devices_;
     value["midiDevices"] = midi_devices_;
-    if (!unavailable_audio_drivers_.empty())
-        value["audio"] = {{"unavailableDrivers", unavailable_audio_drivers_}};
+    if (!unavailable_audio_drivers_.empty()) value["audio"] = {{"unavailableDrivers", unavailable_audio_drivers_}};
     return value;
 }
 bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumerated) {
