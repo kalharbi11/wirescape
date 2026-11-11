@@ -440,7 +440,7 @@ static void external_clock_contract() {
     clocked.render();
     CHECK(clocked.sequencer.step == 1 && clocked.sequencer.step_t[0] == 0);
     clocked.input_values[0] = 0;
-    for (uint32_t i = 0; i < 3; ++i) clocked.render();
+    for (uint32_t i = 0; i < 4; ++i) clocked.render();
     clocked.input_values[0] = 1;
     clocked.render();
     CHECK(clocked.sequencer.step == 2 && clocked.sequencer.step_t[0] == 1);
