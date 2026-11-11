@@ -1,0 +1,329 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "CHAOS Lab 4 · Radio Static (sample-and-hold FX)",
+  "description": "Autoplay metallic crackles with no keyboard. The internal CHAOS sample-and-hold LFO (shape 2) steps the cutoff at 6.3 Hz while a clock drives short function-envelope strikes into twin VCAs; rough oscillators, stereo delay and reverb leave space around the pulses. The fixed clock and internal seeded LFO make this reproducible. Try LFO rate/depth/target, roughness, cutoff, function fall, delay mix. No external random source or phantom looper; real listening remains to be checked.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 55504,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "essentials.clock",
+      "version": 2,
+      "parameters": {
+        "bpm": 82,
+        "ticks_per_beat": 1,
+        "duty": 0.05,
+        "run": 1
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.chaos_lite",
+      "version": 1,
+      "parameters": {
+        "shape_a": 1.55,
+        "shape_b": 0.36,
+        "detune": -24,
+        "octave_a": -1,
+        "octave_b": 0,
+        "level_a": 0.5,
+        "level_b": 0.29,
+        "pan_a": -0.53,
+        "pan_b": 0.53,
+        "route": 1,
+        "depth": 0.62,
+        "body_tune": 0.25,
+        "feedback": 0.43,
+        "damping": 0.48,
+        "body_mix": 0.38,
+        "roughness": 0.62,
+        "rough_rate": 97,
+        "drift": 0.1,
+        "jitter": 0.06,
+        "fall": 0,
+        "lfo_target": 2,
+        "lfo_rate": 6.3,
+        "lfo_depth": 0.74,
+        "lfo_self": 0.06,
+        "cutoff": 1800,
+        "level": 0.78,
+        "lfo_shape": 2
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.function_envelope",
+      "version": 2,
+      "parameters": {
+        "rise": 0.002,
+        "fall": 0.26,
+        "curve": 0.56
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1.5
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1.5
+      }
+    },
+    {
+      "id": 6,
+      "module": "fx.delay",
+      "version": 1,
+      "parameters": {
+        "time": 0.24,
+        "feedback": 0.35,
+        "tone": -0.18,
+        "mode": 1,
+        "mix": 0.24
+      }
+    },
+    {
+      "id": 7,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.67,
+        "decay": 4.2,
+        "damping": 0.55,
+        "predelay": 0.02,
+        "width": 1,
+        "motion": 0.18,
+        "mix": 0.3
+      }
+    },
+    {
+      "id": 8,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 9,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "clock"
+      },
+      "to": {
+        "module": 3,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "left"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "right"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 4,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 5,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "left"
+      },
+      "to": {
+        "module": 7,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "right"
+      },
+      "to": {
+        "module": 7,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "left"
+      },
+      "to": {
+        "module": 8,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 7,
+        "port": "right"
+      },
+      "to": {
+        "module": 9,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "modulation",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 2,
+        "port": "feedback"
+      },
+      "amount": 0.06
+    }
+  ],
+  "outputs": [
+    {
+      "module": 8,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 9,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "2": [
+        990,
+        192
+      ],
+      "3": [
+        990,
+        880
+      ],
+      "4": [
+        2220,
+        192
+      ],
+      "5": [
+        2220,
+        864
+      ],
+      "6": [
+        3150,
+        192
+      ],
+      "7": [
+        4080,
+        192
+      ],
+      "8": [
+        5010,
+        192
+      ],
+      "9": [
+        5010,
+        864
+      ]
+    },
+    "labels": {
+      "1": "Static clock",
+      "2": "Stepped CHAOS",
+      "3": "Noise strikes",
+      "4": "VCA L",
+      "5": "VCA R",
+      "6": "Radio echo",
+      "7": "Static room",
+      "8": "Out L",
+      "9": "Out R"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}
