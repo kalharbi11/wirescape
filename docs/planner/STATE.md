@@ -9,8 +9,8 @@ Exact-head completed evidence governs; queued, stale and missing checks never pa
 - Preserve existing builders/branches. T2 needs the other model family; protected
   ABI/SDK/spec/CI-policy final authority remains Keel. No duplicate feature starts.
 - OSC A #518/#525 merged. B #529 → #562 at60e850f is the priority handoff:
-  formatting and desktop pretest build repaired; guard/Linux/Static pass; task,
-  Windows/sanitizers/Web and source-matched device-off Pi still pending at check-in.
+  native10/10 + guard/Linux/Static/Web/Windows pass, but desktop task FAILS:
+  telemetry E2E fails90s, command hits600s; sanitizers/actual Pi evidence pending.
 - Keel authorized ENGINE_PROTOCOL on #529. Coda T2 requested on exact B head:
   generation/timestamps, producer ownership, rollback/replan, bounded routes/lifetime.
 - Monitor/UI slice C follows B merge in a separate task/PR. Keep parent #72 open
