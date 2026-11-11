@@ -319,6 +319,7 @@ jobs:
       run:
         shell: bash
     steps:
+      - run: sleep 600
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
@@ -355,7 +356,6 @@ jobs:
           key: ccache-asan-${{ runner.arch }}-${{ github.sha }}
   sanitizers-tsan:
     name: sanitizers / TSan + cost
-    if: false
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     env:
