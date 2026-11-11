@@ -8,9 +8,9 @@ Exact-head completed evidence governs; queued, stale and missing checks never pa
 - Owner priority: finish the OSC plan from #518; board #473 is the live claim source.
 - Preserve existing builders/branches. T2 needs the other model family; protected
   ABI/SDK/spec/CI-policy final authority remains Keel. No duplicate feature starts.
-- OSC A #518/#525 merged. B #529 → #562 at60e850f is the priority handoff:
-  native10/10 + guard/Linux/Static/Web/Windows pass, but desktop task FAILS:
-  telemetry E2E fails90s, command hits600s; sanitizers/actual Pi evidence pending.
+- OSC A #518/#525 merged. B #529 → #562 atf5b96fb is the priority handoff:
+  native10/10 + task/guard/Linux/Static/Web/Windows pass after Xvfb setup repair;
+  sanitizers/actual source-matched Pi evidence pending; Coda changed-head approval next.
 - Keel authorized ENGINE_PROTOCOL on #529. Coda T2 requested on exact B head:
   generation/timestamps, producer ownership, rollback/replan, bounded routes/lifetime.
 - Monitor/UI slice C follows B merge in a separate task/PR. Keep parent #72 open
@@ -19,15 +19,15 @@ Exact-head completed evidence governs; queued, stale and missing checks never pa
 ## Active closeout
 - Oscillator readout #337 → #580 atac3000a: existing builder, nominal pre-FM,
   newest voice/module, bounded lock-free observation; final Static/task/Pi and Coda T2.
-- #569 ate92ced5: Codex cross-family delta review complete, no High/Medium;
+- #569 merged at source e92ced5: Codex cross-family delta review complete, no High/Medium;
   main concurrency fixed, required checks green, 35 focused tests pass locally.
-  Keel final protected CI-policy approval requested; no senior approval issued.
+  Keel approved/merged; preserve its ccache in subsequent #588 integration.
 - #584 → #588 atc63b66b: Codex T2 source review clear; 16 gate outcomes verified.
   #585 diagnostics, #586 fail/skip/cancel gate proof and #587 timing are separate;
   preserve every sanitizer flag/test/threshold and required aggregate check name.
-- #573 → #578 atc13e614: senior normal main merge keeps canonical task and all
+- #573 → #578 atc13e614: all required checks green; senior T0 approval posted.
   release-wiring tests; 8 Python tests +18 shared structural patches pass locally.
-  Fresh required CI pending; old-head approval does not authorize this head.
+  Canonical main task retained; no release-wiring assertions changed.
 - #574 → #579 at616cf6d: existing writer fixes nested bash false-negative with
   syntax-only inner-command validation/regression; retain canonical #577 task,
   resolve main conflict and failing task job, then independent T1. No command execution.
@@ -53,3 +53,5 @@ Exact-head completed evidence governs; queued, stale and missing checks never pa
   Broad Qt R3 #468/#482 → R4 #469/#481 and ABI1 #470 remain deferred/scoped.
 - Permanent: no devices/SSH, direct-main commits, force pushes, weakened tests or
   thresholds; exact guard/Linux/Windows/sanitizers + task/Web/Pi where applicable.
+- Keel: owner failures preempt features; Qt-only test removal stays pre-authorized
+  only after R2 replacement coverage. Broad Qt deletion remains deferred.
