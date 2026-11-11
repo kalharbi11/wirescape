@@ -161,15 +161,16 @@ static void chord_egress_contract() {
     PolyRig tie;
     tie.sequencer.samples_per_step = 8;
     auto &track = tie.sequencer.pattern.tracks[0];
+    track.length = 16;
     track.steps[0].kind = groove::Tie;
-    track.steps[7].kind = groove::Note;
-    track.steps[7].velocity = 0.8f;
-    track.steps[7].key_count = 3;
-    track.steps[7].keys = {60, 64, 67, 0, 0};
+    track.steps[15].kind = groove::Note;
+    track.steps[15].velocity = 0.8f;
+    track.steps[15].key_count = 3;
+    track.steps[15].keys = {60, 64, 67, 0, 0};
     tie.start();
-    for (uint32_t i = 0; i < 8 * 8; ++i) tie.render();
+    for (uint32_t i = 0; i < 16 * 8; ++i) tie.render();
     CHECK(tie.count(WS2_NOTE_ON) == 3 && tie.count(WS2_NOTE_OFF) == 0);
-    CHECK(tie.values[10] == 0); // A bar-wrap tie retained all three voices.
+    CHECK(tie.sequencer.step == 16 && tie.values[10] == 0); // Bar-wrap tie retains every voice.
 }
 
 static void speed_clock_contract() {
@@ -243,6 +244,22 @@ static void speed_clock_contract() {
     }
     master.render();
     CHECK(!master.sequencer.running && master.count(WS2_NOTE_OFF) == 3);
+
+    // The largest permitted 64 × 8 track cycle realigns only after 512
+    // absolute sixteenths; test the actual counter rollover and STOP gate.
+    PolyRig maximum;
+    maximum.sequencer.pattern.tracks[0].length = 64;
+    maximum.sequencer.pattern.tracks[0].div = 8;
+    maximum.start();
+    CHECK(maximum.sequencer.master_steps() == 512);
+    maximum.sequencer.step = 511;
+    maximum.sequencer.step_t[0] = 63;
+    maximum.sequencer.stop_queued = true;
+    ws::Block maximum_block(maximum.raw);
+    maximum.sequencer.boundary(maximum_block, 0);
+    CHECK(maximum.sequencer.step == 0 && maximum.sequencer.step_t[0] == 0 &&
+          !maximum.sequencer.running && !maximum.sequencer.stop_queued &&
+          maximum.count(WS2_NOTE_OFF) == 3);
 
     PolyRig track_stop;
     track_stop.sequencer.pattern.tracks[0].length = 8;
