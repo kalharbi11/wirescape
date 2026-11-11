@@ -17,7 +17,7 @@
 namespace wirescape::document::telemetry {
 using Json = nlohmann::json;
 using Tap = engine2::Tap;
-enum class Field { Effective, Envelope, Phase, EventActivity, GroovePos, GrooveLoopLow, GrooveFired, GrooveLoopHigh };
+enum class Field { Effective, Envelope, Phase, EventActivity, PitchHz, PitchNote, GroovePos, GrooveLoopLow, GrooveFired, GrooveLoopHigh };
 struct Slot {
     Field field;
     uint32_t node;
@@ -60,6 +60,9 @@ inline Plan plan(const Json &patch, AppEngine *catalogue, bool phase_enabled = f
     for (const auto &[id, descriptor] : modules) {
         const std::string type = descriptor->id;
         const bool envelope = type == "essentials.adsr" || type == "essentials.function_envelope";
+        if (type == "essentials.vco" || type == "ports.macro_oscillator")
+            add({Tap::OscPitch, id, 0, Tap::First},
+                type == "essentials.vco" ? Field::PitchHz : Field::PitchNote, "");
         for (uint32_t i = 0; i < descriptor->output_count; ++i) {
             const auto &port = descriptor->outputs[i];
             if (envelope && port.kind == WS2_SIGNAL && std::string(port.id) == "envelope")
@@ -114,7 +117,8 @@ class Sampler {
     }
     Json sample(AppEngine *engine) {
         Json out = {{"effective", Json::object()}, {"phase", Json::object()},
-                    {"envelope", Json::object()}, {"eventActivity", Json::object()}};
+                    {"envelope", Json::object()}, {"eventActivity", Json::object()},
+                    {"effective_pitch", Json::object()}};
         if (plan_.groove_enabled) {
             out["playhead"] = Json::object();
             out["groove"] = Json::object();
@@ -133,6 +137,10 @@ class Sampler {
                 previous_[i] = counts_[i];
                 if (pulse_[i] >= 0.05f) out["eventActivity"][id + ":" + slot.name] = pulse_[i];
             } else if (std::isfinite(values_[i])) {
+                if (slot.field == Field::PitchHz && values_[i] > 0.f)
+                    out["effective_pitch"][id] = 69. + 12. * std::log2(double(values_[i]) / 440.);
+                if (slot.field == Field::PitchNote)
+                    out["effective_pitch"][id] = values_[i];
                 if (slot.field == Field::Effective) out["effective"][id][slot.name] = values_[i];
                 if (slot.field == Field::Envelope)
                     out["envelope"][id] = std::clamp(values_[i], 0.f, 1.f);
