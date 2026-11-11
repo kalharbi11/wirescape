@@ -2,8 +2,9 @@
 // Real native graph proof: module config -> render -> serialized reload.
 #include "../modules2/groove/dsp.h"
 #include "../tests2/allocation_watch.h"
-#include "runtime_patch.h"
+#include "../tests2/test_modules.h"
 #include "runtime_module_config.h"
+#include "runtime_patch.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -369,7 +370,7 @@ static void test_s1_deliberate_saturation() {
     check(old.players[0].pending.on && !old.players[0].sounding.on && sink.count == 1,
           "saturated NOTE_OFF remains pending and closes the gate");
     old.trigger(block, 0, 0);
-    check(sink.count == 1 && old.players[0].pending.id == first.note_id,
+    check(sink.count == 1 && old.players[0].pending.notes[0].id == first.note_id,
           "pending release blocks all replacement NOTE_ON events");
     sink.block_off = false;
     sink.frame = 101;
@@ -387,7 +388,7 @@ static void test_s1_deliberate_saturation() {
     const auto second = sink.accepted[2];
     sink.block_off = true;
     old.release(block, 0, 0);
-    check(old.players[0].pending.on && old.players[0].pending.id == second.note_id,
+    check(old.players[0].pending.on && old.players[0].pending.notes[0].id == second.note_id,
           "reload candidate begins with old release still pending");
     groove::Sequencer reloaded;
     reloaded.pattern = old.pattern;
@@ -467,6 +468,7 @@ static void test_s1_engine_saturation_replan() {
     auto prepare = [](Engine &engine, int key) {
         groove::Config config;
         config.tracks[0].steps[0] = {groove::Note, key, 1.f, 0.f, 0.f};
+        config.tracks[0].steps[0].keys[0] = key;
         std::vector<uint8_t> bytes(sizeof(config));
         std::memcpy(bytes.data(), &config, sizeof(config));
         check(engine.add_node(1, ws::Module<GrooveReleaseFlood>::descriptor()), "real flood node");
@@ -787,7 +789,8 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
     bad = v2;
     bad["tracks"][0]["steps"][1]["cond"] = {{"type", "first"}}; refused(bad);
     bad = v2;
-    bad["tracks"][0]["steps"][0]["keys"] = Json::array({60, 64}); refused(bad);
+    bad["tracks"][0]["steps"][0]["keys"] = Json::array({60, 60});
+    refused(bad); // Duplicate MIDI key is invalid.
     bad = v2;
     bad["tracks"][0]["steps"] = Json::array();
     for (uint32_t i = 0; i < 9; ++i) bad["tracks"][0]["steps"].push_back({{"kind", "rest"}});
@@ -902,9 +905,9 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
         check(seq.running && seq.stop_queued, "global STOP stays queued until master end");
     }
     seq.boundary(dummy, 0);
-    check(!seq.running && !seq.stop_queued && seq.step == 0 && seq.step_t[0] == 0 &&
-          seq.step_t[1] == 0 && !seq.players[0].playing && !seq.players[1].playing,
-          "global STOP completes only at the 64-step master-cycle boundary");
+    check(!seq.running && !seq.stop_queued && seq.step == 64 && seq.step % seq.master_steps() == 0 &&
+              seq.step_t[0] == 0 && seq.step_t[1] == 0 && !seq.players[0].playing && !seq.players[1].playing,
+          "global STOP completes at sixteenth 64 of the 512-tick absolute clock");
     seq.samples_per_step = 100;
     bool shorter = false;
     check(seq.gate_duration(0, 0, shorter) == 175. && shorter,
@@ -987,6 +990,51 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
           "authored v1 track re-entry remains at 32-step wrap despite the 64-tick global clock");
 }
 
+static void test_chord_to_notes_cv() {
+    using wirescape::engine2::Engine;
+    using wirescape::engine2::Timing;
+    // Author the same v2 JSON that Studio saves, through the strict adapter.
+    Json authored = {{"version", 2},
+                     {"bpm", 120},
+                     {"tracks", Json::array({{{"length", 16},
+                                              {"div", 2},
+                                              {"steps", Json::array({{{"kind", "note"},
+                                                                      {"key", 60},
+                                                                      {"keys", Json::array({60, 64, 67})},
+                                                                      {"velocity", 0.75},
+                                                                      {"gate", 1}}})}}})}};
+    const auto bytes = wirescape::document::runtime_module_config("sequencing.groove", authored, 77);
+    Engine engine;
+    check(engine.add_node(1, ws::Module<groove::Sequencer>::descriptor(), bytes),
+          "three-key Groove node loads from Studio-shaped JSON");
+    check(engine.add_node(2, ws::Module<ws2test::NotesToCv>::descriptor()), "device-free test NotesToCv node");
+    check(engine.connect(1, 4, 2, 0) && engine.register_producer() == 0 && engine.prepare(),
+          "Groove notes route reaches NotesToCv");
+    check(engine.render(nullptr, 0, 1) == WS2_OK, "baseline frame");
+    ws2_event start{};
+    start.struct_size = sizeof(start);
+    start.type = WS2_PARAM;
+    start.index = 0;
+    start.value = 1.f;
+    check(engine.enqueue(0, 1, WS2_DIRECT_PORT, start, 0, Timing::Immediate) == WS2_OK,
+          "device-free Groove start ingress");
+    {
+        allocation_watch::ThreadScope watch;
+        check(engine.render(nullptr, 0, 1) == WS2_OK && watch.allocations() == 0,
+              "three-voice graph starts without allocation");
+    }
+    const float pitches[]{0.f, 4.f / 12.f, 7.f / 12.f};
+    for (uint32_t v = 0; v < 3; ++v) {
+        check(engine.output_sample(2, 1, v, 0) == 1.f, "NotesToCv receives all three independent voice gates");
+        check(std::abs(engine.output_sample(2, 0, v, 0) - pitches[v]) < 1e-5f,
+              "NotesToCv renders all three chord pitches");
+    }
+    for (uint32_t frames : {1u, 17u, 128u, 256u}) {
+        allocation_watch::ThreadScope watch;
+        check(engine.render(nullptr, 0, frames) == WS2_OK && watch.allocations() == 0,
+              "chord graph remains bounded on requested block sizes");
+    }
+}
 int main() {
     try {
         ws_engine_config cfg{sizeof(cfg), 48000, 256, 64, 2048};
@@ -994,6 +1042,7 @@ int main() {
         check(bool(cat), "native catalogue creation");
         test_refusals(cat.get());
         test_s1_refusals(cat.get());
+        test_chord_to_notes_cv();
         test_v2_config_and_conditions(cat.get());
         test_v2_gates_and_skipped_ties();
         test_s1_transport(cat.get());

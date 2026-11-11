@@ -40,7 +40,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
          require(track.is_object() && track.contains("steps"), "Invalid Groove track");
          for (auto it = track.begin(); it != track.end(); ++it)
              require(it.key() == "steps" || it.key() == "mute" || it.key() == "armed" ||
-                         (version == 2 && it.key() == "length"),
+                         (version == 2 && (it.key() == "length" || it.key() == "div")),
                      "Unknown Groove track setting");
          auto &native = config.tracks[t];
          native.length = version == 1 ? 32u : 16u;
@@ -50,6 +50,13 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
              const auto n = length.get<int64_t>();
              require(n == 8 || n == 16 || n == 32 || n == 64, "Groove length must be 8/16/32/64");
              native.length = static_cast<uint32_t>(n);
+         }
+         if (track.contains("div")) {
+             const auto &speed = track.at("div");
+             require(version == 2 && speed.is_number_integer(), "Groove div must be a v2 integer");
+             const auto n = speed.get<int64_t>();
+             require(n == 1 || n == 2 || n == 4 || n == 8, "Groove div must be 1/2/4/8");
+             native.div = static_cast<uint32_t>(n);
          }
          if (track.contains("mute")) {
              require(track.at("mute").is_boolean(), "Groove mute must be boolean");
@@ -70,7 +77,8 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
              require(kind == "note" || kind == "rest" || kind == "tie", "Unknown Groove step kind");
              for (auto it = s.begin(); it != s.end(); ++it)
                  require(it.key() == "kind" || it.key() == "mod1" || it.key() == "mod2" ||
-                             (kind == "note" && (it.key() == "key" || it.key() == "velocity")) ||
+                             (kind == "note" &&
+                              (it.key() == "key" || it.key() == "velocity" || (version == 2 && it.key() == "keys"))) ||
                              (version == 2 && it.key() == "gate") ||
                              (version == 2 && kind == "note" && it.key() == "cond"),
                          "Unknown Groove step setting");
@@ -84,7 +92,23 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
                  require(key >= 0 && key <= 127 && std::isfinite(velocity) && velocity >= 0 && velocity <= 1,
                          "Groove note outside range");
                  row.key = static_cast<int32_t>(key);
+                 row.keys[0] = row.key;
                  row.velocity = static_cast<float>(velocity);
+                 if (s.contains("keys")) {
+                     const auto &keys = s.at("keys");
+                     require(version == 2 && keys.is_array() && keys.size() >= 1 && keys.size() <= 5,
+                             "Groove keys must be a nonempty array of at most five notes");
+                     row.key_count = static_cast<uint8_t>(keys.size());
+                     for (size_t k = 0; k < keys.size(); ++k) {
+                         require(keys[k].is_number_integer(), "Groove chord keys must be integers");
+                         const auto n = keys[k].get<int64_t>();
+                         require(n >= 0 && n <= 127, "Groove chord key outside MIDI range");
+                         row.keys[k] = static_cast<int32_t>(n);
+                         require((k != 0 || n == key) && (k == 0 || n != key) &&
+                                     (k < 2 || row.keys[k] > row.keys[k - 1]),
+                                 "Groove chord must have root first, distinct sorted remaining keys");
+                     }
+                 }
              }
              for (const char *name : {"mod1", "mod2"}) {
                  if (!s.contains(name)) continue;

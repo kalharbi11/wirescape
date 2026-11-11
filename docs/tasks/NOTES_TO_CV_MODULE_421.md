@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# NOTES-TO-CV-421: production Notes→CV poly allocator (build task)
+# #421: Notes-to-CV production allocator (build task)
 
 Issue #421. Builds the module that makes chords audible. Pairs with
 `docs/tasks/CHORD_MODULE_403.md`; the two can be built in parallel (they only

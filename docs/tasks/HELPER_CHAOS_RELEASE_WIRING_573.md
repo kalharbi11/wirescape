@@ -1,12 +1,15 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# CHAOS keyboard ADSR to stereo VCA release wiring (#573)
+# CHAOS keyboard release topology regression (#573)
 
-Issue #573, T0 helper. Test-only regression in
-`tools/foundation/tests/test_patch_library.py` for the shipped keyboard CHAOS
-patches. Requires keyboard gate to ADSR gate, ADSR envelope to both VCA
-`gain_cv`, CHAOS left/right to those VCAs, and no keyboard gate to CHAOS gate;
-a mutation test inserts the bad cable. No patch, DSP or engine changes; all devices off.
-Patch guide impact: none, test-only regression.
+T0 test-only helper. Owner wants existing CHAOS sounds preserved, not deleted to
+work around UI problems. Read issue #573, #531 review, `tools/foundation/tests/test_patch_library.py`
+and the four named public CHAOS keyboard JSON patches. Keep all devices off.
+
+Add structural regression for keyboard gate → ADSR gate, ADSR envelope → both VCA
+gain_cv inputs, CHAOS L/R audio → those VCAs, and no keyboard gate → CHAOS gate.
+Use module-type ID lookup, not hard-coded node numbers. Mutation of a forbidden
+gate edge must fail. No change to JSON patches or audio/silence thresholds.
+Patch guide impact: none — tests-only existing release wiring.
 
 ```acceptance
 tier: T0
@@ -15,7 +18,5 @@ must_pass:
   - python -m unittest discover -s tools/foundation/tests -p test_patch_library.py
   - python tools/patch_library.py check apps/studio/patches --shared
   - ci: guard, linux-arm64, windows-x64, sanitizers green
-stops: [production DSP, patch JSON changes, new audio threshold, test suppression, new dependency]
+stops: [patch JSON edits, production DSP, new threshold or test suppression, dependency change]
 ```
-
-Signed: Helper (Claude, build), 2026-11-11
