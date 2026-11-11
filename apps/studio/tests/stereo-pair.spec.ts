@@ -123,6 +123,30 @@ test.describe('stereo pair patching', () => {
     await expect(page.getByTestId('toast')).toContainText('partner refused for test');
   });
 
+  test('existing stereo partner refuses CONNECT BOTH without adding a half-pair', async ({ page }) => {
+    await loadPair(page);
+    await page.evaluate(() => {
+      const p = window.__wirescapeTest.state();
+      window.__wirescapeTest.load({
+        ...p, connections: [
+          { kind: 'signal', from: { module: 1, port: 'right' }, to: { module: 2, port: 'right' } },
+        ],
+      }, 'Partly wired stereo');
+    });
+    await settle(page);
+    const before = await state(page);
+    const running = await engineCables(page);
+    await page.evaluate(() => window.__wirescapeTest.flushHistory());
+    const depth = await page.evaluate(() => window.__wirescapeTest.historyDepth().past);
+    await patch(page, { module: 1, port: 'left' }, { module: 2, port: 'left' });
+    await page.getByTestId('stereo-yes').click();
+    await settle(page);
+    await page.evaluate(() => window.__wirescapeTest.flushHistory());
+    expect(await state(page)).toEqual(before);
+    expect(await engineCables(page)).toEqual(running);
+    expect(await page.evaluate(() => window.__wirescapeTest.historyDepth().past)).toBe(depth);
+  });
+
   test('a refused partner cable leaves no half pair', async ({ page }) => {
     await loadPair(page);
     await page.evaluate(() => {
