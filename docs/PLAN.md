@@ -1,15 +1,24 @@
 # Wirescape plan (v3: standalone app with the web UI)
 
-Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-09 late (Compass + Keel check-in).
+Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-11 (Compass, post-v1.0 test).
 How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) live in git history; their results are summarised under "Where we are".
 
 ## Now
-- **Update 2026-11-09 late (Compass + Keel check-in).** Merged today: #463 Windows real audio, R1 #476, R2 #478, W1 #475, R5b #479, R5a docs #477, 16-step native #405 and UI #410, Interleave/Vocoder #310, the Groove study #458, Groove S1(a) native #451, MIDI patchable controls #210, latency reporting #400, real-app evidence #442, and the Pi chain #450 + #452. 17 finished issues were closed. D18's numeric trigger is below ten, but the owner's subsequent instruction is to clear the remaining PRs before new feature starts. Seven closeout PRs remain after #486 merged as `1e20242`; this planner refresh is one of them.
-- **1. The owner's Pi session (critical path).** #486 merged `1e20242` after all required checks and repaired the combined MIDI/Groove test compile collision. `main` contains #463 + #450 + #452. #453 pins one accepted SHA under #483 (its exact docs-only head runs `pi5/accept`: preflight + real ARM64 Electron smoke). Then the owner follows the fresh-install guide from #453 and the Pi part of #271. Nothing else takes Pi runner time before this.
-- **2. Finish what's open:** #399 device routes/rate refusal (blocked on Keel's High: rate probing in the periodic enumeration), #461 Groove saturation tests, #480 refused-patch draft (#471), then R3 #482 (R3a goldens, then R3b deletion, rulings on #468) → R4 #481.
-- **3. Next lane: Groove playable v1 (owner, 2026-11-10).** The owner's UI (#495) with 8/16/32/64 steps, gate lengths and trig conditions (chance, A:B, first). Packets: G1 native config v2 #496 (T2) and G3 playhead telemetry #497 (T2) in parallel, then G2 the Studio editor #498. Contract: `docs/tasks/GROOVE_PLAYABLE_V1.md`. Chords follow the Chord module (step key `keys` reserved). After Groove: MIDI Learn UI #287, then OSC slice A #72. Small UI items allowed now: #488/#492 model names, #489 CHAOS presets. Planned: #490 Quad VCA/LPG, #491 CHAOS roadmap.
-- **Priority order:** (1) owner-reported failures; (2) the Pi session; (3) the open PRs above; (4) Qt cleanup R3/R4; (5) the next starts in item 3; (6) module and sound lanes; (7) the web demo (D14).
-- **Owner sessions:** Windows first session done (#463). Next: the Pi session (#453/#483 + #271 Pi part). The longer jam (Checkpoint B) comes after #399 and #287 land.
+- **Update 2026-11-11 (Compass, after the owner's v1.0 test #597).** 1.0 is the current `main` plus the quick fixes below. Then comes the owner's MIDI test (test sheet #7) and the release #593 (tag `v1.0.0`). The owner then plays 1.0 for about a week; larger work is 1.1. Leads check in rarely. **Builders are independent agents** (ChatGPT/Codex) working from task files; a lead joins only for a Stop.
+- **1.0 quick fixes:** #598 (CHAOS Fall, reverb Mix, ASIO, Output meter; approved, merges on green) and #599 (Studio visuals: Random scope, unplug from either end, cable activity, Output meter). The clicks (#597 items 1–3) wait for the owner's ASIO re-test.
+- **New starts now (owner):**
+  - **Finish OSC.** C1 #603 is the friendly OSC In editor (UI only, T1; `docs/tasks/OSC_STUDIO_PANEL_C.md`). C2 #604 is the Monitor message list (T2, after Keel's protocol ruling on the issue). Then #94 codec fuzzing.
+  - **Quad VCA / LPG #490** (`docs/tasks/QUAD_VCA_LPG_490.md`). Q1 #601 is the native module; Q2 #602 is the Studio card and patches, after Q1. Both T1.
+- **1.1 queue (in order; builders may start the T0/T1 items now on `main`):**
+  1. Cleanup per `docs/planner/CLEANUP.md` "Status and order": R3a #482 → R3b (#571 folded in) → R5c → R4 #481, plus a task sweep helper.
+  2. Stereo Output #600 (T2; UX signed off on the issue).
+  3. Groove clock/sync inputs (#597 item 11; needs a task file).
+  4. CI speed #584–#588/#596.
+  5. Pi 1.0 evidence (#271, #296).
+  6. Engine debt #487/#91.
+  Later candidates (#436 installer, #491 CHAOS, #332, #428) are ranked after the owner's week.
+- **Priority order:** (1) owner-reported failures; (2) the 1.0 release; (3) OSC finish and Quad VCA; (4) the 1.1 queue above; (5) everything else.
+- **Reviews:** T1 needs one review from another session (builders may review each other). Qt/R3 T2 goes to Coda as **one** batch. Keel only rules on Stops, ABI/spec or CI policy.
 
 ## Where we are (2026-11-09)
 **Works (verified on `main`):** Phase 1 code is merged: the `wirescape-engine` sidecar, `RealEngine`, the Electron shell, autostart, patch codec and catalogue sync. Live replan (#209). 28 ABI2 modules in the app catalogue, including Quantizer, Delay, Reverb, Spectral (with Interleave/Vocoder), Blend, Resonator, the 16-step Step Sequencer, Random Source and Groove (S1 native dual 32-step tracks). Telemetry with a measured LFO phase (#379), eight curated patches (#412), the device-free offline render and WAV evidence (#398), and the Windows sidecar pipe fix (#439, so the protocol tests now run on Windows). Pi headless audio and M8 MIDI were verified by the owner on 2026-11-07 (`docs/DEMO_CLASS.md` §1).

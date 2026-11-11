@@ -1,8 +1,15 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-11, Keel (finish-first rulings). Owner failures preempt features.
+**Updated:** 2026-11-11, Compass (post-v1.0 test). Earlier Keel rulings below still hold. Owner failures preempt features.
 Live heads and completed evidence govern; queued, stale and missing results never pass.
+
+## 2026-11-11 Compass (owner low on lead usage: builders work from task files; leads only on Stops)
+- 1.0 = main + #598 (approved, green pending) + #599, then the owner's MIDI test, then #593 tag. #579 approved and merged.
+- New: Quad VCA/LPG #490 → Q1 #601 (native), Q2 #602 (Studio + patches), task `docs/tasks/QUAD_VCA_LPG_490.md`.
+- OSC is owner-critical: C1 #603 (friendly OSC In editor, UI only, task `docs/tasks/OSC_STUDIO_PANEL_C.md`) and C2 #604 (Monitor log; **Keel: protocol ruling on #604**). Then #94.
+- Cleanup order lives in `docs/planner/CLEANUP.md` "Status and order"; #571 is folded into R3b; Qt T2 goes to Coda as one batch.
+- #589 is superseded by this refresh (closed). The 1.1 queue is in PLAN "Now".
 
 ## Authority and queue
 - Board #473 and newest SEND THESE comment are the live claim source; retain fresh claims.
