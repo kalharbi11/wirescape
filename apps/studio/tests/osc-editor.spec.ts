@@ -121,6 +121,34 @@ test('Reset to Pico defaults restores UDP port and clears LAN request before sav
   expect(saved.modules[0].config.rows[0].pattern).toBe('/pico1/knob/1');
 });
 
+test('copyable OSC example follows TouchOSC, custom rows and concrete wildcard addresses', async ({ page }) => {
+  await open(page);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+      writeText: async (value: string) => {
+        (window as Window & { __oscCopied?: string }).__oscCopied = value;
+      },
+    } });
+  });
+  await page.getByTestId('osc-preset-touchosc').click();
+  await expect(page.getByTestId('osc-send-example')).toContainText('send /1/fader1 0.5');
+  await page.getByTestId('osc-copy-example').click();
+  expect(await page.evaluate(() => (window as Window & { __oscCopied?: string }).__oscCopied))
+    .toContain('send /1/fader1 0.5');
+
+  await page.getByTestId('osc-row1-pattern').fill('/show/voice/7');
+  await expect(page.getByTestId('osc-send-example')).toContainText('send /show/voice/7 0.5');
+  await page.getByTestId('osc-row1-pattern').fill('/show/voice/*');
+  await page.getByTestId('osc-editor-port').fill('9012');
+  await expect(page.getByTestId('osc-send-example'))
+    .toContainText('send /show/voice/1 0.5 to 127.0.0.1:9012');
+  await page.getByTestId('osc-copy-example').click();
+  expect(await page.evaluate(() => (window as Window & { __oscCopied?: string }).__oscCopied))
+    .toContain('send /show/voice/1 0.5 to 127.0.0.1:9012');
+  await page.getByTestId('osc-editor-save').click();
+  expect((await state(page)).modules[0].config.rows[0].pattern).toBe('/show/voice/*');
+});
+
 test('LAN checkbox requests a route but cannot authorize a LAN socket', async ({ page }) => {
   await open(page);
   await page.getByTestId('osc-editor-lan').check();
