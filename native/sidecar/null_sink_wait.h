@@ -21,11 +21,14 @@ enum class SinkWaitResult { deadline, stopped, unavailable };
 // SetWaitableTimer/WaitForMultipleObjects and the monotonic steady clock.
 template <class Now, class Wait>
 SinkWaitResult sink_wait_until(std::chrono::steady_clock::time_point deadline, Now now, Wait wait) {
-    for (;;) {
+    // A broken timer must not busy-spin indefinitely on early signals.
+    // After bounded retries, the caller falls back to the interruptible CV.
+    for (unsigned attempt = 0; attempt < 16; ++attempt) {
         const int64_t due = sink_due_100ns(now(), deadline);
         if (!due) return SinkWaitResult::deadline;
         const auto result = wait(due);
         if (result != SinkWaitResult::deadline) return result;
     }
+    return SinkWaitResult::unavailable;
 }
 } // namespace wirescape::sidecar
