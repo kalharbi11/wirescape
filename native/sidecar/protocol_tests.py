@@ -268,6 +268,24 @@ with tempfile.TemporaryDirectory() as directory:
                 break
     else:
         raise AssertionError('no measured null-sink output')
+    # Owner v1: stereo patches route one Output per side; both meters must be observed.
+    stereo = dict(format='wirescape.native.patch', version=2,
+                  modules=[dict(id=1, module='essentials.vco', parameters=dict(frequency=220)),
+                           dict(id=2, module='essentials.vco', parameters=dict(frequency=330)),
+                           dict(id=8, module='essentials.output'), dict(id=9, module='essentials.output')],
+                  connections=[edge('signal', 1, 'audio', 8, 'audio'), edge('signal', 2, 'audio', 9, 'audio')],
+                  outputs=[dict(module=8, port='audio', bus_channel=0),
+                           dict(module=9, port='audio', bus_channel=1)])
+    engine.call('loadGraph', patch=stereo)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        message = engine.receive()
+        if message.get('type') == 'telemetry':
+            meters = message['telemetry']['meters']
+            if all(meters.get(key, [0, 0])[0] > 0 and meters[key][1] > 0 for key in ('8', '9')):
+                break
+    else:
+        raise AssertionError('stereo Output meters not observed')
     for path in sorted(Path(EXAMPLES).glob('class_demo_*.json')):
         engine.call('loadGraph', patch=json.loads(path.read_text()))
         engine.call('noteOn', note=60, velocity=0.8)
