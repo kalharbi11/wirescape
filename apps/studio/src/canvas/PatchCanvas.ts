@@ -101,6 +101,13 @@ export class PatchCanvas {
 
   // ---- building ---------------------------------------------------------
 
+  /** Refresh measured card dimensions and cable anchors at responsive breakpoints. */
+  remeasureCards(): void {
+    for (const c of this.cards.values()) c.measure();
+    this.modAnchors.clear();
+    this.syncCables();
+  }
+
   rebuild(): void {
     for (const c of this.cards.values()) { this.s.ticker.dropModule(c.root.dataset.id ? Number(c.root.dataset.id) : -1, true); c.destroy(); }
     this.cards.clear();
