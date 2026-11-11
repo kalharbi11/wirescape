@@ -77,6 +77,11 @@ class Session {
     std::mutex sink_mutex_;
     std::condition_variable sink_wake_;
     std::thread sink_;
+#ifdef _WIN32
+    // Control-owned manual-reset event: interrupts the sink's kernel timer
+    // before join; never closed while the render thread may still wait on it.
+    void *sink_stop_event_ = nullptr;
+#endif
     std::atomic<bool> stop_sink_{false}, sink_rendering_{false};
     audio::EngineSlot sink_slot_; // null-sink twin of the PortAudio callback handoff
     std::atomic<double> cpu_{0};
