@@ -445,8 +445,9 @@ deployed engine.
 
 The output and transport IDs remain unchanged; G3's appended measurement
 ports appear below. Engines without #526 refuse `keys` and `div` rather
-than silently misplay them. Studio availability and physical listening are
-separate acceptance tasks; check deployed SHAs for native and WebAssembly
+than silently misplay them. Studio authoring for both is described in
+"Groove chord steps and per-track speed in Studio" below; physical listening
+is a separate owner check. Check deployed SHAs for native and WebAssembly
 support.
 
 ## Groove observation outputs (PR #501)
@@ -542,62 +543,36 @@ Example (a 16-step bass, one 50 % trig and one 1:4 trig with a short tie):
 `{"kind":"rest"},{"kind":"rest"},{"kind":"rest"},{"kind":"note","key":48,"velocity":0.8,"cond":{"type":"ab","a":1,"b":4}}]}]}`.
 Hardware listening and Pi display checks of the editor are not claimed.
 
-## Groove chord steps and per-track speed (Studio G4b/G5b, #527)
+## Groove chord steps and per-track speed in Studio (G4b/G5b, #527)
 
-**Availability:** These are authoring controls, not yet live sound on a G1-only
-engine. Native **#526** is required for chord and per-track-speed playback. Until
-then, Apply forwards the authored data to the engine, which refuses unsupported
-`keys`/`div`; the draft remains saved, the engine's refusal reason is displayed,
-and Play never starts the refused draft. No engine protocol or version is changed.
+**Available with native #526.** The stored format, limits, master-cycle rule and a
+Groove → Notes→CV wiring are in "Groove native chords and per-track speed" above;
+Studio writes exactly that format: `keys` only for 2–5 distinct notes (root first,
+the rest ascending), no `keys` for a single note, and `div` 2/4/8 with 1× omitted.
+No chord-quality field is stored; names are derived from the notes.
 
-- **Chord data:** A `kind:"note"` step has its original `key` (MIDI 0–127)
-  as the root and, **only for 2–5 distinct keys**, a `keys` array with that
-  root first. Remaining notes are sorted; a single note saves exactly as before
-  with no `keys`. No chord-quality (`q`) field is stored. Rest and tie
-  steps never carry `keys`. All voices share onset, velocity, gate, ties, mods
-  and trig condition. The inspector's Notes Single/Chord control, picker, inversions,
-  the chord name/ladder on pads and individual-note Roll edits are authoring aids.
-  Its scale (Chromatic/Major/Minor/Pentatonic) is **UI-only**, stored under
-  `ui.groove`, and changes neither the note format nor the engine.
-- **Speed data:** Each track optionally stores `div:2`, `div:4` or `div:8`
-  for **½×, ¼× or ⅛×** speed; 1× omits `div` and is unchanged from G1. A
-  track's cycle is `length × div` sixteenth notes, up to 512. The master
-  loop, including queued global STOP and Apply-at-loop-end, is the **maximum**
-  such cycle over armed tracks (not the sum). `t*_pos` telemetry stays the
-  track's own 0-based step index. Changing Steps preserves `div`.
+- **Notes Single/Chord** in the inspector. Choosing Chord on one note builds the
+  scale chord (or a major triad on Chromatic); the picker lists the scale's triad and
+  seventh first, then triads, sevenths and extended chords, greying types that leave
+  the scale. ◁ ▷ invert. The Note field is labelled Root on a chord step.
+- **Moving a chord:** drag, wheel or ↑↓. A chord equal to the scale stack on its root
+  moves within the key (Am → B° → C in A minor); any other chord moves as a block.
+  Shift moves by octaves.
+- **Pads** show the chord name (slash bass dropped) and a small pitch ladder.
+- **Roll:** click an empty cell in a note's column to add a note (up to 5); drag one
+  note on its own; double-click, right-click or Backspace removes one note, and the
+  last note removes the step's note. All notes share the step's start, gate, ties,
+  velocity, mods and condition.
+- **Held keys:** hold several piano keys on the computer keyboard; the chord is
+  written to the selected step when all are released, then the selection advances.
+  Leaving the window mid-chord drops it without writing.
+- **Speed `1× ½ ¼ ⅛`** next to Steps, per track; the track tab shows ½×/¼×/⅛×, and the
+  loop/position display uses `length × div`. Changing Steps keeps the speed.
+- The scale helper stays UI-only (`ui.groove`), as in G2b.
 
-**Four bars in sixteen pads at ¼ speed:** Choose Steps **16**, Speed **¼**
-(`div:4`) on T1. Each pad occupies one quarter-note beat, so pads 1–16
-span **64 sixteenths = four 4/4 bars**. Place C major on pad 1, F major on
-pad 5, G major on pad 9 and C major on pad 13; tie the three intervening
-pads after each note when you want the chord sustained for a whole bar.
-One possible note-only skeleton (unspecified cells are rests):
-```json
-{
-  "version": 2, "bpm": 120,
-  "tracks": [{
-    "length": 16, "div": 4,
-    "steps": [
-      {"kind":"note","key":60,"keys":[60,64,67]},
-      {"kind":"tie"},{"kind":"tie"},{"kind":"tie"},
-      {"kind":"note","key":65,"keys":[65,69,72]},
-      {"kind":"tie"},{"kind":"tie"},{"kind":"tie"},
-      {"kind":"note","key":67,"keys":[67,71,74]},
-      {"kind":"tie"},{"kind":"tie"},{"kind":"tie"},
-      {"kind":"note","key":60,"keys":[60,64,67]},
-      {"kind":"tie"},{"kind":"tie"},{"kind":"tie"}
-    ]
-  }]
-}
-```
-The final tie extends to the end of the 64-sixteenth track cycle.
-For polyphonic CV, connect `sequencing.groove.t1_notes` (note events)
-→ `essentials.notes_to_cv`'s notes-event input → its per-voice pitch/gate
-CV outputs → a polyphonic instrument/voice allocation path → mixer and
-`essentials.output`. Do not substitute Groove's legacy mono pitch/gate
-ports for a five-note chord. Verify the destination module's exposed
-port names in the installed catalogue before patching; audible chord
-playback requires native #526.
+**Four bars in sixteen pads:** Steps **16**, Speed **¼** on T1. Each pad is one beat,
+so pads 1–16 span four 4/4 bars. Chords on pads 1, 5, 9 and 13 (C, F, G, C), each
+followed by three ties, hold one chord per bar.
 
 ## CHAOS sound presets (#489; available after Studio PR merges)
 
