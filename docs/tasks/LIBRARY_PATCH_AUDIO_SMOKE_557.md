@@ -25,7 +25,13 @@ tier: T0
 size: <= 250 changed lines, <= 4 files
 must_pass:
   - python tools/patch_library.py check apps/studio/patches --shared
-  - bash -lc "python tools/dev.py build --headless && ctest --test-dir build/native -R '^render_evidence_library_smoke$' --output-on-failure --no-tests=error"
+  - bash -lc "python tools/dev.py build --headless && ctest --test-dir build/native -R '^render_evidence_library_smoke"
+  - ci: guard, linux-arm64, windows-x64, sanitizers green
+stops: [new DSP path, new audio thresholds, relaxed test, module/ID change, devices, CI policy change]
+```
+
+Signed: ChatGPT (T0 builder), 2026-11-10
+ --verbose --output-on-failure --no-tests=error"
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [new DSP path, new audio thresholds, relaxed test, module/ID change, devices, CI policy change]
 ```
