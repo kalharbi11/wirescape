@@ -16,6 +16,10 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Superseded PR pushes cancel; this job only runs on pull_request.
+    concurrency:
+      group: ci-acceptance-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
         with:
@@ -303,8 +307,16 @@ jobs:
   sanitizers:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
+    # Cancel superseded PR pushes only; main pushes always finish.
+    concurrency:
+      group: ci-sanitizers-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '2'
+      CCACHE_DIR: ${{ github.workspace }}/.tools/ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: 'true'
     defaults:
       run:
         shell: bash
@@ -317,19 +329,27 @@ jobs:
         run: |
           python -m pip install cmake==4.2.3 ninja==1.13.0
           sudo apt-get update
-          sudo apt-get install -y valgrind
+          sudo apt-get install -y valgrind ccache
+      # Compiler cache only: ccache hashes compiler, flags and preprocessed source,
+      # so every test still runs against a fresh link of the current tree.
+      - uses: actions/cache@v6
+        with:
+          path: .tools/ccache
+          key: ccache-sanitizers-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: ccache-sanitizers-${{ runner.arch }}-
       - name: ASan and UBSan
         run: |
           set -euo pipefail
-          cmake -S native -B build/asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer'
+          cmake -S native -B build/asan -G Ninja -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer'
           cmake --build build/asan --parallel 2
           ctest --test-dir build/asan -R abi2 --output-on-failure
       - name: TSan
         run: |
           set -euo pipefail
-          cmake -S native -B build/tsan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=thread -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=thread -fno-omit-frame-pointer'
+          cmake -S native -B build/tsan -G Ninja -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIRESCAPE_BUILD_UI=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_FLAGS='-fsanitize=thread -fno-omit-frame-pointer' -DCMAKE_C_FLAGS='-fsanitize=thread -fno-omit-frame-pointer'
           cmake --build build/tsan --parallel 2
           ctest --test-dir build/tsan -R abi2 -E '^abi2_benchmark$' --output-on-failure
+          ccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY" || true
       - name: Callgrind instructions per block
         run: |
           set -euo pipefail
