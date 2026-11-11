@@ -66,12 +66,16 @@ struct PolyRig : Rig {
     std::array<uint32_t, 96> event_samples{};
     uint32_t sample = 0;
     uint32_t event_count = 0, ons_attempted = 0, offs_attempted = 0;
-    uint32_t refuse_on = 0, refuse_off = 0;
+    uint32_t refuse_on_attempt = 0, refuse_off_attempt = 0;
+    bool block_note_offs = false;
     static int WS2_CALL record(void *context, uint32_t port, const ws2_event *e) {
         auto &r = *static_cast<PolyRig *>(context);
         CHECK(port == 4 || port == 9);
-        if (e->type == WS2_NOTE_ON && ++r.ons_attempted == r.refuse_on) return WS2_CAPACITY;
-        if (e->type == WS2_NOTE_OFF && ++r.offs_attempted == r.refuse_off) return WS2_CAPACITY;
+        if (e->type == WS2_NOTE_ON && ++r.ons_attempted == r.refuse_on_attempt) return WS2_CAPACITY;
+        if (e->type == WS2_NOTE_OFF) {
+            ++r.offs_attempted;
+            if (r.block_note_offs || r.offs_attempted == r.refuse_off_attempt) return WS2_CAPACITY;
+        }
         CHECK(r.event_count < r.log.size());
         r.event_samples[r.event_count] = r.sample;
         r.log[r.event_count++] = *e;
@@ -91,13 +95,13 @@ struct PolyRig : Rig {
         s.keys = {60, 64, 67, 0, 0};
         sequencer.reset();
     }
-    void render() { Rig::render(); ++sample; }
+    void render_sample() { Rig::render(); ++sample; }
     uint32_t count(uint32_t type) const {
         uint32_t result = 0;
         for (uint32_t i = 0; i < event_count; ++i) result += log[i].type == type;
         return result;
     }
-    void start() { render(); controls[0] = 1.f; render(); }
+    void start() { render_sample(); controls[0] = 1.f; render_sample(); }
 };
 static void chord_egress_contract() {
     PolyRig triad;
@@ -109,7 +113,7 @@ static void chord_egress_contract() {
         CHECK(triad.log[k].value == 0.8f && triad.log[k].channel == 0);
         for (uint32_t j = 0; j < k; ++j) CHECK(triad.log[k].note_id != triad.log[j].note_id);
     }
-    triad.controls[2] = 1.f; triad.render();
+    triad.controls[2] = 1.f; triad.render_sample();
     CHECK(triad.count(WS2_NOTE_OFF) == 3);
     for (uint32_t k = 0; k < 3; ++k) CHECK(triad.log[k + 3].note_id == triad.log[k].note_id);
 
@@ -117,17 +121,17 @@ static void chord_egress_contract() {
     auto &s = five.sequencer.pattern.tracks[0].steps[0];
     s.key_count = 5;
     s.keys = {60, 62, 64, 67, 71};
-    five.refuse_on = 3; // Accepted voices 0, 1, 3 and 4 only.
+    five.refuse_on_attempt = 3; // Accepted voices 0, 1, 3 and 4 only.
     five.start();
     CHECK(five.ons_attempted == 5 && five.count(WS2_NOTE_ON) == 4);
     CHECK(five.sequencer.players[0].sounding.on);
-    five.refuse_off = 2; // One refused release remains owed.
+    five.refuse_off_attempt = 2; // One refused release remains owed.
     five.controls[2] = 1.f;
-    five.render();
+    five.render_sample();
     CHECK(five.count(WS2_NOTE_OFF) == 3);
     CHECK(five.sequencer.players[0].pending.on);
     CHECK(five.values[10] >= 0);
-    five.render();
+    five.render_sample();
     CHECK(five.count(WS2_NOTE_OFF) == 4 && !five.sequencer.players[0].pending.on);
     for (uint32_t i = 0; i < 4; ++i) {
         uint32_t matched = 0;
@@ -137,17 +141,17 @@ static void chord_egress_contract() {
     }
 
     PolyRig root_refused;
-    root_refused.refuse_on = 1;
+    root_refused.refuse_on_attempt = 1;
     root_refused.start();
     CHECK(root_refused.count(WS2_NOTE_ON) == 2 && root_refused.values[1] == 1.f);
-    root_refused.controls[2] = 1.f; root_refused.render();
+    root_refused.controls[2] = 1.f; root_refused.render_sample();
     CHECK(root_refused.count(WS2_NOTE_OFF) == 2);
 
     PolyRig gate;
     gate.sequencer.samples_per_step = 16;
     gate.sequencer.pattern.tracks[0].steps[0].gate_q = 1;
     gate.start();
-    for (uint32_t i = 0; i < 4; ++i) gate.render();
+    for (uint32_t i = 0; i < 4; ++i) gate.render_sample();
     CHECK(gate.count(WS2_NOTE_OFF) == 3 && gate.values[1] == 0.f);
 
     PolyRig skip;
@@ -155,7 +159,7 @@ static void chord_egress_contract() {
     skip.sequencer.pattern.tracks[0].steps[0].cond_a = 2;
     skip.sequencer.pattern.tracks[0].steps[0].cond_b = 2;
     skip.sequencer.pattern.tracks[0].steps[1].kind = groove::Tie;
-    skip.start(); skip.render();
+    skip.start(); skip.render_sample();
     CHECK(skip.count(WS2_NOTE_ON) == 0 && skip.values[14] == 0);
 
     PolyRig tie;
@@ -168,7 +172,7 @@ static void chord_egress_contract() {
     track.steps[15].key_count = 3;
     track.steps[15].keys = {60, 64, 67, 0, 0};
     tie.start();
-    for (uint32_t i = 0; i < 16 * 8; ++i) tie.render();
+    for (uint32_t i = 0; i < 16 * 8; ++i) tie.render_sample();
     CHECK(tie.count(WS2_NOTE_ON) == 3 && tie.count(WS2_NOTE_OFF) == 0);
     CHECK(tie.sequencer.step == 16 && tie.values[10] == 0); // Bar-wrap tie retains every voice.
 }
@@ -188,10 +192,10 @@ static void speed_clock_contract() {
         timing.start();
         CHECK(timing.count(WS2_NOTE_ON) == 3);
         for (uint32_t n = 1; n < sixteenth * div; ++n) {
-            timing.render();
+            timing.render_sample();
             CHECK(timing.count(WS2_NOTE_ON) == 3);
         }
-        timing.render();
+        timing.render_sample();
         CHECK(timing.count(WS2_NOTE_ON) == 6);
         CHECK(timing.event_samples[6] - timing.event_samples[0] == sixteenth * div);
         CHECK(timing.values[10] == 1); // Own step index, not absolute n.
@@ -206,10 +210,10 @@ static void speed_clock_contract() {
     gate.sequencer.samples_per_step = sixteenth;
     gate.start();
     for (uint32_t n = 1; n < 75; ++n) {
-        gate.render();
+        gate.render_sample();
         CHECK(gate.count(WS2_NOTE_OFF) == 0);
     }
-    gate.render();
+    gate.render_sample();
     CHECK(gate.count(WS2_NOTE_OFF) == 3);
     CHECK(gate.event_samples[3] - gate.event_samples[0] == 75);
 
@@ -221,9 +225,9 @@ static void speed_clock_contract() {
     note.cond_b = 2;
     ab.start();
     CHECK(ab.count(WS2_NOTE_ON) == 0);
-    for (uint32_t n = 1; n < 32; ++n) ab.render();
+    for (uint32_t n = 1; n < 32; ++n) ab.render_sample();
     CHECK(ab.count(WS2_NOTE_ON) == 0);
-    ab.render();
+    ab.render_sample();
     CHECK(ab.count(WS2_NOTE_ON) == 3);
     CHECK(ab.values[12] == 2 && ab.values[10] == 0);
     CHECK(ab.log[0].key == 60 && ab.log[1].key == 64 && ab.log[2].key == 67);
@@ -239,10 +243,10 @@ static void speed_clock_contract() {
     CHECK(master.sequencer.master_steps() == 64);
     master.controls[1] = 1.f; // Global STOP at n=64, not the fast track's n=16.
     for (uint32_t n = 1; n < 64; ++n) {
-        master.render();
+        master.render_sample();
         CHECK(master.sequencer.running);
     }
-    master.render();
+    master.render_sample();
     CHECK(!master.sequencer.running && master.count(WS2_NOTE_OFF) == 3);
 
     // The largest permitted 64 × 8 track cycle realigns only after 512
@@ -267,12 +271,93 @@ static void speed_clock_contract() {
     track_stop.start();
     track_stop.controls[5] = 1.f; // Track STOP at its n=16 cycle end.
     for (uint32_t n = 1; n < 16; ++n) {
-        track_stop.render();
+        track_stop.render_sample();
         CHECK(track_stop.sequencer.players[0].playing);
     }
-    track_stop.render();
+    track_stop.render_sample();
     CHECK(!track_stop.sequencer.players[0].playing && track_stop.sequencer.running);
 }
+static void chord_identity_lifetime() {
+    PolyRig rig;
+    rig.sequencer.pattern.track_count = 2;
+    rig.sequencer.pattern.tracks[1] = rig.sequencer.pattern.tracks[0];
+    auto &next = rig.sequencer.pattern.tracks[0].steps[1];
+    next = rig.sequencer.pattern.tracks[0].steps[0];
+    next.key = 62;
+    next.keys = {62, 65, 69, 0, 0};
+    rig.sequencer.players[0].playing = true;
+    rig.sequencer.players[1].playing = true;
+    ws::Block block(rig.raw);
+    allocation_watch::ThreadScope watch;
+    rig.sequencer.trigger(block, 0, 0);
+    rig.sequencer.trigger(block, 1, 0);
+    CHECK(rig.count(WS2_NOTE_ON) == 6);
+    const int32_t pending_id = rig.sequencer.players[0].sounding.notes[0].id;
+    const int32_t sounding_id = rig.sequencer.players[1].sounding.notes[0].id;
+
+    // Retrigger a different chord while its predecessor's OFFs are refused and
+    // the other track still has a chord sounding. Pending IDs cannot be reused.
+    rig.block_note_offs = true;
+    rig.sequencer.release(block, 0, 0);
+    rig.sequencer.step_t[0] = 1;
+    rig.sequencer.next_id = pending_id;
+    rig.sequencer.trigger(block, 0, 0);
+    CHECK(rig.count(WS2_NOTE_ON) == 6 && rig.count(WS2_NOTE_OFF) == 0);
+    CHECK(rig.sequencer.players[0].pending.on);
+    const int32_t available_id = rig.sequencer.unused_note_id();
+    for (const auto &player : rig.sequencer.players) {
+        for (const auto &voice : player.sounding.notes)
+            CHECK(!voice.on || voice.id != available_id);
+        for (const auto &voice : player.pending.notes)
+            CHECK(!voice.on || voice.id != available_id);
+    }
+
+    // After accepted OFFs the old IDs may be reused, but only after their OFFs.
+    rig.block_note_offs = false;
+    rig.sequencer.next_id = pending_id;
+    rig.sequencer.trigger(block, 0, 0);
+    CHECK(rig.count(WS2_NOTE_OFF) == 3 && rig.count(WS2_NOTE_ON) == 9);
+    CHECK(!rig.sequencer.players[0].pending.on);
+    CHECK(rig.sequencer.players[0].sounding.notes[0].id == pending_id);
+
+    // A reused counter must also skip IDs still sounding on the other track.
+    rig.sequencer.release(block, 0, 0);
+    rig.sequencer.next_id = sounding_id;
+    rig.sequencer.trigger(block, 0, 0);
+    rig.sequencer.release_all(block, 0);
+    std::array<int32_t, 10> live{};
+    live.fill(-1);
+    bool reused = false;
+    for (uint32_t i = 0; i < rig.event_count; ++i) {
+        const auto &event = rig.log[i];
+        if (event.type == WS2_NOTE_ON) {
+            for (int32_t id : live) CHECK(id != event.note_id);
+            for (uint32_t j = 0; j < i; ++j)
+                reused |= rig.log[j].type == WS2_NOTE_OFF && rig.log[j].note_id == event.note_id;
+            bool inserted = false;
+            for (auto &id : live) {
+                if (id != -1) continue;
+                id = event.note_id;
+                inserted = true;
+                break;
+            }
+            CHECK(inserted);
+        } else if (event.type == WS2_NOTE_OFF) {
+            bool matched = false;
+            for (auto &id : live) {
+                if (id != event.note_id) continue;
+                id = -1;
+                matched = true;
+                break;
+            }
+            CHECK(matched);
+        }
+    }
+    CHECK(reused);
+    for (int32_t id : live) CHECK(id == -1);
+    CHECK(watch.allocations() == 0);
+}
+
 struct SnapshotProbe {
     static constexpr ws::Info info{"test.groove_snapshot", "Snapshot", 1};
     static constexpr std::array<ws2_port, 0> inputs{};
@@ -322,6 +407,7 @@ static void coherent_snapshots() {
 }
 int main() {
     chord_egress_contract();
+    chord_identity_lifetime();
     speed_clock_contract();
     coherent_snapshots();
     const char *ports[]{"t1_pitch", "t1_gate", "t1_mod1", "t1_mod2", "t1_notes",
