@@ -703,15 +703,19 @@ export class FakeEngine implements EngineClient {
     }
     if (this.debug.dropouts && this.tick % 20 === 0) a.dropouts++;
 
+    // No real network use in FakeEngine: sample directly-wired OSC sources.
+    if (this.debug.oscTraffic && this.tick % 45 === 0)
+      for (const node of this.nodes.values()) if (node.type === 'osc.in')
+        this.recordMonitor(node.id, 'osc', { t: this.time, kind: 'osc',
+          address: '/pico1/knob/1', args: [Math.round(Math.random() * 1000) / 1000] });
+
     // OSC: a fake message about every 1.5 s while the server is on.
     if (this.osc.enabled && this.debug.oscTraffic && this.tick % 45 === 0) {
       const ids = [...this.nodes.keys()];
       const id = ids.length ? ids[this.tick % ids.length] : 1;
       this.osc.recent = [{ time: this.time, address: `/wirescape/${id}/param`, args: [Math.round(Math.random() * 1000) / 1000] },
         ...this.osc.recent].slice(0, 8);
-      for (const node of this.nodes.values()) if (node.type === 'osc.in')
-        this.recordMonitor(node.id, 'osc', { t: this.time, kind: 'osc',
-          address: '/pico1/knob/1', args: [Math.round(Math.random() * 1000) / 1000] });
+
       this.pushStatus();
     }
 
