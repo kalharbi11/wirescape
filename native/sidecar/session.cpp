@@ -1250,6 +1250,7 @@ bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumera
 bool Session::poll(std::chrono::steady_clock::time_point now) {
     observer_->expire_learning(now);
     auto old_audio = audio_devices_, old_midi = midi_devices_;
+    const auto old_unavailable = unavailable_audio_drivers_;
     if (midi_->enabled().empty()) observer_->endpoints();
     // Warm polling refreshes identities only: ALSA format probes can open a busy PCM.
     // Without a stream every call is a cold init, so space those out.
@@ -1259,7 +1260,8 @@ bool Session::poll(std::chrono::steady_clock::time_point now) {
     if (!warm && cold_due) cold_enumeration_ = now;
     const auto enumerated = refresh_devices(warm || cold_due, !warm);
     auto changed = poll_audio(now, enumerated);
-    return changed || old_audio != audio_devices_ || old_midi != midi_devices_;
+    return changed || old_audio != audio_devices_ || old_midi != midi_devices_ ||
+           old_unavailable != unavailable_audio_drivers_;
 }
 } // namespace wirescape::sidecar
 
