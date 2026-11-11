@@ -179,10 +179,21 @@ export class ModuleCard {
     note.style.cssText = 'display:block;color:var(--sub);';
     wrap.append(head, list, note);
     this.body.append(wrap);
-    let paused = false, clearedAt = -Infinity, latest: Telemetry | null = null, drawn: Telemetry | null = null;
+    let paused = false, clearedAt = -Infinity, drawn: Telemetry | null = null;
+    let seenGen: string | undefined;
+    // The sidecar clears its ring and restarts entry timestamps at each graph commit.
+    // A same-card edit can replan without remounting this card, so Clear is epoch-local.
+    const syncEpoch = (t: Telemetry | null) => {
+      if (t?.gen === undefined || t.gen === seenGen) return;
+      seenGen = t.gen;
+      clearedAt = -Infinity;
+      drawn = null;
+    };
     const render = (t: Telemetry | null, force = false) => {
-      if (!t || paused || (!force && t === drawn)) return;
-      drawn = latest = t;
+      if (!t) return;
+      syncEpoch(t);
+      if (paused || (!force && t === drawn)) return;
+      drawn = t;
       if (t.monitorAvailable !== true) {
         list.replaceChildren(el('span', '', 'not available'));
         return;
@@ -209,7 +220,10 @@ export class ModuleCard {
       if (!paused) render(this.o.host.ticker.last, true);
     });
     clear.addEventListener('click', () => {
-      const seen = latest?.monitor?.[id] ?? [];
+      const current = this.o.host.ticker.last;
+      syncEpoch(current);
+      // The paused display is stale; Clear must use the latest ingress snapshot.
+      const seen = current?.monitor?.[id] ?? [];
       if (seen.length) clearedAt = Math.max(clearedAt, seen[seen.length - 1].t);
       list.replaceChildren(el('span', '', 'direct OSC/MIDI only'));
       drawn = null;
