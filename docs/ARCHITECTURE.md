@@ -289,6 +289,24 @@ overrun blocks only. Counts can overlap; neither changes the absolute completion
 deadline test (`after > next`), including catch-up blocks.
 Only accepted swaps advance the protocol generation.
 
+OSC In uses the portable bounded codec and module from slice A, with one
+nonblocking UDP worker owned by the sidecar Session via
+`native/control/osc_host.*` and `native/io/net/osc_service.*`. Producer 2
+enqueues receive-timestamped messages against the committed engine generation;
+no audio callback opens a socket, parses OSC, allocates or locks. At most 32
+routes share at most 32 sockets (one per physical port), with a fixed receive
+buffer, 2,048-byte accepted datagrams and 64 decoded messages per socket per
+poll iteration. Session stops and joins the worker before graph replan/D5
+retirement, device-switch teardown, hot-unplug and shutdown, then reconciles
+only the committed patch, including after a refused replacement. A busy UDP
+port reports an inactive route without refusing the patch. Loopback
+`127.0.0.1` is the default even when a saved route requests LAN. Binding
+`0.0.0.0` requires **both** the owner-launcher `--confirm-lan` flag and the
+route's explicit `lan:true` consent; tests send UDP only over loopback.
+The bounded additive `status.osc` reports actual bind state, per-route
+observations and errors, not packet payloads. OSC Out and Monitor UI are not
+part of this host slice.
+
 ## Stdio engine sidecar (P1B)
 
 `native/sidecar` builds the Qt-free `wirescape-engine` process. Its reader and

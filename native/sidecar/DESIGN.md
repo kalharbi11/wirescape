@@ -2,13 +2,14 @@
 # Engine process ownership and bounds
 
 `wirescape-engine` is Qt-free C++17. It reuses AppEngine's builtin catalogue,
-`load_runtime_patch`, `midi::Host` and the dynamically loaded PortAudio service.
-There are no new dependencies or sockets. Existing pinned nlohmann/json and
+`load_runtime_patch`, `midi::Host`, `osc::Host` and the dynamically loaded PortAudio
+service. There are no new dependencies. OSC In alone uses a bounded UDP worker
+with loopback-only default; it is not a renderer, HTTP or IPC socket. Existing pinned nlohmann/json and
 libremidi dependencies retain their existing component licences and revisions.
 The three demo patches are runnable execution documents, never rewritten saves.
 
 The main thread is the sole control executor. It owns the catalogue, execution
-copy, generation, ID history, settings and MIDI host. The reader accepts UTF-8
+copy, generation, ID history, settings, MIDI host and OSC host. The reader accepts UTF-8
 NDJSON into at most 256 pending entries. It discards excess bytes through LF
 without growing its 2 MiB buffer. Strict parsing rejects duplicate object keys,
 BOMs, invalid UTF-8 and nesting deeper than 64. Saturated commands become ordered
@@ -18,13 +19,14 @@ stdout. A non-realtime watchdog fails closed (exit 3) when a pipe write or
 shutdown cannot finish within five seconds. This is an unavailable transport,
 not successful EOF teardown. Replies have priority over single coalesced status/telemetry slots, with
 at most 256 pending reliable messages. Slow output can block control but never
-audio/MIDI callbacks. Diagnostic output uses stderr only. EOF discards a final
-partial line, drains complete commands/replies, joins ingress then audio, exits 0.
+audio/MIDI/OSC acquisition callbacks. Diagnostic output uses stderr only. EOF discards a final
+partial line, drains complete commands/replies, joins OSC and MIDI ingress before
+audio, exits 0.
 
 The audio owner is either the control-side EngineOwner borrowed by a paced null
 sink, or the Stream Context's exclusive EngineOwner. No no-op deleter or borrowed
 unique_ptr is used. Stream allocates scratch/context before moving ownership.
-Stop joins MIDI producers while the stream still owns its engine, then attempts
+Stop joins OSC/MIDI producers while the stream still owns its engine, then attempts
 stop, abort if necessary, close and terminate. An unproved stop/close combined
 with failed terminate deliberately quarantines the complete Context and engine
 until process exit, matching play's existing lifetime policy. The PortAudio
@@ -34,9 +36,12 @@ return. Normal destructors do not propagate exceptions. A constructor/start
 failure returns the engine only after safe retirement. PortAudio stays resident.
 
 A candidate is fully validated and prepared before touching live ingress/audio.
-Validation failures leave the active graph and generation unchanged. Graph
-commits stop ingress, panic old notes, stop/join audio, replace ownership, restart
-and then increment generation. Startup/device failures are separate from graph
+Validation failures leave the active graph and generation unchanged. Session joins OSC ingress before live replan, D5 swap, rate change, device
+switch, hot-unplug or shutdown. It reconciles OSC against only the newly
+committed patch and graph, restarting the previous routes after refusal or
+rollback. A fast MIDI replan need not reopen the audio stream; D5 uses the
+block-boundary handoff, while stopped/lost streams use stop/join/start. Only
+accepted replacements increment generation. Startup/device failures are separate from graph
 validation: hardware can disappear during reopening, producing a no-device state
 and retry, never a fabricated replacement device. A subscription startup failure
 restores the previous graph and attempts its restart. Such a service failure may
@@ -71,7 +76,16 @@ so the next topology candidate retains accepted knob values. Top-level
 setModAmount amount takes precedence; cable identity excludes amount/unknown
 metadata. The UI remains the editable-document owner.
 
-Without confirmation no real stream or MIDI endpoint opens. Explicit null mode
+Without confirmation no real audio stream or MIDI endpoint opens. OSC binds
+127.0.0.1 even when a saved route requests LAN unless **both** the launcher
+passes `--confirm-lan` and that route has `lan:true`; tests never open a LAN
+socket. A busy port leaves the graph accepted, the route inactive and an
+observable per-route `port-busy` state. The single nonblocking worker shares a
+socket per authorized port (32 routes max), uses fixed 65,507-byte receive and
+2,048-byte datagram caps, and delivers at most 64 OSC messages per socket per
+poll iteration; bundled excess counts as drops. Each event is timestamped at
+receive and enqueued on producer 2 with the current committed graph generation.
+The render callback never parses packets or touches sockets. Explicit null mode
 overrides both flags, uses the paced sink and a fake M8 endpoint/USB Stereo
 catalogue. These names are test fixtures, never fallbacks in the real catalogue.
 The existing real PortAudio enumeration is restricted to stereo outputs and
@@ -90,7 +104,11 @@ NoteOn is a release; MIDI 2 zero-velocity NoteOn remains a NoteOn. No JSON,
 allocation or locks occur in MIDI packet callbacks. Fake injection is available
 only through the internal fake backend test surface, never a wire command.
 
-Status is limited to 10 Hz and telemetry to below 30 Hz. Unsupported telemetry
+Status is limited to 10 Hz and telemetry to below 30 Hz. Optional additive
+`status.osc` contains actual `enabled`, `bind`, `port`, `lan`, optional
+`last_error` and a bounded `routes` array (module, port, bind, state and
+received/dropped counts). It never includes OSC payloads or Monitor UI logs.
+Unknown status fields are ignored by v0 readers. Unsupported telemetry
 is empty. Aggregate peak is published only when exactly one essentials.output
 is identically routed to stereo buses 0 and 1, with no other routes; both levels
 then equal that measured mono peak. Multiple/unequal output routes remain
