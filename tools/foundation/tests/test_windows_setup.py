@@ -76,6 +76,41 @@ class WindowsSetupContract(unittest.TestCase):
         self.assertIn("['userData','user']", SMOKE)
         self.assertIn("['sessionData','session']", SMOKE)
 
+    def test_preflight_reports_all_tool_versions_before_failing(self):
+        # One diagnostic table, not the old first-missing-tool exception.
+        self.assertIn('Format-Table Tool, Found, Required, OK', SCRIPT)
+        self.assertIn('Preflight failed ($($failures.Count) checks)', SCRIPT)
+        for tool in ('Process', 'Visual Studio', 'cl.exe', 'Windows SDK', 'rc.exe',
+                     'Python', 'CMake', 'Ninja', 'Node', 'npm'):
+            self.assertIn("CheckRow '" + tool + "'", SCRIPT)
+        self.assertIn("Node", SCRIPT)
+        self.assertIn("22.x x64", SCRIPT)
+        self.assertIn("4.2.3", SCRIPT)
+        self.assertIn("1.13.0", SCRIPT)
+        self.assertIn("elevated", SCRIPT.lower())
+
+    def test_process_local_x64_shell_and_pip_tool_recovery(self):
+        self.assertIn("Microsoft.VisualStudio.DevShell.dll", SCRIPT)
+        self.assertIn("Enter-VsDevShell", SCRIPT)
+        self.assertIn("-arch=x64 -host_arch=x64", SCRIPT)
+        self.assertIn("sysconfig.get_path('scripts','nt_user')", SCRIPT)
+        self.assertIn('$env:Path = "$scripts;$env:Path"', SCRIPT)
+        self.assertIn("$env:npm_config_update_notifier = 'false'", SCRIPT)
+        # None of these may globally install tools or edit a user's PATH.
+        self.assertNotIn("SetEnvironmentVariable", SCRIPT)
+        self.assertNotIn("Install-Module", SCRIPT)
+
+    def test_owner_launcher_smoke_is_device_off_and_bounded(self):
+        self.assertIn('WIRESCAPE_SETUP_SMOKE', SCRIPT)
+        self.assertIn('Wirescape.cmd', SCRIPT)
+        self.assertIn('--null-audio', SCRIPT)
+        self.assertIn('Start-Process -FilePath $env:ComSpec', SCRIPT)
+        self.assertIn('Start-Sleep -Seconds 3', SCRIPT)
+        self.assertIn('taskkill.exe /PID $launcherProcess.Id /T /F', SCRIPT)
+        self.assertIn('if "%WIRESCAPE_SETUP_SMOKE%"=="1"', LAUNCHER)
+        self.assertIn('exit /b %errorlevel%', LAUNCHER)
+        self.assertIn('Write-Host "Summary: $summary"', SCRIPT)
+
     def test_node_and_windows_preflight(self):
         self.assertIn("v22", SCRIPT)
         self.assertIn("3.12 True", SCRIPT)
