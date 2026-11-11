@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# OSC-1: Macro gate input (#341, from #337)
+# OSC-1: Macro gate input (#341; parent task 337)
 
 Tier T2. Adds an optional gate input to the Macro Oscillator without changing existing parameter or input indices, defaults, save formats, or upstream Plaits. See #337 and the original Compass ruling in `docs/tasks/OSC_TUNING_GATE.md` (currently on the module-prep branch). Gate is appended after Level.
 
