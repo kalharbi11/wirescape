@@ -112,6 +112,12 @@ struct Node {
     std::vector<std::vector<ws2_event>>port_events;
     std::vector<ws2_event_list>event_view;std::vector<ws2_event_out>event_outputs;
     std::vector<uint32_t>event_tap_slots; // Precomputed event-output -> telemetry slot; empty when untapped.
+    // Render-owned oscillator observation, never read by the control owner.
+    struct Pitch { bool enabled=false; uint32_t latest=0;
+        std::array<int32_t,WS2_MAX_CHANNELS>note{};
+        std::array<bool,WS2_MAX_CHANNELS>note_on{}, high{};
+        float value=std::numeric_limits<float>::quiet_NaN();
+    } pitch;
     std::vector<ws2_event>events;std::vector<Item>pending;
     std::vector<const float*>legacy_in;std::vector<float*>legacy_out;
     int forced_channels=-1;uint32_t channels=1,latency=0;
@@ -133,6 +139,15 @@ struct Node {
     }
     ws2_host host(){return {sizeof(ws2_host),this,allocate};}
 };
+bool valid_tap(const Node*n,const Tap&t) {
+    if(!n||t.kind>Tap::OscPitch)return false;
+    if(t.kind==Tap::OscPitch)
+        return !n->legacy&&t.index==0&&
+            (!std::strcmp(n->d->id,"essentials.vco")||!std::strcmp(n->d->id,"ports.macro_oscillator"));
+    if(t.kind==Tap::Param)return !n->legacy&&t.index<n->parameters.size();
+    return t.index<n->outputs.size()&&
+        n->outputs[t.index].kind==(t.kind==Tap::EventOut?WS2_EVENT:WS2_SIGNAL);
+}
 struct Edge {
     uint32_t from,output,to,input;int kind;float amount;
     Node*source=nullptr,*destination=nullptr;bool back=false,removed=false;
@@ -205,6 +220,9 @@ struct Engine::Impl {
     void reset_processors()noexcept {
         for(auto&n:nodes){
             if(n->legacy)n->legacy->reset(n->instance);else n->d->reset(n->instance);
+            n->pitch.latest=0;
+            n->pitch.note_on.fill(false);n->pitch.high.fill(false);
+            n->pitch.value=std::numeric_limits<float>::quiet_NaN();
             for(auto&p:n->state){p.base.reset();p.offset.fill(0);}n->pending.clear();
         }
         for(auto&e:edges)if(e.back){e.head=0;std::fill(e.delay_channels.begin(),e.delay_channels.end(),0);if(e.delay.memory)std::fill_n(e.delay.memory.get(),cfg.max_channels*e.delay.stride,0.f);}
@@ -277,12 +295,11 @@ bool Engine::Impl::setup(Node&n) {
 
 bool Engine::Impl::resolve_taps() {
     tap_nodes.clear();tap_nodes.reserve(taps.size());
-    for(auto&node:nodes)node->event_tap_slots.clear();
+    for(auto&node:nodes){node->event_tap_slots.clear();node->pitch.enabled=false;}
     for(uint32_t i=0;i<taps.size();++i){
         const auto&t=taps[i];auto*n=find(t.node);
-        if(!n||(t.kind==Tap::Param?(n->legacy||t.index>=n->parameters.size()):
-                t.index>=n->outputs.size()||n->outputs[t.index].kind!=(t.kind==Tap::EventOut?WS2_EVENT:WS2_SIGNAL)))
-            return fail("Telemetry tap endpoint changed during prepare");
+        if(!valid_tap(n,t))return fail("Telemetry tap endpoint changed during prepare");
+        if(t.kind==Tap::OscPitch)n->pitch.enabled=true;
         tap_nodes.push_back(n);
         if(t.kind==Tap::EventOut){
             if(n->event_tap_slots.empty())n->event_tap_slots.assign(n->outputs.size(),UINT32_MAX);
@@ -621,6 +638,50 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         }
         for(uint32_t c=0;c<global.channels;++c)for(uint32_t i=0;i<frames;++i)global.data[c][start+i]=c<o.channels?o.data[c][(o.flags&WS2_CONSTANT)?0:i]:0;
     }n.touched=true;
+    if(n.pitch.enabled && frames && n.channels){
+        const bool vco=!std::strcmp(n.d->id,"essentials.vco");
+        // Observe the last rendered sample of the most recently triggered channel.
+        // For direct edges, read pointers alias the source's whole-block buffer.
+        auto signal=[&](uint32_t j,uint32_t c,uint32_t i){
+            const auto&b=n.in[j];const uint32_t ch=std::min(c,b.channels-1);
+            const auto at=(b.flags&WS2_CONSTANT)?0u:(b.read[ch]==b.data[ch]?i:start+i);
+            return b.read[ch][at];
+        };
+        auto parameter=[&](uint32_t j,uint32_t c){
+            const auto&b=n.param[j];const uint32_t ch=std::min(c,b.channels-1);
+            return b.data[ch][(b.flags&WS2_CONSTANT)?0u:frames-1];
+        };
+        if(vco){
+            for(const auto&e:n.events) {
+                const uint32_t c=e.channel<0?0u:static_cast<uint32_t>(e.channel);
+                if(c>=n.channels)continue;
+                if(e.type==WS2_NOTE_ON){
+                    n.pitch.note[c]=e.key;n.pitch.note_on[c]=true;n.pitch.latest=c;
+                }else if(e.type==WS2_NOTE_CHOKE)n.pitch.note_on[c]=false;
+            }
+        }else{
+            // Detect one-sample strikes as well as held gates (Plaits renders in 12s).
+            for(uint32_t i=0;i<frames;++i)for(uint32_t c=0;c<std::min(n.channels,8u);++c){
+                const bool high=std::max(signal(6,c,i),signal(8,c,i))>0.5f;
+                if(high&&!n.pitch.high[c])n.pitch.latest=c;
+                n.pitch.high[c]=high;
+            }
+        }
+        const uint32_t c=std::min(n.pitch.latest,n.channels-1);
+        if(vco){
+            const float tune=parameter(0,c);
+            const double hz=(n.in[0].flags&WS2_CONNECTED)
+                ?261.6255653005986*std::pow(2.,signal(0,c,frames-1))*(tune/220.)
+                :n.pitch.note_on[c]?440.*std::pow(2.,(n.pitch.note[c]-69.)/12.):tune;
+            // VCO tap stores Hz; the control owner converts to equal-tempered MIDI.
+            n.pitch.value=std::isfinite(hz)&&hz>0?static_cast<float>(hz):
+                std::numeric_limits<float>::quiet_NaN();
+        }else{
+            // Macro tap stores nominal MIDI note. FM input / Plaits internal FM excluded.
+            n.pitch.value=60.f+parameter(1,c)+
+                std::clamp(12.f*signal(0,c,frames-1),-96.f,96.f);
+        }
+    }
 }
 
 Engine::Engine(Config config):p_(std::make_unique<Impl>(config)){}
@@ -667,9 +728,7 @@ bool Engine::set_telemetry_taps(const std::vector<Tap>&requested){
     if(p.prepared||requested.size()>p.cfg.max_taps)return p.fail("Invalid telemetry tap capacity or setup state");
     for(size_t i=0;i<requested.size();++i){
         const auto&t=requested[i];const auto*n=p.find(t.node);
-        if(!n||t.kind>Tap::EventOut||(t.kind==Tap::Param?(n->legacy||t.index>=n->parameters.size()):
-            t.index>=n->outputs.size()||n->outputs[t.index].kind!=(t.kind==Tap::EventOut?WS2_EVENT:WS2_SIGNAL)))
-            return p.fail("Invalid telemetry tap endpoint");
+        if(!valid_tap(n,t))return p.fail("Invalid telemetry tap endpoint");
         for(size_t j=0;j<i;++j)if(requested[j].kind==t.kind&&requested[j].node==t.node&&requested[j].index==t.index)
             return p.fail("Duplicate telemetry tap endpoint");
     }
@@ -805,6 +864,8 @@ int Engine::render(float*const*outputs,uint32_t output_channels,uint32_t frames,
                 const auto&b=n->param[t.index];
                 const uint32_t last=n->loop?(frames-1)%p.cfg.feedback_block:frames-1;
                 sample=b.data[0][(b.flags&WS2_CONSTANT)?0:last];
+            }else if(t.kind==Tap::OscPitch){
+                sample=n->pitch.value;
             }else if(t.kind==Tap::Output){
                 const auto&b=n->global_out[t.index];
                 const uint32_t at=(b.flags&WS2_CONSTANT)?0:frames-1;
@@ -952,6 +1013,7 @@ bool Engine::reconfigure(uint32_t node,const std::vector<uint8_t>&config){
     // Refuse a removed tap endpoint rather than silently shifting reader slots.
     std::vector<Tap> remapped;remapped.reserve(old.taps.size());
     for(const auto&t:old.taps){
+        if(t.kind==Tap::OscPitch){remapped.push_back(t);continue;}
         const auto*prior=old.find(t.node);const auto*target=fresh.find(t.node);
         const char*id=t.kind==Tap::Param?prior->parameters[t.index].id:prior->outputs[t.index].id;
         const uint32_t index=t.kind==Tap::Param?index_of(target->parameters,id):index_of(target->outputs,id);
@@ -975,6 +1037,7 @@ bool Engine::reconfigure(uint32_t node,const std::vector<uint8_t>&config){
         retained.incoming.swap(layout.incoming);retained.signal_edges.swap(layout.signal_edges);
         retained.modulation.swap(layout.modulation);retained.outgoing.swap(layout.outgoing);
         retained.event_tap_slots.swap(layout.event_tap_slots);
+        retained.pitch.enabled=layout.pitch.enabled;
         for(uint32_t j=0;j<retained.event_outputs.size();++j)retained.event_outputs[j]={sizeof(ws2_event_out),&fresh,j,Impl::emit};
         fresh.nodes[i].swap(old.nodes[i]);
     }
