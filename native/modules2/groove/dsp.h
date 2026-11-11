@@ -462,12 +462,7 @@ struct Sequencer {
             std::array<bool, kParams> rise{};
             for (uint32_t p = 0; p < kParams; ++p) rise[p] = edge(b, p, i);
             bool started = false;
-            if (run_fall) { // Hard-gated STOP releases in this frame, even during a queued stop.
-                release_all(b, i);
-                running = stop_queued = reset_wait = run_start_pending = false;
-                for (auto &p : players)
-                    p.playing = p.enter = p.stop = p.fired = p.skipped_cond = false;
-            } else if (rise[2] || reset_rise) { // RESET > STOP > MUTE > START > step advance.
+            if (rise[2] || reset_rise) { // RESET > STOP > MUTE > START > step advance.
                 release_all(b, i);
                 phase = 0.;
                 step = 0;
@@ -480,6 +475,12 @@ struct Sequencer {
                     p.rng = seed_for(static_cast<uint32_t>(&p - players.data()));
                     p.playing = running && p.armed;
                 }
+                run_start_pending = false;
+            } else if (run_fall) { // External STOP: release in this frame; RESET takes precedence.
+                release_all(b, i);
+                running = stop_queued = reset_wait = run_start_pending = false;
+                for (auto &p : players)
+                    p.playing = p.enter = p.stop = p.fired = p.skipped_cond = false;
             } else {
                 if (rise[1] && running) stop_queued = !stop_queued;
                 for (uint32_t t = 0; t < kTracks; ++t) {
@@ -517,7 +518,7 @@ struct Sequencer {
                     else { start_transport(b, i); started = true; }
                 }
                 if (run_start_pending && !running && !external_clock) phase += 1.;
-                if (run_start_pending && !running &&
+                if (run_start_pending && !running && !run_rise &&
                     (external_clock ? clock_rise : phase >= samples_per_step)) {
                     start_transport(b, i);
                     started = true;
