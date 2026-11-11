@@ -3,6 +3,7 @@
 #include "../../sdk/examples/test_support.h"
 #include "../osc/codec.h"
 #include "osc_service.h"
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -20,6 +21,7 @@ struct Capture {
     std::atomic<uint64_t> timestamp{0};
     static int deliver(void *p, uint32_t node, const ws2_event &e, uint64_t when) noexcept {
         auto &c = *static_cast<Capture *>(p);
+        if (node == 32) return WS2_INVALID; // exercise a bounded sink rejection
         if (node == 1 || node == 2) {
             if (e.type == WS2_MESSAGE && e.message_kind == WS2_MSG_OSC) {
                 c.timestamp.store(when, std::memory_order_release);
@@ -81,6 +83,41 @@ int main() {
 #endif
     local.stop();
     REQUIRE(local.counters().sockets == 0);
+    // All 32 routes share one loopback socket. The 33rd is refused without
+    // widening the port set; malformed/oversized packets never reach the DSP.
+    Service bounded({&c, Capture::deliver});
+    for (uint32_t node = 1; node <= 32; ++node) REQUIRE(bounded.add({node, 0, false}));
+    REQUIRE(!bounded.add({33, 0, false}));
+    REQUIRE(bounded.start() && bounded.counters().sockets == 1);
+    REQUIRE(bounded.states().size() == 32);
+    auto flood_sender = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    sockaddr_in flood_address{};
+    flood_address.sin_family = AF_INET;
+    flood_address.sin_port = htons(bounded.bound_port());
+    flood_address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    const std::array<uint8_t, 8> malformed{{1, 2, 3, 4, 5, 6, 7, 8}};
+    const std::array<uint8_t, 2052> oversized{};
+    REQUIRE(sendto(flood_sender, reinterpret_cast<const char *>(bytes), int(n), 0,
+                   reinterpret_cast<sockaddr *>(&flood_address), sizeof(flood_address)) == int(n));
+    REQUIRE(sendto(flood_sender, reinterpret_cast<const char *>(malformed.data()), int(malformed.size()), 0,
+                   reinterpret_cast<sockaddr *>(&flood_address), sizeof(flood_address)) == int(malformed.size()));
+    REQUIRE(sendto(flood_sender, reinterpret_cast<const char *>(oversized.data()), int(oversized.size()), 0,
+                   reinterpret_cast<sockaddr *>(&flood_address), sizeof(flood_address)) == int(oversized.size()));
+    for (uint32_t wait = 0; wait < 2000 && bounded.counters().received < 3; ++wait)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    REQUIRE(bounded.counters().received == 3);
+    REQUIRE(bounded.counters().malformed == 1);
+    REQUIRE(bounded.counters().dropped >= 2); // one oversized + one rejected enqueue
+    const auto bounded_states = bounded.states();
+    REQUIRE(bounded_states[0].received == 1 && bounded_states[30].received == 1);
+    REQUIRE(bounded_states[31].received == 0 && bounded_states[31].dropped == 1);
+#ifdef _WIN32
+    closesocket(flood_sender);
+#else
+    close(flood_sender);
+#endif
+    bounded.stop();
+    REQUIRE(bounded.counters().sockets == 0);
     // LAN/localhost conflicts stay isolated even with explicit permission:
     // no test ever opens a LAN socket.
     Service mismatch({&c, Capture::deliver}, true);

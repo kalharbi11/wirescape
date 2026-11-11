@@ -480,6 +480,21 @@ with tempfile.TemporaryDirectory() as osc_dir:
                 break
         else:
             raise AssertionError('OSC source removal did not clear status')
+        # Repeated accepted reload/remove cycles must release the same port and
+        # fence the prior worker generation. No non-loopback socket is opened.
+        for cycle in range(4):
+            reloaded_gen = osc_engine.call('loadGraph', patch=osc_patch)['gen']
+            assert reloaded_gen != removed_gen
+            assert osc_route_when(lambda route: route['state'] == 'lan-not-confirmed')['port'] == port
+            removed_gen = osc_engine.call('loadGraph', patch=minimal())['gen']
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline:
+                message = osc_engine.pushes.pop(0) if osc_engine.pushes else osc_engine.receive()
+                if message.get('type') == 'status' and message['gen'] == removed_gen:
+                    assert message['status']['osc']['routes'] == []
+                    break
+            else:
+                raise AssertionError('OSC reload churn left stale routes')
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as released:
             released.bind(('127.0.0.1', port))  # packet worker was joined/closed
         osc_engine.close()
