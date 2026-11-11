@@ -1,7 +1,7 @@
 {
   "SPDX-License-Identifier": "GPL-3.0-only",
   "name": "Basics 6 · CHAOS Keys",
-  "description": "CHAOS-lite is a stereo two-oscillator instrument: Keys feed pitch, gate and velocity in, an ADSR through two VCAs shapes each note and lets it release cleanly, and a modest reverb sits before Out L and Out R. Try shape_a and shape_b (0 saw, 1 square, 2 sine), detune for beating, route (Direct, Multiply, Delay) with depth, body_mix for the comb resonance, and roughness for a gritty AM edge.",
+  "description": "Keyboard pitch and velocity drive CHAOS, while its gate is intentionally unpatched (constant on); the separate ADSR and stereo VCAs now give real note-off release instead of hard-cutting the sound. Explore A/B shape (0 saw, 1 square, 2 sine), detune, route (Parallel/Ring/Delay bend), body_mix and roughness. Performance controls to expose: detune, shape_a/b, body_mix, feedback, roughness and ADSR attack/release. Use two output buses for stereo.",
   "format": "wirescape.native.patch",
   "version": 2,
   "settings": {
@@ -41,7 +41,7 @@
         "roughness": 0.05,
         "drift": 0.12,
         "cutoff": 5000,
-        "level": 1.0
+        "level": 1
       }
     },
     {
@@ -105,17 +105,6 @@
       "to": {
         "module": 2,
         "port": "pitch"
-      }
-    },
-    {
-      "kind": "signal",
-      "from": {
-        "module": 1,
-        "port": "gate"
-      },
-      "to": {
-        "module": 2,
-        "port": "gate"
       }
     },
     {

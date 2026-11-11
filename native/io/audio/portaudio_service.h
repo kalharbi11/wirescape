@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
 #include "app_engine.h"
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -14,10 +15,20 @@ class ShutdownFailure : public std::runtime_error {
   public:
     using std::runtime_error::runtime_error;
 };
+class RateUnsupported : public std::runtime_error {
+  public:
+    RateUnsupported() : std::runtime_error("rate-unsupported") {}
+};
 struct Device {
     std::string id, name, host_api;
     int index = -1;
     bool is_default = false;
+    std::string backend;
+    int output_channels = 2;
+    std::vector<uint32_t> sample_rates{44100, 48000, 96000};
+    bool supported = true;
+    std::string unsupported_reason;
+    double default_sample_rate = 0;
 };
 // Stable output identity. Windows exposes one endpoint per host API (MME, DirectSound,
 // WASAPI, WDM-KS) and repeats names even inside one host API, so the id is
@@ -33,7 +44,27 @@ int resolve_device(const std::vector<Device> &devices, const std::string &select
 struct StreamSelection {
     std::string directory, name; // name holds a device id (or a unique legacy name)
 };
-std::vector<Device> devices(const std::string &directory);
+// Unknown probe results must not turn a busy endpoint into an unsupported route.
+struct RateSupport {
+    bool known = true;
+    std::vector<uint32_t> rates;
+};
+inline RateSupport classify_rates(const std::array<int, 3> &results, int invalid_sample_rate) {
+    constexpr std::array<uint32_t, 3> rates{44100, 48000, 96000};
+    RateSupport support;
+    support.rates.reserve(results.size());
+    for (size_t i = 0; i < results.size(); ++i) {
+        if (results[i] >= 0) support.rates.push_back(rates[i]);
+        else if (results[i] != invalid_sample_rate) support.known = false;
+    }
+    if (!support.known) support.rates.clear();
+    return support;
+}
+struct DeviceQuery {
+    bool probe_rates = true;
+    std::string target_id, active_id;
+};
+std::vector<Device> devices(const std::string &directory, const DeviceQuery &query = {});
 // Control-owned stream. Context exclusively owns the engine until stop proves
 // callbacks quiescent. A failed backend shutdown quarantines context and engine.
 class Stream {
@@ -58,3 +89,4 @@ void list_devices(const std::string& directory);
 void play(EngineOwner engine,const std::string& directory,const std::string& device,
           double rate,uint32_t block,const std::atomic<bool>&stop,std::function<void()> stop_producers = {});
 }
+

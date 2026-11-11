@@ -27,6 +27,15 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(len(problems), 1)
         self.assertTrue(problems[0].startswith("command 2:"))
 
+    def test_malformed_inner_bash_c_script_reported(self):
+        for cmd in ("bash -c 'echo ok &&'", "bash -lc \"if true; then echo x\"", "sh -c 'echo ok ||'"):
+            problems = pre.check_text(task(cmd))
+            self.assertEqual(len(problems), 1, cmd)
+            self.assertTrue(problems[0].startswith("command 1: bash -n"), cmd)
+
+    def test_valid_inner_bash_c_script_accepted(self):
+        self.assertEqual(pre.check_text(task("bash -lc 'echo ok && echo done'")), [])
+
     def test_duplicate_block_reported(self):
         text = task("python -m unittest x")
         problems = pre.check_text(text + text)

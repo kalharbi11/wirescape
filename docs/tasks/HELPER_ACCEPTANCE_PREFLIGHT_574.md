@@ -1,23 +1,28 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# #574: advisory preflight for malformed task acceptance commands
+# Advisory acceptance command/fence preflight (#574)
 
-Issue #574, T1 helper. New advisory CLI `tools/foundation/acceptance_preflight.py`
-(`python tools/foundation/acceptance_preflight.py docs/tasks/X.md`) that checks for
-exactly one fenced `acceptance` block, reuses `acceptance.parse`, and reports
-unterminated quotes / `bash -n` errors with the command index. It never runs the
-listed commands and adds no policy; it is not wired into CI (a separate Keel T2 decision).
-`acceptance.py`, `tools/ci/**`, workflows and existing task files are untouched.
-Patch guide impact: none, tooling only.
+T1 helper tooling only. Read #574, #568's malformed acceptance-command review,
+`tools/foundation/acceptance.py` and its `tests/test_accept.py` tests.
+
+Add standalone, **advisory** CLI in `tools/foundation/` for explicitly named
+Markdown task paths. Check exactly one fenced `acceptance` block, parse via
+the existing parser, and diagnose local shell syntax/unterminated quotes
+(including the inner script of `bash -c '...'` / `sh -c '...'`) without
+executing any task command. Fixture tests cover valid nested Chromium commands,
+invalid unmatched quote, malformed inner `bash -c` script, duplicated fence and
+mixed external `ci:`/`pi-run:` fields. Do not edit the real acceptance parser,
+workflow, controls, tests or thresholds. Integrating a policy gate is a
+separate Keel T2 decision. Needs independent T1 review.
+Patch guide impact: none — advisory tooling only.
 
 ```acceptance
 tier: T1
 size: <= 220 changed lines, <= 3 files
 must_pass:
   - python -m unittest discover -s tools/foundation/tests -p test_acceptance_preflight.py
-  - python -m unittest discover -s tools/foundation/tests -p test_task_acceptance_audit.py
   - python -m unittest discover -s tools/foundation/tests -p test_accept.py
   - ci: guard, linux-arm64, windows-x64, sanitizers green
-stops: [editing acceptance parser, workflows, CI policy, executing listed acceptance commands, changing test selection]
+stops: [acceptance parser edit, CI control or workflow edit, test execution by auditor, new policy or threshold]
 ```
 
 Signed: Helper (Claude, build), 2026-11-11

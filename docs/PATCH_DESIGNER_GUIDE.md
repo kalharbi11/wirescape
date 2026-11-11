@@ -49,11 +49,12 @@ Visitors find compatible patches in Starter patches and PATCHES → SHARED PATCH
 Changes appear after a successful deployment and refresh, not at the instant of commit.
 An open PR is a preview/check, not a public deployment.
 
-**Shipped set (2026-11-10).** Every new build ships 16 patches: the fifteen
-library files in that folder (**Basics 1–7** introductory patches,
-`basics-NN-*.json`, and the eight revised cinematic **Scene 1–8** patches,
-`scene-NN-*.json`), plus the bundled desktop-only MIDI example
-`apps/studio/src/app/bundled/midi-keys-and-knobs.json`. That one lives in the
+**Shipped set (2026-11-10).** Before the CHAOS Lab #530 merge, builds ship 16 patches: the fifteen
+library files (**Basics 1–7** and **Scene 1–8**) plus the bundled desktop-only
+MIDI example. Builds containing #530 ship 19: the previous sixteen and
+three additional CHAOS Lab 1–3 patches (`chaos-NN-*.json`). The lab patches
+are not public until their PR merges and deploys. The bundled MIDI example is
+`apps/studio/src/app/bundled/midi-keys-and-knobs.json`; it lives in the
 app because this folder and the web host exclude `midi.*` modules; the web
 Starter list hides it automatically. The six old `qt-*` starters were retired;
 their IDs stay reserved. Historical curated.ts/STARTERS/native ui_starters
@@ -96,8 +97,55 @@ setting blocker rather than pretending to merge.
   apps/studio/public/wirescape_modules.json. No hardware MIDI modules in the
   web library; use host.keyboard. Browser audio needs its user start gesture.
 - Reverb fx.reverb is merged on main (c39af7b): stereo SUM inputs, one wet/dry output per side, not one reverb per note. Unconnected right follows left; size/decay/damping/predelay/width/motion/freeze/mix are available. Use two output-bus routes to preserve stereo; saved state clears the tail.
-- Macro requires48k. No external sample files/services. Do not assume pending
-  Chord or Notes→CV exist: inspect the actual catalogue and deployed SHA.
+- Macro requires48k. No external sample files/services. Inspect the actual
+  catalogue and deployed SHA before assuming a module is available.
+- **Chord (builds containing #403):** `essentials.chord` accepts and outputs
+  `notes` event cables. Route `host.keyboard.notes` or a sequencer's
+  `notes` output into `essentials.chord.notes`. The root is always present;
+  four optional enabled semitone shifts (-24..+24) default to +4/+7 enabled,
+  +12/-12 disabled. Each note activation owns distinct output note IDs;
+  same-pitch duplicates are distinct voices, and held intervals don't retune.
+  Reusing a live explicit `(source_id, channel, note_id)` is a producer error:
+  last wins, releasing the old chord; the next matching off releases the current
+  chord, and another off is ignored. The event has no generation discriminator.
+  Capacity is 16 input activations and 80 emitted/pending voices; new notes are
+  declined when full. Chord instances sharing a source need distinct graph IDs
+  modulo 2048 to keep their output note identities separate at fan-in.
+  Chord is not a sequencer or a CV source. **A production polyphonic audio
+  chain requires `essentials.notes_to_cv` (#421)**: Chord `notes` →
+  Notes→CV `notes` → poly `pitch`/`gate`/`velocity` → instrument/Output.
+  Notes→CV is in builds containing #421; inspect the catalogue. `midi.to_cv.midi` is raw-MIDI-only and cannot accept Chord's note
+  events. No hardware/MIDI or listening validation is implied.
+- **Notes→CV (builds containing #421):** `essentials.notes_to_cv` accepts
+  a `notes` event input and produces three **poly signal** outputs:
+  `pitch` (V/oct; C4=0), `gate` and `velocity`. It allocates fresh poly
+  voices independently of incoming MIDI channels (stepped `voices` 1–16,
+  default 4, rotating/stealing when full). Example: `host.keyboard.notes`
+  → `essentials.notes_to_cv.notes` → `pitch` to `essentials.vco.pitch`,
+  `gate` to `essentials.adsr.gate`, and `velocity` to a sound-level
+  control; then VCO.audio + ADSR.envelope → VCA → Output. The same note-event
+  input also accepts a sequencer's `notes` or `essentials.chord.notes`
+  (Chord is on main via #403). The raw-MIDI `midi.to_cv.midi`
+  port does *not* accept those notes. The WASM host excludes `midi.*`;
+  use `host.keyboard` in browser patches. Recorded native tests are
+  device-off, not evidence of physical MIDI or speaker sound.
+
+### Other shipped module IDs (catalogue cross-reference)
+
+This guide's wiring examples are **not** the complete module inventory. The
+generated `apps/studio/public/wirescape_modules.json` is the authoritative list
+for each deployed build's module IDs, port directions, parameter ranges and defaults.
+At this guide revision, it also contains these modules not named in the examples
+above or below:
+
+- Control and shaping: `essentials.clock`, `essentials.lfo`, `essentials.function_envelope`,
+  `essentials.adsr`, `essentials.slew`, `essentials.scale_offset`, `essentials.quantizer`
+- Audio and filtering: `essentials.vca`, `essentials.vcf`, `essentials.ladder`,
+  `essentials.resonator`, `essentials.mixer`, `fx.delay`, `sound.blend`
+- Generators: `example.random_source`, `example.step_sequencer`
+
+Treat the list as discoverability, **not** a substitute for the generated
+descriptor or a promise that pending modules are available on a deployed SHA.
 
 ### Macro Oscillator model names (48 kHz only)
 
@@ -144,7 +192,29 @@ or parameter IDs.
   Finite optional endpoints override the matching bipolar default; inverted and
   constant ranges are valid, existing smoothing still applies, and JSON persists
   the mapping. MIDI modules remain unavailable in the WebAssembly host; use
-  `host.keyboard` in browser patches. MIDI Learn stays separate UI-owned work.
+  `host.keyboard` in browser patches.
+- MIDI Learn (Studio on the desktop engine, #287): right-click a modulatable knob →
+  **MIDI Learn…**, move a controller, **Confirm** (Enter; Esc cancels; the engine
+  stops waiting after 30 s). Studio writes a free `midi.cc_to_cv` row
+  (`channel` = the captured one, or `0` with "any channel"; `controller`), cables
+  `ccN` → that knob as a modulation with amount `1`, and sends the edited patch as
+  one live replan. Until it settles, Studio shows "Applying MIDI Learn…" and
+  blocks patch edits, undo, cables and CC labels; rejection restores the old
+  patch and history before editing resumes. The row goes on a converter whose `midi.in` feed hears the
+  device that moved (`all_enabled`, or that exact `endpoint` + `system_name`); a
+  converter with no feed gets one in the same edit. Otherwise it adds a
+  `midi.cc_to_cv` module fed by a matching `midi.in` (a new one naming the device
+  when none hears it); unrelated routes are untouched. A device unplugged or
+  disabled before Confirm is refused. Wired but unconfigured outputs keep their
+  default CC n (explicit default rows fill the gap, never a hole). Re-learning a
+  mapped knob updates its row, or moves it to a new row when another knob shares
+  that row or its converter does not hear the new device. **Forget MIDI mapping**
+  removes only that knob's CC cable (and a now-unused last row). One undo step
+  each. Learned rows are ordinary `config.rows`, so a saved patch needs no
+  learn state. Modulation is added to the knob's own value, so a full sweep needs
+  the knob near its minimum (0..1 CC onto its range). The `CC n` label on the
+  module follows the learned controller (`ui.ccMap`, display only). Hand-edit
+  JSON is still fine; unavailable in the browser demo (no MIDI).
 - `essentials.vco` is a pure sine. Keep `frequency` 220 for concert tuning when pitch
   is connected (it is a ratio to 220; 261.63 plays three semitones sharp). Its `fm` input is additive Hz from a ±1 signal,
   so it only gives a few Hz of deviation. For audible FM, connect a modulator
@@ -312,6 +382,86 @@ For a longer pattern set `length:16`, author `pitch16` (octaves), `gate16`
 values through edit/undo/save; native/WASM version compatibility remains #405's
 contract. UI/FakeEngine preview alone does not prove DSP or audible playback.
 
+## Groove native v2 patterns (G1 #496; available in builds containing this integration)
+
+The original `sequencing.groove` authored config `version:1` remains valid and
+keeps its two synchronized **32-step** tracks, old sample/note ordering and
+implicit full gate. The new `version:2` config allows each track to set
+`length` to **8, 16, 32 or 64** sixteenth notes (default 16 for a newly authored
+v2 track, 32 for v1). A track pads its omitted steps with rests. Active tracks
+follow their own lengths; the longest active track determines the global
+STOP/Apply master-cycle boundary. V2 track START enters at the next
+16-step bar; an authored v1 track retains its original 32-step entry boundary.
+
+On each v2 step, `gate` selects 0.25, 0.5, 0.75 or 1 times one step, default
+1. A tie extends the sounding note through the tied cells, with the *last*
+tie's gate fraction determining the release. Only note trigs accept `cond`:
+`{"type":"chance","p":50}` (integer percent 1..99),
+`{"type":"ab","a":1,"b":4}` (loop 1 of every 4; b 2..8),
+`{"type":"first"}`, or `{"type":"not_first"}`. Omit `cond`
+for always. A failed condition skips note and ties, but still applies that
+step's Mod1/Mod2 values. A:B counts the **track's** loops, not necessarily
+16-step bars. A chance sequence is deterministic from the native graph
+instance ID and track; it never stores a random seed in authored patch JSON.
+
+Example of one track's v2 config, excluding unrelated module settings:
+
+```json
+{"version":2,"bpm":120,"tracks":[{"length":16,"steps":[
+  {"kind":"note","key":60,"velocity":0.9,"gate":0.5,
+   "mod1":0.4,"mod2":0.2,"cond":{"type":"chance","p":50}},
+  {"kind":"tie","gate":0.75},
+  {"kind":"note","key":64,"velocity":0.8,"cond":{"type":"ab","a":1,"b":4}}
+]}]}
+```
+
+### Groove native chords and per-track speed (G4a/G5a, #526)
+
+**Chord steps and speed play on engines with #526.** Config remains
+`version:2`; there are no new event ports, parameters or telemetry fields.
+On a `note` step, optional `keys` contains **1–5 distinct integer MIDI
+keys (0–127)**: `keys[0]` equals the existing root `key`, and the remaining
+keys are ascending. Studio omits `keys` for a single note. Chord voices
+attack together in this order, each with a separate note ID. A tie extends
+all voices; gate-off, STOP and RESET release them. A failed condition
+skips the entire chord. The strict engine refuses `keys` on a rest or tie,
+empty/oversized/invalid/duplicate keys, or a root mismatch.
+
+Each track optionally sets `div` to **1, 2, 4 or 8** (1×, ½×, ¼×, ⅛×
+speed); omission means 1. No other `div` values are supported. Each step
+takes `div` sixteenths; gates, ties and A:B loop counters follow the
+slowed track. The global STOP and Apply-at-loop-end master cycle is the
+**maximum `length × div` over active/armed tracks**, at most
+**512 sixteenths**. Track STOP still ends at its own
+`length × div` boundary; `t1_pos`/`t2_pos` report each track's own
+step index. For example, `length:16, div:4` is a four-bar progression
+using sixteen pads.
+
+A v2 step and slowed track can be authored as:
+
+```json
+{"version":2,"bpm":120,"tracks":[{"length":16,"div":4,"steps":[
+  {"kind":"note","key":60,"keys":[60,64,67],"velocity":0.8,"gate":0.5},
+  {"kind":"tie","gate":0.75}
+]}]}
+```
+
+**Wiring:** `sequencing.groove:t1_notes` → `essentials.notes_to_cv:notes`
+→ Notes→CV `pitch` and `gate` to a polyphonic voice chain
+(VCO → VCA → Output, gate through ADSR to VCA level). Connect
+`t2_notes` to another Notes→CV for an independent track. The native
+#526 engine test proves three voices with its device-free test
+`NotesToCv`; production `essentials.notes_to_cv` is contingent on its
+separate #512 integration and must not be assumed to exist on an older
+deployed engine.
+
+The output and transport IDs remain unchanged; G3's appended measurement
+ports appear below. Engines without #526 refuse `keys` and `div` rather
+than silently misplay them. Studio authoring for both is described in
+"Groove chord steps and per-track speed in Studio" below; physical listening
+is a separate owner check. Check deployed SHAs for native and WebAssembly
+support.
+
 ## Groove observation outputs (PR #501)
 
 Groove observation outputs append to its existing pitch/gate/mod/notes ports:
@@ -325,3 +475,196 @@ but primarily support the engine's measured editor telemetry; no cable is needed
 for the editor to observe them. For example, a `t1_fired` signal may drive a gate
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
+
+## OSC In and Monitor (portable slice A of #72)
+
+Builds with the portable #72 slice A register `osc.in` and `monitor` as ABI2
+modules. `osc.in` exposes eight CV rows (`row1`…`row8`) and an OSC
+`messages` event output. Each row's defaults listen for
+`/pico1/knob/1`…`/pico1/knob/8`, map numeric 0–1 to CV 0–1, smooth over 5 ms,
+and hold the last value after a 1 s timeout unless configured for stale zero.
+`monitor` has `events`, `in1`, and `in2` inputs, capturing bounded
+messages/signals without logging on the audio thread.
+
+**Availability limit:** registration is not an operational UDP route. Until
+sidecar ownership/localhost ingress and Electron/Monitor presentation (slices
+B/C) ship, incoming network messages do not reach `osc.in` in the app and
+Monitor has no user-facing log. Do not publish a patch claiming live OSC
+control yet. After B/C, the intended wiring is `osc.in.row1 →` a VCA's
+`cv` input and `osc.in.messages → monitor.events`; browser/WASM OSC and
+unconfirmed LAN access remain unavailable. These modules introduce no new
+patch parameters or changes to existing IDs.
+
+## Groove editor in Studio (G2a #498; builds containing this integration)
+
+Studio now edits `sequencing.groove` patterns on its card (Pads view, two lanes: Trig and
+Note). Authoring rules for patch designers:
+- **Format:** Studio reads `config.version` 1 and 2. Opening a v1 pattern changes nothing;
+  the *first edit* rewrites it as v2 and gives each v1 track an explicit `"length":32`
+  (its old meaning), adding an empty second track (same length) if the pattern had only one. A newly added Groove has
+  no `config` until edited; its first edit writes two 16-step tracks of rests at 120 BPM.
+  Unknown keys in `config`, tracks or steps are saved back untouched in the document;
+  the engine projection omits unrelated extras but forwards the known `keys` and `div`
+  fields unchanged (including values an old engine refuses). A newer `version` is shown read-only.
+- **What it writes:** `length` 8/16/32/64 (shortening a track trims its saved steps),
+  `gate` 0.25/0.5/0.75 (1 is written by omitting `gate`), `cond` from the picker
+  (chance 10/25/50/75/90 %, A:B 1:2, 2:2, 1:4, 2:4, 3:4, 4:4, 1:8, first, not first; any
+  valid hand-authored chance 1–99 or A:B up to b = 8 is kept), `bpm` 20–300, per-track
+  `armed` and `mute`. Rests and ties never carry `key`, `keys`, `velocity` or `cond`.
+- **Draft and Apply:** edits are a draft; the engine keeps playing the applied pattern.
+  **Apply** is enabled only on a measured, current-generation stop (both tracks report
+  step -1) or while audio is not running; it reloads the whole graph, so the Groove (and
+  other modules) start stopped, and Play starts from step 1. A refused Apply keeps the
+  draft and starts nothing. **Stop & apply** queues the global STOP to the master-cycle
+  end and applies once the stop is measured. **Revert** restores the applied pattern.
+  Play applies a pending draft first. Transport buttons send momentary rising edges to
+  `run`/`stop`/`reset` and `t1_run`/`t1_stop` (`t2_*`); they are not saved.
+- **Live view:** the playhead, track positions and the "skipped this pass" dim (a failed
+  condition) come only from engine telemetry; on an engine without the playhead
+  capability they stay hidden. Chance results are never predicted in the editor.
+- **Roll:** Pads/Roll are two projections of the same MIDI-key pattern. Roll
+  rows are indexed by MIDI note, including every note of a chord. Clicking an empty
+  note cell on a note step adds a voice, up to five notes per step; dragging a note
+  moves only that voice. Drag right to tie; double-click, right-click or press
+  Backspace on a focused note cell to delete that voice. Under the
+  note grid, lollipop lanes edit velocity, gate, Mod 1 and Mod 2. The inspector
+  also accepts typed Mod 1/2 percentages. The Roll scrolls within its card,
+  rather than widening the web page. Roll note buttons are keyboard-focusable:
+  arrow keys move by step or pitch; Enter/Space enters a note, and Backspace
+  removes it. Focus a Roll value slider and use arrow keys or Home/End to edit
+  its value.
+- **Scale and bar tools:** root and Chromatic/Major/Minor/Pentatonic scale selections
+  mark the pitch guide and affect subsequent pitch gestures, not saved note data.
+  The choice is saved with the patch in `ui.groove["<moduleId>"] = {"root": 0..11,
+  "scale": "<name>"}` (one undo step per change); the engine ignores it and the
+  module config never holds it.
+  Copy snapshots the selected (up to 16-step) bar. Paste and Clear each create a
+  single undoable edit; existing unknown step keys are preserved. Each bar of
+  16 steps becomes two rows of eight on narrow screens.
+- **Keyboard:** focus the Groove first. Space Play/Stop, arrows move the selected
+  step or pitch (Shift = octave), A/W/S/E/D/F/T/G/Y/H/U/J/K enter chromatic
+  notes at the selected step (hold multiple piano keys to write one chord when
+  they are all released; the multi-key cursor advances), Z/X change keyboard octave, hyphen makes a tie,
+  Backspace clears a trig, 1/2 select track, Ctrl/Cmd+Z undo (Shift = redo).
+- **Looks:** Graphite (default), Oxblood and LED only change the appearance;
+  no style choice or scale setting is saved to the module config.
+  No live per-step editing during playback.
+Example (a 16-step bass, one 50 % trig and one 1:4 trig with a short tie):
+`{"version":2,"bpm":120,"tracks":[{"length":16,"steps":[{"kind":"note","key":36,"velocity":0.9},`
+`{"kind":"tie","gate":0.5},{"kind":"rest"},{"kind":"note","key":43,"velocity":0.7,"cond":{"type":"chance","p":50}},`
+`{"kind":"rest"},{"kind":"rest"},{"kind":"rest"},{"kind":"note","key":48,"velocity":0.8,"cond":{"type":"ab","a":1,"b":4}}]}]}`.
+Hardware listening and Pi display checks of the editor are not claimed.
+
+## Groove chord steps and per-track speed in Studio (G4b/G5b, #527)
+
+**Available with native #526.** The stored format, limits, master-cycle rule and a
+Groove → Notes→CV wiring are in "Groove native chords and per-track speed" above;
+Studio writes exactly that format: `keys` only for 2–5 distinct notes (root first,
+the rest ascending), no `keys` for a single note, and `div` 2/4/8 with 1× omitted.
+No chord-quality field is stored; names are derived from the notes.
+
+- **Notes Single/Chord** in the inspector. Choosing Chord on one note builds the
+  scale chord (or a major triad on Chromatic); the picker lists the scale's triad and
+  seventh first, then triads, sevenths and extended chords, greying types that leave
+  the scale. ◁ ▷ invert. The Note field is labelled Root on a chord step.
+- **Moving a chord:** drag, wheel or ↑↓. A chord equal to the scale stack on its root
+  moves within the key (Am → B° → C in A minor); any other chord moves as a block.
+  Shift moves by octaves.
+- **Pads** show the chord name (slash bass dropped) and a small pitch ladder.
+- **Roll:** click an empty cell in a note's column to add a note (up to 5); drag one
+  note on its own; double-click, right-click or Backspace removes one note, and the
+  last note removes the step's note. All notes share the step's start, gate, ties,
+  velocity, mods and condition.
+- **Held keys:** hold several piano keys on the computer keyboard; the chord is
+  written to the selected step when all are released, then the selection advances.
+  Leaving the window mid-chord drops it without writing.
+- **Speed `1× ½ ¼ ⅛`** next to Steps, per track; the track tab shows ½×/¼×/⅛×, and the
+  loop/position display uses `length × div`. Changing Steps keeps the speed.
+- The scale helper stays UI-only (`ui.groove`), as in G2b.
+
+**Four bars in sixteen pads:** Steps **16**, Speed **¼** on T1. Each pad is one beat,
+so pads 1–16 span four 4/4 bars. Chords on pads 1, 5, 9 and 13 (C, F, G, C), each
+followed by three ties, hold one chord per bar.
+
+## CHAOS sound presets (#489; available after Studio PR merges)
+
+The `essentials.chaos_lite` card's **Presets** dropdown supplies eight
+repeatable starting sounds. The first four are from its native README:
+**Warm fifth** (smooth pair/fifth), **Bent wire** (delay bending), **Broken
+bell** (ring-mod strike), and **Slow weather** (slow body motion). The four
+Studio originals are **Basalt drone** (dark sustained comb), **Glass pluck**
+(bright short resonant note), **Iron rain** (metallic high partials), and
+**Tide choir** (slow stereo tonal movement).
+
+A choice sets **all** descriptor parameters to its values or their defaults,
+not merely the named subset, via the existing engine parameter path. Undo
+restores the previous parameter state in one step, and save/reload retains
+those numeric values without writing preset names or changing cables,
+module IDs, or unknown fields. A changed knob shows **Custom**. These are
+sound-design candidates, not separately approved/audio-auditioned patches:
+verify actual sound against the offline render/WAV evidence before claiming
+a preset's audio acceptance, and never infer DSP playback from FakeEngine
+control values alone.
+
+## CHAOS atmospheric lab (merged in #531)
+
+Three original scenes use the current `essentials.chaos_lite` v1:
+`chaos-01-ember-veil-pad` (keyboard pad, clocked smooth random),
+`chaos-02-wireglass-lead` (ring/AM lead with envelope-driven coupling),
+and `chaos-03-orbiting-iron-fx` (autoplay curved metallic pulses).
+`basics-06-chaos-keys` and `scene-03-black-ice-choir` were also revised.
+
+**Critical CHAOS gate rule:** `essentials.chaos_lite.gate` is an immediate
+audio multiplier, not an ADSR generator. To get keyboard release, wire
+`host.keyboard.gate` to `essentials.adsr.gate`, then
+`adsr.envelope` to the two stereo `essentials.vca.gain_cv` ports.
+Leave CHAOS gate **unpatched (default 1)** and set `fall=0`; if the
+keyboard gate goes into CHAOS, a zero at note-off defeats the ADSR release.
+Until an independent pitch fall trigger exists, external CV handles
+note-on pitch contours. Each patch description names useful performance
+parameters; no new CHAOS DSP/control is assumed.
+
+A seeded sine/triangle/sample-and-hold/smooth-random `lfo_shape` is **under review in PR #533, not yet released**. P1 addition and compatibility/test plan:
+`docs/tasks/CHAOS_ATMOSPHERES_530.md`. Eight named module-level
+presets are available from merged #522; a patch still stores its values,
+not its selected preset name. Real device listening remains owner-only.
+
+## CHAOS internal LFO waveforms (PR #533; available only after merge)
+
+`essentials.chaos_lite` appends **`lfo_shape`** at parameter slot 26:
+0=Sine (default, fully compatible with older patches), 1=Triangle,
+2=Sample & hold, 3=Smooth random. S&H and smooth random use their
+own per-voice seeded random stream; the existing drift/jitter and
+roughness RNG sequence is unaffected. Each cycle picks a new held
+value or interpolation target. A 10 ms switch ramp is for shape
+changes, not a new long-cycle envelope. No new input/output port,
+no second LFO, and no sample looper. `lfo_rate` (0.02–12 Hz),
+`lfo_depth` (0–1), `lfo_self` (0–1), and target (A pitch,
+body tuning or cutoff) remain unchanged. Studio's eight CHAOS
+module presets resolve the new selector to default 0 unless
+explicitly specified.
+
+Backward-compatible wiring: keyboard pitch → CHAOS.pitch; keyboard gate
+→ ADSR.gate → VCA.gain_cv; CHAOS left/right → one VCA each → outputs
+0/1. Leave CHAOS gate unpatched for actual ADSR release. A Lab 1 pad
+can replace its external smooth-random CV with internal shape 3
+targeting body tuning **only if its other modulation routes are
+preserved separately**; the internal LFO has one target, so it is
+not a patch-wide modulation matrix. Lab 3's percussive envelope
+remains external. **Downgrade warning:** `lfo_shape=0` retains the earlier
+sine algorithm, but this build saves internal CHAOS state as **version 2**.
+An older CHAOS binary accepts only state version 1 and returns
+`WS2_UNSUPPORTED` for version 2. Do not promise that a newer saved
+session can be opened with an older binary merely by selecting Sine.
+Preserve a backup before downgrading; test the actual host's response
+to unsupported module state and, if necessary, reconstruct from
+parameter values in a matching older build.
+
+The native state reader supports version-1 imports. When importing version-2
+state across sample rates, the 10 ms live-shape fade counter is bounded
+to the receiving sample rate; an old build cannot perform this conversion.
+
+Test native WAV, real WASM catalogue, old patch/state migration
+and CPU before calling this feature released. The 27th parameter
+must appear in generated catalogue and grouped panel. Device/Pi
+listening remains an owner step.

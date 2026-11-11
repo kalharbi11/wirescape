@@ -38,11 +38,28 @@ def check_text(text):
         except ValueError as error:
             problems.append(f"command {index}: {error} ({command})")
             continue
-        if bash and acceptance.shell_syntax(command):
-            result = subprocess.run([bash, "-n", "-c", command], capture_output=True, text=True)
+        if not bash:
+            continue
+        words = shlex.split(command, comments=True)
+        scripts = ([command] if acceptance.shell_syntax(command) else []) + inner_scripts(words)
+        for script in scripts:
+            result = subprocess.run([bash, "-n", "-c", script], capture_output=True, text=True)
             if result.returncode:
                 problems.append(f"command {index}: bash -n: {result.stderr.strip()} ({command})")
+                break
     return problems
+
+
+def inner_scripts(argv):
+    """Script strings passed to `bash|sh -c` (flags like -lc, -ec included)."""
+    if not argv or Path(argv[0]).name not in ("bash", "sh"):
+        return []
+    for position, arg in enumerate(argv[1:], 1):
+        if not arg.startswith("-") or arg.startswith("--"):
+            break
+        if "c" in arg[1:] and position + 1 < len(argv):
+            return [argv[position + 1]]
+    return []
 
 
 def main(argv):

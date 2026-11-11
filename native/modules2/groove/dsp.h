@@ -47,17 +47,27 @@ struct Sequencer {
         ws::param("t2_run", "T2 Start", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 7, 4, 1),
         ws::param("t2_stop", "T2 Stop", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 8, 4, 1),
         ws::param("t2_mute", "T2 Mute", 0, 1, 0, "", WS2_STEPPED | WS2_AUTOMATABLE, WS2_LINEAR, 9, 4, 1)};
-    static constexpr uint32_t kTracks = 2, kSteps = 32, kParams = 10;
+    static constexpr uint32_t kTracks = 2, kSteps = 64, kClock = 512, kParams = 10;
     struct NoteState {
         bool on = false;
         int32_t id = 0, key = 60;
     };
+    // Five fixed sounding and pending slots. The summary flag also covers a
+    // partially accepted chord whose root was refused by the event sink.
+    struct Voices {
+        bool on = false;
+        std::array<NoteState, 5> notes{};
+    };
     struct Player {
         bool armed = true, muted = false, playing = false, enter = false, stop = false;
-        NoteState sounding{}, pending{};
+        Voices sounding{}, pending{};
         float pitch = 0.f, mod1 = 0.f, mod2 = 0.f;
         uint32_t loop = 1;
+        uint32_t rng = 1;
         bool fired = false;
+        bool skipped_cond = false; // Only failed v2 note conditions propagate to following ties.
+        double gate_age = 0., gate_cutoff = 0.;
+        bool short_gate = false;
     };
 
     Config pattern{};
@@ -66,15 +76,21 @@ struct Sequencer {
     std::array<bool, kTracks> mod1_active{}, mod2_active{};
     double samples_per_step = 6000., phase = 0.;
     uint32_t step = 0;
+    std::array<uint32_t, kTracks> step_t{};
+    uint32_t rng_seed = 1;
     bool running = false, stop_queued = false, muted = false, reset_wait = false;
     int32_t next_id = 1;
 
     bool prepare(const ws::Setup &s) {
         if (!decode(s.config.data, s.config.bytes, pattern)) return false;
         samples_per_step = s.sample_rate() * 15. / pattern.bpm;
+        // The quiescent adapter carries the graph's stable numeric instance ID.
+        // Mixing the optional host seed adds repeatability without pointer or clock entropy.
+        rng_seed = pattern.instance_seed ^ static_cast<uint32_t>(s.config.seed) ^
+                   static_cast<uint32_t>(s.config.seed >> 32u);
         for (uint32_t t = 0; t < kTracks; ++t) {
             mod1_active[t] = mod2_active[t] = false;
-            for (uint32_t i = 0; i < kSteps && t < pattern.track_count; ++i) {
+            for (uint32_t i = 0; i < pattern.tracks[t].length && t < pattern.track_count; ++i) {
                 mod1_active[t] |= pattern.tracks[t].steps[i].mod1 != 0.f;
                 mod2_active[t] |= pattern.tracks[t].steps[i].mod2 != 0.f;
             }
@@ -90,12 +106,101 @@ struct Sequencer {
             players[t].armed = t < pattern.track_count && pattern.tracks[t].armed != 0;
             players[t].muted = t < pattern.track_count && pattern.tracks[t].mute != 0;
         }
+        for (uint32_t t = 0; t < kTracks; ++t) players[t].rng = seed_for(t);
         observed.fill(false);
         control_high.fill(false);
+        step_t.fill(0);
         running = stop_queued = muted = reset_wait = false;
         phase = 0.;
         step = 0;
         next_id = 1;
+    }
+
+    // Quiescent module-state envelope; never part of authored config JSON.
+    // State v1 predates native per-track loop/RNG persistence.
+    int save_state(ws::Writer writer) const {
+        if (!writer.u32(2)) return WS2_CAPACITY;
+        for (const auto &p : players)
+            if (!writer.u32(p.loop) || !writer.u32(p.rng)) return WS2_CAPACITY;
+        return WS2_OK;
+    }
+    int load_state(ws::Reader reader) {
+        uint32_t version = 0;
+        if (!reader.u32(version)) return WS2_INVALID;
+        if (version == 1) {
+            for (uint32_t t = 0; t < kTracks; ++t) {
+                players[t].loop = 1;
+                players[t].rng = seed_for(t);
+            }
+            return WS2_OK;
+        }
+        if (version != 2) return WS2_INVALID;
+        std::array<uint32_t, kTracks> loops{}, rngs{};
+        for (uint32_t t = 0; t < kTracks; ++t)
+            if (!reader.u32(loops[t]) || !reader.u32(rngs[t]) ||
+                loops[t] == 0 || rngs[t] == 0) return WS2_INVALID;
+        for (uint32_t t = 0; t < kTracks; ++t) {
+            players[t].loop = loops[t];
+            players[t].rng = rngs[t];
+        }
+        return WS2_OK;
+    }
+
+    uint32_t seed_for(uint32_t track) const {
+        uint32_t x = rng_seed ^ (0x9e3779b9u * (track + 1u));
+        x ^= x >> 16u; x *= 0x7feb352du;
+        x ^= x >> 15u; x *= 0x846ca68bu;
+        x ^= x >> 16u;
+        return x ? x : 1u; // xorshift32 cannot start at zero.
+    }
+    static uint32_t next_random(uint32_t &state) {
+        state ^= state << 13u;
+        state ^= state >> 17u;
+        state ^= state << 5u;
+        return state;
+    }
+    bool condition_passes(const Step &row, Player &player) {
+        switch (row.cond_type) {
+        case Always: return true;
+        case Chance: {
+            const uint32_t sample = next_random(player.rng);
+            return static_cast<uint64_t>(sample) * 100u <
+                   static_cast<uint64_t>(row.cond_a) * (uint64_t{1} << 32);
+        }
+        case AB: return (player.loop - 1u) % row.cond_b == row.cond_a - 1u;
+        case First: return player.loop == 1u;
+        case NotFirst: return player.loop != 1u;
+        default: return false; // validated on the control thread.
+        }
+    }
+    uint32_t master_steps() const {
+        uint32_t longest = 0;
+        for (uint32_t t = 0; t < pattern.track_count; ++t) {
+            const auto &player = players[t];
+            if (player.playing || player.enter || player.armed)
+                if (pattern.tracks[t].length * pattern.tracks[t].div > longest)
+                    longest = pattern.tracks[t].length * pattern.tracks[t].div;
+        }
+        // A running transport with all tracks disarmed must still have a defined cycle.
+        if (!longest)
+            for (uint32_t t = 0; t < pattern.track_count; ++t)
+                if (pattern.tracks[t].length * pattern.tracks[t].div > longest)
+                    longest = pattern.tracks[t].length * pattern.tracks[t].div;
+        return longest;
+    }
+    double gate_duration(uint32_t track, uint32_t note_step, bool &short_gate) const {
+        const auto &pattern_track = pattern.tracks[track];
+        uint32_t last_gate = pattern_track.steps[note_step].gate_q;
+        uint32_t ties = 0;
+        for (uint32_t next = (note_step + 1u) % pattern_track.length;
+             ties + 1u < pattern_track.length &&
+             pattern_track.steps[next].kind == Tie;
+             next = (next + 1u) % pattern_track.length) {
+            ++ties;
+            last_gate = pattern_track.steps[next].gate_q;
+        }
+        short_gate = last_gate < 4; // Full-length gates use the legacy boundary release.
+        return samples_per_step * pattern_track.div * (static_cast<double>(ties) + last_gate / 4.);
     }
 
     // NOLINTNEXTLINE(bugprone-easily-swappable-parameters): type and sample offset are distinct concepts.
@@ -111,17 +216,37 @@ struct Sequencer {
         e.value = velocity;
         return b.emit(e.port, e);
     }
+    // Bounded collision avoidance: at most twenty voices can be live/pending
+    // across the two tracks, even after repeated refused NOTE_OFFs.
+    int32_t unused_note_id() {
+        for (uint32_t attempt = 0; attempt <= kTracks * 10; ++attempt) {
+            bool used = false;
+            for (const auto &p : players) {
+                for (const auto &voice : p.sounding.notes) used |= voice.on && voice.id == next_id;
+                for (const auto &voice : p.pending.notes) used |= voice.on && voice.id == next_id;
+            }
+            if (!used) return next_id;
+            next_id = next_id == 0x7fffffff ? 1 : next_id + 1;
+        }
+        return -1; // Cannot occur with the fixed number of occupied slots.
+    }
     bool flush(ws::Block &b, uint32_t t, uint32_t i) {
-        auto &p = players[t];
-        if (!p.pending.on) return true;
-        if (!emit(b, t, WS2_NOTE_OFF, i, p.pending, 0.f)) return false;
-        p.pending = {};
-        return true;
+        auto &pending = players[t].pending;
+        if (!pending.on) return true;
+        bool complete = true;
+        for (auto &voice : pending.notes) {
+            if (!voice.on) continue;
+            if (emit(b, t, WS2_NOTE_OFF, i, voice, 0.f)) voice = {};
+            else complete = false;
+        }
+        pending.on = !complete;
+        return complete;
     }
     void release(ws::Block &b, uint32_t t, uint32_t i) {
         auto &p = players[t];
         if (p.sounding.on) {
-            // There cannot be another pending release: a pending release blocks NOTE_ON.
+            // Pending releases block every new attack, so this move cannot
+            // overwrite an existing refused OFF.
             p.pending = p.sounding;
             p.sounding = {};
         }
@@ -135,28 +260,64 @@ struct Sequencer {
     void release_step(ws::Block &b, uint32_t t, uint32_t i) {
         const auto &p = players[t];
         if (!p.playing || effective_mute(t)) return;
-        const auto &row = pattern.tracks[t].steps[step];
+        const auto &row = pattern.tracks[t].steps[step_t[t]];
         if (row.kind != Tie || !p.sounding.on) release(b, t, i);
     }
     void trigger(ws::Block &b, uint32_t t, uint32_t i) {
         auto &p = players[t];
-        const auto &row = pattern.tracks[t].steps[step];
-        p.fired = p.playing && ((row.kind == Note && row.velocity > 0.f) || (row.kind == Tie && p.fired));
-        if (!p.playing || effective_mute(t)) return;
+        const auto &row = pattern.tracks[t].steps[step_t[t]];
+        const bool continued = p.fired && p.sounding.on;
+        p.fired = false;
+        if (!p.playing) { p.skipped_cond = false; return; }
+        if (row.kind == Note && row.velocity > 0.f) {
+            p.fired = condition_passes(row, p);
+            p.skipped_cond = !p.fired;
+            if (!p.fired) {
+                // A failed condition acts as a rest for notes/ties, not for the
+                // stepped CV modulation: the skipped trig still updates both mods.
+                p.mod1 = row.mod1;
+                p.mod2 = row.mod2;
+                return;
+            }
+        } else if (row.kind == Tie) {
+            p.fired = continued;
+            if (p.skipped_cond) {
+                // A rejected note's following ties are rests for notes but
+                // still update their authored modulation values.
+                p.mod1 = row.mod1;
+                p.mod2 = row.mod2;
+            }
+        } else p.skipped_cond = false;
+        if (effective_mute(t)) return;
         if (row.kind == Tie && p.sounding.on) return;
-        if (row.kind != Note || row.velocity <= 0.f || !flush(b, t, i)) return;
-        const NoteState note{true, next_id, row.key};
-        if (!emit(b, t, WS2_NOTE_ON, i, note, row.velocity)) return;
-        p.sounding = note;
-        next_id = next_id == 0x7fffffff ? 1 : next_id + 1;
-        p.pitch = static_cast<float>(row.key - 60) / 12.f;
-        p.mod1 = row.mod1;
-        p.mod2 = row.mod2;
+        if (row.kind != Note || row.velocity <= 0.f || !p.fired || !flush(b, t, i)) return;
+        // Each attempt is independent: store only accepted voices. Their ONs
+        // share the exact sample offset and the authored root-first order.
+        for (uint32_t k = 0; k < row.key_count; ++k) {
+            const int32_t id = unused_note_id();
+            if (id < 0) break;
+            const NoteState note{true, id, row.keys[k]};
+            if (!emit(b, t, WS2_NOTE_ON, i, note, row.velocity)) continue;
+            p.sounding.notes[k] = note;
+            p.sounding.on = true;
+            next_id = next_id == 0x7fffffff ? 1 : next_id + 1;
+        }
+        if (p.sounding.on) {
+            p.gate_age = 0.;
+            p.gate_cutoff = gate_duration(t, step_t[t], p.short_gate);
+            p.pitch = static_cast<float>(row.key - 60) / 12.f;
+            p.mod1 = row.mod1;
+            p.mod2 = row.mod2;
+        }
     }
 
     void trigger_all(ws::Block &b, uint32_t i) {
-        for (uint32_t t = 0; t < kTracks; ++t) release_step(b, t, i);
-        for (uint32_t t = 0; t < kTracks; ++t) trigger(b, t, i);
+        // Release every stepping track before any track attacks. Non-stepping
+        // tracks retain gate, modulation and fired telemetry unchanged.
+        for (uint32_t t = 0; t < kTracks; ++t)
+            if (step % pattern.tracks[t].div == 0) release_step(b, t, i);
+        for (uint32_t t = 0; t < kTracks; ++t)
+            if (step % pattern.tracks[t].div == 0) trigger(b, t, i);
     }
     bool edge(const ws::Block &b, uint32_t p, uint32_t i) {
         const bool high = b.param(p).value(0, i) > 0.5f;
@@ -165,24 +326,37 @@ struct Sequencer {
         control_high[p] = high;
         return rise;
     }
+    // One sixteenth-note tick. Track wraps are independent, while global STOP
+    // waits for the longest armed/running track to realign with the master.
     void boundary(ws::Block &b, uint32_t i) {
-        if (stop_queued) {
+        // Sixteenths since Start. Every approved length * divisor divides 512.
+        // Non-stepping tracks retain their own current step and loop counter.
+        step = (step + 1u) % kClock;
+        for (uint32_t t = 0; t < kTracks; ++t) {
+            const auto &track = pattern.tracks[t];
+            if (step % track.div != 0) continue;
+            step_t[t] = (step / track.div) % track.length;
+            auto &p = players[t];
+            if (p.playing && step_t[t] == 0) ++p.loop;
+        }
+        if (step % master_steps() == 0 && stop_queued) {
             release_all(b, i);
             running = stop_queued = reset_wait = false;
             for (auto &p : players) {
-                p.playing = p.enter = p.stop = p.fired = false;
+                p.playing = p.enter = p.stop = p.fired = p.skipped_cond = false;
             }
-            return; // STOP at the boundary has no extra step-1 NOTE_ON.
+            return; // No step-1 NOTE_ON after the completed global STOP.
         }
         for (uint32_t t = 0; t < kTracks; ++t) {
             auto &p = players[t];
-            if (p.playing) ++p.loop;
-            if (p.stop) {
+            if (p.stop && step % (pattern.tracks[t].length * pattern.tracks[t].div) == 0) {
                 release(b, t, i);
-                p.playing = p.armed = p.stop = p.enter = p.fired = false;
-            } else if (p.enter) {
+                p.playing = p.armed = p.stop = p.enter = p.fired = p.skipped_cond = false;
+            } else if (p.enter && (pattern.authored_version == 1 ? step % 32u == 0 : step % 16u == 0)) {
                 p.playing = true;
                 p.enter = false;
+                p.loop = 1;
+                p.rng = seed_for(t);
             }
         }
     }
@@ -202,7 +376,15 @@ struct Sequencer {
             }
         }
         for (uint32_t i = 0; i < b.frames(); ++i) {
-            for (uint32_t t = 0; t < kTracks; ++t) flush(b, t, i);
+            for (uint32_t t = 0; t < kTracks; ++t) {
+                auto &p = players[t];
+                // Only shortened final gates expire between step boundaries.
+                // A full gate, including every legacy v1 pattern, continues to
+                // use the original step boundary for byte-identical release.
+                if (p.sounding.on && p.short_gate && p.gate_age >= p.gate_cutoff)
+                    release(b, t, i);
+                flush(b, t, i);
+            }
             std::array<bool, kParams> rise{};
             for (uint32_t p = 0; p < kParams; ++p) rise[p] = edge(b, p, i);
             bool started = false;
@@ -210,11 +392,13 @@ struct Sequencer {
                 release_all(b, i);
                 phase = 0.;
                 step = 0;
+                step_t.fill(0);
                 reset_wait = running;
                 stop_queued = false;
                 for (auto &p : players) {
-                    p.enter = p.stop = p.fired = false;
+                    p.enter = p.stop = p.fired = p.skipped_cond = false;
                     p.loop = 1;
+                    p.rng = seed_for(static_cast<uint32_t>(&p - players.data()));
                     p.playing = running && p.armed;
                 }
             } else {
@@ -252,11 +436,13 @@ struct Sequencer {
                         stop_queued = reset_wait = false;
                         phase = 0.;
                         step = 0;
+                        step_t.fill(0);
                         for (uint32_t t = 0; t < kTracks; ++t) {
                             auto &p = players[t];
                             p.playing = t < pattern.track_count && p.armed;
-                            p.enter = p.stop = p.fired = false;
+                            p.enter = p.stop = p.fired = p.skipped_cond = false;
                             p.loop = 1;
+                            p.rng = seed_for(t);
                         }
                         trigger_all(b, i);
                         started = true;
@@ -268,10 +454,10 @@ struct Sequencer {
                         phase -= samples_per_step;
                         if (reset_wait) {
                             step = 0;
+                            step_t.fill(0);
                             reset_wait = false;
                         } else {
-                            step = (step + 1) % kSteps;
-                            if (step == 0) boundary(b, i);
+                            boundary(b, i);
                         }
                         if (running) trigger_all(b, i);
                     }
@@ -288,10 +474,11 @@ struct Sequencer {
                 // every owed release have stopped. A disarmed track under a running
                 // transport is not stopped; a refused NOTE_OFF keeps the position.
                 const bool active = running || p.playing || p.pending.on || p.sounding.on;
-                b.out(10 + t).ch(0)[i] = active ? static_cast<float>(step) : -1.f;
+                b.out(10 + t).ch(0)[i] = active ? static_cast<float>(step_t[t]) : -1.f;
                 b.out(12 + t).ch(0)[i] = static_cast<float>(p.loop & 0xffffu);
                 b.out(14 + t).ch(0)[i] = p.fired ? 1.f : 0.f;
                 b.out(16 + t).ch(0)[i] = static_cast<float>(p.loop >> 16u);
+                if (p.sounding.on) players[t].gate_age += 1.;
             }
         }
     }

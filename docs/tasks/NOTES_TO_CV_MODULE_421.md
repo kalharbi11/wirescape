@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# NOTES-TO-CV-421: production Notes→CV poly allocator (build task)
+# #421: Notes-to-CV production allocator (build task)
 
 Issue #421. Builds the module that makes chords audible. Pairs with
 `docs/tasks/CHORD_MODULE_403.md`; the two can be built in parallel (they only
@@ -19,7 +19,7 @@ events into poly CV, exactly like `midi.to_cv` does for raw MIDI.
 - **Fresh allocation:** voices are allocated by the module, ignoring incoming
   `channel` as a voice index. Identity comes from `native/voice/NoteToCv`:
   explicit `note_id >= 0` keyed by (source_id, channel, note_id); anonymous
-  (negative) IDs keyed by (source_id, channel, key), released LIFO. Reuse
+  (negative) IDs keyed by (source_id, channel, key), released FIFO (oldest first, Coda ruling on #512). Reuse
   `NoteToCv`/`voice::Allocator`; don't write a second allocator. The
   test-only `native/tests2/test_modules.h::NotesToCv` is a reference only.
 - Steal, reset, choke (`source_id == UINT32_MAX` = all) and expression
@@ -47,7 +47,7 @@ need it. The WASM host allows it (it isn't `midi.*`).
 
 ```acceptance
 tier: T1
-size: <= 900 changed lines, <= 14 files
+size: <= 900 changed lines, <= 18 files
 must_pass:
   - bash -lc "python tools/dev.py build --headless --config Release && ctest --test-dir build/native -R 'notes_to_cv|ui_patch_conformance|sidecar' --output-on-failure --no-tests=error"
   - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
