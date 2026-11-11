@@ -20,7 +20,7 @@ tier: T1
 size: <= 900 changed lines, <= 6 files
 must_pass:
   - python tools/patch_library.py check apps/studio/patches --shared
-  - node --test apps/studio/tests-node/patch-library.test.mjs
+  - bash -lc "node --test apps/studio/tests-node/patch-library.test.mjs"
   - ci: guard, linux-arm64, windows-x64, sanitizers, web green
 stops: [DSP/ABI/SDK, patch format or parameter ID change, new dependency, test threshold/CI policy change, devices]
 ```
