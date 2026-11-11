@@ -55,7 +55,7 @@ int main() {
     address.sin_port = htons(local.bound_port());
     address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     const auto before = std::chrono::steady_clock::now();
-    const int sent = sendto(sender, reinterpret_cast<const char *>(bytes), int(n), 0,
+    const auto sent = sendto(sender, reinterpret_cast<const char *>(bytes), int(n), 0,
                             reinterpret_cast<sockaddr *>(&address), sizeof(address));
     REQUIRE(sent == int(n));
     uint32_t attempts = 0;
