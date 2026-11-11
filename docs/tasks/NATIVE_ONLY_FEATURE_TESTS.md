@@ -4,6 +4,7 @@
 Read first: AGENTS.md, board #473 owner mandate and issue #566.
 Owner retires Qt-specific test scaffolding in current feature work; broad
 CI/legacy Qt cleanup follows the current queue. No new Qt compatibility tests.
+Keep this product test independent of Qt-aware includers or Qt installations.
 
 Remove only the synthetic emit-macro probe from groove_runtime_tests.cpp.
 Keep its direct Groove DSP include and every graph/config/reload/allocation
