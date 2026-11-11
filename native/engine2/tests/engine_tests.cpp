@@ -262,56 +262,78 @@ static void telemetry(){
   render(loop,70);CHECK(loop.read_telemetry(values,counts,4,frame)==1&&frame==70);
   CHECK(values[0]==loop.output_sample(2,0,0,69)); // Final short feedback chunk.
 }
-// OSC-3: the host observation cannot perturb oscillator audio or note handling.
+// The host observation cannot perturb oscillator audio or note handling.
 static void oscillator_pitch() {
-  const Tap pitch{Tap::OscPitch,1,0};
-  Engine plain,observed;
-  for(auto*e:{&plain,&observed}){
-    CHECK(e->add_node(1,ws::Module<ws2ports::Vco>::descriptor()));
-    CHECK(e->output(1,0,0));
-    CHECK(e->set_parameter(1,0,440));
-    CHECK(e->register_producer()==0);
-  }
-  CHECK(!plain.set_telemetry_taps({Tap{Tap::OscPitch,1,1}}));
-  CHECK(!plain.set_telemetry_taps({Tap{Tap::OscPitch,99,0}}));
-  CHECK(plain.set_telemetry_taps({}));
-  CHECK(observed.set_telemetry_taps({pitch}));
-  CHECK(plain.prepare()&&observed.prepare());
-  float a[17]{},b[17]{};float*ar[]={a};float*br[]={b};
-  float values[1]{};uint32_t counts[1]{};uint64_t frame=0;
-  auto block=[&](){
-    allocation_watch::Scope watch;
-    CHECK(plain.render(ar,1,17)==WS2_OK);
-    CHECK(observed.render(br,1,17)==WS2_OK);
-    CHECK(watch.allocations()==0);
-    CHECK(std::memcmp(a,b,sizeof(a))==0);
-    CHECK(observed.read_telemetry(values,counts,1,frame)==1&&frame==observed.meter().frame);
-  };
-  block();CHECK(std::abs(values[0]-440.f)<.01f);
-  auto on=event(WS2_NOTE_ON);on.key=72;
-  CHECK(plain.enqueue(0,1,2,on,17)==WS2_OK);
-  CHECK(observed.enqueue(0,1,2,on,17)==WS2_OK);
-  block();CHECK(std::abs(values[0]-523.2511f)<.01f);
-  auto off=event(WS2_NOTE_OFF);off.key=72;
-  CHECK(plain.enqueue(0,1,2,off,34)==WS2_OK);
-  CHECK(observed.enqueue(0,1,2,off,34)==WS2_OK);
-  block();CHECK(std::abs(values[0]-523.2511f)<.01f); // NOTE_OFF does not silence this VCO.
-  auto choke=event(WS2_NOTE_CHOKE);choke.key=72;
-  CHECK(plain.enqueue(0,1,2,choke,51)==WS2_OK);
-  CHECK(observed.enqueue(0,1,2,choke,51)==WS2_OK);
-  block();CHECK(std::abs(values[0]-440.f)<.01f);
+    const Tap pitch{Tap::OscPitch, 1, 0};
+    Engine plain, observed;
+    for (auto *engine : {&plain, &observed}) {
+        CHECK(engine->add_node(1, ws::Module<ws2ports::Vco>::descriptor()));
+        CHECK(engine->output(1, 0, 0));
+        CHECK(engine->set_parameter(1, 0, 440));
+        CHECK(engine->register_producer() == 0);
+    }
+    CHECK(!plain.set_telemetry_taps({Tap{Tap::OscPitch, 1, 1}}));
+    CHECK(!plain.set_telemetry_taps({Tap{Tap::OscPitch, 99, 0}}));
+    CHECK(plain.set_telemetry_taps({}));
+    CHECK(observed.set_telemetry_taps({pitch}));
+    CHECK(plain.prepare() && observed.prepare());
 
-  Engine cv;
-  CHECK(cv.add_node(1,ws::Module<ws2ports::Vco>::descriptor()));
-  CHECK(cv.add_node(2,ws::Module<Source>::descriptor()));
-  CHECK(cv.set_parameter(2,0,.75f));
-  CHECK(cv.connect(2,0,1,0));
-  CHECK(cv.set_telemetry_taps({pitch}));
-  CHECK(cv.prepare());
-  {allocation_watch::Scope watch;render(cv,17);CHECK(watch.allocations()==0);}
-  CHECK(cv.read_telemetry(values,counts,1,frame)==1);
-  const float expected=261.6255653f*std::pow(2.f,.75f);
-  CHECK(std::abs(values[0]-expected)<.01f); // CV plus ratio, no FM applied.
+    float a[17]{}, b[17]{};
+    float *plain_outputs[] = {a};
+    float *observed_outputs[] = {b};
+    float values[1]{};
+    uint32_t counts[1]{};
+    uint64_t frame = 0;
+    auto block = [&]() {
+        allocation_watch::Scope watch;
+        CHECK(plain.render(plain_outputs, 1, 17) == WS2_OK);
+        CHECK(observed.render(observed_outputs, 1, 17) == WS2_OK);
+        CHECK(watch.allocations() == 0);
+        for (size_t i = 0; i < 17; ++i) {
+            uint32_t left = 0, right = 0;
+            std::memcpy(&left, &a[i], sizeof(left));
+            std::memcpy(&right, &b[i], sizeof(right));
+            CHECK(left == right); // Bit-identical floating-point samples.
+        }
+        CHECK(observed.read_telemetry(values, counts, 1, frame) == 1 && frame == observed.meter().frame);
+    };
+
+    block();
+    CHECK(std::abs(values[0] - 440.f) < .01f);
+    auto on = event(WS2_NOTE_ON);
+    on.key = 72;
+    CHECK(plain.enqueue(0, 1, 2, on, 17) == WS2_OK);
+    CHECK(observed.enqueue(0, 1, 2, on, 17) == WS2_OK);
+    block();
+    CHECK(std::abs(values[0] - 523.2511f) < .01f);
+    auto off = event(WS2_NOTE_OFF);
+    off.key = 72;
+    CHECK(plain.enqueue(0, 1, 2, off, 34) == WS2_OK);
+    CHECK(observed.enqueue(0, 1, 2, off, 34) == WS2_OK);
+    block();
+    CHECK(std::abs(values[0] - 523.2511f) < .01f); // NOTE_OFF does not silence this VCO.
+    auto choke = event(WS2_NOTE_CHOKE);
+    choke.key = 72;
+    CHECK(plain.enqueue(0, 1, 2, choke, 51) == WS2_OK);
+    CHECK(observed.enqueue(0, 1, 2, choke, 51) == WS2_OK);
+    block();
+    CHECK(std::abs(values[0] - 440.f) < .01f);
+
+    Engine cv;
+    CHECK(cv.add_node(1, ws::Module<ws2ports::Vco>::descriptor()));
+    CHECK(cv.add_node(2, ws::Module<Source>::descriptor()));
+    CHECK(cv.set_parameter(2, 0, .75f));
+    CHECK(cv.connect(2, 0, 1, 0));
+    CHECK(cv.set_telemetry_taps({pitch}));
+    CHECK(cv.prepare());
+    {
+        allocation_watch::Scope watch;
+        render(cv, 17);
+        CHECK(watch.allocations() == 0);
+    }
+    CHECK(cv.read_telemetry(values, counts, 1, frame) == 1);
+    const float expected = 261.6255653f * std::pow(2.f, .75f);
+    CHECK(std::abs(values[0] - expected) < .01f); // CV plus ratio, no FM applied.
 }
 static void modulation(){
  for(float amount:{-.5f,.5f,1.f}){
@@ -330,7 +352,25 @@ int main(){
  {std::thread warm([](){});warm.join();}
  _CrtMemState before{},after{},difference{};_CrtMemCheckpoint(&before);
 #endif
- invalid_events();parameter_channels();modulation_spans();telemetry();oscillator_pitch();producer_validation();zero_copy();cached_taper<WS2_LINEAR>();cached_taper<WS2_LOG>();cached_taper<WS2_EXP>();signals();CHECK(loop(32,false)==loop(32,true));CHECK(loop(1,false)==loop(1,true));events();timing();overflow();rows();producer_stress();modulation();
+ invalid_events();
+    parameter_channels();
+    modulation_spans();
+    telemetry();
+    oscillator_pitch();
+    producer_validation();
+    zero_copy();
+    cached_taper<WS2_LINEAR>();
+    cached_taper<WS2_LOG>();
+    cached_taper<WS2_EXP>();
+    signals();
+    CHECK(loop(32, false) == loop(32, true));
+    CHECK(loop(1, false) == loop(1, true));
+    events();
+    timing();
+    overflow();
+    rows();
+    producer_stress();
+    modulation();
 #if defined(_MSC_VER)&&defined(_DEBUG)
  CHECK(_CrtCheckMemory());_CrtMemCheckpoint(&after);if(_CrtMemDifference(&difference,&before,&after)){
   std::fprintf(stderr,"Debug CRT normal blocks %zu -> %zu, bytes %zu -> %zu; client blocks %zu -> %zu\n",before.lCounts[_NORMAL_BLOCK],after.lCounts[_NORMAL_BLOCK],before.lSizes[_NORMAL_BLOCK],after.lSizes[_NORMAL_BLOCK],before.lCounts[_CLIENT_BLOCK],after.lCounts[_CLIENT_BLOCK]);return 1;
