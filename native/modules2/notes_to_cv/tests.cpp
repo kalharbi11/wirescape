@@ -230,8 +230,8 @@ static void native_keyboard_graph(const std::array<int, 4> &keys, uint32_t count
     } else {
         REQUIRE(e.connect(1, 3, 2, 0));
     }
-    REQUIRE(e.connect(2, 0, 3, 0) && e.connect(2, 1, 4, 0) && e.connect(3, 0, 5, 0) &&
-            e.connect(4, 0, 5, 1) && e.connect(5, 0, 6, 0) && e.output(6, 0, 0) && e.prepare());
+    REQUIRE(e.connect(2, 0, 3, 0) && e.connect(2, 1, 4, 0) && e.connect(3, 0, 5, 0) && e.connect(4, 0, 5, 1) &&
+            e.connect(5, 0, 6, 0) && e.output(6, 0, 0) && e.prepare());
     for (uint32_t i = 0; i < (generated ? 1u : count); ++i)
         REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, note({WS2_NOTE_ON, keys[i], keys[i]}), 0) == WS2_OK);
 

@@ -26,7 +26,7 @@ struct HostKeyboard {
         pending = {};
         emitted = {};
     }
-    template <class Emit> void configure_at(ws::Block &b, uint32_t i, Emit publish) {
+    template <class Emit> void configure_at(ws::Block &b, uint32_t i, Emit emit) {
         int count =
             std::clamp<int>(static_cast<int>(std::lround(b.param(0).value(0, i))), 1, static_cast<int>(max_channels));
         int policy = std::clamp<int>(static_cast<int>(std::lround(b.param(1).value(0, i))), 0, 3);
@@ -35,7 +35,7 @@ struct HostKeyboard {
             e.struct_size = sizeof(e);
             e.offset = i;
             e.source_id = UINT32_MAX;
-            core.release_all(UINT32_MAX, e, publish);
+            core.release_all(UINT32_MAX, e, emit);
             wirescape::voice::Config cfg;
             cfg.max_voices = count;
             cfg.mode = static_cast<wirescape::voice::Mode>(policy);
@@ -46,7 +46,7 @@ struct HostKeyboard {
     }
     void process(ws::Block &b) {
         b.out(3).set_channels(0);
-        auto publish = [&](const ws2_event &e) {
+        auto emit = [&](const ws2_event &e) {
             if (e.channel < 0 || e.channel >= 16) return;
             const auto c = static_cast<uint32_t>(e.channel);
             if (pending[c].type) {
@@ -75,7 +75,7 @@ struct HostKeyboard {
         b.split(
             [&](uint32_t first, uint32_t end) {
                 for (uint32_t i = first; i < end; ++i) {
-                    configure_at(b, i, publish);
+                    configure_at(b, i, emit);
                     for (int p = 0; p < 3; ++p) {
                         b.out(p).set_channels(core.allocator().voice_count());
                         b.out(p).mark_constant(false);
@@ -90,8 +90,8 @@ struct HostKeyboard {
                 }
             },
             [&](const ws2_event &e) {
-                configure_at(b, std::min(e.offset, b.frames() - 1), publish);
-                core.event(e, publish);
+                configure_at(b, std::min(e.offset, b.frames() - 1), emit);
+                core.event(e, emit);
             });
     }
 };
