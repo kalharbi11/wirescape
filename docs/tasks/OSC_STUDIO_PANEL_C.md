@@ -48,7 +48,7 @@ Read first: `apps/studio/AGENTS.md`, `native/modules2/osc_in/README.md`, `docs/s
 tier: T1
 size: <= 700 changed lines, <= 10 files
 must_pass:
-  - bash -lc 'cd apps/studio && npm ci && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [protocol/spec edit, engine or sidecar edit, enabling LAN without the existing consent, dropping unknown config fields, new dependency]
 ```
