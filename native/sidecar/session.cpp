@@ -203,6 +203,7 @@ Options parse_options(int argc, char **argv) {
         std::string arg = argv[i];
         if (arg == "--confirm-audio") o.audio = true;
         else if (arg == "--confirm-midi") o.midi = true;
+        else if (arg == "--confirm-lan") o.lan = true;
         else if (arg == "--null-audio") o.null_audio = true;
         else if (arg == "--bench-summary") o.bench_summary = true;
         else if (arg == "--device" || arg == "--settings" || arg == "--rate" || arg == "--block") {
@@ -277,6 +278,9 @@ Session::Session(Options options)
     observer_ = observed.get();
     observer_->endpoints();
     midi_ = std::make_unique<midi::Host>(options_.midi || options_.null_audio, std::move(observed));
+    // The device-off null sink must not bind LAN, even when its stub launcher
+    // exercises --confirm-lan forwarding. Real consent still needs both flags.
+    osc_ = std::make_unique<osc::Host>(options_.lan && !options_.null_audio);
     if ((options_.midi || options_.null_audio) && preferences_.contains("devices")) midi_->restore(preferences_.dump());
     patch_ = {{"format", "wirescape.native.patch"},
               {"version", 2},
@@ -295,8 +299,11 @@ void Session::start(std::chrono::steady_clock::time_point now) {
     try {
         start_audio(now);
         start_midi();
+        start_osc();
         if (stream_) persist();
     } catch (...) {
+        osc_->stop();
+        midi_->stop();
         stop_audio();
         throw;
     }
@@ -309,6 +316,7 @@ Session::~Session() {
     }
 }
 void Session::shutdown() {
+    osc_->stop(); // stop/join packet acquisition before audio or engine teardown
     midi_->stop();
     stop_audio();
     if (options_.bench_summary && !bench_reported_) {
@@ -435,6 +443,7 @@ void Session::start_midi() {
     std::string error;
     need(midi_->start(active_, patch_.dump(), error), "unavailable", "Cannot start MIDI subscriptions");
 }
+void Session::start_osc() { osc_->start(active_, patch_.dump()); }
 bool Session::refresh_devices(bool audio, bool probe_rates, const std::string &target) {
     bool enumerated = audio;
     if (audio) try {
@@ -510,12 +519,13 @@ Json Session::execution(Json patch) {
         need(d, "unknown-module", "Module not installed");
         return d;
     };
-    uint32_t output = UINT32_MAX;
+    uint32_t output = UINT32_MAX, osc_routes = 0;
     for (auto &m : patch["modules"]) {
         auto id = integer(m.at("id"));
         need(ids.insert(id).second, "duplicate", "Duplicate module ID");
         auto *d = descriptor(id);
         need(!m.value("inactive", false), "unavailable", "Module is inactive");
+        if (std::string(d->id) == "osc.in") need(++osc_routes <= 32, "limit", "At most 32 OSC input routes");
         if (!m.contains("version")) m["version"] = d->version;
         if (std::string(d->id) == "essentials.output") output = std::min(output, id);
         auto values = m.value("parameters", Json::object());
@@ -578,6 +588,18 @@ void Session::commit(Json patch, bool new_namespace) {
     // Stage all potentially throwing document/ID work before accepting a live graph.
     std::set<uint32_t> ids = new_namespace ? std::set<uint32_t>{} : used_ids_;
     for (const auto &m : patch["modules"]) ids.insert(integer(m["id"]));
+    // Pause the OSC ingress before any live replan, fade/swap or graph retirement.
+    // The destructor restarts the worker against whichever graph actually commits
+    // (including the original graph on refusal). Socket errors never refuse patches.
+    osc_->stop();
+    auto resume_osc = [this](void *) noexcept {
+        try {
+            start_osc();
+        } catch (...) {
+            osc_->stop();
+        }
+    };
+    std::unique_ptr<void, decltype(resume_osc)> osc_restart(this, resume_osc);
     const bool rendering = (stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire);
     if (!new_namespace && rendering) {
         const uint64_t timeout_ns = 3ULL * options_.block * 1000000000ULL / options_.rate;
@@ -761,6 +783,16 @@ Json Session::apply(const Json &command) {
         const auto old_config = config_;
         const auto old_rate = options_.rate, old_block = options_.block;
         const auto old_preferences = preferences_;
+        // The stream change destroys/replaces the engine; suspend ingress first.
+        osc_->stop();
+        auto resume_osc = [this](void *) noexcept {
+            try {
+                start_osc();
+            } catch (...) {
+                osc_->stop();
+            }
+        };
+        std::unique_ptr<void, decltype(resume_osc)> osc_restart(this, resume_osc);
         // Keep candidate taps alive through rollback, until its render thread is joined.
         document::telemetry::Sampler next_telemetry(
             document::telemetry::plan(patch_, catalogue_.get(), /*phase_enabled=*/true));
@@ -830,6 +862,18 @@ Json Session::apply(const Json &command) {
             refuse_rate();
         need(options_.audio || options_.null_audio, "unavailable", "Audio device access is not authorized");
         auto old_device = device_;
+        // A device switch also tears down an audio worker. Join the packet
+        // producer first, and resume against the same committed graph on
+        // both success and restored-device failure paths.
+        osc_->stop();
+        auto resume_osc = [this](void *) noexcept {
+            try {
+                start_osc();
+            } catch (...) {
+                osc_->stop();
+            }
+        };
+        std::unique_ptr<void, decltype(resume_osc)> osc_restart(this, resume_osc);
         midi_->stop();
         stop_audio();
         device_ = id;
@@ -1054,12 +1098,13 @@ Json Session::midi_status() const {
     return result;
 }
 Json Session::hello() const {
+    Json capabilities = Json::array({"midiLearn", "telemetry.playhead", "setSampleRate", "setBufferFrames", "osc"});
     return {{"v", 0},
             {"session", token_},
             {"type", "hello"},
             {"protocol", 0},
             {"engine", {{"version", "0.1.0"}, {"sha", WIRESCAPE_ENGINE_SHA}}},
-            {"capabilities", Json::array({"midiLearn", "telemetry.playhead", "setSampleRate", "setBufferFrames"})},
+            {"capabilities", std::move(capabilities)},
             {"catalogue", catalogue(catalogue_.get())},
             {"audioDevices", audio_devices_},
             {"audio", audio_status()},
@@ -1071,6 +1116,32 @@ Json Session::status() const {
     auto value = base();
     value["type"] = "status";
     value["status"] = {{"audio", audio_status()}, {"midi", midi_status()}};
+    // Snapshot only on the control thread. Summary fields are aggregate actual
+    // bind state; multi-port details stay in the bounded per-route list.
+    Json osc_status = {{"enabled", false}, {"bind", "127.0.0.1"}, {"port", 0}, {"lan", false}};
+    Json osc_routes = Json::array();
+    bool any_bound = false, any_lan = false, port_busy = false;
+    for (const auto &route : osc_->states()) {
+        if (osc_routes.empty()) osc_status["port"] = route.port;
+        const bool listening = std::string(route.state) != "port-busy";
+        any_bound |= listening;
+        any_lan |= listening && route.lan_bound;
+        port_busy |= !listening;
+        Json entry = Json::object();
+        entry["module"] = std::to_string(route.node);
+        entry["port"] = route.port;
+        entry["bind"] = route.lan_bound ? "0.0.0.0" : "127.0.0.1";
+        entry["state"] = route.state;
+        entry["received"] = route.received;
+        entry["dropped"] = route.dropped;
+        osc_routes.push_back(std::move(entry));
+    }
+    osc_status["enabled"] = any_bound;
+    osc_status["lan"] = any_lan;
+    osc_status["bind"] = any_lan ? "0.0.0.0" : "127.0.0.1";
+    if (port_busy) osc_status["last_error"] = "port-busy";
+    osc_status["routes"] = std::move(osc_routes);
+    value["status"]["osc"] = std::move(osc_status);
     return value;
 }
 Json Session::telemetry() {
@@ -1115,6 +1186,17 @@ bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumera
     const auto matches = std::count_if(audio_devices_.begin(), audio_devices_.end(),
                                        [&](const Json &d) { return d.at("id") == device_; });
     if (stream_ && (!stream_->running() || (enumerated && matches == 0))) {
+        // A hot-unplug retires an audio callback while preserving the graph.
+        // Quiesce OSC ingress until the owned audio stream is joined.
+        osc_->stop();
+        auto resume_osc = [this](void *) noexcept {
+            try {
+                start_osc();
+            } catch (...) {
+                osc_->stop();
+            }
+        };
+        std::unique_ptr<void, decltype(resume_osc)> osc_restart(this, resume_osc);
         midi_->stop();
         stop_audio();
         audio_reason_.clear(); // genuine device loss supersedes a prior refused setting

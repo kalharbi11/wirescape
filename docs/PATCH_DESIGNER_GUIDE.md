@@ -472,24 +472,34 @@ for the editor to observe them. For example, a `t1_fired` signal may drive a gat
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
 
-## OSC In and Monitor (portable slice A of #72)
+## OSC In and Monitor (host slice B of #72, once its PR merges)
 
-Builds with the portable #72 slice A register `osc.in` and `monitor` as ABI2
-modules. `osc.in` exposes eight CV rows (`row1`…`row8`) and an OSC
-`messages` event output. Each row's defaults listen for
-`/pico1/knob/1`…`/pico1/knob/8`, map numeric 0–1 to CV 0–1, smooth over 5 ms,
-and hold the last value after a 1 s timeout unless configured for stale zero.
-`monitor` has `events`, `in1`, and `in2` inputs, capturing bounded
-messages/signals without logging on the audio thread.
+`osc.in` has eight CV signal outputs (`row1`…`row8`) and a `messages` event
+output. Each row defaults to `/pico1/knob/1`…`/pico1/knob/8`, maps numeric
+0–1 to CV 0–1, smooths over 5 ms and retains the last value when stale.
+The control-thread adapter accepts a patch `config` with `port` (1–65535,
+default 9000), `lan` (default false), and up to eight row maps with
+`pattern`, `kind` (`cv|gate|trigger`), `argument`, input/output ranges,
+`smoothing_ms`, `timeout_ms` and `stale` (`hold|zero`). Invalid data
+refuses activation without rewriting the saved patch.
 
-**Availability limit:** registration is not an operational UDP route. Until
-sidecar ownership/localhost ingress and Electron/Monitor presentation (slices
-B/C) ship, incoming network messages do not reach `osc.in` in the app and
-Monitor has no user-facing log. Do not publish a patch claiming live OSC
-control yet. After B/C, the intended wiring is `osc.in.row1 →` a VCA's
-`cv` input and `osc.in.messages → monitor.events`; browser/WASM OSC and
-unconfirmed LAN access remain unavailable. These modules introduce no new
-patch parameters or changes to existing IDs.
+**Sidecar availability, only after slice B merges:** the native Electron engine
+listens on `127.0.0.1` by default. The patch's `lan:true` alone **never**
+authorizes a LAN socket: a real owner launch must also pass `--confirm-lan`.
+CI uses localhost only. One worker shares each listening UDP port across
+module instances, up to 32 routes. Busy/failed bindings do not refuse a patch;
+affected OSC inputs remain inactive and `status.osc.routes` reports
+`port-busy`. An unconfirmed LAN toggle still works on localhost and reports
+`lan-not-confirmed`. No OSC Out, browser/WASM networking or native OSC
+listener exists in builds lacking B.
+
+**Example wiring (native Electron after B):** add an `osc.in` with
+`config: {"port":9000,"lan":false}`, patch `osc.in.row1` to the
+`essentials.vca.gain_cv` signal input, and send an OSC 1.0 float message to
+`127.0.0.1:9000` at address `/pico1/knob/1` with a value in 0–1.
+The `monitor` module's `events`, `in1` and `in2` ports exist, but the
+user-facing Monitor log is a **separate slice C**; do not claim it is visible
+until C merges. No existing module/port/parameter IDs change.
 
 ## Groove editor in Studio (G2a #498; builds containing this integration)
 

@@ -2,6 +2,7 @@
 #pragma once
 #include "../modules2/groove/config.h"
 #include "../modules2/midi_cc_to_cv/config.h"
+#include "../modules2/osc_in/config.h"
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
@@ -155,6 +156,72 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
      Config validated;
      require(decode(reinterpret_cast<const uint8_t *>(&config), sizeof(config), validated),
              "Invalid Groove configuration");
+     std::vector<uint8_t> bytes(sizeof(config));
+     std::memcpy(bytes.data(), &config, sizeof(config));
+     return bytes;
+ }
+ if (type == "osc.in") {
+     // All authored OSC configuration is validated on the control owner,
+     // then copied as bounded private POD for the module's prepare() call.
+     wirescape::osc::Configuration config;
+     for (auto it = value.begin(); it != value.end(); ++it)
+         require(it.key() == "port" || it.key() == "lan" || it.key() == "rows", "Unknown OSC input setting");
+     if (value.contains("port")) {
+         const auto &port = value.at("port");
+         require(port.is_number_integer(), "OSC port must be an integer");
+         const auto n = port.get<int64_t>();
+         require(n >= 1 && n <= 65535, "OSC port outside 1..65535");
+         config.port = static_cast<uint32_t>(n);
+     }
+     if (value.contains("lan")) {
+         require(value.at("lan").is_boolean(), "OSC LAN toggle must be boolean");
+         config.lan = value.at("lan").get<bool>() ? 1u : 0u;
+     }
+     if (value.contains("rows")) {
+         const auto &rows = value.at("rows");
+         require(rows.is_array() && rows.size() <= config.rows.size(), "At most eight OSC rows");
+         for (size_t i = 0; i < rows.size(); ++i) {
+             const auto &src = rows.at(i);
+             require(src.is_object(), "OSC row must be an object");
+             auto &dest = config.rows[i];
+             for (auto it = src.begin(); it != src.end(); ++it) {
+                 const auto &name = it.key();
+                 const auto &item = it.value();
+                 if (name == "pattern") {
+                     require(item.is_string(), "OSC pattern must be a string");
+                     const auto pattern = item.get<std::string>();
+                     require(!pattern.empty() && pattern.size() < sizeof(dest.pattern), "OSC pattern too long");
+                     std::memcpy(dest.pattern, pattern.c_str(), pattern.size() + 1);
+                 } else if (name == "kind" || name == "stale") {
+                     require(item.is_string(), "OSC row kind/stale must be a string");
+                     const auto val = item.get<std::string>();
+                     if (name == "kind") {
+                         require(val == "cv" || val == "gate" || val == "trigger", "Invalid OSC row kind");
+                         dest.kind = val == "cv" ? 0 : val == "gate" ? 1 : 2;
+                     } else {
+                         require(val == "hold" || val == "zero", "Invalid OSC timeout policy");
+                         dest.stale = val == "zero" ? 1u : 0u;
+                     }
+                 } else if (name == "argument") {
+                     require(item.is_number_integer(), "OSC argument index must be integer");
+                     const auto n = item.get<int64_t>();
+                     require(n >= 0 && n < 32, "OSC argument index outside range");
+                     dest.argument = static_cast<uint32_t>(n);
+                 } else if (name == "input_min" || name == "input_max" || name == "output_min" ||
+                            name == "output_max" || name == "smoothing_ms" || name == "timeout_ms") {
+                     require(item.is_number() && std::isfinite(item.get<double>()), "OSC row value must be finite");
+                     const auto n = static_cast<float>(item.get<double>());
+                     if (name == "input_min") dest.input_min = n;
+                     else if (name == "input_max") dest.input_max = n;
+                     else if (name == "output_min") dest.output_min = n;
+                     else if (name == "output_max") dest.output_max = n;
+                     else if (name == "smoothing_ms") dest.smoothing_ms = n;
+                     else dest.timeout_ms = n;
+                 } else require(false, "Unknown OSC row field");
+             }
+         }
+     }
+     require(wirescape::osc::configuration(nullptr, 0, config), "Invalid OSC module configuration");
      std::vector<uint8_t> bytes(sizeof(config));
      std::memcpy(bytes.data(), &config, sizeof(config));
      return bytes;

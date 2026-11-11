@@ -30,6 +30,7 @@ struct AppEngine {
      master_step = 1.0f / float(std::max(1.0, std::floor(c.sample_rate * 0.01)));
      engine.register_producer();
      engine.register_producer(); // producer 0 host keys, 1 MIDI service
+     engine.register_producer(); // producer 2 OSC worker; idle without osc.in
      for (auto *d : wirescape::app::builtin_modules()) {
          entries.emplace_back();
          auto &e = entries.back();
