@@ -3,7 +3,7 @@
 
 The native product is the C++17 realtime engine and its `wirescape-engine`
 sidecar. Windows source bootstrap and device-off checks are documented in the
-[Windows setup guide](../docs/WINDOWS_SETUP.md); a combined accepted SHA is pending.
+[install guide](../docs/INSTALL.md).
 The Electron application in `apps/desktop` hosts Studio from
 `apps/studio`; use the [repository quickstart](../README.md) to build all three.
 
