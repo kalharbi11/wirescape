@@ -3,11 +3,6 @@
 #include "../../sdk/examples/test_support.h"
 #include "../../tests2/allocation_watch.h"
 #include "../adsr/dsp.h"
-// Qt's `emit` keyword macro must not consume host.keyboard's event callback
-// identifier when cppcheck parses the entire native Notes→CV test unit.
-#ifdef emit
-#undef emit
-#endif
 #include "../host_keyboard/dsp.h"
 #include "../output/dsp.h"
 #include "../vca/dsp.h"
