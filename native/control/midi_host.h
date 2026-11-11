@@ -5,7 +5,9 @@
 #include <memory>
 #include <string>
 #include <vector>
-namespace wirescape::monitor { class Capture; }
+namespace wirescape::monitor {
+class Capture;
+}
 namespace wirescape::midi {
 class Service;struct Counters;
 // Control owner only. Stop joins ingress before its borrowed engine is replaced.
