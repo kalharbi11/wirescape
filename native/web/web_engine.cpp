@@ -61,7 +61,11 @@ Json identity(const Json &c) {
     return Json::array({c.at("from").at("module"), c.at("from").at("port"), c.at("to").at("module"),
                         c.at("to").at("port"), c.value("kind", "signal")});
 }
-bool web_module(const char *id) { return std::strncmp(id, "midi.", 5) != 0; }
+// Browser AudioWorklet has neither MIDI devices nor an OSC UDP ingress worker.
+// Keep the live catalogue and loadGraph/addModule validation on the same gate.
+bool web_module(const char *id) {
+    return std::strncmp(id, "midi.", 5) != 0 && std::strncmp(id, "osc.", 4) != 0;
+}
 
 struct Web {
     double rate = 48000;
