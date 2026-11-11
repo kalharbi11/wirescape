@@ -11,6 +11,7 @@ import { FilterDisplay } from './widgets/FilterDisplay';
 import { ChannelMeters } from './widgets/ChannelMeters';
 import { ModelGrid } from './widgets/ModelGrid';
 import { StepsPane } from './widgets/StepsPane';
+import { GroovePane, type GrooveHost } from './widgets/GroovePane';
 
 /** Everything a display pane may read or write. Values go through the engine via `setValue`. */
 export interface PaneContext {
@@ -23,6 +24,10 @@ export interface PaneContext {
   setValue(id: string, v: number, commit?: boolean): void;
   /** Free-form options from `panels/<id>.json` → `paneOptions[kind]`. */
   options: Record<string, unknown>;
+  /** Present when the app can apply Groove drafts (the `groove` pane needs it). */
+  groove?: GrooveHost;
+  /** The pane changed its own height (e.g. a longer Groove track). */
+  layoutChanged?(): void;
 }
 
 export interface Pane {
@@ -96,6 +101,8 @@ export function buildPane(kind: PaneKind, c: PaneContext): Pane | null {
         setValue: (pid, val, commit) => c.setValue(pid, val, commit),
       });
     }
+    case 'groove':
+      return c.groove ? new GroovePane(id, ticker, c.groove, c.layoutChanged) : null;
     default: return null;
   }
 }

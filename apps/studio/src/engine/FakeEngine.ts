@@ -98,6 +98,9 @@ export class FakeEngine implements EngineClient {
 
   // ---- EngineClient: the patch -----------------------------------------
 
+  /** The fake never plays a Groove pattern, so every Groove is truthfully stopped. */
+  canApplyGroove(_moduleId: number): boolean { return true; }
+
   async loadGraph(patch: PatchV2): Promise<void> {
     this.nodes.clear(); this.conns = []; this.voices = [];
     this.phases.clear(); this.randomHold.clear(); this.seqStep.clear();

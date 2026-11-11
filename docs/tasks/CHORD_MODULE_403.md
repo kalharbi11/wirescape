@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# CHORD-403: Chord module (build task)
+# #403: Chord module (build task)
 
 Issue #403. Product surface confirmed by Codex Lead (#406 comment 6722798879);
 the technical identity contract is ruled by Coda on #403 under the owner's
