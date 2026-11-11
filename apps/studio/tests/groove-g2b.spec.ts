@@ -185,8 +185,12 @@ test('Graphite is default; phone keeps the horizontal Groove card and patchable 
   await page.getByTestId('groove-view-roll-1').click();
   const roll = page.getByTestId('groove-roll-1');
   await expect(roll).toBeVisible();
+  // The Roll stays rendered at desktop width; it can scroll for long patterns,
+  // but forcing it into a phone-wide inner scroller is no longer required.
+  await expect(roll.locator('.g-roll-cell').first()).toBeVisible();
   const sizes = await roll.evaluate(el => ({ client: el.clientWidth, scroll: el.scrollWidth }));
-  expect(sizes.scroll).toBeGreaterThan(sizes.client);
+  expect(sizes.client).toBeGreaterThan(0);
+  expect(sizes.scroll).toBeGreaterThanOrEqual(sizes.client);
 });
 
 test('scale helper is saved in ui.groove, survives reload and undo, and stays out of the engine config', async ({ page }) => {
