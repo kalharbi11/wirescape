@@ -3,13 +3,15 @@
 
 This is the implemented native architecture after the M0 clean-copy migration.
 The roadmap is in [PLAN.md](PLAN.md); evidence and limits are in [STATUS.md](STATUS.md).
-The app is alpha. Experimental offline ABI2 proofs are distinct from the live ABI1 app.
+The app is alpha. Offline ABI2 proofs and the active ABI2-backed sidecar
+have separate acceptance and hardware-evidence boundaries.
 
 ## Product boundaries
 
-The existing native application uses Qt Quick with a C++17 headless engine.
-The imported web UI below is the renderer for the planned standalone Electron app.
-Qt, Python build tools and device APIs stay outside DSP processing.
+The current desktop application uses the Electron shell, Studio renderer and
+Qt-free C++17 `wirescape-engine` sidecar. The earlier Qt Quick/ABI1 application
+remains in-tree during staged retirement, but is not the Electron renderer.
+Python build tools and device APIs stay outside DSP processing.
 The original Python/browser prototype lives in `legacy/` as reference only, is not built or maintained,
 and has no bundled Surge binaries. It preserves earlier musical/design ideas, not the current runtime.
 
@@ -29,7 +31,34 @@ selects P1C's `RealEngine` when the native bridge is present and retains
 `FakeEngine` for browser tests. Native File-menu intents use that bridge without
 exposing file paths to the renderer.
 A protocol stub with null audio/fake MIDI is used by desktop Playwright tests.
-The Qt UI remains buildable.
+The Qt UI remains buildable as a migration baseline.
+
+### Merged feature integrations (2026-11-10)
+
+These additions are merged, but each device or runtime claim has its own gate:
+
+- [Audio route metadata](https://github.com/kalharbi11/wirescape/pull/399) reports
+  backend/output identity and compatible rates. The settings UI refuses a
+  missing, ambiguous, mono or unsupported route rather than silently replacing it.
+- [MIDI Learn](https://github.com/kalharbi11/wirescape/pull/500) maps a modulatable
+  knob to a `midi.cc_to_cv` route through Studio with one undoable document edit;
+  Forget removes only that mapping. Physical-controller tests remain separate.
+- [OSC slice A](https://github.com/kalharbi11/wirescape/pull/518) registers the
+  bounded `osc.in` and `monitor` ABI2 modules and their codec/tests. A current
+  sidecar UDP worker, consent handling and Monitor presentation are not yet
+  delivered by this slice; they remain separate work under #72.
+- [CHAOS UI presets](https://github.com/kalharbi11/wirescape/pull/522)
+  add eight unsaved preset labels and one-step Undo; the additive
+  [LFO shapes](https://github.com/kalharbi11/wirescape/pull/533) preserve old
+  parameter IDs and the sine default; the
+  [CHAOS Lab patches](https://github.com/kalharbi11/wirescape/pull/531)
+  add three release-safe library examples.
+- The Groove feature inventory now includes
+  [measured playhead/loop telemetry](https://github.com/kalharbi11/wirescape/pull/501),
+  [native track lengths/gates/conditions](https://github.com/kalharbi11/wirescape/pull/505)
+  and the [Studio editor](https://github.com/kalharbi11/wirescape/pull/509)
+  with [roll/bar/scale tools](https://github.com/kalharbi11/wirescape/pull/516).
+  These are merged capabilities, not evidence of later chord/speed work.
 
 The root `web` workflow uses hosted Ubuntu and pinned Node 22 for `npm ci`,
 typecheck, build and Playwright with the runner's Chromium. Failures retain
@@ -43,7 +72,7 @@ chokes precede reconnect callbacks. Sidecar device pushes reflect worker snapsho
 while enabled selections remain remembered. Fake hot-plug tests cover these paths
 without opening hardware; no audio-thread polling or new protocol command is used.
 
-## Active application: ABI1
+## Legacy Qt application: ABI1 (retained during retirement)
 
 - `native/include/wirescape/module.h`: experimental C module boundary; immutable descriptors,
   mono float AUDIO/CONTROL ports, numeric parameter IDs, lifecycle/event/process callbacks.
@@ -86,11 +115,13 @@ Ordinary modules are folders under `native/modules/` with module.cpp/json/CMakeL
 root CMake discovers them. The app discovers `ws_` libraries beside its executable.
 Source copying alone does not install a module. Native code is trusted, not isolated.
 
-## Isolated ABI2 foundation (review required)
+## ABI2 foundation (SDK still experimental)
 
 `native/include/wirescape/module2.h`, `native/sdk/`, `native/engine2/`, `native/voice/`,
-`native/modules2/` and `native/tests2/` contain a second, offline contract/engine proof.
-It is not selected by the application and `ws2_` libraries do not replace ABI1 plugins.
+`native/modules2/` and `native/tests2/` contain the ABI2 engine, module contract
+and offline proofs. The Electron sidecar uses ABI2 through `AppEngine`; its SDK
+and port equivalence tests are not substitutes for live-device verification.
+The Qt/ABI1 plugin host remains a separate legacy build during retirement.
 
 The proof includes planar1–16 voice signals, CONSTANT views, normalized parameter modulation,
 event outputs, deterministic SCC/back-edge delays, transport context, bounded producer queues,
