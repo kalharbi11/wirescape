@@ -60,7 +60,7 @@ tier: T2
 size: <= 1600 changed lines, <= 24 files
 must_pass:
   - bash -lc "python tools/dev.py build --headless --config Release && ctest --test-dir build/native -R 'osc|sidecar|app_engine|app_patch' --output-on-failure --no-tests=error"
-  - bash -lc 'cd apps/desktop && npm ci && npm test'
+  - bash -lc 'cd apps/desktop && npm ci && xvfb-run -a npm test'
   - pi-run: ctest --test-dir build/native -R 'osc|sidecar' --output-on-failure --no-tests=error
   - ci: guard, linux-arm64, windows-x64, sanitizers and web green on the exact head
 stops: [unmerged OSC A, unresolved protected spec authorization, new ABI or wire fields outside Keel ruling, LAN/device access, new dependency, realtime allocation or I/O, test or threshold weakening]
