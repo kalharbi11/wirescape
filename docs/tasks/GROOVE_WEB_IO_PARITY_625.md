@@ -31,7 +31,7 @@ Groove useful on the deployed webapp without waiting for #614's clock inputs.
   an audible output peak without keyboard/MIDI/OSC.
 - A phone-width browser test observes a 1250px native Groove card and visible,
   interactive port rails after panning/zooming, including a visible + expander.
-- The existing FakeEngine Groove desktop tests still pass. Electron shares the
+- The existing FakeEngine Groove G2b desktop test checks the owner-approved full-width phone layout and real port rail; all other Groove desktop tests still pass. Electron shares the
   renderer; deployment smoke and physical/touch device tests remain separate.
 - Patch designer guide impact: none, CSS / card presentation only.
 
@@ -39,7 +39,7 @@ Groove useful on the deployed webapp without waiting for #614's clock inputs.
 tier: T1
 size: <= 250 changed lines, <= 5 files
 must_pass:
-  - bash -lc 'cd apps/studio && npm ci && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
   - ci: web-demo engine and site jobs green
 stops: [Groove output ID/ABI change, change to native DSP or protocol, disable browser audio tests, hide port jacks on phones, change any other module layout]
