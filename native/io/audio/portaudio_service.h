@@ -46,10 +46,8 @@ inline std::vector<std::string> unavailable_asio_drivers(const std::vector<std::
     std::vector<std::string> missing;
     for (const auto &name : installed) {
         if (name.empty()) continue;
-        if (std::any_of(visible.begin(), visible.end(), [&](const RawDevice &device) {
-                return device.host_api == "ASIO" && device.name == name;
-            }))
-            continue;
+        const auto matching = [&](const RawDevice &device) { return device.host_api == "ASIO" && device.name == name; };
+        if (std::any_of(visible.begin(), visible.end(), matching)) continue;
         std::string bounded = name;
         if (bounded.size() > 64) {
             size_t end = 64;
