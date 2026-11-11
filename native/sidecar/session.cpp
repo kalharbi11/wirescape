@@ -85,7 +85,8 @@ class SinkScheduling {
                     std::condition_variable &wake, const std::atomic<bool> &stop) {
         if (waitable_ && stop_event) {
             const auto result = sink_wait_until(
-                deadline, [] { return std::chrono::steady_clock::now(); }, [&](int64_t due) {
+                deadline, [] { return std::chrono::steady_clock::now(); },
+                [&](int64_t due) {
                     LARGE_INTEGER relative{};
                     relative.QuadPart = due;
                     if (!SetWaitableTimer(waitable_, &relative, 0, nullptr, nullptr, FALSE))
@@ -367,42 +368,41 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
         sink_stop_event_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
 #endif
         try {
-            sink_ =
-                std::thread([this, live = active_, left = std::vector<float>(options_.block),
-                             right = std::vector<float>(options_.block)]() mutable {
-                    float *rows[] = {left.data(), right.data()};
+            sink_ = std::thread([this, live = active_, left = std::vector<float>(options_.block),
+                                 right = std::vector<float>(options_.block)]() mutable {
+                float *rows[] = {left.data(), right.data()};
 #ifdef _WIN32
-                    SinkScheduling scheduling;
+                SinkScheduling scheduling;
 #endif
-                    auto next = std::chrono::steady_clock::now();
-                    sink_rendering_.store(true, std::memory_order_release);
-                    while (!stop_sink_.load()) {
-                        live = sink_slot_.adopt(live); // same block-boundary handoff as the PortAudio callback
-                        auto before = std::chrono::steady_clock::now();
-                        const int render = app_engine_render_live(live, rows, 2, options_.block, app_engine_clock_ns());
-                        if (options_.bench_summary) {
-                            bench_.observe_faults(app_engine_native(live).meter().faults);
-                            if (render != WS_OK) ++bench_.faults;
-                        }
-                        if (render != WS_OK) break;
-                        auto after = std::chrono::steady_clock::now();
-                        double percent = std::chrono::duration<double>(after - before).count() *
-                                         options_.rate / options_.block * 100;
-                        cpu_.store(percent);
-                        const auto scheduled_start = next;
-                        next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-                            std::chrono::duration<double>(double(options_.block) / options_.rate));
-                        if (options_.bench_summary) bench_.record_timing(percent, before, after, scheduled_start, next);
-#ifdef _WIN32
-                        scheduling.wait_until(next, static_cast<HANDLE>(sink_stop_event_), sink_mutex_, sink_wake_,
-                                              stop_sink_);
-#else
-                        std::unique_lock<std::mutex> lock(sink_mutex_);
-                        sink_wake_.wait_until(lock, next, [this] { return stop_sink_.load(); });
-#endif
+                auto next = std::chrono::steady_clock::now();
+                sink_rendering_.store(true, std::memory_order_release);
+                while (!stop_sink_.load()) {
+                    live = sink_slot_.adopt(live); // same block-boundary handoff as the PortAudio callback
+                    auto before = std::chrono::steady_clock::now();
+                    const int render = app_engine_render_live(live, rows, 2, options_.block, app_engine_clock_ns());
+                    if (options_.bench_summary) {
+                        bench_.observe_faults(app_engine_native(live).meter().faults);
+                        if (render != WS_OK) ++bench_.faults;
                     }
-                    sink_rendering_.store(false, std::memory_order_release);
-                });
+                    if (render != WS_OK) break;
+                    auto after = std::chrono::steady_clock::now();
+                    double percent =
+                        std::chrono::duration<double>(after - before).count() * options_.rate / options_.block * 100;
+                    cpu_.store(percent);
+                    const auto scheduled_start = next;
+                    next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                        std::chrono::duration<double>(double(options_.block) / options_.rate));
+                    if (options_.bench_summary) bench_.record_timing(percent, before, after, scheduled_start, next);
+#ifdef _WIN32
+                    scheduling.wait_until(next, static_cast<HANDLE>(sink_stop_event_), sink_mutex_, sink_wake_,
+                                          stop_sink_);
+#else
+                    std::unique_lock<std::mutex> lock(sink_mutex_);
+                    sink_wake_.wait_until(lock, next, [this] { return stop_sink_.load(); });
+#endif
+                }
+                sink_rendering_.store(false, std::memory_order_release);
+            });
         } catch (...) {
 #ifdef _WIN32
             if (sink_stop_event_) CloseHandle(static_cast<HANDLE>(sink_stop_event_));

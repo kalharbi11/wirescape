@@ -9,9 +9,9 @@
 #include "../tests2/allocation_watch.h"
 #include "devices.h"
 #include "midi_service.h"
-#include "session.h"
 #include "null_sink_wait.h"
 #include "runtime_patch.h"
+#include "session.h"
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -129,7 +129,8 @@ void sink_wait_deadline_regression() {
     allocation_watch::count.store(0);
     allocation_watch::enabled.store(true);
     const auto reached = sink_wait_until(
-        deadline, [&] { return now; }, [&](int64_t due) {
+        deadline, [&] { return now; },
+        [&](int64_t due) {
             ++arms;
             if (arms == 1) {
                 check(due == -53334);
@@ -146,18 +147,20 @@ void sink_wait_deadline_regression() {
     // an unavailable kernel timer delegates to the existing CV fallback.
     arms = 0;
     const auto stopped = sink_wait_until(
-        zero + Us(512000), [&] { return zero; }, [&](int64_t due) {
+        zero + Us(512000), [&] { return zero; },
+        [&](int64_t due) {
             check(due == -5120000);
             ++arms;
             return SinkWaitResult::stopped;
         });
     check(stopped == SinkWaitResult::stopped && arms == 1);
-    const auto unavailable = sink_wait_until(
-        deadline, [&] { return zero; }, [&](int64_t) { return SinkWaitResult::unavailable; });
+    const auto unavailable =
+        sink_wait_until(deadline, [&] { return zero; }, [&](int64_t) { return SinkWaitResult::unavailable; });
     check(unavailable == SinkWaitResult::unavailable);
     arms = 0;
     const auto early_storm = sink_wait_until(
-        deadline, [&] { return zero; }, [&](int64_t due) {
+        deadline, [&] { return zero; },
+        [&](int64_t due) {
             check(due == -53334);
             ++arms;
             return SinkWaitResult::deadline;
@@ -165,7 +168,8 @@ void sink_wait_deadline_regression() {
     check(early_storm == SinkWaitResult::unavailable && arms == 16);
     arms = 0;
     const auto overdue = sink_wait_until(
-        zero, [&] { return zero + Us(1); }, [&](int64_t) {
+        zero, [&] { return zero + Us(1); },
+        [&](int64_t) {
             ++arms;
             return SinkWaitResult::unavailable;
         });

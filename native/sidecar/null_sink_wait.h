@@ -8,13 +8,13 @@ namespace wirescape::sidecar {
 // 100 ns ticks. Round upward: arming early must never move a render ahead of
 // the absolute steady-clock deadline used by the strict overrun accounting.
 inline int64_t sink_due_100ns(std::chrono::steady_clock::time_point now,
-                             std::chrono::steady_clock::time_point deadline) noexcept {
+                              std::chrono::steady_clock::time_point deadline) noexcept {
     const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(deadline - now).count();
     if (ns <= 0) return 0;
     return -(ns / 100 + (ns % 100 != 0));
 }
 
-enum class SinkWaitResult { deadline, stopped, unavailable };
+enum class SinkWaitResult : std::uint8_t { deadline, stopped, unavailable };
 
 // Injectable clock and wait primitive make early timer signals, missed periods
 // and shutdown deterministic in native tests; the real Windows backend uses
