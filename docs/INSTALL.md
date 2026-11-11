@@ -61,9 +61,9 @@ node --version                  # must be v22.*
 The setup script prints a **Tool / Found / Required / OK** table for all
 prerequisites, then reports every missing or incompatible tool together. If
 `cl.exe` is missing but Visual Studio C++ tools are installed, setup attempts
-an x64 developer-shell import in its own process. It also looks for the pinned
-CMake/Ninja versions in Python 3.12's user Scripts directory before reporting
-a mismatch. Neither step changes your machine-wide PATH or installs software.
+an x64 developer-shell import in its own process. It also prefers pinned CMake 4.2.3 from Python 3.12's user or global
+Scripts directory, and checks the pinned CMake/Ninja versions before reporting
+a mismatch. Toolchain version ranges remain unchanged pending CI evidence. Neither step changes your machine-wide PATH or installs software.
 An elevated shell produces a warning; use a normal user shell when possible.
 
 ### 2. Get a clean checkout of the version
