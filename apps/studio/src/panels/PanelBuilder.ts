@@ -81,7 +81,26 @@ export class Panel {
       if (pane.headerEl) this.headerEls.push(pane.headerEl);
     }
     if (this.panes.length) this.root.append(displays);
-    if (d.id === 'essentials.chaos_lite') this.root.append(this.buildPerformanceStrip());
+    if (d.id === 'essentials.chaos_lite') {
+      // Keep saved starter-card geometry unchanged until the performer opens this view.
+      const strip = this.buildPerformanceStrip();
+      strip.id = `chaos-performance-${moduleId}`;
+      strip.hidden = true;
+      const toggle = el('button', 'chaos-performance-toggle', 'PERFORM') as HTMLButtonElement;
+      toggle.type = 'button';
+      toggle.dataset.testid = `chaos-performance-toggle-${moduleId}`;
+      toggle.setAttribute('aria-controls', strip.id);
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.addEventListener('click', () => {
+        strip.hidden = !strip.hidden;
+        toggle.setAttribute('aria-expanded', String(!strip.hidden));
+        requestAnimationFrame(() => {
+          if (this.root.isConnected) this.onLayoutChanged?.();
+        });
+      });
+      this.headerEls.push(toggle);
+      this.root.append(strip);
+    }
 
     const controls = el('div', 'panel-controls');
     for (const s of this.layout.sections) {
