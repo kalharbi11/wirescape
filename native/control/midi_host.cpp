@@ -2,6 +2,7 @@
 #include "midi_host.h"
 #include "midi_release.h"
 #include "midi_service.h"
+#include "monitor_capture.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <stdexcept>
@@ -70,6 +71,7 @@ int Host::deliver(void *opaque, uint32_t node, const ws2_event &e, uint64_t ns) 
                                 engine.meter().generation);
     if (result != WS2_OK && (e.type == WS2_NOTE_OFF || e.type == WS2_NOTE_CHOKE || wirescape::engine2::midi_release(e)))
         engine.panic();
+    if (result == WS2_OK && h.monitor_) h.monitor_->midi(node, e, ns);
     return result;
 }
 bool Host::start(AppEngine*engine,const std::string&document,std::string&error){stop();try{
