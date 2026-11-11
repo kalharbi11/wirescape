@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Groove playable v1 — native G1 config v2 (#496)
+# Groove playable v1 — native G1/G4a/G5a config v2 (#496, #526)
 
 `sequencing.groove` is a two-track sixteenth-note sequencer with independent
 8/16/32/64-step lengths. **Persisted patch JSON**, not the native transient
@@ -13,16 +13,23 @@ New patterns use `{"version":2,"bpm":120,"tracks":[{"length":16,
 "cond":{"type":"chance","p":50},"mod1":0.25,"mod2":0.75},
 {"kind":"tie","gate":0.75}]}]}`. V2 lengths are one of 8/16/32/64,
 default 16 if omitted; v1 missing lengths imply 32. Omitted steps are rests.
-At most two tracks play, with the longest active length setting the master
-cycle for global STOP; track STOP uses its own loop end, track START the next
-16-step bar. Chance uses a reproducible instance/track-seeded xorshift32.
+At most two tracks play. With G5a each track optionally sets `div` to
+1/2/4/8 sixteenths per step (default 1), with the greatest armed
+`length × div` (up to 512 sixteenths) setting the global STOP/Apply
+master cycle. Track STOP uses its own `length × div` cycle end; track
+START still enters on the next 16-step bar. Chance uses a reproducible instance/track-seeded xorshift32.
 Other `cond` types: `{"type":"ab","a":1,"b":4}` (track loops),
 `{"type":"first"}`, and `{"type":"not_first"}`; no condition means
 always. Conditions are accepted only on note steps. A skipped trig drops its
 note/ties but still updates its Mod1/Mod2. Gate length is 1/4, 1/2, 3/4
 or 1 step; ties extend through to the last tie step's gate. Zero velocity
-remains a rest. Unsupported keys (including future chord `keys`) and invalid
-ranges refuse before any graph mutation.
+remains a rest. G4a accepts a note step's optional `keys`: 1–5 distinct
+integer MIDI pitches, root equal to `key` in slot 0, remaining pitches
+ascending. Studio writes it only for chords of two or more notes; omission
+retains a one-note step. Every chord voice attacks at the same sample
+offset with a distinct ID, and ties/gates/STOP/RESET release all accepted
+voices. Refused NOTE_OFFs retry before new attacks. Invalid `keys`, `div`,
+and unknown settings refuse before graph mutation.
 
 S0 output slots remain `t1_pitch` (V/oct, C4=0), `t1_gate` (0/1),
 `t1_mod1`, `t1_mod2` (sample-and-hold 0..1), `t1_notes` (matched
@@ -33,13 +40,23 @@ low→high edge starts step 1. Pending NOTE_OFF blocks new NOTE_ON.
 
 Scalar IDs: `run` 0, `stop` 1, `reset` 2, `mute` 3,
 `t1_run/stop/mute` 4/5/6, `t2_run/stop/mute` 7/8/9.
-All are rising-edge commands after first-sample baseline. Global STOP queues to the longest active 8/16/32/64-step master cycle;
-track STOP queues to its own length, and new v2 track START enters at the
+All are rising-edge commands after first-sample baseline. Global STOP queues to the maximum armed `length × div` cycle;
+track STOP queues to its own slowed cycle, and new v2 track START enters at the
 next 16-step bar boundary. Authored v1 track START still enters only at its
 original 32-step cycle boundary. START arms/queues;
 MUTE releases immediately without losing phase; RESET releases and
 clears queues. Priority RESET > STOP > MUTE > START > step advance.
 All same-frame releases occur before any new NOTE_ON.
+
+
+Native #526 engines play chord steps and slowed tracks; older engines
+refuse those keys rather than guessing. Example authoring:
+`{"version":2,"bpm":120,"tracks":[{"length":16,"div":4,
+"steps":[{"kind":"note","key":60,"keys":[60,64,67],"velocity":0.8}]}]}`.
+Wire `t1_notes` → a polyphonic Notes→CV `notes` input, then
+pitch/gate to a VCO and ADSR/VCA voice chain. The separate production
+Notes→CV module (#512) may not yet be available; the native graph test uses
+`ws2test::NotesToCv` without audio/MIDI devices.
 
 The patch stores structured JSON, never the internal C++ byte layout.
 The runtime adapter parses off the render thread. Stopping this module
