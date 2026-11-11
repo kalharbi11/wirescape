@@ -10,6 +10,7 @@
 #include "devices.h"
 #include "midi_service.h"
 #include "session.h"
+#include "null_sink_wait.h"
 #include "runtime_patch.h"
 #include <iostream>
 #include <sstream>
@@ -109,6 +110,62 @@ void midi_learn_observation() {
     check(fake.learning().is_null());
 }
 
+void sink_wait_deadline_regression() {
+    using Clock = std::chrono::steady_clock;
+    using Ns = std::chrono::nanoseconds;
+    using Us = std::chrono::microseconds;
+    const Clock::time_point zero{};
+    const auto deadline = zero + Ns(5333333); // 256 frames / 48 kHz, rounded to nanoseconds
+    check(sink_due_100ns(zero, zero) == 0);
+    check(sink_due_100ns(zero, zero + Ns(1)) == -1);
+    check(sink_due_100ns(zero, zero + Ns(100)) == -1);
+    check(sink_due_100ns(zero, zero + Ns(101)) == -2);
+    check(sink_due_100ns(zero, deadline) == -53334);
+
+    // A timer signalled early must be rearmed for the same absolute deadline,
+    // not let the next render start early or drift the periodic schedule.
+    auto now = zero;
+    unsigned arms = 0;
+    allocation_watch::count.store(0);
+    allocation_watch::enabled.store(true);
+    const auto reached = sink_wait_until(
+        deadline, [&] { return now; }, [&](int64_t due) {
+            ++arms;
+            if (arms == 1) {
+                check(due == -53334);
+                now = zero + Us(5000);
+            } else {
+                check(arms == 2 && due == -3334);
+                now = deadline;
+            }
+            return SinkWaitResult::deadline;
+        });
+    check(reached == SinkWaitResult::deadline && arms == 2 && now == deadline);
+
+    // A stop signal interrupts a long-block wait without waiting for the timer;
+    // an unavailable kernel timer delegates to the existing CV fallback.
+    arms = 0;
+    const auto stopped = sink_wait_until(
+        zero + Us(512000), [&] { return zero; }, [&](int64_t due) {
+            check(due == -5120000);
+            ++arms;
+            return SinkWaitResult::stopped;
+        });
+    check(stopped == SinkWaitResult::stopped && arms == 1);
+    const auto unavailable = sink_wait_until(
+        deadline, [&] { return zero; }, [&](int64_t) { return SinkWaitResult::unavailable; });
+    check(unavailable == SinkWaitResult::unavailable);
+    arms = 0;
+    const auto overdue = sink_wait_until(
+        zero, [&] { return zero + Us(1); }, [&](int64_t) {
+            ++arms;
+            return SinkWaitResult::unavailable;
+        });
+    check(overdue == SinkWaitResult::deadline && arms == 0);
+    allocation_watch::enabled.store(false);
+    check(allocation_watch::count.load() == 0);
+}
+
 int run_tests() {
     midi_learn_observation();
     RenderHistogram histogram;
@@ -149,6 +206,7 @@ int run_tests() {
     check(timing.overrun_render_count == 1 && timing.overrun_render_max_us == 101);
     check(timing.overrun_wake_count == 2 && timing.overrun_wake_max_us == 200);
 
+    sink_wait_deadline_regression();
     midi_hotplug_observation();
     for (const auto &bad : {"{\"x\":1,\"x\":2}", "{\"x\":{\"y\":1,\"y\":2}}", "[]"}) {
         bool refused = false;
