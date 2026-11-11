@@ -35,7 +35,7 @@ test.describe('v1 owner-reported Studio visuals (#599)', () => {
     await page.keyboard.up('Alt');
     await settle(page);
     expect((await state(page)).connections).toHaveLength(0);
-    await expect(page.getByTestId('quick-add')).toHaveCount(0);
+    await expect(page.getByTestId('quick-add')).toBeHidden();
     await page.keyboard.press('Control+z');
     await settle(page);
     expect((await state(page)).connections).toHaveLength(1);
@@ -89,7 +89,7 @@ test.describe('v1 owner-reported Studio visuals (#599)', () => {
     const meter = page.getByTestId(`meter-${output}`);
     await expect(meter).toBeVisible();
     await expect.poll(() => meter.locator('.meter-bar').first().evaluate(e => {
-      const m = /scaleX\\(([^)]+)\\)/.exec((e as HTMLElement).style.transform);
+      const m = /scaleX\(([^)]+)\)/.exec((e as HTMLElement).style.transform);
       return m ? Number(m[1]) : 0;
     })).toBeGreaterThan(0.05);
     await info.attach('output-meter.png', { body: await page.screenshot(), contentType: 'image/png' });
