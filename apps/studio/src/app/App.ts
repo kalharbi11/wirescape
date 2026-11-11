@@ -425,7 +425,6 @@ export class App {
 
     requestAnimationFrame(() => { this.canvas.fit(); this.canvas.invalidateAnchors(); });
     window.addEventListener('resize', () => {
-      this.canvas.remeasureCards();
       this.canvas.updateVisibility();
       if (window.innerWidth > 1060) this.setLibraryOpen(false);
     });
