@@ -356,13 +356,16 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
             stream_ = std::make_unique<audio::Stream>(engine_, audio::StreamSelection{options_.directory, device_},
                                                       options_.rate, options_.block, [this] { midi_->stop(); });
             audio_state_ = "running";
+            audio_error_.clear(); // an actual successful reopen clears the last error
             audio_backoff_ = std::chrono::milliseconds(100);
         } catch (const audio::RateUnsupported &) {
             audio_state_ = "no-device";
             audio_reason_ = "rate-unsupported"; // invalid rates are refusals, never retry loops
         } catch (const audio::ShutdownFailure &) {
             throw;
-        } catch (const std::exception &) {
+        } catch (const std::exception &e) {
+            audio_error_ = e.what();
+            if (audio_error_.size() > 200) audio_error_.resize(200);
             audio_state_ = device_.empty() ? "no-device" : "reconnecting";
             audio_retry_ = now + audio_backoff_;
             audio_backoff_ = std::min(audio_backoff_ * 2, std::chrono::milliseconds(5000));
@@ -474,7 +477,17 @@ bool Session::refresh_devices(bool audio, bool probe_rates, const std::string &t
                         entry["sampleRates"].push_back(options_.rate);
                 }
             }
+            // Registry discovery is read-only and never initializes an audio driver.
+            // The fake-backend test supplies the registry list through this seam.
+            std::vector<audio::RawDevice> visible;
+            for (const auto &entry : next)
+                if (entry.value("hostApi", std::string{}) == "ASIO")
+                    visible.push_back({entry.at("name").get<std::string>(), "ASIO"});
+            Json unavailable = Json::array();
+            for (const auto &name : audio::unavailable_asio_drivers(audio::installed_asio_drivers(), visible))
+                unavailable.push_back({{"hostApi", "ASIO"}, {"name", name}, {"reason", "driver-init-failed"}});
             audio_devices_ = std::move(next);
+            unavailable_audio_drivers_ = std::move(unavailable);
         } catch (...) {
             enumerated = false; // Keep the last successful list; failure is not disappearance.
         }
@@ -738,7 +751,10 @@ Json Session::apply(const Json &command) {
     auto type = command.at("type").get<std::string>();
     if (type == "listAudioDevices") {
         refresh_devices();
-        return {{"devices", audio_devices_}};
+        Json result = {{"devices", audio_devices_}};
+        if (!unavailable_audio_drivers_.empty())
+            result["audio"] = {{"unavailableDrivers", unavailable_audio_drivers_}};
+        return result;
     }
     if (type == "listMidiDevices") return {{"devices", midi_devices_}};
     if (type == "midiLearn") {
@@ -1089,6 +1105,8 @@ Json Session::audio_status() const {
                    {"cpuPercent", measured ? cpu : 0},
                    {"dropouts", dropouts_.load() + (stream_ ? stream_->dropouts() : 0)}};
     if (!audio_reason_.empty()) result["reason"] = audio_reason_;
+    if (!audio_error_.empty()) result["error"] = audio_error_;
+    if (!unavailable_audio_drivers_.empty()) result["unavailableDrivers"] = unavailable_audio_drivers_;
     return result;
 }
 Json Session::midi_status() const {
@@ -1193,6 +1211,8 @@ Json Session::devices() {
     value["type"] = "devices";
     value["audioDevices"] = audio_devices_;
     value["midiDevices"] = midi_devices_;
+    if (!unavailable_audio_drivers_.empty())
+        value["audio"] = {{"unavailableDrivers", unavailable_audio_drivers_}};
     return value;
 }
 bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumerated) {
