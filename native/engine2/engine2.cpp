@@ -667,7 +667,6 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         for(uint32_t c=0;c<global.channels;++c)for(uint32_t i=0;i<frames;++i)global.data[c][start+i]=c<o.channels?o.data[c][(o.flags&WS2_CONSTANT)?0:i]:0;
     }n.touched=true;
     if (n.pitch.enabled && frames && n.channels) {
-        const bool vco = n.pitch.vco;
         // A typed coordinate avoids accidentally swapping three similar indices.
         struct SignalIndex {
             uint32_t input, channel, sample;
@@ -687,7 +686,7 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
             const uint32_t ch = std::min(channel, buffer.channels - 1);
             return buffer.data[ch][(buffer.flags & WS2_CONSTANT) ? 0u : frames - 1];
         };
-        if (vco) {
+        if (n.pitch.vco) {
             for (const auto &event : n.events) {
                 const uint32_t channel = event.channel < 0 ? 0u : static_cast<uint32_t>(event.channel);
                 if (channel >= n.channels) continue;
@@ -700,17 +699,18 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
                 }
             }
         } else {
-            // Detect one-sample strikes as well as held gates (Plaits renders in 12s).
+            // Plaits renders at most eight voices in 12-frame blocks; scan strikes and held gates.
             for (uint32_t i = 0; i < frames; ++i) {
                 for (uint32_t channel = 0; channel < std::min(n.channels, 8u); ++channel) {
-                    const bool high = std::max(signal({n.pitch.trigger, channel, i}), signal({n.pitch.gate, channel, i})) > 0.5f;
+                    const bool high =
+                        std::max(signal({n.pitch.trigger, channel, i}), signal({n.pitch.gate, channel, i})) > 0.5f;
                     if (high && !n.pitch.high[channel]) n.pitch.latest = channel;
                     n.pitch.high[channel] = high;
                 }
             }
         }
         const uint32_t channel = std::min(n.pitch.latest, n.channels - 1);
-        if (vco) {
+        if (n.pitch.vco) {
             const float tune = parameter(n.pitch.tune, channel);
             double hz = tune;
             if (n.in[n.pitch.input].flags & WS2_CONNECTED) {
