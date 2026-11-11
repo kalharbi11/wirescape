@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Qt-free source bootstrap; never installs software, starts devices or edits old profiles.
 [CmdletBinding()]
-param([switch]$CheckOnly, [string]$Ref = '', [switch]$NoLaunch)
+param([switch]$CheckOnly, [string]$Ref = '', [switch]$NoLaunch, [switch]$NoAsio)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $paSha = '147dd722548358763a8b649b3e4b41dfffbcfbb6'
+# Steinberg ASIO SDK (dual licence; used under its GPL-3.0 option, built locally,
+# never committed or redistributed). Pin: native/io/audio/DESIGN.md.
+$asioUrl = 'https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip'
+$asioSha = 'D5EBF0C20DD2C5F43771FD0C1418F4B361BF52434EE670097CFA6B3A335E2ECA'
 
 # BEGIN OUTPUT GUARD (also executed directly by the filesystem regressions)
 function Assert-GeneratedOutputs {
@@ -13,6 +17,7 @@ function Assert-GeneratedOutputs {
     foreach ($relative in @('.tools', '.tools/windows-setup',
         '.tools/windows-setup/npm-cache', '.tools/windows-setup/electron-cache',
         '.tools/windows-setup/portaudio-src', '.tools/windows-setup/portaudio-build',
+        '.tools/windows-setup/asiosdk',
         'build_reports', 'build_reports/windows-setup', 'build_reports/windows-setup/electron-smoke',
         'build', 'build/native',
         'apps/studio/node_modules', 'apps/studio/dist',
@@ -35,8 +40,29 @@ function Run([string]$exe, [string[]]$parameters) {
     & $exe @parameters
     if ($LASTEXITCODE -ne 0) { throw "$exe failed (exit $LASTEXITCODE). Do not reuse old build outputs." }
 }
+# Prefer the pinned pip CMake (often not first on PATH, e.g. behind a system
+# CMake 4.4). Process-local PATH only; changes no files. Owner report 2026-11-11.
+function Use-PinnedCMake {
+    $want = 'cmake version 4.2.3'
+    $found = ''
+    if (Get-Command cmake -ErrorAction SilentlyContinue) { $found = [string](& cmake --version | Select-Object -First 1) }
+    if ($found -eq $want) { return }
+    if (-not (Get-Command py -ErrorAction SilentlyContinue)) { return }
+    foreach ($kind in @('nt_user', 'nt')) {
+        $dir = [string](& py -3.12 -c "import sysconfig;print(sysconfig.get_path('scripts','$kind'))")
+        if ($dir -and (Test-Path -LiteralPath (Join-Path $dir.Trim() 'cmake.exe'))) {
+            $env:Path = $dir.Trim() + ';' + $env:Path
+            if ([string](& cmake --version | Select-Object -First 1) -eq $want) {
+                Write-Host "Using pinned CMake 4.2.3 from $($dir.Trim()) (this run only)."
+                return
+            }
+        }
+    }
+    Write-Warning "CMake 4.2.3 is the tested version; found '$found'. Install it: py -3.12 -m pip install cmake==4.2.3 ninja==1.13.0"
+}
 function Preflight {
     Assert-GeneratedOutputs
+    Use-PinnedCMake
     if (-not [Environment]::Is64BitProcess -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64') {
         throw 'Use Windows x64 Developer PowerShell for VS 2022/2026.'
     }
@@ -74,9 +100,9 @@ function Preflight {
     $cache = Join-Path $root 'build\native\CMakeCache.txt'
     if (Test-Path -LiteralPath $cache) {
         $lines = Get-Content -LiteralPath $cache
-        $home = @($lines | Where-Object { $_ -like 'CMAKE_HOME_DIRECTORY:INTERNAL=*' })
+        $cmakeHome = @($lines | Where-Object { $_ -like 'CMAKE_HOME_DIRECTORY:INTERNAL=*' })
         $expected = (Join-Path $root 'native') -replace '\\','/'
-        if ($home.Count -ne 1 -or (($home[0] -split '=',2)[1] -replace '\\','/') -ne $expected -or
+        if ($cmakeHome.Count -ne 1 -or (($cmakeHome[0] -split '=',2)[1] -replace '\\','/') -ne $expected -or
             -not ($lines -contains 'WIRESCAPE_BUILD_UI:BOOL=OFF')) {
             throw 'Stale/Qt-enabled CMake cache. Preserve it; use a fresh checkout.'
         }
@@ -134,9 +160,30 @@ try {
     if ($LASTEXITCODE -ne 0 -or $paHead -ne $paSha -or $paDirty) {
         throw 'PortAudio source pin/cleanliness mismatch; do not reuse old DLL.'
     }
-    Run cmake @('-S',$paSrc,'-B',$paBuild,'-G',$script:generator,'-A','x64',
+    # ASIO host API: lists installed ASIO drivers (interface drivers, FlexASIO,
+    # ASIO4ALL) beside WASAPI/MME. Download only; nothing is installed.
+    $asioArgs = @('-DPA_USE_ASIO=OFF')
+    if (-not $NoAsio) {
+        $asioDir = Join-Path $tools 'asiosdk'
+        $asioZip = Join-Path $tools 'asiosdk.zip'
+        if (-not (Test-Path -LiteralPath $asioZip)) {
+            Invoke-WebRequest -UseBasicParsing -Uri $asioUrl -OutFile $asioZip
+        }
+        if ((Get-FileHash -LiteralPath $asioZip -Algorithm SHA256).Hash -ne $asioSha) {
+            throw "ASIO SDK checksum mismatch; delete $asioZip and retry, or run with -NoAsio."
+        }
+        $asioRoot = Join-Path $asioDir 'ASIOSDK'
+        if (-not (Test-Path -LiteralPath (Join-Path $asioRoot 'common\asio.h'))) {
+            Expand-Archive -LiteralPath $asioZip -DestinationPath $asioDir -Force
+        }
+        if (-not (Test-Path -LiteralPath (Join-Path $asioRoot 'host\pc\asiolist.cpp'))) {
+            throw 'ASIO SDK layout unexpected; run with -NoAsio.'
+        }
+        $asioArgs = @('-DPA_USE_ASIO=ON',"-DASIOSDK_ROOT_DIR=$($asioRoot -replace '\\','/')")
+    }
+    Run cmake (@('-S',$paSrc,'-B',$paBuild,'-G',$script:generator,'-A','x64',
         '-DCMAKE_POLICY_VERSION_MINIMUM=3.5','-DPA_BUILD_SHARED=ON','-DPA_BUILD_STATIC=OFF',
-        '-DPA_BUILD_TESTS=OFF','-DPA_BUILD_EXAMPLES=OFF','-DPA_USE_ASIO=OFF')
+        '-DPA_BUILD_TESTS=OFF','-DPA_BUILD_EXAMPLES=OFF') + $asioArgs)
     Assert-GeneratedOutputs
     Run cmake @('--build',$paBuild,'--config','Release','--parallel','2')
     $dll = Join-Path $paBuild 'Release\portaudio_x64.dll'
@@ -164,7 +211,7 @@ try {
     if ((Get-FileHash -LiteralPath $runtime -Algorithm SHA256).Hash -ne $hash) {
         throw 'Staged PortAudio hash mismatch.'
     }
-    @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","status=native-built") | Set-Content -LiteralPath $summary
+    @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","asio=$(-not $NoAsio)","status=native-built") | Set-Content -LiteralPath $summary
     $output = & ctest --test-dir (Join-Path $root 'build\native') -C Release --output-on-failure --no-tests=error -R '^(abi2_sidecar_unit_tests|abi2_sidecar_protocol_tests|sidecar_golden|abi2_sidecar_audio_recovery_tests)$' 2>&1
     $exit = $LASTEXITCODE
     $output | Out-File -LiteralPath (Join-Path $logs 'protocol-tests.log') -Encoding utf8
@@ -184,7 +231,7 @@ try {
         -not (Test-Path -LiteralPath (Join-Path $root 'apps\desktop\build\main.js'))) {
         throw 'Electron or Studio build assets missing.'
     }
-    @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","status=build-and-native-tests-passed") | Set-Content -LiteralPath $summary
+    @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","asio=$(-not $NoAsio)","status=build-and-native-tests-passed") | Set-Content -LiteralPath $summary
     if ($NoLaunch) {
         Write-Host 'Native/Studio/Desktop PASS; Electron live window/round-trip NOT run.'
         return
@@ -195,7 +242,9 @@ try {
     Run node @((Join-Path $root 'apps\studio\node_modules\playwright\cli.js'),
         'test','--config',(Join-Path $root 'apps\desktop\playwright.config.cjs'),
         'windows-setup.spec.cjs','--output',(Join-Path $logs 'electron-smoke'))
-    @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","status=windows-device-off-smoke-passed") | Set-Content -LiteralPath $summary
+    @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","asio=$(-not $NoAsio)","status=windows-device-off-smoke-passed") | Set-Content -LiteralPath $summary
+    Write-Host "Setup PASS. Summary: $summary"
+    Write-Host "Launch with sound and MIDI: $(Join-Path $root 'tools\windows\Wirescape.cmd')"
 } catch {
     Write-Error "W1 failed: $($_.Exception.Message). Local diagnostic directory: $logs."
     throw

@@ -6,8 +6,9 @@ requirements. Compare `native/modules2/chaos_lite/module.json`, generated
 `apps/studio/public/wirescape_modules.json`, and
 `apps/studio/public/panels/essentials.chaos_lite.json`.
 
-Check internal ID `essentials.chaos_lite`, public name/panel code **CHAOS**,
-stable prior 26 parameter slots, appended `lfo_shape` slot 26 with sine
+Check internal ID `essentials.chaos_lite`, the generated display name
+matching the current native descriptor **without hard-coding a name**, panel
+code **CHAOS**, stable prior 26 parameter slots, appended `lfo_shape` slot 26 with sine
 default zero and four advertised choices, and panel IDs present in catalogue.
 Prove a mutated fixture fails. Do not edit native DSP, Studio app, generated
 files or presets, and do not resurrect the dropped #565 PERFORM UI.

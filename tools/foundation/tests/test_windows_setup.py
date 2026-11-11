@@ -19,6 +19,9 @@ SCRIPT = (Path(__file__).resolve().parents[2] / "windows" / "setup.ps1").read_te
 
 SMOKE = (Path(__file__).resolve().parents[3] / "apps" / "desktop" / "tests" /
          "windows-setup.spec.cjs").read_text(encoding="utf-8")
+LAUNCHER = (Path(__file__).resolve().parents[2] / "windows" / "Wirescape.cmd").read_text(
+    encoding="utf-8"
+)
 SHELL = shutil.which("powershell.exe") or shutil.which("pwsh")
 
 
@@ -44,6 +47,43 @@ class WindowsSetupContract(unittest.TestCase):
         self.assertIn("Get-FileHash", SCRIPT)
         self.assertIn("sidecar_golden", SCRIPT)
         self.assertIn("(Skipped|Not Run)", SCRIPT)
+
+    def test_no_assignment_to_powershell_automatic_variables(self):
+        # Owner report: `$home = ...` is the read-only $HOME (names are
+        # case-insensitive) and aborted re-runs with an existing CMake cache.
+        import re
+        automatic = ("home", "host", "input", "args", "error", "pid", "pwd", "true",
+                     "false", "null", "this", "matches", "psitem", "_", "shellid",
+                     "executioncontext", "myinvocation", "pscmdlet", "psscriptroot",
+                     "pscommandpath", "lastexitcode", "foreach", "switch", "profile")
+        for script in (SCRIPT,):
+            for match in re.finditer(r"\$([A-Za-z_][A-Za-z0-9_]*)\s*=(?!=)", script):
+                self.assertNotIn(match.group(1).lower(), automatic, match.group(0))
+
+    def test_pinned_cmake_is_preferred_without_files_changing(self):
+        self.assertIn("function Use-PinnedCMake", SCRIPT)
+        self.assertIn("'cmake version 4.2.3'", SCRIPT)
+        self.assertIn("sysconfig.get_path('scripts','$kind')", SCRIPT)
+        prefix = SCRIPT.split("if ($CheckOnly)", 1)[0]
+        self.assertIn("Use-PinnedCMake", prefix.split("function Preflight", 1)[1])
+
+    def test_launcher_starts_electron_exe_not_the_npm_shim(self):
+        # Owner install report: start "" ".bin\electron.cmd" broke cmd quoting.
+        self.assertIn("node_modules\\electron\\dist\\electron.exe", LAUNCHER)
+        self.assertNotIn("electron.cmd", LAUNCHER)
+        self.assertIn('if not exist "%ELECTRON%"', LAUNCHER)
+        self.assertIn("--confirm-audio --confirm-midi %*", LAUNCHER)
+
+    def test_asio_sdk_is_pinned_checked_and_optional(self):
+        # Owner v1 request: ASIO drivers (FlexASIO, ASIO4ALL, interface drivers).
+        self.assertIn("ASIO-SDK_2.3.4_2025-10-15.zip", SCRIPT)
+        self.assertIn("D5EBF0C20DD2C5F43771FD0C1418F4B361BF52434EE670097CFA6B3A335E2ECA", SCRIPT)
+        self.assertIn("'-DPA_USE_ASIO=ON'", SCRIPT)
+        self.assertIn("[switch]$NoAsio", SCRIPT)
+        self.assertIn("'.tools/windows-setup/asiosdk'", SCRIPT)
+        download = SCRIPT.index("Invoke-WebRequest")
+        self.assertLess(SCRIPT.index("if ($CheckOnly)"), download)
+        self.assertLess(download, SCRIPT.index("$asioSha) {"))
 
     def test_no_device_consent_or_unsafe_install(self):
         self.assertIn("--null-audio", SMOKE)

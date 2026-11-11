@@ -49,11 +49,7 @@ Visitors find compatible patches in Starter patches and PATCHES → SHARED PATCH
 Changes appear after a successful deployment and refresh, not at the instant of commit.
 An open PR is a preview/check, not a public deployment.
 
-**Shipped set (2026-11-10).** Before the CHAOS Lab #530 merge, builds ship 16 patches: the fifteen
-library files (**Basics 1–7** and **Scene 1–8**) plus the bundled desktop-only
-MIDI example. Builds containing #530 ship 19: the previous sixteen and
-three additional CHAOS Lab 1–3 patches (`chaos-NN-*.json`). The lab patches
-are not public until their PR merges and deploys. The bundled MIDI example is
+**Shipped set (2026-11-11).** Main ships 18 public library patches: Basics 1–7, Scene 1–8 and merged CHAOS Lab 1–3, plus a bundled desktop-only MIDI example. PR #555 adds two more public candidates (Lab 4 sample-and-hold FX and Lab 5 smooth-random keyboard pad) only once it merges and deploys. The bundled MIDI example is
 `apps/studio/src/app/bundled/midi-keys-and-knobs.json`; it lives in the
 app because this folder and the web host exclude `midi.*` modules; the web
 Starter list hides it automatically. The six old `qt-*` starters were retired;
@@ -96,7 +92,7 @@ setting blocker rather than pretending to merge.
 - Use only modules/ports/parameters in current
   apps/studio/public/wirescape_modules.json. No hardware MIDI modules in the
   web library; use host.keyboard. Browser audio needs its user start gesture.
-- Reverb fx.reverb is merged on main (c39af7b): stereo SUM inputs, one wet/dry output per side, not one reverb per note. Unconnected right follows left; size/decay/damping/predelay/width/motion/freeze/mix are available. Use two output-bus routes to preserve stereo; saved state clears the tail.
+- Reverb fx.reverb is merged on main (c39af7b): stereo SUM inputs, one wet/dry output per side, not one reverb per note. Unconnected right follows left; size/decay/damping/predelay/width/motion/freeze/mix are available. Mix keeps loudness roughly level (within ~3 dB from 0 to 1; wet makeup since the v1 owner test), so 0.3 now has slightly more audible wet (~+3 dB) than before. Use two output-bus routes to preserve stereo; saved state clears the tail.
 - Macro requires48k. No external sample files/services. Inspect the actual
   catalogue and deployed SHA before assuming a module is available.
 - **Chord (builds containing #403):** `essentials.chord` accepts and outputs
@@ -476,24 +472,34 @@ for the editor to observe them. For example, a `t1_fired` signal may drive a gat
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
 
-## OSC In and Monitor (portable slice A of #72)
+## OSC In and Monitor (host slice B of #72, once its PR merges)
 
-Builds with the portable #72 slice A register `osc.in` and `monitor` as ABI2
-modules. `osc.in` exposes eight CV rows (`row1`…`row8`) and an OSC
-`messages` event output. Each row's defaults listen for
-`/pico1/knob/1`…`/pico1/knob/8`, map numeric 0–1 to CV 0–1, smooth over 5 ms,
-and hold the last value after a 1 s timeout unless configured for stale zero.
-`monitor` has `events`, `in1`, and `in2` inputs, capturing bounded
-messages/signals without logging on the audio thread.
+`osc.in` has eight CV signal outputs (`row1`…`row8`) and a `messages` event
+output. Each row defaults to `/pico1/knob/1`…`/pico1/knob/8`, maps numeric
+0–1 to CV 0–1, smooths over 5 ms and retains the last value when stale.
+The control-thread adapter accepts a patch `config` with `port` (1–65535,
+default 9000), `lan` (default false), and up to eight row maps with
+`pattern`, `kind` (`cv|gate|trigger`), `argument`, input/output ranges,
+`smoothing_ms`, `timeout_ms` and `stale` (`hold|zero`). Invalid data
+refuses activation without rewriting the saved patch.
 
-**Availability limit:** registration is not an operational UDP route. Until
-sidecar ownership/localhost ingress and Electron/Monitor presentation (slices
-B/C) ship, incoming network messages do not reach `osc.in` in the app and
-Monitor has no user-facing log. Do not publish a patch claiming live OSC
-control yet. After B/C, the intended wiring is `osc.in.row1 →` a VCA's
-`cv` input and `osc.in.messages → monitor.events`; browser/WASM OSC and
-unconfirmed LAN access remain unavailable. These modules introduce no new
-patch parameters or changes to existing IDs.
+**Sidecar availability, only after slice B merges:** the native Electron engine
+listens on `127.0.0.1` by default. The patch's `lan:true` alone **never**
+authorizes a LAN socket: a real owner launch must also pass `--confirm-lan`.
+CI uses localhost only. One worker shares each listening UDP port across
+module instances, up to 32 routes. Busy/failed bindings do not refuse a patch;
+affected OSC inputs remain inactive and `status.osc.routes` reports
+`port-busy`. An unconfirmed LAN toggle still works on localhost and reports
+`lan-not-confirmed`. No OSC Out, browser/WASM networking or native OSC
+listener exists in builds lacking B.
+
+**Example wiring (native Electron after B):** add an `osc.in` with
+`config: {"port":9000,"lan":false}`, patch `osc.in.row1` to the
+`essentials.vca.gain_cv` signal input, and send an OSC 1.0 float message to
+`127.0.0.1:9000` at address `/pico1/knob/1` with a value in 0–1.
+The `monitor` module's `events`, `in1` and `in2` ports exist, but the
+user-facing Monitor log is a **separate slice C**; do not claim it is visible
+until C merges. No existing module/port/parameter IDs change.
 
 ## Groove editor in Studio (G2a #498; builds containing this integration)
 
@@ -618,18 +624,24 @@ and `chaos-03-orbiting-iron-fx` (autoplay curved metallic pulses).
 audio multiplier, not an ADSR generator. To get keyboard release, wire
 `host.keyboard.gate` to `essentials.adsr.gate`, then
 `adsr.envelope` to the two stereo `essentials.vca.gain_cv` ports.
-Leave CHAOS gate **unpatched (default 1)** and set `fall=0`; if the
-keyboard gate goes into CHAOS, a zero at note-off defeats the ADSR release.
-Until an independent pitch fall trigger exists, external CV handles
-note-on pitch contours. Each patch description names useful performance
+Leave CHAOS gate **unpatched (default 1)**; if the keyboard gate goes
+into CHAOS, a zero at note-off defeats the ADSR release. `fall` works with
+the gate unpatched: each new note (a pitch-input step of at least half a
+semitone) restarts the drop, the drop is capped at 4 octaves, and turning
+`fall` back to 0 returns the pitch at 16 oct/s. Repeating the same note
+with an unpatched gate does not restart it; use the gate or external CV
+for that. Each patch description names useful performance
 parameters; no new CHAOS DSP/control is assumed.
 
-A seeded sine/triangle/sample-and-hold/smooth-random `lfo_shape` is **under review in PR #533, not yet released**. P1 addition and compatibility/test plan:
-`docs/tasks/CHAOS_ATMOSPHERES_530.md`. Eight named module-level
-presets are available from merged #522; a patch still stores its values,
-not its selected preset name. Real device listening remains owner-only.
+Four native CHAOS LFO waveforms **merged in #533**. The original sine
+shape remains the default; triangle, sample-and-hold and smooth random
+are additive. The #555 public patch candidates use shapes 2 and 3 without
+new modules or port changes. The compatibility/test plan is in
+`docs/tasks/CHAOS_LFO_SHAPES_532.md`. Eight module presets are available
+from merged #522; patch JSON stores parameter values rather than preset
+names. Real device listening remains owner-only.
 
-## CHAOS internal LFO waveforms (PR #533; available only after merge)
+## CHAOS internal LFO waveforms (merged #533)
 
 `essentials.chaos_lite` appends **`lfo_shape`** at parameter slot 26:
 0=Sine (default, fully compatible with older patches), 1=Triangle,

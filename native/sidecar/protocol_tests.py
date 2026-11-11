@@ -4,6 +4,8 @@ import atexit
 import json
 import queue
 import re
+import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -141,7 +143,7 @@ def telemetry_when(engine, gen, predicate, timeout=8.0):
         if message.get('type') == 'telemetry' and message['gen'] == gen:
             data = message['telemetry']
             assert all(isinstance(data[key], dict)
-                       for key in ('effective', 'phase', 'envelope', 'eventActivity'))
+                       for key in ('effective', 'phase', 'envelope', 'eventActivity', 'effective_pitch'))
             if predicate(data):
                 return data
     raise AssertionError(f'no matching telemetry at gen {gen}: {engine.stderr()}')
@@ -169,7 +171,7 @@ def edge(kind, source, output, dest, port, **extra):
 
 with tempfile.TemporaryDirectory() as directory:
     settings = Path(directory) / 'settings.json'
-    engine = Engine(settings, '--confirm-audio', '--confirm-midi')  # null overrides both
+    engine = Engine(settings, '--confirm-audio', '--confirm-midi', '--confirm-lan')  # null overrides audio/MIDI; no OSC routes
     assert 'midiLearn' in engine.hello['capabilities']
     assert 'learn' not in engine.hello['midi']
     assert engine.call('midiLearn', armed=True)['result'] == {'armed': True}
@@ -266,6 +268,24 @@ with tempfile.TemporaryDirectory() as directory:
                 break
     else:
         raise AssertionError('no measured null-sink output')
+    # Owner v1: stereo patches route one Output per side; both meters must be observed.
+    stereo = dict(format='wirescape.native.patch', version=2,
+                  modules=[dict(id=1, module='essentials.vco', parameters=dict(frequency=220)),
+                           dict(id=2, module='essentials.vco', parameters=dict(frequency=330)),
+                           dict(id=8, module='essentials.output'), dict(id=9, module='essentials.output')],
+                  connections=[edge('signal', 1, 'audio', 8, 'audio'), edge('signal', 2, 'audio', 9, 'audio')],
+                  outputs=[dict(module=8, port='audio', bus_channel=0),
+                           dict(module=9, port='audio', bus_channel=1)])
+    engine.call('loadGraph', patch=stereo)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        message = engine.receive()
+        if message.get('type') == 'telemetry':
+            meters = message['telemetry']['meters']
+            if all(meters.get(key, [0, 0])[0] > 0 and meters[key][1] > 0 for key in ('8', '9')):
+                break
+    else:
+        raise AssertionError('stereo Output meters not observed')
     for path in sorted(Path(EXAMPLES).glob('class_demo_*.json')):
         engine.call('loadGraph', patch=json.loads(path.read_text()))
         engine.call('noteOn', note=60, velocity=0.8)
@@ -351,6 +371,21 @@ with tempfile.TemporaryDirectory() as directory:
     # Replacing the graph must remove phase immediately, even with reused IDs.
     no_lfo = observed.call('loadGraph', patch=minimal())['gen']
     telemetry_when(observed, no_lfo, lambda t: t['phase'] == {})
+    # OSC-3 nominal pitch on the same render-backed map, including unpatched
+    # oscillators and unpitched Plaits models (nominal ≠ audible fundamental).
+    pitch_patch = minimal()
+    pitch_patch['modules'] += [
+        dict(id=9, module='essentials.vco', parameters=dict(frequency=440)),
+        dict(id=8, module='ports.macro_oscillator', parameters=dict(coarse=9)),
+    ]
+    pitch_gen = observed.call('loadGraph', patch=pitch_patch)['gen']
+    observed_pitch = telemetry_when(observed, pitch_gen, lambda t:
+        '9' in t['effective_pitch'] and '8' in t['effective_pitch'])
+    assert abs(observed_pitch['effective_pitch']['9'] - 69) < 0.02
+    assert abs(observed_pitch['effective_pitch']['8'] - 69) < 0.02
+    # Successful graph replacements must evict the previous instance values.
+    blank_gen = observed.call('loadGraph', patch=minimal())['gen']
+    telemetry_when(observed, blank_gen, lambda t: t['effective_pitch'] == {})
     # Same-generation Groove tuples and typed tracks are one uncabled render snapshot.
     assert 'telemetry.playhead' in observed.hello['capabilities']
     groove_patch = minimal()
@@ -406,6 +441,115 @@ with tempfile.TemporaryDirectory() as directory:
     for flags in [('--unknown',), ('--rate', '0'), ('--block', '4097'), ('--device',), ('--bench-summary',)]:
         result = subprocess.run([BINARY, *flags], input=b'', capture_output=True, timeout=10)
         assert result.returncode != 0 and not result.stdout
+# OSC B: no physical devices and no LAN bind. An unconfirmed per-route
+# lan:true still accepts the patch and listens only on 127.0.0.1.
+with tempfile.TemporaryDirectory() as osc_dir:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as occupied:
+        occupied.bind(('127.0.0.1', 0))
+        port = occupied.getsockname()[1]
+        osc_engine = Engine(Path(osc_dir) / 'settings.json')
+        assert osc_engine.hello['capabilities'] == ['midiLearn', 'telemetry.playhead',
+                                                    'setSampleRate', 'setBufferFrames', 'osc']
+        osc_patch = minimal()
+        osc_patch['modules'].append(dict(id=9, module='osc.in',
+                                         config=dict(port=port, lan=True,
+                                                     rows=[dict(pattern='/pico1/knob/1', kind='cv',
+                                                                smoothing_ms=0)])))
+        gen = osc_engine.call('loadGraph', patch=osc_patch)['gen']
+
+        def osc_route_when(predicate):
+            until = time.monotonic() + 8
+            while time.monotonic() < until:
+                message = osc_engine.pushes.pop(0) if osc_engine.pushes else osc_engine.receive()
+                if message.get('type') != 'status' or message.get('gen') != osc_engine.last_gen:
+                    continue
+                osc = message['status']['osc']
+                assert {'enabled', 'bind', 'port', 'lan', 'routes'} <= osc.keys()
+                assert osc['port'] == port and osc['bind'] == '127.0.0.1'
+                assert osc['lan'] is False
+                routes = osc['routes']
+                if len(routes) == 1 and predicate(routes[0]):
+                    assert osc['enabled'] == (routes[0]['state'] != 'port-busy')
+                    assert (osc.get('last_error') == 'port-busy') == (
+                        routes[0]['state'] == 'port-busy')
+                    return routes[0]
+            raise AssertionError('No matching OSC route status: ' + osc_engine.stderr())
+
+        failure = osc_route_when(lambda route: route['state'] == 'port-busy')
+        assert failure['port'] == port and failure['received'] == 0 and failure['dropped'] == 0
+        assert failure['module'] == '9'
+        invalid = json.loads(json.dumps(osc_patch))
+        invalid['modules'][1]['config']['port'] = 65536
+        assert osc_engine.call('loadGraph', False, patch=invalid)['gen'] == gen
+        # A refusal must retain the same committed busy route and generation.
+        assert osc_route_when(lambda route: route['state'] == 'port-busy')['module'] == '9'
+        occupied.close()
+        # Recommit must clean up the old listener and retry the same port.
+        osc_engine.call('loadGraph', patch=minimal())
+        osc_engine.call('loadGraph', patch=osc_patch)
+        listening = osc_route_when(lambda route: route['state'] == 'lan-not-confirmed')
+        assert listening['bind'] == '127.0.0.1' and listening['port'] == port
+        packet = b'/pico1/knob/1\0'
+        packet += b'\0' * ((-len(packet)) % 4)
+        packet += b',f\0\0' + struct.pack('>f', 0.5)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+            sender.sendto(packet, ('127.0.0.1', port))
+        assert osc_route_when(lambda route: route['received'] > 0)['received'] >= 1
+        # Successful live edits must restart ingress against the newly committed
+        # generation. The same listener remains localhost-only and usable.
+        edited_gen = osc_engine.call('addModule', moduleId=11, moduleType='essentials.vco')['gen']
+        assert edited_gen != gen
+        assert osc_route_when(lambda route: route['state'] == 'lan-not-confirmed')['port'] == port
+
+        # Removing the source must retire the worker/port before graph disposal.
+        removed_gen = osc_engine.call('removeModule', moduleId=9)['gen']
+        assert removed_gen != edited_gen
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            message = osc_engine.pushes.pop(0) if osc_engine.pushes else osc_engine.receive()
+            if message.get('type') == 'status' and message['gen'] == removed_gen:
+                assert message['status']['osc'] == dict(
+                    enabled=False, bind='127.0.0.1', port=0, lan=False, routes=[])
+                break
+        else:
+            raise AssertionError('OSC source removal did not clear status')
+        # Repeated accepted reload/remove cycles must release the same port and
+        # fence the prior worker generation. No non-loopback socket is opened.
+        for cycle in range(4):
+            reloaded_gen = osc_engine.call('loadGraph', patch=osc_patch)['gen']
+            assert reloaded_gen != removed_gen
+            assert osc_route_when(lambda route: route['state'] == 'lan-not-confirmed')['port'] == port
+            removed_gen = osc_engine.call('loadGraph', patch=minimal())['gen']
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline:
+                message = osc_engine.pushes.pop(0) if osc_engine.pushes else osc_engine.receive()
+                if message.get('type') == 'status' and message['gen'] == removed_gen:
+                    assert message['status']['osc']['routes'] == []
+                    break
+            else:
+                raise AssertionError('OSC reload churn left stale routes')
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as released:
+            released.bind(('127.0.0.1', port))  # packet worker was joined/closed
+        osc_engine.close()
+        # The null-sink test mode additionally forces loopback even if the
+        # launcher forwards --confirm-lan and the patch sets lan:true.
+        confirmed = Engine(Path(osc_dir) / 'null-consent.json', '--confirm-lan')
+        confirmed.call('loadGraph', patch=osc_patch)
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            message = confirmed.pushes.pop(0) if confirmed.pushes else confirmed.receive()
+            if message.get('type') != 'status' or message['gen'] != confirmed.last_gen:
+                continue
+            osc = message['status']['osc']
+            if len(osc['routes']) == 1 and osc['routes'][0]['state'] == 'lan-not-confirmed':
+                assert osc['enabled'] is True and osc['lan'] is False
+                assert osc['bind'] == '127.0.0.1'
+                assert osc['routes'][0]['bind'] == '127.0.0.1'
+                break
+        else:
+            raise AssertionError('Null sink did not enforce loopback-only OSC ingress')
+        confirmed.close()
+
 # Real, short, device-free end-to-end benchmark ingestion on the production sidecar.
 harness = Path(__file__).resolve().parents[2] / 'tools' / 'sidecar_edit_soak.py'
 smoke = subprocess.run([sys.executable, str(harness), '--engine', BINARY,

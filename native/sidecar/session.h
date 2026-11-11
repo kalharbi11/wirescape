@@ -5,13 +5,14 @@
 #include "../io/audio/portaudio_service.h"
 #include "devices.h"
 #include "midi_host.h"
+#include "osc_host.h"
 #include <array>
 #include <chrono>
 #include <optional>
 #include <set>
 namespace wirescape::sidecar {
 struct Options {
-    bool audio = false, midi = false, null_audio = false, bench_summary = false;
+    bool audio = false, midi = false, lan = false, null_audio = false, bench_summary = false;
     std::string device, settings = "user_data/settings.json", directory;
     uint32_t rate = 48000, block = 256;
 };
@@ -68,6 +69,7 @@ class Session {
     std::unique_ptr<audio::Stream> stream_;
     ObservedMidi *observer_ = nullptr;
     std::unique_ptr<midi::Host> midi_;
+    std::unique_ptr<osc::Host> osc_;
     Json patch_, preferences_ = Json::object(), audio_devices_, midi_devices_;
     std::string token_, device_, audio_state_ = "no-device", audio_reason_;
     uint64_t generation_ = 0, tick_ = 0;
@@ -98,6 +100,7 @@ class Session {
     bool poll_audio(std::chrono::steady_clock::time_point, bool enumerated);
     void stop_audio();
     void start_midi();
+    void start_osc();
     void persist();
     bool refresh_devices(bool audio = true, bool probe_rates = true, const std::string &target = {});
     Json execution(Json);
