@@ -120,7 +120,8 @@ export function showOscEditor(modal: Modal, raw: unknown,
     rows.append(group);
   }
 
-  const preset = (name: string, id: string, make: (i: number) => OscRow) => {
+  const preset = (name: string, id: string, make: (i: number) => OscRow,
+    resetConnection = false) => {
     const button = el('button', 'btn', name) as HTMLButtonElement;
     button.type = 'button'; button.dataset.testid = id;
     button.addEventListener('click', () => {
@@ -128,6 +129,12 @@ export function showOscEditor(modal: Modal, raw: unknown,
         const next = make(i);
         for (const key of rowKeys) controls[key].value = String(next[key]);
       });
+      if (resetConnection) {
+        const defaults = picoDefaults();
+        port.value = String(defaults.port);
+        lan.checked = defaults.lan;
+        refreshExample();
+      }
       errors.textContent = '';
     });
     presets.append(button);
@@ -135,7 +142,7 @@ export function showOscEditor(modal: Modal, raw: unknown,
   preset('Pico knobs 1–8', 'osc-preset-pico', i => defaultRow(i + 1));
   preset('TouchOSC faders /1/fader1–8', 'osc-preset-touchosc',
     i => ({ ...defaultRow(i + 1), pattern: `/1/fader${i + 1}` }));
-  preset('Reset to Pico defaults', 'osc-preset-reset', i => defaultRow(i + 1));
+  preset('Reset to Pico defaults', 'osc-preset-reset', i => defaultRow(i + 1), true);
 
   const example = el('code', 'osc-example');
   example.dataset.testid = 'osc-send-example';
