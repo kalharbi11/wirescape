@@ -142,27 +142,7 @@
   background: var(--card, #fff); border-radius: 4px; }
 .g-toast:empty { display: none; }
 .g-rcond { position: absolute; top: 1px; right: 1px; font: 6.5px var(--mono, monospace); color: var(--n-fg); }
-@media (max-width: 759px) {
-  .groove-pane { --g-pad: clamp(30px, calc((100vw - 60px) / 8), 41px);
-    --g-gap: 3px; --g-group: 6px; --g-hit: 44px; max-width: min(100%, calc(100vw - 24px)); }
-  [data-hit='touch'] .groove-pane { --g-pad: clamp(30px, calc((100vw - 60px) / 8), 41px);
-    --g-gap: 3px; --g-group: 6px; --g-hit: 44px; }
-  .g-transport, .g-tracks, .g-lanes { gap: 5px; }
-  .g-status { min-width: 92px; }
-  .g-ttab { gap: 4px; }
-  .g-nm { display: none; }
-  .g-lanes .g-seg { flex: 0 0 auto; }
-  .g-lanes { overflow-x: auto; flex-wrap: nowrap; max-width: 100%; padding-bottom: 4px; }
-  .g-lanes .g-sp { display: none; }
-  .g-bar { display: block; max-width: 100%; }
-  .g-barn { display: block; width: auto; padding: 0 0 5px; text-align: left; }
-  .g-pads { flex-wrap: wrap; width: calc(var(--g-pad) * 8 + var(--g-gap) * 6 + var(--g-group));
-    max-width: 100%; column-gap: var(--g-group); row-gap: var(--g-group); }
-  .g-pad { border-radius: 5px; }
-  .g-nn { font-size: 10px; }
-  .g-insp { gap: 9px 14px; }
-  .g-roll { max-width: 100%; touch-action: pan-x pan-y; }
-}
+
 
 .g-pad .g-nn.chd { font-weight: 600; font-size: 12px; letter-spacing: -.02em; }
 .g-pad .g-nn.long { font-size: 10px; }
@@ -186,32 +166,9 @@
 
 
 
-/* When the desktop editor is wider than the canvas, keep its patch ports on
-   the card edge and let the Pads lane scroll rather than overflow over jacks. */
-@media (min-width: 760px) and (max-width: 1279px) {
-  .module:has(.groove-pane) { width: calc(100vw - 24px) !important; }
-  .module:has(.groove-pane) .module-body {
-    padding-left: 30px !important; padding-right: 30px !important;
-  }
-  .module:has(.groove-pane) .panel-displays { min-width: 0; max-width: 100%; }
-  .module:has(.groove-pane) .groove-pane { max-width: 100%; }
-  .module:has(.groove-pane) .g-grid { overflow-x: auto; }
-}
-
-/* The canvas card has an inline desktop width and generous rail gutters.
-   Keep usable jacks at phone size: hiding them makes Groove impossible to patch.
-   ModuleCard.measure() records the responsive width for cable endpoints. */
-@media (max-width: 759px) {
-  .module:has(.groove-pane) { width: calc(100vw - 16px) !important; max-width: calc(100vw - 16px); }
-  .module:has(.groove-pane) .module-body {
-    padding-left: 8px !important; padding-right: 8px !important;
-  }
-  .module:has(.groove-pane) .panel-core { padding-left: 0; padding-right: 0; }
-  /* The signal/event jacks and their +/− expander stay interactive on phones.
-     Suppress labels only: the hit targets retain descriptive titles. */
-  .module:has(.groove-pane) .port-label { display: none; }
-  .module:has(.groove-pane) .port.output { right: calc(var(--port-jack) / -2); }
-}
+/* Groove uses the same full-width horizontal editor on phone and desktop.
+   The canvas pan/zoom controls handle the offscreen portion. Do not hide its
+   real port rails on small touch screens: those are the patch connection UI. */
 
 .g-vcell.play { border-left: 2px solid var(--rust, #c2501f); }
 
