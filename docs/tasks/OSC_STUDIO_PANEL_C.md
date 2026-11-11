@@ -25,9 +25,9 @@ Read first: `apps/studio/AGENTS.md`, `native/modules2/osc_in/README.md`, `docs/s
      - input min/max, output min/max and smoothing (ms);
      - on timeout: hold or zero.
      Invalid values are refused inline, using the README's validation rules, and are never saved.
-   - **Presets:** "Pico knobs 1–8" (the defaults), "TouchOSC faders /1/fader1–8" and "Clear".
+   - **Presets:** "Pico knobs 1–8" (the defaults), "TouchOSC faders /1/fader1–8" and "Reset to Pico defaults". (No "Clear": native fills all eight rows with Pico defaults and has no row disable. Keel ruling, #603.)
    - **"How to send":** a copyable example, *send `/pico1/knob/1 0.5` to `127.0.0.1:9000` (UDP)*, and a pointer to wiring `messages` into a Monitor card to see the raw traffic.
-3. Unknown config fields are preserved on save (compatibility rule). An old patch with no `config` opens with the defaults shown.
+3. **Unknown fields (Keel ruling, #603):** unknown fields at node and patch level are preserved. Inside `config`, the editor writes only `port|lan|rows`. If a loaded config has other keys, show one line, "engine will refuse: <keys>", and drop them only when the user saves from the editor. A patch saved without opening the editor keeps them unchanged. An old patch with no `config` opens with the defaults shown.
 
 ## Not in this packet (follow-ups; they need a Keel protocol ruling)
 - "Learn" (press, then move a control, to fill the address).
@@ -39,7 +39,7 @@ Read first: `apps/studio/AGENTS.md`, `native/modules2/osc_in/README.md`, `docs/s
   - the editor round-trips the config;
   - an invalid pattern or range is refused;
   - a preset fills the rows;
-  - unknown fields survive;
+  - unknown node/patch fields survive; unknown `config` keys show the warning and are dropped only on an editor save;
   - the status line and counter follow FakeEngine `status.osc` (listening, port-busy, lan-not-confirmed).
 - Screenshots of the card and the dialog in the PR.
 - **Patch guide impact:** update the OSC section of `docs/PATCH_DESIGNER_GUIDE.md` (how to set an address and test with the Monitor).
@@ -50,7 +50,7 @@ size: <= 700 changed lines, <= 10 files
 must_pass:
   - bash -lc 'cd apps/studio && npm ci && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
-stops: [protocol/spec edit, engine or sidecar edit, enabling LAN without the existing consent, dropping unknown config fields, new dependency]
+stops: [protocol/spec edit, engine or sidecar edit, enabling LAN without the existing consent, dropping unknown node/patch fields, native or config-schema change (per-row disable is #612, T2), new dependency]
 ```
 
 Signed: Compass (Claude), 2026-11-11

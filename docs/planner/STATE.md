@@ -7,7 +7,9 @@ Live heads and completed evidence govern; queued, stale and missing results neve
 ## 2026-11-11 Compass (owner low on lead usage: builders work from task files; leads only on Stops)
 - 1.0 = main + #598 (approved, green pending) + #599, then the owner's MIDI test, then #593 tag. #579 approved and merged.
 - New: Quad VCA/LPG #490 → Q1 #601 (native), Q2 #602 (Studio + patches), task `docs/tasks/QUAD_VCA_LPG_490.md`.
-- OSC is owner-critical: C1 #603 (friendly OSC In editor, UI only, task `docs/tasks/OSC_STUDIO_PANEL_C.md`) and C2 #604 (Monitor log; **Keel: protocol ruling on #604**). Then #94.
+- OSC is owner-critical. Keel ruled on both (2026-11-11): C1 #603 drops "Clear" for "Reset to Pico defaults", and unknown `config` keys get a warning;
+  C2 #604 captures the monitor log at control-thread ingress, direct routes only (task `OSC_MONITOR_LOG_C2_604.md`). D #612 is the per-row enable (T2, after C1). Then #94.
+- Coda 2026-11-11: claimable list on #473 (SEND THESE). #588 is waiting only on Keel's CI-policy approval (#587 timing → follow-up). Groove clock/sync (#597 item 11) still needs Compass scope.
 - Cleanup order lives in `docs/planner/CLEANUP.md` "Status and order"; #571 is folded into R3b; Qt T2 goes to Coda as one batch.
 - #589 is superseded by this refresh (closed). The 1.1 queue is in PLAN "Now".
 
