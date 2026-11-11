@@ -24,14 +24,49 @@ source. The old Qt app is retired, so don't use its shortcuts, packages or
 | Node.js | **22 LTS x64** (npm included) | `node --version` must print `v22.*` |
 | CMake + Ninja | CMake 4.2.3, Ninja 1.13.0 | `py -3.12 -m pip install cmake==4.2.3 ninja==1.13.0` |
 
-Open **"x64 Native Tools / Developer PowerShell for VS"**, not a plain
-PowerShell. The setup script checks every tool and stops with a message if one
-is missing.
+Visual Studio Code is **not** Visual Studio; you need the Visual Studio C++
+build tools above.
+
+**Open an x64 developer shell.** The Start-menu "Developer PowerShell for VS"
+shortcut can open an x86 shell, which setup rejects. From any PowerShell window,
+paste this instead:
+
+```powershell
+$vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64"
+```
+
+**Check the tools** in that shell before running setup:
+
+```powershell
+$env:WindowsSDKVersion          # must print e.g. 10.0.26100.0\ ; empty = add a Windows SDK in VS Installer -> Modify -> Desktop development with C++
+where.exe cl cmake ninja node   # the FIRST cmake listed is the one used
+cmake --version                 # must be 4.2.3
+node --version                  # must be v22.*
+```
+
+- **CMake shows another version (e.g. 4.4):** pip installed 4.2.3 into a folder
+  that isn't on PATH. For this shell, put it first:
+  `$env:Path = (py -3.12 -c "import sysconfig;print(sysconfig.get_path('scripts','nt_user'))") + ';' + $env:Path`
+- **Node 24 is installed:** 1.0 is tested on Node 22 only. Install nvm-windows
+  (`winget install CoreyButler.NVMforWindows`), open a **new** PowerShell, run
+  `nvm install 22` then `nvm use 22`, and enter the developer shell again.
+- A normal (non-Administrator) window is recommended, so later runs don't hit
+  permission errors on files created as Administrator.
+- `npm` prints vulnerability and deprecation warnings during setup. They come
+  from Electron's build tooling; ignore them and **don't** run
+  `npm audit fix --force` (it changes pinned versions).
+
+The setup script checks every tool and stops with a message if one is missing.
 
 ### 2. Get a clean checkout of the version
 
 Use a **new folder** for each version. Your old folder, patches and settings
 stay untouched, and stale Qt build caches can't leak in.
+Any folder works, including paths with spaces. You don't need to uninstall an
+earlier beta; just close it before launching 1.0 so they don't share audio and
+MIDI devices.
 
 ```powershell
 git clone https://github.com/kalharbi11/wirescape.git C:\src\wirescape-1.0
@@ -47,6 +82,9 @@ git switch --detach $Ref
 .\tools\windows\setup.ps1 -CheckOnly        # read-only preflight: prints "Preflight PASS"
 .\tools\windows\setup.ps1 -Ref $Ref         # about 10-20 min the first time
 ```
+
+Re-running later in the same folder (detached checkout): use
+`$Ref = (git rev-parse HEAD).Trim()`, not `origin/main`.
 
 The script:
 - builds pinned PortAudio and puts `libportaudio64bit.dll` next to the engine;
@@ -69,6 +107,13 @@ say which step failed.
 This is the owner launcher. It enables audio and MIDI (`--confirm-audio --confirm-midi`). Close
 any DAW that holds the audio device exclusively. With shared WASAPI, set Wirescape to
 the device's own sample rate; 48 kHz with a buffer of 256 is the known-good setting.
+
+**ASIO:** setup builds PortAudio with ASIO, so installed ASIO drivers (your
+interface's driver, FlexASIO, ASIO4ALL) appear in the audio device list as
+`ASIO` entries. Pick one there; buffer size and sample rate for ASIO are often
+set in the driver's own control panel (FlexASIO: `%USERPROFILE%\FlexASIO.toml`).
+ASIO opens one driver at a time, so close Ableton or any other ASIO app first.
+If the ASIO SDK download fails, rerun setup with `-NoAsio`.
 Settings live in `user_data\settings.json` in this checkout. Patch files you saved
 earlier stay where you saved them: open them with **Load**.
 
@@ -116,4 +161,4 @@ folder's `tools\windows\Wirescape.cmd`.
 | `Stale/Qt-enabled CMake cache.` | You reused an old folder. Do step 2 again in a new folder. |
 | `Source worktree is dirty` | You changed files in the checkout. Use a fresh folder. |
 | No sound | Check the output device and rate in Settings, close any DAW that holds the device, try 48 kHz / 256. |
-| Crackles | Try a 512 buffer and copy any `overrun` lines from the terminal into your report. |
+| Crackles | Try an `ASIO` device (FlexASIO or your interface driver), then a 512 buffer; copy any `overrun` lines from the terminal into your report. |

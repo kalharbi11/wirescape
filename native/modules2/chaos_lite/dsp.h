@@ -53,7 +53,11 @@ struct ChaosLite {
         ws::Random lfo_random;
         float lfo_held = 0, lfo_from = 0, lfo_to = 0, lfo_switch_from = 0;
         uint32_t lfo_last_shape = 0, lfo_fade_remaining = 0;
+        // Pitch-step note detection for fall retrigger; not saved (re-armed on load).
+        float last_pitch_in = 0; bool pitch_seen = false;
     };
+    // A pitch-input step of at least half a semitone between samples is a new note.
+    static constexpr float note_step_octaves = 1.f / 24.f;
     std::array<Voice, 8> voices{};
     float rate = 48000;
     uint32_t capacity = 1, comb_size = 0, delay_size = 0, lfo_fade_length = 480;
@@ -91,6 +95,7 @@ struct ChaosLite {
             v.lfo_to = v.lfo_random.bipolar();
             v.lfo_switch_from = 0.f;
             v.lfo_last_shape = v.lfo_fade_remaining = 0;
+            v.last_pitch_in = 0; v.pitch_seen = false;
         }
     }
     static float wave(float phase, float shape) {
@@ -109,7 +114,10 @@ struct ChaosLite {
             for (uint32_t i = 0; i < b.frames(); ++i) {
                 auto p = [&](uint32_t slot) { return b.param(slot).value(c, i); };
                 const float gate = bound(b.in(1).value(c, i), 0, 1), velocity = bound(b.in(2).value(c, i), 0, 1);
-                const float instability = v.drift.process(gate, p(17), p(18), p(19), rate);
+                const float pitch_in = b.in(0).value(c, i);
+                const bool new_note = v.pitch_seen && std::abs(pitch_in - v.last_pitch_in) >= note_step_octaves;
+                v.last_pitch_in = pitch_in; v.pitch_seen = true;
+                const float instability = v.drift.process(gate, p(17), p(18), p(19), rate, new_note);
                 const uint32_t shape = static_cast<uint32_t>(std::clamp(std::lround(p(26)), 0l, 3l));
                 // Shape zero stays on the exact old sine path (no extra blending).
                 float lfo = std::sin(6.28318530718f * v.lfo);
@@ -140,7 +148,7 @@ struct ChaosLite {
                 v.lfo_previous = lfo;
                 const uint32_t target = static_cast<uint32_t>(std::clamp(std::lround(p(22)), 0l, 2l));
                 const float mod = lfo * p(21);
-                const float pitch = bound(b.in(0).value(c, i) + .25f * b.in(3).value(c, i) + instability, -4, 6);
+                const float pitch = bound(pitch_in + .25f * b.in(3).value(c, i) + instability, -4, 6);
                 const float fa = bound(261.625565f * std::exp2(bound(pitch + std::round(p(3)) + (target == 0 ? mod : 0), -4, 8)), 16, rate * .45f);
                 const float fb = bound(261.625565f * std::exp2(bound(pitch + std::round(p(4)) + p(2) / 1200.f, -4, 8)), 16, rate * .45f);
                 const float a = wave(v.phase_a, p(0)) * p(5), bb = wave(v.phase_b, p(1)) * p(6);

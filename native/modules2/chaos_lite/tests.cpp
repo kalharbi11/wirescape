@@ -266,6 +266,28 @@ static int benchmark() {
     std::printf("{\"graph\":\"chaos_lite_2x4\",\"rate\":48000,\"block\":128,\"blocks\":10000,\"median_us\":%.3f,\"p95_us\":%.3f,\"worst_us\":%.3f,\"setup_bytes\":%zu}\n", (times[4999] + times[5000]) * .5, times[9499], times.back(), engine.meter().setup_bytes);
     return times.back() < 1333.333333 ? 0 : 1;
 }
+// Owner v1 report: with the gate unpatched (constant 1) a fall never restarted,
+// so the pitch stayed at the floor after Fall returned to zero, until panic.
+static void fall_recovers_and_retriggers() {
+    constexpr float rate = 48000;
+    chaos_lite::Drift d; d.reset(42, 0);
+    float drop = 0;
+    for (int i = 0; i < 48000; ++i) drop = -d.process(1, 0, 0, 1, rate);
+    REQUIRE(drop > .99f && drop < 1.01f);
+    // Constant gate, fall knob back to zero: the drop returns (16 oct/s), no edge needed.
+    for (int i = 0; i < 2999; ++i) drop = -d.process(1, 0, 0, 0, rate);
+    REQUIRE(drop > 0);
+    for (int i = 0; i < 4; ++i) drop = -d.process(1, 0, 0, 0, rate);
+    REQUIRE(drop == 0);
+    // Held gate, fall on: a new note restarts the drop.
+    for (int i = 0; i < 24000; ++i) drop = -d.process(1, 0, 0, 1, rate);
+    REQUIRE(drop > .49f);
+    drop = -d.process(1, 0, 0, 1, rate, true);
+    REQUIRE(drop > 0 && drop < 2.f / rate);
+    // The maximum drop stays bounded at four octaves.
+    for (int i = 0; i < 5 * 48000; ++i) drop = -d.process(1, 0, 0, 1, rate);
+    REQUIRE(drop == 4.f);
+}
 int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark();
     matrix();
@@ -273,5 +295,6 @@ int main(int argc, char** argv) {
     components();
     lfo_shapes_and_legacy_state();
     lfo_switch_steps_and_triangle_phase();
+    fall_recovers_and_retriggers();
     std::puts("CHAOS-lite callback matrix/state/extremes/allocation checks passed");
 }

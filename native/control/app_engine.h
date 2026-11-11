@@ -43,6 +43,8 @@ int app_engine_deactivate(AppEngine*);
 int app_engine_panic(AppEngine*);
 uint64_t app_engine_generation(const AppEngine*);
 int app_engine_get_meter(const AppEngine*,ws_meter*);
+/** Last rendered block's peak on one bus channel (0 for channels >= 16 or before rendering). */
+float app_engine_channel_peak(const AppEngine*,uint32_t channel);
 int app_engine_build_essentials(AppEngine*,const char*);
 wirescape::engine2::Engine& app_engine_native(AppEngine*);
 

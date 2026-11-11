@@ -1149,16 +1149,31 @@ Json Session::telemetry() {
     for (size_t key = 0; key < 128; ++key)
         if (keyboard_[key] && std::find(held.begin(), held.end(), Json(key)) == held.end()) held.push_back(key);
     auto meters = Json::object();
-    const auto &routes = patch_["outputs"];
-    if (routes.size() == 2 && routes[0]["module"] == routes[1]["module"] && routes[0]["port"] == "audio" &&
-        routes[1]["port"] == "audio" &&
-        ((routes[0]["bus_channel"] == 0 && routes[1]["bus_channel"] == 1) ||
-         (routes[0]["bus_channel"] == 1 && routes[1]["bus_channel"] == 0))) {
-        auto id = integer(routes[0]["module"]);
-        if (node(patch_, id)["module"] == "essentials.output") {
-            ws_meter meter{};
-            app_engine_get_meter(active_, &meter);
-            if (meter.rendered_blocks) meters[std::to_string(id)] = Json::array({meter.peak, meter.peak});
+    // Every observed essentials.output reports its own bus channel(s): one Output
+    // feeding both sides gives [L,R]; a per-side Output (stereo patches) gives
+    // [peak,peak] of its channel. Owner v1: stereo Output meters never moved.
+    ws_meter meter{};
+    app_engine_get_meter(active_, &meter);
+    if (meter.rendered_blocks) {
+        std::map<int64_t, std::array<float, 2>> levels;
+        std::map<int64_t, std::array<bool, 2>> seen;
+        for (const auto &route : patch_["outputs"]) {
+            if (route.value("port", "") != "audio" || !route.contains("module") || !route.contains("bus_channel"))
+                continue;
+            const auto id = integer(route["module"]);
+            if (node(patch_, id).value("module", "") != "essentials.output") continue;
+            const auto channel = integer(route["bus_channel"], 0, 15);
+            const float level = app_engine_channel_peak(active_, static_cast<uint32_t>(channel));
+            auto &l = levels[id];
+            auto &s = seen[id];
+            if (channel == 1) { l[1] = level; s[1] = true; }
+            else if (channel == 0) { l[0] = level; s[0] = true; }
+            else { l[0] = std::max(l[0], level); s[0] = true; }
+        }
+        for (const auto &[id, l] : levels) {
+            const auto &s = seen[id];
+            const float left = s[0] ? l[0] : l[1], right = s[1] ? l[1] : l[0];
+            meters[std::to_string(id)] = Json::array({left, right});
         }
     }
     Json telemetry = {{"tick", ++tick_},
