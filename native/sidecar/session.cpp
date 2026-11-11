@@ -804,6 +804,18 @@ Json Session::apply(const Json &command) {
             refuse_rate();
         need(options_.audio || options_.null_audio, "unavailable", "Audio device access is not authorized");
         auto old_device = device_;
+        // A device switch also tears down an audio worker. Join the packet
+        // producer first, and resume against the same committed graph on
+        // both success and restored-device failure paths.
+        osc_->stop();
+        auto resume_osc = [this](void *) noexcept {
+            try {
+                start_osc();
+            } catch (...) {
+                osc_->stop();
+            }
+        };
+        std::unique_ptr<void, decltype(resume_osc)> osc_restart(this, resume_osc);
         midi_->stop();
         stop_audio();
         device_ = id;
@@ -1116,6 +1128,17 @@ bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumera
     const auto matches = std::count_if(audio_devices_.begin(), audio_devices_.end(),
                                        [&](const Json &d) { return d.at("id") == device_; });
     if (stream_ && (!stream_->running() || (enumerated && matches == 0))) {
+        // A hot-unplug retires an audio callback while preserving the graph.
+        // Quiesce OSC ingress until the owned audio stream is joined.
+        osc_->stop();
+        auto resume_osc = [this](void *) noexcept {
+            try {
+                start_osc();
+            } catch (...) {
+                osc_->stop();
+            }
+        };
+        std::unique_ptr<void, decltype(resume_osc)> osc_restart(this, resume_osc);
         midi_->stop();
         stop_audio();
         audio_reason_.clear(); // genuine device loss supersedes a prior refused setting
