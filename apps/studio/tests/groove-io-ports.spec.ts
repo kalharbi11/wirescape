@@ -14,7 +14,7 @@ const patch = {
   ui: { positions: { '1': [20, 20], '2': [1400, 20] } },
 };
 
-async function checkAnchor(page: Page, maxWidth: number) {
+async function checkAnchor(page: Page) {
   const geometry = await page.evaluate(() => {
     const card = document.querySelector<HTMLElement>('[data-testid="module-1"]')!;
     const output = card.querySelector<HTMLElement>('[data-testid="port-1-output-t1_pitch"]')!;
@@ -24,14 +24,14 @@ async function checkAnchor(page: Page, maxWidth: number) {
     return { width: card.offsetWidth, outputRight: p.right, cardRight: c.right,
       anchorX: anchor?.x, savedWidth: canvas.cardFor(1)?.width };
   });
-  expect(geometry.width).toBeLessThanOrEqual(maxWidth);
-  // A card with a responsive CSS width must not keep the 1250 px cable coordinate.
+  // Owner-approved full-width layout; phones pan/zoom rather than squeeze jacks.
+  expect(geometry.width).toBe(1250);
   expect(geometry.savedWidth).toBe(geometry.width);
   expect(geometry.anchorX).toBe(geometry.width);
   expect(geometry.outputRight).toBeGreaterThan(geometry.cardRight - 28);
 }
 
-test('Groove has usable patch outputs on phone and narrow desktop, with resize-safe anchors', async ({ page }) => {
+test('Groove keeps horizontal output jacks and stable anchors at phone and desktop widths', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
@@ -40,7 +40,7 @@ test('Groove has usable patch outputs on phone and narrow desktop, with resize-s
   for (const id of ['t1_pitch', 't1_gate', 't1_notes']) {
     await expect(page.getByTestId(`port-1-output-${id}`)).toHaveCSS('display', 'flex');
   }
-  await checkAnchor(page, 390);
+  await checkAnchor(page);
   const more = page.getByTestId('ports-more-1-output');
   await expect(more).toBeVisible();
   await more.dispatchEvent('pointerdown');
@@ -48,9 +48,8 @@ test('Groove has usable patch outputs on phone and narrow desktop, with resize-s
 
   await page.setViewportSize({ width: 1024, height: 768 });
   await expect(page.getByTestId('port-1-output-t1_pitch')).toBeVisible();
-  await checkAnchor(page, 1024);
+  await checkAnchor(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.getByTestId('port-1-output-t1_pitch')).toBeVisible();
-  const desktop = await page.evaluate(() => (window as any).__wirescapeTest.canvas.cardFor(1).width);
-  expect(desktop).toBe(1250);
+  await checkAnchor(page);
 });
