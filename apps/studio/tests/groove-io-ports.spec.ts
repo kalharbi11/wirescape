@@ -27,12 +27,14 @@ async function checkAnchor(page: Page, maxWidth: number) {
   expect(geometry.width).toBeLessThanOrEqual(maxWidth);
   // A card with a responsive CSS width must not keep the 1250 px cable coordinate.
   expect(geometry.savedWidth).toBe(geometry.width);
+  expect(geometry.anchorX).toBe(geometry.width);
   expect(geometry.outputRight).toBeGreaterThan(geometry.cardRight - 28);
 }
 
 test('Groove has usable patch outputs on phone and narrow desktop, with resize-safe anchors', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await page.evaluate(p => (window as any).__wirescapeTest.load(p, 'Groove I/O'), patch);
   await expect(page.getByTestId('groove-1')).toBeVisible();
   for (const id of ['t1_pitch', 't1_gate', 't1_notes']) {
