@@ -624,10 +624,13 @@ and `chaos-03-orbiting-iron-fx` (autoplay curved metallic pulses).
 audio multiplier, not an ADSR generator. To get keyboard release, wire
 `host.keyboard.gate` to `essentials.adsr.gate`, then
 `adsr.envelope` to the two stereo `essentials.vca.gain_cv` ports.
-Leave CHAOS gate **unpatched (default 1)** and set `fall=0`; if the
-keyboard gate goes into CHAOS, a zero at note-off defeats the ADSR release.
-Until an independent pitch fall trigger exists, external CV handles
-note-on pitch contours. Each patch description names useful performance
+Leave CHAOS gate **unpatched (default 1)**; if the keyboard gate goes
+into CHAOS, a zero at note-off defeats the ADSR release. `fall` works with
+the gate unpatched: each new note (a pitch-input step of at least half a
+semitone) restarts the drop, the drop is capped at 4 octaves, and turning
+`fall` back to 0 returns the pitch at 16 oct/s. Repeating the same note
+with an unpatched gate does not restart it; use the gate or external CV
+for that. Each patch description names useful performance
 parameters; no new CHAOS DSP/control is assumed.
 
 Four native CHAOS LFO waveforms **merged in #533**. The original sine

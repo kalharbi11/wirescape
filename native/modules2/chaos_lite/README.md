@@ -8,7 +8,7 @@ It is not a Surge port and does not reproduce the legacy CHAOS sound.
 | Port | Meaning |
 |---|---|
 | `pitch` | Poly, 1/oct, C4 = 0; frequency limited to 16 Hz–0.45 × rate |
-| `gate` | Poly gate, unpatched 1; drives amplitude and restarts pitch fall |
+| `gate` | Poly gate, unpatched 1; drives amplitude and restarts pitch fall (a new pitch step also restarts it; `fall=0` returns the pitch at 16 oct/s) |
 | `velocity` | Poly 0..1 amplitude, unpatched 1 |
 | `fm` | Poly bipolar pitch CV, 0.25 oct/unit |
 | `left`, `right` | Stereo pair `stereo`; channels represent voices |
