@@ -82,6 +82,10 @@ jobs:
                   tool.write_bytes(bundle.extractfile('actionlint').read())
               tool.chmod(0o755)
               os.environ['PATH'] = str(directory) + os.pathsep + os.environ['PATH']
+          # Studio acceptance runs the full Playwright suite, whose recording test needs the
+          # Playwright-pinned ffmpeg. Provision it once here so task files need not (#603).
+          if re.search(r'apps/studio.*(npm test|playwright test)', task.read_text()):
+              subprocess.check_call('cd apps/studio && npm ci && npx playwright install ffmpeg', shell=True)
           subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'cmake==4.2.3', 'ninja==1.13.0'])
           subprocess.check_call([sys.executable, 'tools/dev.py', 'build', '--headless'])
           base = 'origin/' + os.environ['PR_BASE_REF']
