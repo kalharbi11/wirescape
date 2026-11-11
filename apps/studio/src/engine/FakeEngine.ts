@@ -56,6 +56,8 @@ export class FakeEngine implements EngineClient {
     dropouts: false, refuseEdits: false, oscTraffic: true,
   };
   private osc: OscStatus = { enabled: false, port: 9000, allowNetwork: false, recent: [] };
+  /** Legacy FakeEngine settings are independent of authored osc.in routes. */
+  private legacyOsc = { enabled: false, port: 9000, allowNetwork: false };
 
   private learnSequence = 0;
   private status: SystemStatus = {
@@ -127,10 +129,11 @@ export class FakeEngine implements EngineClient {
         received: 0, dropped: 0,
       };
     });
-    this.osc.enabled = this.osc.routes.length > 0;
+    this.osc.enabled = this.osc.routes.length > 0 || this.legacyOsc.enabled;
     this.osc.bind = '127.0.0.1';
     this.osc.lan = false;
-    this.osc.port = this.osc.routes[0]?.port ?? 0;
+    this.osc.port = this.osc.routes[0]?.port ?? this.legacyOsc.port;
+    this.osc.allowNetwork = this.legacyOsc.allowNetwork;
     this.pushStatus();
   }
 
@@ -139,7 +142,8 @@ export class FakeEngine implements EngineClient {
     const route = this.osc.routes?.find(r => r.module === String(moduleId));
     if (!route) return;
     route.state = state;
-    this.osc.enabled = (this.osc.routes ?? []).some(r => r.state === 'listening');
+    this.osc.enabled = this.legacyOsc.enabled ||
+      (this.osc.routes ?? []).some(r => r.state === 'listening');
     this.pushStatus();
   }
 
@@ -302,6 +306,7 @@ export class FakeEngine implements EngineClient {
     if (cfg.port !== undefined && (!Number.isInteger(cfg.port) || cfg.port < 1024 || cfg.port > 65535)) {
       throw new EngineRefusal({ code: 'refused', message: 'OSC port must be a whole number from 1024 to 65535.' });
     }
+    Object.assign(this.legacyOsc, cfg);
     Object.assign(this.osc, cfg);
     if (!this.osc.enabled) this.osc.recent = [];
     this.pushStatus();
