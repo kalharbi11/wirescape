@@ -40,8 +40,29 @@ function Run([string]$exe, [string[]]$parameters) {
     & $exe @parameters
     if ($LASTEXITCODE -ne 0) { throw "$exe failed (exit $LASTEXITCODE). Do not reuse old build outputs." }
 }
+# Prefer the pinned pip CMake (often not first on PATH, e.g. behind a system
+# CMake 4.4). Process-local PATH only; changes no files. Owner report 2026-11-11.
+function Use-PinnedCMake {
+    $want = 'cmake version 4.2.3'
+    $found = ''
+    if (Get-Command cmake -ErrorAction SilentlyContinue) { $found = [string](& cmake --version | Select-Object -First 1) }
+    if ($found -eq $want) { return }
+    if (-not (Get-Command py -ErrorAction SilentlyContinue)) { return }
+    foreach ($kind in @('nt_user', 'nt')) {
+        $dir = [string](& py -3.12 -c "import sysconfig;print(sysconfig.get_path('scripts','$kind'))")
+        if ($dir -and (Test-Path -LiteralPath (Join-Path $dir.Trim() 'cmake.exe'))) {
+            $env:Path = $dir.Trim() + ';' + $env:Path
+            if ([string](& cmake --version | Select-Object -First 1) -eq $want) {
+                Write-Host "Using pinned CMake 4.2.3 from $($dir.Trim()) (this run only)."
+                return
+            }
+        }
+    }
+    Write-Warning "CMake 4.2.3 is the tested version; found '$found'. Install it: py -3.12 -m pip install cmake==4.2.3 ninja==1.13.0"
+}
 function Preflight {
     Assert-GeneratedOutputs
+    Use-PinnedCMake
     if (-not [Environment]::Is64BitProcess -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64') {
         throw 'Use Windows x64 Developer PowerShell for VS 2022/2026.'
     }
@@ -79,9 +100,9 @@ function Preflight {
     $cache = Join-Path $root 'build\native\CMakeCache.txt'
     if (Test-Path -LiteralPath $cache) {
         $lines = Get-Content -LiteralPath $cache
-        $home = @($lines | Where-Object { $_ -like 'CMAKE_HOME_DIRECTORY:INTERNAL=*' })
+        $cmakeHome = @($lines | Where-Object { $_ -like 'CMAKE_HOME_DIRECTORY:INTERNAL=*' })
         $expected = (Join-Path $root 'native') -replace '\\','/'
-        if ($home.Count -ne 1 -or (($home[0] -split '=',2)[1] -replace '\\','/') -ne $expected -or
+        if ($cmakeHome.Count -ne 1 -or (($cmakeHome[0] -split '=',2)[1] -replace '\\','/') -ne $expected -or
             -not ($lines -contains 'WIRESCAPE_BUILD_UI:BOOL=OFF')) {
             throw 'Stale/Qt-enabled CMake cache. Preserve it; use a fresh checkout.'
         }
@@ -210,7 +231,7 @@ try {
         -not (Test-Path -LiteralPath (Join-Path $root 'apps\desktop\build\main.js'))) {
         throw 'Electron or Studio build assets missing.'
     }
-    @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","status=build-and-native-tests-passed") | Set-Content -LiteralPath $summary
+    @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","asio=$(-not $NoAsio)","status=build-and-native-tests-passed") | Set-Content -LiteralPath $summary
     if ($NoLaunch) {
         Write-Host 'Native/Studio/Desktop PASS; Electron live window/round-trip NOT run.'
         return
@@ -221,7 +242,9 @@ try {
     Run node @((Join-Path $root 'apps\studio\node_modules\playwright\cli.js'),
         'test','--config',(Join-Path $root 'apps\desktop\playwright.config.cjs'),
         'windows-setup.spec.cjs','--output',(Join-Path $logs 'electron-smoke'))
-    @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","status=windows-device-off-smoke-passed") | Set-Content -LiteralPath $summary
+    @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","asio=$(-not $NoAsio)","status=windows-device-off-smoke-passed") | Set-Content -LiteralPath $summary
+    Write-Host "Setup PASS. Summary: $summary"
+    Write-Host "Launch with sound and MIDI: $(Join-Path $root 'tools\windows\Wirescape.cmd')"
 } catch {
     Write-Error "W1 failed: $($_.Exception.Message). Local diagnostic directory: $logs."
     throw
