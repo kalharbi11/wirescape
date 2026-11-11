@@ -130,10 +130,21 @@ class Capture {
 
     // The session control thread builds JSON at the existing telemetry rate.
     nlohmann::json snapshot() const {
-        std::lock_guard<std::mutex> lock(mutex_);
         nlohmann::json out = nlohmann::json::object();
-        for (uint32_t i = 0; i < monitor_count_; ++i) {
-            const auto &m = monitors_[i];
+        uint32_t count = 0;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            count = monitor_count_;
+        }
+        // Configure and snapshot share the session control thread. Ingress workers
+        // may append concurrently; copy only one fixed 32-entry ring under the
+        // mutex and perform all JSON allocations after releasing that lock.
+        for (uint32_t i = 0; i < count; ++i) {
+            Monitor m;
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                m = monitors_[i];
+            }
             if (!m.count) continue; // explicitly absent, never a fabricated [].
             auto entries = nlohmann::json::array();
             for (uint32_t j = 0; j < m.count; ++j) {
