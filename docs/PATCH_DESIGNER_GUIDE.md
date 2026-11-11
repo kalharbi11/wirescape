@@ -92,7 +92,7 @@ setting blocker rather than pretending to merge.
 - Use only modules/ports/parameters in current
   apps/studio/public/wirescape_modules.json. No hardware MIDI modules in the
   web library; use host.keyboard. Browser audio needs its user start gesture.
-- Reverb fx.reverb is merged on main (c39af7b): stereo SUM inputs, one wet/dry output per side, not one reverb per note. Unconnected right follows left; size/decay/damping/predelay/width/motion/freeze/mix are available. Use two output-bus routes to preserve stereo; saved state clears the tail.
+- Reverb fx.reverb is merged on main (c39af7b): stereo SUM inputs, one wet/dry output per side, not one reverb per note. Unconnected right follows left; size/decay/damping/predelay/width/motion/freeze/mix are available. Mix keeps loudness roughly level (within ~3 dB from 0 to 1; wet makeup since the v1 owner test), so 0.3 now has slightly more audible wet (~+3 dB) than before. Use two output-bus routes to preserve stereo; saved state clears the tail.
 - Macro requires48k. No external sample files/services. Inspect the actual
   catalogue and deployed SHA before assuming a module is available.
 - **Chord (builds containing #403):** `essentials.chord` accepts and outputs

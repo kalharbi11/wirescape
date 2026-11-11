@@ -170,6 +170,17 @@ void test_lengths_and_rates() {
         REQUIRE(rms(y.l, 2000, y.l.size()) > 0);
     }
 }
+void test_mix_loudness() {
+    // Owner v1 report: high Mix got very quiet. Full wet must stay within 6 dB of dry.
+    const Samples x = noise(48000 * 2, .25f);
+    Rig dry, wet;
+    dry.set(reverb::MIX, 0);
+    wet.set(reverb::MIX, 1);
+    const double d = rms(dry.run(x, x).l, 48000, 96000), w = rms(wet.run(x, x).l, 48000, 96000);
+    const double db = 20 * std::log10(w / d);
+    std::printf("full-wet vs dry: %.2f dB\n", db);
+    REQUIRE(std::abs(db) < 6);
+}
 void test_frame_and_reset() {
     const Samples x = noise(12037), y = noise(12037, .2f);
     Rig one;
@@ -327,7 +338,10 @@ void test_state_extremes_and_sweep() {
     for (float size : {0.f, .25f, .5f, .75f, 1.f, .75f, .5f, .25f, 0.f}) {
         sweep.set(reverb::SIZE, size);
         const auto out = sweep.run(noise(12000, .25f), noise(12000, .25f));
-        for (size_t i = 1; i < out.l.size(); ++i) REQUIRE(std::abs(out.l[i] - out.l[i - 1]) < .5f);
+        // Same tank-step bound as before the wet makeup: at Mix 1 the output is the
+        // tank scaled by exactly (1 + kWetMakeup), so compare in tank units.
+        constexpr float tank = 1.f + Reverb::kWetMakeup;
+        for (size_t i = 1; i < out.l.size(); ++i) REQUIRE(std::abs(out.l[i] - out.l[i - 1]) / tank < .5f);
     }
     Rig stable;
     stable.set(reverb::DECAY, 20).set(reverb::DAMPING, 0).set(reverb::MOTION, 0).set(reverb::MIX, 1);
@@ -340,6 +354,7 @@ int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     test_lengths_and_rates();
     test_frame_and_reset();
+    test_mix_loudness();
     test_dry_and_width();
     test_decay();
     test_freeze();

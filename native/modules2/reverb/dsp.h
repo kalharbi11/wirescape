@@ -65,6 +65,7 @@ struct Reverb {
     double delay[8]{}; // Float glides stall before the integer target, making frozen feedback lossy.
     float target[8]{}, gain[8]{}, low[8]{};
     float pre_samples = 960, freeze_amount = 0, phase_a = 0, phase_b = 0;
+    static constexpr float kWetMakeup = 5.f;
     float last_mix = -1.f, dry_gain = 1.f, wet_gain = 0.f, last_size = -1.f;
     uint64_t sample_counter = 0;
 
@@ -240,7 +241,11 @@ struct Reverb {
             if (mix != last_mix) {
                 last_mix = mix;
                 dry_gain = mix == 1.f ? 0.f : std::cos(mix * kHalfPi);
-                wet_gain = mix == 1.f ? 1.f : std::sin(mix * kHalfPi);
+                // The tank output sits ~16 dB below the dry input, so an equal-power
+                // law alone made high Mix settings collapse (owner v1 report). Wet
+                // makeup grows with mix^2: about +3 dB of wet at 0.3, +15.6 dB at 1.
+                const float makeup = 1.f + kWetMakeup * mix * mix;
+                wet_gain = (mix == 1.f ? 1.f : std::sin(mix * kHalfPi)) * makeup;
             }
             lout.ch(0)[i] = std::clamp(dry_gain * l + wet_gain * wet_l, -2.f, 2.f);
             rout.ch(0)[i] = std::clamp(dry_gain * r + wet_gain * wet_r, -2.f, 2.f);

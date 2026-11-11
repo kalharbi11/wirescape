@@ -45,6 +45,17 @@ class WindowsSetupContract(unittest.TestCase):
         self.assertIn("sidecar_golden", SCRIPT)
         self.assertIn("(Skipped|Not Run)", SCRIPT)
 
+    def test_asio_sdk_is_pinned_checked_and_optional(self):
+        # Owner v1 request: ASIO drivers (FlexASIO, ASIO4ALL, interface drivers).
+        self.assertIn("ASIO-SDK_2.3.4_2025-10-15.zip", SCRIPT)
+        self.assertIn("D5EBF0C20DD2C5F43771FD0C1418F4B361BF52434EE670097CFA6B3A335E2ECA", SCRIPT)
+        self.assertIn("'-DPA_USE_ASIO=ON'", SCRIPT)
+        self.assertIn("[switch]$NoAsio", SCRIPT)
+        self.assertIn("'.tools/windows-setup/asiosdk'", SCRIPT)
+        download = SCRIPT.index("Invoke-WebRequest")
+        self.assertLess(SCRIPT.index("if ($CheckOnly)"), download)
+        self.assertLess(download, SCRIPT.index("$asioSha) {"))
+
     def test_no_device_consent_or_unsafe_install(self):
         self.assertIn("--null-audio", SMOKE)
         for token in ("--confirm-audio", "--confirm-midi", "winget install",

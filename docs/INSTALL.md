@@ -69,6 +69,13 @@ say which step failed.
 This is the owner launcher. It enables audio and MIDI (`--confirm-audio --confirm-midi`). Close
 any DAW that holds the audio device exclusively. With shared WASAPI, set Wirescape to
 the device's own sample rate; 48 kHz with a buffer of 256 is the known-good setting.
+
+**ASIO:** setup builds PortAudio with ASIO, so installed ASIO drivers (your
+interface's driver, FlexASIO, ASIO4ALL) appear in the audio device list as
+`ASIO` entries. Pick one there; buffer size and sample rate for ASIO are often
+set in the driver's own control panel (FlexASIO: `%USERPROFILE%\FlexASIO.toml`).
+ASIO opens one driver at a time, so close Ableton or any other ASIO app first.
+If the ASIO SDK download fails, rerun setup with `-NoAsio`.
 Settings live in `user_data\settings.json` in this checkout. Patch files you saved
 earlier stay where you saved them: open them with **Load**.
 
@@ -116,4 +123,4 @@ folder's `tools\windows\Wirescape.cmd`.
 | `Stale/Qt-enabled CMake cache.` | You reused an old folder. Do step 2 again in a new folder. |
 | `Source worktree is dirty` | You changed files in the checkout. Use a fresh folder. |
 | No sound | Check the output device and rate in Settings, close any DAW that holds the device, try 48 kHz / 256. |
-| Crackles | Try a 512 buffer and copy any `overrun` lines from the terminal into your report. |
+| Crackles | Try an `ASIO` device (FlexASIO or your interface driver), then a 512 buffer; copy any `overrun` lines from the terminal into your report. |
