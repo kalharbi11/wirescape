@@ -51,7 +51,8 @@ function Preflight {
         if ($LASTEXITCODE -ne 0) { $vs = '' }
     }
     $devShellError = ''
-    if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue) -and $vs) {
+    if ($vs -and ((-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) -or
+                  $env:VSCMD_ARG_TGT_ARCH -ne 'x64')) {
         $module = Join-Path $vs 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll'
         try {
             if (Test-Path -LiteralPath $module) {
@@ -103,7 +104,7 @@ function Preflight {
         (CheckRow 'Process' $(if ($isX64) { 'x64' } else { 'x86/other' }) 'Windows x64' $isX64)
         (CheckRow 'Git' $(if (Get-Command git -ErrorAction SilentlyContinue) { 'found' } else { 'missing' }) 'installed' ([bool](Get-Command git -ErrorAction SilentlyContinue)))
         (CheckRow 'Visual Studio' $(if ($vs) { $vs } else { 'missing' }) '2022/2026 C++ x64' ([bool]$vs))
-        (CheckRow 'cl.exe' $(if ($cl) { $cl.Source } else { "missing $devShellError" }) 'x64 C++ compiler' ([bool]$cl))
+        (CheckRow 'cl.exe' $(if ($cl) { "$($cl.Source) ($env:VSCMD_ARG_TGT_ARCH)" } else { "missing $devShellError" }) 'x64 C++ compiler' ([bool]$cl -and $env:VSCMD_ARG_TGT_ARCH -eq 'x64'))
         (CheckRow 'Windows SDK' $sdk 'active WindowsSDKVersion' ($sdk -ne 'missing' -and [bool]$env:WindowsSdkDir))
         (CheckRow 'rc.exe' $(if ($rc) { $rc.Source } else { 'missing' }) 'Windows SDK resource compiler' ([bool]$rc))
         (CheckRow 'Python' $pyVersion '3.12 x64' ($pyVersion -eq '3.12 True'))
