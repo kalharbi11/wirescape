@@ -114,8 +114,8 @@ struct Node {
     std::vector<uint32_t>event_tap_slots; // Precomputed event-output -> telemetry slot; empty when untapped.
     // Render-owned oscillator observation, never read by the control owner.
     struct Pitch {
-        bool enabled = false;
-        uint32_t latest = 0;
+        bool enabled = false, vco = false;
+        uint32_t latest = 0, input = 0, trigger = 0, gate = 0, tune = 0;
         std::array<int32_t, WS2_MAX_CHANNELS> note{};
         std::array<bool, WS2_MAX_CHANNELS> note_on{}, high{};
         float value = std::numeric_limits<float>::quiet_NaN();
@@ -141,11 +141,30 @@ struct Node {
     }
     ws2_host host(){return {sizeof(ws2_host),this,allocate};}
 };
+bool pitch_layout(const Node *node, Node::Pitch &pitch) {
+    if (!node || node->legacy) return false;
+    pitch.vco = !std::strcmp(node->d->id, "essentials.vco");
+    if (!pitch.vco && std::strcmp(node->d->id, "ports.macro_oscillator")) return false;
+    const auto index = [](const auto &ports, const char *id) {
+        for (uint32_t i = 0; i < ports.size(); ++i)
+            if (!std::strcmp(ports[i].id, id)) return i;
+        return UINT32_MAX;
+    };
+    pitch.input = index(node->inputs, "pitch");
+    pitch.tune = index(node->parameters, pitch.vco ? "frequency" : "coarse");
+    if (!pitch.vco) {
+        pitch.trigger = index(node->inputs, "trigger");
+        pitch.gate = index(node->inputs, "gate");
+    }
+    return pitch.input < node->in.size() && pitch.tune < node->param.size() &&
+           (pitch.vco || (pitch.trigger < node->in.size() && pitch.gate < node->in.size()));
+}
 bool valid_tap(const Node *node, const Tap &tap) {
     if (!node || tap.kind > Tap::OscPitch) return false;
-    if (tap.kind == Tap::OscPitch)
-        return !node->legacy && tap.index == 0 &&
-               (!std::strcmp(node->d->id, "essentials.vco") || !std::strcmp(node->d->id, "ports.macro_oscillator"));
+    if (tap.kind == Tap::OscPitch) {
+        Node::Pitch layout;
+        return tap.index == 0 && pitch_layout(node, layout);
+    }
     if (tap.kind == Tap::Param) return !node->legacy && tap.index < node->parameters.size();
     return tap.index < node->outputs.size() &&
            node->outputs[tap.index].kind == (tap.kind == Tap::EventOut ? WS2_EVENT : WS2_SIGNAL);
@@ -305,7 +324,10 @@ bool Engine::Impl::resolve_taps() {
     for(uint32_t i=0;i<taps.size();++i){
         const auto&t=taps[i];auto*n=find(t.node);
         if (!valid_tap(n, t)) return fail("Telemetry tap endpoint changed during prepare");
-        if (t.kind == Tap::OscPitch) n->pitch.enabled = true;
+        if (t.kind == Tap::OscPitch) {
+            if (!pitch_layout(n, n->pitch)) return fail("Oscillator pitch layout changed during prepare");
+            n->pitch.enabled = true;
+        }
         tap_nodes.push_back(n);
         if(t.kind==Tap::EventOut){
             if(n->event_tap_slots.empty())n->event_tap_slots.assign(n->outputs.size(),UINT32_MAX);
@@ -645,7 +667,7 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         for(uint32_t c=0;c<global.channels;++c)for(uint32_t i=0;i<frames;++i)global.data[c][start+i]=c<o.channels?o.data[c][(o.flags&WS2_CONSTANT)?0:i]:0;
     }n.touched=true;
     if (n.pitch.enabled && frames && n.channels) {
-        const bool vco = !std::strcmp(n.d->id, "essentials.vco");
+        const bool vco = n.pitch.vco;
         // A typed coordinate avoids accidentally swapping three similar indices.
         struct SignalIndex {
             uint32_t input, channel, sample;
@@ -681,7 +703,7 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
             // Detect one-sample strikes as well as held gates (Plaits renders in 12s).
             for (uint32_t i = 0; i < frames; ++i) {
                 for (uint32_t channel = 0; channel < std::min(n.channels, 8u); ++channel) {
-                    const bool high = std::max(signal({6, channel, i}), signal({8, channel, i})) > 0.5f;
+                    const bool high = std::max(signal({n.pitch.trigger, channel, i}), signal({n.pitch.gate, channel, i})) > 0.5f;
                     if (high && !n.pitch.high[channel]) n.pitch.latest = channel;
                     n.pitch.high[channel] = high;
                 }
@@ -689,10 +711,10 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         }
         const uint32_t channel = std::min(n.pitch.latest, n.channels - 1);
         if (vco) {
-            const float tune = parameter(0, channel);
+            const float tune = parameter(n.pitch.tune, channel);
             double hz = tune;
-            if (n.in[0].flags & WS2_CONNECTED) {
-                hz = 261.6255653005986 * std::pow(2., signal({0, channel, frames - 1})) * (tune / 220.);
+            if (n.in[n.pitch.input].flags & WS2_CONNECTED) {
+                hz = 261.6255653005986 * std::pow(2., signal({n.pitch.input, channel, frames - 1})) * (tune / 220.);
             } else if (n.pitch.note_on[channel]) {
                 hz = 440. * std::pow(2., (n.pitch.note[channel] - 69.) / 12.);
             }
@@ -702,7 +724,8 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         } else {
             // Macro tap stores nominal MIDI note. FM and Plaits internal FM excluded.
             n.pitch.value =
-                60.f + parameter(1, channel) + std::clamp(12.f * signal({0, channel, frames - 1}), -96.f, 96.f);
+                60.f + parameter(n.pitch.tune, channel) +
+                std::clamp(12.f * signal({n.pitch.input, channel, frames - 1}), -96.f, 96.f);
         }
     }
 }
@@ -1037,6 +1060,8 @@ bool Engine::reconfigure(uint32_t node,const std::vector<uint8_t>&config){
     std::vector<Tap> remapped;remapped.reserve(old.taps.size());
     for(const auto&t:old.taps){
         if (t.kind == Tap::OscPitch) {
+            if (!valid_tap(fresh.find(t.node), t))
+                return old.fail("Reconfiguration removes oscillator pitch layout");
             remapped.push_back(t);
             continue;
         }
