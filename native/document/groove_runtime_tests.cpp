@@ -910,9 +910,10 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
         check(seq.running && seq.stop_queued, "global STOP stays queued until master end");
     }
     seq.boundary(dummy, 0);
-    check(!seq.running && !seq.stop_queued && seq.step == 0 && seq.step_t[0] == 0 &&
+    check(!seq.running && !seq.stop_queued && seq.step == 64 &&
+          seq.step % seq.master_steps() == 0 && seq.step_t[0] == 0 &&
           seq.step_t[1] == 0 && !seq.players[0].playing && !seq.players[1].playing,
-          "global STOP completes only at the 64-step master-cycle boundary");
+          "global STOP completes at sixteenth 64 of the 512-tick absolute clock");
     seq.samples_per_step = 100;
     bool shorter = false;
     check(seq.gate_duration(0, 0, shorter) == 175. && shorter,

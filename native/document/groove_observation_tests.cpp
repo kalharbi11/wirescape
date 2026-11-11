@@ -163,6 +163,7 @@ static void chord_egress_contract() {
     auto &track = tie.sequencer.pattern.tracks[0];
     track.steps[0].kind = groove::Tie;
     track.steps[7].kind = groove::Note;
+    track.steps[7].velocity = 0.8f;
     track.steps[7].key_count = 3;
     track.steps[7].keys = {60, 64, 67, 0, 0};
     tie.start();
