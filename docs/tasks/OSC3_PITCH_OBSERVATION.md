@@ -38,7 +38,7 @@ rather than inferring physical hardware acceptance.
 
 ```acceptance
 tier: T2
-size: <= 18 files, <= 450 changed lines
+size: <= 450 changed lines, <= 18 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
