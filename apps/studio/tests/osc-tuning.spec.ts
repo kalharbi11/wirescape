@@ -142,8 +142,12 @@ test('nominal pitch readout follows FakeEngine observations and clears replaced 
   // No note cable: the native oscillator stays at its free-running base.
   await expect(live).toHaveText('A4 +0 ct · 440 Hz');
   await vco(page, 220, true);
+  // Native keyboard pitch CV is 1/octave, C4=0; a connected idle CV is C4.
+  await expect(live).toHaveText('C4 +0 ct · 261.6 Hz');
   await page.evaluate(() => window.__wirescapeTest.noteOn(69));
   await expect(live).toHaveText('A4 +0 ct · 440 Hz');
+  await page.evaluate(() => window.__wirescapeTest.noteOn(81));
+  await expect(live).toHaveText('A5 +0 ct · 880 Hz');
   await vco(page, 220, false);
   await expect(live).toHaveText('A3 +0 ct · 220 Hz');
   // The complete-map contract evicts an old observation even when the card stays mounted.
