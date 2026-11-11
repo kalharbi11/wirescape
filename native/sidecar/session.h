@@ -71,7 +71,8 @@ class Session {
     std::unique_ptr<midi::Host> midi_;
     std::unique_ptr<osc::Host> osc_;
     Json patch_, preferences_ = Json::object(), audio_devices_, midi_devices_;
-    std::string token_, device_, audio_state_ = "no-device", audio_reason_;
+    Json unavailable_audio_drivers_ = Json::array(); // optional, control-thread ASIO diagnostics
+    std::string token_, device_, audio_state_ = "no-device", audio_reason_, audio_error_;
     uint64_t generation_ = 0, tick_ = 0;
     std::set<uint32_t> used_ids_;
     document::telemetry::Sampler telemetry_;
