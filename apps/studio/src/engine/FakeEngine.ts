@@ -39,6 +39,7 @@ export class FakeEngine implements EngineClient {
   private statusCbs = new Set<(s: SystemStatus) => void>();
   private timer: number | undefined;
   private tick = 0;
+  private graphGeneration = 0;
   private t0 = performance.now();
   private time = 0;
   /** Effective values for this simulation tick only (meter and signal estimates). */
@@ -106,6 +107,7 @@ export class FakeEngine implements EngineClient {
   canApplyGroove(_moduleId: number): boolean { return true; }
 
   async loadGraph(patch: PatchV2): Promise<void> {
+    this.graphGeneration++;
     this.nodes.clear(); this.conns = []; this.voices = []; this.lastNote = null;
     this.phases.clear(); this.randomHold.clear(); this.seqStep.clear();
     this.currentEffective.clear(); this.meterPeak.clear(); this.eventActivity.clear();
@@ -424,7 +426,7 @@ export class FakeEngine implements EngineClient {
     }
 
     const t: Telemetry = {
-      tick: this.tick, time: this.time,
+      tick: this.tick, time: this.time, gen: String(this.graphGeneration),
       effective, effective_pitch, phase, envelope, meters, scope, eventActivity, outputs,
       monitorAvailable: this.monitorAvailable,
       ...(this.monitorAvailable && Object.values(this.monitorEntries).some(x => x.length)
