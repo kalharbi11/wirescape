@@ -49,11 +49,7 @@ Visitors find compatible patches in Starter patches and PATCHES → SHARED PATCH
 Changes appear after a successful deployment and refresh, not at the instant of commit.
 An open PR is a preview/check, not a public deployment.
 
-**Shipped set (2026-11-10).** Before the CHAOS Lab #530 merge, builds ship 16 patches: the fifteen
-library files (**Basics 1–7** and **Scene 1–8**) plus the bundled desktop-only
-MIDI example. Builds containing #530 ship 19: the previous sixteen and
-three additional CHAOS Lab 1–3 patches (`chaos-NN-*.json`). The lab patches
-are not public until their PR merges and deploys. The bundled MIDI example is
+**Shipped set (2026-11-11).** Main ships 18 public library patches: Basics 1–7, Scene 1–8 and merged CHAOS Lab 1–3, plus a bundled desktop-only MIDI example. PR #555 adds two more public candidates (Lab 4 sample-and-hold FX and Lab 5 smooth-random keyboard pad) only once it merges and deploys. The bundled MIDI example is
 `apps/studio/src/app/bundled/midi-keys-and-knobs.json`; it lives in the
 app because this folder and the web host exclude `midi.*` modules; the web
 Starter list hides it automatically. The six old `qt-*` starters were retired;
@@ -624,12 +620,15 @@ Until an independent pitch fall trigger exists, external CV handles
 note-on pitch contours. Each patch description names useful performance
 parameters; no new CHAOS DSP/control is assumed.
 
-A seeded sine/triangle/sample-and-hold/smooth-random `lfo_shape` is **under review in PR #533, not yet released**. P1 addition and compatibility/test plan:
-`docs/tasks/CHAOS_ATMOSPHERES_530.md`. Eight named module-level
-presets are available from merged #522; a patch still stores its values,
-not its selected preset name. Real device listening remains owner-only.
+Four native CHAOS LFO waveforms **merged in #533**. The original sine
+shape remains the default; triangle, sample-and-hold and smooth random
+are additive. The #555 public patch candidates use shapes 2 and 3 without
+new modules or port changes. The compatibility/test plan is in
+`docs/tasks/CHAOS_LFO_SHAPES_532.md`. Eight module presets are available
+from merged #522; patch JSON stores parameter values rather than preset
+names. Real device listening remains owner-only.
 
-## CHAOS internal LFO waveforms (PR #533; available only after merge)
+## CHAOS internal LFO waveforms (merged #533)
 
 `essentials.chaos_lite` appends **`lfo_shape`** at parameter slot 26:
 0=Sine (default, fully compatible with older patches), 1=Triangle,
