@@ -55,6 +55,7 @@ struct Backend {
  decltype(&Pa_IsFormatSupported) format_supported = nullptr;
  decltype(&Pa_GetDefaultOutputDevice) default_device = nullptr;
  decltype(&Pa_GetErrorText) text = nullptr;
+ decltype(&Pa_GetLastHostErrorInfo) last_host_error = nullptr;
  decltype(&Pa_OpenStream) open=nullptr;decltype(&Pa_StartStream) start=nullptr;
  decltype(&Pa_StopStream) stop=nullptr;decltype(&Pa_AbortStream) abort=nullptr;
  decltype(&Pa_CloseStream) close=nullptr;decltype(&Pa_IsStreamActive) active=nullptr;
@@ -85,6 +86,12 @@ struct Backend {
   LOAD(format_supported, "Pa_IsFormatSupported");
   LOAD(default_device, "Pa_GetDefaultOutputDevice");
   LOAD(text, "Pa_GetErrorText");
+#ifdef _WIN32
+  last_host_error = reinterpret_cast<decltype(last_host_error)>(
+      GetProcAddress(static_cast<HMODULE>(library), "Pa_GetLastHostErrorInfo"));
+#else
+  last_host_error = reinterpret_cast<decltype(last_host_error)>(dlsym(library, "Pa_GetLastHostErrorInfo"));
+#endif
   LOAD(open, "Pa_OpenStream");
   LOAD(start, "Pa_StartStream");
   LOAD(stop, "Pa_StopStream");
@@ -96,9 +103,19 @@ struct Backend {
   check(initialize());initialized=true;
  }
  ~Backend(){if(initialized)terminate();}
- void check(PaError result) {
+ void check(PaError result, bool asio = false) {
      if (result == paInvalidSampleRate) throw RateUnsupported();
-     if (result < 0) throw std::runtime_error(text(result));
+     if (result >= 0) return;
+     std::string message = text(result) ? text(result) : "PortAudio error";
+     if (asio && last_host_error) {
+         const auto *host = last_host_error();
+         if (host && host->errorText && *host->errorText) {
+             message += ": ";
+             message += host->errorText;
+         }
+     }
+     if (message.size() > 200) message.resize(200);
+     throw std::runtime_error(message);
  }
 };
 struct Context {
@@ -211,7 +228,9 @@ struct Stream::Impl {
         if (info->maxOutputChannels < 2)
             throw std::runtime_error(info->maxOutputChannels == 0 ? "no-output" : "mono-output");
         PaStreamParameters output{device, 2, paFloat32, info->defaultLowOutputLatency, nullptr};
-        b.check(b.format_supported(nullptr, &output, rate));
+        const auto *api = b.host_api(info->hostApi);
+        const bool is_asio = api && api->name && std::string(api->name) == "ASIO";
+        b.check(b.format_supported(nullptr, &output, rate), is_asio);
         context = std::make_unique<Context>(EngineOwner(nullptr, app_engine_destroy), block);
         context->rate = rate;
         context->stop_producers = std::move(producers);
@@ -221,12 +240,12 @@ struct Stream::Impl {
         if (opened < 0) {
             engine = std::move(context->engine);
             context.reset();
-            b.check(opened);
+            b.check(opened, is_asio);
         }
         auto started = b.start(stream);
         if (started < 0) {
             engine = retire();
-            b.check(started);
+            b.check(started, is_asio);
         }
     }
     EngineOwner retire() {
