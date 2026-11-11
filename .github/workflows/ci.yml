@@ -20,7 +20,7 @@ jobs:
     name: Task acceptance (optional)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30  # build + full Studio Playwright suite; #607 hit 20/10-min limits
     steps:
       - uses: actions/checkout@v7
         with:
@@ -90,7 +90,8 @@ jobs:
           subprocess.check_call([sys.executable, 'tools/dev.py', 'build', '--headless'])
           base = 'origin/' + os.environ['PR_BASE_REF']
           print('Acceptance diff base:', base)
-          code = subprocess.call([sys.executable, 'tools/dev.py', 'accept', str(issue), '--file', str(task), '--base', base])
+          code = subprocess.call([sys.executable, 'tools/dev.py', 'accept', str(issue), '--file', str(task), '--base', base,
+                                 '--timeout', '1200'])
           summary = Path('build_reports') / f'accept-{str(issue)}.md'
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
               out.write(summary.read_text() if summary.exists() else 'Acceptance report missing.\n')
