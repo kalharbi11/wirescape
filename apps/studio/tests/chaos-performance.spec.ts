@@ -9,7 +9,12 @@ test('CHAOS performance strip edits exact values with one Undo and stays in sync
   await page.evaluate(() => window.__wirescapeTest.flushHistory());
 
   const strip = page.getByTestId('chaos-performance-strip-1');
+  const toggle = page.getByTestId('chaos-performance-toggle-1');
+  await expect(strip).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
   await expect(strip).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(strip.locator('.chaos-performance-title')).toHaveText([
     'Tone', 'Motion', 'Edge', 'Body', 'Brightness',
   ]);
@@ -52,6 +57,13 @@ test('CHAOS performance strip edits exact values with one Undo and stays in sync
   const fullInput = page.getByTestId('readout-input-1-drift');
   await fullInput.fill('0.42');
   await fullInput.press('Enter');
-  await expect(strip.getByTestId('performance-readout-1-drift')).toHaveText('0.42');
+  // The full readout parses 0.42 as 0.42%, so the saved descriptor value is 0.0042.
+  // The compact view must show that exact stored value rather than the typed percent.
+  const savedDrift = (await state(page)).modules[0].parameters.drift;
+  expect(savedDrift).toBe(0.0042);
+  await expect(strip.getByTestId('performance-readout-1-drift')).toHaveText(String(savedDrift));
   expect((await state(page)).modules[0].parameters.cutoff).toBe(1337);
+  await toggle.click();
+  await expect(strip).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 });
