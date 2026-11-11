@@ -403,11 +403,51 @@ Example of one track's v2 config, excluding unrelated module settings:
 ]}]}
 ```
 
+### Groove native chords and per-track speed (G4a/G5a, #526)
+
+**Chord steps and speed play on engines with #526.** Config remains
+`version:2`; there are no new event ports, parameters or telemetry fields.
+On a `note` step, optional `keys` contains **1–5 distinct integer MIDI
+keys (0–127)**: `keys[0]` equals the existing root `key`, and the remaining
+keys are ascending. Studio omits `keys` for a single note. Chord voices
+attack together in this order, each with a separate note ID. A tie extends
+all voices; gate-off, STOP and RESET release them. A failed condition
+skips the entire chord. The strict engine refuses `keys` on a rest or tie,
+empty/oversized/invalid/duplicate keys, or a root mismatch.
+
+Each track optionally sets `div` to **1, 2, 4 or 8** (1×, ½×, ¼×, ⅛×
+speed); omission means 1. No other `div` values are supported. Each step
+takes `div` sixteenths; gates, ties and A:B loop counters follow the
+slowed track. The global STOP and Apply-at-loop-end master cycle is the
+**maximum `length × div` over active/armed tracks**, at most
+**512 sixteenths**. Track STOP still ends at its own
+`length × div` boundary; `t1_pos`/`t2_pos` report each track's own
+step index. For example, `length:16, div:4` is a four-bar progression
+using sixteen pads.
+
+A v2 step and slowed track can be authored as:
+
+```json
+{"version":2,"bpm":120,"tracks":[{"length":16,"div":4,"steps":[
+  {"kind":"note","key":60,"keys":[60,64,67],"velocity":0.8,"gate":0.5},
+  {"kind":"tie","gate":0.75}
+]}]}
+```
+
+**Wiring:** `sequencing.groove:t1_notes` → `essentials.notes_to_cv:notes`
+→ Notes→CV `pitch` and `gate` to a polyphonic voice chain
+(VCO → VCA → Output, gate through ADSR to VCA level). Connect
+`t2_notes` to another Notes→CV for an independent track. The native
+#526 engine test proves three voices with its device-free test
+`NotesToCv`; production `essentials.notes_to_cv` is contingent on its
+separate #512 integration and must not be assumed to exist on an older
+deployed engine.
+
 The output and transport IDs remain unchanged; G3's appended measurement
-ports appear below. Config `keys` is reserved for future chords and is
-refused in v2. The Studio G2 editor and actual physical listening are separate
-acceptance tasks; do not assume a native G1 patch is editable on older app
-builds or works in a deployed WebAssembly version lacking G1.
+ports appear below. Engines without #526 refuse `keys` and `div` rather
+than silently misplay them. Studio availability and physical listening are
+separate acceptance tasks; check deployed SHAs for native and WebAssembly
+support.
 
 ## Groove observation outputs (PR #501)
 

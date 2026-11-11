@@ -20,8 +20,10 @@ applies one shape to every note; **G4** stores a different chord on each step.
   other new field.
 - **Emission:** every key gets a NOTE_ON at the same offset with the step velocity
   and track channel, in array order. Each voice has its own `note_id`, unique among
-  the instance's live and pending notes, with the instance tag as in Chord ruling 1.
-  A one-key step emits **byte-identical** events to G1 (golden test).
+  the source instance/output's live and pending notes. Keel (2026-11-11): no
+  instance tag is needed for Groove-minted IDs; an ID is reused only after its
+  matching NOTE_OFF has been emitted. A one-key/div1 step keeps the legacy
+  ID sequence and emits **byte-identical** events to G1 (golden test).
 - **Behaviour:** a tie extends every voice; gate-off and boundary release free every
   voice; a failed condition skips the whole chord and its ties; mods update once per
   step; `fired` counts the step once. Telemetry is unchanged.
