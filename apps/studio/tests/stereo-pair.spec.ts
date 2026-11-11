@@ -23,6 +23,27 @@ const signalCables = async (page: Page) =>
     .map((c: any) => `${c.from.module}:${c.from.port}>${c.to.module}:${c.to.port}`)
     .sort();
 
+const occupied = [
+  { kind: 'signal', from: { module: 1, port: 'right' }, to: { module: 2, port: 'left' } },
+  { kind: 'signal', from: { module: 1, port: 'left' }, to: { module: 2, port: 'right' } },
+];
+const cableNames = (cs: any[]) => cs
+  .filter(c => c.kind === 'signal')
+  .map(c => `${c.from.module}:${c.from.port}>${c.to.module}:${c.to.port}`)
+  .sort();
+const engineCables = (page: Page) => page.evaluate(() =>
+  (window.__wirescapeTest.engine as any).conns
+    .filter((c: any) => c.kind === 'signal')
+    .map((c: any) => `${c.from.module}:${c.from.port}>${c.to.module}:${c.to.port}`).sort());
+async function loadOccupied(page: Page): Promise<void> {
+  await loadPair(page);
+  await page.evaluate(connections => {
+    const p = window.__wirescapeTest.state();
+    window.__wirescapeTest.load({ ...p, connections }, 'Occupied stereo');
+  }, occupied);
+  await settle(page);
+}
+
 test.describe('stereo pair patching', () => {
   test('descriptor exposes the stereo pair on the ports', async ({ page }) => {
     await loadPair(page);
@@ -49,6 +70,57 @@ test.describe('stereo pair patching', () => {
     await page.getByTestId('stereo-no').click();
     await settle(page);
     expect(await signalCables(page)).toEqual(['1:right>2:right']);
+  });
+
+  test('replacing both occupied inputs is one Undo/Redo gesture', async ({ page }) => {
+    await loadOccupied(page);
+    const before = cableNames(occupied);
+    expect(await signalCables(page)).toEqual(before);
+    expect(await engineCables(page)).toEqual(before);
+    await page.evaluate(() => window.__wirescapeTest.flushHistory());
+    const depth = await page.evaluate(() => window.__wirescapeTest.historyDepth().past);
+
+    await patch(page, { module: 1, port: 'left' }, { module: 2, port: 'left' });
+    await page.getByTestId('stereo-yes').click();
+    await settle(page);
+    await page.evaluate(() => window.__wirescapeTest.flushHistory());
+    const paired = ['1:left>2:left', '1:right>2:right'];
+    expect(await signalCables(page)).toEqual(paired);
+    expect(await engineCables(page)).toEqual(paired);
+    expect(await page.evaluate(() => window.__wirescapeTest.historyDepth().past)).toBe(depth + 1);
+
+    await page.evaluate(() => window.__wirescapeTest.undo());
+    await settle(page);
+    expect(await signalCables(page)).toEqual(before);
+    expect(await engineCables(page)).toEqual(before);
+    await page.evaluate(() => window.__wirescapeTest.redo());
+    await settle(page);
+    expect(await signalCables(page)).toEqual(paired);
+    expect(await engineCables(page)).toEqual(paired);
+  });
+
+  test('partner refusal restores both occupied inputs in document and engine, with no history edit', async ({ page }) => {
+    await loadOccupied(page);
+    const before = await state(page);
+    const engineBefore = await engineCables(page);
+    await page.evaluate(() => window.__wirescapeTest.flushHistory());
+    const depth = await page.evaluate(() => window.__wirescapeTest.historyDepth().past);
+    await page.evaluate(() => {
+      const eng = window.__wirescapeTest.engine;
+      const connect = eng.connect.bind(eng);
+      eng.connect = (c: any) => {
+        if (c.from.port === 'right' && c.to.port === 'right') throw new Error('partner refused for test');
+        return connect(c);
+      };
+    });
+    await patch(page, { module: 1, port: 'left' }, { module: 2, port: 'left' });
+    await page.getByTestId('stereo-yes').click();
+    await settle(page);
+    await page.evaluate(() => window.__wirescapeTest.flushHistory());
+    expect(await state(page)).toEqual(before);
+    expect(await engineCables(page)).toEqual(engineBefore);
+    expect(await page.evaluate(() => window.__wirescapeTest.historyDepth().past)).toBe(depth);
+    await expect(page.getByTestId('toast')).toContainText('partner refused for test');
   });
 
   test('a refused partner cable leaves no half pair', async ({ page }) => {
