@@ -235,7 +235,14 @@ button { cursor: pointer; }
 .panel-core.shape-wide > .panel-controls { flex: 1; }
 .panel-core.graph-mode > .panel-controls { display: none; }
 .panel-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 8px 10px; margin: 0 auto; }
-/* CHAOS performance strip: a compact second view, not another parameter bank. */
+/* CHAOS performance strip: an opt-in second view; saved starter cards keep their bounds. */
+.chaos-performance-toggle {
+  border: 0.5px solid var(--hair); border-radius: 2px; padding: 3px 5px;
+  background: var(--card); color: var(--graph);
+  font: 500 8px var(--mono); letter-spacing: .06em;
+}
+.chaos-performance-toggle[aria-expanded="true"] { border-color: var(--ink); }
+.chaos-performance-strip[hidden] { display: none; }
 .chaos-performance-strip {
   display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start;
   align-self: stretch; gap: 8px 12px; padding: 5px 0 9px;
