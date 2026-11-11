@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstring>
 #include <mutex>
+#include <string>
 #include <string_view>
 
 namespace wirescape::monitor {
@@ -97,14 +98,14 @@ class Capture {
     void osc(uint32_t source, const ws2_event &event, uint64_t timestamp_ns) noexcept {
         if (event.type != WS2_MESSAGE || event.message_kind != WS2_MSG_OSC || !event.data || !event.bytes)
             return;
-        osc::parse(static_cast<const uint8_t *>(event.data), event.bytes, [&](const osc::Message &message) {
+        wirescape::osc::parse(static_cast<const uint8_t *>(event.data), event.bytes, [&](const wirescape::osc::Message &message) {
             Entry entry;
             entry.kind = 1;
             const size_t size = std::min<size_t>(64, message.address.size());
             std::memcpy(entry.address, message.address.data(), size);
             for (uint32_t i = 0; i < message.count && entry.count < entry.args.size(); ++i) {
                 double value = 0;
-                if (!osc::numeric(message.arguments[i], value) || !std::isfinite(value)) continue;
+                if (!wirescape::osc::numeric(message.arguments[i], value) || !std::isfinite(value)) continue;
                 entry.args[entry.count++] = value;
             }
             append(source, 1, entry, timestamp_ns);
