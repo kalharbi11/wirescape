@@ -3,7 +3,6 @@
 // J5 C2 (#604): bounded, ingress-owned Monitor observations. No render access.
 #include "../io/osc/codec.h"
 #include "wirescape/module2.h"
-#include <nlohmann/json.hpp>
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -11,6 +10,7 @@
 #include <cstdint>
 #include <cstring>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <string_view>
 
@@ -38,8 +38,8 @@ class Capture {
     mutable std::mutex mutex_;
 
     static uint64_t now_ns() noexcept {
-        return uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()).count());
+        const auto elapsed = std::chrono::steady_clock::now().time_since_epoch();
+        return uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count());
     }
     void append(uint32_t source, uint8_t kind, Entry entry, uint64_t ns) noexcept {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -83,8 +83,9 @@ class Capture {
             if (!src) continue;
             const auto type = src->value("module", std::string{});
             const auto port = from.value("port", std::string{});
-            const uint8_t kind = type == "osc.in" && port == "messages" ? 1 :
-                                 type == "midi.in" && port == "midi" ? 2 : 0;
+            uint8_t kind = 0;
+            if (type == "osc.in" && port == "messages") kind = 1;
+            if (type == "midi.in" && port == "midi") kind = 2;
             if (!kind) continue;
             for (uint32_t i = 0; i < monitor_count_; ++i)
                 if (monitors_[i].id == target) {
@@ -96,9 +97,8 @@ class Capture {
 
     // OSC service worker; its packet is already parsed/bounded on ingress.
     void osc(uint32_t source, const ws2_event &event, uint64_t timestamp_ns) noexcept {
-        if (event.type != WS2_MESSAGE || event.message_kind != WS2_MSG_OSC || !event.data || !event.bytes)
-            return;
-        wirescape::osc::parse(static_cast<const uint8_t *>(event.data), event.bytes, [&](const wirescape::osc::Message &message) {
+        if (event.type != WS2_MESSAGE || event.message_kind != WS2_MSG_OSC || !event.data || !event.bytes) return;
+        const auto record_message = [&](const wirescape::osc::Message &message) {
             Entry entry;
             entry.kind = 1;
             const size_t size = std::min<size_t>(64, message.address.size());
@@ -109,7 +109,8 @@ class Capture {
                 entry.args[entry.count++] = value;
             }
             append(source, 1, entry, timestamp_ns);
-        });
+        };
+        wirescape::osc::parse(static_cast<const uint8_t *>(event.data), event.bytes, record_message);
     }
 
     // MIDI dispatch worker, not the audio render or device callback.
@@ -121,8 +122,8 @@ class Capture {
         entry.kind = 2;
         entry.note = int((word >> 8) & 127);
         entry.args[0] = double((word >> 20) & 15); // MIDI status, 8=off 9=on 11=CC.
-        entry.args[1] = type == 2 ? double(word & 127) :
-                        event.ump_words > 1 ? double(event.ump[1] >> 16) / 65535. : 0.;
+        if (type == 2) entry.args[1] = double(word & 127);
+        else if (event.ump_words > 1) entry.args[1] = double(event.ump[1] >> 16) / 65535.;
         entry.count = 2;
         append(source, 2, entry, timestamp_ns);
     }
@@ -139,8 +140,7 @@ class Capture {
                 const auto &e = m.entries[(m.written - m.count + j) % m.entries.size()];
                 nlohmann::json args = nlohmann::json::array();
                 for (uint32_t a = 0; a < e.count; ++a) args.push_back(e.args[a]);
-                nlohmann::json item = {{"t", e.time}, {"kind", e.kind == 1 ? "osc" : "midi"},
-                                       {"args", std::move(args)}};
+                nlohmann::json item = {{"t", e.time}, {"kind", e.kind == 1 ? "osc" : "midi"}, {"args", std::move(args)}};
                 if (e.kind == 1) item["address"] = e.address;
                 else item["note"] = e.note;
                 entries.push_back(std::move(item));
