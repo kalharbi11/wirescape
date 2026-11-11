@@ -889,7 +889,7 @@ int Engine::render(float*const*outputs,uint32_t output_channels,uint32_t frames,
                 sample=b.data[0][(b.flags&WS2_CONSTANT)?0:last];
             } else if (t.kind == Tap::OscPitch) {
                 sample = n->pitch.value;
-            }else if(t.kind==Tap::Output){
+            } else if (t.kind == Tap::Output) {
                 const auto&b=n->global_out[t.index];
                 const uint32_t at=(b.flags&WS2_CONSTANT)?0:frames-1;
                 if(b.channels){
