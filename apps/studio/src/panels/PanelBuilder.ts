@@ -160,13 +160,17 @@ export class Panel {
       select.addEventListener('change', () => {
         const preset = presets.find(p => p.name === select.value);
         if (!preset) { refreshPreset(); return; }
+        let values: Readonly<Record<string, number>>;
         try {
-          // Validate every value before changing any parameter or history.
-          const values = resolvePreset(d, preset);
-          host.applyModulePreset(moduleId, values);
+          // Only invalid metadata is caught here; engine/application failures
+          // must not be misreported as validation errors after a partial edit.
+          values = resolvePreset(d, preset);
         } catch (error) {
           host.toast(error instanceof Error ? error.message : 'Invalid module preset.', 'error');
+          refreshPreset();
+          return;
         }
+        host.applyModulePreset(moduleId, values);
         refreshPreset();
       });
       wrap.append(el('span', 'module-preset-label', 'Presets'), select);

@@ -16,7 +16,7 @@ Patch guide impact: none — error handling only.
 tier: T1
 size: <= 120 changed lines, <= 4 files
 must_pass:
-  - bash -lc "cd apps/studio && npm ci && npm test"
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
   - ci: guard, linux-arm64, windows-x64, sanitizers, web green
 stops: [preset definition or parameter ID change, test removal, weakened assertions, new dependency]
 ```
