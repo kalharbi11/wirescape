@@ -246,7 +246,9 @@ Session::Session(Options options)
     observer_ = observed.get();
     observer_->endpoints();
     midi_ = std::make_unique<midi::Host>(options_.midi || options_.null_audio, std::move(observed));
-    osc_ = std::make_unique<osc::Host>(options_.lan);
+    // The device-off null sink must not bind LAN, even when its stub launcher
+    // exercises --confirm-lan forwarding. Real consent still needs both flags.
+    osc_ = std::make_unique<osc::Host>(options_.lan && !options_.null_audio);
     if ((options_.midi || options_.null_audio) && preferences_.contains("devices")) midi_->restore(preferences_.dump());
     patch_ = {{"format", "wirescape.native.patch"},
               {"version", 2},

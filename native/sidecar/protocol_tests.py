@@ -498,6 +498,24 @@ with tempfile.TemporaryDirectory() as osc_dir:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as released:
             released.bind(('127.0.0.1', port))  # packet worker was joined/closed
         osc_engine.close()
+        # The null-sink test mode additionally forces loopback even if the
+        # launcher forwards --confirm-lan and the patch sets lan:true.
+        confirmed = Engine(Path(osc_dir) / 'null-consent.json', '--confirm-lan')
+        confirmed.call('loadGraph', patch=osc_patch)
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            message = confirmed.pushes.pop(0) if confirmed.pushes else confirmed.receive()
+            if message.get('type') != 'status' or message['gen'] != confirmed.last_gen:
+                continue
+            osc = message['status']['osc']
+            if len(osc['routes']) == 1 and osc['routes'][0]['state'] == 'lan-not-confirmed':
+                assert osc['enabled'] is True and osc['lan'] is False
+                assert osc['bind'] == '127.0.0.1'
+                assert osc['routes'][0]['bind'] == '127.0.0.1'
+                break
+        else:
+            raise AssertionError('Null sink did not enforce loopback-only OSC ingress')
+        confirmed.close()
 
 # Real, short, device-free end-to-end benchmark ingestion on the production sidecar.
 harness = Path(__file__).resolve().parents[2] / 'tools' / 'sidecar_edit_soak.py'

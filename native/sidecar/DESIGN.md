@@ -79,7 +79,8 @@ metadata. The UI remains the editable-document owner.
 Without confirmation no real audio stream or MIDI endpoint opens. OSC binds
 127.0.0.1 even when a saved route requests LAN unless **both** the launcher
 passes `--confirm-lan` and that route has `lan:true`; tests never open a LAN
-socket. A busy port leaves the graph accepted, the route inactive and an
+socket. `--null-audio` always forces OSC to loopback, including when both
+LAN confirmation and route consent were requested for CLI/stub tests. A busy port leaves the graph accepted, the route inactive and an
 observable per-route `port-busy` state. The single nonblocking worker shares a
 socket per authorized port (32 routes max), uses fixed 65,507-byte receive and
 2,048-byte datagram caps, and delivers at most 64 OSC messages per socket per
