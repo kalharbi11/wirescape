@@ -22,6 +22,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('OSC In card shows actual route state, received counter and activity', async ({ page }, testInfo) => {
+  await page.evaluate(() => { window.__wirescapeTest.engine.debug.oscTraffic = false; });
   await expect(page.getByTestId('osc-status-1')).toHaveText('Listening on 127.0.0.1:9000');
   await expect(page.getByTestId('osc-received-1')).toHaveText('Received: 0');
   await page.evaluate(() => window.__wirescapeTest.engine.setOscReceived(1, 8));
@@ -31,6 +32,7 @@ test('OSC In card shows actual route state, received counter and activity', asyn
   await page.evaluate(() => window.__wirescapeTest.engine.setOscRouteState(1, 'lan-not-confirmed'));
   await expect(page.getByTestId('osc-status-1')).toContainText('LAN not confirmed');
   await page.getByTestId('module-1').screenshot({ path: testInfo.outputPath('osc-in-card.png') });
+  await testInfo.attach('OSC In card', { path: testInfo.outputPath('osc-in-card.png'), contentType: 'image/png' });
 });
 
 test('editor round-trips eight rows with stable module ID and patch extras', async ({ page }, testInfo) => {
@@ -39,6 +41,7 @@ test('editor round-trips eight rows with stable module ID and patch extras', asy
   await page.getByTestId('osc-editor').locator('.modal').screenshot({
     path: testInfo.outputPath('osc-in-editor.png'),
   });
+  await testInfo.attach('OSC In editor', { path: testInfo.outputPath('osc-in-editor.png'), contentType: 'image/png' });
   await page.getByTestId('osc-row1-pattern').fill('/show/voice/*');
   await page.getByTestId('osc-row1-kind').selectOption('gate');
   await page.getByTestId('osc-row1-argument').fill('1');
