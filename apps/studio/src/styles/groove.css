@@ -187,15 +187,18 @@
 
 
 /* The canvas card has an inline desktop width and generous rail gutters.
-   Override both at phone size; hiding the jack visuals never removes patch cables. */
+   Keep usable jacks at phone size: hiding them makes Groove impossible to patch.
+   ModuleCard.measure() records the responsive width for cable endpoints. */
 @media (max-width: 759px) {
   .module:has(.groove-pane) { width: calc(100vw - 16px) !important; max-width: calc(100vw - 16px); }
   .module:has(.groove-pane) .module-body {
     padding-left: 8px !important; padding-right: 8px !important;
   }
   .module:has(.groove-pane) .panel-core { padding-left: 0; padding-right: 0; }
-  .module:has(.groove-pane) .port,
-  .module:has(.groove-pane) .port-ctl { display: none; }
+  /* The signal/event jacks and their +/− expander stay interactive on phones.
+     Suppress labels only: the hit targets retain descriptive titles/ARIA. */
+  .module:has(.groove-pane) .port-label { display: none; }
+  .module:has(.groove-pane) .port.output { right: calc(var(--port-jack) / -2); }
 }
 
 .g-vcell.play { border-left: 2px solid var(--rust, #c2501f); }
