@@ -52,7 +52,7 @@ struct QuadVca {
             for (auto &voice : channel) voice = {};
     }
     void process(ws::Block &b) {
-        const uint32_t voices = std::min(b.channels(), 16u);
+        const uint32_t voices = std::min<uint32_t>(b.channels(), uint32_t(16));
         bool constant = true;
         for (uint32_t k = 0; k < 4; ++k) {
             constant = constant && b.in(k).constant() && b.in(k + 4).constant() &&
@@ -116,7 +116,7 @@ private:
     struct VoiceState { float follower = 0, ic1 = 0, ic2 = 0; };
     static float lookup(const std::array<float, 257> &table, float x) {
         const float scaled = std::clamp(x, 0.f, 1.f) * 256.f;
-        const uint32_t index = std::min(uint32_t(scaled), 255u);
+        const uint32_t index = std::min<uint32_t>(uint32_t(scaled), uint32_t(255));
         return table[index] + (table[index + 1] - table[index]) * (scaled - float(index));
     }
     std::array<std::array<VoiceState, 16>, 4> state_{};
