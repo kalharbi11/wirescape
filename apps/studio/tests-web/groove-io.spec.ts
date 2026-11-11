@@ -66,18 +66,25 @@ test('WASM hello advertises real Groove output ports and web patch plays pitch/g
 test.describe('mobile Groove output jacks', () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 });
 
-  test('keeps output rail visible and anchors cables on responsive card edge', async ({ page }) => {
+  test('keeps full horizontal editor and output jacks patchable after zooming', async ({ page }) => {
     await bootGroove(page);
     for (const id of ['t1_pitch', 't1_gate', 't1_notes']) {
       await expect(page.getByTestId(`port-1-output-${id}`)).toHaveCSS('display', 'flex');
     }
     await expect(page.getByTestId('ports-more-1-output')).toBeVisible();
     const sizes = await page.evaluate(() => {
-      const card = document.querySelector('[data-testid="module-1"]')!.getBoundingClientRect();
-      const port = document.querySelector('[data-testid="port-1-output-t1_pitch"]')!.getBoundingClientRect();
-      return { cardWidth: card.width, rightGap: Math.abs(port.right - card.right) };
+      const card = document.querySelector<HTMLElement>('[data-testid="module-1"]')!;
+      const port = document.querySelector<HTMLElement>('[data-testid="port-1-output-t1_pitch"]')!;
+      return {
+        naturalWidth: card.offsetWidth,
+        visible: getComputedStyle(port).display,
+        rightGap: Math.abs(port.getBoundingClientRect().right - card.getBoundingClientRect().right),
+      };
     });
-    expect(sizes.cardWidth).toBeLessThanOrEqual(390);
+    // The phone is a window onto the full Windows-sized sequencer, not a
+    // squeezed substitute. Its output cable anchors remain at its right edge.
+    expect(sizes.naturalWidth).toBe(1250);
+    expect(sizes.visible).toBe('flex');
     expect(sizes.rightGap).toBeLessThan(28);
   });
 });
