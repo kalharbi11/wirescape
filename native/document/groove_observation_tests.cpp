@@ -465,6 +465,36 @@ static void external_clock_contract() {
     for (uint32_t i = 0; i < 6; ++i) gate.render();
     CHECK(gate.offs == 1 && gate.values[1] == 0);
 
+    // A run edge coincident with a clock edge waits for the following pulse.
+    Rig simultaneous;
+    simultaneous.inputs[0].flags |= WS2_CONNECTED;
+    simultaneous.inputs[1].flags |= WS2_CONNECTED;
+    simultaneous.render();
+    simultaneous.input_values[0] = simultaneous.input_values[1] = 1;
+    simultaneous.render();
+    CHECK(!simultaneous.sequencer.running && simultaneous.ons == 0);
+    simultaneous.input_values[0] = 0;
+    simultaneous.render();
+    simultaneous.input_values[0] = 1;
+    simultaneous.render();
+    CHECK(simultaneous.sequencer.running && simultaneous.sequencer.step == 0);
+
+    // RESET outranks an external run STOP when both edges land in one frame.
+    Rig priority;
+    for (auto &input : priority.inputs) input.flags |= WS2_CONNECTED;
+    priority.render();
+    priority.input_values[1] = 1;
+    priority.render();
+    priority.input_values[0] = 1;
+    priority.render();
+    CHECK(priority.sequencer.running);
+    priority.input_values[0] = 0;
+    priority.render();
+    priority.input_values[0] = priority.input_values[2] = 1;
+    priority.input_values[1] = 0;
+    priority.render();
+    CHECK(priority.sequencer.running && priority.sequencer.step == 0);
+
     // The run input starts on the NEXT pulse, unlike the existing manual START.
     Rig transport;
     transport.inputs[0].flags |= WS2_CONNECTED;
