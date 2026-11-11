@@ -6,6 +6,7 @@ import { Panel, type PanelHost } from '../panels/PanelBuilder';
 import type { PanelOverride } from '../panels/layouts';
 import { attachModuleInfo } from '../panels/widgets/InfoBox';
 import { el, motionOff } from '../app/dom';
+import type { Telemetry } from '../engine/EngineClient';
 
 export interface PortAnchor { x: number; y: number }
 
@@ -74,6 +75,7 @@ export class ModuleCard {
   private readonly anchors = new Map<string, PortAnchor>();
   private readonly polyBadge: HTMLElement;
   private readonly info: { destroy(): void } | null = null;
+  private monitorOff: (() => void) | null = null;
 
   constructor(private readonly o: CardOptions) {
     const d = o.descriptor;
@@ -131,6 +133,7 @@ export class ModuleCard {
     }
 
     this.body.append(coreEl);
+    if (d?.id === 'monitor') this.mountMonitorLog();
     this.sigIns = ins;
     this.sigOuts = outs;
     // The rails set their own height in syncPorts (a collapsed rail is short), so the base only keeps two rows.
@@ -146,6 +149,73 @@ export class ModuleCard {
       }, o.host.ticker, `module-info-${o.moduleId}`);
     }
     this.refreshHeader();
+  }
+
+  /** Direct-input Monitor log: bounded snapshots from the engine; no inferred signal values. */
+  private mountMonitorLog(): void {
+    const id = this.o.moduleId;
+    const wrap = el('section', 'monitor-log');
+    wrap.dataset.testid = `monitor-log-${id}`;
+    wrap.style.cssText = 'width:100%;min-width:0;box-sizing:border-box;padding:9px;border:1px solid var(--hair);font:11px var(--mono);';
+    const head = el('div', 'monitor-log-head');
+    head.style.cssText = 'display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px;';
+    const title = el('strong', '', 'Messages');
+    const actions = el('div');
+    actions.style.cssText = 'display:flex;gap:6px;';
+    const pause = el('button', 'btn', 'Pause') as HTMLButtonElement;
+    pause.type = 'button';
+    pause.dataset.testid = `monitor-pause-${id}`;
+    pause.setAttribute('aria-pressed', 'false');
+    const clear = el('button', 'btn', 'Clear') as HTMLButtonElement;
+    clear.type = 'button';
+    clear.dataset.testid = `monitor-clear-${id}`;
+    actions.append(pause, clear); head.append(title, actions);
+    const list = el('div', 'monitor-lines');
+    list.dataset.testid = `monitor-lines-${id}`;
+    list.setAttribute('role', 'log');
+    list.setAttribute('aria-label', 'Monitor messages, oldest first');
+    list.style.cssText = 'height:138px;overflow-y:auto;overflow-wrap:anywhere;padding:7px 1px;';
+    const note = el('small', '', 'direct OSC/MIDI only');
+    note.style.cssText = 'display:block;color:var(--sub);';
+    wrap.append(head, list, note);
+    this.body.append(wrap);
+    let paused = false, clearedAt = -Infinity, latest: Telemetry | null = null, drawn: Telemetry | null = null;
+    const render = (t: Telemetry | null, force = false) => {
+      if (!t || paused || (!force && t === drawn)) return;
+      drawn = latest = t;
+      if (t.monitorAvailable !== true) {
+        list.replaceChildren(el('span', '', 'not available'));
+        return;
+      }
+      const entries = (t.monitor?.[id] ?? []).filter(x => Number.isFinite(x.t) && x.t > clearedAt).slice(-32);
+      if (!entries.length) {
+        list.replaceChildren(el('span', '', 'direct OSC/MIDI only'));
+        return;
+      }
+      list.replaceChildren(...entries.map((entry, i) => {
+        const address = entry.kind === 'osc' ? (entry.address ?? '?') : `note ${entry.note ?? '?'}`;
+        const args = (entry.args ?? []).filter(Number.isFinite).slice(0, 4).join(', ');
+        const line = el('div', 'monitor-line', `${entry.t.toFixed(2)}s · ${entry.kind.toUpperCase()} · ${address} · ${args}`);
+        line.dataset.testid = `monitor-line-${id}-${i}`;
+        line.style.cssText = 'padding:3px 0;border-bottom:1px solid var(--hair);';
+        return line;
+      }));
+      list.scrollTop = list.scrollHeight;
+    };
+    pause.addEventListener('click', () => {
+      paused = !paused;
+      pause.textContent = paused ? 'Resume' : 'Pause';
+      pause.setAttribute('aria-pressed', String(paused));
+      if (!paused) render(this.o.host.ticker.last, true);
+    });
+    clear.addEventListener('click', () => {
+      const seen = latest?.monitor?.[id] ?? [];
+      if (seen.length) clearedAt = Math.max(clearedAt, seen[seen.length - 1].t);
+      list.replaceChildren(el('span', '', 'direct OSC/MIDI only'));
+      drawn = null;
+    });
+    this.monitorOff = this.o.host.ticker.bind(id, t => render(t));
+    render(this.o.host.ticker.last);
   }
 
   /**
@@ -514,7 +584,7 @@ export class ModuleCard {
     });
   }
 
-  destroy(): void { this.info?.destroy(); this.panel?.destroy(); this.root.remove(); }
+  destroy(): void { this.monitorOff?.(); this.info?.destroy(); this.panel?.destroy(); this.root.remove(); }
 
   static describeValue = formatValue;
 }
