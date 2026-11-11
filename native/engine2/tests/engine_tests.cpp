@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#include "engine2.h"
-#include "wirescape_sdk.h"
-#include "../../tests2/test_modules.h"
 #include "../../modules2/lfo/dsp.h"
 #include "../../modules2/vco/dsp.h"
 #include "../../tests2/allocation_watch.h"
+#include "../../tests2/test_modules.h"
+#include "engine2.h"
+#include "wirescape_sdk.h"
 #include <array>
 #include <atomic>
 #include <cmath>
@@ -353,24 +353,24 @@ int main(){
  _CrtMemState before{},after{},difference{};_CrtMemCheckpoint(&before);
 #endif
  invalid_events();
-    parameter_channels();
-    modulation_spans();
-    telemetry();
-    oscillator_pitch();
-    producer_validation();
-    zero_copy();
-    cached_taper<WS2_LINEAR>();
-    cached_taper<WS2_LOG>();
-    cached_taper<WS2_EXP>();
-    signals();
-    CHECK(loop(32, false) == loop(32, true));
-    CHECK(loop(1, false) == loop(1, true));
-    events();
-    timing();
-    overflow();
-    rows();
-    producer_stress();
-    modulation();
+ parameter_channels();
+ modulation_spans();
+ telemetry();
+ oscillator_pitch();
+ producer_validation();
+ zero_copy();
+ cached_taper<WS2_LINEAR>();
+ cached_taper<WS2_LOG>();
+ cached_taper<WS2_EXP>();
+ signals();
+ CHECK(loop(32, false) == loop(32, true));
+ CHECK(loop(1, false) == loop(1, true));
+ events();
+ timing();
+ overflow();
+ rows();
+ producer_stress();
+ modulation();
 #if defined(_MSC_VER)&&defined(_DEBUG)
  CHECK(_CrtCheckMemory());_CrtMemCheckpoint(&after);if(_CrtMemDifference(&difference,&before,&after)){
   std::fprintf(stderr,"Debug CRT normal blocks %zu -> %zu, bytes %zu -> %zu; client blocks %zu -> %zu\n",before.lCounts[_NORMAL_BLOCK],after.lCounts[_NORMAL_BLOCK],before.lSizes[_NORMAL_BLOCK],after.lSizes[_NORMAL_BLOCK],before.lCounts[_CLIENT_BLOCK],after.lCounts[_CLIENT_BLOCK]);return 1;
