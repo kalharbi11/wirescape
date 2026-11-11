@@ -59,7 +59,7 @@ export function moduleCode(type: string, override?: string): string {
 export class ModuleCard {
   readonly root: HTMLElement;
   readonly panel: Panel | null = null;
-  width: number;
+  readonly width: number;
   height = 0;
   readonly missing: boolean;
   private minHeight: number;
@@ -154,9 +154,6 @@ export class ModuleCard {
    */
   measure(): void {
     if (!this.root.isConnected) return;
-    // The Groove card narrows to the phone viewport in CSS. Cable anchors must
-    // follow its measured width, not the 1250px desktop override.
-    this.width = this.root.offsetWidth;
     this.root.style.height = '';
     this.height = Math.max(this.minHeight, Math.ceil(this.root.offsetHeight));
     this.root.style.height = `${this.height}px`;
