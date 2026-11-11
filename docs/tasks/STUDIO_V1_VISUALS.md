@@ -22,6 +22,8 @@ native per-output peak telemetry correction is already merged in #598.
 
 ## Verification
 
+The Playwright review-artifacts suite records video and requires its pinned ffmpeg binary. Install that Playwright-managed browser helper in the task environment before running the full, unchanged suite; do not skip the recording test.
+
 Playwright with FakeEngine: Random Source non-sinusoidal step changes and
 smooth output; unplug at both ends and Undo; context-menu removal; reduced
 motion cable highlight; Output meter moves from FakeEngine levels. Attach
@@ -34,7 +36,7 @@ Patch guide impact: none — visual/gesture behavior only.
 tier: T1
 size: <= 500 changed lines, <= 8 files
 must_pass:
-  - bash -lc 'cd apps/studio && npm ci && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
   - ci: guard, linux-arm64, windows-x64, sanitizers and web green
 stops: [native engine change, protocol or patch format change, new dependency, device/LAN access, skipped tests, relaxed thresholds]
 ```
