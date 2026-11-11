@@ -3,8 +3,8 @@
 #include "midi_release.h"
 #include "midi_service.h"
 #include "monitor_capture.h"
-#include <nlohmann/json.hpp>
 #include <algorithm>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 namespace wirescape::midi {
 namespace {
