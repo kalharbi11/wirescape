@@ -1,9 +1,10 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Raspberry Pi 5: fresh source build and first-run checks
 
-**Preparation guide — no accepted installation SHA yet.** Pi work can be
-prepared and tested now; owner installation stays after the Windows test and
-owner go-ahead. This guide covers Electron + Studio + `wirescape-engine` on
+**Version 1.0:** the Pi uses this runbook ([overview](INSTALL.md#raspberry-pi-5)).
+The last Pi-certified commit is `cd7999e` (below). Once 1.0's own Pi
+preflight and app smoke pass, its SHA in [releases/v1.0.md](releases/v1.0.md)
+replaces it here. Owner Pi installation follows the Windows 1.0 test. This guide covers Electron + Studio + `wirescape-engine` on
 64-bit Raspberry Pi OS. It does not provide a packaged installer.
 
 The source-build tools merged in

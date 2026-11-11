@@ -1,8 +1,9 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Status and verification
 
-Updated 2026-11-10. Wirescape is an alpha Electron application around Studio and
-the native `wirescape-engine`. Historical checkpoint tables remain in Git
+Updated 2026-11-11. **Version 1.0 release candidate**
+([release notes](releases/v1.0.md), [install](INSTALL.md)): an Electron application around
+Studio and the native `wirescape-engine`. Historical checkpoint tables remain in Git
 history. A source build, device-free test and owner hardware session establish
 different things; the evidence below keeps those boundaries explicit.
 
@@ -25,11 +26,10 @@ different things; the evidence below keeps those boundaries explicit.
   live patching by ear, device recovery or the longer jam in #271.
 - The actual 60-minute device-free Pi edit soak remains #296; queued, old or
   incomplete reports do not discharge it. Pi display/performance evidence remains separate.
-- [Windows source setup](WINDOWS_SETUP.md) merged in #475; combined-main validation
-  and an accepted install SHA remain pending. Downloadable installers, clean-VM validation,
+- [Windows source install](INSTALL.md#windows-1011-x64) is the 1.0 path; the 1.0 commit
+  is pinned in the release notes after the owner's Windows test. Downloadable installers, clean-VM validation,
   install/uninstall/rollback and release certification are not available yet.
-- OSC slice B sidecar UDP/consent (#529), later Monitor presentation and remaining
-  sequencer additions retain their own gates. MIDI Learn UI has merged (#500),
+- OSC In over localhost UDP merged (#562); the Monitor log UI (slice C) is 1.1 work. MIDI Learn UI has merged (#500),
   but real-controller validation remains separate. The SDK is experimental;
   no ABI freeze or Daisy/plugin cross-build certification is claimed.
 - Qt/ABI1 retirement is staged in [CLEANUP](planner/CLEANUP.md). Old tests and
