@@ -98,3 +98,41 @@ test('FakeEngine emits sample OSC observations only for direct OSC-to-Monitor wi
   await settle(page);
   await expect(log(page)).toContainText('direct OSC/MIDI only');
 });
+
+test('Clear while paused excludes ingress already received before Clear', async ({ page }) => {
+  await push(page, [{ t: 1, kind: 'osc', address: '/shown', args: [1] }]);
+  await expect(log(page)).toContainText('/shown');
+  await page.getByTestId('monitor-pause-2').click();
+  await push(page, [
+    { t: 1, kind: 'osc', address: '/shown', args: [1] },
+    { t: 2, kind: 'osc', address: '/while-paused', args: [2] },
+  ]);
+  await expect(log(page)).not.toContainText('/while-paused');
+  await page.getByTestId('monitor-clear-2').click();
+  await page.getByTestId('monitor-pause-2').click();
+  await expect(log(page)).toContainText('direct OSC/MIDI only');
+  await expect(log(page)).not.toContainText('/while-paused');
+  await push(page, [
+    { t: 1, kind: 'osc', address: '/shown', args: [1] },
+    { t: 2, kind: 'osc', address: '/while-paused', args: [2] },
+    { t: 3, kind: 'osc', address: '/after-clear', args: [3] },
+  ]);
+  await expect(log(page)).toContainText('/after-clear');
+  await expect(log(page)).not.toContainText('/while-paused');
+});
+
+test('Clear resets on a successful new graph epoch without remounting the Monitor card', async ({ page }) => {
+  await push(page, [{ t: 120, kind: 'osc', address: '/old-epoch', args: [1] }]);
+  await expect(log(page)).toContainText('/old-epoch');
+  await page.getByTestId('monitor-clear-2').click();
+  await expect(log(page)).toContainText('direct OSC/MIDI only');
+
+  const card = await page.getByTestId('monitor-log-2').elementHandle();
+  // Replan the running fake graph without replacing the patch document or its card.
+  await page.evaluate(p => window.__wirescapeTest.engine.loadGraph(p), await state(page));
+  await settle(page);
+  expect(await card?.evaluate(el => el === document.querySelector('[data-testid="monitor-log-2"]'))).toBe(true);
+  await push(page, [{ t: 0.1, kind: 'osc', address: '/new-epoch', args: [2] }]);
+  await expect(log(page)).toContainText('/new-epoch');
+  await expect(log(page)).not.toContainText('/old-epoch');
+});
