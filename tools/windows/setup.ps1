@@ -268,6 +268,8 @@ try {
     @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","status=build-and-native-tests-passed") | Set-Content -LiteralPath $summary
     if ($NoLaunch) {
         Write-Host 'Native/Studio/Desktop PASS; Electron live window/round-trip NOT run.'
+        Write-Host "Launch: & `"$root\tools\windows\Wirescape.cmd`""
+        Write-Host "Summary: $summary"
         return
     }
     # Real production Electron/preload/sidecar, isolated profiles, no devices.
@@ -276,7 +278,28 @@ try {
     Run node @((Join-Path $root 'apps\studio\node_modules\playwright\cli.js'),
         'test','--config',(Join-Path $root 'apps\desktop\playwright.config.cjs'),
         'windows-setup.spec.cjs','--output',(Join-Path $logs 'electron-smoke'))
+    # W1 drives Electron directly. Also exercise the *owner's* Wirescape.cmd
+    # launcher, whose cmd quoting previously failed despite green W1.
+    # Foreground smoke mode is process-local and --null-audio overrides devices.
+    $launcherProcess = $null
+    $env:WIRESCAPE_SETUP_SMOKE = '1'
+    try {
+        $launcher = Join-Path $root 'tools\windows\Wirescape.cmd'
+        $arguments = '/d /s /c ""{0}" --null-audio"' -f $launcher
+        $launcherProcess = Start-Process -FilePath $env:ComSpec -ArgumentList $arguments -PassThru -WindowStyle Hidden
+        Start-Sleep -Seconds 3
+        if ($launcherProcess.HasExited) {
+            throw "Wirescape.cmd --null-audio exited early ($($launcherProcess.ExitCode))."
+        }
+    } finally {
+        if ($launcherProcess -and -not $launcherProcess.HasExited) {
+            & taskkill.exe /PID $launcherProcess.Id /T /F 2>$null | Out-Null
+        }
+        Remove-Item Env:WIRESCAPE_SETUP_SMOKE -ErrorAction SilentlyContinue
+    }
     @("source=$Ref","portaudio=$paSha","portaudio_sha256=$hash","status=windows-device-off-smoke-passed") | Set-Content -LiteralPath $summary
+    Write-Host "Launch: & `"$root\tools\windows\Wirescape.cmd`""
+    Write-Host "Summary: $summary"
 } catch {
     Write-Error "W1 failed: $($_.Exception.Message). Local diagnostic directory: $logs."
     throw
