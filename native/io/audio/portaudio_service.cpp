@@ -33,8 +33,7 @@ std::vector<std::string> installed_asio_drivers() {
         if (status == ERROR_NO_MORE_ITEMS) break;
         if (status != ERROR_SUCCESS || !length) continue;
         const int chars = int(length);
-        const int bytes = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, name, chars, nullptr, 0, nullptr,
-                                              nullptr);
+        const int bytes = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, name, chars, nullptr, 0, nullptr, nullptr);
         if (bytes <= 0) continue;
         std::string utf8(size_t(bytes), '\0');
         if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, name, int(length), utf8.data(), bytes, nullptr,
