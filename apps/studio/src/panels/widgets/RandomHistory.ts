@@ -32,7 +32,7 @@ export class RandomHistory {
     this.root.dataset.testid = `random-history-${moduleId}`;
     this.root.dataset.samples = '0';
     this.root.dataset.stepChanges = '0';
-    this.pane.onResize = () => { this.grid = null; this.draw(); };
+    this.pane.onResize = () => { this.grid = null; };
     this.pane.root.append(this.readout);
     this.root.append(this.pane.root);
     this.unbind = ticker.bind(moduleId, t => {
