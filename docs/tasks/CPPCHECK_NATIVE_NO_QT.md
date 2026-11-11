@@ -43,7 +43,7 @@ tier: T2
 size: <= 600 changed lines, <= 7 files
 must_pass:
   - python -m unittest tools.ci.test_static_checks
-  - python -m unittest tools.ci.test_guard
+  - python -m unittest discover -s tools/ci -p test_guard.py
   - ci: guard, static, linux-arm64, windows-x64, sanitizers green
 stops: [suppressions, baseline relaxation, skipped first-party units, changed thresholds, changed check names, broad Qt deletion, workflow changes without explicit approval]
 ```
