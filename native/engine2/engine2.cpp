@@ -147,7 +147,7 @@ bool pitch_layout(const Node *node, Node::Pitch &pitch) {
     if (!pitch.vco && std::strcmp(node->d->id, "ports.macro_oscillator")) return false;
     const auto index = [](const auto &ports, const char *id) {
         for (uint32_t i = 0; i < ports.size(); ++i)
-            if (!std::strcmp(ports[i].id, id)) return i;
+            if (ports[i].id && !std::strcmp(ports[i].id, id)) return i;
         return UINT32_MAX;
     };
     pitch.input = index(node->inputs, "pitch");
