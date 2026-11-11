@@ -3,8 +3,8 @@
 #include "../modules2/groove/dsp.h"
 #include "../tests2/allocation_watch.h"
 #include "../tests2/test_modules.h"
-#include "runtime_patch.h"
 #include "runtime_module_config.h"
+#include "runtime_patch.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -789,7 +789,8 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
     bad = v2;
     bad["tracks"][0]["steps"][1]["cond"] = {{"type", "first"}}; refused(bad);
     bad = v2;
-    bad["tracks"][0]["steps"][0]["keys"] = Json::array({60, 60}); refused(bad); // Duplicate MIDI key is invalid.
+    bad["tracks"][0]["steps"][0]["keys"] = Json::array({60, 60});
+    refused(bad); // Duplicate MIDI key is invalid.
     bad = v2;
     bad["tracks"][0]["steps"] = Json::array();
     for (uint32_t i = 0; i < 9; ++i) bad["tracks"][0]["steps"].push_back({{"kind", "rest"}});
@@ -904,9 +905,8 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
         check(seq.running && seq.stop_queued, "global STOP stays queued until master end");
     }
     seq.boundary(dummy, 0);
-    check(!seq.running && !seq.stop_queued && seq.step == 64 &&
-          seq.step % seq.master_steps() == 0 && seq.step_t[0] == 0 &&
-          seq.step_t[1] == 0 && !seq.players[0].playing && !seq.players[1].playing,
+    check(!seq.running && !seq.stop_queued && seq.step == 64 && seq.step % seq.master_steps() == 0 &&
+              seq.step_t[0] == 0 && seq.step_t[1] == 0 && !seq.players[0].playing && !seq.players[1].playing,
           "global STOP completes at sixteenth 64 of the 512-tick absolute clock");
     seq.samples_per_step = 100;
     bool shorter = false;
@@ -990,25 +990,24 @@ static void test_v2_config_and_conditions(AppEngine *cat) {
           "authored v1 track re-entry remains at 32-step wrap despite the 64-tick global clock");
 }
 
-
 static void test_chord_to_notes_cv() {
     using wirescape::engine2::Engine;
     using wirescape::engine2::Timing;
     // Author the same v2 JSON that Studio saves, through the strict adapter.
-    Json authored = {{"version", 2}, {"bpm", 120},
-        {"tracks", Json::array({{
-            {"length", 16}, {"div", 2},
-            {"steps", Json::array({{
-                {"kind", "note"}, {"key", 60}, {"keys", Json::array({60, 64, 67})},
-                {"velocity", 0.75}, {"gate", 1}
-            }})}
-        }})}};
+    Json authored = {{"version", 2},
+                     {"bpm", 120},
+                     {"tracks", Json::array({{{"length", 16},
+                                              {"div", 2},
+                                              {"steps", Json::array({{{"kind", "note"},
+                                                                      {"key", 60},
+                                                                      {"keys", Json::array({60, 64, 67})},
+                                                                      {"velocity", 0.75},
+                                                                      {"gate", 1}}})}}})}};
     const auto bytes = wirescape::document::runtime_module_config("sequencing.groove", authored, 77);
     Engine engine;
     check(engine.add_node(1, ws::Module<groove::Sequencer>::descriptor(), bytes),
           "three-key Groove node loads from Studio-shaped JSON");
-    check(engine.add_node(2, ws::Module<ws2test::NotesToCv>::descriptor()),
-          "device-free test NotesToCv node");
+    check(engine.add_node(2, ws::Module<ws2test::NotesToCv>::descriptor()), "device-free test NotesToCv node");
     check(engine.connect(1, 4, 2, 0) && engine.register_producer() == 0 && engine.prepare(),
           "Groove notes route reaches NotesToCv");
     check(engine.render(nullptr, 0, 1) == WS2_OK, "baseline frame");
@@ -1026,8 +1025,7 @@ static void test_chord_to_notes_cv() {
     }
     const float pitches[]{0.f, 4.f / 12.f, 7.f / 12.f};
     for (uint32_t v = 0; v < 3; ++v) {
-        check(engine.output_sample(2, 1, v, 0) == 1.f,
-              "NotesToCv receives all three independent voice gates");
+        check(engine.output_sample(2, 1, v, 0) == 1.f, "NotesToCv receives all three independent voice gates");
         check(std::abs(engine.output_sample(2, 0, v, 0) - pitches[v]) < 1e-5f,
               "NotesToCv renders all three chord pitches");
     }

@@ -72,8 +72,8 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
              require(kind == "note" || kind == "rest" || kind == "tie", "Unknown Groove step kind");
              for (auto it = s.begin(); it != s.end(); ++it)
                  require(it.key() == "kind" || it.key() == "mod1" || it.key() == "mod2" ||
-                             (kind == "note" && (it.key() == "key" || it.key() == "velocity" ||
-                                 (version == 2 && it.key() == "keys"))) ||
+                             (kind == "note" &&
+                              (it.key() == "key" || it.key() == "velocity" || (version == 2 && it.key() == "keys"))) ||
                              (version == 2 && it.key() == "gate") ||
                              (version == 2 && kind == "note" && it.key() == "cond"),
                          "Unknown Groove step setting");
@@ -99,8 +99,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
                          const auto n = keys[k].get<int64_t>();
                          require(n >= 0 && n <= 127, "Groove chord key outside MIDI range");
                          row.keys[k] = static_cast<int32_t>(n);
-                         require((k != 0 || n == key) &&
-                                     (k == 0 || n != key) &&
+                         require((k != 0 || n == key) && (k == 0 || n != key) &&
                                      (k < 2 || row.keys[k] > row.keys[k - 1]),
                                  "Groove chord must have root first, distinct sorted remaining keys");
                      }

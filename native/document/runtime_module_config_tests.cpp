@@ -73,27 +73,27 @@ int main() try {
  };
  auto refused_groove = [&](const nlohmann::json &doc) {
      bool refused = false;
-     try { runtime_module_config("sequencing.groove", doc); }
-     catch (const std::exception &) { refused = true; }
+     try {
+         runtime_module_config("sequencing.groove", doc);
+     } catch (const std::exception &) {
+         refused = true;
+     }
      CHECK(refused);
  };
  CHECK(accepted_groove(v2).tracks[0].steps[0].key_count == 1);
- for (const auto &notes : {nlohmann::json::array({64}),
-                           nlohmann::json::array({64, 60, 67}),
-                           nlohmann::json::array({64, 60, 62, 67, 71})}) {
+ for (const auto &notes :
+      {nlohmann::json::array({64}), nlohmann::json::array({64, 60, 67}), nlohmann::json::array({64, 60, 62, 67, 71})}) {
      auto doc = v2;
      doc["tracks"][0]["steps"][0]["keys"] = notes;
      const auto decoded = accepted_groove(doc);
      CHECK(decoded.tracks[0].steps[0].key_count == notes.size());
-     for (size_t i = 0; i < notes.size(); ++i)
-         CHECK(decoded.tracks[0].steps[0].keys[i] == notes[i].get<int>());
+     for (size_t i = 0; i < notes.size(); ++i) CHECK(decoded.tracks[0].steps[0].keys[i] == notes[i].get<int>());
  }
- for (const auto &notes : {nlohmann::json::array(), nlohmann::json::array({64, 60, 62, 67, 71, 72}),
-                           nlohmann::json::array({64, -1}), nlohmann::json::array({64, 128}),
-                           nlohmann::json::array({64, 60.5}), nlohmann::json::array({64, "60"}),
-                           nlohmann::json::array({64, true}), nlohmann::json::array({60, 64}),
-                           nlohmann::json::array({64, 64}), nlohmann::json::array({64, 60, 60}),
-                           nlohmann::json::array({64, 67, 60})}) {
+ for (const auto &notes :
+      {nlohmann::json::array(), nlohmann::json::array({64, 60, 62, 67, 71, 72}), nlohmann::json::array({64, -1}),
+       nlohmann::json::array({64, 128}), nlohmann::json::array({64, 60.5}), nlohmann::json::array({64, "60"}),
+       nlohmann::json::array({64, true}), nlohmann::json::array({60, 64}), nlohmann::json::array({64, 64}),
+       nlohmann::json::array({64, 60, 60}), nlohmann::json::array({64, 67, 60})}) {
      auto doc = v2;
      doc["tracks"][0]["steps"][0]["keys"] = notes;
      refused_groove(doc);
@@ -109,9 +109,8 @@ int main() try {
      CHECK(accepted_groove(doc).tracks[0].div == static_cast<uint32_t>(speed));
  }
  CHECK(accepted_groove(v2).tracks[0].div == 1);
- for (const auto &speed : {nlohmann::json(0), nlohmann::json(3), nlohmann::json(16),
-                           nlohmann::json(-2), nlohmann::json(2.0), nlohmann::json("2"),
-                           nlohmann::json(true), nlohmann::json(nullptr)}) {
+ for (const auto &speed : {nlohmann::json(0), nlohmann::json(3), nlohmann::json(16), nlohmann::json(-2),
+                           nlohmann::json(2.0), nlohmann::json("2"), nlohmann::json(true), nlohmann::json(nullptr)}) {
      auto doc = v2;
      doc["tracks"][0]["div"] = speed;
      refused_groove(doc);

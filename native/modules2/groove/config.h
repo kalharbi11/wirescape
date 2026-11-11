@@ -27,7 +27,7 @@ struct Track {
     uint32_t armed = 1;
     uint32_t mute = 0;
     uint32_t length = 32; // Legacy default; the v2 JSON adapter defaults new tracks to 16.
-    uint32_t div = 1; // Sixteenth ticks per track step (1, 2, 4 or 8).
+    uint32_t div = 1;     // Sixteenth ticks per track step (1, 2, 4 or 8).
     std::array<Step, 64> steps{};
 };
 struct Config {
@@ -73,8 +73,8 @@ inline bool valid_step(const Step &s) {
     if (s.kind != Note && (s.cond_type != Always || s.key_count != 1)) return false;
     if (s.key_count < 1 || s.key_count > 5 || s.keys[0] != s.key) return false;
     for (uint32_t i = 1; i < s.key_count; ++i) {
-        if (s.keys[i] < 0 || s.keys[i] > 127 || s.keys[i] == s.key ||
-            (i > 1 && s.keys[i] <= s.keys[i - 1])) return false;
+        if (s.keys[i] < 0 || s.keys[i] > 127 || s.keys[i] == s.key || (i > 1 && s.keys[i] <= s.keys[i - 1]))
+            return false;
     }
     switch (s.cond_type) {
     case Always: case First: case NotFirst: return s.cond_a == 0 && s.cond_b == 0;

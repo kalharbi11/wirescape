@@ -95,13 +95,20 @@ struct PolyRig : Rig {
         s.keys = {60, 64, 67, 0, 0};
         sequencer.reset();
     }
-    void render_sample() { Rig::render(); ++sample; }
+    void render_sample() {
+        Rig::render();
+        ++sample;
+    }
     uint32_t count(uint32_t type) const {
         uint32_t result = 0;
         for (uint32_t i = 0; i < event_count; ++i) result += log[i].type == type;
         return result;
     }
-    void start() { render_sample(); controls[0] = 1.f; render_sample(); }
+    void start() {
+        render_sample();
+        controls[0] = 1.f;
+        render_sample();
+    }
 };
 static void chord_egress_contract() {
     PolyRig triad;
@@ -109,11 +116,13 @@ static void chord_egress_contract() {
     CHECK(triad.count(WS2_NOTE_ON) == 3 && triad.values[14] == 1);
     for (uint32_t k = 0; k < 3; ++k) {
         CHECK(triad.log[k].type == WS2_NOTE_ON);
-        CHECK(triad.log[k].offset == 0 && triad.log[k].key == int32_t(triad.sequencer.pattern.tracks[0].steps[0].keys[k]));
+        CHECK(triad.log[k].offset == 0 &&
+              triad.log[k].key == int32_t(triad.sequencer.pattern.tracks[0].steps[0].keys[k]));
         CHECK(triad.log[k].value == 0.8f && triad.log[k].channel == 0);
         for (uint32_t j = 0; j < k; ++j) CHECK(triad.log[k].note_id != triad.log[j].note_id);
     }
-    triad.controls[2] = 1.f; triad.render_sample();
+    triad.controls[2] = 1.f;
+    triad.render_sample();
     CHECK(triad.count(WS2_NOTE_OFF) == 3);
     for (uint32_t k = 0; k < 3; ++k) CHECK(triad.log[k + 3].note_id == triad.log[k].note_id);
 
@@ -144,7 +153,8 @@ static void chord_egress_contract() {
     root_refused.refuse_on_attempt = 1;
     root_refused.start();
     CHECK(root_refused.count(WS2_NOTE_ON) == 2 && root_refused.values[1] == 1.f);
-    root_refused.controls[2] = 1.f; root_refused.render_sample();
+    root_refused.controls[2] = 1.f;
+    root_refused.render_sample();
     CHECK(root_refused.count(WS2_NOTE_OFF) == 2);
 
     PolyRig gate;
@@ -159,7 +169,8 @@ static void chord_egress_contract() {
     skip.sequencer.pattern.tracks[0].steps[0].cond_a = 2;
     skip.sequencer.pattern.tracks[0].steps[0].cond_b = 2;
     skip.sequencer.pattern.tracks[0].steps[1].kind = groove::Tie;
-    skip.start(); skip.render_sample();
+    skip.start();
+    skip.render_sample();
     CHECK(skip.count(WS2_NOTE_ON) == 0 && skip.values[14] == 0);
 
     PolyRig tie;
@@ -261,9 +272,8 @@ static void speed_clock_contract() {
     maximum.sequencer.stop_queued = true;
     ws::Block maximum_block(maximum.raw);
     maximum.sequencer.boundary(maximum_block, 0);
-    CHECK(maximum.sequencer.step == 0 && maximum.sequencer.step_t[0] == 0 &&
-          !maximum.sequencer.running && !maximum.sequencer.stop_queued &&
-          maximum.count(WS2_NOTE_OFF) == 3);
+    CHECK(maximum.sequencer.step == 0 && maximum.sequencer.step_t[0] == 0 && !maximum.sequencer.running &&
+          !maximum.sequencer.stop_queued && maximum.count(WS2_NOTE_OFF) == 3);
 
     PolyRig track_stop;
     track_stop.sequencer.pattern.tracks[0].length = 8;
@@ -306,10 +316,8 @@ static void chord_identity_lifetime() {
     CHECK(rig.sequencer.players[0].pending.on);
     const int32_t available_id = rig.sequencer.unused_note_id();
     for (const auto &player : rig.sequencer.players) {
-        for (const auto &voice : player.sounding.notes)
-            CHECK(!voice.on || voice.id != available_id);
-        for (const auto &voice : player.pending.notes)
-            CHECK(!voice.on || voice.id != available_id);
+        for (const auto &voice : player.sounding.notes) CHECK(!voice.on || voice.id != available_id);
+        for (const auto &voice : player.pending.notes) CHECK(!voice.on || voice.id != available_id);
     }
 
     // After accepted OFFs the old IDs may be reused, but only after their OFFs.
