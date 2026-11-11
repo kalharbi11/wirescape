@@ -151,7 +151,8 @@ class Capture {
                 const auto &e = m.entries[(m.written - m.count + j) % m.entries.size()];
                 nlohmann::json args = nlohmann::json::array();
                 for (uint32_t a = 0; a < e.count; ++a) args.push_back(e.args[a]);
-                nlohmann::json item = {{"t", e.time}, {"kind", e.kind == 1 ? "osc" : "midi"}, {"args", std::move(args)}};
+                nlohmann::json item = {
+                    {"t", e.time}, {"kind", e.kind == 1 ? "osc" : "midi"}, {"args", std::move(args)}};
                 if (e.kind == 1) item["address"] = e.address;
                 else item["note"] = e.note;
                 entries.push_back(std::move(item));
