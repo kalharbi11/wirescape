@@ -186,6 +186,18 @@
 
 
 
+/* When the desktop editor is wider than the canvas, keep its patch ports on
+   the card edge and let the Pads lane scroll rather than overflow over jacks. */
+@media (min-width: 760px) and (max-width: 1279px) {
+  .module:has(.groove-pane) { width: calc(100vw - 24px) !important; }
+  .module:has(.groove-pane) .module-body {
+    padding-left: 30px !important; padding-right: 30px !important;
+  }
+  .module:has(.groove-pane) .panel-displays { min-width: 0; max-width: 100%; }
+  .module:has(.groove-pane) .groove-pane { max-width: 100%; }
+  .module:has(.groove-pane) .g-grid { overflow-x: auto; }
+}
+
 /* The canvas card has an inline desktop width and generous rail gutters.
    Keep usable jacks at phone size: hiding them makes Groove impossible to patch.
    ModuleCard.measure() records the responsive width for cable endpoints. */
