@@ -3,6 +3,7 @@
 #include "../modules2/groove/config.h"
 #include "../modules2/midi_cc_to_cv/config.h"
 #include "../modules2/osc_in/config.h"
+#include <algorithm>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
