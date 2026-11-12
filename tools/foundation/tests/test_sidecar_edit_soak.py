@@ -169,8 +169,7 @@ class EditSoakTests(unittest.TestCase):
                 self.assertEqual(json.loads(stdout.getvalue())['status'], 'passed' if not status else 'failed')
                 if hosted and modes[0] == 'wake-only':
                     self.assertIn('wake-only attempt 1 failed', stderr.getvalue())
-                    self.assertIn('attempt 2 ' + ('passed' if not status else ''),
-                                  stderr.getvalue()) if not status else None
+                    self.assertEqual('attempt 2 passed' in stderr.getvalue(), status == 0)
 
     def test_refusal_fails(self):
         self.assert_failed('refusal', 'refused busy')
