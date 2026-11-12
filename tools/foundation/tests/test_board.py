@@ -30,26 +30,26 @@ class BoardTests(unittest.TestCase):
     def test_each_status_lands_in_one_section(self):
         text = board.render([
             issue(1, 'status/todo'),
-            issue(2, 'status/todo', 'agent/builder-chat-1'),
-            issue(3, 'status/in-progress', 'agent/builder-chat-2'),
-            issue(4, 'status/review', 'agent/builder-claude-1'),
+            issue(2, 'status/todo', 'agent/gpt-builder1'),
+            issue(3, 'status/in-progress', 'agent/gpt-builder2'),
+            issue(4, 'status/review', 'agent/claude-builder1'),
             issue(5, 'status/blocked'),
             issue(6, 'status/handoff-ready'),
-            issue(7, 'status/handoff-ready', 'agent/builder-chat-1'),
+            issue(7, 'status/handoff-ready', 'agent/gpt-builder1'),
             issue(8),  # tracking issue without a status: not on the board
         ], [], NOW)
         self.assertEqual(len(rows(text, 'Unassigned')), 2)
         self.assertEqual(len(rows(text, 'Assigned')), 2)
-        self.assertIn('builder-chat-2', rows(text, 'In progress')[0])
+        self.assertIn('gpt-builder2', rows(text, 'In progress')[0])
         self.assertEqual(len(rows(text, 'Waiting')), 1)
         self.assertEqual(len(rows(text, 'Blocked')), 1)
         self.assertNotIn('| #8 ', text)
 
     def test_who_has_what_lists_every_item_per_agent(self):
-        text = board.render([issue(2, 'status/todo', 'agent/builder-chat-1'),
-                             issue(9, 'status/review', 'agent/builder-chat-1'),
+        text = board.render([issue(2, 'status/todo', 'agent/gpt-builder1'),
+                             issue(9, 'status/review', 'agent/gpt-builder1'),
                              issue(4, 'status/in-progress', 'agent/keel')], [], NOW)
-        self.assertIn('`builder-chat-1` #2 #9', text)
+        self.assertIn('`gpt-builder1` #2 #9', text)
         self.assertIn('`keel` #4', text)
 
     def test_claim_without_a_name_is_flagged(self):
