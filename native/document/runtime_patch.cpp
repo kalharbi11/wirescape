@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#include "runtime_module_config.h"
 #include "runtime_patch.h"
+#include "runtime_module_config.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -82,14 +82,14 @@ AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws
    for(auto it=values.begin();it!=values.end();++it){bool found=false;for(uint32_t p=0;p<d->parameter_count;++p){bool matches=version==1?it.key()==std::to_string(d->parameters[p].id):it.key()==app_engine_parameter_id(engine.get(),d->id,p);if(!matches)continue;need(it.value().is_number(),"Invalid parameter value");float v=it.value().get<float>();need(std::isfinite(v)&&app_engine_initialize_parameter(engine.get(),node,d->parameters[p].id,v)==WS_OK,"Parameter outside range");found=true;break;}need(version==1||found,"Unknown parameter ID");}
    if(version==2&&m.contains("state"))need(graph.load_state(node,state_bytes(m.at("state")))==WS2_OK,"Unsupported module state");
   }
-        if (!ignored_osc_keys.empty()) {
-            std::string message;
-            for (const auto &key : ignored_osc_keys) {
-                if (!message.empty()) message += ", ";
-                message += key;
-            }
-            std::fprintf(stderr, "OSC load ignored unknown config keys: %s\n", message.c_str());
-        }
+  if (!ignored_osc_keys.empty()) {
+      std::string message;
+      for (const auto &key : ignored_osc_keys) {
+          if (!message.empty()) message += ", ";
+          message += key;
+      }
+      std::fprintf(stderr, "OSC load ignored unknown config keys: %s\n", message.c_str());
+  }
   error.clear();return engine.release();
  }catch(const std::exception&e){error=e.what();return nullptr;}
 }
