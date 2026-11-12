@@ -60,9 +60,13 @@ void serialized_demo_equivalence(AppEngine* catalogue, const ws_engine_config& c
     saved["version"] = 2;
     saved["settings"] = {{"max_channels", 16}, {"feedback_block", 1}, {"seed", 1u}};
     saved["outputs"] = Json::array({{{"module", source.at("outputNode")},
-                                     {"port", "audio"}, {"bus_channel", 0}}});
+                                     {"port", "audio"}, {"bus_channel", 0}},
+                                    {{"module", source.at("outputNode")},
+                                     {"port", "audio"}, {"bus_channel", 1}}});
+    saved["preserved"] = source; saved["devices"] = Json::array(); saved["host_mappings"] = Json::array();
     for (auto& module : saved["modules"]) {
-        const auto type = module.at("type").get<std::string>(); module["module"] = type; module["version"] = 1; module["config"] = Json::object();
+        const auto original_module = module;
+        const auto type = module.at("type").get<std::string>(); module["preserved"] = original_module; module["module"] = type; module["version"] = 1; module["config"] = Json::object();
         module["parameters"] = Json::object(); for (auto it = module["values"].begin(); it != module["values"].end(); ++it) {
             const char* id = app_engine_parameter_id(
                 catalogue, type.c_str(), uint32_t(std::stoul(it.key())));
