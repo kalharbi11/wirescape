@@ -253,6 +253,12 @@ test('combined OSC edited, disabled and future keys survive autosave and a real 
   await page.evaluate(() => window.__wirescapeTest.autosaveNow());
   await page.reload();
   await page.waitForFunction(() => document.body.dataset.ready === 'true');
+  // Reload constructs a new FakeEngine (oscTraffic defaults on). Disable the
+  // synthetic packet clock and reset its counter before asserting fresh input.
+  await page.evaluate(() => {
+    window.__wirescapeTest.engine.debug.oscTraffic = false;
+    window.__wirescapeTest.engine.setOscReceived(1, 0);
+  });
   await settle(page);
 
   const restored = await state(page);
