@@ -1,8 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # #637 — Hosted Windows wake-only retry
-Keel: retry once only for wake-only overruns on hosted Windows CI, with both
-outcomes logged and a fully clean retry; never retry render/fault/other failures,
-Linux, Pi, or owner hardware. Preserve every overrun limit.
+Keel: once only after a wake-only overrun on hosted Windows CI; log both outcomes
+and require a clean retry. No render/fault/other retries, non-Windows retries or limit changes.
 ```acceptance
 tier: T2
 size: <= 80 changed lines, <= 3 files
