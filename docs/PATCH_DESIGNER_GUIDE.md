@@ -490,6 +490,15 @@ default 9000), `lan` (default false), and up to eight row maps with
 `smoothing_ms`, `timeout_ms` and `stale` (`hold|zero`). Invalid data
 refuses activation without rewriting the saved patch.
 
+**Forward-compatible OSC config (#657; engines containing this fix):**
+unknown `config` or individual `rows[i]` keys are ignored at execution, not
+refused. The native loader prints one bounded diagnostic listing ignored fields
+per successful graph load; it does not rewrite the authored JSON. Invalid
+values of **known** keys still refuse the patch. Studio identifies these
+unknown keys as “ignored by this engine” and preserves them until an
+intentional OSC editor Save removes unsupported config fields. Older engines
+may still refuse a patch containing those future keys.
+
 **Sidecar availability, only after slice B merges:** the native Electron engine
 listens on `127.0.0.1` by default. The patch's `lan:true` alone **never**
 authorizes a LAN socket: a real owner launch must also pass `--confirm-lan`.
