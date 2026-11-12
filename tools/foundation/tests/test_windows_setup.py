@@ -60,6 +60,16 @@ class WindowsSetupContract(unittest.TestCase):
             for match in re.finditer(r"\$([A-Za-z_][A-Za-z0-9_]*)\s*=(?!=)", script):
                 self.assertNotIn(match.group(1).lower(), automatic, match.group(0))
 
+    def test_no_native_command_piped_into_select_first(self):
+        # Owner report 2026-11-12: Windows PowerShell 5.1 stops the pipeline at -First, kills the
+        # native process and sets $LASTEXITCODE to -1, so a present tool reads as "missing".
+        import re
+        for script in (SCRIPT,):
+            for line in script.splitlines():
+                if line.lstrip().startswith("#"):
+                    continue
+                self.assertIsNone(re.search(r"&\s*\S+[^|]*\|\s*Select-Object\s+-First", line, re.I), line)
+
     def test_pinned_cmake_is_preferred_without_files_changing(self):
         self.assertIn("function Use-PinnedCMake", SCRIPT)
         self.assertIn("'cmake version 4.2.3'", SCRIPT)
