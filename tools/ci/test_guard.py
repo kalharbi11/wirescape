@@ -10,7 +10,7 @@ from pathlib import Path
 
 from guard import check as guard_check
 from guard import linked_issue, named_paths, violations, warn_tier
-from guard import check_staged, check_staged_format
+from guard import check_staged, check_staged_format, tier_errors
 
 
 class GuardTests(unittest.TestCase):
@@ -130,6 +130,13 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(run.call_args.kwargs['input'], b'// index content\n')
             self.assertIn('--lines=1:2', run.call_args.args[0])
             self.assertIn('--dry-run', run.call_args.args[0])
+
+    def test_tier_labels_fail_closed_in_ci(self):
+        for labels in (set(), {'tier/T0', 'tier/T2'}, {'tier/T1', 'tier/T2'}):
+            with self.subTest(labels=labels):
+                self.assertEqual(tier_errors(labels), ['add exactly one tier/* label'])
+        for tier in ('tier/T0', 'tier/T1', 'tier/T2'):
+            self.assertEqual(tier_errors({tier, 'status/ready-to-merge'}), [])
 
     def test_tier_warning_is_advisory_and_accepts_markdown(self):
         with patch('builtins.print') as output:
