@@ -11,10 +11,13 @@ the corresponding Git revision.
 
 ## Open issues and mixed parent/child references
 
+- [GROOVE_CLOCK_SYNC_INPUTS.md](GROOVE_CLOCK_SYNC_INPUTS.md) — #614 (open; from #597 item 11)
 - [J5_OSC_MONITOR.md](J5_OSC_MONITOR.md) — #72 (open), #82 (closed), #81 (closed)
 - [OSC_1_GATE_341.md](OSC_1_GATE_341.md) — #341 (closed), #337 (open; OSC-1 #341 and OSC-3 held)
 - [OSC_CURRENT_HOST_72.md](OSC_CURRENT_HOST_72.md) — #440 (closed), #72 (open)
 - [OSC_STUDIO_PANEL_C.md](OSC_STUDIO_PANEL_C.md) — #603 (open; part of #72, C2 is #604)
+- [OSC_MONITOR_LOG_C2_604.md](OSC_MONITOR_LOG_C2_604.md) — #604 (open; part of #72; Keel ruling on the issue)
+- [OSC_ROW_ENABLE_D.md](OSC_ROW_ENABLE_D.md) — #612 (open; part of #72; after #603)
 - [OSC_TUNING_GATE.md](OSC_TUNING_GATE.md) — #337 (open; OSC-1 #341 and OSC-3 held)
 - [OWNER_TEST_SESSION_271.md](OWNER_TEST_SESSION_271.md) — #271 (open)
 - [QUAD_VCA_LPG_490.md](QUAD_VCA_LPG_490.md) — #490, #601 (Q1), #602 (Q2) (open)

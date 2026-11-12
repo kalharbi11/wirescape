@@ -14,6 +14,8 @@ export interface Preferences {
   autoProfile: boolean;
   /** Global musical-key shortcuts; explicit screen keys and MIDI are independent. */
   computerKeyboardPlays: boolean;
+  /** Preferred PortAudio host API in the audio settings driver picker. */
+  audioDriverType: string;
 }
 
 const KEY = 'wirescape.prefs.v1';
@@ -27,6 +29,7 @@ export const DEFAULT_PREFS: Preferences = {
   showPortLabels: true,
   autoProfile: true,
   computerKeyboardPlays: true,
+  audioDriverType: '',
 };
 
 export function loadPrefs(): Preferences {
