@@ -99,8 +99,7 @@ static void osc_future_keys() {
             (void)runtime_module_config("osc.in", Json::parse(bad));
         } catch (const std::exception &e) {
             rejected = true;
-            if (Json::parse(bad).contains("version"))
-                CHECK(std::string(e.what()) == "Unsupported OSC config version");
+            if (Json::parse(bad).contains("version")) CHECK(std::string(e.what()) == "Unsupported OSC config version");
         }
         CHECK(rejected); // Known keys still reject invalid values/types.
     }
