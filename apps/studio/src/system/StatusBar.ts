@@ -99,7 +99,7 @@ export class StatusBar {
     this.audio.textContent = AUDIO_TEXT[a.state];
     this.audio.dataset.state = a.state;
     this.audioDetail.textContent = a.state === 'running' || a.state === 'reconnecting'
-      ? `${a.deviceName} · ${(a.sampleRate / 1000).toFixed(1)} kHz · ${a.bufferFrames} frames · ${a.state === 'running' ? a.latencyMs + ' ms est.' : 'latency not available'}`
+      ? `${a.deviceName} · ${(a.sampleRate / 1000).toFixed(1)} kHz · ${a.bufferFrames} frames · ${a.state === 'running' ? a.latencyMs.toFixed(1) + ' ms est.' : 'latency not available'}`
       : 'no output';
     const cpuAvailable = a.state === 'running' && Number.isFinite(a.cpuPercent) && a.cpuPercent >= 0;
     this.cpu.textContent = cpuAvailable ? `CPU ${a.cpuPercent.toFixed(0)}%` : 'CPU not available';
