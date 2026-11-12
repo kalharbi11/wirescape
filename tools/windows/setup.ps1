@@ -332,7 +332,7 @@ try {
             }
         }
         $existingAfter = [IO.File]::ReadAllBytes($existingMarker)
-        if (-not [Linq.Enumerable]::SequenceEqual([byte[]]$existingBefore, [byte[]]$existingAfter)) {
+        if ([Convert]::ToBase64String($existingBefore) -ne [Convert]::ToBase64String($existingAfter)) {
             throw 'Launcher smoke changed the existing profile sentinel.'
         }
         Write-Host "Isolated launcher profile: $profileDir (existing profile preserved)."
