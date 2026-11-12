@@ -269,16 +269,22 @@ def watch_merges(token, minutes, sleep=time.sleep, clock=time.monotonic):
     bounded by `minutes`, and as soon as one has merged it verifies main (main_verify.yml reads
     main's live head and is idempotent per SHA). It always verifies main once before returning."""
     deadline = clock() + minutes * 60
+    watched, first = set(), True
     while True:
-        armed = [pr['number'] for pr in _all('pulls?state=open', token) if pr.get('auto_merge')]
+        armed = {pr['number'] for pr in _all('pulls?state=open', token) if pr.get('auto_merge')}
         merged_now = False
-        for n in list(armed):
+        # A merged PR leaves the open list, so check the ones watched last pass that are gone
+        # (gpt-builder1 pre-review: with a second PR still armed it was never seen merging).
+        for n in sorted(watched - armed):
             if _api(f'pulls/{n}', token).get('merged'):
                 merged_now = True
-                armed.remove(n)
                 print(f'board.py: #{n} merged; verifying main')
-        if merged_now or not armed or clock() >= deadline:
+        watched = armed
+        # The first pass also verifies: a merge that landed before this watcher started is
+        # never in `watched`. main_verify is idempotent per SHA, so a repeat costs one read.
+        if first or merged_now or not armed or clock() >= deadline:
             _verify_main(token, None)
+        first = False
         if not armed or clock() >= deadline:
             return 0
         sleep(20)
