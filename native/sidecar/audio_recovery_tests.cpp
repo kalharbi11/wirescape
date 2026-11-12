@@ -592,8 +592,9 @@ int main() {
             check(audio(s)["state"] == "running" && !audio(s).contains("error"),
                   "successful ASIO recovery clears the preceding failure text");
         }
+        fake::refuse = true;
         for (const auto &diagnostic :
-             {std::string(199, 'x') + "\\xc3\\xa9", std::string("host ") + "\\xff\\xc0" + " refusal"}) {
+             {std::string(199, 'x') + "\xc3\xa9", std::string("host ") + "\xff\xc0" + " refusal"}) {
             fake::open_error = diagnostic;
             options.settings = (root / "asio-invalid-utf8-status.json").string();
             Session s(options);
@@ -602,6 +603,8 @@ int main() {
             const auto error = status["status"]["audio"]["error"].get<std::string>();
             check(error.size() <= 200 && Json::parse(status.dump())["status"]["audio"]["error"] == error,
                   "malformed/split host failure must serialize as bounded status.audio.error");
+            check(error.find('\\xff') == std::string::npos && error.find('\\xc0') == std::string::npos,
+                  "invalid host bytes must not survive in status.audio.error");
             fake::refuse = false;
             s.poll(base + 100ms);
             check(audio(s)["state"] == "running" && !audio(s).contains("error"),
