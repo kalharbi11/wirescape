@@ -18,6 +18,17 @@ Stale `zero` sets a timed-out target to0; `hold` retains it. Timeout0 disables e
 Default rows match `/pico1/knob/1`…`8`. Unknown kinds, bad ranges and invalid patterns
 fail preparation. Raw messages are forwarded as valid OSC wire packets.
 
+Per-row `enabled` (#612) is an optional boolean. Absent means `true`, so older
+patches keep listening; writers emit it only as `false`. A disabled row ignores
+every message: a CV row holds `output_min` and a gate/trigger row stays low. Its
+pattern and ranges are kept for re-enabling. A message that matches only
+disabled rows is dropped: the sidecar's OSC worker never delivers it, and the
+module would not forward it on `messages` either. So it produces no event and no
+Monitor entry. Messages that match an enabled row, or no row at all, still pass
+on `messages`, so a Monitor can still be used to discover addresses. If all eight
+rows are disabled ("Clear"), the sidecar opens no UDP socket for the module,
+`messages` forwards nothing, and the route state is `disabled`.
+
 Wildcard numeric final path segments become poly channels, densely sorted by index,
 up to the prepared channel limit(16). Nonnumeric suffixes on a wildcard index row are
 ignored; other address globs may still select a mono row. Newly observed indices are
