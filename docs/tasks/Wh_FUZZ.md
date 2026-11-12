@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # W-h: OSC/UDP codec fuzzing (after J5 merges) (#94)
 
-**Wait for:** J5 (#72) merged. **Do:** libFuzzer targets (clang `-fsanitize=fuzzer,address,undefined`) for the OSC packet parser and address matcher, seeded from J5's corpus. CI: 60 s per target on PRs touching `native/io/osc/` (non-required). Pi nightly: 30 min per target; crashes are minimized and added to the corpus test, and an issue is opened.
+**Start now** (Keel, 2026-11-12): the codec and matcher (`native/io/osc/codec.h`, `pattern.h`) have been on `main` since slice A; the fuzzers don't wait for #72 to close. A new CI job under `.github/workflows/` needs Keel's approval (CI policy). **Do:** libFuzzer targets (clang `-fsanitize=fuzzer,address,undefined`) for the OSC packet parser and address matcher, seeded from J5's corpus. CI: 60 s per target on PRs touching `native/io/osc/` (non-required). Pi nightly: 30 min per target; crashes are minimized and added to the corpus test, and an issue is opened.
 
 ```acceptance
 tier: T1
