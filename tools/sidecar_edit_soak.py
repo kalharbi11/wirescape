@@ -234,9 +234,12 @@ class Sidecar:
         return '; '.join(problems)
 
 
-def run(binary, seconds, seed, timeout=5.0):
+def run(binary, seconds, seed, timeout=5.0, *, max_cycles=None):
+    """Soak for `seconds`; with `max_cycles`, run exactly that many cycles instead (clock-independent)."""
     if not math.isfinite(seconds) or not 0 < seconds <= 3600:
         raise ValueError('seconds must be finite and in (0, 3600]')
+    if max_cycles is not None and (isinstance(max_cycles, bool) or not isinstance(max_cycles, int) or not 1 <= max_cycles <= 1000):
+        raise ValueError('max_cycles must be an integer in [1, 1000]')
     if not 0 <= seed <= 4294967295:
         raise ValueError('seed must be in [0, 2^32-1]')
     rng = random.Random(seed)
@@ -252,7 +255,12 @@ def run(binary, seconds, seed, timeout=5.0):
                 'modules': [{'id': 7, 'module': 'essentials.output'}], 'connections': []})
             end = time.monotonic() + seconds
             cycles, next_id = 0, 8
-            while cycles == 0 or time.monotonic() < end:
+            def more():
+                if max_cycles is not None:
+                    return cycles < max_cycles
+                return cycles == 0 or time.monotonic() < end
+
+            while more():
                 module = next_id
                 next_id += 1  # never reuse a module ID within this document
                 edge = {'kind': 'signal', 'from': {'module': module, 'port': 'audio'},
@@ -269,7 +277,7 @@ def run(binary, seconds, seed, timeout=5.0):
                 sidecar.request('noteOff', note=60)
                 sidecar.request('panic')
                 cycles += 1
-                if time.monotonic() < end:
+                if max_cycles is None and time.monotonic() < end:
                     time.sleep(min(.1, end - time.monotonic()))
             sidecar.request('panic')
             result = {'status': 'passed', 'seed': seed, 'seconds': seconds,

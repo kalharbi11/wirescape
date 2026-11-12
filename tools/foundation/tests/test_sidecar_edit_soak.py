@@ -117,14 +117,16 @@ class EditSoakTests(unittest.TestCase):
 
     def test_success_and_seed_reproducibility(self):
         with self.engine('ok'):
-            # A 1 µs duration runs exactly one cycle, so the comparison is not wall-clock dependent
-            # (Windows timer granularity gave 1 vs 2 cycles at 20 ms).
-            a = soak.run(self.stub, 1e-6, 278)
-            b = soak.run(self.stub, 1e-6, 278)
+            # A fixed cycle count makes the comparison clock-independent: hosted Windows'
+            # coarse monotonic clock let both 20 ms and 1 us runs do 1-3 cycles.
+            # The frozen clock models that coarse clock; a fixed count must still stop.
+            with patch.object(soak.time, 'monotonic', return_value=1000.0):
+                a = soak.run(self.stub, .02, 278, max_cycles=2)
+            b = soak.run(self.stub, .02, 278, max_cycles=2)
             timed = soak.run(self.stub, .02, 278)
         self.assertEqual(a['status'], 'passed')
         self.assertEqual(a['commands'], b['commands'])
-        self.assertEqual((a['cycles'], b['cycles']), (1, 1))
+        self.assertEqual((a['cycles'], b['cycles']), (2, 2))
         self.assertEqual(timed['status'], 'passed')
         self.assertGreaterEqual(timed['cycles'], 1)
         self.assertEqual(a['steps'], 2 + 9 * a['cycles'])
@@ -295,6 +297,9 @@ class EditSoakTests(unittest.TestCase):
                 soak.run(self.stub, seconds, 278)
         with self.assertRaises(ValueError):
             soak.run(self.stub, 1, -1)
+        for bad in (0, 1001, 1.5, True):
+            with self.subTest(max_cycles=bad), self.assertRaises(ValueError):
+                soak.run(self.stub, 1, 278, max_cycles=bad)
 
 
 if __name__ == '__main__':
