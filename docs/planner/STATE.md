@@ -1,56 +1,58 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Planner state (the leads read this first)
+# Planner state
+**Updated:** 2026-11-12, Codex Lead, full senior run.
+Board #473 BODY is live; current owner order supersedes stale PLAN/main snapshots.
+Final-head acceptance and required checks govern; no stale/queued result passes.
 
-**Updated:** 2026-11-12, Codex Lead, owner priority update.
-Board #473 is the live dependency-ordered queue. Preserve existing writers.
-Required checks and acceptance apply to the final head; queued/stale is not pass.
+## OSC first
+- C1 #618 and Monitor #620 merged; preserve both suites.
+- #612/#645 ab92f77: designated Codex T2 approval posted; ready for merge.
+  Guard, Linux, Windows, sanitizers, selected accept612, Static/Web/site success.
+  Keel spec approval 6818411925: #645 lands FIRST; no version bump needed here.
+- #657/#659 b62beb6: builder-chat-1 continues AFTER #645 lands, merging main.
+  Keel ruling 6818391090: JSON config.version absent/1 accepted, all else refused;
+  enabled known/validated, parser-owned unknown diagnostics, spec/README updates.
+  Budget 10 files/320 lines; one-function format-only commit separately excluded.
+  CI/Web succeeded; Static fails 428 header-format findings. Coda final T2 needed.
+- Combined closeout: save/load, presets/Clear, row outputs/Monitor, truthful status,
+  guide wiring. #94 waits for full J5; no duplicate OSC implementation.
 
-## 1. OSC first
-- C1 #603/#618 and C2 #604/#620 are merged; do not duplicate them.
-- Row enable #612/#645: worker source High resolved; remaining proof is
-  Monitor/mixed-bundle regression17bcf9f and main7fd9948 integration ab92f77
-  pushed; both Monitor and row suites retained. Actual accept612/CI pending.
-  Authorized850lines/22files; Codex Lead cross-family T2, Keel protected spec.
-- Unknown config keys #657/#659 is canonical; duplicate #660 closed unmerged,
-  branch/evidence preserved. Ignore unknowns, retain strict known-value checks.
-  b62beb6 removes duplicate known-row diagnostics via parser fall-through,
-  after Keel80034f3 formatting. Integrate known enabled from #645; actual
-  accept657/Windows/native+Web and Coda T2 pending. One adapter/task only.
-- Combined OSC closeout: status, presets/Clear, save/load, row outputs/Monitor,
-  patch-guide wiring; #94 follows full J5 acceptance.
+## Quad VCA/LPG
+- #601/#611 1a2c8bd: builder-chat-2; normal main integration and Q1 repairs.
+  Codex independent T1 source review: no High; exact CI/Web/Static still running.
+  Slots0..8, four-channel/eight-voice cost row and exception boundary present.
+  Authorized20files/900lines. No measured pass inferred from source review.
+- Q2 #602 only AFTER native Q1 merge; separate Studio/patch/docs/tests T1.
 
-## 2. Quad VCA/LPG
-- #601/#611 Q1 retains writer: permanent slots0..8 and regression,4ch×8voice
-  cost, exception boundary, changed-range formatting, conformance/catalogue.
-  Keel 20 files / 900 lines authorized; actual accept601/required and independent T1.
-- #602 Q2 starts only after Q1 merges: Studio card/two patches/docs/tests,
-  separate T1 with save/reload/accessibility and Playwright.
+## ASIO and setup
+- #627/#631 7920601: authorized GPT builder-chat-3 takeover; labels corrected.
+  CI/Web fail constructor mismatch at portaudio_service.cpp:279, not a flake.
+  Reconcile declaration/definition/fakes; preserve quiescent1..4096/one retry,
+  actual buffer reporting and attempted host error. Coda T2/Keel spec required.
+- #605/#608 3f8040d: Keel now accepts ONLY pinned1.13.0 Kitware suffix via
+  exact regex on #608. Builder-chat-2 applies positive/negative tests, x64-host
+  and global-Ninja recovery fixes; actual Windows CheckOnly/W1/launcher proof.
+  Broad toolchain ranges deferred; owner alone checks physical ASIO sound.
 
-## 3. ASIO and its setup
-- #627/#631: preferred1..4096, quiescent prepare, one retry, actual size;
-  no callback resize/persistence; preserve attempted host error through rollback.
-  Integrate main/task, fake positive/8192/retry-fail, Windows, Coda/spec review.
-- #605/#608: exact pinned Ninja suffix ruling from Keel, host-architecture/
-  global-pin recovery fixes and real Windows CheckOnly/W1/launcher smoke.
-  Broad version ranges deferred. Owner alone verifies physical ASIO sound.
+## Supporting decisions and handoffs
+- #640 9d415b5: Windows fake-gh test exit90 is real, not classified as flake.
+  Existing branch conflicts: integrate main and repair harness; Keel cost ruling.
+- #666 d7b754f: prior Codex Medium on skipping Windows foundation still open.
+  Prefer explicit UTF-8 IO/deterministic test clock; preserve assertions/coverage.
+- #668 b6032bd: CI-control mechanical pre-review done; Keel cross-family pending.
+- #607 bc8bed3: cache Medium fixed; T1 delta posted; CI/Web running.
+  Keel connected-only Random history scope ruling still needed.
+- #619 3a4608c: CI/Web success, Static red; retain existing Groove branch,
+  frozen unpatched stream and exact note-off evidence obligations.
+- #648 56918a6: Coda T2 phase-order review pending; CI success, Static red;
+  source-matched private Pi/Windows evidence remains mandatory.
+- #629 parent stays open after merged subsets; visual parity follows #607.
+- #663/#665 conflict with main. Compass integrates PLAN priorities + D20 and
+  discoverable #664 task; these lanes finish v1.0, no speculative v1.1.
+- Main verification #636 remains unresolved; PR-only runs cannot prove main.
 
-## Supporting work and completed review
-- Qt analyzer #653/#654 MERGED; verify current-head effect, no deletion needed.
-- #617 b06e1bb MERGED after final Codex review5868834370 and Keel disposition;
-  no remaining Codex review or CI-policy approval request on that PR.
-- #6409d415b5 Windows Git-Bash/LF/fake-gh harness: four local cases pass;
-  hosted Windows exit90 persists; no flake/green assumed. Keel review needed.
-- #647 MERGED as7fd9948; bounded Web macro refusal/rollback fix complete.
-- #666 d7b754f: Codex Medium on dropping Windows foundation coverage;
-  prefer explicit UTF-8 IO and deterministic test clock, keep assertions.
-- #665 needs discoverable #664 task; Compass D20 says these finish v1.0.
-- Lead automation aligned to current owner hierarchy; schedule unchanged.
-- Existing Groove #619/#626, Studio #607, D5 #648 retain writers, below OSC
-  for unrelated review/lead capacity. No #526/#528 changes in this lead session.
-
-## 4. Broad Qt retirement deferred
-- #482 R3a → #468 R3b/archive → #481/#469 R4; #470 R6 is Keel-led.
-  Resume only after OSC/VCA/ASIO; preserve drafts, frozen tests and tag gates.
-  A demonstrated direct Qt blocker gets only the smallest targeted repair.
-- #271/#274 hardware, #296 actual3600s, #581/#593 release remain separate.
-- No new feature starts, weakened checks, direct main/force push or devices/SSH.
+## Deferred and permanent
+- #482 R3a → #468 R3b/archive → #481/#469 R4 deferred behind OSC/VCA/ASIO;
+  #470 Keel-led. Preserve replacement tests/tags/drafts; targeted blockers only.
+- #271/#274 hardware, #296 actual3600s and #581/#593 release are separate.
+- No new features, weakened checks, main/force push, devices or SSH.
