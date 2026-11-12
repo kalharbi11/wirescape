@@ -110,5 +110,15 @@ class BoardTests(unittest.TestCase):
         self.assertFalse(board.should_close({'state': 'open'}, [note], 10))  # reopened after our close
         self.assertTrue(board.should_close({'state': 'open'}, [note], 11))
 
+    def test_stale_status_lists_status_labels_on_closed_items_only(self):
+        items = [
+            dict(issue(1, 'status/in-progress', 'agent/keel', 'tier/T1'), state='closed'),
+            dict(issue(2, 'status/review'), state='open'),  # live work keeps its label
+            dict(issue(3, 'status/ready-to-merge', 'status/blocked'), state='closed', pull_request={}),
+            dict(issue(4, 'tier/T0'), state='closed'),
+        ]
+        self.assertEqual(board.stale_status(items),
+                         [(1, 'status/in-progress'), (3, 'status/ready-to-merge'), (3, 'status/blocked')])
+
 if __name__ == '__main__':
     unittest.main()

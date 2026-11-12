@@ -28,6 +28,48 @@ def classify_line(command):
 # These are skipped and visibly NOT verified, never reported as a task pass.
 LEGACY_EXCEPTIONS = {45: "user J9 session", 64: "deferred laptop measurement"}
 
+# Generated or planning files left out of the size budget (issue #686). Entries
+# ending in "/" match a whole directory. Binary detection still covers them.
+SIZE_EXCLUDED = (
+    "apps/studio/public/wirescape_modules.json",
+    "apps/studio/public/catalogue-presentation.json",
+    "docs/tasks/",
+    "docs/planner/STATE.md",
+)
+
+
+def size_excluded(path):
+    return any(path.startswith(entry) if entry.endswith("/") else path == entry
+               for entry in SIZE_EXCLUDED)
+
+
+def strip_comment(line):
+    """Drop a trailing ' # note' outside shell quotes; preserve literal hashes."""
+    quote = None
+    escaped = False
+    for index, char in enumerate(line):
+        if escaped:
+            escaped = False
+            continue
+        # POSIX-style single quotes treat backslashes literally.
+        if quote == "'":
+            if char == "'":
+                quote = None
+            continue
+        # Unquoted and double-quoted backslashes can escape a quote/hash.
+        if char == "\\":
+            escaped = True
+            continue
+        if quote == '"':
+            if char == '"':
+                quote = None
+            continue
+        if char == "'" or char == '"':
+            quote = char
+        elif (char == "#" and index and line[index - 1] in " \t"
+              and (index + 1 == len(line) or line[index + 1] in " \t")):
+            return line[:index].rstrip()
+    return line
 
 def parse(text):
     blocks = re.findall(r"(?ms)^```acceptance[^\S\n]*\n(.*?)^```[^\S\n]*$", text)
@@ -40,8 +82,11 @@ def parse(text):
         if not line or line.startswith("#"):
             continue
         if line.startswith("- ") and in_commands:
-            commands.append(line[2:].strip())
+            command = line[2:].strip()
+            # External lines (pi-run: etc.) reach their runner verbatim.
+            commands.append(strip_comment(command) if classify_line(command) == "run" else command)
             continue
+        line = strip_comment(line)
         match = re.fullmatch(r"(tier|budget|size|must_pass|stops):\s*(.*)", line)
         if not match:
             raise ValueError("unsupported acceptance syntax: " + line)
@@ -165,9 +210,17 @@ def size_check(root, spec, base="origin/main"):
                                    revision + "...HEAD"], cwd=root)
     entries = [entry.split(b"\t", 2) for entry in raw.split(b"\0") if entry]
     binary = any(a == b"-" or d == b"-" for a, d, _ in entries)
-    lines = sum(int(a) + int(d) for a, d, _ in entries if a != b"-" and d != b"-")
-    return {"status": "passed" if not binary and lines <= line_limit and len(entries) <= file_limit else "failed",
-            "changed_lines": lines, "files": len(entries), "binary_changes": binary,
+    counted, excluded = [], []
+    for a, d, path in entries:
+        name = path.decode("utf-8", "replace")
+        changed = int(a) + int(d) if a != b"-" and d != b"-" else 0
+        if size_excluded(name):
+            excluded.append({"path": name, "lines": changed})
+        else:
+            counted.append(changed)
+    lines = sum(counted)
+    return {"status": "passed" if not binary and lines <= line_limit and len(counted) <= file_limit else "failed",
+            "changed_lines": lines, "files": len(counted), "binary_changes": binary, "excluded": excluded,
             "line_limit": line_limit, "file_limit": file_limit, "base": base, "base_commit": revision}
 
 

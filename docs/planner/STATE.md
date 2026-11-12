@@ -1,58 +1,55 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state
-**Updated:** 2026-11-12, Codex Lead (Eastern time). Board #473 BODY is live.
-Named agents retain their branches; edit Current state in place and preserve task scope.
-Only completed exact-head acceptance/checks count; queued/skipped/stale is not proof.
-## Priority and authority
-- Owner order: OSC → Quad VCA/LPG → ASIO, then broad Qt retirement.
-- v1.0.0 includes #597 fixes, OSC, Quad, ASIO and #599; #593 candidate versions,
-  owner #581 tests the merged candidate SHA, then that exact SHA is tagged.
-- T1 needs another session; T2 the other family. Keel retains ABI/spec/CI policy.
-- Keep existing device-off/localhost and protected-path gates; no invented metrics.
-## OSC closeout
-- #645 row enable and #659 compatibility/version gate are MERGED.
-  #659 source2fdd993 landed ase82868a with Claude review and exact-head green.
-- #672 gpt-builder1: final closeout#684 sourceb843bdd is in review/CI.
-  Combine edited/disabled/unknown/version save-reload, real loopback outputs/
-  Monitor, truthful status, CONTROLLERS.md≤2KB and guide link. Then accept672,
-  required checks and independent T1; close parent#72 only after actual merge.
-- #94/#674 gpt-builder2 sourcec76f189: bounded named Clang18 setup fixed
-  runner provisioning; hosted accept94 built both targets, decoded seeds,
-  ran60s/target and OSC CTests, all passed(run),99/250lines5/6files.
-  Guard/Linux/sanitizers/Static green; final independent T1. No workflow.
-- #676 claude-builder1 follows#674: Keel's approved non-required fuzz CI/
-  Pi nightly packet, with Codex T2 and Keel final CI-policy disposition.
-
-## Quad VCA/LPG and ASIO
-- Native Q1#611 merged62fa9ec; setup#608 merged3a3bd34.
-- Q2#675 source57b48dc MERGED0cc86f76 after independent Codex T1 and all
-  required/applicable gates plus actual selectedaccept602 completed. Parent
-  #490 and child#602 are closed. Both production library renders pass.
-- #627/#631 owner gpt-builder2: Keel authorized600lines/10files and unchanged
-  spec. Both original Codex Highs source-fixed: producer join/rebind before
-  graph replacement; valid UTF-8-safe bounded diagnostics/status/refusals.
-- Codex narrow9576c82 fixed strict task-size syntax and enabled the existing
-  paced fake callback for live OSC loadGraph; local task parser passes.
-  New b71a16e fixes codec fixture capacity256→1024; selectedaccept627 native
-  build/test, Windows/Linux/sanitizers/Web pass. Static failed only format.
-  Codex Claude-retry delta posted; Claude must review GPT fixes/test repair.
-  Only owner checks physical ASIO sound; close#610 after#631 actually merges.
-
-## Supporting work and decisions
-- #619/#614 source014b14e MERGED91ffa3b: actual accept614 build/test/Studio
-  passed(run),562/600lines10/10files, required Windows/sanitizers green.
-  Frozen byte/event trace,8/12sample note-offs and edge precedence checked.
-- #648/#487 now97f9e63: format-only changes and normal main integration;
-  source-matched private device-off Pi run still required, then Claude T2.
-- #6791974969: green CI but reviewer High remains: Guard completion can miss
-  a later auto-merge when cron is dead. Keel owns durable wakeup/race proof.
-- #681bbca518 MERGED6f8942a through Keel board fast path. Senior Medium on
-  raw closing regex executing Markdown examples remains for Keel disposition.
-- #636 helper watch: manual main_verify43215072597→CI43215097749 green on
- 14d0db1; by2026-11-13 noonET link schedule or report it never fired.
-- #629 claude-builder1 audits real WASM/FakeEngine parity after urgent reviews.
-## Permanent boundaries
-- #482→#468/archive→#481/#469 remains deferred; #661 preserves replacement gates.
-- #271 hardware, #274 display, #296 actual3600s, #581/#593 release are distinct.
-- No weakened tests, main/force push, devices, LAN or SSH.
+**Updated:** 2026-11-12, Codex Lead (America/New_York, Eastern time).
+Board#473 BODY is live; retain named claims. Only completed source-matched proof counts.
+## Owner priorities: software complete
+- **OSC#684 source4ad70a5 MERGED82bab6ca** after Codex independent T1.
+  Prior invalid native fixture fixed with required modulemetadata; no assertion removed.
+  Actualaccept672 nativeOSC/fullStudio passed(run),148/400lines5/8files.
+  Exact Windows111/111+UI, Linux/sanitizers/guard/Static/Web all green.
+  #672 and parent#72 closed; A–D/#645/#659/controllerguide integrated.
+- **Quad#611/#675 merged62fa9ec/0cc86f76**; #490/#602 closed after
+  native/Studio acceptance, required gates and production patch renders.
+- **ASIO#631 source28b25b7 mergedf0f14bda** with actualaccept627 build/test,
+  543/600lines8/10files, all required/Static/Web and cross-family/spec approvals.
+  #627/#610 closed. Software done; realASIO sound/clicks remain owner-only.
+- Groove#619 merged91ffa3bd; setup/visual#605/#608/#607 complete.
+- OSCfuzz#674 merged76b8a416: Clang18/full60s per target, OSC CTests and
+  exact required/Static pass. Independent CI/Pi-nightly#676 does not block#72.
+## Release next
+- Keel#593 candidate software prerequisites are met. Resolve existing
+  listed≥9files versus≤8files/60lines cap before preparing version1.0.0.
+- Candidate versions/goldens/notes → normalT2 and exactrequiredCI → merge.
+  Owner#581 then tests that exact mergedcandidateSHA; tag exactly thatSHA,
+  even if main moves. No candidate/tag/released status or hardware pass yet.
+- #597 owner test covers basics-04, scene-07 afterpanic and Echo knobs onASIO;
+  record driver/rate/buffer and actualerror/overrun evidence on failures.
+## Continuing named work
+- gpt-builder2 #487/#648 now35f91ff includes main/#691 analyzer prerequisite.
+  Fresh guard/Linux/sanitizers/actualaccept487 pass; Windows/Static incomplete
+  at inspection, no source-matched Pi status. Completed device-off protocol/
+  recovery proof then final Claude T2 approval required; no duplicate daemon.
+- #296 gpt-builder2 afterD5: pending runner integration/review and genuine3600s
+  evidence; public handoff omits private identifiers. Missing proof staysblocked.
+- **#686/#690 source857f69b MERGEDd6c7a148**; escaped-quote parser Medium
+  fixed with regressions, actualaccept686103/200lines2/3files and exact gates green.
+  Codex independent T1 re-review complete. Current writer gpt-builder4 retained;
+  Compass registers roster/name drift, never duplicates a fresh claim.
+- claude-builder2 #687/#692 a84bf37: same-count wrongID Medium still open;
+  compare actual/generated IDsets exactly. Shared fixture work waits#648.
+- gpt-builder3 #685/#6932a45107: High inert formatpatch plus stale contract
+  test confirmed by actual Linux/Windows/accept685 failures; guard label-only.
+  Repair end-to-end delivery, then Keel protected/Claude T2 and exact checks.
+- claude-builder1 #676: non-required fuzz workflow per Keel6823484751;
+  Codex T2 then Keel CI-policy approval; no Pi-nightly pass claimed.
+## Lead/CI handoffs
+- Keel#696: Board closedPR-label DELETE403 aborts verification;26stale
+  statuses cleared as mitigation. Durable scoped permission/ordering fix pending.
+- Last verified mainbf444ad7 required checks pass; new mergedmain verification
+  is separate. Keel#679 durable postmerge-wakeup High remains; no blind approval.
+- Compass (owner scope): PLAN Now = Qt removal + CI speed #685/#687 + claimed open tasks;
+  all else parked until the owner's next plan. R3b need not wait for the #581 report.
+- Broad Qt#661 software-priority gate is cleared; Keel sequences existing
+  replacement/archive/protected packets. No test deletion without replacements.
+- No devices, LAN, SSH, force/direct-main pushes or weakened tests.
 Signed: Codex Lead, 2026-11-12
