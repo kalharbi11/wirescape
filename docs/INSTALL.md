@@ -58,7 +58,13 @@ node --version                  # must be v22.*
   from Electron's build tooling; ignore them and **don't** run
   `npm audit fix --force` (it changes pinned versions).
 
-The setup script checks every tool and stops with a message if one is missing.
+The setup script prints a **Tool / Found / Required / OK** table for all
+prerequisites, then reports every missing or incompatible tool together. If
+`cl.exe` is missing but Visual Studio C++ tools are installed, setup attempts
+an x64 developer-shell import in its own process. It also prefers pinned CMake 4.2.3 from Python 3.12's user or global
+Scripts directory, and checks the pinned CMake/Ninja versions before reporting
+a mismatch. Toolchain version ranges remain unchanged pending CI evidence. Neither step changes your machine-wide PATH or installs software.
+An elevated shell produces a warning; use a normal user shell when possible.
 
 ### 2. Get a clean checkout of the version
 
@@ -93,8 +99,11 @@ The script:
 - builds Studio and the desktop app;
 - opens the real app once with audio off, as a smoke test.
 
-The last line it prints is
-`status=windows-device-off-smoke-passed` in `build_reports\windows-setup\summary.txt`.
+The final status is `status=windows-device-off-smoke-passed` in
+`build_reports\windows-setup\summary.txt`. After the isolated Electron test,
+setup also launches the actual `Wirescape.cmd --null-audio` briefly and
+terminates that smoke-test process tree. It does **not** open audio or MIDI
+devices. The script prints the exact launcher path and summary path when done.
 If you see `W1 failed: …`, the message and `build_reports\windows-setup\`
 say which step failed.
 
@@ -163,7 +172,6 @@ folder's `tools\windows\Wirescape.cmd`.
 | `Node.js 22 LTS x64 required.` | Install Node 22 LTS x64. Node 24/26 are not supported on Windows yet. |
 | `Python 3.12 x64 with py launcher required.` | Install Python 3.12 x64 and tick "py launcher". |
 | `Stale/Qt-enabled CMake cache.` | You reused an old folder. Do step 2 again in a new folder. |
-| `Source worktree is dirty` | You changed files in the checkout. Use a fresh folder. |
-| No sound | Check the output device and rate in Settings, close any DAW that holds the device, try 48 kHz / 256. |
 | `Source worktree is dirty` | Setup builds only an exact commit. Move stray files (logs) out of the folder; for edited repo files, `git stash` them. To try a local hotfix, commit it locally and pass that commit: `git commit -am "local fix"`, then `$Ref = (git rev-parse HEAD).Trim()`. Report the fix so it lands on `main`. |
+| No sound | Check the output device and rate in Settings, close any DAW that holds the device, try 48 kHz / 256. |
 | Crackles | Try an `ASIO` device (FlexASIO or your interface driver), then a 512 buffer; copy any `overrun` lines from the terminal into your report. |
