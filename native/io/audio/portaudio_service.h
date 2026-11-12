@@ -19,7 +19,7 @@ namespace wirescape::audio {
 inline std::string bounded_audio_error(std::string_view input) {
     constexpr size_t cap = 200;
     std::string result;
-    result.reserve(std::min(cap, input.size()));
+    result.reserve((std::min)(cap, input.size()));
     for (size_t i = 0; i < input.size() && result.size() < cap;) {
         const auto lead = static_cast<unsigned char>(input[i]);
         if (lead < 0x80u) {
