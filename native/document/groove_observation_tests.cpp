@@ -52,7 +52,10 @@ struct Rig {
             input_rows[i] = &input_values[i];
             inputs[i] = {sizeof(ws2_signal), &input_rows[i], 1, WS2_CONSTANT};
         }
-        raw.frames = 1; raw.input_count = 3; raw.output_count = 18; raw.param_count = 10;
+        raw.frames = 1;
+        raw.input_count = 3;
+        raw.output_count = 18;
+        raw.param_count = 10;
         raw.inputs = inputs.data();
         raw.outputs = outputs.data(); raw.params = params.data(); raw.event_outputs = events.data();
         auto &track = sequencer.pattern.tracks[0];
@@ -449,8 +452,7 @@ static void unpatched_input_equivalence() {
 static void external_clock_contract() {
     const char *names[]{"clock", "run", "reset"};
     CHECK(groove::Sequencer::inputs.size() == 3);
-    for (uint32_t i = 0; i < 3; ++i)
-        CHECK(std::strcmp(names[i], groove::Sequencer::inputs[i].id) == 0);
+    for (uint32_t i = 0; i < 3; ++i) CHECK(std::strcmp(names[i], groove::Sequencer::inputs[i].id) == 0);
 
     // The first pulse uses the authored BPM. The second supplies a real period.
     Rig clocked;
@@ -485,7 +487,9 @@ static void external_clock_contract() {
     gate.sequencer.pattern.tracks[0].steps[0].velocity = 1;
     gate.sequencer.pattern.tracks[0].steps[0].gate_q = 1;
     gate.inputs[0].flags |= WS2_CONNECTED;
-    gate.render(); gate.controls[0] = 1; gate.render();
+    gate.render();
+    gate.controls[0] = 1;
+    gate.render();
     CHECK(gate.ons == 1 && gate.offs == 0);
     for (uint32_t i = 0; i < 6; ++i) gate.render();
     CHECK(gate.offs == 1 && gate.values[1] == 0);
