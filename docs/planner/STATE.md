@@ -34,7 +34,6 @@ Final-head acceptance and required checks govern; no stale/queued result passes.
   exact regex on #608. Builder-chat-2 applies positive/negative tests, x64-host
   and global-Ninja recovery fixes; actual Windows CheckOnly/W1/launcher proof.
   Broad toolchain ranges deferred; owner alone checks physical ASIO sound.
-
 ## Supporting decisions and handoffs
 - #640 9d415b5: Windows fake-gh test exit90 is real, not classified as flake.
   Existing branch conflicts: integrate main and repair harness; Keel cost ruling.
@@ -53,7 +52,6 @@ Final-head acceptance and required checks govern; no stale/queued result passes.
 - #663/#665 conflict with main. Compass integrates PLAN priorities + D20 and
   discoverable #664 task; these lanes finish v1.0, no speculative v1.1.
 - Main push CI last4539713 (42992470721), current main5de0a92 unverified.
-
 ## Deferred and permanent
 - #482 R3a → #468 R3b/archive → #481/#469 R4 deferred behind OSC/VCA/ASIO;
   #470 Keel-led. Preserve replacement tests/tags/drafts; targeted blockers only.
