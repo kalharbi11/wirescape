@@ -88,7 +88,10 @@ def signed_approval(comments, owner, sha7):
             if line.casefold() != wanted:
                 continue
             for following in lines[index + 1:]:
-                signature = re.fullmatch(r'Signed:[ \t]+(.+),[ \t]+\d{4}-\d{2}-\d{2}[ \t]*',
+                # Keel ruling 2026-11-12: tolerate one trailing time-zone word and/or a period
+                # (e.g. "2026-11-12 ET." from older prompts); any other trailing text still fails.
+                signature = re.fullmatch(r'Signed:[ \t]+(.+?),[ \t]+\d{4}-\d{2}-\d{2}'
+                                         r'(?:[ \t]+[A-Za-z][A-Za-z/_]{0,31})?[ \t]*\.?[ \t]*',
                                          following, flags=re.IGNORECASE)
                 if signature and signature.group(1).strip():
                     return signature.group(1).strip()

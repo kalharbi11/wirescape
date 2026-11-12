@@ -164,6 +164,17 @@ class NeutralApprovalTests(unittest.TestCase):
                 self.assertTrue(ok)
                 self.assertIn('Signed: ChatGPT (GPT-6)', why)
 
+    def test_signature_tolerates_trailing_period_or_time_zone_but_not_notes(self):
+        accepted = ('Signed: Codex Lead (GPT-6), 2026-11-12.', 'Signed: gpt-builder2, 2026-11-12',
+                    'Signed: Keel, 2026-11-12 ET', 'Signed: gpt-reviewer, 2026-11-12 America/New_York.')
+        for line in accepted:
+            with self.subTest(line=line):
+                self.assertTrue(self.check(pr('tier/T1'), comments=[say(f'Approved for merge abc1234\n{line}')])[0])
+        for line in ('Signed: Keel, 2026-11-12 after the CI rerun', 'Signed: Keel, 2026-11-12..',
+                     'Signed: , 2026-11-12', 'Signed: Keel, 2026-11'):
+            with self.subTest(line=line):
+                self.assertFalse(self.check(pr('tier/T1'), comments=[say(f'Approved for merge abc1234\n{line}')])[0])
+
     def test_signed_line_must_be_visible_after_approval_in_same_owner_comment(self):
         good = 'Approved for merge abc1234\n\nSigned: Codex Lead (GPT-6), 2026-11-08'
         self.assertEqual(gate.signed_approval([say(good)], 'owner', 'abc1234'), 'Codex Lead (GPT-6)')

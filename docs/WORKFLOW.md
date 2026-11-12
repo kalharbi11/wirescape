@@ -20,7 +20,7 @@
 Parallel work: sections of a phase marked parallel in `docs/PLAN.md` touch separate files by design. If two items need the same file, the second waits or coordinates in the issue.
 
 ## 3. Signing
-Every handoff, review and approval comment ends with `Signed: <agent + model>, <date>` (for example, `Signed: Codex (GPT-5.x), 2026-11-07`). Commits may carry a `Co-Authored-By` or similar trailer from the agent's own tooling. Signatures are for traceability, not permissions: every agent posts through the owner's account.
+Every handoff, review and approval comment ends with exactly `Signed: <name>, <YYYY-MM-DD>` (New York date; nothing after it), for example `Signed: gpt-builder2, 2026-11-12`. Names carry the family (`gpt-…`, `claude-…`), so no model goes in the signature. Commits may carry a `Co-Authored-By` or similar trailer from the agent's own tooling. Signatures are for traceability, not permissions: every agent posts through the owner's account.
 
 ## 4. Review and merge
 | Tier | Applies to | Needs, on the current head |
