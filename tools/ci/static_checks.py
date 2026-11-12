@@ -33,10 +33,10 @@ def cppcheck_model(root, source, dependencies):
     headers. For other TUs, product headers win over Qt dependencies.
     Unknown/unmapped owners default to native.
     """
+    relative = source.relative_to(root) if source.is_relative_to(root) else None
     if source.is_relative_to(root / "native/ui") or (
-            source.is_relative_to(root / "build")
-            and any(part.endswith("_autogen")
-                    for part in source.relative_to(root / "build").parts[:-1])):
+            relative is not None and relative.parts[0].startswith("build")
+            and any(part.endswith("_autogen") for part in relative.parts[:-1])):
         return "qt"
     paths = {source, *dependencies}
     product = ("native/modules2", "native/engine2", "native/sidecar")
