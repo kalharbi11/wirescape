@@ -449,17 +449,9 @@ export class FakeEngine implements EngineClient {
       }
     }
 
-    // Current value of every connected signal output (optional telemetry field).
+    // The optional outputs field reports only cabled signal sources, as the
+    // real Web engine does. No uncabled Random Source preview is fabricated.
     const outputs: Record<string, number> = {};
-    // Random Source has no phase tap. Report both measured fake outputs even
-    // when no cable is connected so its history pane can be inspected.
-    for (const n of this.nodes.values()) {
-      if (n.type !== 'example.random_source') continue;
-      const random = this.randomHold.get(n.id);
-      if (!random) continue;
-      outputs[`${n.id}:step`] = random.target;
-      outputs[`${n.id}:smooth`] = random.value;
-    }
     for (const c of this.conns) {
       if (c.kind === 'event') continue;
       const k = `${c.from.module}:${c.from.port}`;
