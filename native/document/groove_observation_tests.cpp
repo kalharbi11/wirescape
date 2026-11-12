@@ -435,7 +435,14 @@ static void unpatched_input_equivalence() {
         disconnected.input_values = {frame % 2 ? 1.f : -1.f, 1.f, -1.f};
         original.render_sample();
         disconnected.render_sample();
-        CHECK(std::memcmp(original.values.data(), disconnected.values.data(), sizeof(original.values)) == 0);
+        // Preserve byte-for-byte floating output equivalence without comparing float object
+        // representations through memcmp (which clang-tidy rejects).
+        for (size_t i = 0; i < original.values.size(); ++i) {
+            std::array<unsigned char, sizeof(float)> a{}, b{};
+            std::memcpy(a.data(), &original.values[i], sizeof(float));
+            std::memcpy(b.data(), &disconnected.values[i], sizeof(float));
+            CHECK(a == b);
+        }
         CHECK(original.event_count == disconnected.event_count);
         for (uint32_t i = 0; i < original.event_count; ++i) {
             const auto &a = original.log[i];
