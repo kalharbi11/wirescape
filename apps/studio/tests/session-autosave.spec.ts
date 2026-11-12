@@ -2,7 +2,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { STARTERS, DEFAULT_STARTER } from '../src/app/starters';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { boot, state } from './helpers';
 
 const KEY = 'wirescape.autosave.v2';
@@ -140,7 +139,7 @@ test('quota-exceeded writes cannot block patch selection or editing', async ({ p
 
 test('real Studio codec migrates v1 Six Essentials and preserves every field on v2 reload', async ({ page }) => {
   await boot(page);
-  const source = JSON.parse(readFileSync(resolve(__dirname, '../../../native/examples/Six_Essentials_Demo.json'), 'utf8'));
+  const source = JSON.parse(readFileSync(new URL('../../../native/examples/Six_Essentials_Demo.json', import.meta.url), 'utf8'));
   const migrated = await page.evaluate(patch => {
     const doc = window.__wirescapeTest.doc;
     doc.replace(patch);
