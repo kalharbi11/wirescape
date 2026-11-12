@@ -57,6 +57,13 @@ elif mode == 'overruns':
     bench = bench.replace('overruns=0', 'overruns=1')
 elif mode == 'faults':
     bench = bench.replace('faults=0', 'faults=2')
+elif mode in ('wake-only', 'render-overrun'):
+    bench = bench.replace('overruns=0', 'overruns=1')
+    if mode == 'wake-only':
+        bench = bench.replace('overrun_wake_count=0', 'overrun_wake_count=1')
+        bench = bench.replace('overrun_wake_max_us=0', 'overrun_wake_max_us=5795.14')
+    else:
+        bench = bench.replace('overrun_render_count=0', 'overrun_render_count=1')
 elif mode == 'bad-bench':
     bench = bench.replace(' p50=1 ', ' p50=garbage ')
 elif mode == 'nonfinite':
@@ -93,13 +100,16 @@ class EditSoakTests(unittest.TestCase):
 
     @contextlib.contextmanager
     def engine(self, mode):
+        modes = iter(mode) if isinstance(mode, tuple) else None
+        self.launches = 0
         def spawn(argv, **kwargs):
+            self.launches += 1
             # Windows can spell the same temp file with 8.3 or long names.
             self.assertTrue(os.path.samefile(argv[0], self.stub))
             self.assertEqual(argv[1:4], ['--null-audio', '--bench-summary', '--settings'])
             self.assertEqual(len(argv), 5)
             self.assertTrue(str(argv[4]).endswith('settings.json'))
-            kwargs['env'] = {**os.environ, 'SOAK_STUB_MODE': mode}
+            kwargs['env'] = {**os.environ, 'SOAK_STUB_MODE': next(modes) if modes else mode}
             self.process = REAL_POPEN([sys.executable, str(self.stub), *argv[1:]], **kwargs)
             return self.process
         with patch.object(soak.subprocess, 'Popen', side_effect=spawn):
@@ -140,6 +150,26 @@ class EditSoakTests(unittest.TestCase):
             soak.run(self.stub, .01, 42, timeout=timeout)
         self.assertIn('seed=42 step=', str(caught.exception))
         self.assertIn(fragment, str(caught.exception))
+
+    def test_hosted_windows_wake_retry_is_one_shot_and_strict(self):
+        cases = [(('wake-only', 'ok'), True, 0, 2),
+                 (('wake-only', 'wake-only'), True, 1, 2),
+                 (('wake-only', 'render-overrun'), True, 1, 2),
+                 (('render-overrun', 'ok'), True, 1, 1),
+                 (('faults', 'ok'), True, 1, 1),
+                 (('wake-only', 'ok'), False, 1, 1)]
+        for modes, hosted, expected, launches in cases:
+            with self.subTest(modes=modes, hosted=hosted), self.engine(modes):
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with patch.object(soak, 'hosted_windows', return_value=hosted):
+                    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                        status = soak.main(['--engine', str(self.stub), '--seconds', '.02'])
+                self.assertEqual(status, expected)
+                self.assertEqual(self.launches, launches)
+                self.assertEqual(json.loads(stdout.getvalue())['status'], 'passed' if not status else 'failed')
+                if hosted and modes[0] == 'wake-only':
+                    self.assertIn('wake-only attempt 1 failed', stderr.getvalue())
+                    self.assertEqual('attempt 2 passed' in stderr.getvalue(), status == 0)
 
     def test_refusal_fails(self):
         self.assert_failed('refusal', 'refused busy')
