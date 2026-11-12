@@ -57,13 +57,18 @@ static void osc_future_keys() {
         CHECK(wirescape::osc::configuration(bytes.data(), static_cast<uint32_t>(bytes.size()), decoded));
         CHECK(decoded.port == 9011 && decoded.rows[0].argument == 2 && decoded.rows[0].kind == 1);
         CHECK(std::strcmp(decoded.rows[0].pattern, "/voice") == 0);
+        if (source.at("rows")[0].contains("enabled")) CHECK(decoded.rows[0].enabled == 0);
     };
     assert_known_values(known);
     const auto all_known = Json::parse(
-        R"({"port":9011,"lan":false,"rows":[{"pattern":"/voice","kind":"gate","stale":"hold","argument":2,"input_min":0,"input_max":1,"output_min":0,"output_max":1,"smoothing_ms":5,"timeout_ms":100}]})");
+        R"({"port":9011,"lan":false,"rows":[{"pattern":"/voice","kind":"gate","stale":"hold","argument":2,"input_min":0,"input_max":1,"output_min":0,"output_max":1,"smoothing_ms":5,"timeout_ms":100,"enabled":false}]})");
     std::vector<std::string> known_diagnostics;
     assert_known_values(all_known, &known_diagnostics);
-    CHECK(known_diagnostics.empty());
+    CHECK(known_diagnostics.empty()); // 'enabled' is a validated known v1 field.
+    auto v1 = known;
+    v1["version"] = 1;
+    assert_known_values(v1, &known_diagnostics);
+    CHECK(known_diagnostics.empty()); // version is known and accepted at v1.
     const auto legacy_bytes = runtime_module_config("osc.in", all_known, 17);
     wirescape::osc::Configuration legacy;
     CHECK(wirescape::osc::configuration(legacy_bytes.data(), static_cast<uint32_t>(legacy_bytes.size()), legacy));
@@ -77,6 +82,11 @@ static void osc_future_keys() {
     CHECK(future["futureOption"].is_object() && future["rows"][0]["futureField"].is_array());
 
     const char *invalid[] = {
+        R"({"version":0})",
+        R"({"version":2})",
+        R"({"version":"1"})",
+        R"({"version":1.5})",
+        R"({"version":null})",
         R"({"port":"9011","futureOption":true})",
         R"({"rows":[{"pattern":42,"futureField":true}]})",
         R"({"rows":[{"argument":32,"futureField":true}]})",
@@ -87,8 +97,10 @@ static void osc_future_keys() {
         bool rejected = false;
         try {
             (void)runtime_module_config("osc.in", Json::parse(bad));
-        } catch (const std::exception &) {
+        } catch (const std::exception &e) {
             rejected = true;
+            if (Json::parse(bad).contains("version"))
+                CHECK(std::string(e.what()) == "Unsupported OSC config version");
         }
         CHECK(rejected); // Known keys still reject invalid values/types.
     }
