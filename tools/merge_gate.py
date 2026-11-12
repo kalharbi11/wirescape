@@ -100,7 +100,7 @@ def matching(files, rules):
 
 
 def decide(pr, files, comments, owner):
-    """Return (ok, reason). T1/T2 and protected PRs need owner approval."""
+    """Return (ok, reason). Only explicit, unprotected T0 Markdown PRs bypass approval."""
     labels = {label['name'] for label in pr.get('labels', [])}
     if pr.get('state') != 'open' or pr.get('draft'):
         return False, 'PR is closed or a draft'
@@ -112,9 +112,11 @@ def decide(pr, files, comments, owner):
         return False, 'status/blocked is set'
     sha7 = pr['head']['sha'][:7]
     protected = matching(files, PROTECTED_PATHS)
-    if not (protected or 'milestone-review' in labels or
-            'tier/T1' in labels or 'tier/T2' in labels):
-        return True, 'T0: ready label and required checks'
+    t0_markdown_only = ('tier/T0' in labels and
+                        not ({'tier/T1', 'tier/T2'} & labels) and
+                        bool(files) and all(path.endswith('.md') for path in files))
+    if t0_markdown_only and not protected and 'milestone-review' not in labels:
+        return True, 'T0: explicit tier/T0 Markdown-only PR; required checks still apply'
 
     signer = signed_approval(comments, owner, sha7)
     if signer:
@@ -128,7 +130,9 @@ def decide(pr, files, comments, owner):
 
     requirement = ', '.join(protected) if protected else (
         'milestone-review' if 'milestone-review' in labels else
-        'T2' if 'tier/T2' in labels else 'T1')
+        'T2' if 'tier/T2' in labels else
+        'T1' if 'tier/T1' in labels else
+        'explicit tier/T0 Markdown-only diff (all other PRs need signed approval)')
     return False, f'needs owner-authored "Approved for merge {sha7}" and Signed: line ({requirement})'
 
 
@@ -148,6 +152,7 @@ def main(argv=None):
     files = [f['filename'] for f in gh_json(f'{base}/pulls/{args.pr}/files?per_page=100')]
     comments = gh_json(f'{base}/issues/{args.pr}/comments?per_page=100')
     ok, reason = decide(pr, files, comments, args.repo.split('/')[0])
+    print(f"head: {pr['head']['sha']}")
     print(('ok: ' if ok else 'wait: ') + reason)
     return 0 if ok else 3
 
