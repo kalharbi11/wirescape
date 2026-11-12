@@ -27,6 +27,10 @@ struct AppEngine {
  // Single atomic command/ack; the render callback exclusively owns master_gain.
  // 0 unity, 1 fade-out, 2 full silent block completed, 3 fade-in requested, 4 begun.
  std::atomic<uint32_t> master_fade{0};
+ // Steady-clock timestamp of first fade-out render callback; 0 until observed.
+ std::atomic<uint64_t> master_fade_out_started_ns{0};
+ // Control-owned request time; published before the callback may observe phase 1.
+ std::atomic<uint64_t> master_fade_out_requested_ns{0};
  float master_gain = 1.0f, master_step = 1.0f;
  std::string error;
  explicit AppEngine(const ws_engine_config& c,const wirescape::engine2::Config* override=nullptr):legacy(ws_engine_create(&c),ws_engine_destroy),engine(override?*override:config(c)){
@@ -156,6 +160,16 @@ int app_engine_render_live(AppEngine *e, float *const *out, uint32_t channels, u
     if (r != WS2_OK) return WS_CAPACITY;
     float p = 0;
     const auto fade = e->master_fade.load(std::memory_order_acquire);
+    if (fade == 1 && callback_time_ns != 0 && callback_time_ns != UINT64_MAX) {
+        // The request precedes phase 1 (release/acquire), and gain changes after this load.
+        // max(entry, request) is a lower bound on actual fade start, so its gap
+        // measurement is conservative even when the request overlaps engine.render.
+        const auto requested_ns = e->master_fade_out_requested_ns.load(std::memory_order_acquire);
+        const auto first_fade_ns = std::max(callback_time_ns, requested_ns);
+        uint64_t unset = 0;
+        e->master_fade_out_started_ns.compare_exchange_strong(unset, first_fade_ns, std::memory_order_release,
+                                                              std::memory_order_relaxed);
+    }
     if (fade == 0) {
         // Unmodified unity path preserves the existing offline/sample results.
         for (uint32_t c = 0; c < channels; ++c) {
@@ -195,7 +209,17 @@ int app_engine_render_live(AppEngine *e, float *const *out, uint32_t channels, u
     e->blocks.fetch_add(1);
     return WS_OK;
 }
-void app_engine_begin_master_fade_out(AppEngine *e) noexcept { e->master_fade.store(1, std::memory_order_release); }
+void app_engine_begin_master_fade_out(AppEngine *e) noexcept {
+    e->master_fade_out_started_ns.store(0, std::memory_order_relaxed);
+    e->master_fade_out_requested_ns.store(app_engine_clock_ns(), std::memory_order_relaxed);
+    e->master_fade.store(1, std::memory_order_release);
+}
+uint64_t app_engine_master_fade_out_started_ns(const AppEngine *e) noexcept {
+    return e->master_fade_out_started_ns.load(std::memory_order_acquire);
+}
+uint64_t app_engine_master_fade_out_requested_ns(const AppEngine *e) noexcept {
+    return e->master_fade_out_requested_ns.load(std::memory_order_acquire);
+}
 bool app_engine_master_fade_silent(const AppEngine *e) noexcept {
     return e->master_fade.load(std::memory_order_acquire) == 2;
 }

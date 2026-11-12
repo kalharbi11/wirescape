@@ -439,6 +439,16 @@ with tempfile.TemporaryDirectory() as directory:
     closing = time.monotonic()
     slow.close()
     assert time.monotonic() - closing < 2.0, 'EOF teardown waited on block-paced work'
+    # D5 phase sweep: real device-off 512 ms render periods and repeated replacements.
+    # Deliberately vary the request phase; the unchanged gap budget must not reject
+    # a replacement merely because the first faded callback is late in its period.
+    phases = Engine(Path(directory) / 'd5-phases.json', '--rate', '8000', '--block', '4096')
+    for generation, offset in enumerate((0, 0.061, 0.137, 0.229, 0.313, 0.407, 0.491, 0.077), start=1):
+        if offset:
+            time.sleep(offset)  # vary the request phase, not a retry on refusal
+        result = phases.call('loadGraph', patch=minimal())
+        assert result['gen'] == str(generation), result
+    phases.close()
     for flags in [('--unknown',), ('--rate', '0'), ('--block', '4097'), ('--device',), ('--bench-summary',)]:
         result = subprocess.run([BINARY, *flags], input=b'', capture_output=True, timeout=10)
         assert result.returncode != 0 and not result.stdout
