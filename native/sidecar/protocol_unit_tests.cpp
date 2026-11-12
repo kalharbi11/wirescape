@@ -404,7 +404,9 @@ int run_tests() {
     int blocks = 0, nonzero_old = 0;
     allocation_watch::count.store(0);
     allocation_watch::enabled.store(true);
-    constexpr uint64_t first_fade_ns = 123456789000ULL;
+    // Normal order: the callback timestamp follows the request and wins the max().
+    const uint64_t first_fade_ns = app_engine_clock_ns() + 1000000000ULL;
+    check(first_fade_ns > app_engine_master_fade_out_requested_ns(faded.get()));
     while (!app_engine_master_fade_silent(faded.get()) && blocks < 8) {
         render(faded.get(), reference.get(), first_fade_ns + uint64_t(blocks) * 2666667ULL);
         ++blocks;
@@ -420,6 +422,21 @@ int run_tests() {
     check(blocks * 128 <= 480 + 256); // fade edge + a complete zero block
     check(allocation_watch::count.load() == 0);
     for (float sample : wet) check(sample == 0.0f);
+
+    // Forced callback/request overlap: render entered before control's fade request.
+    // Its entry timestamp is therefore older even if it applies the fade after render.
+    app_engine_begin_master_fade_out(reference.get());
+    const uint64_t requested_ns = app_engine_master_fade_out_requested_ns(reference.get());
+    check(requested_ns > 1 && app_engine_master_fade_out_started_ns(reference.get()) == 0);
+    allocation_watch::count.store(0);
+    allocation_watch::enabled.store(true);
+    const bool overlap_ok = app_engine_render_live(reference.get(), dry_rows, 1, 128, requested_ns - 1) == WS_OK;
+    allocation_watch::enabled.store(false);
+    check(overlap_ok && allocation_watch::count.load() == 0);
+    check(app_engine_master_fade_out_started_ns(reference.get()) == requested_ns);
+    // The once-only render publication must not move if another faded block arrives.
+    check(app_engine_render_live(reference.get(), dry_rows, 1, 128, requested_ns + 1000000) == WS_OK);
+    check(app_engine_master_fade_out_started_ns(reference.get()) == requested_ns);
 
     // No callback: zero timestamp, no synthetic fade-start proof, bounded watchdog.
     wirescape::audio::EngineOwner stalled(
