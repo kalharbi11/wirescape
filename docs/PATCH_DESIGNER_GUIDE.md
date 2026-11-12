@@ -316,7 +316,12 @@ browser deployment limits visible when sharing patches.
 
 **Normalled input:** leaving `in2`, `in3` or `in4` unplugged reuses the preceding channel's *input* (not its post-gate output), recursively. A single VCO plugged into `in1` can therefore feed four independently controlled gates. For a four-part tremolo: connect one VCO to `in1`, four slow LFOs or ADSRs to `cv1`…`cv4`, set all four modes to LPG for darker decays, and connect `mix` to `essentials.output`'s left input (and optionally right). Keep total gain under control: `mix` adds rather than averages.
 
-The native module and IDs are supplied by Q1 #601. A dedicated four-column Studio card and two example patches follow separately in Q2 #602; do not claim them available until Q2 merges.
+The native module and IDs shipped with Q1 #601. Q2 #602 adds a four-column Studio card (Level and VCA/LPG mode for each channel, one shared Response knob; `in1`…`in4`, `cv1`…`cv4` and five outputs on visible side rails) and two public starter patches, available only after **Q2 merges and the web/desktop build updates**:
+
+- **`quad-vca-01-lpg-plucks.json` — LPG Plucks:** `host.keyboard.pitch → essentials.vco.pitch`, VCO `audio → Quad VCA.in1`; keyboard `gate → essentials.adsr.gate → Quad VCA.cv1`. Set `mode1=1`, `response≈0.48`, route `out1 → essentials.output.audio`. Play short notes: the ADSR opens the LPG, whose cutoff darkens during decay. Change Response for tail length.
+- **`quad-vca-02-four-gate-mix.json` — Four-Gate Mix:** one free-running VCO `audio → in1`; leave `in2`…`in4` **unpatched**, so all four channels use that same source *before* gating. Four independent slow, positively offset LFO signals feed `cv1`…`cv4`; all `modeN=0`. Listen to `mix → essentials.output.audio`, then vary each Level and LFO rate. Levels are intentionally below 1 to manage the unnormalised sum.
+
+Both patches use native v2 module/port IDs, 48 kHz, and no hardware devices. These are design/routing examples, **not evidence of an owner audition or verified sound quality**. Older deployed builds without Q1/Q2 cannot load them.
 
 ## Designer procedure
 

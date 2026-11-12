@@ -1,0 +1,165 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Quad VCA · LPG Plucks",
+  "description": "Play the computer keyboard: it pitches a sine VCO and gates a short ADSR. The ADSR enters Quad VCA cv1 and opens the LPG on in1, adding vactrol-like darkening as each pluck fades. Adjust Level 1 for loudness and Response to lengthen the natural low-pass gate tail. Other Quad VCA inputs stay free for normalling experiments.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 6021,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "host.keyboard",
+      "version": 1,
+      "parameters": {
+        "voices": 4
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 220
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 0.003,
+        "decay": 0.2,
+        "sustain": 0.04,
+        "release": 0.16
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.quad_vca",
+      "version": 1,
+      "parameters": {
+        "level1": 0.6,
+        "mode1": 1,
+        "response": 0.48
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 2,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 3,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "audio"
+      },
+      "to": {
+        "module": 4,
+        "port": "in1"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 4,
+        "port": "cv1"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "out1"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "module": 5,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 5,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "2": [
+        960,
+        192
+      ],
+      "3": [
+        960,
+        950
+      ],
+      "4": [
+        1850,
+        192
+      ],
+      "5": [
+        2820,
+        192
+      ]
+    },
+    "labels": {
+      "1": "Playable keys",
+      "2": "Sine source",
+      "3": "Pluck envelope",
+      "4": "LPG channel 1",
+      "5": "Stereo out"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 0.7
+    }
+  }
+}
