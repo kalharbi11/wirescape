@@ -555,12 +555,19 @@ with tempfile.TemporaryDirectory() as osc_dir:
         # and reports state "disabled" (not an error); one enabled row keeps it listening.
         rows_off = minimal()
         rows_off['modules'].append(dict(id=9, module='osc.in', config=dict(
-            port=port, rows=[dict(pattern='/pico1/knob/%d' % (i + 1), enabled=False) for i in range(8)])))
+            version=2, port=port,
+            rows=[dict(pattern='/pico1/knob/%d' % (i + 1), enabled=False) for i in range(8)])))
         rows_off['modules'].append(dict(id=10, module='monitor'))
         rows_off['connections'] = [edge('event', 9, 'messages', 10, 'events')]
         cleared = Engine(Path(osc_dir) / 'cleared.json')
         assert 'telemetry.monitor' in cleared.hello['capabilities']
+        # Version rule: a restricting enabled:false without config version 2 is
+        # refused, so an engine that predates the key can never listen by accident.
+        unversioned = json.loads(json.dumps(rows_off))
+        del unversioned['modules'][1]['config']['version']
+        first_gen = cleared.call('loadGraph', False, patch=unversioned)['gen']
         cleared.call('loadGraph', patch=rows_off)
+        assert cleared.last_gen != first_gen
 
         def cleared_route(state):
             until = time.monotonic() + 8

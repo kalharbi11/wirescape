@@ -36,17 +36,31 @@ static void osc_row_enabled() {
     CHECK(wirescape::osc::configuration(bytes.data(), static_cast<uint32_t>(bytes.size()), config));
     for (const auto &row : config.rows) CHECK(row.enabled == 1);
     bytes = runtime_module_config(
-        "osc.in", nlohmann::json::parse(R"({"rows":[{"pattern":"/a","enabled":false},{"enabled":true}]})"));
+        "osc.in", nlohmann::json::parse(R"({"version":2,"rows":[{"pattern":"/a","enabled":false},{"enabled":true}]})"));
     CHECK(wirescape::osc::configuration(bytes.data(), static_cast<uint32_t>(bytes.size()), config));
     CHECK(config.rows[0].enabled == 0 && std::string(config.rows[0].pattern) == "/a");
     CHECK(config.rows[1].enabled == 1 && config.rows[2].enabled == 1);
     bool rejected = false;
     try {
-        runtime_module_config("osc.in", nlohmann::json::parse(R"({"rows":[{"enabled":0}]})"));
+        runtime_module_config("osc.in", nlohmann::json::parse(R"({"version":2,"rows":[{"enabled":0}]})"));
     } catch (const std::exception &) {
         rejected = true;
     }
     CHECK(rejected);
+    // Version rule: enabled:false needs version 2; enabled:true is fine at v1;
+    // unknown versions refuse.
+    runtime_module_config("osc.in", nlohmann::json::parse(R"({"rows":[{"enabled":true}]})"));
+    runtime_module_config("osc.in", nlohmann::json::parse(R"({"version":1,"port":9000})"));
+    for (const char *s : {R"({"rows":[{"enabled":false}]})", R"({"version":1,"rows":[{"enabled":false}]})",
+                          R"({"version":3})", R"({"version":0})", R"({"version":"2"})"}) {
+        bool refused = false;
+        try {
+            runtime_module_config("osc.in", nlohmann::json::parse(s));
+        } catch (const std::exception &) {
+            refused = true;
+        }
+        CHECK(refused);
+    }
 }
 int main() try {
  auto encode=[](const char*s){return runtime_module_config("midi.cc_to_cv",nlohmann::json::parse(s));};
