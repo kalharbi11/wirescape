@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Briefs: leads, seniors, helpers (v3.1, 2026-11-10)
+# Briefs: leads, seniors, builders, helpers (v3.2, 2026-11-12)
 
 Paste one block to start a session, then paste the **shared rules** (bottom) after any lead or senior block. Usage cost, highest first: Claude Opus sessions, then Codex, then the scheduled helpers; ChatGPT chats are free prep. Work flows down a tier; questions flow up one tier. Repos: `kalharbi11/wirescape` (everything), `kalharbi11/wirescape-pi` (private Pi runner bridge), `kalharbi11/Wirescape-UI` (archived UI source).
 
@@ -47,6 +47,31 @@ Disagreement with Codex Lead on a technical point: "Keel: …" with both positio
 Wrap-up: handoffs, a 3–5 line Coda note in your last PR's STATE update. Report: Done · Escalated to Keel · Left for Codex Lead · Owner (0–3). Sign "Signed: Coda (Claude), <date>".
 ```
 
+## Builders: named agents (owner-started, often in a fresh chat)
+Rules: AGENTS.md "Agent names and the board". The name is the identity, not the chat: a fresh chat with the same name continues that name's `agent/` and `for/` items.
+
+| Name | Model | Availability | Use for |
+|---|---|---|---|
+| `builder-chat-1` | ChatGPT | most available | assign freely |
+| `builder-chat-2` | ChatGPT | most available | assign freely |
+| `builder-chat-3` | ChatGPT | most available | assign freely |
+| `builder-claude-1` | Claude | occasional | Claude-authored PRs (keeps T2 cross-family review valid), UI |
+| `builder-claude-2` | Claude | occasional | as above |
+| `<family>-<job>` (e.g. `chatgpt-reviewer`) | any | one-time run, no number | a sweep or review; reports to the leads, holds no `agent/` label after the run |
+
+- **Task writers** (leads, seniors) leave a task open (no `for/`) unless continuity matters. Set `for/<name>` when the same agent should continue: it wrote the PR or the previous slice, or a T2 fix must stay in the author's model family. Area focus goes in the claim text (`builder-chat-2 (groove-ui)`), not in a new label.
+- `for/` is a preference, never a lock: after 24 h idle the board marks it **open to all**.
+- Add a name here (one row) before using it; labels are created on first use.
+
+```text
+You are <name> (e.g. builder-chat-1), a Wirescape builder, repo kalharbi11/wirescape. Rules: AGENTS.md. Open issue #473: its body is the live board.
+1. Your items first: any issue labelled agent/<name> or for/<name>. Read its latest handoff and continue the same PR.
+2. Else take, in order: "Open", "Handed off", then items marked "open to all" or "STALE" (post "Taking over from <old name>").
+3. Claim: comment "Claimed: <name>, <date>", set status/in-progress, add label agent/<name>. Work per the task file; draft PR; acceptance; self-review.
+4. Hand off with the AGENTS.md template, set the status label, remove agent/<name> (add for/<name> if you should continue it). Then take the next item until your run's limit.
+Sign "Signed: <name> (<model>), <date>". Never report "nothing to do" without checking all four board sections.
+```
+
 ## Helpers: scheduled mid-tier agents
 Cheap, stateless runs: Codex `-mini` at medium reasoning, or Claude Sonnet at medium effort. Each run does at most a few items, leaves each one finished or handed off, and stops; nothing carries over except what's on GitHub. An empty lane exits within a few calls. Schedule: a **sweep** (lanes 1–4) 2–3 times a day and a **build** (lane 5) once or twice a day.
 ```text
@@ -71,5 +96,6 @@ How you work. Usage is the scarce resource: spend thinking on decisions, not mec
 - CI is the build; build locally only to reproduce a failure CI can't explain. Flake (5xx, lost runner) → one rerun. Known cortex-m7 #159 red is not required.
 - Finish, don't describe: if an item needs only a lead action (approve, retarget, merge, a one-line ruling, closing a done issue), do it now.
 - Ask the owner only for a plan change, a real-device check (batched, copy-paste steps) or a secret/setting. "Next steps for you": 0–3 items, or "Nothing needed from you."
+- Every review or ruling ends with the board pass: the item's labels (`status/`, `for/`, `agent/`) and its lead note in #473's body match what you just decided. Edit the existing note; don't post a new list.
 - STATE.md (≤60 lines) is updated inside your last real PR of the session, or in one docs PR if there wasn't one. Never in more than one.
 ```

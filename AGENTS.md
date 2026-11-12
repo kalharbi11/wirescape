@@ -1,4 +1,4 @@
-# AGENTS.md: rules for every agent (workflow v3.1, 2026-11-10)
+# AGENTS.md: rules for every agent (workflow v3.2, 2026-11-12)
 
 Any agent may pick up any open item: **claim → work → sign → hand off.** Leads, seniors and helpers: your brief and authority are in `docs/planner/LEADS.md`. Detail behind these rules: `docs/WORKFLOW.md` (read it only when a rule here is unclear).
 
@@ -23,11 +23,18 @@ Open-source modular synth. A C++17 realtime engine (ABI 2 modules: `native/engin
 
 Ask one tier up. Address someone with `Name: …` in an issue or PR comment; they read their names.
 
+## Agent names and the board
+- **Names** (the owner says yours in the prompt; use it in claims, labels, handoffs and `Signed:`): recurring builders `builder-chat-1`, `builder-chat-2`, `builder-chat-3` (ChatGPT, most available), `builder-claude-1`, `builder-claude-2` (occasional). One-time runs are `<family>-<job>` with no number (`chatgpt-reviewer`). Focus variants keep the base (`builder-chat-2 (groove-ui)`). New names are added in `docs/planner/LEADS.md` "Builders" only. No name given? Ask the owner; don't invent one.
+- **Labels:** `for/<name>` = preferred agent (set by whoever writes the task); `agent/<name>` = who holds it now (set on claim, removed on handoff/done). `for/owner|keel|compass|codex-lead|coda` never open to builders.
+- **Board = issue #473's body, the only live list.** Its auto section is rebuilt from labels on every issue/PR change (`tools/board.py`); lead notes sit below it and are edited in place, never re-posted as a new list.
+- **Picking order:** first your own `agent/<you>` and `for/<you>` items (you may have started them in another chat), then "Open", then "Handed off", then reserved items marked **open to all** (idle 24 h+) or **STALE** claims (post `Taking over from <name>`, continue the same PR). Never say "nothing to do" before checking all four.
+- **Reviewers and leads** (Compass, Keel, Codex Lead, Coda, `*-reviewer`): after reviewing an item, fix its labels (status, `for/`, `agent/`) and its lead note on #473 in the same pass, so a fresh agent sees the current next step.
+
 ## The loop
-1. **Claim:** comment `Claimed: <agent>, <date>` and set `status/in-progress`. A claim with no push or handoff for 24 h may be taken over (say so in a comment).
+1. **Claim:** comment `Claimed: <name>, <date>`, set `status/in-progress` and add `agent/<name>`. A claim with no push or handoff for 24 h may be taken over (say so in a comment, swap the `agent/` label).
 2. **Work:** branch `task/<issue#>-<slug>`, one PR with `Closes #<issue#>`, draft until green. WIP commits may use `[skip ci]`; the final push never does. Ideas go under "Follow-ups".
 3. **Keep going (queue mode):** when your item is green and handed off, take the next unclaimed item in your lane in the same session instead of ending it. Stop at your run's item limit or when usage is nearly spent.
-4. **Hand off** before stopping (template below) and set the status label. Sign every handoff and review: `Signed: <agent> (<role>), <date>`.
+4. **Hand off** before stopping (template below), set the status label and remove your `agent/` label (keep or set `for/<you>` if you should be the one to continue). Sign every handoff and review: `Signed: <name> (<model>), <date>`.
 
 ## Done, review, merge
 - **Done** = the acceptance block passes: `python tools/dev.py accept <issue#>`; post the report.
@@ -68,7 +75,7 @@ No agent reaches the Pi or the laptop (no SSH or anything else). Engine/DSP/side
 - Bundle related small changes into one PR (target size/m): if a diff is smaller than its handoff + review comments, it should have been bundled.
 
 ## Labels
-`status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · `tier/T0|T1|T2` · `size/s|m|l` · `phase/0..5` · `checkpoint` · `lane/helper` (an item a helper may build; set by builders and up) · overrides `allow-protected`, `allow-test-removal` (owner, Compass or Keel). `agent/*` labels are informational.
+`status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · `tier/T0|T1|T2` · `size/s|m|l` · `phase/0..5` · `checkpoint` · `lane/helper` (an item a helper may build; set by builders and up) · `for/<name>` (preferred agent) · `agent/<name>` (current holder) · overrides `allow-protected`, `allow-test-removal` (owner, Compass or Keel). Old `agent/codex` labels mean an unnamed Codex claim.
 
 ## Handoff template
 ```

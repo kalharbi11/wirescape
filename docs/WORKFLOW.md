@@ -12,8 +12,8 @@
 - **Devices:** no agent opens an audio/MIDI device or a LAN socket. Localhost is fine. Real devices only behind `--confirm-*`, run by the owner.
 
 ## 2. Picking up work
-1. Find an open issue in the current phase (`phase/<n>` label, or the plan's checkboxes) with `status/todo`, or one whose last claim is stale (24 h with no push or handoff; 6 h for Codex Lead or Coda on critical-path work).
-2. Comment `Claimed: <agent + model>, <date>`, then set `status/in-progress`.
+1. Open the board (issue #473's body; its auto section is rebuilt from labels by `.github/workflows/board.yml` + `tools/board.py`). Take your own `agent/<name>`/`for/<name>` items first, then "Open", "Handed off", then items marked **open to all** or **STALE** (24 h with no push or handoff; 6 h for Codex Lead or Coda on critical-path work).
+2. Comment `Claimed: <name>, <date>`, then set `status/in-progress` and `agent/<name>`. Names: `AGENTS.md` "Agent names and the board".
 3. Read the issue's latest handoff and the task file; then code.
 4. If you continue someone else's branch, say so in the claim (`Continuing from <sha7>`). Never force-push over their commits.
 
@@ -91,4 +91,4 @@ At the end of Phases 1, 2 and 4 (`docs/PLAN.md`): tag `checkpoint-<X>`, build th
 - STATE.md is updated inside the session's last real PR, not in a separate docs PR.
 
 ## 9. Not worth it
-Agent-orchestration dashboards, scheduled runs that keep going with nothing to do, and per-agent queues. The board (issues + this plan) is the queue; `lane/helper` is a filter on it, not a separate queue. Scheduled helper runs are fine because they exit within a few calls when their lane is empty (`docs/planner/LEADS.md`, Helpers).
+Agent-orchestration dashboards beyond the generated board section, scheduled runs that keep going with nothing to do, and per-agent queues. The board (issues + this plan) is the queue; `lane/helper` is a filter on it, not a separate queue. Scheduled helper runs are fine because they exit within a few calls when their lane is empty (`docs/planner/LEADS.md`, Helpers).
