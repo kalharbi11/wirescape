@@ -133,6 +133,23 @@ class AcceptanceTests(unittest.TestCase):
         self.assertEqual(spec["must_pass"], ["python x.py", "python -c \"print(' # kept')\""])
         self.assertEqual(spec["stops"], "[see #123]")
 
+    def test_shell_escaped_quotes_and_hashes_preserve_commands(self):
+        cases = [
+            (r'python -c "print(\" # kept\")"  # note',
+             r'python -c "print(\" # kept\")"'),
+            (r"python -c 'print(\" # kept\")'  # note",
+             r"python -c 'print(\" # kept\")'"),
+            (r'echo \#literal # note', r'echo \#literal'),
+            (r'echo "literal \\ slash # kept" # note',
+             r'echo "literal \\ slash # kept"'),
+        ]
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                self.assertEqual(acceptance.strip_comment(raw), expected)
+                spec = acceptance.parse(
+                    f"```acceptance\ntier: T1\nsize: n/a\nmust_pass:\n  - {raw}\n```\n")
+                self.assertEqual(spec["must_pass"], [expected])
+
     def test_stacked_base_counts_own_diff_and_reports_resolved_revision(self):
         def git(*args):
             return subprocess.check_output(["git", *args], cwd=self.root, stderr=subprocess.PIPE).decode().strip()
