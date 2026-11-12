@@ -229,6 +229,48 @@ test('row toggles round-trip, Clear disables all rows and old patches open with 
   expect((saved.modules[0].config.rows as Record<string, unknown>[]).some(r => 'enabled' in r)).toBe(false);
 });
 
+
+test('combined OSC edited, disabled and future keys survive autosave and a real Studio reload', async ({ page }) => {
+  await page.evaluate(() => { window.__wirescapeTest.engine.debug.oscTraffic = false; });
+  await open(page);
+  await page.getByTestId('osc-editor-port').fill('9011');
+  await page.getByTestId('osc-row1-pattern').fill('/closeout/edited');
+  await page.getByTestId('osc-row1-kind').selectOption('gate');
+  await page.getByTestId('osc-row2-enabled').uncheck();
+  await page.getByTestId('osc-editor-save').click();
+  await expect(page.getByTestId('osc-status-1'))
+    .toHaveText('Listening on 127.0.0.1:9011 · 7 of 8 rows active');
+
+  // Import an authored future extension AFTER the intentional OSC editor Save:
+  // that editor deliberately drops unsupported fields, but ordinary patch
+  // saving/reloading must not delete them.
+  const authored = await state(page);
+  authored.modules[0].config.version = 1;
+  authored.modules[0].config.futureMapping = { safeToRetain: true };
+  authored.modules[0].config.rows[1].futureCurve = ['not-yet-supported'];
+  await page.evaluate(p => window.__wirescapeTest.load(p), authored);
+  await settle(page);
+  await page.evaluate(() => window.__wirescapeTest.autosaveNow());
+  await page.reload();
+  await page.waitForFunction(() => document.body.dataset.ready === 'true');
+  await settle(page);
+
+  const restored = await state(page);
+  expect(restored.modules[0].config).toEqual(authored.modules[0].config);
+  expect(restored.modules[0]).toMatchObject({ id: 1, ownerNote: 'keep me' });
+  expect(restored.ownerExtension).toEqual({ survive: 1 });
+  await expect(page.getByTestId('osc-status-1'))
+    .toHaveText('Listening on 127.0.0.1:9011 · 7 of 8 rows active');
+  await expect(page.getByTestId('osc-received-1')).toHaveText('Received: 0');
+  await open(page);
+  await expect(page.getByTestId('osc-row1-pattern')).toHaveValue('/closeout/edited');
+  await expect(page.getByTestId('osc-row2-enabled')).not.toBeChecked();
+  await expect(page.getByTestId('osc-unknown-warning'))
+    .toContainText('ignored by this engine: futureMapping, rows[1].futureCurve');
+  await page.getByTestId('osc-editor').getByRole('button', { name: 'Cancel' }).click();
+  expect((await state(page)).modules[0].config).toEqual(authored.modules[0].config);
+});
+
 test('unknown row keys on a disabled row survive unrelated edits and drop only on editor save (#612)', async ({ page }) => {
   await page.evaluate(p => window.__wirescapeTest.load(p), patch({
     rows: [{ pattern: '/a' }, { pattern: '/b', enabled: false, futureRowKey: 'x' }],
