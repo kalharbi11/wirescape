@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Writing a Wirescape module (ABI 2 SDK guide, v2)
 
-This guide is for people and AI agents. Follow it top to bottom for a new module. It replaces the terse v1 notes (their content is kept in §13 "Reference").
+**New module? Start with the ordered checklist in [MODULE_BUILD_GUIDE.md](MODULE_BUILD_GUIDE.md)** (owner request → builder steps → the five registration edits → review). This guide is the detail behind it, for people and AI agents. It replaces the terse v1 notes (their content is kept in §13 "Reference").
 
 Porting a prototype you already have (a Web Audio app, an offline renderer)? Read §15 first.
 

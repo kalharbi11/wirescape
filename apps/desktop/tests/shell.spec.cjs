@@ -8,6 +8,25 @@ const electronExecutable = require('electron');
 const appMain = path.resolve(__dirname, '../build/main.js');
 const stub = path.resolve(__dirname, 'stub-engine.cjs');
 
+test('explicit LAN consent is forwarded verbatim to a socket-free engine stub', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'wirescape-osc-consent-'));
+  const recorded = path.join(directory, 'args.json');
+  const app = await electron.launch({
+    executablePath: electronExecutable,
+    args: ['--no-sandbox', appMain, '--engine', stub, '--null-audio', '--confirm-lan'],
+    env: { ...process.env, WIRESCAPE_TEST_STUB: '1', STUB_FLAGS_FILE: recorded }
+  });
+  try {
+    const page = await app.firstWindow();
+    await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+    await expect.poll(() => fs.existsSync(recorded)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(recorded, 'utf8'))).toEqual(['--null-audio', '--confirm-lan']);
+  } finally {
+    await app.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 async function launch(extraEnv = {}) {
   return electron.launch({
     executablePath: electronExecutable,

@@ -8,6 +8,7 @@ import type { ModuleRegistry } from '../modules/registry';
 import { findParam, formatValue } from '../modules/registry';
 import { resolveLayout, type PanelOverride, type ResolvedLayout } from './layouts';
 import { el } from '../app/dom';
+import { MODULE_PRESETS, matchingPreset, resolvePreset } from '../app/modulePresets';
 import { Knob } from './widgets/Knob';
 import { Segmented } from './widgets/Segmented';
 import { Selector } from './widgets/Selector';
@@ -15,6 +16,7 @@ import { Toggle } from './widgets/Toggle';
 import { NumberBox } from './widgets/NumberBox';
 import { Fader } from './widgets/Fader';
 import { buildPane, type Pane } from './panes';
+import type { GrooveHost } from './widgets/GroovePane';
 
 export interface PanelHost {
   doc: PatchDoc;
@@ -22,12 +24,17 @@ export interface PanelHost {
   registry: ModuleRegistry;
   /** Write a parameter through the engine; rolls back if it refuses. */
   commitParam(moduleId: number, paramId: string, value: number, commit: boolean): void;
+  /** Bundle existing setParam commands into one undoable gesture. */
+  applyModulePreset(moduleId: number, values: Readonly<Record<string, number>>): void;
+  toast(message: string, tone?: 'info' | 'error'): void;
   commitModAmount(c: Connection, amount: number, commit: boolean): void;
   listMidiDevices(): Promise<Device[]>;
   setModuleEndpoint(moduleId: number, endpoint: string, systemName?: string): void;
   describeSource(c: Connection): string;
   /** The cable's user-picked colour, as a CSS colour. */
   cableColor(c: Connection): string;
+  /** Groove draft/Apply services (#498); absent hosts get no Groove editor. */
+  groove?: GrooveHost;
 }
 
 interface Widget { root: HTMLElement; refresh(): void; destroy(): void }
@@ -65,6 +72,8 @@ export class Panel {
         getValue: pid => this.value(pid),
         setValue: (pid, v, commit = true) => host.commitParam(moduleId, pid, v, commit),
         options: this.layout.paneOptions[kind] ?? {},
+        groove: host.groove,
+        layoutChanged: () => requestAnimationFrame(() => { if (this.root.isConnected) this.onLayoutChanged?.(); }),
       });
       if (!pane) continue;
       this.panes.push(pane);
@@ -137,6 +146,46 @@ export class Panel {
       this.widgets.set('config.endpoint', { root: row, refresh: () => { void refresh(); },
         destroy() { /* contained by the card */ } });
     }
+    const presets = MODULE_PRESETS[d.id];
+    if (presets?.length) {
+      const wrap = el('label', 'module-presets');
+      const select = el('select', 'module-preset-select') as HTMLSelectElement;
+      select.dataset.testid = 'module-presets-' + moduleId;
+      select.setAttribute('aria-label', 'Presets for ' + d.name);
+      const option = (name: string, value: string) => {
+        const o = el('option', '', name) as HTMLOptionElement;
+        o.value = value; return o;
+      };
+      select.append(option('Custom', ''), ...presets.map(p => option(p.name, p.name)));
+      const refreshPreset = () => {
+        const params = host.doc.modules.get(moduleId)?.parameters ?? {};
+        try { select.value = matchingPreset(d, params) ?? ''; }
+        catch { select.value = ''; } // Invalid preset data must not break card refresh.
+      };
+      select.addEventListener('change', () => {
+        const preset = presets.find(p => p.name === select.value);
+        if (!preset) { refreshPreset(); return; }
+        let values: Readonly<Record<string, number>>;
+        try {
+          // Only invalid metadata is caught here; engine/application failures
+          // must not be misreported as validation errors after a partial edit.
+          values = resolvePreset(d, preset);
+        } catch (error) {
+          host.toast(error instanceof Error ? error.message : 'Invalid module preset.', 'error');
+          refreshPreset();
+          return;
+        }
+        host.applyModulePreset(moduleId, values);
+        refreshPreset();
+      });
+      wrap.append(el('span', 'module-preset-label', 'Presets'), select);
+      this.headerEls.push(wrap);
+      this.widgets.set('preset.header', {
+        root: wrap, refresh: refreshPreset, destroy() { /* owned by module card */ },
+      });
+      refreshPreset();
+    }
+
     this.root.append(controls);
     this.refreshVisibility();
   }
@@ -150,6 +199,9 @@ export class Panel {
   /** Repaint one parameter's widget, if it has one. */
   refreshParam(id: string): void {
     this.widgets.get(id)?.refresh();
+    // A manual knob/CC edit changes the current preset match even though
+    // the header selector is not a widget for that parameter ID.
+    this.widgets.get('preset.header')?.refresh();
     this.refreshVisibility();
     for (const p of this.panes) p.refresh?.();
   }

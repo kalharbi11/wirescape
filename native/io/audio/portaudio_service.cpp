@@ -18,14 +18,46 @@
 #include <dlfcn.h>
 #endif
 namespace wirescape::audio {
+std::vector<std::string> installed_asio_drivers() {
+    std::vector<std::string> result;
+#ifdef _WIN32
+    // Registry enumeration is read-only on the control thread. A missing hive
+    // is ordinary (e.g. test runners and machines with no ASIO driver).
+    HKEY key = nullptr;
+    const auto opened = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\ASIO", 0, KEY_READ | KEY_WOW64_64KEY, &key);
+    if (opened != ERROR_SUCCESS) return result;
+    for (DWORD index = 0; index < 128; ++index) {
+        wchar_t name[256]{};
+        DWORD length = 255;
+        const auto status = RegEnumKeyExW(key, index, name, &length, nullptr, nullptr, nullptr, nullptr);
+        if (status == ERROR_NO_MORE_ITEMS) break;
+        if (status != ERROR_SUCCESS || !length) continue;
+        const int chars = int(length);
+        const int bytes = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, name, chars, nullptr, 0, nullptr, nullptr);
+        if (bytes <= 0) continue;
+        std::string utf8(size_t(bytes), '\0');
+        if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, name, int(length), utf8.data(), bytes, nullptr,
+                                nullptr) != bytes)
+            continue;
+        result.push_back(std::move(utf8));
+    }
+    RegCloseKey(key);
+#endif
+    return result;
+}
 namespace {
 struct Backend {
  void* library=nullptr;
  decltype(&Pa_Initialize) initialize=nullptr;decltype(&Pa_Terminate) terminate=nullptr;
  decltype(&Pa_GetDeviceCount) count=nullptr;decltype(&Pa_GetDeviceInfo) info=nullptr;
- decltype(&Pa_GetDefaultOutputDevice) default_device = nullptr;
  decltype(&Pa_GetHostApiInfo) host_api = nullptr;
+ decltype(&Pa_IsFormatSupported) format_supported = nullptr;
+ decltype(&Pa_GetDefaultOutputDevice) default_device = nullptr;
  decltype(&Pa_GetErrorText) text = nullptr;
+ decltype(&Pa_GetLastHostErrorInfo) last_host_error = nullptr;
+ // pa_asio.h is not vendored; this optional export exists only in ASIO-enabled builds.
+ using AsioBufferSizes = PaError (*)(PaDeviceIndex, long *, long *, long *, long *);
+ AsioBufferSizes asio_buffer_sizes = nullptr;
  decltype(&Pa_OpenStream) open=nullptr;decltype(&Pa_StartStream) start=nullptr;
  decltype(&Pa_StopStream) stop=nullptr;decltype(&Pa_AbortStream) abort=nullptr;
  decltype(&Pa_CloseStream) close=nullptr;decltype(&Pa_IsStreamActive) active=nullptr;
@@ -52,9 +84,18 @@ struct Backend {
   LOAD(terminate, "Pa_Terminate");
   LOAD(count, "Pa_GetDeviceCount");
   LOAD(info, "Pa_GetDeviceInfo");
-  LOAD(default_device, "Pa_GetDefaultOutputDevice");
   LOAD(host_api, "Pa_GetHostApiInfo");
+  LOAD(format_supported, "Pa_IsFormatSupported");
+  LOAD(default_device, "Pa_GetDefaultOutputDevice");
   LOAD(text, "Pa_GetErrorText");
+#ifdef _WIN32
+  last_host_error = reinterpret_cast<decltype(last_host_error)>(
+      GetProcAddress(static_cast<HMODULE>(library), "Pa_GetLastHostErrorInfo"));
+  asio_buffer_sizes = reinterpret_cast<AsioBufferSizes>(
+      GetProcAddress(static_cast<HMODULE>(library), "PaAsio_GetAvailableBufferSizes"));
+#else
+  last_host_error = reinterpret_cast<decltype(last_host_error)>(dlsym(library, "Pa_GetLastHostErrorInfo"));
+#endif
   LOAD(open, "Pa_OpenStream");
   LOAD(start, "Pa_StartStream");
   LOAD(stop, "Pa_StopStream");
@@ -66,7 +107,19 @@ struct Backend {
   check(initialize());initialized=true;
  }
  ~Backend(){if(initialized)terminate();}
- void check(PaError result){if(result<0)throw std::runtime_error(text(result));}
+ void check(PaError result, bool asio = false) {
+     if (result == paInvalidSampleRate) throw RateUnsupported();
+     if (result >= 0) return;
+     std::string message = text(result) ? text(result) : "PortAudio error";
+     if (asio && last_host_error) {
+         const auto *host = last_host_error();
+         if (host && host->errorText && *host->errorText) {
+             message += ": ";
+             message += host->errorText;
+         }
+     }
+     throw std::runtime_error(bounded_audio_error(message));
+ }
 };
 struct Context {
     std::function<void()> stop_producers;
@@ -98,22 +151,52 @@ int callback(const void *, void *output, unsigned long frames, const PaStreamCal
 }
 } // namespace
 namespace {
-std::vector<Device> enumerate(Backend &b) {
+std::vector<Device> enumerate(Backend &b, const DeviceQuery &query = {}) {
     int count = b.count();
     b.check(count);
     const int fallback = b.default_device();
     std::vector<RawDevice> raw;
     std::vector<Device> result;
+    result.reserve(size_t(count));
+    raw.reserve(size_t(count));
     for (int i = 0; i < count; ++i) {
         const auto *d = b.info(i);
-        if (!d || d->maxOutputChannels < 2) continue;
-        const auto *api = b.host_api(d->hostApi);
-        const std::string host = api && api->name ? api->name : "Audio";
-        raw.push_back({d->name, host});
-        result.push_back({{}, d->name, host, i, i == fallback});
+        if (!d || d->maxOutputChannels == 0) continue;
+        Device entry;
+        entry.name = d->name;
+        entry.index = i;
+        entry.is_default = i == fallback;
+        entry.output_channels = d->maxOutputChannels;
+        entry.default_sample_rate = d->defaultSampleRate;
+        if (const auto *api = b.host_api(d->hostApi)) entry.backend = api->name ? api->name : "Audio";
+        entry.host_api = entry.backend.empty() ? "Audio" : entry.backend;
+        entry.sample_rates.clear();
+        entry.supported = d->maxOutputChannels >= 2;
+        if (!entry.supported) entry.unsupported_reason = "mono-output";
+        result.push_back(std::move(entry));
     }
+    // Preserve published stereo-output ids when adding disabled mono outputs.
+    std::stable_partition(result.begin(), result.end(), [](const Device &d) { return d.output_channels >= 2; });
+    for (const auto &d : result) raw.push_back({d.name, d.host_api});
     auto ids = device_ids(raw);
-    for (size_t i = 0; i < result.size(); ++i) result[i].id = std::move(ids[i]);
+    for (size_t i = 0; i < result.size(); ++i) {
+        auto &entry = result[i];
+        entry.id = std::move(ids[i]);
+        if (!query.probe_rates || !entry.supported || entry.id == query.active_id ||
+            (!query.target_id.empty() && entry.id != query.target_id))
+            continue;
+        const auto *d = b.info(entry.index);
+        PaStreamParameters output{entry.index, 2, paFloat32, d->defaultLowOutputLatency, nullptr};
+        const auto support = classify_rates({b.format_supported(nullptr, &output, 44100),
+                                             b.format_supported(nullptr, &output, 48000),
+                                             b.format_supported(nullptr, &output, 96000)},
+                                            paInvalidSampleRate);
+        entry.sample_rates = support.rates;
+        if (support.known && support.rates.empty()) {
+            entry.supported = false;
+            entry.unsupported_reason = "rate-unsupported";
+        }
+    }
     return result;
 }
 } // namespace
@@ -123,44 +206,58 @@ void list_devices(const std::string &directory) {
         std::cout << d.index << ": " << d.id << (d.is_default ? "  [default]" : "") << " ("
                   << b.info(d.index)->defaultSampleRate << " Hz default)\n";
 }
-std::vector<Device> devices(const std::string &directory) {
+std::vector<Device> devices(const std::string &directory, const DeviceQuery &query) {
     Backend b(directory);
-    return enumerate(b);
+    return enumerate(b, query);
 }
 struct Stream::Impl {
     std::unique_ptr<Backend> backend;
     std::unique_ptr<Context> context;
     PaStream *stream = nullptr;
     uint64_t retired_dropouts = 0;
+    uint32_t frames = 0;
     Impl(EngineOwner &engine, const StreamSelection &selection, double rate, uint32_t block,
-         std::function<void()> producers)
-        : backend(std::make_unique<Backend>(selection.directory)) {
+         std::function<void()> producers, bool allow_preferred_retry)
+        : backend(std::make_unique<Backend>(selection.directory)), frames(block) {
         auto &b = *backend;
         int device = b.default_device();
         if (!selection.name.empty()) {
-            const auto list = enumerate(b);
+            const auto list = enumerate(b, {false, {}, {}});
             const int found = resolve_device(list, selection.name);
             if (found < 0) throw std::runtime_error("No unique audio device matches the selection");
             device = list[size_t(found)].index;
         }
         const auto *info = device >= 0 ? b.info(device) : nullptr;
-        if (!info || info->maxOutputChannels < 2) throw std::runtime_error("No matching stereo output device");
+        if (!info) throw std::runtime_error("No matching audio output device");
+        if (info->maxOutputChannels < 2)
+            throw std::runtime_error(info->maxOutputChannels == 0 ? "no-output" : "mono-output");
+        PaStreamParameters output{device, 2, paFloat32, info->defaultLowOutputLatency, nullptr};
+        const auto *api = b.host_api(info->hostApi);
+        const bool is_asio = api && api->name && std::string(api->name) == "ASIO";
+        b.check(b.format_supported(nullptr, &output, rate), is_asio);
         context = std::make_unique<Context>(EngineOwner(nullptr, app_engine_destroy), block);
         context->rate = rate;
         context->stop_producers = std::move(producers);
         context->engine = std::move(engine);
         context->live = context->engine.get();
-        PaStreamParameters output{device, 2, paFloat32, info->defaultLowOutputLatency, nullptr};
         auto opened = b.open(&stream, nullptr, &output, rate, block, paNoFlag, callback, context.get());
         if (opened < 0) {
             engine = std::move(context->engine);
             context.reset();
-            b.check(opened);
+            // Control thread, before any callback: report the driver's preferred
+            // size once so the owner can reprepare its graph and retry exactly once.
+            if (is_asio && allow_preferred_retry && opened != paInvalidSampleRate && b.asio_buffer_sizes) {
+                long min = 0, max = 0, preferred = 0, granularity = 0;
+                if (b.asio_buffer_sizes(device, &min, &max, &preferred, &granularity) == paNoError &&
+                    preferred != long(block))
+                    throw PreferredBufferSize(int64_t(preferred));
+            }
+            b.check(opened, is_asio);
         }
         auto started = b.start(stream);
         if (started < 0) {
             engine = retire();
-            b.check(started);
+            b.check(started, is_asio);
         }
     }
     EngineOwner retire() {
@@ -193,8 +290,8 @@ struct Stream::Impl {
     }
 };
 Stream::Stream(EngineOwner &e, const StreamSelection &selection, double rate, uint32_t block,
-               std::function<void()> producers)
-    : impl_(std::make_unique<Impl>(e, selection, rate, block, std::move(producers))) {}
+               std::function<void()> producers, bool allow_preferred_retry)
+    : impl_(std::make_unique<Impl>(e, selection, rate, block, std::move(producers), allow_preferred_retry)) {}
 Stream::~Stream() = default;
 EngineOwner Stream::stop() { return impl_->retire(); }
 bool Stream::exchange(EngineOwner &next, std::chrono::steady_clock::time_point deadline) {
@@ -204,6 +301,7 @@ bool Stream::exchange(EngineOwner &next, std::chrono::steady_clock::time_point d
     std::swap(context->engine, next); // `next` now owns the retired engine.
     return true;
 }
+uint32_t Stream::buffer_frames() const noexcept { return impl_->frames; }
 bool Stream::running() const { return impl_->stream && impl_->backend->active(impl_->stream) > 0; }
 double Stream::cpu_percent() const {
     return impl_->context ? impl_->context->metrics.read() : std::numeric_limits<double>::quiet_NaN();
@@ -217,7 +315,7 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  Backend b(directory);auto context=std::make_unique<Context>(std::move(engine),block);context->stop_producers=stop_producers;int device=b.default_device();
  context->rate = rate;
  if(!name.empty()){size_t consumed=0;try{device=std::stoi(name,&consumed);}catch(const std::exception&){consumed=0;}if(consumed!=name.size()){
-         const auto list = enumerate(b);
+         const auto list = enumerate(b, {false, {}, {}});
          const int found = resolve_device(list, name);
          device = found < 0 ? paNoDevice : list[size_t(found)].index;
  }}
@@ -244,3 +342,4 @@ void play(EngineOwner engine,const std::string&directory,const std::string&name,
  b.check(terminated);
 }
 }
+

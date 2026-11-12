@@ -86,6 +86,57 @@ class PatchLibraryTests(unittest.TestCase):
             self.assertEqual([p.read_bytes() for p in dest.glob("*.bak")], [b"original"])
 
 
+class ChaosKeyboardReleaseWiringTests(unittest.TestCase):
+    """Keyboard gate must reach CHAOS only through ADSR -> VCA so note-off can release."""
+
+    PATCHES = ("basics-06-chaos-keys", "scene-03-black-ice-choir",
+               "chaos-01-ember-veil-pad", "chaos-02-wireglass-lead")
+
+    @staticmethod
+    def load(name):
+        return json.loads((ROOT / "apps/studio/patches" / f"{name}.json").read_text())
+
+    @staticmethod
+    def problems(patch):
+        by_module = {}
+        for m in patch["modules"]:
+            by_module.setdefault(m["module"], []).append(m["id"])
+        def one(mod):
+            return by_module.get(mod, [None])[0]
+        kb, chaos, adsr = one("host.keyboard"), one("essentials.chaos_lite"), one("essentials.adsr")
+        vcas = by_module.get("essentials.vca", [])
+        links = {(c["from"]["module"], c["from"]["port"], c["to"]["module"], c["to"]["port"])
+                 for c in patch["connections"]}
+        out = []
+        if None in (kb, chaos, adsr) or len(vcas) < 2:
+            return ["missing keyboard/CHAOS/ADSR/VCA modules"]
+        if (kb, "gate", adsr, "gate") not in links:
+            out.append("keyboard gate -> ADSR gate missing")
+        if (kb, "gate", chaos, "gate") in links:
+            out.append("keyboard gate -> CHAOS gate hard-mutes note-off")
+        for port in ("left", "right"):
+            fed = [v for v in vcas if (chaos, port, v, "audio") in links]
+            if not fed:
+                out.append(f"CHAOS {port} -> VCA audio missing")
+            elif not any((adsr, "envelope", v, "gain_cv") in links for v in fed):
+                out.append(f"ADSR envelope -> VCA gain_cv missing for {port}")
+        return out
+
+    def test_shipped_keyboard_chaos_patches_release_through_adsr_vca(self):
+        for name in self.PATCHES:
+            with self.subTest(patch=name):
+                self.assertEqual(self.problems(self.load(name)), [])
+
+    def test_mutation_gate_to_chaos_is_detected(self):
+        patch = self.load(self.PATCHES[0])
+        ids = {m["module"]: m["id"] for m in patch["modules"]}
+        patch["connections"].append({
+            "kind": "signal",
+            "from": {"module": ids["host.keyboard"], "port": "gate"},
+            "to": {"module": ids["essentials.chaos_lite"], "port": "gate"}})
+        self.assertIn("keyboard gate -> CHAOS gate hard-mutes note-off", self.problems(patch))
+
+
 if __name__ == "__main__":
     unittest.main()
 

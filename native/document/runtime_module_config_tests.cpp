@@ -4,6 +4,114 @@
 #include <cstdlib>
 using namespace wirescape::document;
 #define CHECK(x) do{if(!(x))std::abort();}while(0)
+static void instance_config_union() {
+    const auto chord = runtime_module_config("essentials.chord", nlohmann::json::object(), 0x12345678);
+    CHECK(chord == std::vector<uint8_t>({0x78, 0x56, 0x34, 0x12}));
+    bool rejected = false;
+    try {
+        runtime_module_config("essentials.chord", {{"unknown", 1}}, 17);
+    } catch (const std::exception &) {
+        rejected = true;
+    }
+    CHECK(rejected);
+    auto pattern =
+        nlohmann::json::parse(R"({"version":2,"bpm":120,"tracks":[{"length":8,"steps":[{"kind":"rest"}]}]})");
+    for (uint32_t instance : {17u, 18u}) {
+        const auto bytes = runtime_module_config("sequencing.groove", pattern, instance);
+        groove::Config config;
+        CHECK(groove::decode(bytes.data(), static_cast<uint32_t>(bytes.size()), config));
+        CHECK(config.instance_seed == instance && config.authored_version == 2 && config.tracks[0].length == 8);
+    }
+    pattern["version"] = 1;
+    pattern["tracks"][0].erase("length");
+    const auto legacy = runtime_module_config("sequencing.groove", pattern, 19);
+    groove::Config config;
+    CHECK(groove::decode(legacy.data(), static_cast<uint32_t>(legacy.size()), config));
+    CHECK(config.instance_seed == 0 && config.authored_version == 1 && config.tracks[0].length == 32);
+}
+static void osc_row_enabled() {
+    // #612: absent `enabled` means enabled; false disables only that row.
+    wirescape::osc::Configuration config;
+    auto bytes = runtime_module_config("osc.in", nlohmann::json::parse(R"({"rows":[{"pattern":"/a"}]})"));
+    CHECK(wirescape::osc::configuration(bytes.data(), static_cast<uint32_t>(bytes.size()), config));
+    for (const auto &row : config.rows) CHECK(row.enabled == 1);
+    bytes = runtime_module_config(
+        "osc.in", nlohmann::json::parse(R"({"rows":[{"pattern":"/a","enabled":false},{"enabled":true}]})"));
+    CHECK(wirescape::osc::configuration(bytes.data(), static_cast<uint32_t>(bytes.size()), config));
+    CHECK(config.rows[0].enabled == 0 && std::string(config.rows[0].pattern) == "/a");
+    CHECK(config.rows[1].enabled == 1 && config.rows[2].enabled == 1);
+    bool rejected = false;
+    try {
+        runtime_module_config("osc.in", nlohmann::json::parse(R"({"rows":[{"enabled":0}]})"));
+    } catch (const std::exception &) {
+        rejected = true;
+    }
+    CHECK(rejected);
+}
+static void osc_future_keys() {
+    using Json = nlohmann::json;
+    const Json known = Json::parse(R"({"port":9011,"rows":[{"pattern":"/voice","kind":"gate","argument":2}]})");
+    auto assert_known_values = [&](const Json &source, std::vector<std::string> *ignored = nullptr) {
+        const auto bytes = runtime_module_config("osc.in", source, 17, ignored);
+        wirescape::osc::Configuration decoded;
+        CHECK(wirescape::osc::configuration(bytes.data(), static_cast<uint32_t>(bytes.size()), decoded));
+        CHECK(decoded.port == 9011 && decoded.rows[0].argument == 2 && decoded.rows[0].kind == 1);
+        CHECK(std::strcmp(decoded.rows[0].pattern, "/voice") == 0);
+        if (source.at("rows")[0].contains("enabled")) CHECK(decoded.rows[0].enabled == 0);
+    };
+    assert_known_values(known);
+    const auto all_known = Json::parse(
+        R"({"port":9011,"lan":false,"rows":[{"pattern":"/voice","kind":"gate","stale":"hold","argument":2,"input_min":0,"input_max":1,"output_min":0,"output_max":1,"smoothing_ms":5,"timeout_ms":100,"enabled":false}]})");
+    std::vector<std::string> known_diagnostics;
+    assert_known_values(all_known, &known_diagnostics);
+    CHECK(known_diagnostics.empty()); // 'enabled' is a validated known v1 field.
+    auto v1 = known;
+    v1["version"] = 1;
+    assert_known_values(v1, &known_diagnostics);
+    CHECK(known_diagnostics.empty()); // version is known and accepted at v1.
+    const auto legacy_bytes = runtime_module_config("osc.in", all_known, 17);
+    wirescape::osc::Configuration legacy;
+    CHECK(wirescape::osc::configuration(legacy_bytes.data(), static_cast<uint32_t>(legacy_bytes.size()), legacy));
+    CHECK(legacy.port == 9011 && legacy.lan == 0 && legacy.rows[0].argument == 2 && legacy.rows[0].kind == 1);
+    auto future = known;
+    future["futureOption"] = Json::object({{"nested", 1}});
+    future["rows"][0]["futureField"] = Json::array({1, 2});
+    std::vector<std::string> ignored;
+    assert_known_values(future, &ignored);
+    CHECK(ignored == std::vector<std::string>({"osc.in#17.futureOption", "osc.in#17.rows[0].futureField"}));
+    CHECK(future["futureOption"].is_object() && future["rows"][0]["futureField"].is_array());
+
+    const char *invalid[] = {
+        R"({"version":0})",
+        R"({"version":2})",
+        R"({"version":"1"})",
+        R"({"version":1.5})",
+        R"({"version":null})",
+        R"({"port":"9011","futureOption":true})",
+        R"({"rows":[{"pattern":42,"futureField":true}]})",
+        R"({"rows":[{"argument":32,"futureField":true}]})",
+        R"({"rows":[{"kind":"other"}]})",
+        R"({"rows":{}})",
+    };
+    for (const char *bad : invalid) {
+        bool rejected = false;
+        try {
+            (void)runtime_module_config("osc.in", Json::parse(bad));
+        } catch (const std::exception &e) {
+            rejected = true;
+            if (Json::parse(bad).contains("version")) CHECK(std::string(e.what()) == "Unsupported OSC config version");
+        }
+        CHECK(rejected); // Known keys still reject invalid values/types.
+    }
+
+    auto many = known;
+    for (int n = 0; n < 24; ++n) many["rows"][0]["future" + std::to_string(n)] = n;
+    many["rows"][0]["a\nunsafe"] = true;
+    ignored.clear();
+    assert_known_values(many, &ignored);
+    CHECK(ignored.size() == 16);
+    for (const auto &name : ignored) CHECK(name.size() <= 80 && name.find('\n') == std::string::npos);
+}
 int main() try {
  auto encode=[](const char*s){return runtime_module_config("midi.cc_to_cv",nlohmann::json::parse(s));};
  auto bytes=encode(R"({"rows":[{"channel":16,"controller":31,"fourteen_bit":true,"bipolar":true,"smoothing_ms":0}]})");
@@ -63,6 +171,70 @@ int main() try {
      }
      CHECK(rejected);
  }
+ const auto v2 = nlohmann::json::parse(
+     R"({"version":2,"bpm":120,"tracks":[{"length":16,"steps":[{"kind":"note","key":64,"velocity":0.8}]}]})");
+ auto accepted_groove = [&](const nlohmann::json &doc) {
+     const auto raw = runtime_module_config("sequencing.groove", doc);
+     groove::Config out;
+     CHECK(groove::decode(raw.data(), static_cast<uint32_t>(raw.size()), out));
+     return out;
+ };
+ auto refused_groove = [&](const nlohmann::json &doc) {
+     bool refused = false;
+     try {
+         runtime_module_config("sequencing.groove", doc);
+     } catch (const std::exception &) {
+         refused = true;
+     }
+     CHECK(refused);
+ };
+ CHECK(accepted_groove(v2).tracks[0].steps[0].key_count == 1);
+ for (const auto &notes :
+      {nlohmann::json::array({64}), nlohmann::json::array({64, 60, 67}), nlohmann::json::array({64, 60, 62, 67, 71})}) {
+     auto doc = v2;
+     doc["tracks"][0]["steps"][0]["keys"] = notes;
+     const auto decoded = accepted_groove(doc);
+     CHECK(decoded.tracks[0].steps[0].key_count == notes.size());
+     for (size_t i = 0; i < notes.size(); ++i) CHECK(decoded.tracks[0].steps[0].keys[i] == notes[i].get<int>());
+ }
+ for (const auto &notes :
+      {nlohmann::json::array(), nlohmann::json::array({64, 60, 62, 67, 71, 72}), nlohmann::json::array({64, -1}),
+       nlohmann::json::array({64, 128}), nlohmann::json::array({64, 60.5}), nlohmann::json::array({64, "60"}),
+       nlohmann::json::array({64, true}), nlohmann::json::array({60, 64}), nlohmann::json::array({64, 64}),
+       nlohmann::json::array({64, 60, 60}), nlohmann::json::array({64, 67, 60})}) {
+     auto doc = v2;
+     doc["tracks"][0]["steps"][0]["keys"] = notes;
+     refused_groove(doc);
+ }
+ for (const char *kind : {"rest", "tie"}) {
+     auto doc = v2;
+     doc["tracks"][0]["steps"][0] = {{"kind", kind}, {"keys", nlohmann::json::array({64})}};
+     refused_groove(doc);
+ }
+ for (const auto &speed : {1, 2, 4, 8}) {
+     auto doc = v2;
+     doc["tracks"][0]["div"] = speed;
+     CHECK(accepted_groove(doc).tracks[0].div == static_cast<uint32_t>(speed));
+ }
+ CHECK(accepted_groove(v2).tracks[0].div == 1);
+ for (const auto &speed : {nlohmann::json(0), nlohmann::json(3), nlohmann::json(16), nlohmann::json(-2),
+                           nlohmann::json(2.0), nlohmann::json("2"), nlohmann::json(true), nlohmann::json(nullptr)}) {
+     auto doc = v2;
+     doc["tracks"][0]["div"] = speed;
+     refused_groove(doc);
+ }
+ {
+     auto doc = nlohmann::json::parse(
+         R"({"version":1,"bpm":120,"tracks":[{"steps":[{"kind":"note","key":64,"velocity":0.8}]}]})");
+     doc["tracks"][0]["div"] = 2;
+     refused_groove(doc);
+     doc["tracks"][0].erase("div");
+     doc["tracks"][0]["steps"][0]["keys"] = nlohmann::json::array({64});
+     refused_groove(doc);
+ }
+ instance_config_union();
+ osc_row_enabled();
+ osc_future_keys();
  std::puts("PASS bounded typed MIDI and Groove configurations and invalid row rejection");
 } catch(const std::exception& error) {
  std::fprintf(stderr,"FAIL runtime module configuration: %s\n",error.what());return EXIT_FAILURE;

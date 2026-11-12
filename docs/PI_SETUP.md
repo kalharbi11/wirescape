@@ -53,37 +53,28 @@ Troubleshooting:
 - **Patch refused:** only native v1/v2 patches load. Unknown modules/state/config are reported; originals are never rewritten by `play`.
 
 
-## Standalone Electron app: source preparation (not installation)
+## Standalone Electron app: guarded first run (owner only)
 
-Electron + Studio + `wirescape-engine` source build is **not** an installer. Installation follows the owner's Windows test; agents/Pi CI never install, alter sessions, SSH or open devices.
+The app is **Electron + Studio + wirescape-engine**. Start with
+[the fresh source-build and first-run runbook](PI_FRESH_INSTALL.md).
+Its section 3 is the **single source of the accepted full SHA** for both guides.
+Do not substitute `origin/main`, an unverified commit or separate PR build outputs.
 
-### 1. Check (offline, read-only)
+The runbook preserves the old checkout, patches, shortcuts and profiles, then
+checks prerequisites, builds the pinned source and runs the actual ARM64 app with
+a temporary profile and devices off. The accepted combined source is main
+`cd7999e4a02308df0db918cfbab6974b97b6782f` (#463, #450, #452 and #494), validated by Pi preflight and the
+ARM64 app smoke ([run](https://github.com/kalharbi11/wirescape-pi/actions/runs/42720681421)).
 
-`python3 tools/pi/preflight.py --check-only` verifies ARM64, tools, lockfiles, PortAudio/Electron libraries, disk, Git, Qt overrides and CMake caches. Node LTS **22/24/26** is required; the Pi runner's Node 20.19.2 needs **owner-managed Node 22** (nvm/NodeSource) to match CI. Qt is unnecessary. No network, fetch, build, report or cache deletion; resolve failures manually.
+Node 22.23.4/npm 10.9.9 and Xvfb/xauth were confirmed by the owner for the runner.
+The scripts still verify prerequisites at the selected source; do not relax
+failed checks or reuse old build caches. The runbook explains bounded build jobs,
+read-only preflight, source/build reports and the isolated `--profile-dir` launch.
 
-### 2. Build approved source SHA
-
-```sh
-sh tools/pi/update-and-build.sh <accepted-commit-sha>
-sh tools/pi/update-and-build.sh <accepted-commit-sha> --jobs 4  # optional 1–4
-```
-
-Preserves positional refs, clean-tree checks, before/after checkout preflight and exact detached SHA; uses `tools/dev.py` headless (default **2** jobs) and locked Studio/Desktop `npm ci`. Build/npm may fetch; check-only cannot. Ignored `build_reports/pi-source-build/<sha>/` contains sanitized logs, stage results and SHA/tool provenance. Fail fast; inspect logs and retry SHA.
-
-### 3. Test (devices off)
-
-```sh
-python3 tools/foundation/tests/test_pi_preflight.py
-python3 -m unittest discover -s tools/foundation/tests -p test_pi_update.py
-python3 -m unittest discover -s tools/foundation/tests -p test_build_parallel.py
-python3 tools/dev.py test
-```
-
-Only actual exact-head private `pi5/accept` proves `pi-run:`; missing prerequisites are BLOCKED, not passes; cloud mocks are not Pi evidence.
-
-### 4. Owner-only installation/launch (deferred)
-
-After Windows approval, only the owner invokes `tools/pi/install-desktop-entry.sh` and launches with `--confirm-audio --confirm-midi`. Device-free smoke uses temporary `--settings` and `--null-audio` (#446); normal choices remain in `user_data/settings.json`. Neither check nor build installs/opens devices.
+**Do not run desktop-entry or autostart helpers during the isolated first run.**
+Installation and shortcut/profile replacement need their own later review.
+Only the owner performs sound/MIDI/display checks after the automated gates;
+Xvfb verifies function and cannot certify physical display performance.
 
 ## Class demo (owner only)
 

@@ -13,6 +13,7 @@ import { CanvasPane } from '../panels/widgets/canvasBase';
 import { CableLayer, type Point, type Resolved } from './CableLayer';
 import { ModuleCard } from './ModuleCard';
 import { el, motionOff } from '../app/dom';
+import type { OscStatus } from '../engine/EngineClient';
 
 export type Selection =
   | { kind: 'none' }
@@ -33,9 +34,18 @@ export interface CanvasServices extends PanelHost {
   confirmStereo(message: string): Promise<boolean>;
   onSelectionChange(s: Selection): void;
   rename(moduleId: number): void;
+  onEditOsc(moduleId: number): void;
+  oscStatus(): OscStatus | undefined;
   /** Send a connect to the engine; throws EngineRefusal if it is refused. */
   engineConnect(c: Connection): void;
   engineDisconnect(c: Connection): void;
+  /** MIDI Learn (#287). Absent or `available() === false` when the engine cannot observe CCs. */
+  midiLearn?: {
+    available(): boolean;
+    begin(moduleId: number, paramId: string): void;
+    mapped(moduleId: number, paramId: string): boolean;
+    forget(moduleId: number, paramId: string): void;
+  };
 }
 
 type Pending = {
@@ -77,6 +87,22 @@ export class PatchCanvas {
       c => this.describeConnection(c),
     );
     this.cableTools = this.buildCableTools();
+    // The same selected-cable deletion works from a context menu as from Delete.
+    this.cables.root.addEventListener('contextmenu', e => {
+      const hit = (e.target as Element).closest('.cable-hit');
+      const key = hit?.parentElement?.getAttribute('data-key');
+      const cable = this.s.doc.connections.find(c => connKey(c) === key);
+      if (!cable) return;
+      e.preventDefault(); e.stopPropagation();
+      this.select({ kind: 'cable', c: cable });
+      this.showMenu(e, [['Remove cable', () => {
+        if (!this.s.canEdit()) return;
+        this.s.doc.disconnect(cable);
+        try { this.s.engineDisconnect(cable); } catch { /* optimistic rollback is tracked by the host */ }
+        this.select({ kind: 'none' });
+        this.s.toast('Cable removed.');
+      }]]);
+    });
     this.world.append(this.cables.root, this.cardLayer, this.cableTools);
 
     this.marquee = el('div', 'marquee');
@@ -119,6 +145,8 @@ export class PatchCanvas {
       savedType: m.module,
       onHeaderPointerDown: e => this.beginDrag(e, id),
       onRenameRequest: () => this.s.rename(id),
+      onEditOsc: () => this.s.onEditOsc(id),
+      oscStatus: () => this.s.oscStatus(),
       wirePort: p => {
         p.addEventListener('pointerdown', e => this.beginPatch(e as PointerEvent, p));
         p.addEventListener('contextmenu', e => this.portMenu(e as MouseEvent, p));
@@ -130,7 +158,7 @@ export class PatchCanvas {
     card.root.style.top = `${y}px`;
     card.root.style.zIndex = String(++this.zCounter);
     card.root.addEventListener('pointerdown', e => {
-      if ((e.target as HTMLElement).closest('.port,.knob,.seg,.toggle,.control-readout,.readout-input,.step-gate,.step-pitch,.module-header,.control-number,.control-fader,.input-select,.ib,.ibox,.filter-pane'))
+      if ((e.target as HTMLElement).closest('.port,.knob,.seg,.toggle,.control-readout,.readout-input,.step-gate,.step-pitch,.module-header,.control-number,.control-fader,.input-select,.ib,.ibox,.filter-pane,.groove-pane'))
         return;
       this.selectModule(id, e.shiftKey);
     });
@@ -145,11 +173,18 @@ export class PatchCanvas {
       card.measure();
       // Add: drops in (DESIGN §8, 240 ms, --bounce, from -10 px / 0.96).
       if (!motionOff()) {
-        card.root.animate([{ opacity: 0, transform: 'translateY(-10px) scale(.96)' }, { opacity: 1, transform: 'none' }],
+        // Bounce only the drop; scale eases without overshoot so a full-width phone card never
+        // renders wider than its box (scale > 1) while the animation settles.
+        card.root.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }],
           { duration: 240, easing: BOUNCE });
+        card.root.animate([{ scale: '.96' }, { scale: '1' }], { duration: 240, easing: 'ease-out' });
       }
     }
     this.applyPolyBadge(id);
+  }
+
+  updateOscStatus(status?: OscStatus): void {
+    for (const card of this.cards.values()) card.setOscStatus(status);
   }
 
   private applyPolyBadge(id: number): void {
@@ -212,6 +247,7 @@ export class PatchCanvas {
         this.refreshKnobsFor(e.c);
         break;
       case 'mod-amount': this.syncCables(); this.placeCableTools(); break;
+      case 'config': this.cards.get(e.id)?.refreshCcLabels(); break;
       case 'param': {
         this.cards.get(e.id)?.panel?.refreshParam(e.paramId);
         this.cards.get(e.id)?.refreshMissing();
@@ -409,11 +445,20 @@ export class PatchCanvas {
       return;
     }
 
-    // Pulling on an input that already has a cable grabs that cable's end.
+    // Pulling on an input grabs its destination end. Alt starts a new cable.
     if (direction === 'input') {
       const existing = this.s.doc.cablesInto(module, port);
       if (existing.length && !e.altKey) {
         this.beginGrabEnd(existing.at(-1)!, e);
+        return;
+      }
+    } else if (direction === 'output' && e.altKey) {
+      // Outputs fan out: Alt explicitly selects the newest outgoing cable,
+      // leaving an ordinary output drag free to create a new connection.
+      const existing = this.s.doc.connections.filter(c =>
+        c.from.module === module && c.from.port === port && c.kind !== 'modulation');
+      if (existing.length) {
+        this.beginGrabSource(existing.at(-1)!, e);
         return;
       }
     }
@@ -431,6 +476,19 @@ export class PatchCanvas {
     this.startDrag(e, {
       module: c.from.module, port: c.from.port, direction: 'output',
       kind: port?.kind ?? 'signal', hint: String(port?.hint ?? 'audio'),
+    }, c);
+  }
+
+  /** Grab the source end of one outgoing cable; its destination stays fixed. */
+  private beginGrabSource(c: Connection, e: PointerEvent): void {
+    const destMod = this.s.doc.modules.get(c.to.module);
+    const d = destMod && this.s.registry.get(destMod.module);
+    const port = d && findPort(d, 'input', c.to.port);
+    this.s.doc.disconnect(c);
+    try { this.s.engineDisconnect(c); } catch { /* best effort, as for input grabs */ }
+    this.startDrag(e, {
+      module: c.to.module, port: c.to.port, direction: 'input',
+      kind: port?.kind ?? c.kind, hint: String(port?.hint ?? 'audio'),
     }, c);
   }
 
@@ -539,7 +597,9 @@ export class PatchCanvas {
         return;
       }
     } else {
-      // Dropped on empty canvas: offer a filtered quick-add.
+      // A detached cable dropped on empty canvas is deliberately unplugged.
+      // Only a genuinely new cable opens the quick-add menu.
+      if (pending.detached) { this.cancelPatch(); return; }
       const world = this.viewport.toWorld(ev.clientX, ev.clientY);
       const o = pending.origin;
       const need = { direction: (o.direction === 'output' ? 'input' : 'output') as PortDirection, kind: o.kind };
@@ -612,10 +672,13 @@ export class PatchCanvas {
         `Connect the stereo pair? ${pair.outA}/${pair.outB} → ${pair.inA}/${pair.inB}.`);
       if (this.s.doc.ui !== view || !this.s.canEdit()) return true;
       if (ok) {
-        this.commitConnection(base, additive);
-        this.commitConnection(
-          { kind, from: { module: out.module, port: pair.outB }, to: { module: inp.module, port: pair.inB } },
-          additive);
+        const second: Connection = { kind, from: { module: out.module, port: pair.outB }, to: { module: inp.module, port: pair.inB } };
+        // Do not create half a pair if either edge already exists.
+        if (this.s.doc.has(base) || this.s.doc.has(second)) {
+          this.s.toast('A pair cable already exists. Choose JUST THIS ONE to change a single side.', 'error');
+          return true;
+        }
+        this.commitStereoPair(base, second);
         return true;
       }
     }
@@ -693,7 +756,14 @@ export class PatchCanvas {
 
   private knobMenu(e: MouseEvent, moduleId: number, param: string): void {
     e.preventDefault(); e.stopPropagation();
-    this.showMenu(e, [['Map from a source…', () => this.beginMapping({ to: { module: moduleId, param } })]]);
+    const items: [string, () => void][] = [['Map from a source…', () => this.beginMapping({ to: { module: moduleId, param } })]];
+    const learn = this.s.midiLearn;
+    const p = this.descriptorOf(moduleId) && findParam(this.descriptorOf(moduleId)!, param);
+    if (learn?.available() && p?.modulatable) {
+      items.push(['MIDI Learn…', () => learn.begin(moduleId, param)]);
+      if (learn.mapped(moduleId, param)) items.push(['Forget MIDI mapping', () => learn.forget(moduleId, param)]);
+    }
+    this.showMenu(e, items);
   }
 
   private showMenu(e: MouseEvent, items: [string, () => void][]): void {
@@ -758,7 +828,50 @@ export class PatchCanvas {
   }
 
   /**
-   * Add a connection, honouring the replace-or-add rule: a signal input
+   * Replace both stereo inputs as one engine transaction. Only publish document
+   * edits after both engine connects succeed: a refused second edge cannot add
+   * a history entry, dirty the patch, or leave the first edge in the document.
+   */
+  private commitStereoPair(first: Connection, second: Connection): void {
+    if (!this.s.canEdit()) return;
+    const replaced = [
+      ...this.s.doc.cablesInto(first.to.module, first.to.port),
+      ...this.s.doc.cablesInto(second.to.module, second.to.port),
+    ].filter((c, i, all) => all.findIndex(other => connKey(other) === connKey(c)) === i);
+    const removed: Connection[] = [], added: Connection[] = [];
+    try {
+      for (const old of replaced) { this.s.engineDisconnect(old); removed.push(old); }
+      for (const cable of [first, second]) { this.s.engineConnect(cable); added.push(cable); }
+    } catch (err) {
+      let restored = true;
+      // Reverse successful engine operations. Only mirror exceptional rollback
+      // failures into the document, so it never advertises a missing engine edge.
+      for (const cable of added.reverse()) {
+        try { this.s.engineDisconnect(cable); }
+        catch { restored = false; this.s.doc.connect(cable); }
+      }
+      for (const old of removed) {
+        try { this.s.engineConnect(old); }
+        catch { restored = false; this.s.doc.disconnect(old); }
+      }
+      this.s.toast(restored
+        ? (err instanceof Error ? err.message : 'The engine refused the stereo pair.')
+        : 'The engine could not restore every previous cable; the patch reflects the remaining connections.', 'error');
+      this.shake(second.to.module);
+      return;
+    }
+    for (const old of replaced) this.s.doc.disconnect(old);
+    this.s.doc.connect(first);
+    this.s.doc.connect(second);
+    this.s.toast('Stereo pair connected.');
+    for (const c of [first, second]) {
+      this.cards.get(c.from.module)?.pulsePort('output', c.from.port);
+      this.cards.get(c.to.module)?.pulsePort('input', c.to.port);
+    }
+  }
+
+  /**
+   * Add one cable, honouring the replace-or-add rule: a signal input
    * takes one cable by default, and shift-drop adds alongside.
    */
   private commitConnection(c: Connection, additive: boolean): void {
@@ -776,7 +889,6 @@ export class PatchCanvas {
     try {
       this.s.engineConnect(c);
       this.s.toast(c.kind === 'modulation' ? 'Modulation connected.' : 'Connected.');
-      // Connected: the target card pops slightly and the ports pulse (DESIGN §8).
       const from = this.cards.get(c.from.module), to = this.cards.get(c.to.module);
       from?.pulsePort('output', c.from.port);
       if (c.kind !== 'modulation') to?.pulsePort('input', c.to.port);
@@ -785,7 +897,10 @@ export class PatchCanvas {
       }
     } catch (err) {
       this.s.doc.disconnect(c);
-      for (const old of replaced) this.s.doc.connect(old);
+      for (const old of replaced) {
+        try { this.s.engineConnect(old); this.s.doc.connect(old); }
+        catch { this.s.toast('Could not restore a previous cable in the engine; it remains disconnected.', 'error'); }
+      }
       this.s.toast(err instanceof Error ? err.message : 'The engine refused that cable.', 'error');
       this.shake(c.to.module);
     }
@@ -1014,6 +1129,8 @@ export class PatchCanvas {
    */
   bindActivity(): void {
     const prevEvent = new Map<string, number>();
+    const activeUntil = new Map<string, number>();
+    const liveCables = new Set<string>();
     let lastCheck = 0;
     this.s.ticker.bindGlobal(t => {
       const now = performance.now();
@@ -1030,12 +1147,24 @@ export class PatchCanvas {
       }
       if (now - lastCheck > 100) {
         lastCheck = now;
+        liveCables.clear();
         for (const c of this.s.doc.connections) {
           const k = `${c.from.module}:${c.from.port}`;
-          const on = c.kind === 'event'
+          const cableKey = connKey(c);
+          liveCables.add(cableKey);
+          // -60 dBFS is 0.001 in linear amplitude. Hold for 200 ms after
+          // the last active sample; all updates stay in the 10 Hz ticker.
+          const measured = c.kind === 'event'
             ? (t.eventActivity[k] ?? 0) > 0.05
-            : Math.abs(t.outputs?.[k] ?? 0) > 0.02;
-          this.cables.setActive(connKey(c), on);
+            : Math.abs(t.outputs?.[k] ?? 0) > 0.001;
+          if (measured) activeUntil.set(cableKey, now + 200);
+          const on = measured || now < (activeUntil.get(cableKey) ?? 0);
+          if (!on) activeUntil.delete(cableKey);
+          this.cables.setActive(cableKey, on);
+        }
+        // Disconnects and patch loads must not leave old 200 ms holds cached.
+        for (const key of activeUntil.keys()) {
+          if (!liveCables.has(key)) activeUntil.delete(key);
         }
       }
       if (this.cables.settling) this.cables.step(now);

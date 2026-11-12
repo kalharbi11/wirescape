@@ -48,13 +48,22 @@ for line in sys.stdin:
     if kind in ('loadGraph', 'addModule', 'connect', 'disconnect', 'removeModule'):
         gen += 1
     print(json.dumps(dict(v=0, session=session, re=command['id'], ok=True, gen=str(gen))), flush=True)
-bench = 'bench blocks=1000 p50=1 p99=2 max=3.5 overruns=0 faults=0'
+bench = ('bench blocks=1000 p50=1 p99=2 max=3.5 overruns=0 faults=0 '
+         'overrun_render_count=0 overrun_render_max_us=0 '
+         'overrun_wake_count=0 overrun_wake_max_us=0')
 if mode == 'short-blocks':
     bench = bench.replace('blocks=1000', 'blocks=0')
 elif mode == 'overruns':
     bench = bench.replace('overruns=0', 'overruns=1')
 elif mode == 'faults':
     bench = bench.replace('faults=0', 'faults=2')
+elif mode in ('wake-only', 'render-overrun'):
+    bench = bench.replace('overruns=0', 'overruns=1')
+    if mode == 'wake-only':
+        bench = bench.replace('overrun_wake_count=0', 'overrun_wake_count=1')
+        bench = bench.replace('overrun_wake_max_us=0', 'overrun_wake_max_us=5795.14')
+    else:
+        bench = bench.replace('overrun_render_count=0', 'overrun_render_count=1')
 elif mode == 'bad-bench':
     bench = bench.replace(' p50=1 ', ' p50=garbage ')
 elif mode == 'nonfinite':
@@ -68,7 +77,7 @@ elif mode == 'bad-float':
 elif mode == 'extra-fields':
     bench += ' other=7'
 elif mode == 'truncated':
-    bench = bench.removesuffix(' faults=0')
+    bench = bench.rsplit(' ', 1)[0]
 if mode != 'missing-bench':
     print(bench, file=sys.stderr, flush=True)
 if mode == 'duplicate-bench':
@@ -91,35 +100,99 @@ class EditSoakTests(unittest.TestCase):
 
     @contextlib.contextmanager
     def engine(self, mode):
+        modes = iter(mode) if isinstance(mode, tuple) else None
+        self.launches = 0
         def spawn(argv, **kwargs):
+            self.launches += 1
             # Windows can spell the same temp file with 8.3 or long names.
             self.assertTrue(os.path.samefile(argv[0], self.stub))
             self.assertEqual(argv[1:4], ['--null-audio', '--bench-summary', '--settings'])
             self.assertEqual(len(argv), 5)
             self.assertTrue(str(argv[4]).endswith('settings.json'))
-            kwargs['env'] = {**os.environ, 'SOAK_STUB_MODE': mode}
+            kwargs['env'] = {**os.environ, 'SOAK_STUB_MODE': next(modes) if modes else mode}
             self.process = REAL_POPEN([sys.executable, str(self.stub), *argv[1:]], **kwargs)
             return self.process
         with patch.object(soak.subprocess, 'Popen', side_effect=spawn):
             yield
 
     def test_success_and_seed_reproducibility(self):
+        real_monotonic = soak.time.monotonic
+        last = [0.0]
+
+        def strictly_increasing():
+            # Windows monotonic() ticks every ~15.6 ms, so `now < start + 1e-6` can stay true for
+            # several cycles (3 seen on CI). A strictly increasing clock keeps it to exactly one.
+            last[0] = max(real_monotonic(), last[0] + 1e-6)
+            return last[0]
+
         with self.engine('ok'):
-            a = soak.run(self.stub, .02, 278)
-            b = soak.run(self.stub, .02, 278)
+            # A 1 µs duration runs exactly one cycle, so the comparison is not wall-clock dependent
+            # (Windows timer granularity gave 1 vs 2 cycles at 20 ms).
+            with patch.object(soak.time, 'monotonic', strictly_increasing):
+                a = soak.run(self.stub, 1e-6, 278)
+                b = soak.run(self.stub, 1e-6, 278)
+            timed = soak.run(self.stub, .02, 278)
         self.assertEqual(a['status'], 'passed')
         self.assertEqual(a['commands'], b['commands'])
-        self.assertGreaterEqual(a['cycles'], 1)
+        self.assertEqual((a['cycles'], b['cycles']), (1, 1))
+        self.assertEqual(timed['status'], 'passed')
+        self.assertGreaterEqual(timed['cycles'], 1)
         self.assertEqual(a['steps'], 2 + 9 * a['cycles'])
         self.assertEqual(a['performance_evidence'],
                          {'blocks': 1000, 'p50': 1.0, 'p99': 2.0, 'max': 3.5,
-                          'overruns': 0, 'faults': 0})
+                          'overruns': 0, 'faults': 0, 'overrun_render_count': 0,
+                          'overrun_render_max_us': 0.0, 'overrun_wake_count': 0,
+                          'overrun_wake_max_us': 0.0})
+
+    def test_overrun_diagnostics_preserved_in_failure(self):
+        line = ('bench blocks=1000 p50=1 p99=2 max=3.5 overruns=1 faults=0 '
+                'overrun_render_count=0 overrun_render_max_us=42 '
+                'overrun_wake_count=1 overrun_wake_max_us=6000')
+        with self.assertRaises(soak.SoakFailure) as caught:
+            soak.parse_bench([line], 2)
+        self.assertIn('overruns=1', str(caught.exception))
+        self.assertIn('overrun_render_max_us=42.0', str(caught.exception))
+        self.assertIn('overrun_wake_max_us=6000.0', str(caught.exception))
+        for field, invalid in (('overrun_render_count=0', 'overrun_render_count=2'),
+                               ('overrun_wake_count=1', 'overrun_wake_count=18446744073709551616'),
+                               ('overrun_render_max_us=42', 'overrun_render_max_us=-1'),
+                               ('overrun_wake_max_us=6000', 'overrun_wake_max_us=1e309')):
+            with self.subTest(field=field), self.assertRaises(soak.SoakFailure):
+                soak.parse_bench([line.replace(field, invalid)], 2)
 
     def assert_failed(self, mode, fragment, timeout=.2):
         with self.engine(mode), self.assertRaises(soak.SoakFailure) as caught:
             soak.run(self.stub, .01, 42, timeout=timeout)
         self.assertIn('seed=42 step=', str(caught.exception))
         self.assertIn(fragment, str(caught.exception))
+
+    def test_hosted_windows_wake_retry_is_one_shot_and_strict(self):
+        cases = [(('wake-only', 'ok'), True, 0, 2),
+                 (('wake-only', 'wake-only'), True, 1, 2),
+                 (('wake-only', 'render-overrun'), True, 1, 2),
+                 (('render-overrun', 'ok'), True, 1, 1),
+                 (('faults', 'ok'), True, 1, 1),
+                 (('wake-only', 'ok'), False, 1, 1)]
+        for modes, hosted, expected, launches in cases:
+            with self.subTest(modes=modes, hosted=hosted), self.engine(modes):
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with patch.object(soak, 'hosted_windows', return_value=hosted):
+                    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                        status = soak.main(['--engine', str(self.stub), '--seconds', '.02'])
+                self.assertEqual(status, expected)
+                self.assertEqual(self.launches, launches)
+                verdict = json.loads(stdout.getvalue())
+                self.assertEqual(verdict['status'], 'passed' if not status else 'failed')
+                if hosted and modes == ('wake-only', 'ok'):
+                    retry = verdict.get('wake_retry')
+                    self.assertIsInstance(retry, dict)
+                    self.assertIn('overrun_wake_count=1', retry['attempt1'])
+                    self.assertEqual(retry['attempt2'], 'passed')
+                else:
+                    self.assertNotIn('wake_retry', verdict)
+                if hosted and modes[0] == 'wake-only':
+                    self.assertIn('wake-only attempt 1 failed', stderr.getvalue())
+                    self.assertEqual('attempt 2 passed' in stderr.getvalue(), status == 0)
 
     def test_refusal_fails(self):
         self.assert_failed('refusal', 'refused busy')
@@ -169,7 +242,9 @@ class EditSoakTests(unittest.TestCase):
                 self.assert_failed(mode, message)
 
     def test_bench_parser_boundary_conditions(self):
-        good = 'bench blocks=34 p50=0 p99=1 max=1.5 overruns=0 faults=0'
+        good = ('bench blocks=34 p50=0 p99=1 max=1.5 overruns=0 faults=0 '
+                'overrun_render_count=0 overrun_render_max_us=0 '
+                'overrun_wake_count=0 overrun_wake_max_us=0')
         self.assertEqual(soak.parse_bench([good], .2)['blocks'], 34)
         for lines in ([], [good, good], ['not a metric'], [good + ' ']):
             with self.subTest(lines=lines), self.assertRaises(soak.SoakFailure):
@@ -189,7 +264,9 @@ class EditSoakTests(unittest.TestCase):
 
     def test_incomplete_bench_candidate_fails_even_when_it_is_the_only_record(self):
         from types import SimpleNamespace
-        good = b'bench blocks=1000 p50=1 p99=2 max=3.5 overruns=0 faults=0'
+        good = (b'bench blocks=1000 p50=1 p99=2 max=3.5 overruns=0 faults=0 '
+                b'overrun_render_count=0 overrun_render_max_us=0 '
+                b'overrun_wake_count=0 overrun_wake_max_us=0')
         for raw in (good, b'bench ' + b'x' * 2100 + b'\n'):
             with self.subTest(bytes=len(raw)):
                 client = soak.Sidecar.__new__(soak.Sidecar)

@@ -19,6 +19,9 @@ SCRIPT = (Path(__file__).resolve().parents[2] / "windows" / "setup.ps1").read_te
 
 SMOKE = (Path(__file__).resolve().parents[3] / "apps" / "desktop" / "tests" /
          "windows-setup.spec.cjs").read_text(encoding="utf-8")
+LAUNCHER = (Path(__file__).resolve().parents[2] / "windows" / "Wirescape.cmd").read_text(
+    encoding="utf-8"
+)
 SHELL = shutil.which("powershell.exe") or shutil.which("pwsh")
 
 
@@ -45,6 +48,53 @@ class WindowsSetupContract(unittest.TestCase):
         self.assertIn("sidecar_golden", SCRIPT)
         self.assertIn("(Skipped|Not Run)", SCRIPT)
 
+    def test_no_assignment_to_powershell_automatic_variables(self):
+        # Owner report: `$home = ...` is the read-only $HOME (names are
+        # case-insensitive) and aborted re-runs with an existing CMake cache.
+        import re
+        automatic = ("home", "host", "input", "args", "error", "pid", "pwd", "true",
+                     "false", "null", "this", "matches", "psitem", "_", "shellid",
+                     "executioncontext", "myinvocation", "pscmdlet", "psscriptroot",
+                     "pscommandpath", "lastexitcode", "foreach", "switch", "profile")
+        for script in (SCRIPT,):
+            for match in re.finditer(r"\$([A-Za-z_][A-Za-z0-9_]*)\s*=(?!=)", script):
+                self.assertNotIn(match.group(1).lower(), automatic, match.group(0))
+
+    def test_no_native_command_piped_into_select_first(self):
+        # Owner report 2026-11-12: Windows PowerShell 5.1 stops the pipeline at -First, kills the
+        # native process and sets $LASTEXITCODE to -1, so a present tool reads as "missing".
+        import re
+        for script in (SCRIPT,):
+            for line in script.splitlines():
+                if line.lstrip().startswith("#"):
+                    continue
+                self.assertIsNone(re.search(r"&\s*\S+[^|]*\|\s*Select-Object\s+-First", line, re.I), line)
+
+    def test_pinned_cmake_is_preferred_without_files_changing(self):
+        self.assertIn("function Use-PinnedCMake", SCRIPT)
+        self.assertIn("'cmake version 4.2.3'", SCRIPT)
+        self.assertIn("sysconfig.get_path('scripts','$kind')", SCRIPT)
+        prefix = SCRIPT.split("if ($CheckOnly)", 1)[0]
+        self.assertIn("Use-PinnedCMake", prefix.split("function Preflight", 1)[1])
+
+    def test_launcher_starts_electron_exe_not_the_npm_shim(self):
+        # Owner install report: start "" ".bin\electron.cmd" broke cmd quoting.
+        self.assertIn("node_modules\\electron\\dist\\electron.exe", LAUNCHER)
+        self.assertNotIn("electron.cmd", LAUNCHER)
+        self.assertIn('if not exist "%ELECTRON%"', LAUNCHER)
+        self.assertIn("--confirm-audio --confirm-midi %*", LAUNCHER)
+
+    def test_asio_sdk_is_pinned_checked_and_optional(self):
+        # Owner v1 request: ASIO drivers (FlexASIO, ASIO4ALL, interface drivers).
+        self.assertIn("ASIO-SDK_2.3.4_2025-10-15.zip", SCRIPT)
+        self.assertIn("D5EBF0C20DD2C5F43771FD0C1418F4B361BF52434EE670097CFA6B3A335E2ECA", SCRIPT)
+        self.assertIn("'-DPA_USE_ASIO=ON'", SCRIPT)
+        self.assertIn("[switch]$NoAsio", SCRIPT)
+        self.assertIn("'.tools/windows-setup/asiosdk'", SCRIPT)
+        download = SCRIPT.index("Invoke-WebRequest")
+        self.assertLess(SCRIPT.index("if ($CheckOnly)"), download)
+        self.assertLess(download, SCRIPT.index("$asioSha) {"))
+
     def test_no_device_consent_or_unsafe_install(self):
         self.assertIn("--null-audio", SMOKE)
         for token in ("--confirm-audio", "--confirm-midi", "winget install",
@@ -54,6 +104,70 @@ class WindowsSetupContract(unittest.TestCase):
         self.assertIn("app.setPath(key, dir)", SMOKE)
         self.assertIn("['userData','user']", SMOKE)
         self.assertIn("['sessionData','session']", SMOKE)
+
+    def test_preflight_reports_all_tool_versions_before_failing(self):
+        # One diagnostic table, not the old first-missing-tool exception.
+        self.assertIn('Format-Table Tool, Found, Required, OK', SCRIPT)
+        self.assertIn('Preflight failed ($($failures.Count) checks)', SCRIPT)
+        for tool in ('Process', 'Visual Studio', 'cl.exe', 'Windows SDK', 'rc.exe',
+                     'Python', 'CMake', 'Ninja', 'Node', 'npm'):
+            self.assertIn("CheckRow '" + tool + "'", SCRIPT)
+        self.assertIn("Node", SCRIPT)
+        self.assertIn("22.x x64", SCRIPT)
+        self.assertIn("4.2.3", SCRIPT)
+        self.assertIn("1.13.0", SCRIPT)
+        self.assertIn("elevated", SCRIPT.lower())
+
+    def test_exact_pinned_ninja_and_kitware_wheel_suffix(self):
+        import re
+        source = re.search(r"function Test-PinnedNinja\(\[string\]\$v\)\s*\{\s*return \$v -match '([^']+)'\s*\}", SCRIPT)
+        self.assertIsNotNone(source, "one shared PowerShell version predicate")
+        pattern = source.group(1)
+        self.assertEqual(pattern, r'^1\.13\.0(\.git\.kitware\.jobserver-pipe-\d+)?$')
+        for value in ("1.13.0", "1.13.0.git.kitware.jobserver-pipe-1"):
+            with self.subTest(positive=value):
+                self.assertRegex(value, pattern)
+        for value in ("missing", "1.12.1", "1.14.0", "1.13.01", "1.13.0-rc1", "1.13.0.git.other"):
+            with self.subTest(negative=value):
+                self.assertNotRegex(value, pattern)
+        self.assertEqual(SCRIPT.count("Test-PinnedNinja $ninjaVersion"), 2)
+
+    def test_process_local_x64_shell_and_pip_tool_recovery(self):
+        self.assertIn("Microsoft.VisualStudio.DevShell.dll", SCRIPT)
+        self.assertIn("Enter-VsDevShell", SCRIPT)
+        self.assertIn("-arch=x64 -host_arch=x64", SCRIPT)
+        self.assertIn("sysconfig.get_path('scripts','nt_user')", SCRIPT)
+        self.assertIn('$env:Path = "$scripts;$env:Path"', SCRIPT)
+        self.assertIn("$env:npm_config_update_notifier = 'false'", SCRIPT)
+        # None of these may globally install tools or edit a user's PATH.
+        self.assertNotIn("SetEnvironmentVariable", SCRIPT)
+        self.assertNotIn("Install-Module", SCRIPT)
+
+    def test_owner_launcher_smoke_is_device_off_and_bounded(self):
+        self.assertIn('WIRESCAPE_SETUP_SMOKE', SCRIPT)
+        self.assertIn('Wirescape.cmd', SCRIPT)
+        self.assertIn('--null-audio', SCRIPT)
+        self.assertIn('Start-Process -FilePath $env:ComSpec', SCRIPT)
+        self.assertIn('Start-Sleep -Seconds 3', SCRIPT)
+        self.assertIn('taskkill.exe /PID $launcherProcess.Id /T /F', SCRIPT)
+        self.assertIn('if "%WIRESCAPE_SETUP_SMOKE%"=="1"', LAUNCHER)
+        self.assertIn('exit /b %errorlevel%', LAUNCHER)
+        self.assertIn('Write-Host "Summary: $summary"', SCRIPT)
+
+    def test_launcher_smoke_isolated_and_existing_profile_preserved(self):
+        # This is a source contract; the Windows job also runs the real smoke.
+        self.assertIn("NewGuid().ToString('N')", SCRIPT)
+        self.assertIn("$profileDir = Join-Path $smokeBase 'isolated-profile'", SCRIPT)
+        self.assertIn("$existingProfile = Join-Path $smokeBase 'existing-profile'", SCRIPT)
+        self.assertIn("Set-Content -LiteralPath $existingMarker", SCRIPT)
+        self.assertIn(' --null-audio --profile-dir "{1}"', SCRIPT)
+        self.assertIn("Wirescape.cmd --null-audio --profile-dir exited early", SCRIPT)
+        for subdir in ("userData", "sessionData"):
+            self.assertIn("'"+subdir+"'", SCRIPT)
+        self.assertIn("[Convert]::ToBase64String($existingBefore)", SCRIPT)
+        self.assertIn("[Convert]::ToBase64String($existingAfter)", SCRIPT)
+        self.assertIn("Launcher smoke changed the existing profile sentinel", SCRIPT)
+        self.assertIn("Remove-Item Env:WIRESCAPE_SETUP_SMOKE", SCRIPT)
 
     def test_node_and_windows_preflight(self):
         self.assertIn("v22", SCRIPT)

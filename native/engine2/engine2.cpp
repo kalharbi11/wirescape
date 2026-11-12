@@ -112,6 +112,14 @@ struct Node {
     std::vector<std::vector<ws2_event>>port_events;
     std::vector<ws2_event_list>event_view;std::vector<ws2_event_out>event_outputs;
     std::vector<uint32_t>event_tap_slots; // Precomputed event-output -> telemetry slot; empty when untapped.
+    // Render-owned oscillator observation, never read by the control owner.
+    struct Pitch {
+        bool enabled = false, vco = false;
+        uint32_t latest = 0, input = 0, trigger = 0, gate = 0, tune = 0;
+        std::array<int32_t, WS2_MAX_CHANNELS> note{};
+        std::array<bool, WS2_MAX_CHANNELS> note_on{}, high{};
+        float value = std::numeric_limits<float>::quiet_NaN();
+    } pitch;
     std::vector<ws2_event>events;std::vector<Item>pending;
     std::vector<const float*>legacy_in;std::vector<float*>legacy_out;
     int forced_channels=-1;uint32_t channels=1,latency=0;
@@ -133,6 +141,34 @@ struct Node {
     }
     ws2_host host(){return {sizeof(ws2_host),this,allocate};}
 };
+bool pitch_layout(const Node *node, Node::Pitch &pitch) {
+    if (!node || node->legacy) return false;
+    pitch.vco = !std::strcmp(node->d->id, "essentials.vco");
+    if (!pitch.vco && std::strcmp(node->d->id, "ports.macro_oscillator")) return false;
+    const auto index = [](const auto &ports, const char *id) {
+        for (uint32_t i = 0; i < ports.size(); ++i)
+            if (ports[i].id && !std::strcmp(ports[i].id, id)) return i;
+        return UINT32_MAX;
+    };
+    pitch.input = index(node->inputs, "pitch");
+    pitch.tune = index(node->parameters, pitch.vco ? "frequency" : "coarse");
+    if (!pitch.vco) {
+        pitch.trigger = index(node->inputs, "trigger");
+        pitch.gate = index(node->inputs, "gate");
+    }
+    return pitch.input < node->in.size() && pitch.tune < node->param.size() &&
+           (pitch.vco || (pitch.trigger < node->in.size() && pitch.gate < node->in.size()));
+}
+bool valid_tap(const Node *node, const Tap &tap) {
+    if (!node || tap.kind > Tap::OscPitch) return false;
+    if (tap.kind == Tap::OscPitch) {
+        Node::Pitch layout;
+        return tap.index == 0 && pitch_layout(node, layout);
+    }
+    if (tap.kind == Tap::Param) return !node->legacy && tap.index < node->parameters.size();
+    return tap.index < node->outputs.size() &&
+           node->outputs[tap.index].kind == (tap.kind == Tap::EventOut ? WS2_EVENT : WS2_SIGNAL);
+}
 struct Edge {
     uint32_t from,output,to,input;int kind;float amount;
     Node*source=nullptr,*destination=nullptr;bool back=false,removed=false;
@@ -155,6 +191,7 @@ struct Engine::Impl {
     std::vector<Packet>future;std::vector<uint8_t>arena;
     bool prepared=false;std::atomic_flag rendering=ATOMIC_FLAG_INIT;
     std::vector<Tap> taps;std::vector<Node*> tap_nodes;
+    std::atomic<uint64_t> tap_sequence{0};
     std::unique_ptr<std::atomic<float>[]> tap_values;
     std::unique_ptr<std::atomic<uint32_t>[]> tap_counts;
     std::atomic<uint64_t> tap_frame{0};
@@ -204,6 +241,10 @@ struct Engine::Impl {
     void reset_processors()noexcept {
         for(auto&n:nodes){
             if(n->legacy)n->legacy->reset(n->instance);else n->d->reset(n->instance);
+            n->pitch.latest = 0;
+            n->pitch.note_on.fill(false);
+            n->pitch.high.fill(false);
+            n->pitch.value = std::numeric_limits<float>::quiet_NaN();
             for(auto&p:n->state){p.base.reset();p.offset.fill(0);}n->pending.clear();
         }
         for(auto&e:edges)if(e.back){e.head=0;std::fill(e.delay_channels.begin(),e.delay_channels.end(),0);if(e.delay.memory)std::fill_n(e.delay.memory.get(),cfg.max_channels*e.delay.stride,0.f);}
@@ -276,12 +317,17 @@ bool Engine::Impl::setup(Node&n) {
 
 bool Engine::Impl::resolve_taps() {
     tap_nodes.clear();tap_nodes.reserve(taps.size());
-    for(auto&node:nodes)node->event_tap_slots.clear();
+    for (auto &node : nodes) {
+        node->event_tap_slots.clear();
+        node->pitch.enabled = false;
+    }
     for(uint32_t i=0;i<taps.size();++i){
         const auto&t=taps[i];auto*n=find(t.node);
-        if(!n||(t.kind==Tap::Param?(n->legacy||t.index>=n->parameters.size()):
-                t.index>=n->outputs.size()||n->outputs[t.index].kind!=(t.kind==Tap::EventOut?WS2_EVENT:WS2_SIGNAL)))
-            return fail("Telemetry tap endpoint changed during prepare");
+        if (!valid_tap(n, t)) return fail("Telemetry tap endpoint changed during prepare");
+        if (t.kind == Tap::OscPitch) {
+            if (!pitch_layout(n, n->pitch)) return fail("Oscillator pitch layout changed during prepare");
+            n->pitch.enabled = true;
+        }
         tap_nodes.push_back(n);
         if(t.kind==Tap::EventOut){
             if(n->event_tap_slots.empty())n->event_tap_slots.assign(n->outputs.size(),UINT32_MAX);
@@ -620,6 +666,68 @@ void Engine::Impl::process_node(Node&n,uint32_t start,uint32_t frames) {
         }
         for(uint32_t c=0;c<global.channels;++c)for(uint32_t i=0;i<frames;++i)global.data[c][start+i]=c<o.channels?o.data[c][(o.flags&WS2_CONSTANT)?0:i]:0;
     }n.touched=true;
+    if (n.pitch.enabled && frames && n.channels) {
+        // A typed coordinate avoids accidentally swapping three similar indices.
+        struct SignalIndex {
+            uint32_t input, channel, sample;
+        };
+        // For direct edges, the read pointer aliases a whole-block source buffer.
+        auto signal = [&](SignalIndex at) {
+            const auto &buffer = n.in[at.input];
+            const uint32_t channel = std::min(at.channel, buffer.channels - 1);
+            const uint32_t sample =
+                (buffer.flags & WS2_CONSTANT)
+                    ? 0u
+                    : (buffer.read[channel] == buffer.data[channel] ? at.sample : start + at.sample);
+            return buffer.read[channel][sample];
+        };
+        auto parameter = [&](uint32_t index, uint32_t channel) {
+            const auto &buffer = n.param[index];
+            const uint32_t ch = std::min(channel, buffer.channels - 1);
+            return buffer.data[ch][(buffer.flags & WS2_CONSTANT) ? 0u : frames - 1];
+        };
+        if (n.pitch.vco) {
+            for (const auto &event : n.events) {
+                const uint32_t channel = event.channel < 0 ? 0u : static_cast<uint32_t>(event.channel);
+                if (channel >= n.channels) continue;
+                if (event.type == WS2_NOTE_ON) {
+                    n.pitch.note[channel] = event.key;
+                    n.pitch.note_on[channel] = true;
+                    n.pitch.latest = channel;
+                } else if (event.type == WS2_NOTE_CHOKE) {
+                    n.pitch.note_on[channel] = false;
+                }
+            }
+        } else {
+            // Plaits renders at most eight voices in 12-frame blocks; scan strikes and held gates.
+            for (uint32_t i = 0; i < frames; ++i) {
+                for (uint32_t channel = 0; channel < std::min(n.channels, 8u); ++channel) {
+                    const bool high =
+                        std::max(signal({n.pitch.trigger, channel, i}), signal({n.pitch.gate, channel, i})) > 0.5f;
+                    if (high && !n.pitch.high[channel]) n.pitch.latest = channel;
+                    n.pitch.high[channel] = high;
+                }
+            }
+        }
+        const uint32_t channel = std::min(n.pitch.latest, n.channels - 1);
+        if (n.pitch.vco) {
+            const float tune = parameter(n.pitch.tune, channel);
+            double hz = tune;
+            if (n.in[n.pitch.input].flags & WS2_CONNECTED) {
+                hz = 261.6255653005986 * std::pow(2., signal({n.pitch.input, channel, frames - 1})) * (tune / 220.);
+            } else if (n.pitch.note_on[channel]) {
+                hz = 440. * std::pow(2., (n.pitch.note[channel] - 69.) / 12.);
+            }
+            // VCO tap stores Hz; the control owner converts to equal-tempered MIDI.
+            n.pitch.value = std::numeric_limits<float>::quiet_NaN();
+            if (std::isfinite(hz) && hz > 0) n.pitch.value = static_cast<float>(hz);
+        } else {
+            // Macro tap stores nominal MIDI note. FM and Plaits internal FM excluded.
+            n.pitch.value =
+                60.f + parameter(n.pitch.tune, channel) +
+                std::clamp(12.f * signal({n.pitch.input, channel, frames - 1}), -96.f, 96.f);
+        }
+    }
 }
 
 Engine::Engine(Config config):p_(std::make_unique<Impl>(config)){}
@@ -666,9 +774,7 @@ bool Engine::set_telemetry_taps(const std::vector<Tap>&requested){
     if(p.prepared||requested.size()>p.cfg.max_taps)return p.fail("Invalid telemetry tap capacity or setup state");
     for(size_t i=0;i<requested.size();++i){
         const auto&t=requested[i];const auto*n=p.find(t.node);
-        if(!n||t.kind>Tap::EventOut||(t.kind==Tap::Param?(n->legacy||t.index>=n->parameters.size()):
-            t.index>=n->outputs.size()||n->outputs[t.index].kind!=(t.kind==Tap::EventOut?WS2_EVENT:WS2_SIGNAL)))
-            return p.fail("Invalid telemetry tap endpoint");
+        if (!valid_tap(n, t)) return p.fail("Invalid telemetry tap endpoint");
         for(size_t j=0;j<i;++j)if(requested[j].kind==t.kind&&requested[j].node==t.node&&requested[j].index==t.index)
             return p.fail("Duplicate telemetry tap endpoint");
     }
@@ -676,18 +782,29 @@ bool Engine::set_telemetry_taps(const std::vector<Tap>&requested){
     auto counts=std::make_unique<std::atomic<uint32_t>[]>(requested.size());
     for(size_t i=0;i<requested.size();++i){values[i].store(0,std::memory_order_relaxed);counts[i].store(0,std::memory_order_relaxed);}
     p.taps=requested;p.tap_values.swap(values);p.tap_counts.swap(counts);
-    p.tap_nodes.clear();p.tap_frame.store(0,std::memory_order_relaxed);
+    p.tap_nodes.clear();p.tap_frame.store(0,std::memory_order_relaxed);p.tap_sequence.store(0,std::memory_order_relaxed);
     return true;
 }
 uint32_t Engine::read_telemetry(float*values,uint32_t*counts,uint32_t capacity,uint64_t&frame)const noexcept {
     const auto&p=*p_;frame=0;
     if(capacity<p.taps.size()||(!p.taps.empty()&&(!values||!counts)))return 0;
-    frame=p.tap_frame.load(std::memory_order_acquire);
-    for(size_t i=0;i<p.taps.size();++i){
-        values[i]=p.tap_values[i].load(std::memory_order_relaxed);
-        counts[i]=p.tap_counts[i].load(std::memory_order_relaxed);
+    // A bounded non-render read must not combine two blocks (in particular
+    // Groove's split uint32 loop and release-safe position observations).
+    for(uint32_t attempt=0;attempt<3;++attempt){
+        const auto before=p.tap_sequence.load(std::memory_order_acquire);
+        if(before&1u)continue;
+        const auto observed=p.tap_frame.load(std::memory_order_relaxed);
+        for(size_t i=0;i<p.taps.size();++i){
+            values[i]=p.tap_values[i].load(std::memory_order_relaxed);
+            counts[i]=p.tap_counts[i].load(std::memory_order_relaxed);
+        }
+        std::atomic_thread_fence(std::memory_order_acquire);
+        if(before==p.tap_sequence.load(std::memory_order_relaxed)){
+            frame=observed;
+            return static_cast<uint32_t>(p.taps.size());
+        }
     }
-    return static_cast<uint32_t>(p.taps.size());
+    return static_cast<uint32_t>(p.taps.size()); // frame=0: unavailable, never a torn snapshot.
 }
 bool Engine::prepare(){
     auto&p=*p_;if(p.prepared)return p.fail("Prepare is quiescent and single-use; reconfigure uses staged replacement");
@@ -786,13 +903,16 @@ int Engine::render(float*const*outputs,uint32_t output_channels,uint32_t frames,
     if(!p.taps.empty()){
         // Render-owned, post-DSP snapshots. Feedback loops process in chunks, so
         // their parameter buffer's last chunk is shorter than the full block.
+        p.tap_sequence.fetch_add(1,std::memory_order_acq_rel);
         for(size_t i=0;i<p.taps.size();++i){
             const auto&t=p.taps[i];const auto*n=p.tap_nodes[i];float sample=0;
             if(t.kind==Tap::Param){
                 const auto&b=n->param[t.index];
                 const uint32_t last=n->loop?(frames-1)%p.cfg.feedback_block:frames-1;
                 sample=b.data[0][(b.flags&WS2_CONSTANT)?0:last];
-            }else if(t.kind==Tap::Output){
+            } else if (t.kind == Tap::OscPitch) {
+                sample = n->pitch.value;
+            } else if (t.kind == Tap::Output) {
                 const auto&b=n->global_out[t.index];
                 const uint32_t at=(b.flags&WS2_CONSTANT)?0:frames-1;
                 if(b.channels){
@@ -803,7 +923,8 @@ int Engine::render(float*const*outputs,uint32_t output_channels,uint32_t frames,
             }
             p.tap_values[i].store(sample,std::memory_order_relaxed);
         }
-        p.tap_frame.store(p.block_start+frames,std::memory_order_release);
+        p.tap_frame.store(p.block_start+frames,std::memory_order_relaxed);
+        p.tap_sequence.fetch_add(1,std::memory_order_release);
     }
     if(p.cfg.playing)p.beat+=frames*p.cfg.bpm/(60.*p.cfg.sample_rate);
     p.position.store(p.block_start+frames,std::memory_order_release);
@@ -938,6 +1059,12 @@ bool Engine::reconfigure(uint32_t node,const std::vector<uint8_t>&config){
     // Refuse a removed tap endpoint rather than silently shifting reader slots.
     std::vector<Tap> remapped;remapped.reserve(old.taps.size());
     for(const auto&t:old.taps){
+        if (t.kind == Tap::OscPitch) {
+            if (!valid_tap(fresh.find(t.node), t))
+                return old.fail("Reconfiguration removes oscillator pitch layout");
+            remapped.push_back(t);
+            continue;
+        }
         const auto*prior=old.find(t.node);const auto*target=fresh.find(t.node);
         const char*id=t.kind==Tap::Param?prior->parameters[t.index].id:prior->outputs[t.index].id;
         const uint32_t index=t.kind==Tap::Param?index_of(target->parameters,id):index_of(target->outputs,id);
@@ -961,6 +1088,7 @@ bool Engine::reconfigure(uint32_t node,const std::vector<uint8_t>&config){
         retained.incoming.swap(layout.incoming);retained.signal_edges.swap(layout.signal_edges);
         retained.modulation.swap(layout.modulation);retained.outgoing.swap(layout.outgoing);
         retained.event_tap_slots.swap(layout.event_tap_slots);
+        retained.pitch.enabled = layout.pitch.enabled;
         for(uint32_t j=0;j<retained.event_outputs.size();++j)retained.event_outputs[j]={sizeof(ws2_event_out),&fresh,j,Impl::emit};
         fresh.nodes[i].swap(old.nodes[i]);
     }
@@ -1124,6 +1252,7 @@ bool Engine::replan(Engine &candidate, uint64_t timeout_ns) {
     old.distance.swap(fresh.distance);
     old.taps.swap(fresh.taps);old.tap_nodes.swap(fresh.tap_nodes);
     old.tap_values.swap(fresh.tap_values);old.tap_counts.swap(fresh.tap_counts);
+    old.tap_sequence.store(0,std::memory_order_relaxed);
     old.tap_frame.store(0,std::memory_order_release);
     old.feedback_count.store(fresh.feedback_count.load());
     old.latency.store(fresh.latency.load());

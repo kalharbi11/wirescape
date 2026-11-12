@@ -10,6 +10,9 @@ target_include_directories(wirescape_runtime_document PUBLIC ${CMAKE_CURRENT_SOU
 target_link_libraries(wirescape_runtime_document PUBLIC wirescape_app_engine PRIVATE nlohmann_json::nlohmann_json)
 
 
+add_executable(groove_observation_tests groove_observation_tests.cpp ../tests2/allocation_watch.cpp)
+target_link_libraries(groove_observation_tests PRIVATE wirescape_engine2)
+add_test(NAME groove_observation_tests COMMAND groove_observation_tests)
 add_executable(groove_runtime_tests groove_runtime_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(groove_runtime_tests PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
 add_test(NAME groove_runtime_tests COMMAND groove_runtime_tests)
@@ -55,7 +58,6 @@ add_test(NAME golden_event_stream COMMAND "${Python3_EXECUTABLE}"
 add_test(NAME golden_serialization COMMAND "${Python3_EXECUTABLE}"
   "${PROJECT_SOURCE_DIR}/../tools/golden.py" serialization-self-test --renderer $<TARGET_FILE:golden_render>)
 set_tests_properties(golden_render_hashes golden_event_stream golden_serialization PROPERTIES TIMEOUT 60)
-
 find_package(Qt6 6.5 QUIET COMPONENTS Core)
 if(NOT TARGET Qt6::Core)
   message(STATUS "Qt Core unavailable: document inspection tests disabled")

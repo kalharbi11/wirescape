@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# OSC: Macro gate input, honest oscillator tuning, live frequency (from #337)
+# OSC: Macro gate input, honest oscillator tuning, live frequency (parent 337)
 
 Compass rulings, 2026-11-07, on ChatGPT's handoff in #337. The work is split into three issues so each can be built and reviewed alone. **No existing ID, default or DSP result changes. Saved patches play exactly as before.**
 

@@ -26,7 +26,7 @@ type Edit = {
 type Pending = {
   session: string; type: string; kind: 'load' | 'edit' | 'query' | 'control' | 'restart';
   resolve?: (value: Wire) => void; reject?: (reason: EngineRefusal) => void;
-  revision?: number; edit?: Edit;
+  revision?: number; edit?: Edit; timeout?: number;
 };
 type Load = {
   id: string; patch: PatchV2; revision: number;
@@ -51,6 +51,10 @@ const generation = (s: unknown): bigint | null =>
 export class RealEngine implements EngineClient {
   private session = '';
   private gen = '0';
+  private playheadEnabled = false;
+  private monitorEnabled = false;
+  private playhead: Telemetry['playhead'] = {};
+  private statusGen = '';
   private serial = 0;
   private revision = 0;
   private loadedOnce = false;
@@ -75,6 +79,7 @@ export class RealEngine implements EngineClient {
   private stateCbs = new Set<(state: 'real' | 'restarting') => void>();
   private graphErrorCbs = new Set<(error: EngineRefusal) => void>();
   private catalogueCbs = new Set<() => void>();
+  private generationCbs = new Set<(gen: string) => void>();
   setSampleRate?: (hz: number) => void;
   setBufferFrames?: (frames: number) => void;
   midiLearn?: (armed: boolean) => void;
@@ -94,6 +99,13 @@ export class RealEngine implements EngineClient {
 
   stop(): void { this.unsubscribe?.(); this.unsubscribe = undefined; this.started = false; }
 
+  canApplyGroove(moduleId: number): boolean {
+    if (!this.ready || this.state !== 'real' || this.load || this.active || this.queue.length) return false;
+    if (this.statusGen === this.gen && this.status && this.status.audio.state !== 'running') return true;
+    const position = this.playheadEnabled ? this.playhead?.[moduleId] : undefined;
+    return position?.[0] === -1 && position[1] === -1;
+  }
+
   onTelemetry(cb: (t: Telemetry) => void): () => void { this.telemetryCbs.add(cb); return () => this.telemetryCbs.delete(cb); }
   onStatus(cb: (s: SystemStatus) => void): () => void {
     this.statusCbs.add(cb);
@@ -111,6 +123,56 @@ export class RealEngine implements EngineClient {
   }
   onCatalogue(cb: () => void): () => void {
     this.catalogueCbs.add(cb); return () => this.catalogueCbs.delete(cb);
+  }
+  generation(): string { return this.gen; }
+  onGeneration(cb: (gen: string) => void): () => void {
+    this.generationCbs.add(cb); return () => this.generationCbs.delete(cb);
+  }
+  settleUnansweredLoad(applied: boolean): void {
+    const load = this.load;
+    if (!load) return;
+    this.pending.delete(load.id);
+    this.load = undefined;
+    if (applied) {
+      this.confirmed = copy(load.patch);
+      this.usedIds = new Set(this.confirmed.modules.map(m => m.id));
+      this.ready = true; this.loadedOnce = true;
+      load.resolve(); this.setState('real'); this.pumpEdits();
+    } else {
+      this.ready = this.confirmed !== null;
+      load.reject(refusal('unavailable', 'Load was not applied.'));
+    }
+    this.notifySettled();
+  }
+  private waitForSessionReady(session: string, timeout: number): Promise<void> {
+    if (this.session !== session && this.ready && this.state === 'real') return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      let off = () => {};
+      const timer = window.setTimeout(() => {
+        off(); reject(refusal('unavailable', 'Engine restart timed out before the patch loaded.'));
+      }, timeout);
+      off = this.onConnection(state => {
+        if (this.session !== session && this.ready && state === 'real') {
+          window.clearTimeout(timer); off(); resolve();
+        }
+      });
+    });
+  }
+  restartEngine(timeoutMs = 10_000): Promise<void> {
+    const id = this.id(), session = this.session, deadline = Date.now() + timeoutMs;
+    return new Promise<void>((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        this.pending.delete(id); reject(refusal('unavailable', 'Engine restart timed out.'));
+      }, timeoutMs);
+      this.pending.set(id, { session, type: 'app.restartEngine', kind: 'restart', timeout: timer,
+        resolve: () => {
+          window.clearTimeout(timer);
+          void this.waitForSessionReady(session, Math.max(0, deadline - Date.now())).then(resolve, reject);
+        },
+        reject: err => { window.clearTimeout(timer); reject(err); } });
+      try { this.bridge.send({ v: 0, id, type: 'app.restartEngine' }); }
+      catch { window.clearTimeout(timer); this.pending.delete(id); reject(refusal('unavailable', 'Could not restart engine.')); }
+    });
   }
   /** A document switch must keep its owner visible until all inverses have settled. */
   async whenEditsSettled(): Promise<void> {
@@ -139,8 +201,11 @@ export class RealEngine implements EngineClient {
     for (const cb of this.statusCbs) cb(s);
   }
   private rejectPending(error: EngineRefusal): void {
-    for (const p of this.pending.values()) p.reject?.(error);
-    this.pending.clear();
+    for (const [id, p] of this.pending) {
+      if (p.kind === 'restart') continue;
+      if (p.timeout !== undefined) window.clearTimeout(p.timeout);
+      p.reject?.(error); this.pending.delete(id);
+    }
     this.active = undefined;
     this.queue = [];
     this.lastEdit = undefined;
@@ -153,6 +218,9 @@ export class RealEngine implements EngineClient {
     if (!isRecord(message) || message.v !== 0) return;
     if (message.type === 'app.engineExited') {
       this.session = '';
+      this.playhead = {}; this.statusGen = '';
+      this.playheadEnabled = false;
+      this.monitorEnabled = false;
       this.ready = false;
       this.confirmed = null;
       this.setState('restarting');
@@ -169,10 +237,13 @@ export class RealEngine implements EngineClient {
       else { this.pending.clear(); this.active = undefined; this.queue = []; }
       this.session = message.session;
       this.gen = '0';
+      this.playhead = {}; this.statusGen = '';
       this.ready = false;
       this.usedIds.clear();
       this.confirmed = null;
       const capabilities = Array.isArray(message.capabilities) ? message.capabilities : [];
+      this.playheadEnabled = capabilities.includes('telemetry.playhead');
+      this.monitorEnabled = capabilities.includes('telemetry.monitor');
       this.setSampleRate = capabilities.includes('setSampleRate')
         ? hz => this.control('setSampleRate', { hz }) : undefined;
       this.setBufferFrames = capabilities.includes('setBufferFrames')
@@ -185,6 +256,7 @@ export class RealEngine implements EngineClient {
       }
       if (isRecord(message.audio) && isRecord(message.midi)) {
         this.midiDevices = Array.isArray(message.midi.devices) ? message.midi.devices as Device[] : [];
+        this.statusGen = this.gen;
         this.emitStatus({ audio: message.audio as unknown as SystemStatus['audio'],
           midi: { devices: this.midiDevices, activity: isRecord(message.midi.activity)
             ? message.midi.activity as Record<string, number> : {},
@@ -201,17 +273,29 @@ export class RealEngine implements EngineClient {
     }
     if (message.type?.toString().startsWith('app.menu')) return; // App consumes menu intents.
     if (message.type === 'status' || message.type === 'telemetry' || message.type === 'devices') {
-      if (message.session !== this.session || !this.validGen(message.gen)) return;
+      const pushedGen = generation(message.gen);
+      if (message.session !== this.session || pushedGen === null || pushedGen < BigInt(this.gen)) return;
+      if (pushedGen > BigInt(this.gen)) {
+        this.gen = message.gen as string;
+        this.playhead = {}; this.statusGen = '';
+      }
+      for (const cb of this.generationCbs) cb(this.gen);
       if (message.type === 'status' && isRecord(message.status)) {
         const next = message.status as unknown as SystemStatus;
         this.midiDevices = next.midi?.devices ?? this.midiDevices;
+        this.statusGen = this.gen;
         this.emitStatus(next);
       } else if (message.type === 'devices') {
         if (Array.isArray(message.audioDevices)) this.audioDevices = message.audioDevices as Device[];
         if (Array.isArray(message.midiDevices)) this.midiDevices = message.midiDevices as Device[];
         if (this.status) this.emitStatus({ ...this.status, midi: { ...this.status.midi, devices: this.midiDevices } });
       } else if (message.type === 'telemetry' && isRecord(message.telemetry)) {
-        const t = message.telemetry as unknown as Telemetry;
+        const t = { ...message.telemetry, gen: message.gen } as unknown as Telemetry;
+        t.monitorAvailable = this.monitorEnabled; // Renderer-only support bit from hello.
+        if (!this.monitorEnabled) delete t.monitor;
+        // Older/absent generations are unknown: never let them authorize Apply.
+        this.playhead = this.playheadEnabled && message.gen === this.gen && isRecord(t.playhead) ? t.playhead : {};
+        if (!this.playheadEnabled) { delete t.playhead; delete t.groove; }
         // v0 transmits JSON arrays, never invent absent scope/effective/outputs.
         t.scope = Object.fromEntries(Object.entries(t.scope ?? {}).map(([k, v]) =>
           [k, Array.isArray(v) ? Float32Array.from(v) : v])) as Telemetry['scope'];
@@ -225,14 +309,18 @@ export class RealEngine implements EngineClient {
     const g = generation(message.gen);
     if (p.kind !== 'restart' && (g === null || g < BigInt(this.gen))) return;
     this.pending.delete(message.re);
-    if (g !== null && g > BigInt(this.gen) && p.kind !== 'restart') this.gen = message.gen as string;
+    if (p.timeout !== undefined) window.clearTimeout(p.timeout);
+    if (g !== null && g > BigInt(this.gen) && p.kind !== 'restart') {
+      this.gen = message.gen as string;
+      this.playhead = {}; this.statusGen = '';
+    }
     if (message.ok !== true) {
       const err = refusal(message.code, message.message);
       if (p.kind === 'load') {
         // A refused loadGraph leaves the engine on its previous graph (sidecar rollback).
         (err.detail as { engine?: true }).engine = true;
         if (p.revision === this.revision) {
-          this.ready = false;
+          this.ready = this.confirmed !== null; // the atomic refusal leaves the confirmed graph untouched
           this.queue = []; this.active = undefined;
           this.load?.reject(err); this.load = undefined;
           this.notifySettled();
@@ -262,12 +350,8 @@ export class RealEngine implements EngineClient {
     } else p.resolve?.(message);
   }
 
-  private validGen(gen: unknown): boolean {
-    const n = generation(gen);
-    return n !== null && n === BigInt(this.gen);
-  }
-
   async loadGraph(patch: PatchV2): Promise<void> {
+    this.playhead = {};
     this.loadedOnce = true;
     this.ready = false;
     this.active = undefined;
@@ -326,6 +410,7 @@ export class RealEngine implements EngineClient {
       }
       entry.session = this.session;
       this.active = entry;
+      this.playhead = {};
       this.pending.set(entry.id, { session: this.session, type: entry.mutation.type, kind: 'edit', edit: entry });
       try { this.send(entry.id, entry.mutation.type, entry.mutation.payload); }
       catch { this.pending.delete(entry.id); this.failEdit(entry, refusal('unavailable', 'Bridge unavailable.')); }

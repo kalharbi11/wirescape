@@ -33,7 +33,7 @@ export async function mockBridge(page: Page): Promise<void> {
         catalogue = await (await fetch('/wirescape_modules.json')).json();
       }
       emit({ v: 0, type: 'hello', session: session(), protocol: 0,
-        engine: { version: 'test', sha: 'abc1234' }, capabilities: ['midiLearn'],
+        engine: { version: 'test', sha: 'abc1234' }, capabilities: ['midiLearn', 'telemetry.playhead'],
         catalogue, audio: audioStatus,
         midi: midiStatus() });
     };
@@ -106,8 +106,10 @@ export async function mockBridge(page: Page): Promise<void> {
     const send = (cmd: Message) => {
       sent.push(copy(cmd));
       if (cmd.type === 'app.restartEngine') {
-        emit({ v: 0, re: cmd.id, ok: true, gen: '0' });
+        restarts++;
         exit(true);
+        if (!dropRestartReply) setTimeout(() => reply(cmd, true, {}, session(), '0'), 0);
+        dropRestartReply = false;
         return;
       }
       const s = session();
@@ -118,7 +120,7 @@ export async function mockBridge(page: Page): Promise<void> {
     let holdOpen = false;
     let pendingOpen: (() => void) | undefined;
     const saves: Message[] = [];
-    let opens = 0;
+    let opens = 0, restarts = 0, dropRestartReply = false;
     const exit = (expected = false) => {
       emit({ v: 0, type: 'app.engineExited', exitCode: expected ? 0 : null,
         signal: null, expected });
@@ -148,7 +150,15 @@ export async function mockBridge(page: Page): Promise<void> {
     };
     (window as any).__mockBridge = {
       sent, getGraph: () => copy(graph), getSession: session, generation: () => String(gen),
-      getSaved: () => saved, getSaves: () => copy(saves), openCount: () => opens,
+      getSaved: () => saved, getSaves: () => copy(saves), openCount: () => opens, restartCount: () => restarts,
+      dropNextRestartReply: () => { dropRestartReply = true; },
+      loseHeldWithPush: (applied: boolean) => {
+        if (applied) for (const h of held) if (h.cmd.type === 'loadGraph' && h.session === session()) {
+          graph = copy(h.cmd.patch); gen++;
+        }
+        emitStatus();
+      },
+      replyHeldLate: () => { for (const h of held.splice(0)) reply(h.cmd, true, {}, h.session, String(gen)); },
       holdOpen: () => { holdOpen = true; },
       releaseOpen: () => { pendingOpen?.(); pendingOpen = undefined; },
       menu: (type: string) => emit({ v: 0, type }),

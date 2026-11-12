@@ -43,7 +43,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       ],
       outputs: [{"module":5,"port":"audio","bus_channel":0},{"module":10,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[80,1270],"3":[860,80],"4":[1400,80],"5":[2060,80],"6":[740,2350],"7":[1400,2350],"8":[860,1270],"9":[1400,1270],"10":[2060,1270]},
+        positions: {"1":[80,80],"2":[80,1270],"3":[1430,80],"4":[2130,80],"5":[2830,80],"6":[740,2350],"7":[1400,2350],"8":[1430,1270],"9":[2130,1270],"10":[2830,1270]},
         labels: {"1":"Stone choir · low L/R","2":"Stone choir · high L/R","6":"Slow tide","7":"Counterphase haze","8":"Right body mix","9":"Right-hand shadow"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
@@ -78,7 +78,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       ],
       outputs: [{"module":5,"port":"audio","bus_channel":0},{"module":5,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[80,1180],"3":[860,80],"4":[1400,80],"5":[2060,80],"6":[740,1180],"7":[1400,1180],"8":[2060,1180]},
+        positions: {"1":[80,80],"2":[80,1180],"3":[1430,80],"4":[2130,80],"5":[2830,80],"6":[740,1180],"7":[1400,1180],"8":[2060,1180]},
         labels: {"1":"Bent wall","2":"Air leakage","7":"Slow random wander","8":"Structural pulse"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
@@ -111,14 +111,14 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       ],
       outputs: [{"module":4,"port":"audio","bus_channel":0},{"module":4,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[740,80],"3":[1540,80],"4":[2060,80],"5":[80,1180],"6":[740,1180],"7":[1400,1180]},
+        positions: {"1":[80,80],"2":[740,80],"3":[2070,80],"4":[2770,80],"5":[80,1180],"6":[740,1180],"7":[1400,1180]},
         labels: {"2":"Frozen voices","5":"Slow apparition","6":"Body tide","7":"Filter tide"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
   },
   {
     id: "vowel-apparitions", name: "04 · Vowel Apparitions",
-    note: "Play keys · Vocal/formant textures with independent vowel and filter-breath modulation.",
+    note: "Play keys · Chiptune model 7 with independently moving morph and filter-breath modulation.",
     patch: {
       "SPDX-License-Identifier": "GPL-3.0-only",
       name: "04 · Vowel Apparitions", format: "wirescape.native.patch", version: 2,
@@ -148,13 +148,13 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       outputs: [{"module":5,"port":"audio","bus_channel":0},{"module":5,"port":"audio","bus_channel":1}],
       ui: {
         positions: {"1":[80,80],"2":[740,80],"3":[1400,80],"4":[2060,80],"5":[2720,80],"6":[80,1180],"7":[740,1180],"8":[2060,1180]},
-        labels: {"2":"Vocal engine · model 7","6":"Long breath","7":"Vowel drift","8":"Independent filter breath"}, view: {"x":0,"y":0,"zoom":1},
+        labels: {"2":"Chiptune · model 7","6":"Long breath","7":"Vowel drift","8":"Independent filter breath"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
   },
   {
     id: "glass-cathedrals", name: "05 · Glass Cathedrals",
-    note: "Play keys · Macro model 12, main/aux resonant blend and slowly drifting overtones.",
+    note: "Play keys · Additive model 12, main/aux overtone blend and slowly drifting harmonics.",
     patch: {
       "SPDX-License-Identifier": "GPL-3.0-only",
       name: "05 · Glass Cathedrals", format: "wirescape.native.patch", version: 2,
@@ -182,7 +182,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       outputs: [{"module":4,"port":"audio","bus_channel":0},{"module":4,"port":"audio","bus_channel":1}],
       ui: {
         positions: {"1":[80,80],"2":[740,80],"3":[2060,80],"4":[2720,80],"5":[740,1180],"6":[2060,1180],"7":[1400,80]},
-        labels: {"2":"Modal engine · model 12","5":"Glass shimmer","6":"Slow shadow","7":"Modal + overtone blend"}, view: {"x":0,"y":0,"zoom":1},
+        labels: {"2":"Additive · model 12","5":"Glass shimmer","6":"Slow shadow","7":"Additive + overtone blend"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
   },

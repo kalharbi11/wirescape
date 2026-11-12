@@ -1,59 +1,54 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Planner state (the leads read this first)
-
-**Updated:** 2026-11-09 late, Compass + Keel check-in; Codex Lead closeout refresh. Owner failures preempt features.
-Live heads and completed evidence govern; queued, stale and missing results never pass.
-
-## Authority and queue
-- Board #473 is the claim source. Codex Lead keeps it current and holds the owner's
-  delegation to approve/merge after independent review and evidence (T2 still needs Claude).
-- Owner's subsequent instruction holds new starts until remaining PRs close, even below10.
-- Seven closeout PRs remain after486 merged1e20242; this planner refresh484 is one.
-- Next lane: Groove playable v1 (#432): G1 #496 + G3 #497 (T2, Keel) → G2 #498; then Learn287 → OSC72.
-- 2026-11-10: #495 owner Groove UI merged; #461 merged; #494 Pi smoke fix, #492 model names on auto-merge.
-
-## Merged 2026-11-09 (baseline `605da43`, compile repair `1e20242`)
-- #463 Windows runtime, #400 latency, #442 real-app evidence, #474 PLAN D15–D19.
-- Cleanup: R1 #476, R2 #478, R5b #479, R5a docs #477. W1 Windows setup #475.
-- Sound/sequencers: #310 Interleave/Vocoder, #405 + #410 16-step, #458 Groove study,
-  #451 Groove S1(a) native, #210 MIDI patchable controls (last_note, CC ranges).
-- Pi chain: #450 preflight (Pi 28/28 at 1074cfa), #452 ARM64 Electron smoke (Pi pass e6df3d2).
-- Compass closed 17 finished issues; finished task files moved to docs/tasks/done/.
-
-## Owner evidence and the Pi session
-- Windows first session on #463: WASAPI headphones, starters switch and sound,
-  computer keyboard and Launchkey work at 48k/256. Shared WASAPI needs the device rate.
-- Pi runner: Node 22.23.4 / npm 10.9.9 and Xvfb/xauth installed by the owner.
-- #486 merged1e20242 after exact guard/Linux/Windows/sanitizers/task success;
-  the combined MIDI/Groove fixture collision is repaired.
-- **#483 / #453:** guides repaired; fixed main integrated at2b07cfc with identical
-  authorized task483 (also in484); Closes483 and both Pi labels applied. When the
-  docs-only exact head passes preflight + app smoke, pin its main parent as `AcceptedSha`
-  in docs/PI_FRESH_INSTALL.md (Keel evidence-transfer ruling on #483), then merge.
-- Then the owner session: PI_FRESH_INSTALL sections 1–6 + the Pi part of #271.
-
-## Open PRs and rulings
-- #399 device routes/rate refusal (T2): **Keel High**: `Pa_IsFormatSupported` runs in
-  every warm poll enumeration; on ALSA the active hw device is busy, so the running
-  output is marked unsupported. Scoped cooperator repairs probe classification/cache,
-  warm polling and three Static findings at a86fba3; fixed main integrated8c340bb.
-  Classifier/syntax local checks pass; exact hosted/Pi and Claude re-review remain.
-- #461 Groove tests: fixed main integrated8c9b834; reviewed263-line/two-file delta
-  retained; fresh required/task/Pi disposition remains.
-- #480 refused draft: last Save/load Medium fixed and independently reviewed;
-  fixed main integrated021cd63; delayed bridge/Electron proof awaits hosted gates.
-- #482 R3a:e988e70 integrates fixed main and real Windows frozen-Qt comparison hook.
-  Actual comparison remains pending; repeatability alone is not baseline equality. No hash
-  rebaseline. R3b deletion and allow-test-removal require a
-  test-to-replacement table; Codex Lead tags `archive/qt-final` (annotated) on
-  R3b's merge parent, once.
-- #481 R4 follows R3. R6 ABI1 #470 is Keel's, after R3.
-
-## Housekeeping notes
-- AGENTS.md/WORKFLOW.md still say "until gate v4 merges"; gate v4 merged (#407).
-  Fix with the next allow-protected rules PR (W_GATE_V4.md stays until then).
-- docs/tasks/README.md lists task files still cited by open work; move them to done/
-  when those PRs merge.
-- Permanent: required guard/Linux/Windows/sanitizers + task/Web/WASM/Pi as applicable.
-  No force-push, direct main commits, device/SSH access, suppression or threshold weakening.
-- #271 owner hardware, #274 display/performance and #296 actual 3600 s soak stay separate.
+# Planner state
+**Updated:** 2026-11-12, Codex Lead (America/New_York, Eastern time).
+Board#473 BODY is live; retain named claims. Only completed source-matched proof counts.
+## Owner priorities: software complete
+- **OSC#684 source4ad70a5 MERGED82bab6ca** after Codex independent T1.
+  Prior invalid native fixture fixed with required modulemetadata; no assertion removed.
+  Actualaccept672 nativeOSC/fullStudio passed(run),148/400lines5/8files.
+  Exact Windows111/111+UI, Linux/sanitizers/guard/Static/Web all green.
+  #672 and parent#72 closed; A–D/#645/#659/controllerguide integrated.
+- **Quad#611/#675 merged62fa9ec/0cc86f76**; #490/#602 closed after
+  native/Studio acceptance, required gates and production patch renders.
+- **ASIO#631 source28b25b7 mergedf0f14bda** with actualaccept627 build/test,
+  543/600lines8/10files, all required/Static/Web and cross-family/spec approvals.
+  #627/#610 closed. Software done; realASIO sound/clicks remain owner-only.
+- Groove#619 merged91ffa3bd; setup/visual#605/#608/#607 complete.
+- OSCfuzz#674 merged76b8a416: Clang18/full60s per target, OSC CTests and
+  exact required/Static pass. Independent CI/Pi-nightly#676 does not block#72.
+## Release next
+- Keel#593 candidate software prerequisites are met. Resolve existing
+  listed≥9files versus≤8files/60lines cap before preparing version1.0.0.
+- Candidate versions/goldens/notes → normalT2 and exactrequiredCI → merge.
+  Owner#581 then tests that exact mergedcandidateSHA; tag exactly thatSHA,
+  even if main moves. No candidate/tag/released status or hardware pass yet.
+- #597 owner test covers basics-04, scene-07 afterpanic and Echo knobs onASIO;
+  record driver/rate/buffer and actualerror/overrun evidence on failures.
+## Continuing named work
+- gpt-builder2 #487/#648 now35f91ff includes main/#691 analyzer prerequisite.
+  Fresh guard/Linux/sanitizers/actualaccept487 pass; Windows/Static incomplete
+  at inspection, no source-matched Pi status. Completed device-off protocol/
+  recovery proof then final Claude T2 approval required; no duplicate daemon.
+- #296 gpt-builder2 afterD5: pending runner integration/review and genuine3600s
+  evidence; public handoff omits private identifiers. Missing proof staysblocked.
+- **#686/#690 source857f69b MERGEDd6c7a148**; escaped-quote parser Medium
+  fixed with regressions, actualaccept686103/200lines2/3files and exact gates green.
+  Codex independent T1 re-review complete. Current writer gpt-builder4 retained;
+  Compass registers roster/name drift, never duplicates a fresh claim.
+- claude-builder2 #687/#692 a84bf37: same-count wrongID Medium still open;
+  compare actual/generated IDsets exactly. Shared fixture work waits#648.
+- gpt-builder3 #685/#6932a45107: High inert formatpatch plus stale contract
+  test confirmed by actual Linux/Windows/accept685 failures; guard label-only.
+  Repair end-to-end delivery, then Keel protected/Claude T2 and exact checks.
+- claude-builder1 #676: non-required fuzz workflow per Keel6823484751;
+  Codex T2 then Keel CI-policy approval; no Pi-nightly pass claimed.
+## Lead/CI handoffs
+- Keel#696: Board closedPR-label DELETE403 aborts verification;26stale
+  statuses cleared as mitigation. Durable scoped permission/ordering fix pending.
+- Last verified mainbf444ad7 required checks pass; new mergedmain verification
+  is separate. Keel#679 durable postmerge-wakeup High remains; no blind approval.
+- Compass reconciles PLAN Now with completed priorities and current owners.
+- Broad Qt#661 software-priority gate is cleared; Keel sequences existing
+  replacement/archive/protected packets. No test deletion without replacements.
+- No devices, LAN, SSH, force/direct-main pushes or weakened tests.
+Signed: Codex Lead, 2026-11-12

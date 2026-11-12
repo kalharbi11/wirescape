@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+#include <array>
 #include "app_engine.h"
 #include "module_catalog.h"
 #include <algorithm>
@@ -20,9 +21,16 @@ struct AppEngine {
  // Destroy the scheduler before the metadata and libraries its nodes borrow.
  wirescape::engine2::Engine engine;
  std::atomic<float> peak{0};std::atomic<uint64_t> blocks{0};
+ // Per bus-channel block peaks for Output meters (stereo patches use one Output per side).
+ static constexpr uint32_t meter_channels = 16;
+ std::array<std::atomic<float>, meter_channels> channel_peaks{};
  // Single atomic command/ack; the render callback exclusively owns master_gain.
  // 0 unity, 1 fade-out, 2 full silent block completed, 3 fade-in requested, 4 begun.
  std::atomic<uint32_t> master_fade{0};
+ // Steady-clock timestamp of first fade-out render callback; 0 until observed.
+ std::atomic<uint64_t> master_fade_out_started_ns{0};
+ // Control-owned request time; published before the callback may observe phase 1.
+ std::atomic<uint64_t> master_fade_out_requested_ns{0};
  float master_gain = 1.0f, master_step = 1.0f;
  std::string error;
  explicit AppEngine(const ws_engine_config& c,const wirescape::engine2::Config* override=nullptr):legacy(ws_engine_create(&c),ws_engine_destroy),engine(override?*override:config(c)){
@@ -30,6 +38,7 @@ struct AppEngine {
      master_step = 1.0f / float(std::max(1.0, std::floor(c.sample_rate * 0.01)));
      engine.register_producer();
      engine.register_producer(); // producer 0 host keys, 1 MIDI service
+     engine.register_producer(); // producer 2 OSC worker; idle without osc.in
      for (auto *d : wirescape::app::builtin_modules()) {
          entries.emplace_back();
          auto &e = entries.back();
@@ -151,10 +160,24 @@ int app_engine_render_live(AppEngine *e, float *const *out, uint32_t channels, u
     if (r != WS2_OK) return WS_CAPACITY;
     float p = 0;
     const auto fade = e->master_fade.load(std::memory_order_acquire);
+    if (fade == 1 && callback_time_ns != 0 && callback_time_ns != UINT64_MAX) {
+        // The request precedes phase 1 (release/acquire), and gain changes after this load.
+        // max(entry, request) is a lower bound on actual fade start, so its gap
+        // measurement is conservative even when the request overlaps engine.render.
+        const auto requested_ns = e->master_fade_out_requested_ns.load(std::memory_order_acquire);
+        const auto first_fade_ns = std::max(callback_time_ns, requested_ns);
+        uint64_t unset = 0;
+        e->master_fade_out_started_ns.compare_exchange_strong(unset, first_fade_ns, std::memory_order_release,
+                                                              std::memory_order_relaxed);
+    }
     if (fade == 0) {
         // Unmodified unity path preserves the existing offline/sample results.
-        for (uint32_t c = 0; c < channels; ++c)
-            for (uint32_t i = 0; i < n; ++i) p = std::max(p, std::abs(out[c][i]));
+        for (uint32_t c = 0; c < channels; ++c) {
+            float channel = 0;
+            for (uint32_t i = 0; i < n; ++i) channel = std::max(channel, std::abs(out[c][i]));
+            if (c < AppEngine::meter_channels) e->channel_peaks[c].store(channel, std::memory_order_relaxed);
+            p = std::max(p, channel);
+        }
     } else {
         const float initial_gain = e->master_gain;
         float gain = initial_gain;
@@ -167,6 +190,11 @@ int app_engine_render_live(AppEngine *e, float *const *out, uint32_t channels, u
             }
         }
         e->master_gain = gain;
+        for (uint32_t c = 0; c < channels && c < AppEngine::meter_channels; ++c) {
+            float channel = 0;
+            for (uint32_t i = 0; i < n; ++i) channel = std::max(channel, std::abs(out[c][i]));
+            e->channel_peaks[c].store(channel, std::memory_order_relaxed);
+        }
         uint32_t expected = fade;
         if (fade == 1 && initial_gain == 0.0f) {
             // At least one *entire* rendered block was hard zero.
@@ -181,7 +209,17 @@ int app_engine_render_live(AppEngine *e, float *const *out, uint32_t channels, u
     e->blocks.fetch_add(1);
     return WS_OK;
 }
-void app_engine_begin_master_fade_out(AppEngine *e) noexcept { e->master_fade.store(1, std::memory_order_release); }
+void app_engine_begin_master_fade_out(AppEngine *e) noexcept {
+    e->master_fade_out_started_ns.store(0, std::memory_order_relaxed);
+    e->master_fade_out_requested_ns.store(app_engine_clock_ns(), std::memory_order_relaxed);
+    e->master_fade.store(1, std::memory_order_release);
+}
+uint64_t app_engine_master_fade_out_started_ns(const AppEngine *e) noexcept {
+    return e->master_fade_out_started_ns.load(std::memory_order_acquire);
+}
+uint64_t app_engine_master_fade_out_requested_ns(const AppEngine *e) noexcept {
+    return e->master_fade_out_requested_ns.load(std::memory_order_acquire);
+}
 bool app_engine_master_fade_silent(const AppEngine *e) noexcept {
     return e->master_fade.load(std::memory_order_acquire) == 2;
 }
@@ -207,7 +245,8 @@ int app_engine_render_channels(AppEngine *e, float *const *out, uint32_t channel
     return app_engine_render_live(e, out, channels, n, UINT64_MAX);
 }
 int app_engine_render(AppEngine*e,float*out,uint32_t n){float* rows[]={out};return app_engine_render_channels(e,rows,1,n);}
-int app_engine_reset(AppEngine*e){e->engine.reset();e->peak.store(0);e->blocks.store(0);return WS_OK;}
+int app_engine_reset(AppEngine*e){e->engine.reset();e->peak.store(0);for(auto&c:e->channel_peaks)c.store(0);e->blocks.store(0);return WS_OK;}
+float app_engine_channel_peak(const AppEngine*e,uint32_t channel){return e&&channel<AppEngine::meter_channels?e->channel_peaks[channel].load(std::memory_order_relaxed):0.f;}
 int app_engine_activate(AppEngine*){return WS_OK;}
 int app_engine_deactivate(AppEngine*){return WS_OK;}
 int app_engine_panic(AppEngine*e){e->engine.panic();return WS_OK;}

@@ -20,12 +20,18 @@ import { ComputerKeyboard, isTyping } from './Keyboard';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
-import { STARTERS, DEFAULT_STARTER, type Starter } from './starters';
+import { showOscEditor, type OscConfig } from './OscEditor';
+import { STARTERS, BUNDLED_STARTERS, DEFAULT_STARTER, type Starter } from './starters';
 import { CURATED_PATCHES } from './curated';
 import { sharedPatches } from './SharedPatches';
 import { playableStarters } from '../web/starters';
 import { loadPrefs, savePrefs, applyPrefs, detectSlowDevice, type Preferences } from '../theme/theme';
 import { el } from './dom';
+import { GrooveSession } from '../groove/GrooveSession';
+import type { GrooveConfig } from '../groove/pattern';
+import { MidiLearn } from './MidiLearn';
+import { MODULE_PRESETS } from './modulePresets';
+import { commitLearn, forgetLearn, learnedCables, type LearnCapture, type LearnServices, type LearnTarget } from './ccLearn';
 import demoChaos from '../../../../native/examples/class_demo_1_chaos.json' with { type: 'json' };
 import demoSub from '../../../../native/examples/class_demo_2_subtractive.json' with { type: 'json' };
 import demoMacro from '../../../../native/examples/class_demo_3_macro.json' with { type: 'json' };
@@ -41,6 +47,8 @@ interface Clip { modules: ClipModule[]; connections: Connection[]; colors: Recor
 export class App {
   readonly root: HTMLElement;
   private doc = new PatchDoc();
+  /** Applied vs draft Groove patterns; every whole-graph load is projected through it (#498). */
+  private readonly grooves = new GrooveSession(this.doc);
   private ticker = new Ticker();
   private engine: FakeEngine | RealEngine;
   private maxModuleId = 0;
@@ -55,6 +63,7 @@ export class App {
   private piano!: OnScreenKeyboard;
   private devPanel!: DevPanel;
   private settings = new Modal('settings-modal');
+  private oscEditor = new Modal('osc-editor');
   private shortcuts = new Modal('shortcuts-modal');
   private patchBrowser = new Modal('patch-browser');
   private bundledPatch = false;
@@ -66,6 +75,9 @@ export class App {
   private dirtyDot!: HTMLElement;
   private nameEl!: HTMLElement;
   private draftLabel!: HTMLElement;
+  private learnApplyingEl!: HTMLElement;
+  private learnRestartPrompt: HTMLElement | null = null;
+  private learnSettled: Promise<void> | null = null;
   private openDraftButton!: HTMLButtonElement;
   private applyDraftButton!: HTMLButtonElement;
   private backToPlayingButton!: HTMLButtonElement;
@@ -81,6 +93,8 @@ export class App {
   } | null = null;
   private octaveEl!: HTMLElement;
   private lastStatus: SystemStatus | null = null;
+  private learn!: MidiLearn;
+  private learnEpoch = -1;
   private fileInput!: HTMLInputElement;
   private history!: History;
   private undoBtn!: HTMLButtonElement;
@@ -106,6 +120,9 @@ export class App {
       : new FakeEngine(registry);
     // Never started: edits to a refused draft must not reach the playing graph.
     this.draftEngine = new FakeEngine(registry);
+    // Unapplied Groove drafts never ride along with a reload, an undo or an engine restart.
+    const load = this.engine.loadGraph.bind(this.engine);
+    this.engine.loadGraph = (patch: PatchV2) => load(this.grooves.project(patch));
     this.root = el('div', 'app');
     this.root.dataset.testid = 'app';
   }
@@ -135,13 +152,33 @@ export class App {
 
     this.quick = new QuickAdd(this.registry);
 
+    this.learn = new MidiLearn({
+      engine: this.engine,
+      label: t => {
+        const m = this.doc.modules.get(t.module);
+        const d = m && this.registry.get(m.module);
+        const p = d && findParam(d, t.param);
+        return `${this.doc.label(t.module) ?? d?.name ?? '#' + t.module} · ${p?.name ?? t.param}`;
+      },
+      deviceName: id => this.lastStatus?.midi.devices.find(d => d.id === id)?.name ?? id.split('|')[0] ?? id,
+      commit: (t, c, any) => this.commitLearn(t, c, any),
+      toast: (m, tone) => this.toasts.show(m, tone),
+    });
+
     this.canvas = new PatchCanvas({
+      midiLearn: {
+        available: () => this.learn.available(),
+        begin: (m, p) => { this.learnEpoch = this.viewEpoch; this.learn.begin(m, p); },
+        mapped: (m, p) => learnedCables(this.doc, { module: m, param: p }).length > 0,
+        forget: (m, p) => this.forgetLearn({ module: m, param: p }),
+      },
       doc: this.doc,
       canEdit: () => !this.documentBusy,
       ticker: this.ticker,
       registry: this.registry,
       overrides: this.overrides,
       commitParam: (m, p, v, c) => this.commitParam(m, p, v, c),
+      applyModulePreset: (m, values) => this.applyModulePreset(m, values),
       commitModAmount: (c, a, commit) => this.commitModAmount(c, a, commit),
       listMidiDevices: () => this.engine.listMidiDevices(),
       setModuleEndpoint: (id, endpoint, sys) => this.setMidiEndpoint(id, endpoint, sys),
@@ -152,9 +189,30 @@ export class App {
       confirmStereo: msg => this.confirmStereo(msg),
       onSelectionChange: s => this.onSelectionChange(s),
       rename: id => this.renameModule(id),
+      onEditOsc: id => this.openOscEditor(id),
+      oscStatus: () => this.lastStatus?.osc,
       engineConnect: c => {
         this.editEngine().connect(c);
         this.trackRollback(() => { this.doc.disconnect(c); this.canvas.shake(c.to.module); });
+      },
+      groove: {
+        config: id => this.doc.modules.get(id)?.config,
+        clockPatched: id => this.doc.connections.some(c => c.to.module === id && c.to.port === 'clock'),
+        setConfig: (id, cfg: GrooveConfig) => { if (!this.documentBusy) this.doc.setModuleConfig(id, cfg); },
+        canApply: id => !this.draftVisible && !this.documentBusy && this.engine.canApplyGroove(id),
+        isDraft: id => this.grooves.isDraft(id),
+        appliedRaw: id => this.grooves.appliedRaw(id),
+        apply: id => this.applyGroove(id),
+        revert: id => {
+          if (this.documentBusy) return;
+          this.doc.setModuleConfig(id, this.grooves.appliedRaw(id));
+        },
+        command: (id, param) => this.grooveCommand(id, param),
+        undo: () => this.undo(), redo: () => this.redo(),
+        canUndo: () => !!this.history?.canUndo, canRedo: () => !!this.history?.canRedo,
+        onChange: cb => this.grooves.onChange(cb),
+        scale: id => this.doc.grooveScale(id),
+        setScale: (id, root, scale) => this.doc.setGrooveScale(id, root, scale), // UI-only: no engine load
       },
       engineDisconnect: c => {
         this.editEngine().disconnect(c);
@@ -194,7 +252,7 @@ export class App {
 
     this.root.append(
       this.library.root, main, this.libraryScrim, this.toasts.root, this.quick.root,
-      this.devPanel.root, this.settings.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
+      this.devPanel.root, this.learn.root, this.settings.root, this.oscEditor.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
     );
 
     this.attachDropTarget();
@@ -223,7 +281,11 @@ export class App {
     const path = el('div', 'patch-path');
     this.draftLabel = el('span', 'patch-prefix', 'DRAFT · NOT RUNNING');
     this.draftLabel.dataset.testid = 'draft-not-running';
-    path.append(el('span', 'patch-prefix', 'PATCH /'), this.nameEl, this.dirtyDot, this.draftLabel);
+    this.learnApplyingEl = el('span', 'patch-prefix', 'Applying MIDI Learn…');
+    this.learnApplyingEl.dataset.testid = 'midi-learn-applying';
+    this.learnApplyingEl.hidden = true;
+    this.learnApplyingEl.style.display = 'none';
+    path.append(el('span', 'patch-prefix', 'PATCH /'), this.nameEl, this.dirtyDot, this.draftLabel, this.learnApplyingEl);
     left.append(menuBtn, path);
 
     const right = el('div', 'topbar-right');
@@ -332,11 +394,14 @@ export class App {
     } catch { /* Offline/missing library must not block saved patches or the default voice. */ }
     this.fillStarters();
     this.history = new History(this.doc, p => this.restoreSnapshot(p));
-    this.history.onChange(() => this.refreshHistory());
+    this.history.onChange(() => { this.refreshHistory(); this.grooves.changed(); });
     this.ticker.throttleHz = this.prefs.profile === 'pi' ? 30 : 0;
     this.ticker.start();
     this.engine.onTelemetry(t => { if (!this.draftVisible) this.ticker.push(t); });
-    this.engine.onStatus(s => { this.announceStatus(this.lastStatus, s); this.lastStatus = s; this.statusBar.update(s); });
+    this.engine.onStatus(s => {
+      this.announceStatus(this.lastStatus, s); this.lastStatus = s;
+      this.statusBar.update(s); this.canvas.updateOscStatus(s.osc);
+    });
     this.engine.onRefusal?.(r => this.toasts.show(r.detail.message, 'error'));
     if (this.engine instanceof RealEngine) {
       this.engine.onConnection(state => {
@@ -538,7 +603,9 @@ export class App {
     this.applyDraftButton.disabled = true;
     const epoch = this.viewEpoch, candidate = this.doc.toJSON(), name = this.patchName;
     const bytes = JSON.stringify(candidate);
+    const restoreGrooves = this.grooves.checkpoint();
     try {
+      this.grooves.forget();
       await this.engine.loadGraph(candidate);
       // Only this immutable submitted document may become labelled running.
       if (this.viewEpoch !== epoch || JSON.stringify(this.doc.toJSON()) !== bytes) {
@@ -556,6 +623,8 @@ export class App {
       this.refreshDraftControls();
       this.toasts.show(`${name} is now running.`);
     } catch (e) {
+      // Rejected candidate never became the playing Groove, even when IDs overlap.
+      restoreGrooves();
       this.toasts.show(e instanceof Error ? e.message : 'Draft could not run; still playing the previous patch.', 'error');
     } finally {
       this.endDocumentOperation();
@@ -579,6 +648,7 @@ export class App {
       this.patchName = name;
       this.nameEl.textContent = name;
       this.maxModuleId = Math.max(0, ...(patch.modules ?? []).map(m => m.id));
+      this.grooves.forget();
       const running = this.engine.loadGraph(this.doc.toJSON());
       const v = patch.ui?.view;
       // Restoring/fitting the viewport is presentation, not a source-document edit.
@@ -861,6 +931,50 @@ export class App {
    * The UI draws a change at once, sends it to the engine, and rolls back
    * with a message if the engine refuses.
    */
+  private openOscEditor(id: number): void {
+    if (this.documentBusy || this.doc.modules.get(id)?.module !== 'osc.in') return;
+    showOscEditor(this.oscEditor, this.doc.modules.get(id)?.config,
+      async (config: OscConfig) => this.commitOscConfig(id, config));
+  }
+
+  /** A config save is one authored edit and one ordinary whole-graph replan. */
+  private async commitOscConfig(id: number, config: OscConfig): Promise<boolean> {
+    const mod = this.doc.modules.get(id);
+    if (this.documentBusy || !mod || mod.module !== 'osc.in') return false;
+    const previous = mod.config === undefined ? undefined : structuredClone(mod.config);
+    const epoch = this.viewEpoch;
+    this.history.flush();
+    this.doc.setModuleConfig(id, config);
+    try {
+      await this.editEngine().loadGraph(this.doc.toJSON());
+      if (epoch !== this.viewEpoch) return false;
+      this.history.flush();
+      this.toasts.show('OSC addresses applied.');
+      return true;
+    } catch (e) {
+      if (epoch === this.viewEpoch) {
+        this.doc.setModuleConfig(id, previous);
+        this.history.flush();
+        this.toasts.show(e instanceof Error ? e.message : 'OSC configuration refused.', 'error');
+      }
+      return false;
+    }
+  }
+
+  /** One snapshot for the preset, each value still uses the normal engine setParam. */
+  private applyModulePreset(moduleId: number, values: Readonly<Record<string, number>>): void {
+    if (this.documentBusy) return;
+    const module = this.doc.modules.get(moduleId);
+    const d = module && this.registry.get(module.module);
+    if (!module || !d) return;
+    this.history.flush();
+    for (const param of d.parameters) {
+      const value = values[param.id];
+      if (value !== undefined) this.commitParam(moduleId, param.id, value, true);
+    }
+    this.history.flush();
+  }
+
   private commitParam(moduleId: number, paramId: string, value: number, commit: boolean): void {
     if (this.documentBusy) return;
     const before = this.doc.param(moduleId, paramId);
@@ -884,6 +998,191 @@ export class App {
       this.toasts.show(err instanceof EngineRefusal ? err.message : 'The engine refused that change.', 'error');
     }
     if (commit && paramId === 'bpm' && this.lastStatus) this.statusBar.update(this.lastStatus);
+  }
+
+  /**
+   * Stopped Groove Apply (#498): only on a current-generation measured stop,
+   * through the existing whole-graph load. The new graph starts stopped; a
+   * refusal keeps the draft and never starts anything.
+   */
+  private async applyGroove(id: number): Promise<boolean> {
+    if (this.documentBusy || this.draftVisible || !this.engine.canApplyGroove(id)) return false;
+    const unstage = this.grooves.stage(id);
+    try {
+      await this.engine.loadGraph(this.doc.toJSON());
+      this.toasts.show('Pattern loaded · press play to start from step 1.');
+      return true;
+    } catch (e) {
+      unstage();
+      this.toasts.show(`Pattern not applied, the draft is kept: ${e instanceof Error ? e.message : 'refused'}`, 'error');
+      return false;
+    }
+  }
+
+  /** Rising-edge transport request: a high then low value on the engine only, never in the document. */
+  /** Transport request as a 1 → 0 pulse; the engine acts on the rising edge, so 60 ms spans many blocks. */
+  private grooveCommand(id: number, param: string): void {
+    if (this.documentBusy || this.draftVisible) return;
+    try {
+      this.engine.setParam(id, param, 1);
+      setTimeout(() => { try { this.engine.setParam(id, param, 0); } catch { /* engine gone */ } }, 60);
+    } catch (e) {
+      this.toasts.show(e instanceof Error ? e.message : 'The engine refused that request.', 'error');
+    }
+  }
+
+  private learnServices(): LearnServices {
+    return { doc: this.doc, allocateId: () => this.allocateId(), devices: () => this.lastStatus?.midi.devices ?? [] };
+  }
+
+  /** MIDI Learn confirmed (#287): write the CC row, feed and cable onto the knob, one undo step. */
+  private commitLearn(target: LearnTarget, capture: LearnCapture, anyChannel: boolean): void {
+    if (this.learnEpoch !== this.viewEpoch) {
+      this.toasts.show('The patch changed while learning; nothing was mapped.', 'error');
+      return;
+    }
+    this.applyLearn(() => {
+      const r = commitLearn(this.learnServices(), target, capture, anyChannel);
+      const note = r.notes.length ? ` (${r.notes.join('; ')})` : '';
+      return { revert: r.revert, message: `CC ${capture.controller} learned${note}.` };
+    }, 'MIDI Learn');
+  }
+
+  private forgetLearn(target: LearnTarget): void {
+    this.applyLearn(() => {
+      const r = forgetLearn(this.learnServices(), target);
+      return r && { revert: r.revert, message: 'MIDI mapping forgotten.' };
+    }, 'Forget MIDI mapping');
+  }
+
+  /** Keel #500: serialize Learn/Forget and its recovery replan with all document edits. */
+  private applyLearn(change: () => { message: string } | null, what: string): void {
+    if (this.documentBusy) return;
+    const restoreHistory = this.history.checkpoint();
+    const previous = this.doc.toJSON(), wasDirty = this.doc.dirty;
+    let result: { message: string } | null;
+    try { result = change(); } catch (err) {
+      this.doc.replace(previous);
+      if (!wasDirty) this.doc.markClean();
+      restoreHistory();
+      this.refreshDirty();
+      this.toasts.show(err instanceof Error ? err.message : `${what} failed.`, 'error');
+      return;
+    }
+    if (!result) return;
+    this.history.flush(); // one gesture, one undo step, even when confirmed with Enter
+    const submitted = this.doc.toJSON();
+    const epoch = this.viewEpoch, engine = this.editEngine();
+
+    this.beginDocumentOperation(); // protects patch, cables, rows, labels, undo and Save
+    this.learnApplyingEl.hidden = false;
+    this.learnApplyingEl.style.display = '';
+    this.toasts.show('Applying MIDI Learn…');
+    const real = engine instanceof RealEngine ? engine : null;
+    const gen0 = real?.generation();
+    let phase: 'reply' | 'wait-gen' | 'applied' | 'not-applied' | 'restart-required' | 'restart' = 'reply';
+    let genTimer = 0, pushTimer = 0, restored = false;
+    let removeGen = () => {}, removeConnection = () => {};
+    let clickRestart = () => {}, resolveRecovery = () => {};
+    let restartClick = new Promise<void>(resolve => { clickRestart = resolve; });
+    const recoveryDone = new Promise<void>(resolve => { resolveRecovery = resolve; });
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      this.doc.replace({ ...previous, ui: { ...(previous.ui ?? {}), view: this.doc.ui.view } });
+      if (!wasDirty) this.doc.markClean();
+      restoreHistory();
+      requestAnimationFrame(() => this.canvas.invalidateAnchors());
+      this.refreshDirty();
+    };
+    const showRestart = () => {
+      if (phase === 'reply' || phase === 'wait-gen') phase = 'restart-required';
+      if (this.learnRestartPrompt || !real) return;
+      const panel = el('div', 'learn-restart-prompt', 'Engine not responding. ');
+      panel.dataset.testid = 'midi-learn-restart-prompt';
+      panel.setAttribute('role', 'alert');
+      Object.assign(panel.style, { position: 'fixed', inset: 'auto 1rem 1rem auto', zIndex: '10000',
+        padding: '1rem', background: '#211d1a', color: '#fff', border: '1px solid #e58b58' });
+      const button = el('button', 'learn-restart-button', 'Restart engine') as HTMLButtonElement;
+      button.dataset.testid = 'midi-learn-restart';
+      button.addEventListener('click', () => {
+        button.disabled = true;
+        this.learnRestartPrompt?.remove();
+        this.learnRestartPrompt = null;
+        phase = 'restart';
+        clickRestart();
+      });
+      panel.append(button);
+      document.body.append(panel);
+      this.learnRestartPrompt = panel;
+    };
+    const recover = async () => {
+      restore();
+      while (true) {
+        await restartClick;
+        restartClick = new Promise<void>(resolve => { clickRestart = resolve; });
+        try {
+          await real!.restartEngine();
+          phase = 'applied';
+          this.toasts.show('Engine restarted; the pre-Learn patch is running.', 'error');
+          resolveRecovery();
+          return;
+        } catch (err) {
+          phase = 'restart-required';
+          this.toasts.show(err instanceof Error ? err.message : 'Could not restart engine.', 'error');
+          showRestart();
+        }
+      }
+    };
+    let recovering = false;
+    const requireRestart = () => {
+      if (phase === 'applied' || phase === 'not-applied') return;
+      window.clearTimeout(genTimer); window.clearTimeout(pushTimer);
+      removeGen(); removeConnection();
+      showRestart();
+      if (!recovering && real) { recovering = true; void recover(); }
+    };
+    if (real && gen0 !== undefined) {
+      genTimer = window.setTimeout(() => { if (phase === 'reply') phase = 'wait-gen'; }, 3000);
+      pushTimer = window.setTimeout(requireRestart, 10_000);
+      removeGen = real.onGeneration(gen => {
+        if (phase !== 'wait-gen') return;
+        const applied = BigInt(gen) > BigInt(gen0);
+        phase = applied ? 'applied' : 'not-applied';
+        window.clearTimeout(genTimer); window.clearTimeout(pushTimer); removeGen();
+        if (!applied) restore();
+        real.settleUnansweredLoad(applied);
+      });
+      removeConnection = real.onConnection(state => {
+        if (state === 'restarting' && phase !== 'applied' && phase !== 'not-applied') requireRestart();
+      });
+    }
+    const pending = engine.loadGraph(submitted).then(() => {
+      if (phase !== 'not-applied' && phase !== 'restart-required' && phase !== 'restart') {
+        phase = 'applied';
+        this.toasts.show(result.message);
+      }
+    }).catch(async err => {
+      window.clearTimeout(genTimer); window.clearTimeout(pushTimer);
+      if (phase === 'not-applied') return;
+      if (phase === 'restart-required' || phase === 'restart') { await recoveryDone; return; }
+      if (this.viewEpoch !== epoch || this.editEngine() !== engine) return;
+      const reason = err instanceof EngineRefusal && err.detail.engine
+        ? `${what} was refused: ${err.message}` : (err instanceof Error ? err.message : `${what} failed.`);
+      restore();
+      if (err instanceof EngineRefusal && err.detail.engine) {
+        this.toasts.show(`${reason}. It was taken back out of the patch.`, 'error');
+      } else this.toasts.show(reason, 'error');
+    }).finally(() => {
+      window.clearTimeout(genTimer); window.clearTimeout(pushTimer);
+      removeGen(); removeConnection();
+      this.learnRestartPrompt?.remove(); this.learnRestartPrompt = null;
+      this.learnSettled = null;
+      this.learnApplyingEl.hidden = true;
+      this.learnApplyingEl.style.display = 'none';
+      this.endDocumentOperation();
+    });
+    this.learnSettled = pending;
   }
 
   private setMidiEndpoint(moduleId: number, endpoint: string, systemName?: string): void {
@@ -1080,7 +1379,12 @@ export class App {
     window.addEventListener('keydown', e => {
       if (this.documentBusy) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       if (isTyping() || this.settings.isOpen || this.shortcuts.isOpen) return;
+      // Groove's focused step editor owns Delete/Backspace and its Undo/Redo.
+      // A global delete would otherwise remove the selected module before it can
+      // clear a step. Let other global shortcuts (Save, Open, etc.) work normally.
       const mod = e.ctrlKey || e.metaKey;
+      if ((e.target as HTMLElement).closest('.groove-pane') &&
+          (e.key === 'Delete' || e.key === 'Backspace' || (mod && e.key.toLowerCase() === 'z'))) return;
       if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); void this.savePatchFile(); return; }
       if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); void this.openPatchFile(); return; }
       if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); this.canvas.selectAll(); return; }
@@ -1154,52 +1458,119 @@ export class App {
       // The dialog may have been rebuilt while device enumeration was pending.
       if (!b.contains(audioFields)) return;
       if (!devices.length) {
-        const empty = el('div', 'muted', 'No audio devices available.');
+        const missing = this.lastStatus?.audio.deviceId;
+        const empty = el('div', 'muted', missing
+          ? `Selected physical route ${this.lastStatus?.audio.deviceName ?? missing} is unavailable; no audio devices listed.`
+          : 'No audio devices available.');
         empty.dataset.testid = 'audio-no-devices';
         audioFields.append(empty);
         return;
       }
-      const currentId = this.lastStatus?.audio.deviceId ?? devices[0]!.id;
+      const currentId = this.lastStatus?.audio.deviceId ?? '';
+      const routes = devices;
+      // Group by the native host API, never by mutable PortAudio device index.
+      const driverOf = (d: Device) => d.hostApi ?? d.backend
+        ?? (d.id.includes('|') ? d.id.split('|')[0]! : 'Other');
+      const drivers = [...new Set(routes.map(driverOf))];
+      // A missing or duplicate remembered identity must not select the first device.
+      const count = (id: string) => routes.filter(d => d.id === id).length;
+      const usable = (d: Device) => count(d.id) === 1 && d.supported !== false;
+      const details = (d: Device) => [
+        d.backend ?? d.hostApi, d.outputChannels === undefined ? undefined : `${d.outputChannels} channels`,
+      ].filter(Boolean).join(' · ');
+      const current = routes.find(d => d.id === currentId && usable(d));
+      const preferredDriver = drivers.includes(this.prefs.audioDriverType)
+        ? this.prefs.audioDriverType : current ? driverOf(current) : drivers[0]!;
+      const placeholder = currentId
+        ? `Unavailable, ambiguous or unsupported: ${this.lastStatus?.audio.deviceName ?? currentId}`
+        : 'Choose a physical output…';
+      const route = el('div', 'muted', current
+        ? `${this.lastStatus?.audio.state === 'running' ? 'Active' : 'Selected'} physical route: ${current.name}${details(current) ? ` (${details(current)})` : ''}`
+        : `${placeholder}. Select an available output explicitly.`);
+      route.dataset.testid = 'audio-route-status';
+      audioFields.append(route);
+      if (this.lastStatus?.audio.reason === 'rate-unsupported') {
+        const hz = current?.defaultSampleRate;
+        const message = el('div', 'muted', hz
+          ? `This device only runs at ${hz / 1000} kHz in shared mode.`
+          : 'This device does not support the requested sample rate. Choose a supported rate.');
+        message.dataset.testid = 'audio-rate-reason';
+        audioFields.append(message);
+      }
       const rates = select([], '', v => engine.setSampleRate?.(Number(v)));
       rates.dataset.testid = 'audio-rate';
       const refreshRates = (deviceId: string) => {
-        const dev = devices.find(d => d.id === deviceId);
-        rates.replaceChildren(...(dev?.sampleRates ?? [48000]).map(n => {
+        const dev = routes.find(d => d.id === deviceId && usable(d));
+        // Unknown rates are unknown, not proof that 48 kHz is supported.
+        rates.replaceChildren(...(dev?.sampleRates ?? []).map(n => {
           const option = document.createElement('option');
           option.value = String(n); option.textContent = `${(n / 1000).toFixed(1)} kHz`;
           return option;
         }));
-        const actual = String(this.lastStatus?.audio.sampleRate ?? 48000);
+        const actual = String(this.lastStatus?.audio.sampleRate ?? '');
         rates.value = actual;
-        // Do not imply an unsupported rate is active; ask the engine to pick it.
-        if (!rates.value && rates.options.length) {
-          rates.selectedIndex = 0;
-          engine.setSampleRate?.(Number(rates.value));
-        }
+        // Never issue a rate-change command merely by opening Settings.
+        rates.disabled = !dev || rates.options.length === 0;
       };
-      // Windows repeats names across (and within) host APIs; the id tells them apart.
-      const repeats = (d: Device) => devices.filter(o => o.name === d.name).length > 1;
+      let buffer: HTMLSelectElement | undefined;
       const label = (d: Device) => {
-        if (!repeats(d)) return d.name;
-        const n = /#(\d+)$/.exec(d.id)?.[1];
-        return `${d.name} — ${d.hostApi ?? 'audio'}${n ? ` ${n}` : ''}`;
+        const repeated = routes.filter(o => o.name === d.name).length > 1;
+        const ordinal = /#(\d+)$/.exec(d.id)?.[1];
+        const identity = repeated ? ` — ${d.hostApi ?? d.backend ?? 'audio'}${ordinal ? ` ${ordinal}` : ''}` : '';
+        return `${d.name}${identity}${details(d) ? ` · ${details(d)}` : ''}${d.supported === false ? ` — unavailable: ${d.unsupportedReason ?? 'unsupported'}` : ''}`;
       };
-      const sel = select(devices.map(d => ({ value: d.id, label: label(d) })), currentId, v => {
+      const driver = select(drivers.map(name => ({ value: name, label: name })),
+        preferredDriver, name => {
+          // Changing driver type only filters choices. Never silently switch audio output.
+          this.setPref({ audioDriverType: name });
+          refreshDevices();
+        });
+      driver.dataset.testid = 'audio-driver-type';
+      audioFields.append(field('Driver type', driver,
+        'ASIO lists installed drivers, not headphones. Select outputs inside ASIO4ALL/FlexASIO; '
+        + 'FlexASIO requires a separate installation. For direct Windows outputs use WASAPI.'));
+      const sel = select([], '', v => {
+        const chosen = routes.find(d => d.id === v && driverOf(d) === driver.value && usable(d));
+        if (!chosen) return;
         engine.selectAudioDevice(v);
+        route.textContent = `Requested physical route: ${chosen.name} (awaiting engine status)`;
         if (engine.setSampleRate) refreshRates(v);
+        if (buffer) buffer.disabled = false;
       });
+      const refreshDevices = () => {
+        const visible = routes.filter(d => driverOf(d) === driver.value);
+        const active = visible.find(d => d.id === currentId && usable(d));
+        const choices = visible.map(d => ({ value: d.id, label: label(d) }));
+        if (!active) choices.unshift({ value: '', label: 'Choose an output device…' });
+        sel.replaceChildren(...choices.map(choice => {
+          const option = document.createElement('option');
+          option.value = choice.value;
+          option.textContent = choice.label;
+          option.disabled = !!choice.value && !visible.some(d => d.id === choice.value && usable(d));
+          return option;
+        }));
+        sel.value = active?.id ?? '';
+        // Keep the current engine route visible even when inspecting another driver.
+        if (current && driverOf(current) !== driver.value)
+          route.textContent = `Current physical route: ${current.name} (${driverOf(current)}). Choose a ${driver.value} output to switch.`;
+        else if (current)
+          route.textContent = `${this.lastStatus?.audio.state === 'running' ? 'Active' : 'Selected'} physical route: ${current.name}${details(current) ? ` (${details(current)})` : ''}`;
+        if (engine.setSampleRate) refreshRates(sel.value);
+        if (buffer) buffer.disabled = !active;
+      };
       sel.dataset.testid = 'audio-device';
-      audioFields.append(field('Output device', sel));
+      audioFields.append(field('Output device (not graph Output)', sel));
+      refreshDevices();
       if (engine.setSampleRate) {
-        refreshRates(currentId);
         audioFields.append(field('Sample rate', rates));
       }
       if (engine.setBufferFrames) {
-        const buffer = select(
+        buffer = select(
           [64, 128, 256, 512, 1024].map(n => ({ value: String(n), label: `${n} frames` })),
           String(this.lastStatus?.audio.bufferFrames ?? 256),
           v => engine.setBufferFrames?.(Number(v)),
         );
+        buffer.disabled = !current || driverOf(current) !== driver.value;
         buffer.dataset.testid = 'audio-buffer';
         audioFields.append(field('Buffer size', buffer, 'Lower is tighter, and more likely to drop out'));
       }
@@ -1259,7 +1630,7 @@ export class App {
         }
       });
       b.append(field('Port', port));
-      const net = switchButton(osc.allowNetwork, v => engine.setOsc!({ allowNetwork: v }));
+      const net = switchButton(!!osc.allowNetwork, v => engine.setOsc!({ allowNetwork: v }));
       net.dataset.testid = 'osc-network';
       b.append(field('Allow network', net, 'Off: this computer only. On: any device on your network can control the patch'));
       const mon = el('div', 'osc-monitor');
@@ -1386,7 +1757,7 @@ export class App {
       } catch (e) { message.textContent = e instanceof Error ? e.message : 'Could not open patch.'; }
     };
     body.append(message, el('h3', 'settings-group', 'BUNDLED · READ ONLY'));
-    const bundled = [...STARTERS.filter(s => s.id.startsWith('qt-')).map(s => ({ name: s.name, patch: s.patch() })),
+    const bundled = [...BUNDLED_STARTERS.map(s => ({ name: s.name, patch: s.patch() })),
       { name: 'Class demo · CHAOS', patch: demoChaos as unknown as PatchV2 },
       { name: 'Class demo · Subtractive', patch: demoSub as unknown as PatchV2 },
       { name: 'Class demo · Macro', patch: demoMacro as unknown as PatchV2 }];
@@ -1429,6 +1800,9 @@ export class App {
 
   /** Native dialogs belong to Electron main; browser-only use keeps file input/export. */
   private async openPatchFile(): Promise<void> {
+    // Native OPEN requested during an atomic Learn is queued, not performed
+    // against a half-applied document (nor silently discarded).
+    if (this.learnSettled) await this.learnSettled;
     if (this.documentBusy) return;
     if (!window.wirescape) { this.fileInput.click(); return; }
     const request = ++this.readEpoch, view = this.viewEpoch;
@@ -1497,6 +1871,7 @@ export class App {
       ticker: this.ticker,
       canvas: this.canvas,
       registry: this.registry,
+      modulePresets: MODULE_PRESETS, // Test hook for malformed preset metadata.
       starters: this.selectableStarters,
       setPref: (p: Partial<Preferences>) => this.setPref(p),
       zoomTo: (s: number) => this.canvas.viewport.zoomTo(s),

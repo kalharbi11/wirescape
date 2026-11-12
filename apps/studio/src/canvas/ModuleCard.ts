@@ -6,6 +6,7 @@ import { Panel, type PanelHost } from '../panels/PanelBuilder';
 import type { PanelOverride } from '../panels/layouts';
 import { attachModuleInfo } from '../panels/widgets/InfoBox';
 import { el, motionOff } from '../app/dom';
+import type { Telemetry, OscStatus } from '../engine/EngineClient';
 
 export interface PortAnchor { x: number; y: number }
 
@@ -18,6 +19,8 @@ export interface CardOptions {
   savedType: string;
   onHeaderPointerDown(e: PointerEvent): void;
   onRenameRequest(): void;
+  onEditOsc?(): void;
+  oscStatus?(): OscStatus | undefined;
   /** Wire a port node's gestures (called once per node, when it is created). */
   wirePort?(node: HTMLElement): void;
   /** The rails changed (a node appeared or went): re-measure and reroute. */
@@ -74,6 +77,11 @@ export class ModuleCard {
   private readonly anchors = new Map<string, PortAnchor>();
   private readonly polyBadge: HTMLElement;
   private readonly info: { destroy(): void } | null = null;
+  private monitorOff: (() => void) | null = null;
+  private oscLabel?: HTMLElement;
+  private oscCount?: HTMLElement;
+  private oscDot?: HTMLElement;
+  private oscLastReceived: number | undefined;
 
   constructor(private readonly o: CardOptions) {
     const d = o.descriptor;
@@ -99,7 +107,7 @@ export class ModuleCard {
     const slot = el('span', 'module-header-slot');
     header.append(code, this.titleEl, this.polyBadge, el('span', 'module-header-fill'), idTag, slot);
     header.addEventListener('pointerdown', e => {
-      if ((e.target as HTMLElement).closest('.ib,.seg,.view-switch,button')) return;
+      if ((e.target as HTMLElement).closest('.ib,.seg,.view-switch,button,select,.module-presets')) return;
       o.onHeaderPointerDown(e);
     });
     this.titleEl.addEventListener('dblclick', e => { e.stopPropagation(); o.onRenameRequest(); });
@@ -131,6 +139,24 @@ export class ModuleCard {
     }
 
     this.body.append(coreEl);
+    if (d?.id === 'monitor') this.mountMonitorLog();
+    if (d?.id === 'osc.in') {
+      const box = el('div', 'osc-card');
+      this.oscLabel = el('span', 'osc-status-label', 'OSC status unavailable');
+      this.oscLabel.dataset.testid = `osc-status-${o.moduleId}`;
+      this.oscCount = el('span', 'osc-counter', 'Received: 0');
+      this.oscCount.dataset.testid = `osc-received-${o.moduleId}`;
+      this.oscDot = el('span', 'osc-activity-dot');
+      this.oscDot.setAttribute('aria-hidden', 'true');
+      const status = el('div', 'osc-status-row');
+      status.append(this.oscDot, this.oscLabel);
+      const edit = el('button', 'btn osc-edit', 'Edit…') as HTMLButtonElement;
+      edit.type = 'button'; edit.dataset.testid = `osc-edit-${o.moduleId}`;
+      edit.addEventListener('click', () => o.onEditOsc?.());
+      box.append(status, this.oscCount, edit);
+      this.body.append(box);
+      this.setOscStatus(o.oscStatus?.());
+    }
     this.sigIns = ins;
     this.sigOuts = outs;
     // The rails set their own height in syncPorts (a collapsed rail is short), so the base only keeps two rows.
@@ -146,6 +172,87 @@ export class ModuleCard {
       }, o.host.ticker, `module-info-${o.moduleId}`);
     }
     this.refreshHeader();
+  }
+
+  /** Direct-input Monitor log: bounded snapshots from the engine; no inferred signal values. */
+  private mountMonitorLog(): void {
+    const id = this.o.moduleId;
+    const wrap = el('section', 'monitor-log');
+    wrap.dataset.testid = `monitor-log-${id}`;
+    wrap.style.cssText = 'width:100%;min-width:0;box-sizing:border-box;padding:9px;border:1px solid var(--hair);font:11px var(--mono);';
+    const head = el('div', 'monitor-log-head');
+    head.style.cssText = 'display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px;';
+    const title = el('strong', '', 'Messages');
+    const actions = el('div');
+    actions.style.cssText = 'display:flex;gap:6px;';
+    const pause = el('button', 'btn', 'Pause') as HTMLButtonElement;
+    pause.type = 'button';
+    pause.dataset.testid = `monitor-pause-${id}`;
+    pause.setAttribute('aria-pressed', 'false');
+    const clear = el('button', 'btn', 'Clear') as HTMLButtonElement;
+    clear.type = 'button';
+    clear.dataset.testid = `monitor-clear-${id}`;
+    actions.append(pause, clear); head.append(title, actions);
+    const list = el('div', 'monitor-lines');
+    list.dataset.testid = `monitor-lines-${id}`;
+    list.setAttribute('role', 'log');
+    list.setAttribute('aria-label', 'Monitor messages, oldest first');
+    list.style.cssText = 'height:138px;overflow-y:auto;overflow-wrap:anywhere;padding:7px 1px;';
+    const note = el('small', '', 'direct OSC/MIDI only');
+    note.style.cssText = 'display:block;color:var(--sub);';
+    wrap.append(head, list, note);
+    this.body.append(wrap);
+    let paused = false, clearedAt = -Infinity, drawn: Telemetry | null = null;
+    let seenGen: string | undefined;
+    // The sidecar clears its ring and restarts entry timestamps at each graph commit.
+    // A same-card edit can replan without remounting this card, so Clear is epoch-local.
+    const syncEpoch = (t: Telemetry | null) => {
+      if (t?.gen === undefined || t.gen === seenGen) return;
+      seenGen = t.gen;
+      clearedAt = -Infinity;
+      drawn = null;
+    };
+    const render = (t: Telemetry | null, force = false) => {
+      if (!t) return;
+      syncEpoch(t);
+      if (paused || (!force && t === drawn)) return;
+      drawn = t;
+      if (t.monitorAvailable !== true) {
+        list.replaceChildren(el('span', '', 'not available'));
+        return;
+      }
+      const entries = (t.monitor?.[id] ?? []).filter(x => Number.isFinite(x.t) && x.t > clearedAt).slice(-32);
+      if (!entries.length) {
+        list.replaceChildren(el('span', '', 'direct OSC/MIDI only'));
+        return;
+      }
+      list.replaceChildren(...entries.map((entry, i) => {
+        const address = entry.kind === 'osc' ? (entry.address ?? '?') : `note ${entry.note ?? '?'}`;
+        const args = (entry.args ?? []).filter(Number.isFinite).slice(0, 4).join(', ');
+        const line = el('div', 'monitor-line', `${entry.t.toFixed(2)}s · ${entry.kind.toUpperCase()} · ${address} · ${args}`);
+        line.dataset.testid = `monitor-line-${id}-${i}`;
+        line.style.cssText = 'padding:3px 0;border-bottom:1px solid var(--hair);';
+        return line;
+      }));
+      list.scrollTop = list.scrollHeight;
+    };
+    pause.addEventListener('click', () => {
+      paused = !paused;
+      pause.textContent = paused ? 'Resume' : 'Pause';
+      pause.setAttribute('aria-pressed', String(paused));
+      if (!paused) render(this.o.host.ticker.last, true);
+    });
+    clear.addEventListener('click', () => {
+      const current = this.o.host.ticker.last;
+      syncEpoch(current);
+      // The paused display is stale; Clear must use the latest ingress snapshot.
+      const seen = current?.monitor?.[id] ?? [];
+      if (seen.length) clearedAt = Math.max(clearedAt, seen[seen.length - 1].t);
+      list.replaceChildren(el('span', '', 'direct OSC/MIDI only'));
+      drawn = null;
+    });
+    this.monitorOff = this.o.host.ticker.bind(id, t => render(t));
+    render(this.o.host.ticker.last);
   }
 
   /**
@@ -343,6 +450,7 @@ export class ModuleCard {
     const lab = el('span', 'port-label cc-label');
     const def = Number(p.id.replace(/\D/g, '')) || 1;
     const show = () => { lab.textContent = `CC ${this.uiMap<number>('ccMap')[p.id] ?? def}`; };
+    lab.dataset.port = p.id;
     show();
     lab.title = 'Click to type the CC number';
     lab.addEventListener('pointerdown', e => {
@@ -362,6 +470,16 @@ export class ModuleCard {
       inp.addEventListener('pointerdown', ev => ev.stopPropagation());
     });
     return lab;
+  }
+
+  /** Re-read the `CC n` labels after a Learn (or undo) changed `ui.ccMap`. */
+  refreshCcLabels(): void {
+    const map = this.uiMap<number>('ccMap');
+    for (const lab of this.root.querySelectorAll<HTMLElement>('.cc-label')) {
+      if (lab.querySelector('input')) continue;
+      const port = lab.dataset.port ?? '';
+      lab.textContent = `CC ${map[port] ?? (Number(port.replace(/\D/g, '')) || 1)}`;
+    }
   }
 
   /** Reconstruct a missing module's ports from the cables that reference it. */
@@ -429,6 +547,29 @@ export class ModuleCard {
     this.titleEl.textContent = label ?? base;
     this.titleEl.title = label ? `${label} — ${base} · double-click to rename` : 'Double-click to rename';
     this.titleEl.dataset.testid = `module-title-${this.o.moduleId}`;
+  }
+
+  /** Actual route counters are per-module, not the global OSC aggregate. */
+  setOscStatus(osc?: OscStatus): void {
+    if (!this.oscLabel || !this.oscCount || !this.oscDot) return;
+    const route = osc?.routes?.find(r => r.module === String(this.o.moduleId));
+    const rows = (this.o.host.doc.modules.get(this.o.moduleId)?.config as { rows?: unknown } | undefined)?.rows;
+    const off = Array.isArray(rows) ? rows.slice(0, 8)
+      .filter(r => (r as { enabled?: unknown } | null)?.enabled === false).length : 0;
+    const active = ` · ${8 - off} of 8 rows active`;
+    this.oscLabel.textContent = !route ? 'OSC host unavailable' :
+      route.state === 'disabled' ? 'All rows off · not listening' :
+      route.state === 'port-busy' ? `Port busy · ${route.port}${active}` :
+      route.state === 'lan-not-confirmed' ? `LAN not confirmed · 127.0.0.1:${route.port}${active}` :
+      route.state === 'listening' ? `Listening on ${route.bind}:${route.port}${active}` :
+      `OSC: ${String(route.state)}`;
+    this.oscCount.textContent = `Received: ${route?.received ?? 0}`;
+    if (route && this.oscLastReceived !== undefined && route.received > this.oscLastReceived && !motionOff()) {
+      this.oscDot.animate([{ opacity: 1, transform: 'scale(1.6)' },
+        { opacity: 0.25, transform: 'scale(1)' }], { duration: 400, easing: 'ease-out' });
+    }
+    this.oscDot.classList.toggle('listening', route?.state === 'listening');
+    this.oscLastReceived = route?.received;
   }
 
   /** Poly badge shows the voice count when the module is polyphonic. */
@@ -503,7 +644,7 @@ export class ModuleCard {
     });
   }
 
-  destroy(): void { this.info?.destroy(); this.panel?.destroy(); this.root.remove(); }
+  destroy(): void { this.monitorOff?.(); this.info?.destroy(); this.panel?.destroy(); this.root.remove(); }
 
   static describeValue = formatValue;
 }

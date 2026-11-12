@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import type {
-  EngineClient, OscStatus, Telemetry, SystemStatus, Device, EngineError,
+  EngineClient, OscStatus, Telemetry, SystemStatus, Device, EngineError, MonitorEntry,
 } from './EngineClient';
 import { EngineRefusal } from './EngineClient';
 import type { PatchV2, Connection } from '../patch/types';
 import type { ModuleRegistry } from '../modules/registry';
 import { findParam, findPort, normToValue, valueToNorm } from '../modules/registry';
+import { hzToMidi } from '../modules/musicalPitch';
 
 const TICK_HZ = 30;
 
-interface Node { id: number; type: string; params: Record<string, number> }
+interface Node { id: number; type: string; params: Record<string, number>; ccRows?: Record<string, unknown>[] }
 interface Voice { note: number; velocity: number; on: boolean; since: number; level: number; stage: 'a' | 'd' | 's' | 'r' | 'off' }
 
 export interface DebugSwitches {
@@ -33,10 +34,12 @@ export class FakeEngine implements EngineClient {
   private nodes = new Map<number, Node>();
   private conns: Connection[] = [];
   private voices: Voice[] = [];
+  private lastNote: number | null = null;
   private telemetryCbs = new Set<(t: Telemetry) => void>();
   private statusCbs = new Set<(s: SystemStatus) => void>();
   private timer: number | undefined;
   private tick = 0;
+  private graphGeneration = 0;
   private t0 = performance.now();
   private time = 0;
   /** Effective values for this simulation tick only (meter and signal estimates). */
@@ -48,12 +51,16 @@ export class FakeEngine implements EngineClient {
   private meterPeak = new Map<number, [number, number]>();
   private scopePhase = 0;
   private eventActivity = new Map<string, number>();
+  private monitorEntries: Record<number, MonitorEntry[]> = {};
+  monitorAvailable = true; // Test hook: an engine lacking telemetry.monitor must not invent a log.
 
   debug: DebugSwitches = {
     unplugAudio: false, extraMidiDevice: false, cpuSpike: false,
     dropouts: false, refuseEdits: false, oscTraffic: true,
   };
   private osc: OscStatus = { enabled: false, port: 9000, allowNetwork: false, recent: [] };
+  /** Legacy FakeEngine settings are independent of authored osc.in routes. */
+  private legacyOsc = { enabled: false, port: 9000, allowNetwork: false };
 
   private learnSequence = 0;
   private status: SystemStatus = {
@@ -98,18 +105,77 @@ export class FakeEngine implements EngineClient {
 
   // ---- EngineClient: the patch -----------------------------------------
 
+  /** The fake never plays a Groove pattern, so every Groove is truthfully stopped. */
+  canApplyGroove(_moduleId: number): boolean { return true; }
+
   async loadGraph(patch: PatchV2): Promise<void> {
-    this.nodes.clear(); this.conns = []; this.voices = [];
+    this.graphGeneration++;
+    this.nodes.clear(); this.conns = []; this.voices = []; this.lastNote = null;
     this.phases.clear(); this.randomHold.clear(); this.seqStep.clear();
     this.currentEffective.clear(); this.meterPeak.clear(); this.eventActivity.clear();
+    this.monitorEntries = {}; // New graph generation has no previous Monitor events.
     for (const m of patch.modules) {
-      this.nodes.set(m.id, { id: m.id, type: m.module, params: { ...(m.parameters ?? {}) } });
+      const rows = (m.config as { rows?: unknown } | undefined)?.rows;
+      this.nodes.set(m.id, { id: m.id, type: m.module, params: { ...(m.parameters ?? {}) },
+        ...(m.module === 'midi.cc_to_cv' && Array.isArray(rows) ? { ccRows: (rows as Record<string, unknown>[]).map(r => ({ ...r })) } : {}) });
     }
     for (const c of patch.connections) {
       try { this.validateConnection(c); this.conns.push({ ...c }); }
       catch { /* a patch may legitimately carry cables this engine won't model */ }
     }
+    const oscModules = patch.modules.filter(m => m.module === 'osc.in');
+    this.osc.routes = oscModules.map(m => {
+      const cfg = m.config && typeof m.config === 'object' && !Array.isArray(m.config)
+        ? m.config as Record<string, unknown> : {};
+      const port = typeof cfg.port === 'number' ? cfg.port : 9000;
+      // Mirrors the sidecar (#612): eight explicitly disabled rows bind nothing.
+      const rows = Array.isArray(cfg.rows) ? cfg.rows : [];
+      const cleared = rows.filter(r => (r as { enabled?: unknown } | null)?.enabled === false).length >= 8;
+      return {
+        module: String(m.id), port, bind: '127.0.0.1',
+        state: cleared ? 'disabled' as const : cfg.lan === true ? 'lan-not-confirmed' as const : 'listening' as const,
+        received: 0, dropped: 0,
+      };
+    });
+    this.osc.enabled = this.osc.routes.some(r => r.state !== 'disabled') || this.legacyOsc.enabled;
+    this.osc.bind = '127.0.0.1';
+    this.osc.lan = false;
+    this.osc.port = this.osc.routes[0]?.port ?? this.legacyOsc.port;
+    this.osc.allowNetwork = this.legacyOsc.allowNetwork;
     this.pushStatus();
+  }
+
+  /** Deterministic FakeEngine route states for device-free OSC UI tests. */
+  setOscRouteState(moduleId: number, state: 'listening' | 'lan-not-confirmed' | 'port-busy'): void {
+    const route = this.osc.routes?.find(r => r.module === String(moduleId));
+    if (!route) return;
+    route.state = state;
+    this.osc.enabled = this.legacyOsc.enabled ||
+      (this.osc.routes ?? []).some(r => r.state === 'listening');
+    this.pushStatus();
+  }
+
+  setOscReceived(moduleId: number, count: number): void {
+    const route = this.osc.routes?.find(r => r.module === String(moduleId));
+    if (!route) return;
+    route.received = count;
+    this.pushStatus();
+  }
+
+  /** Device-free test injections use the same bounded, oldest-first Monitor shape. */
+  setMonitorEntries(moduleId: number, entries: MonitorEntry[]): void {
+    if (this.nodes.get(moduleId)?.type !== 'monitor') return;
+    this.monitorEntries[moduleId] = entries.slice(-32).map(e => ({ ...e, args: [...e.args].slice(0, 4) }));
+  }
+
+  private recordMonitor(sourceId: number, kind: MonitorEntry['kind'], entry: MonitorEntry): void {
+    for (const c of this.conns) {
+      if (c.kind !== 'event' || c.from.module !== sourceId || c.to.port !== 'events' ||
+          this.nodes.get(c.to.module)?.type !== 'monitor') continue;
+      if (kind === 'osc' && (this.nodes.get(sourceId)?.type !== 'osc.in' || c.from.port !== 'messages')) continue;
+      if (kind === 'midi' && (this.nodes.get(sourceId)?.type !== 'midi.in' || c.from.port !== 'midi')) continue;
+      this.monitorEntries[c.to.module] = [...(this.monitorEntries[c.to.module] ?? []), entry].slice(-32);
+    }
   }
 
   addModule(id: number, type: string, params: Record<string, number> = {}): void {
@@ -152,6 +218,9 @@ export class FakeEngine implements EngineClient {
     if (found) found.amount = amount;
   }
 
+  /** Test hook: the rows the running fake graph holds for a CC module. */
+  ccRowsOf(moduleId: number): Record<string, unknown>[] { return (this.nodes.get(moduleId)?.ccRows ?? []).map(r => ({ ...r })); }
+
   private validateConnection(c: Connection): void {
     if (c.kind === 'modulation') {
       const dst = this.nodes.get(c.to.module);
@@ -188,6 +257,7 @@ export class FakeEngine implements EngineClient {
   // ---- EngineClient: playing -------------------------------------------
 
   noteOn(note: number, velocity: number): void {
+    this.lastNote = note;
     const existing = this.voices.find(v => v.note === note);
     if (existing) { existing.on = true; existing.since = this.time; existing.stage = 'a'; existing.velocity = velocity; return; }
     this.voices.push({ note, velocity, on: true, since: this.time, level: 0, stage: 'a' });
@@ -198,7 +268,7 @@ export class FakeEngine implements EngineClient {
     if (v) { v.on = false; v.since = this.time; v.stage = 'r'; }
   }
 
-  panic(): void { this.voices = []; }
+  panic(): void { this.voices = []; this.lastNote = null; }
 
   // ---- EngineClient: subscriptions -------------------------------------
 
@@ -260,6 +330,7 @@ export class FakeEngine implements EngineClient {
     if (cfg.port !== undefined && (!Number.isInteger(cfg.port) || cfg.port < 1024 || cfg.port > 65535)) {
       throw new EngineRefusal({ code: 'refused', message: 'OSC port must be a whole number from 1024 to 65535.' });
     }
+    Object.assign(this.legacyOsc, cfg);
     Object.assign(this.osc, cfg);
     if (!this.osc.enabled) this.osc.recent = [];
     this.pushStatus();
@@ -287,6 +358,7 @@ export class FakeEngine implements EngineClient {
 
     const cache = new Map<string, number>();
     const effective: Record<number, Record<string, number>> = {};
+    const effective_pitch: Record<number, number> = {};
     this.currentEffective.clear();
     const phase: Record<number, number> = {};
     const envelope: Record<number, number> = {};
@@ -313,9 +385,29 @@ export class FakeEngine implements EngineClient {
       }
       if (Object.keys(modulated).length) effective[n.id] = modulated;
     }
+    // Mirror the native nominal, pre-FM pitch contract. Signal values come
+    // from the fake graph, never from the displayed knob's Hz label alone.
+    for (const n of this.nodes.values()) {
+      if (n.type !== 'essentials.vco' && n.type !== 'ports.macro_oscillator') continue;
+      const pitchCable = this.conns.find(c => c.kind === 'signal'
+        && c.to.module === n.id && c.to.port === 'pitch');
+      const cv = pitchCable ? this.sourceValue(pitchCable, cache) : 0;
+      if (n.type === 'essentials.vco') {
+        const frequency = effective[n.id]?.frequency ?? n.params.frequency ?? 220;
+        const notesConnected = this.conns.some(c => c.kind === 'event'
+          && c.to.module === n.id && c.to.port === 'notes');
+        const hz = pitchCable ? 261.6255653005986 * 2 ** cv * (frequency / 220)
+          : notesConnected && this.lastNote !== null ? 440 * 2 ** ((this.lastNote - 69) / 12)
+            : frequency;
+        effective_pitch[n.id] = hzToMidi(hz);
+      } else {
+        const coarse = effective[n.id]?.coarse ?? n.params.coarse ?? 0;
+        effective_pitch[n.id] = 60 + coarse + Math.max(-96, Math.min(96, cv * 12));
+      }
+    }
     // Evaluate meters only after every modulated effective value has been computed.
     for (const n of this.nodes.values()) {
-      if (n.type === 'essentials.lfo' || n.type === 'example.random_source' || n.type === 'essentials.clock') {
+      if (n.type === 'essentials.lfo' || n.type === 'essentials.clock') {
         phase[n.id] = this.phases.get(n.id) ?? 0;
       }
       if (n.type === 'example.step_sequencer') {
@@ -360,7 +452,8 @@ export class FakeEngine implements EngineClient {
       }
     }
 
-    // Current value of every connected signal output (optional telemetry field).
+    // The optional outputs field reports only cabled signal sources, as the
+    // real Web engine does. No uncabled Random Source preview is fabricated.
     const outputs: Record<string, number> = {};
     for (const c of this.conns) {
       if (c.kind === 'event') continue;
@@ -373,8 +466,12 @@ export class FakeEngine implements EngineClient {
     }
 
     const t: Telemetry = {
-      tick: this.tick, time: this.time,
-      effective, phase, envelope, meters, scope, eventActivity, outputs,
+      tick: this.tick, time: this.time, gen: String(this.graphGeneration),
+      effective, effective_pitch, phase, envelope, meters, scope, eventActivity, outputs,
+      monitorAvailable: this.monitorAvailable,
+      ...(this.monitorAvailable && Object.values(this.monitorEntries).some(x => x.length)
+        ? { monitor: Object.fromEntries(Object.entries(this.monitorEntries).filter(([, x]) => x.length)
+          .map(([k, x]) => [k, x.map(e => ({ ...e, args: [...e.args] }))])) } : {}),
       heldNotes: this.voices.filter(v => v.on).map(v => v.note),
     };
     for (const cb of this.telemetryCbs) cb(t);
@@ -419,7 +516,6 @@ export class FakeEngine implements EngineClient {
         const smooth = Math.max(0.001, n.params.smooth ?? 0.05);
         st.value += (st.target - st.value) * Math.min(1, dt / smooth);
         this.randomHold.set(n.id, st);
-        this.phases.set(n.id, (st.value + 1) / 2);
         break;
       }
       case 'example.step_sequencer': {
@@ -481,7 +577,7 @@ export class FakeEngine implements EngineClient {
       case 'midi.to_cv': {
         const v = this.voices.filter(v => v.on).at(-1);
         if (!v) return portId === 'gate' ? 0 : 0;
-        if (portId === 'pitch') return (v.note - 60) / 60;
+        if (portId === 'pitch') return (v.note - 60) / 12; // 1/octave, 0 = C4 (native keyboard contract)
         if (portId === 'gate') return 1;
         if (portId === 'velocity') return v.velocity;
         return 0;
@@ -648,12 +744,20 @@ export class FakeEngine implements EngineClient {
     }
     if (this.debug.dropouts && this.tick % 20 === 0) a.dropouts++;
 
+    // No real network use in FakeEngine: sample directly-wired OSC sources.
+    if (this.debug.oscTraffic && this.tick % 45 === 0)
+      for (const node of this.nodes.values()) if (node.type === 'osc.in')
+        this.recordMonitor(node.id, 'osc', { t: this.time, kind: 'osc',
+          address: '/pico1/knob/1', args: [Math.round(Math.random() * 1000) / 1000] });
+
     // OSC: a fake message about every 1.5 s while the server is on.
     if (this.osc.enabled && this.debug.oscTraffic && this.tick % 45 === 0) {
       const ids = [...this.nodes.keys()];
       const id = ids.length ? ids[this.tick % ids.length] : 1;
       this.osc.recent = [{ time: this.time, address: `/wirescape/${id}/param`, args: [Math.round(Math.random() * 1000) / 1000] },
-        ...this.osc.recent].slice(0, 8);
+        ...(this.osc.recent ?? [])].slice(0, 8);
+      const route = this.osc.routes?.find(r => r.state === 'listening');
+      if (route) route.received++;
       this.pushStatus();
     }
 
@@ -680,7 +784,9 @@ export class FakeEngine implements EngineClient {
       audio: { ...this.status.audio },
       midi: { devices: this.midiDevices.map(d => ({ ...d })), activity,
         ...(this.status.midi.learn ? { learn: { ...this.status.midi.learn } } : {}) },
-      osc: { ...this.osc, recent: this.osc.recent.map(m => ({ ...m, args: [...m.args] })) },
+      osc: { ...this.osc,
+        routes: this.osc.routes?.map(r => ({ ...r })),
+        recent: (this.osc.recent ?? []).map(m => ({ ...m, args: [...m.args] })) },
       ...(clockNode
         ? { clock: { bpm: clockNode.params.bpm ?? 120, running: (clockNode.params.run ?? 1) >= 0.5 } }
         : {}),
@@ -696,4 +802,3 @@ export class FakeEngine implements EngineClient {
 const frac = (n: number) => n - Math.floor(n);
 const key = (c: Connection) => `${c.kind}|${c.from.module}:${c.from.port}|${c.to.module}:${c.to.port}`;
 export type { EngineError };
-

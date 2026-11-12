@@ -83,7 +83,7 @@ Two Codex runs. Run A is the critical path. Run B is independent module work and
 After #40 merges: merge `main` into `task/27-port-regressions` (#41) with a merge commit, keep both test registrations, run tests, push, CI green. Merge-only evidence rule applies unless compiled code conflicted. Add `SPDX-License-Identifier: GPL-3.0-only` headers where missing and replace "Provenance: to be confirmed by the user" in the DESIGN.md of mixer, output, scale_offset, ADSR, LFO, VCA and VCO with "Original Wirescape code, GPL-3.0-only, no upstream source" (the user's answer on #29). Do the provenance edit in #41 or as the first commit of J1, whichever is open first.
 
 ## A1 / J1: engine2 becomes the app engine (#29, size/l)
-Spec unchanged: `docs/tasks/M2_PORT_AND_APP_ENGINE.md`, section "M2-6". #32 no longer blocks it. Additions for J:
+Spec unchanged: `docs/tasks/done/M2_PORT_AND_APP_ENGINE.md`, section "M2-6". #32 no longer blocks it. Additions for J:
 - Keep the ABI 1 host-note behaviour for v1 patches (keyboard notes reach VCO/ADSR as today, mono) so old patches still play. J2 adds the poly path.
 - The module catalogue must list ABI 2 modules from a single registration point that later modules add one line to (J4–J7 depend on it). Document it in `docs/ARCHITECTURE.md` and in one sentence in `docs/SDK_AUTHOR_GUIDE.md` §11 (allowed for this item only).
 - Pi: the 10-minute soak in the M2-6 spec stays (engine change).

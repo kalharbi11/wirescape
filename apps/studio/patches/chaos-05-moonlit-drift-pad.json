@@ -1,0 +1,298 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "CHAOS Lab 5 · Moonlit Drift (smooth-random pad)",
+  "description": "Play held chords. The internal CHAOS smooth-random LFO (shape 3) wanders through the resonant body's tuning at 0.11 Hz, while softened A/B oscillators, gentle drift and a long stereo ADSR/reverb create an evolving pad. Play the notes; keyboard gate reaches only the ADSR, never CHAOS, so both VCAs preserve release. Try LFO depth/rate, body mix/tune, cutoff, and ADSR release. No external random module is required. Sound and loudness remain to be auditioned.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 55505,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "host.keyboard",
+      "version": 1,
+      "parameters": {
+        "voices": 4
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.chaos_lite",
+      "version": 1,
+      "parameters": {
+        "shape_a": 1.96,
+        "shape_b": 1.82,
+        "detune": 4.5,
+        "octave_a": -1,
+        "octave_b": -1,
+        "level_a": 0.48,
+        "level_b": 0.33,
+        "pan_a": -0.42,
+        "pan_b": 0.42,
+        "route": 0,
+        "depth": 0,
+        "body_tune": 0.12,
+        "feedback": 0.38,
+        "damping": 0.8,
+        "body_mix": 0.38,
+        "roughness": 0.035,
+        "rough_rate": 34,
+        "drift": 0.12,
+        "jitter": 0.012,
+        "fall": 0,
+        "lfo_target": 1,
+        "lfo_rate": 0.11,
+        "lfo_depth": 0.32,
+        "lfo_self": 0.08,
+        "cutoff": 3200,
+        "level": 0.84,
+        "lfo_shape": 3
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": {
+        "attack": 1.1,
+        "decay": 1.5,
+        "sustain": 0.72,
+        "release": 4
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1.5
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": {
+        "gain": 1.5
+      }
+    },
+    {
+      "id": 6,
+      "module": "fx.reverb",
+      "version": 1,
+      "parameters": {
+        "size": 0.81,
+        "decay": 7,
+        "damping": 0.56,
+        "predelay": 0.04,
+        "width": 1,
+        "motion": 0.18,
+        "mix": 0.39
+      }
+    },
+    {
+      "id": 7,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    },
+    {
+      "id": 8,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "pitch"
+      },
+      "to": {
+        "module": 2,
+        "port": "pitch"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "velocity"
+      },
+      "to": {
+        "module": 2,
+        "port": "velocity"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "gate"
+      },
+      "to": {
+        "module": 3,
+        "port": "gate"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "left"
+      },
+      "to": {
+        "module": 4,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "right"
+      },
+      "to": {
+        "module": 5,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 4,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "envelope"
+      },
+      "to": {
+        "module": 5,
+        "port": "gain_cv"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "left"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "right"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "left"
+      },
+      "to": {
+        "module": 7,
+        "port": "audio"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "right"
+      },
+      "to": {
+        "module": 8,
+        "port": "audio"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "module": 7,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 8,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "2": [
+        990,
+        192
+      ],
+      "3": [
+        60,
+        960
+      ],
+      "4": [
+        2220,
+        192
+      ],
+      "5": [
+        2220,
+        864
+      ],
+      "6": [
+        3150,
+        192
+      ],
+      "7": [
+        4080,
+        192
+      ],
+      "8": [
+        4080,
+        864
+      ]
+    },
+    "labels": {
+      "1": "Keys",
+      "2": "Smooth-random CHAOS",
+      "3": "Long-release ADSR",
+      "4": "VCA L",
+      "5": "VCA R",
+      "6": "Moonlit hall",
+      "7": "Out L",
+      "8": "Out R"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}

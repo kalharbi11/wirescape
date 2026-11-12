@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Rebuilds the auto section of the board issue (#473) from labels (tools/board.py).
+# Runs main's code only; it never checks out PR code. Writes one issue body, nothing else.
+# The followups job does what GitHub skips for GITHUB_TOKEN gate merges (tools/board.py followups()):
+# it closes their `Closes #N` issues and dispatches main_verify.yml once per main commit.
+name: Board
+on:
+  issues:
+    types: [opened, closed, reopened, labeled, unlabeled]
+  pull_request_target:
+    types: [opened, closed, reopened, synchronize, ready_for_review, converted_to_draft]
+  issue_comment:
+    types: [created]
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+concurrency:
+  group: board
+  cancel-in-progress: true
+jobs:
+  followups:
+    if: github.event_name != 'issue_comment' || github.event.issue.number != 473
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: write
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: tools/board.py
+          sparse-checkout-cone-mode: false
+      - name: Close issues of gate merges, verify main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/board.py --followups
+  board:
+    needs: followups
+    if: always() && (github.event_name != 'issue_comment' || github.event.issue.number != 473)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: tools/board.py
+          sparse-checkout-cone-mode: false
+      - name: Rebuild board
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/board.py --write 473

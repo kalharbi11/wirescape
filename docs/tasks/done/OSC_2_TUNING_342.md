@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# OSC-2: Honest oscillator tuning display and musical dials (#342, from #337)
+# OSC-2: Honest oscillator tuning display and musical dials (#342; parent task 337)
 
 Tier T1. See #337 and the original Compass ruling in `docs/tasks/OSC_TUNING_GATE.md` (module-prep branch). No DSP edit, module/parameter ID or default change, or patch rewrite on load.
 

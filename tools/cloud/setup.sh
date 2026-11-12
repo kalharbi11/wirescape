@@ -4,4 +4,5 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 bash tools/ci/codex_cloud_setup.sh
 source .foundation-venv/bin/activate
+python tools/cloud/git_deps.py
 python tools/dev.py build --headless

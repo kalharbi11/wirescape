@@ -205,7 +205,7 @@ test.describe('the catalogue', () => {
     await boot(page);
     const report = await page.evaluate(async () => {
       const t = window.__wirescapeTest;
-      const out: { id: string; knobs: number; controls: number; ports: number; params: number }[] = [];
+      const out: { id: string; knobs: number; controls: number; ports: number; descriptorPorts: number; params: number }[] = [];
       for (const m of t.registry.all) {
         t.load({
           format: 'wirescape.native.patch', version: 2,
@@ -216,16 +216,22 @@ test.describe('the catalogue', () => {
         out.push({
           id: m.id,
           knobs: card?.querySelectorAll('.knob-unit').length ?? 0,
-          controls: card?.querySelectorAll('.knob-unit,.segmented,.toggle,.input-select,.control-readout,.control-fader,.control-number').length ?? 0,
+          controls: card?.querySelectorAll('.knob-unit,.segmented,.toggle,.input-select,.control-readout,.control-fader,.control-number,.groove-pane button').length ?? 0,
           ports: card?.querySelectorAll('.port').length ?? 0,
+          descriptorPorts: m.ports.length,
           params: m.parameters.length,
         });
       }
       return out;
     });
 
-    expect(report).toHaveLength(28);
+    expect(report).toHaveLength(33);
+    expect(report.some(r => r.id === 'essentials.notes_to_cv')).toBe(true);
+    expect(report.some(r => r.id === 'essentials.chord')).toBe(true);
     expect(report.some(r => r.id === 'essentials.quantizer')).toBe(true);
+    expect(report.find(r => r.id === 'essentials.quad_vca')).toMatchObject({ descriptorPorts: 13, params: 9 });
+    expect(report.find(r => r.id === 'osc.in')).toMatchObject({ ports: 4, descriptorPorts: 9, params: 0 });
+    expect(report.find(r => r.id === 'monitor')).toMatchObject({ ports: 3, descriptorPorts: 3, params: 0 });
     expect(report.some(r => r.id === 'sequencing.groove')).toBe(true);
     expect(report.some(r => r.id === 'fx.delay')).toBe(true);
     expect(report.some(r => r.id === 'fx.reverb')).toBe(true);
@@ -235,6 +241,46 @@ test.describe('the catalogue', () => {
         expect(r.controls, `${r.id} should render controls for its parameters`).toBeGreaterThan(0);
       }
     }
+  });
+
+  test('Notes→CV patch round-trips voices and poly connections', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__wirescapeTest.zoomTo(0.5));
+    const keyboard = await addModuleAt(page, 'host.keyboard', 80, 220);
+    const notes = await addModuleAt(page, 'essentials.notes_to_cv', 450, 220);
+    const vco = await addModuleAt(page, 'essentials.vco', 820, 220);
+    const adsr = await addModuleAt(page, 'essentials.adsr', 820, 700);
+    const vca = await addModuleAt(page, 'essentials.vca', 1190, 220);
+    const output = await addModuleAt(page, 'essentials.output', 1560, 220);
+
+    await patch(page, { module: keyboard, port: 'notes' }, { module: notes, port: 'notes' });
+    await patch(page, { module: notes, port: 'pitch' }, { module: vco, port: 'pitch' });
+    await patch(page, { module: notes, port: 'gate' }, { module: adsr, port: 'gate' });
+    await patch(page, { module: vco, port: 'audio' }, { module: vca, port: 'audio' });
+    await patch(page, { module: adsr, port: 'envelope' }, { module: vca, port: 'gain_cv' });
+    await patch(page, { module: vca, port: 'audio' }, { module: output, port: 'audio' });
+    await page.evaluate(id => window.__wirescapeTest.commitParam(id, 'voices', 3), notes);
+    await settle(page);
+
+    const saved = await state(page);
+    const savedModule = saved.modules.find((m: any) => m.id === notes);
+    expect(savedModule).toMatchObject({ module: 'essentials.notes_to_cv', parameters: { voices: 3 } });
+    const endpoints = saved.connections.map((c: any) =>
+      [c.kind, c.from.module, c.from.port, c.to.module, c.to.port]);
+    expect(endpoints).toEqual(expect.arrayContaining([
+      ['event', keyboard, 'notes', notes, 'notes'],
+      ['signal', notes, 'pitch', vco, 'pitch'],
+      ['signal', notes, 'gate', adsr, 'gate'],
+    ]));
+
+    await page.evaluate(() => window.__wirescapeTest.autosaveNow());
+    await page.reload();
+    await page.waitForFunction(() => document.body.dataset.ready === 'true');
+    await settle(page);
+    const restored = await state(page);
+    expect(restored.modules.find((m: any) => m.id === notes))
+      .toMatchObject({ module: 'essentials.notes_to_cv', parameters: { voices: 3 } });
+    expect(restored.connections).toEqual(saved.connections);
   });
 
   test('no module overflows its card, in either hit profile', async ({ page }) => {

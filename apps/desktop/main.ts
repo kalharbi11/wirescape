@@ -29,7 +29,7 @@ for (let i = 0; i < argv.length; i++) {
     if (isolatedProfile !== null) throw new Error('--profile-dir must be supplied only once');
     isolatedProfile = path.resolve(chosen);
   }
-  else if (a === '--confirm-audio' || a === '--confirm-midi' || a === '--null-audio') engineArgs.push(a);
+  else if (a === '--confirm-audio' || a === '--confirm-midi' || a === '--confirm-lan' || a === '--null-audio') engineArgs.push(a);
   else if (ENGINE_FLAGS_WITH_VALUE.has(a)) engineArgs.push(a, argv[++i]);
 }
 // Opt-in source/test profile: configure both Electron paths before app readiness.

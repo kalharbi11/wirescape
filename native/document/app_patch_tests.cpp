@@ -19,13 +19,33 @@ static void require(bool ok,const char*s){if(!ok)throw std::runtime_error(s);}
 int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  require(argc==4,"modules, demo and legacy fixtures arguments");ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>cat(app_engine_create(&cfg),app_engine_destroy);
- require(app_engine_module_count(cat.get()) == 28,
-         "Twenty-six builtins (including Groove and Quantizer) plus two SDK sources in catalogue");
- for (const char *expected :
-      {"essentials.vco", "essentials.lfo", "essentials.vcf", "essentials.adsr", "essentials.vca", "essentials.clock",
-       "essentials.function_envelope", "essentials.ladder", "essentials.mixer", "essentials.noise", "essentials.output",
-       "essentials.scale_offset", "essentials.slew", "host.keyboard", "essentials.chaos_lite", "midi.in", "midi.to_cv",
-       "midi.cc_to_cv", "ports.macro_oscillator", "example.step_sequencer", "example.random_source"}) {
+ require(app_engine_module_count(cat.get()) == 33, "Thirty-one builtins plus two SDK sources in catalogue");
+ for (const char *expected : {"essentials.vco",
+                              "essentials.lfo",
+                              "essentials.vcf",
+                              "essentials.adsr",
+                              "essentials.vca",
+                              "essentials.quad_vca",
+                              "essentials.clock",
+                              "essentials.function_envelope",
+                              "essentials.ladder",
+                              "essentials.mixer",
+                              "essentials.noise",
+                              "essentials.output",
+                              "essentials.scale_offset",
+                              "essentials.slew",
+                              "host.keyboard",
+                              "essentials.chaos_lite",
+                              "midi.in",
+                              "midi.to_cv",
+                              "midi.cc_to_cv",
+                              "essentials.chord",
+                              "essentials.notes_to_cv",
+                              "osc.in",
+                              "monitor",
+                              "ports.macro_oscillator",
+                              "example.step_sequencer",
+                              "example.random_source"}) {
      bool found = false;
      for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i)
          if (std::string(app_engine_module(cat.get(), i)->id) == expected) found = true;
@@ -66,6 +86,12 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
      }
  }
  require(found_quantizer, "quantizer in catalogue");
+ for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i) {
+     const auto *module = app_engine_module(cat.get(), i);
+     if (std::string(module->id) == "essentials.quad_vca") {
+         require(module->input_count == 8 && module->output_count == 5, "Quad VCA catalogue port counts");
+     }
+ }
  {
      const QByteArray fixture = R"({
        "format":"wirescape.native.patch","version":2,"name":"Offline keyboard to Macro",
@@ -190,7 +216,48 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>e(build_app_patch(cat.get(),patch,cfg,error),app_engine_destroy);if(!e)std::cerr<<error.toStdString()<<'\n';require(bool(e),"build engine2 demo from loader");
  require(app_engine_native(e.get()).descriptor(1)->abi_version==2,"app uses ABI2, not shim for Essentials");
  auto view=editor_view(patch,cat.get());auto saved=editor_patch(view,cat.get(),PatchDocument{patch.object,bytes,2,{}});require(saved.valid()&&saved.object==patch.object,"v2 editor roundtrip preserves complete object");
- QTemporaryDir temp;require(temp.isValid(),"tempdir");require(save_patch(temp.filePath("demo.json"),patch,&error),"v2 atomic save");
+ QTemporaryDir temp;
+ require(temp.isValid(), "tempdir");
+ // OSC J5 closeout: real Qt document edit/save/read round-trip must retain
+ // authored disabled rows, edited patterns, and unknown future config keys.
+ {
+     const QByteArray osc_source = R"({
+       "format":"wirescape.native.patch","version":2,
+       "settings":{"sample_rate":48000,"max_block_frames":128,"max_channels":16},
+       "modules":[
+         {"id":31,"module":"osc.in","version":1,"parameters":{},"config":{"version":1,"port":9011,
+           "rows":[{"pattern":"/closeout/edited","kind":"gate","argument":1},
+                   {"pattern":"/closeout/off","enabled":false,"futureCurve":"retain"}],
+           "futureMapping":{"safeToRetain":true}}},
+         {"id":32,"module":"essentials.output","version":2,"parameters":{}}],
+       "connections":[],"outputs":[{"module":32,"port":"audio","bus_channel":0}],
+       "ui":{"futureLayout":"retain"}})";
+     const auto source_doc = read_patch(osc_source, app_catalog(cat.get()));
+     require(source_doc.valid(), "OSC edited document accepted for native save");
+     const auto staged = editor_patch(editor_view(source_doc, cat.get()), cat.get(),
+                                      PatchDocument{source_doc.object, osc_source, 2, {}});
+     require(staged.valid() && staged.object == source_doc.object, "OSC editor keeps future fields");
+     const auto filename = temp.filePath("osc-closeout.json");
+     require(save_patch(filename, staged, &error), "native OSC document saved");
+     QFile saved_file(filename);
+     require(saved_file.open(QIODevice::ReadOnly), "native OSC document reread");
+     const auto reloaded_doc = read_patch(saved_file.readAll(), app_catalog(cat.get()));
+     require(reloaded_doc.valid() && reloaded_doc.object == staged.object, "native OSC document lossless reload");
+     const auto modules = reloaded_doc.object.value("modules").toArray();
+     const auto osc_config = modules[0].toObject().value("config").toObject();
+     const auto rows = osc_config.value("rows").toArray();
+     require(osc_config.value("version").toInt() == 1 && osc_config.value("port").toInt() == 9011 &&
+                 osc_config.value("futureMapping").toObject().value("safeToRetain").toBool() &&
+                 rows[0].toObject().value("pattern").toString() == "/closeout/edited" &&
+                 rows[1].toObject().value("enabled").toBool(true) == false &&
+                 rows[1].toObject().value("futureCurve").toString() == "retain" &&
+                 reloaded_doc.object.value("ui").toObject().value("futureLayout").toString() == "retain",
+             "OSC edited/disabled/unknown fields survive a native save/load");
+     std::unique_ptr<AppEngine, decltype(&app_engine_destroy)> osc_engine(
+         build_app_patch(cat.get(), reloaded_doc, cfg, error), app_engine_destroy);
+     require(bool(osc_engine), "OSC future keys ignored by execution without deleting document fields");
+ }
+ require(save_patch(temp.filePath("demo.json"), patch, &error), "v2 atomic save");
  QFile v2file(temp.filePath("demo.json"));require(v2file.open(QIODevice::ReadOnly),"read saved v2");
  auto v2=read_patch(v2file.readAll(),app_catalog(cat.get()));require(v2.valid()&&v2.source_version==2,"reload v2 document");
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>reloaded(build_app_patch(cat.get(),v2,cfg,error),app_engine_destroy);require(bool(reloaded),"build saved v2 through real loader");

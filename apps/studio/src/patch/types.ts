@@ -32,6 +32,7 @@ export interface PatchModule {
   [extra: string]: unknown;
 }
 
+export interface GrooveUi { root: number; scale: string; [extra: string]: unknown }
 export interface PatchUi {
   positions?: Record<string, [number, number]>;
   view?: { x: number; y: number; zoom: number; [extra: string]: unknown };
@@ -39,6 +40,8 @@ export interface PatchUi {
   labels?: Record<string, string>;
   /** User-picked cable colour per connection key, a palette name (DESIGN §9). No meaning. */
   cableColors?: Record<string, string>;
+  /** Groove scale helper per instance id (#514). UI-only: steps keep plain MIDI keys. */
+  groove?: Record<string, GrooveUi>;
   [extra: string]: unknown;
 }
 

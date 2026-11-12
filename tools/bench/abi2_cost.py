@@ -10,7 +10,7 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-MODES = ('abi1_mono', 'abi2_mono', 'abi2_modulated', 'abi2_poly8')
+MODES = ('abi1_mono', 'abi2_mono', 'abi2_modulated', 'abi2_poly8', 'abi2_quad_vca_lpg8')
 
 
 def instructions(path):
