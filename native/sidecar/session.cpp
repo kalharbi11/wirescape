@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "session.h"
 #include "null_sink_wait.h"
+#include "d5_gap_deadline.h"
 #include "runtime_patch.h"
 #include "wirescape_sidecar_categories.h"
 #include <algorithm>
@@ -624,6 +625,8 @@ void Session::commit(Json patch, bool new_namespace) {
     // D5 budgets (see kMuteBudget/kGapBudget); they stretch only when a block period is longer.
     const auto period = std::chrono::microseconds(int64_t(1e6 * double(options_.block) / double(options_.rate)));
     const auto gap_budget = std::max<std::chrono::microseconds>(kGapBudget, 3 * period);
+    // The request/mute watchdog is separate from the actual audio interruption.
+    auto gap_deadline = begun + gap_budget;
     auto output_live = [&] {
         return (stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire);
     };
@@ -652,6 +655,14 @@ void Session::commit(Json patch, bool new_namespace) {
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
+        if (app_engine_master_fade_silent(active_)) {
+            const auto first_fade_ns = app_engine_master_fade_out_started_ns(active_);
+            if (first_fade_ns == 0) {
+                app_engine_resume_master_fade(active_);
+                throw Refusal("unavailable", "Audio fade callback unavailable");
+            }
+            gap_deadline = d5_gap_deadline(first_fade_ns, gap_budget);
+        }
     }
     app_engine_prepare_master_fade_in(candidate.get());
     try {
@@ -667,7 +678,7 @@ void Session::commit(Json patch, bool new_namespace) {
         // candidate, so the gap is a few block periods. Reopening a Windows device
         // cannot fit the gap budget, so the stream is never restarted here.
         AppEngine *const previous = active_, *const next = candidate.get();
-        if (!exchange(candidate, begun + gap_budget)) {
+        if (!exchange(candidate, gap_deadline)) {
             app_engine_resume_master_fade(active_);
             start_midi();
             throw Refusal("unavailable", "Audio swap exceeded gap budget");
@@ -677,7 +688,7 @@ void Session::commit(Json patch, bool new_namespace) {
         try {
             start_midi();
             while (!app_engine_master_fade_in_started(active_)) {
-                if (std::chrono::steady_clock::now() >= begun + gap_budget)
+                if (std::chrono::steady_clock::now() >= gap_deadline)
                     throw Refusal("unavailable", "Audio swap exceeded gap budget");
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
@@ -707,7 +718,7 @@ void Session::commit(Json patch, bool new_namespace) {
             start_midi();
             if (stream_ || sink_.joinable()) {
                 while (!app_engine_master_fade_in_started(active_)) {
-                    if (std::chrono::steady_clock::now() >= begun + gap_budget)
+                    if (std::chrono::steady_clock::now() >= gap_deadline)
                         throw Refusal("unavailable", "Audio swap exceeded gap budget");
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }

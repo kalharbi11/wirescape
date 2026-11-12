@@ -7,6 +7,7 @@
 #include "../io/audio/callback_render.h"
 #include "../io/audio/portaudio_service.h"
 #include "../tests2/allocation_watch.h"
+#include "d5_gap_deadline.h"
 #include "devices.h"
 #include "midi_service.h"
 #include "null_sink_wait.h"
@@ -108,6 +109,32 @@ void midi_learn_observation() {
     check(fake.learning() == Json({{"armed", true}}));
     fake.arm_learning(false);
     check(fake.learning().is_null());
+}
+
+void d5_phase_deadline_regression() {
+    using Clock = std::chrono::steady_clock;
+    using Ms = std::chrono::milliseconds;
+    using Ns = std::chrono::nanoseconds;
+    const Ms period{512}; // 4096 frames at 8000 Hz
+    const auto gap_budget = 3 * period; // same long-block budget as production
+    const Clock::time_point first_fade = Clock::time_point(Ms{1000000});
+    const auto first_ns = uint64_t(std::chrono::duration_cast<Ns>(first_fade.time_since_epoch()).count());
+    const auto actual_deadline = d5_gap_deadline(first_ns, gap_budget);
+    check(actual_deadline == first_fade + gap_budget);
+    for (const auto wait_before_fade : {Ms{1}, period - Ms{1}}) {
+        const auto request = first_fade - wait_before_fade;
+        const auto fade_in = first_fade + 2 * period + Ms{10};
+        check(fade_in < actual_deadline);
+        if (wait_before_fade == period - Ms{1})
+            check(fade_in > request + gap_budget); // fails the old request-origin clock
+        else
+            check(fade_in < request + gap_budget);
+        // The unchanged bounded request/mute watchdog still expires independently.
+        check(request + gap_budget < actual_deadline);
+    }
+    check(first_fade + gap_budget + Ns{1} > actual_deadline); // late fade-in refuses
+    check(d5_gap_deadline(first_ns, Ms{150}) == first_fade + Ms{150});
+    check(first_fade + Ms{151} > d5_gap_deadline(first_ns, Ms{150}));
 }
 
 void sink_wait_deadline_regression() {
@@ -219,6 +246,7 @@ int run_tests() {
     check(timing.overrun_wake_count == 2 && timing.overrun_wake_max_us == 200);
 
     sink_wait_deadline_regression();
+    d5_phase_deadline_regression();
     midi_hotplug_observation();
     for (const auto &bad : {"{\"x\":1,\"x\":2}", "{\"x\":{\"y\":1,\"y\":2}}", "[]"}) {
         bool refused = false;
@@ -364,19 +392,21 @@ int run_tests() {
     check(bool(reference) && bool(faded));
     float dry[128]{}, wet[128]{};
     float *dry_rows[] = {dry}, *wet_rows[] = {wet};
-    auto render = [&](AppEngine *left, AppEngine *right) {
-        check(app_engine_render_channels(left, wet_rows, 1, 128) == WS_OK);
+    auto render = [&](AppEngine *left, AppEngine *right, uint64_t callback_ns = UINT64_MAX) {
+        check(app_engine_render_live(left, wet_rows, 1, 128, callback_ns) == WS_OK);
         check(app_engine_render_channels(right, dry_rows, 1, 128) == WS_OK);
     };
     render(faded.get(), reference.get()); // both graphs initially at unity
     app_engine_begin_master_fade_out(faded.get());
+    check(app_engine_master_fade_out_started_ns(faded.get()) == 0);
     float expected_gain = 1.0f;
     const float step = 1.0f / 480.0f;
     int blocks = 0, nonzero_old = 0;
     allocation_watch::count.store(0);
     allocation_watch::enabled.store(true);
+    constexpr uint64_t first_fade_ns = 123456789000ULL;
     while (!app_engine_master_fade_silent(faded.get()) && blocks < 8) {
-        render(faded.get(), reference.get());
+        render(faded.get(), reference.get(), first_fade_ns + uint64_t(blocks) * 2666667ULL);
         ++blocks;
         for (int i = 0; i < 128; ++i) {
             expected_gain = std::max(0.0f, expected_gain - step);
@@ -386,9 +416,19 @@ int run_tests() {
     }
     allocation_watch::enabled.store(false);
     check(app_engine_master_fade_silent(faded.get()) && nonzero_old > 0);
+    check(app_engine_master_fade_out_started_ns(faded.get()) == first_fade_ns);
     check(blocks * 128 <= 480 + 256); // fade edge + a complete zero block
     check(allocation_watch::count.load() == 0);
     for (float sample : wet) check(sample == 0.0f);
+
+    // No callback: zero timestamp, no synthetic fade-start proof, bounded watchdog.
+    wirescape::audio::EngineOwner stalled(
+        wirescape::document::load_runtime_patch(patch, catalogue.get(), config, error), app_engine_destroy);
+    check(bool(stalled));
+    app_engine_begin_master_fade_out(stalled.get());
+    check(app_engine_master_fade_out_started_ns(stalled.get()) == 0);
+    check(!app_engine_master_fade_silent(stalled.get()));
+    app_engine_resume_master_fade(stalled.get());
 
     // New graph starts hard muted and rises only during its own render blocks.
     wirescape::audio::EngineOwner next(wirescape::document::load_runtime_patch(patch, catalogue.get(), config, error),
