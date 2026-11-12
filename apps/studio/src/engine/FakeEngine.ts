@@ -56,6 +56,8 @@ export class FakeEngine implements EngineClient {
     dropouts: false, refuseEdits: false, oscTraffic: true,
   };
   private osc: OscStatus = { enabled: false, port: 9000, allowNetwork: false, recent: [] };
+  /** Legacy FakeEngine settings are independent of authored osc.in routes. */
+  private legacyOsc = { enabled: false, port: 9000, allowNetwork: false };
 
   private learnSequence = 0;
   private status: SystemStatus = {
@@ -116,6 +118,39 @@ export class FakeEngine implements EngineClient {
       try { this.validateConnection(c); this.conns.push({ ...c }); }
       catch { /* a patch may legitimately carry cables this engine won't model */ }
     }
+    const oscModules = patch.modules.filter(m => m.module === 'osc.in');
+    this.osc.routes = oscModules.map(m => {
+      const cfg = m.config && typeof m.config === 'object' && !Array.isArray(m.config)
+        ? m.config as Record<string, unknown> : {};
+      const port = typeof cfg.port === 'number' ? cfg.port : 9000;
+      return {
+        module: String(m.id), port, bind: '127.0.0.1',
+        state: cfg.lan === true ? 'lan-not-confirmed' as const : 'listening' as const,
+        received: 0, dropped: 0,
+      };
+    });
+    this.osc.enabled = this.osc.routes.length > 0 || this.legacyOsc.enabled;
+    this.osc.bind = '127.0.0.1';
+    this.osc.lan = false;
+    this.osc.port = this.osc.routes[0]?.port ?? this.legacyOsc.port;
+    this.osc.allowNetwork = this.legacyOsc.allowNetwork;
+    this.pushStatus();
+  }
+
+  /** Deterministic FakeEngine route states for device-free OSC UI tests. */
+  setOscRouteState(moduleId: number, state: 'listening' | 'lan-not-confirmed' | 'port-busy'): void {
+    const route = this.osc.routes?.find(r => r.module === String(moduleId));
+    if (!route) return;
+    route.state = state;
+    this.osc.enabled = this.legacyOsc.enabled ||
+      (this.osc.routes ?? []).some(r => r.state === 'listening');
+    this.pushStatus();
+  }
+
+  setOscReceived(moduleId: number, count: number): void {
+    const route = this.osc.routes?.find(r => r.module === String(moduleId));
+    if (!route) return;
+    route.received = count;
     this.pushStatus();
   }
 
@@ -271,6 +306,7 @@ export class FakeEngine implements EngineClient {
     if (cfg.port !== undefined && (!Number.isInteger(cfg.port) || cfg.port < 1024 || cfg.port > 65535)) {
       throw new EngineRefusal({ code: 'refused', message: 'OSC port must be a whole number from 1024 to 65535.' });
     }
+    Object.assign(this.legacyOsc, cfg);
     Object.assign(this.osc, cfg);
     if (!this.osc.enabled) this.osc.recent = [];
     this.pushStatus();
@@ -685,7 +721,9 @@ export class FakeEngine implements EngineClient {
       const ids = [...this.nodes.keys()];
       const id = ids.length ? ids[this.tick % ids.length] : 1;
       this.osc.recent = [{ time: this.time, address: `/wirescape/${id}/param`, args: [Math.round(Math.random() * 1000) / 1000] },
-        ...this.osc.recent].slice(0, 8);
+        ...(this.osc.recent ?? [])].slice(0, 8);
+      const route = this.osc.routes?.find(r => r.state === 'listening');
+      if (route) route.received++;
       this.pushStatus();
     }
 
@@ -712,7 +750,9 @@ export class FakeEngine implements EngineClient {
       audio: { ...this.status.audio },
       midi: { devices: this.midiDevices.map(d => ({ ...d })), activity,
         ...(this.status.midi.learn ? { learn: { ...this.status.midi.learn } } : {}) },
-      osc: { ...this.osc, recent: this.osc.recent.map(m => ({ ...m, args: [...m.args] })) },
+      osc: { ...this.osc,
+        routes: this.osc.routes?.map(r => ({ ...r })),
+        recent: (this.osc.recent ?? []).map(m => ({ ...m, args: [...m.args] })) },
       ...(clockNode
         ? { clock: { bpm: clockNode.params.bpm ?? 120, running: (clockNode.params.run ?? 1) >= 0.5 } }
         : {}),

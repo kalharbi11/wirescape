@@ -496,6 +496,20 @@ The browser/WASM AudioWorklet has no UDP ingress: its live catalogue excludes
 `osc.in`, and a browser patch containing it is refused rather than silently
 claiming to listen. Use the native Electron sidecar for OSC input.
 
+**Studio address editor (slice C1 #603):** on an OSC In card, click **Edit…**
+to choose the UDP port (1024–65535), inspect or change all eight `row1`…
+`row8` address patterns and mapping ranges, and select CV, gate, or trigger,
+argument index, smoothing, timeout and hold/zero behavior. The **Pico knobs**
+and **TouchOSC faders** presets fill those rows; **Reset to Pico defaults**
+restores the original eight Pico listeners. It does *not* disable listening.
+To stop a specific row requires the separate per-row enable contract (#612).
+Saving applies the patch through the normal graph replan. The editor warns
+about unsupported `config` fields and drops them only on an intentional save;
+unknown fields elsewhere in the patch are preserved. A LAN toggle alone never
+overrides the owner `--confirm-lan` consent. The card reads the actual route
+state and received count; `Port busy` and `LAN not confirmed` are diagnostic,
+not proof that a remote control is working.
+
 **Example wiring (native Electron after B):** add an `osc.in` with
 `config: {"port":9000,"lan":false}`, patch `osc.in.row1` to the
 `essentials.vca.gain_cv` signal input, and send an OSC 1.0 float message to

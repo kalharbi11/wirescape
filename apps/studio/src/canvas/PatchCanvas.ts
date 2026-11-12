@@ -13,6 +13,7 @@ import { CanvasPane } from '../panels/widgets/canvasBase';
 import { CableLayer, type Point, type Resolved } from './CableLayer';
 import { ModuleCard } from './ModuleCard';
 import { el, motionOff } from '../app/dom';
+import type { OscStatus } from '../engine/EngineClient';
 
 export type Selection =
   | { kind: 'none' }
@@ -33,6 +34,8 @@ export interface CanvasServices extends PanelHost {
   confirmStereo(message: string): Promise<boolean>;
   onSelectionChange(s: Selection): void;
   rename(moduleId: number): void;
+  onEditOsc(moduleId: number): void;
+  oscStatus(): OscStatus | undefined;
   /** Send a connect to the engine; throws EngineRefusal if it is refused. */
   engineConnect(c: Connection): void;
   engineDisconnect(c: Connection): void;
@@ -126,6 +129,8 @@ export class PatchCanvas {
       savedType: m.module,
       onHeaderPointerDown: e => this.beginDrag(e, id),
       onRenameRequest: () => this.s.rename(id),
+      onEditOsc: () => this.s.onEditOsc(id),
+      oscStatus: () => this.s.oscStatus(),
       wirePort: p => {
         p.addEventListener('pointerdown', e => this.beginPatch(e as PointerEvent, p));
         p.addEventListener('contextmenu', e => this.portMenu(e as MouseEvent, p));
@@ -160,6 +165,10 @@ export class PatchCanvas {
       }
     }
     this.applyPolyBadge(id);
+  }
+
+  updateOscStatus(status?: OscStatus): void {
+    for (const card of this.cards.values()) card.setOscStatus(status);
   }
 
   private applyPolyBadge(id: number): void {
