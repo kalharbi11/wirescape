@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Link-time fake implements the existing audio service boundary; never loads PortAudio.
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
 #include "session.h"
+#include "../io/osc/codec.h"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -104,6 +112,32 @@ void check(bool ok, const char *message) {
     if (!ok) throw std::runtime_error(message);
 }
 Json audio(const Session &s) { return s.status()["status"]["audio"]; }
+// Only loopback UDP: no real audio, MIDI, device enumeration, or LAN binding.
+void send_local_osc(uint16_t port) {
+    wirescape::osc::Message m;
+    m.address = "/reconnect";
+    m.count = 1;
+    m.arguments[0].type = 'f';
+    m.arguments[0].real = 0.5f;
+    uint8_t packet[256]{};
+    bool truncated = false;
+    const auto size = wirescape::osc::encode(m, packet, sizeof(packet), truncated);
+    check(size > 0 && !truncated, "encode bounded OSC loopback message");
+    const auto sender = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    check(sender != -1, "create UDP loopback sender");
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port);
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    const auto sent = ::sendto(sender, reinterpret_cast<const char *>(packet), int(size), 0,
+                               reinterpret_cast<sockaddr *>(&address), sizeof(address));
+#ifdef _WIN32
+    closesocket(sender);
+#else
+    close(sender);
+#endif
+    check(sent == int(size), "send OSC packet to localhost only");
+}
 int main() {
     const auto root = std::filesystem::temp_directory_path() /
                       ("wirescape-audio-recovery-" + std::to_string(app_engine_clock_ns()));
@@ -608,6 +642,57 @@ int main() {
                       status["error"] == "fake ASIO buffer refused" && status["bufferFrames"] == 256 &&
                       !status.contains("requestedBufferFrames"),
                   "failed retry: exactly one retry, error set, no loop and configured size kept");
+        }
+        // Device-off regression for Codex's OSC worker UAF: the worker holds a
+        // borrowed AppEngine* while an ASIO preferred-size retry swaps graphs.
+        // Prove loopback ingress still works after both commit and rollback.
+        fake::accept_block = 0;
+        fake::preferred = 0;
+        options.settings = (root / "asio-osc-rebind.json").string();
+        {
+            Session s(options);
+            s.start(base);
+            constexpr uint16_t port = 49715;
+            Json patch = {{"format", "wirescape.native.patch"},
+                          {"version", 2},
+                          {"modules", Json::array({{{"id", 1}, {"module", "essentials.output"}},
+                                                   {{"id", 2}, {"module", "osc.in"},
+                                                    {"config", {{"port", port}, {"lan", false},
+                                                                {"rows", Json::array({{{"pattern", "/reconnect"},
+                                                                                       {"kind", "cv"}}})}}}}})},
+                          {"connections", Json::array()}};
+            auto loaded = s.reply({{{"v", 0}, {"id", "osc-rebind"}, {"type", "loadGraph"}, {"patch", patch}}, {}, {}});
+            check(loaded["ok"] == true, "OSC graph loads into fake ASIO playback");
+            auto packet_received = [&](uint64_t minimum) {
+                const auto deadline = std::chrono::steady_clock::now() + 1200ms;
+                while (std::chrono::steady_clock::now() < deadline) {
+                    const auto routes = s.status()["status"]["osc"]["routes"];
+                    if (!routes.empty() && routes[0]["received"].get<uint64_t>() >= minimum) return true;
+                    std::this_thread::sleep_for(10ms);
+                }
+                return false;
+            };
+            send_local_osc(port);
+            check(packet_received(1), "OSC works before ASIO device loss");
+            fake::active = false;
+            s.poll(base + 100ms);
+            fake::accept_block = 512;
+            fake::preferred = 512;
+            s.poll(base + 200ms);
+            check(audio(s)["state"] == "running" && audio(s)["bufferFrames"] == 512,
+                  "preferred-size reconnect swaps the live graph");
+            send_local_osc(port);
+            check(packet_received(1), "OSC worker rebinds to the new graph after preferred-size retry");
+            fake::active = false;
+            s.poll(base + 300ms);
+            fake::accept_block = 1024;
+            fake::preferred = 256;
+            s.poll(base + 400ms);
+            check(audio(s)["state"] == "reconnecting" && audio(s)["bufferFrames"] == 512,
+                  "failed ASIO retry restores old block and graph");
+            send_local_osc(port);
+            check(packet_received(1), "OSC worker rebinds to the restored graph after failed retry");
+            s.shutdown();
         }
         fake::accept_block = 0;
         fake::preferred = 0;
