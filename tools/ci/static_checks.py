@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Run static checks without rewriting sources; summarize failures and counts."""
 import argparse
+import difflib
 import hashlib
 import json
 import os
@@ -138,6 +139,31 @@ def pinned_cppcheck_baseline(root, output, code):
     return filtered, code, matched
 
 
+def format_patch(root, name, command):
+    """Emit an applicable patch for the exact failed changed-line format command."""
+    source = (root / name).read_text(encoding="utf-8")
+    formatted = subprocess.run([command[0], *command[3:]], cwd=root, text=True,
+                               capture_output=True, timeout=600, check=True).stdout
+    return "".join(difflib.unified_diff(
+        source.splitlines(keepends=True), formatted.splitlines(keepends=True),
+        fromfile="a/" + name, tofile="b/" + name))
+
+
+def publish_format_patch(root, patches):
+    if not patches:
+        return
+    content = "".join(patches)
+    target = root / "build/static/format.patch"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    print("=== format.patch begin ===\n" + content + "\n=== format.patch end ===", flush=True)
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as out:
+            out.write("### clang-format fix patch\n\n```diff\n" +
+                      content[:60000] + "\n```\n")
+
+
 def run_checks(root, diff, tidy_diff):
     files = changed_ranges(diff)
     jobs = []
@@ -187,7 +213,7 @@ def run_checks(root, diff, tidy_diff):
     if python_files:
         jobs.append(("ruff changed files", ["ruff", "check", "--output-format", "concise",
                                            "--", *dict.fromkeys(python_files)], None))
-    rows = []
+    rows, patches = [], []
     for name, command, stdin in jobs:
         try:
             result = subprocess.run(command, cwd=root, input=stdin, text=True, capture_output=True, timeout=600)
@@ -212,6 +238,7 @@ def run_checks(root, diff, tidy_diff):
         notice = f"{name}: {rows[-1][2]}; diagnostics={count}"
         print("::notice title=Static analysis::" + notice.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
         print(f"\n{name}: {rows[-1][2]} ({count} diagnostics)\n{output}", flush=True)
+    publish_format_patch(root, patches)
     if not files:
         rows.insert(0, ("C++ diff checks", 0, "not applicable: no changed C++ lines"))
     if not python_files:
