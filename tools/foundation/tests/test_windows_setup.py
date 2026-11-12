@@ -144,6 +144,21 @@ class WindowsSetupContract(unittest.TestCase):
         self.assertIn('exit /b %errorlevel%', LAUNCHER)
         self.assertIn('Write-Host "Summary: $summary"', SCRIPT)
 
+    def test_launcher_smoke_isolated_and_existing_profile_preserved(self):
+        # This is a source contract; the Windows job also runs the real smoke.
+        self.assertIn("NewGuid().ToString('N')", SCRIPT)
+        self.assertIn("$profileDir = Join-Path $smokeBase 'isolated-profile'", SCRIPT)
+        self.assertIn("$existingProfile = Join-Path $smokeBase 'existing-profile'", SCRIPT)
+        self.assertIn("Set-Content -LiteralPath $existingMarker", SCRIPT)
+        self.assertIn(' --null-audio --profile-dir "{1}"', SCRIPT)
+        self.assertIn("Wirescape.cmd --null-audio --profile-dir exited early", SCRIPT)
+        for subdir in ("userData", "sessionData"):
+            self.assertIn("'"+subdir+"'", SCRIPT)
+        self.assertIn("[Convert]::ToBase64String($existingBefore)", SCRIPT)
+        self.assertIn("[Convert]::ToBase64String($existingAfter)", SCRIPT)
+        self.assertIn("Launcher smoke changed the existing profile sentinel", SCRIPT)
+        self.assertIn("Remove-Item Env:WIRESCAPE_SETUP_SMOKE", SCRIPT)
+
     def test_node_and_windows_preflight(self):
         self.assertIn("v22", SCRIPT)
         self.assertIn("3.12 True", SCRIPT)
