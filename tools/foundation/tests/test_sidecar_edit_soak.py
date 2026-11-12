@@ -116,12 +116,27 @@ class EditSoakTests(unittest.TestCase):
             yield
 
     def test_success_and_seed_reproducibility(self):
+        real_monotonic = soak.time.monotonic
+        last = [0.0]
+
+        def strictly_increasing():
+            # Windows monotonic() ticks every ~15.6 ms, so `now < start + 1e-6` can stay true for
+            # several cycles (3 seen on CI). A strictly increasing clock keeps it to exactly one.
+            last[0] = max(real_monotonic(), last[0] + 1e-6)
+            return last[0]
+
         with self.engine('ok'):
-            a = soak.run(self.stub, .02, 278)
-            b = soak.run(self.stub, .02, 278)
+            # A 1 µs duration runs exactly one cycle, so the comparison is not wall-clock dependent
+            # (Windows timer granularity gave 1 vs 2 cycles at 20 ms).
+            with patch.object(soak.time, 'monotonic', strictly_increasing):
+                a = soak.run(self.stub, 1e-6, 278)
+                b = soak.run(self.stub, 1e-6, 278)
+            timed = soak.run(self.stub, .02, 278)
         self.assertEqual(a['status'], 'passed')
         self.assertEqual(a['commands'], b['commands'])
-        self.assertGreaterEqual(a['cycles'], 1)
+        self.assertEqual((a['cycles'], b['cycles']), (1, 1))
+        self.assertEqual(timed['status'], 'passed')
+        self.assertGreaterEqual(timed['cycles'], 1)
         self.assertEqual(a['steps'], 2 + 9 * a['cycles'])
         self.assertEqual(a['performance_evidence'],
                          {'blocks': 1000, 'p50': 1.0, 'p99': 2.0, 'max': 3.5,
