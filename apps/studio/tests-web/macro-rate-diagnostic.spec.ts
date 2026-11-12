@@ -3,7 +3,17 @@
 import { expect, test } from '@playwright/test';
 import { CURATED_PATCHES } from '../src/app/curated';
 
-test('macro refusal records the actual default browser rate and loader reason', async ({ page }, info) => {
+for (const requestedRate of [undefined, 44100, 48000]) {
+test(`macro rate diagnostic: ${requestedRate ?? 'browser default'}`, async ({ page }, info) => {
+  // Explicit diagnostic contexts only. The default case and original matrix stay untouched.
+  if (requestedRate !== undefined) {
+    await page.addInitScript(rate => {
+      const NativeAudioContext = window.AudioContext;
+      window.AudioContext = class extends NativeAudioContext {
+        constructor(options?: AudioContextOptions) { super({ ...options, sampleRate: rate }); }
+      };
+    }, requestedRate);
+  }
   await page.goto('./');
   await page.getByTestId('web-start').click();
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
@@ -37,6 +47,7 @@ test('macro refusal records the actual default browser rate and loader reason', 
     body: JSON.stringify(evidence), contentType: 'application/json',
   });
   expect(Number.isFinite(evidence.sampleRate)).toBe(true);
+  if (requestedRate !== undefined) expect(evidence.sampleRate).toBe(requestedRate);
   if (evidence.sampleRate === 48000) {
     expect(evidence.reply.ok, JSON.stringify(evidence)).toBe(true);
   } else {
@@ -47,3 +58,4 @@ test('macro refusal records the actual default browser rate and loader reason', 
   }
   // The original matrix still requires success; this diagnostic does not waive it.
 });
+}
