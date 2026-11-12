@@ -20,6 +20,7 @@ import { ComputerKeyboard, isTyping } from './Keyboard';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
+import { showOscEditor, type OscConfig } from './OscEditor';
 import { STARTERS, BUNDLED_STARTERS, DEFAULT_STARTER, type Starter } from './starters';
 import { CURATED_PATCHES } from './curated';
 import { sharedPatches } from './SharedPatches';
@@ -62,6 +63,7 @@ export class App {
   private piano!: OnScreenKeyboard;
   private devPanel!: DevPanel;
   private settings = new Modal('settings-modal');
+  private oscEditor = new Modal('osc-editor');
   private shortcuts = new Modal('shortcuts-modal');
   private patchBrowser = new Modal('patch-browser');
   private bundledPatch = false;
@@ -187,6 +189,8 @@ export class App {
       confirmStereo: msg => this.confirmStereo(msg),
       onSelectionChange: s => this.onSelectionChange(s),
       rename: id => this.renameModule(id),
+      onEditOsc: id => this.openOscEditor(id),
+      oscStatus: () => this.lastStatus?.osc,
       engineConnect: c => {
         this.editEngine().connect(c);
         this.trackRollback(() => { this.doc.disconnect(c); this.canvas.shake(c.to.module); });
@@ -247,7 +251,7 @@ export class App {
 
     this.root.append(
       this.library.root, main, this.libraryScrim, this.toasts.root, this.quick.root,
-      this.devPanel.root, this.learn.root, this.settings.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
+      this.devPanel.root, this.learn.root, this.settings.root, this.oscEditor.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
     );
 
     this.attachDropTarget();
@@ -393,7 +397,10 @@ export class App {
     this.ticker.throttleHz = this.prefs.profile === 'pi' ? 30 : 0;
     this.ticker.start();
     this.engine.onTelemetry(t => { if (!this.draftVisible) this.ticker.push(t); });
-    this.engine.onStatus(s => { this.announceStatus(this.lastStatus, s); this.lastStatus = s; this.statusBar.update(s); });
+    this.engine.onStatus(s => {
+      this.announceStatus(this.lastStatus, s); this.lastStatus = s;
+      this.statusBar.update(s); this.canvas.updateOscStatus(s.osc);
+    });
     this.engine.onRefusal?.(r => this.toasts.show(r.detail.message, 'error'));
     if (this.engine instanceof RealEngine) {
       this.engine.onConnection(state => {
@@ -923,6 +930,36 @@ export class App {
    * The UI draws a change at once, sends it to the engine, and rolls back
    * with a message if the engine refuses.
    */
+  private openOscEditor(id: number): void {
+    if (this.documentBusy || this.doc.modules.get(id)?.module !== 'osc.in') return;
+    showOscEditor(this.oscEditor, this.doc.modules.get(id)?.config,
+      async (config: OscConfig) => this.commitOscConfig(id, config));
+  }
+
+  /** A config save is one authored edit and one ordinary whole-graph replan. */
+  private async commitOscConfig(id: number, config: OscConfig): Promise<boolean> {
+    const mod = this.doc.modules.get(id);
+    if (this.documentBusy || !mod || mod.module !== 'osc.in') return false;
+    const previous = mod.config === undefined ? undefined : structuredClone(mod.config);
+    const epoch = this.viewEpoch;
+    this.history.flush();
+    this.doc.setModuleConfig(id, config);
+    try {
+      await this.editEngine().loadGraph(this.doc.toJSON());
+      if (epoch !== this.viewEpoch) return false;
+      this.history.flush();
+      this.toasts.show('OSC addresses applied.');
+      return true;
+    } catch (e) {
+      if (epoch === this.viewEpoch) {
+        this.doc.setModuleConfig(id, previous);
+        this.history.flush();
+        this.toasts.show(e instanceof Error ? e.message : 'OSC configuration refused.', 'error');
+      }
+      return false;
+    }
+  }
+
   /** One snapshot for the preset, each value still uses the normal engine setParam. */
   private applyModulePreset(moduleId: number, values: Readonly<Record<string, number>>): void {
     if (this.documentBusy) return;
@@ -1592,7 +1629,7 @@ export class App {
         }
       });
       b.append(field('Port', port));
-      const net = switchButton(osc.allowNetwork, v => engine.setOsc!({ allowNetwork: v }));
+      const net = switchButton(!!osc.allowNetwork, v => engine.setOsc!({ allowNetwork: v }));
       net.dataset.testid = 'osc-network';
       b.append(field('Allow network', net, 'Off: this computer only. On: any device on your network can control the patch'));
       const mon = el('div', 'osc-monitor');
