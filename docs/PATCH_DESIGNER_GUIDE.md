@@ -506,7 +506,7 @@ until C merges. No existing module/port/parameter IDs change.
 Patch `osc.in.messages` → `monitor.events` to see incoming OSC addresses,
 arrival times and up to four finite numeric arguments. The same
 `monitor.events` input can receive a *direct* `midi.in.midi` cable; MIDI
-entries show a note/controller number and compact numeric details.
+entries report `note` as the note/CC number and `args` as [status, value].
 The sidecar captures only these **direct** event cables (not intervening
 module hops), on its control-owned OSC/MIDI ingestion workers rather than the
 render callback. Monitor shows at most 32 recent entries in oldest-first
