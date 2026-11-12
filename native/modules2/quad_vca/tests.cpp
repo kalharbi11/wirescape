@@ -11,6 +11,10 @@
 
 namespace {
 constexpr uint32_t kFrames = 256, kVoices = 16;
+struct RigSettings {
+    double rate = 48000;
+    uint32_t voices = 1;
+};
 struct Rig {
     Pool pool{};
     ws2_host host{sizeof(host), &pool, allocate};
@@ -30,17 +34,17 @@ struct Rig {
     ws2_signal params[9]{};
     ws2_process ctx{};
 
-    explicit Rig(double rate = 48000, uint32_t voices = 1) {
-        const ws2_config cfg{sizeof(cfg), rate, kFrames, kVoices, 123, nullptr, 0};
+    explicit Rig(RigSettings settings = {}) {
+        const ws2_config cfg{sizeof(cfg), settings.rate, kFrames, kVoices, 123, nullptr, 0};
         state = descriptor->create(&host);
         REQUIRE(state && descriptor->prepare(state, &cfg, &host) == WS2_OK);
         for (uint32_t port = 0; port < 8; ++port) {
             for (uint32_t c = 0; c < kVoices; ++c) input_rows[port][c] = data->input[port][c];
-            inputs[port] = {sizeof(ws2_signal), input_rows[port], voices, WS2_CONSTANT};
+            inputs[port] = {sizeof(ws2_signal), input_rows[port], settings.voices, WS2_CONSTANT};
         }
         for (uint32_t port = 0; port < 5; ++port) {
             for (uint32_t c = 0; c < kVoices; ++c) output_rows[port][c] = data->output[port][c];
-            outputs[port] = {sizeof(ws2_signal_out), output_rows[port], voices, 0, kVoices};
+            outputs[port] = {sizeof(ws2_signal_out), output_rows[port], settings.voices, 0, kVoices};
         }
         for (uint32_t p = 0; p < 9; ++p) {
             values[p] = quad_vca::QuadVca::params[p].initial;
@@ -48,8 +52,8 @@ struct Rig {
             params[p] = {sizeof(ws2_signal), &param_rows[p], 1, WS2_CONSTANT};
         }
         ctx.struct_size = sizeof(ctx);
-        ctx.sample_rate = rate;
-        ctx.channels = voices;
+        ctx.sample_rate = settings.rate;
+        ctx.channels = settings.voices;
         ctx.input_count = 8;
         ctx.output_count = 5;
         ctx.param_count = 9;
@@ -124,7 +128,7 @@ void test_frame_rate_voice_matrix() {
     for (double rate : {32000., 48000., 96000.})
         for (uint32_t voices : {1u, 16u})
             for (uint32_t frames : {1u, 17u, 256u}) {
-                Rig r(rate, voices);
+                Rig r({rate, voices});
                 r.connect(0);
                 for (uint32_t c = 0; c < voices; ++c) r.data->input[0][c][0] = .2f;
                 r.run(frames);
@@ -134,10 +138,13 @@ void test_frame_rate_voice_matrix() {
                 }
                 r.values[4] = 1.f;
                 r.run(frames);
-                for (uint32_t k = 0; k < 5; ++k)
-                    for (uint32_t c = 0; c < voices; ++c)
-                        for (uint32_t i = 0; i < frames; ++i)
+                for (uint32_t k = 0; k < 5; ++k) {
+                    for (uint32_t c = 0; c < voices; ++c) {
+                        for (uint32_t i = 0; i < frames; ++i) {
                             REQUIRE(std::isfinite(r.sample(k, c, i)));
+                        }
+                    }
+                }
             }
 }
 std::vector<float> release_trace(float response) {
@@ -170,7 +177,7 @@ void test_lpg_decay() {
 }
 void test_lpg_closing_darkens() {
     constexpr double rate = 48000., pi = 3.141592653589793;
-    Rig low(rate), high(rate);
+    Rig low({rate}), high({rate});
     for (Rig *r : {&low, &high}) {
         r->connect(0, false);
         r->connect(4);
