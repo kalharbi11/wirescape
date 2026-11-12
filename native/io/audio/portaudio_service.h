@@ -9,8 +9,47 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 namespace wirescape::audio {
+// Control-thread only: PortAudio/host errors may be malformed local-codepage
+// bytes or end midway through a UTF-8 sequence at the protocol's 200-byte cap.
+// Preserve complete valid UTF-8 scalars; replace invalid/control bytes and
+// never split a scalar. Safe for strict JSON status and refusal serialization.
+inline std::string bounded_audio_error(std::string_view input) {
+    constexpr size_t cap = 200;
+    std::string result;
+    result.reserve(std::min(cap, input.size()));
+    for (size_t i = 0; i < input.size() && result.size() < cap;) {
+        const auto lead = static_cast<unsigned char>(input[i]);
+        if (lead < 0x80u) {
+            result.push_back(lead >= 0x20u && lead != 0x7fu ? char(lead) : ' ');
+            ++i;
+            continue;
+        }
+        const size_t width = lead >= 0xc2u && lead <= 0xdfu ? 2 : lead >= 0xe0u && lead <= 0xefu ? 3 :
+                             lead >= 0xf0u && lead <= 0xf4u ? 4 : 0;
+        bool valid = width && width <= input.size() - i;
+        if (valid) {
+            const auto second = static_cast<unsigned char>(input[i + 1]);
+            valid = (second & 0xc0u) == 0x80u &&
+                    !(lead == 0xe0u && second < 0xa0u) && !(lead == 0xedu && second >= 0xa0u) &&
+                    !(lead == 0xf0u && second < 0x90u) && !(lead == 0xf4u && second >= 0x90u);
+            for (size_t j = 2; valid && j < width; ++j)
+                valid = (static_cast<unsigned char>(input[i + j]) & 0xc0u) == 0x80u;
+        }
+        if (!valid) {
+            result.push_back('?');
+            ++i;
+        } else {
+            if (result.size() + width > cap) break;
+            result.append(input.substr(i, width));
+            i += width;
+        }
+    }
+    return result;
+}
+
 using EngineOwner=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
 class ShutdownFailure : public std::runtime_error {
   public:
