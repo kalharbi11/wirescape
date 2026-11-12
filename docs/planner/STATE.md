@@ -35,7 +35,8 @@ Only completed exact-head evidence passes; GPT never substitutes for Claude T2.
   Acceptance binary flag is deleted Qt-only .ico/.png, not a numeric budget
   overrun. Needs explicit acceptance disposition plus scoped protection/removal
   labels, archive base tag and Claude T2. No deletion merge while gates wait.
-  #296 follows R3b; actual3600s remains separate from short/private statuses.
+  #296 follows R3b: independent offline private unit suite32/32 PASS;
+  Claude T2/integration and actual3600s still pending; no runner dispatch.
 
 ## Paused and lead queue
 - #71054b56c1 Claude claim paused: fuzz60s/target passes; missing #676 task,
