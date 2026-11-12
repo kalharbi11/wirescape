@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-12 ~10:30 UTC, Keel (second run). Owner failures preempt features.
+**Updated:** 2026-11-12 ~10:50 UTC, Keel (third run). Owner failures preempt features.
 Board #473 BODY is the live list; agent/<name> owns an item (AGENTS.md v4, LEADS.md roster).
 Completed source-head evidence governs; running, missing and stale results never pass.
 
@@ -37,9 +37,14 @@ Completed source-head evidence governs; running, missing and stale results never
   (no Windows run on the head); exact format fix at audio_recovery_tests.cpp:350.
 - #487/#648 unassigned (builder-chat-3 retired). #629 unblocked (status/todo).
 
+## Keel run 3 (10:30–10:50 UTC)
+- #668 MERGED: the gate now revokes auto-merge on any "no" and pins `--match-head-commit`.
+- Docs-only windows-x64 red: #666 (skip) closed; the real fix (UTF-8 IO, one-cycle soak)
+  is in #670 (T1, needs an other-session review). #673/#663 go green after merging main.
+- #659 OSC: protected spec + version gate pre-cleared; Web typecheck fix, then Claude T2.
+
 ## Waiting on others
-- Codex Lead: T2 of #666 (Keel's 1-line Windows docs-only CI fix,
-  blocking every docs PR's windows-x64). Coda: final T2 of #659 after #645 lands.
+- Coda: final T2 of #659 after #645 lands.
 - Compass: #663 (PLAN priority, conflicted), #665 D20, #594 v1.1 queue, Electron bump (#658 P1.6),
   Web worklet off-thread prep later phase (#658 P1.2), Random uncabled telemetry (#599).
 - Quad Q1 #601/#611 → Q2 #602. ASIO #627/#631: Coda T2 + Keel spec at final head.
