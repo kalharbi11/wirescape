@@ -19,9 +19,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             const auto &arg = message.arguments[i];
             if (arg.type == 's' || arg.type == 'b') {
                 if (!inside(arg.data, arg.size)) std::abort();
-            } else if (arg.type != 'i' && arg.type != 'f' && arg.type != 'T' && arg.type != 'F' &&
-                       arg.type != 'N' && arg.type != 'I') {
-                std::abort();
+            } else {
+                const bool scalar = arg.type == 'i' || arg.type == 'f' || arg.type == 'T' || arg.type == 'F';
+                const bool marker = arg.type == 'N' || arg.type == 'I';
+                if (!scalar && !marker) std::abort();
             }
         }
         ++delivered;
