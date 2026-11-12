@@ -395,7 +395,7 @@ jobs:
       - name: Compiler cache stats
         if: always()
         run: ccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY" || true
-      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/cache/save@v6
         with:
           path: .tools/ccache
@@ -449,7 +449,7 @@ jobs:
       - name: Compiler cache stats
         if: always()
         run: ccache --show-stats | tee -a "$GITHUB_STEP_SUMMARY" || true
-      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/cache/save@v6
         with:
           path: .tools/ccache

@@ -128,13 +128,16 @@ export class FakeEngine implements EngineClient {
       const cfg = m.config && typeof m.config === 'object' && !Array.isArray(m.config)
         ? m.config as Record<string, unknown> : {};
       const port = typeof cfg.port === 'number' ? cfg.port : 9000;
+      // Mirrors the sidecar (#612): eight explicitly disabled rows bind nothing.
+      const rows = Array.isArray(cfg.rows) ? cfg.rows : [];
+      const cleared = rows.filter(r => (r as { enabled?: unknown } | null)?.enabled === false).length >= 8;
       return {
         module: String(m.id), port, bind: '127.0.0.1',
-        state: cfg.lan === true ? 'lan-not-confirmed' as const : 'listening' as const,
+        state: cleared ? 'disabled' as const : cfg.lan === true ? 'lan-not-confirmed' as const : 'listening' as const,
         received: 0, dropped: 0,
       };
     });
-    this.osc.enabled = this.osc.routes.length > 0 || this.legacyOsc.enabled;
+    this.osc.enabled = this.osc.routes.some(r => r.state !== 'disabled') || this.legacyOsc.enabled;
     this.osc.bind = '127.0.0.1';
     this.osc.lan = false;
     this.osc.port = this.osc.routes[0]?.port ?? this.legacyOsc.port;
@@ -404,7 +407,7 @@ export class FakeEngine implements EngineClient {
     }
     // Evaluate meters only after every modulated effective value has been computed.
     for (const n of this.nodes.values()) {
-      if (n.type === 'essentials.lfo' || n.type === 'example.random_source' || n.type === 'essentials.clock') {
+      if (n.type === 'essentials.lfo' || n.type === 'essentials.clock') {
         phase[n.id] = this.phases.get(n.id) ?? 0;
       }
       if (n.type === 'example.step_sequencer') {
@@ -449,7 +452,8 @@ export class FakeEngine implements EngineClient {
       }
     }
 
-    // Current value of every connected signal output (optional telemetry field).
+    // The optional outputs field reports only cabled signal sources, as the
+    // real Web engine does. No uncabled Random Source preview is fabricated.
     const outputs: Record<string, number> = {};
     for (const c of this.conns) {
       if (c.kind === 'event') continue;
@@ -512,7 +516,6 @@ export class FakeEngine implements EngineClient {
         const smooth = Math.max(0.001, n.params.smooth ?? 0.05);
         st.value += (st.target - st.value) * Math.min(1, dt / smooth);
         this.randomHold.set(n.id, st);
-        this.phases.set(n.id, (st.value + 1) / 2);
         break;
       }
       case 'example.step_sequencer': {

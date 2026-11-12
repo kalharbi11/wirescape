@@ -310,6 +310,14 @@ Final integration evidence and owner listening remain separate; larger sizes and
 mode crossfades need their measured budget. Keep older-build availability and
 browser deployment limits visible when sharing patches.
 
+## Quad VCA / low-pass gate (Q1 #601; available after native merge)
+
+`essentials.quad_vca` has four independent, polyphonic audio paths: `in1`…`in4` → `out1`…`out4`, and a summed, **unnormalized** `mix` output (clamped to ±4). Each `level1`…`level4` knob (0–1, default 1) multiplies its matching `cv1`…`cv4` input (unpatched CV defaults to 1). `mode1`…`mode4` chooses 0 = linear VCA or 1 = low-pass gate. Shared `response` (0–1, default 0.4) sets the LPG's approximately 60 ms–1.5 s release; the gate closes its two-pole low-pass cutoff as its volume decays. All four paths support up to 16 voices.
+
+**Normalled input:** leaving `in2`, `in3` or `in4` unplugged reuses the preceding channel's *input* (not its post-gate output), recursively. A single VCO plugged into `in1` can therefore feed four independently controlled gates. For a four-part tremolo: connect one VCO to `in1`, four slow LFOs or ADSRs to `cv1`…`cv4`, set all four modes to LPG for darker decays, and connect `mix` to `essentials.output`'s left input (and optionally right). Keep total gain under control: `mix` adds rather than averages.
+
+The native module and IDs are supplied by Q1 #601. A dedicated four-column Studio card and two example patches follow separately in Q2 #602; do not claim them available until Q2 merges.
+
 ## Designer procedure
 
 1. Read this guide, patches/README and the actual module catalogue.
@@ -533,8 +541,16 @@ to choose the UDP port (1024–65535), inspect or change all eight `row1`…
 `row8` address patterns and mapping ranges, and select CV, gate, or trigger,
 argument index, smoothing, timeout and hold/zero behavior. The **Pico knobs**
 and **TouchOSC faders** presets fill those rows; **Reset to Pico defaults**
-restores the original eight Pico listeners. It does *not* disable listening.
-To stop a specific row requires the separate per-row enable contract (#612).
+restores the original eight Pico listeners. Each row has a **Listen** toggle
+(#612). A row that is off ignores its address: a CV row holds its output min and a
+gate/trigger row stays low. A message for an off row's address is dropped before
+it reaches the patch, so it doesn't appear on `messages` or in a Monitor. Addresses
+that match no row still pass, so you can keep using a Monitor to discover them.
+**Clear (all rows off)** turns every row off and keeps
+the addresses, so you can switch rows back on later. A module with all rows off
+binds no UDP port, and its card reads `All rows off · not listening`. Otherwise
+the card shows `n of 8 rows active`. Patches saved before #612 open with every
+row on. In JSON, a row off is `"enabled": false`; leave the key out for on.
 Saving applies the patch through the normal graph replan. The editor warns
 about unsupported `config` fields and drops them only on an intentional save;
 unknown fields elsewhere in the patch are preserved. A LAN toggle alone never
@@ -702,7 +718,7 @@ Four native CHAOS LFO waveforms **merged in #533**. The original sine
 shape remains the default; triangle, sample-and-hold and smooth random
 are additive. The #555 public patch candidates use shapes 2 and 3 without
 new modules or port changes. The compatibility/test plan is in
-`docs/tasks/CHAOS_LFO_SHAPES_532.md`. Eight module presets are available
+`docs/tasks/done/CHAOS_LFO_SHAPES_532.md`. Eight module presets are available
 from merged #522; patch JSON stores parameter values rather than preset
 names. Real device listening remains owner-only.
 

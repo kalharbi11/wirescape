@@ -35,16 +35,16 @@ class UiCatalogueTests(unittest.TestCase):
     def test_check_detects_stale_output_and_descriptor_version(self):
         self.assertEqual(self.check().returncode, 0)
         path = self.root / 'native/modules2/host_keyboard/dsp.h'
-        path.write_text(path.read_text().replace('"Keyboard", 1', '"Keyboard", 7'))
+        path.write_text(path.read_text(encoding='utf-8').replace('"Keyboard", 1', '"Keyboard", 7'), encoding='utf-8')
         self.assertNotEqual(self.check().returncode, 0)
         modules = json.loads(generator.generate(self.root))['modules']
         self.assertEqual(next(m for m in modules if m['id'] == 'host.keyboard')['version'], 7)
 
     def test_identity_mismatch_is_refused_without_rewriting_files(self):
         path = self.root / 'native/modules2/vco/module.json'
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding='utf-8'))
         data['inputs']['renamed'] = data['inputs'].pop('pitch')
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding='utf-8')
         target = self.root / 'apps/studio/public/wirescape_modules.json'
         before = target.read_bytes()
         with self.assertRaisesRegex(ValueError, 'ID mismatch'):
@@ -53,19 +53,19 @@ class UiCatalogueTests(unittest.TestCase):
 
     def test_native_port_kind_wins_over_presentation(self):
         path = self.root / 'native/modules2/vco/module.json'
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding='utf-8'))
         data['inputs']['pitch'] = 'event'
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding='utf-8')
         module = next(m for m in json.loads(generator.generate(self.root))['modules'] if m['id'] == data['id'])
         self.assertEqual(next(p for p in module['ports'] if p['id'] == 'pitch')['kind'], 'event')
 
     def test_conditional_visibility_and_unknown_presentation_keys_survive(self):
         path = self.root / 'apps/studio/public/catalogue-presentation.json'
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding='utf-8'))
         param = data['modules'][0]['parameters'][0]
         param['visibleWhen'] = {'param': 'mode', 'values': [6, 7], 'future': True}
         param['futurePresentation'] = {'nested': [1, 2]}
-        path.write_text(json.dumps(data))
+        path.write_text(json.dumps(data), encoding='utf-8')
         generated = json.loads(generator.generate(self.root))['modules'][0]['parameters'][0]
         self.assertEqual(generated, param)
 
@@ -132,9 +132,9 @@ class ChaosCatalogueContractTests(unittest.TestCase):
     def metadata():
         root = ROOT
         return (
-            json.loads((root / "native/modules2/chaos_lite/module.json").read_text()),
-            json.loads((root / "apps/studio/public/wirescape_modules.json").read_text()),
-            json.loads((root / "apps/studio/public/panels/essentials.chaos_lite.json").read_text()),
+            json.loads((root / "native/modules2/chaos_lite/module.json").read_text(encoding='utf-8')),
+            json.loads((root / "apps/studio/public/wirescape_modules.json").read_text(encoding='utf-8')),
+            json.loads((root / "apps/studio/public/panels/essentials.chaos_lite.json").read_text(encoding='utf-8')),
         )
 
     def test_current_chaos_descriptor_and_panel_match(self):

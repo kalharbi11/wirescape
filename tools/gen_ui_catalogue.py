@@ -10,18 +10,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def generate(root=ROOT):
-    presentation = json.loads((root / 'apps/studio/public/catalogue-presentation.json').read_text())
+    presentation = json.loads((root / 'apps/studio/public/catalogue-presentation.json').read_text(encoding='utf-8'))
     paths = sorted((root / 'native/modules2').glob('*/module.json'))
     paths += sorted((root / 'native/sdk/examples').glob('*/module.json'))
     manifests = {}
     for path in paths:
-        manifest = json.loads(path.read_text())
+        manifest = json.loads(path.read_text(encoding='utf-8'))
         identity = manifest['id']
         if identity in manifests:
             raise ValueError(f'duplicate native module ID: {identity}')
         # Manifests contain ABI/schema versions, not the module's saved-data version.
         info = re.search(r'ws::Info\s+info\s*\{\s*"([^"]+)"\s*,\s*"[^"]*"\s*,\s*(\d+)\s*}',
-                         path.with_name('dsp.h').read_text())
+                         path.with_name('dsp.h').read_text(encoding='utf-8'))
         if not info or info[1] != identity or int(info[2]) < 1:
             raise ValueError(f'{path}: descriptor identity/version missing or mismatched')
         manifests[identity] = (manifest, int(info[2]))
@@ -59,11 +59,11 @@ def main():
     except (ValueError, KeyError) as error:
         parser.exit(1, f'{error}\n')
     if args.check:
-        if target.read_text() != content:
+        if target.read_text(encoding='utf-8') != content:
             parser.exit(1, 'UI catalogue drift; run python tools/gen_ui_catalogue.py\n')
         print('UI catalogue matches native manifests and presentation sidecar')
     else:
-        target.write_text(content)
+        target.write_text(content, encoding='utf-8', newline='\n')
 
 
 if __name__ == '__main__':

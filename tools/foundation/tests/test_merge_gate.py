@@ -22,14 +22,28 @@ class MergeGateTests(unittest.TestCase):
     def check(self, p, files=('native/x.cpp',), comments=()):
         return gate.decide(p, list(files), list(comments), 'owner')[0]
 
-    def test_t0_needs_only_ready_label_on_main(self):
-        self.assertTrue(self.check(pr()))
-        self.assertFalse(self.check(pr(base='task/1-x')))
-        self.assertFalse(self.check(pr(draft=True)))
-        self.assertFalse(self.check(pr('status/blocked')))
-        p = pr()
+    def test_explicit_markdown_only_t0_needs_only_ready_label_on_main(self):
+        md = ('docs/README.md', 'docs/tasks/TASK.md')
+        self.assertTrue(self.check(pr('tier/T0'), files=md))
+        self.assertFalse(self.check(pr('tier/T0', base='task/1-x'), files=md))
+        self.assertFalse(self.check(pr('tier/T0', draft=True), files=md))
+        self.assertFalse(self.check(pr('tier/T0', 'status/blocked'), files=md))
+        p = pr('tier/T0')
         p['labels'] = []
-        self.assertFalse(self.check(p))
+        self.assertFalse(self.check(p, files=md))
+
+    def test_t0_bypass_fails_closed_for_code_missing_or_conflicting_tier(self):
+        docs = ('docs/README.md',)
+        self.assertFalse(self.check(pr(), files=docs))
+        self.assertFalse(self.check(pr(), files=('native/x.cpp',)))
+        self.assertFalse(self.check(pr('tier/T0'), files=('native/x.cpp',)))
+        self.assertFalse(self.check(pr('tier/T0'), files=('docs/README.md', 'native/x.cpp')))
+        self.assertFalse(self.check(pr('tier/T0'), files=()))
+        self.assertFalse(self.check(pr('tier/T0', 'tier/T2'), files=docs))
+        self.assertFalse(self.check(pr('tier/T0', 'tier/T1'), files=docs))
+        self.assertFalse(self.check(pr('tier/T0', 'milestone-review'), files=docs))
+        approval = [say('Approved for merge abc1234\nSigned: builder-chat-2 (builder), 2026-11-12')]
+        self.assertTrue(self.check(pr('tier/T0'), files=('native/x.cpp',), comments=approval))
 
     def test_t1_needs_real_approval_on_current_head_by_owner(self):
         self.assertFalse(self.check(pr('tier/T1')))
@@ -147,9 +161,9 @@ class NeutralApprovalTests(unittest.TestCase):
         return gate.decide(p, list(files), list(comments), 'owner')
 
     def test_t0_stays_ready_only_except_protected(self):
-        self.assertTrue(self.check(pr())[0])
-        self.assertFalse(self.check(pr(), files=['tools/merge_gate.py'])[0])
-        ok, reason = self.check(pr(), files=['tools/merge_gate.py'], comments=[
+        self.assertTrue(self.check(pr('tier/T0'), files=['docs/README.md'])[0])
+        self.assertFalse(self.check(pr('tier/T0'), files=['tools/merge_gate.py'])[0])
+        ok, reason = self.check(pr('tier/T0'), files=['tools/merge_gate.py'], comments=[
             say('Approved for merge abc1234\nSigned: Codex (GPT-6), 2026-11-08')])
         self.assertTrue(ok)
         self.assertIn('Codex (GPT-6)', reason)
@@ -163,6 +177,17 @@ class NeutralApprovalTests(unittest.TestCase):
                 ok, why = self.check(p, comments=[say(body)], files=files)
                 self.assertTrue(ok)
                 self.assertIn('Signed: ChatGPT (GPT-6)', why)
+
+    def test_signature_tolerates_trailing_period_or_time_zone_but_not_notes(self):
+        accepted = ('Signed: Codex Lead (GPT-6), 2026-11-12.', 'Signed: gpt-builder2, 2026-11-12',
+                    'Signed: Keel, 2026-11-12 ET', 'Signed: gpt-reviewer, 2026-11-12 America/New_York.')
+        for line in accepted:
+            with self.subTest(line=line):
+                self.assertTrue(self.check(pr('tier/T1'), comments=[say(f'Approved for merge abc1234\n{line}')])[0])
+        for line in ('Signed: Keel, 2026-11-12 after the CI rerun', 'Signed: Keel, 2026-11-12..',
+                     'Signed: , 2026-11-12', 'Signed: Keel, 2026-11'):
+            with self.subTest(line=line):
+                self.assertFalse(self.check(pr('tier/T1'), comments=[say(f'Approved for merge abc1234\n{line}')])[0])
 
     def test_signed_line_must_be_visible_after_approval_in_same_owner_comment(self):
         good = 'Approved for merge abc1234\n\nSigned: Codex Lead (GPT-6), 2026-11-08'
@@ -212,6 +237,26 @@ class NeutralApprovalTests(unittest.TestCase):
                     say(f'{name}: approved for auto-merge 0000000')])[0])
         self.assertFalse(self.check(pr('tier/T1'), comments=[
             say('ChatGPT: pre-review passed abc1234')])[0])
+
+
+class MergeGateWorkflowTests(unittest.TestCase):
+    def test_new_push_only_disables_auto_merge_without_running_pr_code(self):
+        workflow = (Path(__file__).resolve().parents[3] /
+                    '.github/workflows/merge_gate.yml').read_text(encoding='utf-8')
+        self.assertRegex(workflow, r'(?m)^    types: \[labeled, ready_for_review, synchronize\]$')
+        disable = workflow.split('      - name: Disable auto-merge on new push\n', 1)[1].split(
+            '      - uses: actions/checkout@', 1)[0]
+        self.assertIn("if: github.event_name == 'pull_request_target' && github.event.action == 'synchronize'",
+                      disable)
+        self.assertIn('gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto', disable)
+        self.assertNotIn('--auto --squash', disable)
+        self.assertIn("if: github.event.action != 'synchronize'\n        with:\n          ref: main",
+                      workflow)
+        self.assertIn("      - name: Decide and enable auto-merge\n"
+                      "        if: github.event.action != 'synchronize'", workflow)
+        decision = workflow.split('      - name: Decide and enable auto-merge\n', 1)[1]
+        self.assertIn('gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto', decision)
+        self.assertIn('--match-head-commit "$SHA"', decision)
 
 
 if __name__ == '__main__':

@@ -29,6 +29,25 @@ static void instance_config_union() {
     CHECK(groove::decode(legacy.data(), static_cast<uint32_t>(legacy.size()), config));
     CHECK(config.instance_seed == 0 && config.authored_version == 1 && config.tracks[0].length == 32);
 }
+static void osc_row_enabled() {
+    // #612: absent `enabled` means enabled; false disables only that row.
+    wirescape::osc::Configuration config;
+    auto bytes = runtime_module_config("osc.in", nlohmann::json::parse(R"({"rows":[{"pattern":"/a"}]})"));
+    CHECK(wirescape::osc::configuration(bytes.data(), static_cast<uint32_t>(bytes.size()), config));
+    for (const auto &row : config.rows) CHECK(row.enabled == 1);
+    bytes = runtime_module_config(
+        "osc.in", nlohmann::json::parse(R"({"rows":[{"pattern":"/a","enabled":false},{"enabled":true}]})"));
+    CHECK(wirescape::osc::configuration(bytes.data(), static_cast<uint32_t>(bytes.size()), config));
+    CHECK(config.rows[0].enabled == 0 && std::string(config.rows[0].pattern) == "/a");
+    CHECK(config.rows[1].enabled == 1 && config.rows[2].enabled == 1);
+    bool rejected = false;
+    try {
+        runtime_module_config("osc.in", nlohmann::json::parse(R"({"rows":[{"enabled":0}]})"));
+    } catch (const std::exception &) {
+        rejected = true;
+    }
+    CHECK(rejected);
+}
 int main() try {
  auto encode=[](const char*s){return runtime_module_config("midi.cc_to_cv",nlohmann::json::parse(s));};
  auto bytes=encode(R"({"rows":[{"channel":16,"controller":31,"fourteen_bit":true,"bipolar":true,"smoothing_ms":0}]})");
@@ -150,6 +169,7 @@ int main() try {
      refused_groove(doc);
  }
  instance_config_union();
+ osc_row_enabled();
  std::puts("PASS bounded typed MIDI and Groove configurations and invalid row rejection");
 } catch(const std::exception& error) {
  std::fprintf(stderr,"FAIL runtime module configuration: %s\n",error.what());return EXIT_FAILURE;

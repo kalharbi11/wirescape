@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "essentials.quad_vca",
+  "name": "Quad VCA",
+  "library": "ws2_quad_vca",
+  "parameters": {
+    "level1": 0,
+    "level2": 1,
+    "level3": 2,
+    "level4": 3,
+    "mode1": 4,
+    "mode2": 5,
+    "mode3": 6,
+    "mode4": 7,
+    "response": 8
+  },
+  "inputs": {
+    "in1": "signal",
+    "in2": "signal",
+    "in3": "signal",
+    "in4": "signal",
+    "cv1": "signal",
+    "cv2": "signal",
+    "cv3": "signal",
+    "cv4": "signal"
+  },
+  "outputs": {
+    "out1": "signal",
+    "out2": "signal",
+    "out3": "signal",
+    "out4": "signal",
+    "mix": "signal"
+  }
+}

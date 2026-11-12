@@ -1,60 +1,60 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Planner state (the leads read this first)
+# Planner state
+**Updated:** 2026-11-12, Codex Lead (EST); Keel rulings retained.
+Board #473 BODY is live; v4.1 agent/<name> ownership and Current state apply.
+Only completed exact-head acceptance/checks count; queued or skipped is not proof.
 
-**Updated:** 2026-11-12, Codex Lead. Owner failures preempt features.
-Board #473 newest SEND THESE is the live claim source; preserve existing writers.
-Completed source-head evidence governs; running, missing and stale results never pass.
 ## Priority and authority
-- PLAN Now: owner failures → 1.0 quick fixes/release → OSC and Quad → 1.1 queue.
-- 1.0 still needs #599/#607 and owner MIDI/release evidence; #593 owns the tag.
-- Seniors may approve T0/T1; opposite-family T2 review remains mandatory.
-- Keel retains ABI/SDK/spec/CI-policy approval; no protected approval inferred.
-- No new feature starts while the implementation queue exceeds PLAN D18's limit.
+- Owner order: OSC → Quad VCA/LPG → ASIO, then broad Qt retirement.
+- v1.0.0 includes #597 fixes, OSC, Quad, ASIO/FlexASIO and #599.
+  #593 candidate versions first; owner #581 tests its merged SHA, then tags it.
+  Future app versions are owner decisions; #673 records D20 and PLAN Now.
+- Seniors approve T0/T1; T2 needs the other family; Keel approves ABI/spec/CI.
+- Signer identity is an auditable convention (#658 P0.2), not enforced identity.
 
-## Immediate CI recovery and lead decisions
-- #635/#638 at e0db32d: runtime-only FFmpeg provisioning, 1200s command/30min job,
-  bounded apt retries. Keel cross-family approval posted; final CI running.
-- After #638 merges, builders merge main normally to use its workflow; plain
-  reruns retain the old merge ref. Never weaken assertions or skip tests.
-- #596/#617 at a62faf4: blanket docs/ exemption removed after Codex/Coda Medium.
-  New rule: Markdown only; fixture-only NEVER-MERGE probe #642 at7972be2 running.
-  After #638/main integration and probe evidence, Codex delta review/Keel approval.
-- #637/#639 at33ea36c: hosted-Windows wake-only single retry, strict limits,
-  negative subprocess cases; Coda T2 requested. CI running, no pass claimed.
-- #605/#608 at c80c7ea: Windows red on pinned Ninja vendor suffix
-  1.13.0.git.kitware.jobserver-pipe-1. Keel ruling pending; broad ranges excluded.
-- #601/#611 atc58e5cc: fresh Q1 CI running. Four-channel/eight-voice cost probe
-  and catalogue repairs required; explicit size disposition remains with leads.
-  Keel accepts ordinary module CI CTests without extra Pi evidence. Q2 #602 waits.
+## Immediate unblockers
+- #670 replaces closed #666: UTF-8 catalogue/review fixtures and one-cycle seed
+  comparison, with the timed soak retained; Windows coverage is not skipped.
+  Codex normal main integration retains every tool/test blob; fresh CI required.
+- #673 supersedes #665 and #663 PLAN/CLEANUP; Compass owns its integration.
+  After #670, merge main normally, retain newer source/rulings, run accept664.
+- #668 merged: every negative gate decision revokes auto-merge; enabling pins
+  reviewed SHA with --match-head-commit. No stale approvals.
+- #640 merged3aca7f6 after stale auto-merge; Keel post-review says no revert.
+  #636/gpt-builder2 must link actual main_verify and inspected/dispatched SHA.
+  Raw workflow GET can verify main evidence; PR-only workflow lookup cannot.
 
-## Existing builder continuations
-- OSC C1 #603/#618 at1517639: Coda T1 approval exists, but conflicts and accept603
-  600s timeout remain. Log confirms repeated native build, before Playwright.
-  Integrate #638/main, resolve conflicts, full acceptance and changed-head review.
-- OSC C2 #604/#620 ate40aaf2: BLOCKED on Coda High: raw or split UTF8 OSC
-  address can throw at telemetry JSON dump. Printable ASCII capture + loopback
-  regressions required; then main integration, Coda T2 and Keel spec approval.
-- OSC row enable #612 follows actual C1 merge; #94 follows full J5 per task.
-- Groove #614/#619 at499afc0: integrate main/task, format DSP/observation files,
-  prove frozen unpatched events and exact note-offs at two external intervals.
-- Groove browser #625/#626 at7d83dce: Web demo engine/site SUCCESS, 22 tests,
-  including audible patch/mobile offscreen cable drag. Acceptance/sanitizers/
-  Static still incomplete; integrate #638 and obtain independent final T1.
-- Studio #599/#607: existing writer fixes review findings and integrates #638;
-  full acceptance and source-matched required/Web evidence remain mandatory.
-- ASIO #627/#631 atc2c36dc: Keel buffer ruling already issued: p=1..4096,
-  quiescent prepare, one retry, actual-size status, no callback resize/persistence.
-  Integrate merged #630/main, preserve attempted error through rollback refusal;
-  fake regressions, Coda T2 and Keel protected-spec final approval remain.
+## OSC first
+- C1 #618, Monitor #620 and row enable #645/df656cf merged; #612 closed.
+- #657/#659: gpt-builder1, authored config.version absent/1 only; known enabled,
+  unknown fields preserved/ignored with bounded diagnostics; spec pre-cleared.
+  New head26c26c4; builder reports a repeated formatting stop. Keel supplies
+  function-only clang-format correction; budget10files/320lines plus permitted
+  separate formatting commit. Fresh accept657/Windows/Web and Claude T2.
+- #672/gpt-builder1 follows #659: combined save/reload/presets/Clear, loopback
+  row outputs/Monitor, truthful status, guide and CONTROLLERS.md, then #72.
+- Keel explicitly unblocked codec fuzzing #94 before full #72 closeout;
+  gpt-builder2/#674 owns it. Keel must approve workflow/Pi nightly policy.
 
-## Deferred work and evidence boundaries
-- #482 R3a / R3b / #481 R4 parked until owner #581 test per Keel; no feature gate.
-  Preserve frozen replacement evidence; R4 follows full R3b and archive/qt-final.
-- #487 retains D5 scope, separate from merged #572 wake scheduler; signed head
-  handoff requested. #560 CPU table blocked on dependency fetch; no invented data.
-- #91 needs Keel guard/baseline authority; #636/#640 post-merge verifier needs
-  #638 integration and Keel cross-family/protected review; no main proof yet.
-- #271 hardware, #274 physical display, #296 actual3600s soak remain distinct.
-  AcceptedSha cd7999e4a02308df0db918cfbab6974b97b6782f certifies only its evidence.
-- Dropped #554/#565 branch at73bfe95 is preserved; annotated archive tag pending.
-- Permanent: exact required/task/Web/Pi; no main push, force, devices/SSH or weak gates.
+## Quad VCA/LPG and ASIO
+- #601/#611 fa7db47: gpt-builder2, CI/accept601/Static/Web now pass.
+  Independent final T1 review/approval needed, then Q1 merge.
+  Preserve slots0..8, four-channel/eight-voice cost, budget20files/900lines.
+- #602 same owner starts only after actual Q1 merge; separate card/patch/docs T1.
+- #605/#608 320f10e: scratch --profile-dir fixes Codex review Medium;
+  exact CI/Static pass. Verify actual Windows isolation/accept605, then T1.
+  Narrow Ninja1.13.0 Kitware suffix only; broader toolchains deferred.
+- #627/#631 4e79e59: current owner gpt-builder2; Claude retry code plus GPT parts.
+  CI/Static/Web pass, but latest guard FAILS; diagnose before approval.
+  Preferred1..4096, quiescent prepare, one retry, no persistence; Keel spec.
+  Codex reviews Claude portions; Claude reviews GPT portions; owner tests sound.
+
+## Other continuations and permanent boundaries
+- #487/#648 b1403b5: gpt-builder2; Low render_at fix pushed; exact CI/Static
+  and source-matched private device-off Pi recovery evidence still govern.
+- #614/#619 8f2a9d1: gpt-builder1; frozen unpatched events and exact note-offs.
+- #629 after priority OSC: real WASM vs FakeEngine visual/telemetry matrix.
+- #482→#468/archive→#481/#469 deferred; #661 keeps replacement/tag protections.
+- #271 hardware, #274 display, #296 actual3600s, #581/#593 release are distinct.
+- No new features, weakened tests, main/force push, device/SSH/LAN access.
+Signed: Codex Lead, 2026-11-12
