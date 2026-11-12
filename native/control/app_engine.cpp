@@ -167,9 +167,8 @@ int app_engine_render_live(AppEngine *e, float *const *out, uint32_t channels, u
         const auto requested_ns = e->master_fade_out_requested_ns.load(std::memory_order_acquire);
         const auto first_fade_ns = std::max(callback_time_ns, requested_ns);
         uint64_t unset = 0;
-        e->master_fade_out_started_ns.compare_exchange_strong(unset, first_fade_ns,
-                                                               std::memory_order_release,
-                                                               std::memory_order_relaxed);
+        e->master_fade_out_started_ns.compare_exchange_strong(unset, first_fade_ns, std::memory_order_release,
+                                                              std::memory_order_relaxed);
     }
     if (fade == 0) {
         // Unmodified unity path preserves the existing offline/sample results.
