@@ -145,6 +145,13 @@ descriptor or a promise that pending modules are available on a deployed SHA.
 
 ### Macro Oscillator model names (48 kHz only)
 
+The native and Web Macro Oscillator requires **48 kHz**. Patches containing it
+are refused at 44.1 or 96 kHz with a diagnostic explaining the 48 kHz requirement,
+not silently resampled within the module. The Web demo requests a 48 kHz
+AudioContext (letting the browser resample at the device boundary); browsers
+that reject the request fall back to their actual default rate, where a
+non-48-kHz macro patch is still refused.
+
 These **0-based** model indices follow the exact `plaits::Voice::Init` registration order
 at pinned `pichenettes/eurorack` commit `f4cfa7697095a28d292bff758beb51deb49b5a86`
 (`plaits/dsp/voice.cc`). The index is stored in `ports.macro_oscillator.model`;
