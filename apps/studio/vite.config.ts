@@ -2,7 +2,7 @@
 import { defineConfig } from 'vite';
 import { patchLibraryPlugin } from './patch-library.mjs';
 import { execSync } from 'node:child_process';
-const version = process.env.npm_package_version ?? '0.3.0';
+const version = process.env.npm_package_version ?? '1.0.0';
 let sha = 'dev';
 try { sha = execSync('git rev-parse --short HEAD').toString().trim(); } catch { /* not a git checkout */ }
 const build = `${sha} · ${new Date().toISOString().slice(0, 10)}`;

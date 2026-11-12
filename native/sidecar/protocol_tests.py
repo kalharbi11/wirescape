@@ -70,6 +70,7 @@ class Engine:
         assert self.hello['type'] == 'hello' and self.hello['protocol'] == 0
         self.session = self.hello['session']
         assert self.session and self.hello['v'] == 0
+        assert self.hello['engine']['version'] == '1.0.0'  # release version (#593)
         assert 'setOsc' not in self.hello['capabilities']
         ids = {module['id'] for module in self.hello['catalogue']['modules']}
         assert {'essentials.output', 'essentials.vco', 'midi.in', 'midi.cc_to_cv'} <= ids
