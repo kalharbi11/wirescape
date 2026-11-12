@@ -40,6 +40,15 @@ static void osc_future_keys() {
         CHECK(std::strcmp(decoded.rows[0].pattern, "/voice") == 0);
     };
     assert_known_values(known);
+    const auto all_known = Json::parse(
+        R"({"port":9011,"lan":false,"rows":[{"pattern":"/voice","kind":"gate","stale":"hold","argument":2,"input_min":0,"input_max":1,"output_min":0,"output_max":1,"smoothing_ms":5,"timeout_ms":100}]})");
+    std::vector<std::string> known_diagnostics;
+    assert_known_values(all_known, &known_diagnostics);
+    CHECK(known_diagnostics.empty());
+    const auto legacy_bytes = runtime_module_config("osc.in", all_known, 17);
+    wirescape::osc::Configuration legacy;
+    CHECK(wirescape::osc::configuration(legacy_bytes.data(), static_cast<uint32_t>(legacy_bytes.size()), legacy));
+    CHECK(legacy.port == 9011 && legacy.lan == 0 && legacy.rows[0].argument == 2 && legacy.rows[0].kind == 1);
     auto future = known;
     future["futureOption"] = Json::object({{"nested", 1}});
     future["rows"][0]["futureField"] = Json::array({1, 2});
