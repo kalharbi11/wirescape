@@ -10,7 +10,7 @@ export interface OscRow {
   /** Optional (#612): absent means enabled; writers emit it only when false. */
   enabled?: boolean;
 }
-export interface OscConfig { port: number; lan: boolean; rows: OscRow[] }
+export interface OscConfig { version?: number; port: number; lan: boolean; rows: OscRow[] }
 
 const defaultRow = (n: number): OscRow => ({
   pattern: `/pico1/knob/${n}`, argument: 0, kind: 'cv',
@@ -30,6 +30,7 @@ const rowKeys = ['pattern', 'kind', ...numericKeys, 'stale'] as const;
 export function readOscConfig(raw: unknown): { config: OscConfig; unsupported: string[] } {
   const source = object(raw);
   const config = picoDefaults();
+  if (source.version === 1) config.version = 1; // Preserve an explicitly authored v1.
   if (typeof source.port === 'number') config.port = source.port;
   if (typeof source.lan === 'boolean') config.lan = source.lan;
   if (Array.isArray(source.rows)) {
@@ -42,7 +43,7 @@ export function readOscConfig(raw: unknown): { config: OscConfig; unsupported: s
       if (row.enabled === false) base.enabled = false;
     });
   }
-  const unsupported = Object.keys(source).filter(k => !['port', 'lan', 'rows'].includes(k));
+  const unsupported = Object.keys(source).filter(k => !['version', 'port', 'lan', 'rows'].includes(k));
   if (Array.isArray(source.rows)) source.rows.forEach((v, i) => {
     for (const key of Object.keys(object(v))) if (key !== 'enabled' && !rowKeys.includes(key as typeof rowKeys[number]))
       unsupported.push(`rows[${i}].${key}`);
@@ -64,13 +65,16 @@ const choices = (items: { value: string; name: string }[], selected: string): HT
 export function showOscEditor(modal: Modal, raw: unknown,
   save: (value: OscConfig) => Promise<boolean>): void {
   const { config, unsupported } = readOscConfig(raw);
+  const authored = object(raw);
+  const invalidVersion = 'version' in authored && authored.version !== 1;
   const body = modal.body;
   body.replaceChildren();
   const intro = el('p', 'osc-help',
     'OSC is UDP input. LAN requests still require the owner launcher --confirm-lan; this toggle alone never opens the network.');
   const warning = el('p', 'osc-warning');
   warning.dataset.testid = 'osc-unknown-warning';
-  if (unsupported.length) warning.textContent = `ignored by this engine: ${unsupported.join(', ')}. Saving from this editor removes these unsupported config keys only.`;
+  if (invalidVersion) warning.textContent = 'Unsupported OSC config version: the engine refuses this patch; its authored data is preserved.';
+  else if (unsupported.length) warning.textContent = `ignored by this engine: ${unsupported.join(', ')}. Saving from this editor removes these unsupported config keys only.`;
   else warning.hidden = true;
   const port = el('input', 'input-number') as HTMLInputElement;
   port.type = 'number'; port.min = '1024'; port.max = '65535'; port.step = '1';
@@ -200,11 +204,14 @@ export function showOscEditor(modal: Modal, raw: unknown,
   submit.type = 'button'; submit.dataset.testid = 'osc-editor-save';
   submit.addEventListener('click', async () => {
     errors.textContent = '';
+    if (invalidVersion) {
+      errors.textContent = 'Unsupported OSC config version; the authored patch is unchanged.'; return;
+    }
     const n = Number(port.value);
     if (!port.value || !Number.isInteger(n) || n < 1024 || n > 65535) {
       errors.textContent = 'UDP port must be an integer from 1024 to 65535.'; return;
     }
-    const next: OscConfig = { port: n, lan: lan.checked, rows: [] };
+    const next: OscConfig = { ...(config.version === 1 ? { version: 1 } : {}), port: n, lan: lan.checked, rows: [] };
     for (const [i, c] of fields.entries()) {
       const pattern = c.pattern.value;
       if (!pattern.startsWith('/') || new TextEncoder().encode(pattern).length >= 256 || pattern.includes('\0')) {
