@@ -5,8 +5,6 @@
 #include "../engine2/engine2.h"
 #include "../tests2/allocation_watch.h"
 #include <nlohmann/json.hpp>
-#include <cstring>
-#include <vector>
 #include <chrono>
 #include <algorithm>
 #include <cmath>
@@ -54,7 +52,7 @@ float render_and_check(AppEngine* graph, int blocks, const char* context) {
 // instead of assuming independent codec/engine unit tests cover that seam.
 void serialized_demo_equivalence(AppEngine* catalogue, const ws_engine_config& config,
                                  const std::filesystem::path& modules,
-                                 const std::filesystem::path& demo) {
+                                 const char* demo) {
     using Json = nlohmann::json; const std::string original = fixture(demo); const auto source = Json::parse(original);
     require(source.at("version") == 1, "Six Essentials fixture remains v1"); auto saved = source;
     saved["version"] = 2;
@@ -140,7 +138,7 @@ void serialized_demo_equivalence(AppEngine* catalogue, const ws_engine_config& c
                         uint32_t(std::stoul(it.key())), it.value().get<float>()) == WS_OK,
                     "ABI1 reference parameter initialized");
     float baseline[128]{}, loaded[128]{}, reloaded[128]{};
-    double max_abs_error = 0; size_t allocations = 0; std::vector<float> pcm_a, pcm_b; pcm_a.reserve(750 * 128); pcm_b.reserve(750 * 128);
+    double max_abs_error = 0; size_t allocations = 0, rendered = 0;
     for (int block = 0; block < 750; ++block) {
         require(ws_engine_render(old.get(), baseline, 128) == WS_OK, "ABI1 render"); int a = -1, b = -1;
         {
@@ -148,17 +146,16 @@ void serialized_demo_equivalence(AppEngine* catalogue, const ws_engine_config& c
             a = app_engine_render(from_v1.get(), loaded, 128);
             b = app_engine_render(from_saved_v2.get(), reloaded, 128); allocations += watch.allocations();
         }
-        require(a == WS_OK && b == WS_OK, "v1 and saved v2 loaded graphs render"); require(std::memcmp(loaded, reloaded, sizeof(loaded)) == 0,
-                "serialized v1 -> v2 -> reread yields bit-identical PCM");
+        require(a == WS_OK && b == WS_OK, "v1 and saved v2 loaded graphs render");
         for (int i = 0; i < 128; ++i) {
             require(std::isfinite(loaded[i]), "saved v2 render finite");
+            require(loaded[i] == reloaded[i], "v1 to disk v2 renders exactly equal PCM samples");
             max_abs_error = std::max(max_abs_error, std::abs(double(baseline[i]) - loaded[i]));
         }
-        pcm_a.insert(pcm_a.end(), loaded, loaded + 128); pcm_b.insert(pcm_b.end(), reloaded, reloaded + 128);
+        rendered += 128;
     }
     require(allocations == 0, "saved graph callbacks allocate no memory"); require(max_abs_error <= 1e-7, "ABI1 vs saved/reloaded app-loader bound 1e-7");
-    require(pcm_a.size() == 96000 && pcm_a == pcm_b,
-            "96,000 source and saved-reloaded PCM samples exactly equal");
+    require(rendered == 96000u, "96,000 source and saved-reloaded PCM samples compared");
     std::cout << "v1 -> disk v2 -> reload exact PCM; ABI1 max_abs_error="
               << max_abs_error << " allocs=" << allocations << '\n';
 }
