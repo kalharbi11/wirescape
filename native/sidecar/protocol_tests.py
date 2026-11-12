@@ -549,6 +549,39 @@ with tempfile.TemporaryDirectory() as osc_dir:
         else:
             raise AssertionError('Null sink did not enforce loopback-only OSC ingress')
         confirmed.close()
+        # #612: a module with every row `enabled:false` ("Clear") binds no socket
+        # and reports state "disabled" (not an error); one enabled row keeps it listening.
+        rows_off = minimal()
+        rows_off['modules'].append(dict(id=9, module='osc.in', config=dict(
+            port=port, rows=[dict(pattern='/pico1/knob/%d' % (i + 1), enabled=False) for i in range(8)])))
+        cleared = Engine(Path(osc_dir) / 'cleared.json')
+        cleared.call('loadGraph', patch=rows_off)
+
+        def cleared_route(state):
+            until = time.monotonic() + 8
+            while time.monotonic() < until:
+                message = cleared.pushes.pop(0) if cleared.pushes else cleared.receive()
+                if message.get('type') != 'status' or message.get('gen') != cleared.last_gen:
+                    continue
+                osc = message['status']['osc']
+                if len(osc['routes']) == 1 and osc['routes'][0]['state'] == state:
+                    return osc
+            raise AssertionError('No OSC route in state ' + state + ': ' + cleared.stderr())
+
+        osc = cleared_route('disabled')
+        assert osc['enabled'] is False and 'last_error' not in osc
+        assert osc['routes'][0]['module'] == '9' and osc['routes'][0]['port'] == port
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as free:
+            free.bind(('127.0.0.1', port))  # a cleared module holds no listener
+        rows_off['modules'][1]['config']['rows'][1]['enabled'] = True
+        cleared.call('loadGraph', patch=rows_off)
+        assert cleared_route('listening')['enabled'] is True
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+            sender.sendto(packet, ('127.0.0.1', port))
+        until = time.monotonic() + 8
+        while cleared_route('listening')['routes'][0]['received'] < 1:
+            assert time.monotonic() < until, 'Partially enabled OSC module stopped receiving'
+        cleared.close()
 
 # Real, short, device-free end-to-end benchmark ingestion on the production sidecar.
 harness = Path(__file__).resolve().parents[2] / 'tools' / 'sidecar_edit_soak.py'

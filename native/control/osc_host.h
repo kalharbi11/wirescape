@@ -9,6 +9,7 @@ namespace wirescape::osc {
 // Control-owner host; worker delivery retains the graph generation from start.
 class Host {
     std::unique_ptr<Service> service_;
+    std::vector<RouteState> disabled_; // modules with every row disabled: no socket (#612)
     AppEngine *engine_ = nullptr;
     uint64_t engine_generation_ = 0;
     bool authorized_ = false;

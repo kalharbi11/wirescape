@@ -141,6 +141,32 @@ int main() {
             REQUIRE(output == reference);
         }
     }
+    {
+        // #612: a disabled row ignores matching messages (CV holds output_min,
+        // gate/trigger stay low); enabled rows and the Messages output still work.
+        osc::Statistics offStats;
+        osc::Configuration off;
+        off.statistics = &offStats;
+        off.rows[0].enabled = 0;
+        off.rows[0].output_min = -.25f;
+        off.rows[0].smoothing_ms = 0;
+        off.rows[1].smoothing_ms = 0;
+        std::strcpy(off.rows[2].pattern, "/fire");
+        off.rows[2].kind = 2;
+        off.rows[2].enabled = 0;
+        auto knob1 = packet("/pico1/knob/1", .5f), knob2 = packet("/pico1/knob/2", .5f);
+        Rig disabled(off);
+        disabled.run({message(knob1), message(knob2), message(fire)});
+        REQUIRE(disabled.data->values[0][0][0] == -.25f && disabled.data->values[0][0][31] == -.25f);
+        REQUIRE(disabled.data->values[1][0][0] == .5f);
+        REQUIRE(disabled.data->values[2][0][0] == 0 && disabled.data->values[2][0][31] == 0);
+        REQUIRE(disabled.emitted == 3 && offStats.received == 3 && offStats.dropped == 0);
+        osc::Configuration bad;
+        bad.rows[3].enabled = 2;
+        REQUIRE(!osc::configuration(reinterpret_cast<const uint8_t *>(&bad), sizeof(bad), bad));
+        osc::Configuration defaults;
+        for (const auto &row : defaults.rows) REQUIRE(row.enabled == 1);
+    }
     Bytes bytes;
     ws2_writer writer{sizeof(writer), &bytes, sink};
     REQUIRE(r.d->save_state(r.state, &writer) == WS2_OK);

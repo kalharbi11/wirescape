@@ -202,6 +202,10 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
                          require(val == "hold" || val == "zero", "Invalid OSC timeout policy");
                          dest.stale = val == "zero" ? 1u : 0u;
                      }
+                 } else if (name == "enabled") {
+                     // Optional; absent means enabled so existing patches keep listening.
+                     require(item.is_boolean(), "OSC row enabled must be boolean");
+                     dest.enabled = item.get<bool>() ? 1u : 0u;
                  } else if (name == "argument") {
                      require(item.is_number_integer(), "OSC argument index must be integer");
                      const auto n = item.get<int64_t>();

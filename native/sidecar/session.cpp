@@ -1123,10 +1123,11 @@ Json Session::status() const {
     bool any_bound = false, any_lan = false, port_busy = false;
     for (const auto &route : osc_->states()) {
         if (osc_routes.empty()) osc_status["port"] = route.port;
-        const bool listening = std::string(route.state) != "port-busy";
+        const std::string state = route.state;
+        const bool listening = state == "listening" || state == "lan-not-confirmed";
         any_bound |= listening;
         any_lan |= listening && route.lan_bound;
-        port_busy |= !listening;
+        port_busy |= state == "port-busy"; // a disabled route (#612) is not an error
         Json entry = Json::object();
         entry["module"] = std::to_string(route.node);
         entry["port"] = route.port;

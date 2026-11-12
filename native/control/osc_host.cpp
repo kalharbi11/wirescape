@@ -19,9 +19,25 @@ void Host::start(AppEngine *engine, const std::string &document) {
         const auto config = module.value("config", nlohmann::json::object());
         const uint32_t port = config.value("port", 9000u);
         if (port < 1 || port > 65535) throw std::runtime_error("OSC port outside 1..65535");
-        routes.push_back({module.at("id").get<uint32_t>(), uint16_t(port), config.value("lan", false)});
+        const uint32_t node = module.at("id").get<uint32_t>();
+        const bool lan = config.value("lan", false);
+        // Absent `enabled` means enabled; only a module whose eight rows are all
+        // explicitly disabled ("Clear") is left unbound and reported as disabled.
+        uint32_t disabled = 0;
+        if (config.contains("rows") && config.at("rows").is_array())
+            for (const auto &row : config.at("rows"))
+                if (row.is_object() && row.contains("enabled") && row.at("enabled") == false) ++disabled;
+        if (disabled >= 8) {
+            RouteState state;
+            state.node = node;
+            state.port = uint16_t(port);
+            state.lan_requested = lan;
+            state.state = "disabled";
+            disabled_.push_back(state);
+        } else
+            routes.push_back({node, uint16_t(port), lan});
     }
-    if (routes.size() > 32) throw std::runtime_error("Too many OSC routes");
+    if (routes.size() + disabled_.size() > 32) throw std::runtime_error("Too many OSC routes");
     if (routes.empty()) return;
     service_ = std::make_unique<Service>(Sink{this, deliver}, authorized_);
     for (const auto &route : routes)
@@ -36,8 +52,13 @@ void Host::stop() noexcept {
         service_->stop();
         service_.reset();
     }
+    disabled_.clear();
     engine_ = nullptr;
     engine_generation_ = 0;
 }
-std::vector<RouteState> Host::states() const { return service_ ? service_->states() : std::vector<RouteState>{}; }
+std::vector<RouteState> Host::states() const {
+    auto out = service_ ? service_->states() : std::vector<RouteState>{};
+    out.insert(out.end(), disabled_.begin(), disabled_.end());
+    return out;
+}
 } // namespace wirescape::osc
