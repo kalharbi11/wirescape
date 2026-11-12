@@ -8,19 +8,19 @@ Every agent has a name. The name is the identity, not the chat: a fresh chat wit
 **Signing** (every handoff, review, approval and summary): the last line is exactly `Signed: <name>, <YYYY-MM-DD>` with today's date in **New York time**, e.g. `Signed: gpt-builder2, 2026-11-12`. Nothing after the date (no time zone, period or notes) and nothing in parentheses. Names already carry the family, so no model goes in the signature.
 
 ## Roster
-| Name | Family | Runs | Owns now (`agent/` label) |
+| Name | Family | Runs | Focus (current items: the board's "Who has what") |
 |---|---|---|---|
-| Compass | Claude | lead, when needed | plan, UX: #594, #597 |
-| Keel | Claude | lead, when needed | technical rulings, release #593, Qt removal #661 |
+| Compass | Claude | lead, when needed | plan, UX |
+| Keel | Claude | lead, when needed | technical rulings, release, CI policy |
 | Codex Lead **or** Coda | GPT / Claude | senior, either one per day | board upkeep, unblocking, T0/T1 merges |
-| `gpt-builder1` | GPT | often | OSC #657 (PR #659) → Studio visuals #599 (PR #607) |
-| `gpt-builder2` | GPT | often | Quad VCA Q1 #601 (PR #611) → Q2 #602 → Windows setup #605 (PR #608) |
-| `claude-builder1` | Claude | spare usage | OSC row enable #612 (PR #645) → ASIO #627 (PR #631) |
+| `gpt-builder1` | GPT | often | OSC, Groove, Web |
+| `gpt-builder2` | GPT | often | Quad VCA, Windows setup, CI fixes |
+| `claude-builder1` | Claude | spare usage | Claude-written PRs, hard T2 |
 | `gpt-reviewer` | GPT | one-time | reviews only |
 | `claude-reviewer` | Claude | one-time | reviews only |
 | `gpt-helper`, `claude-helper` | GPT / Claude | scheduled | `lane/helper` items |
 
-Unassigned (any agent, after its own items): Groove #614 (PR #619) → #625, Webapp parity #629, the rest of the board's "Unassigned" section. New builders are `gpt-builder<N>` / `claude-builder<N>`: add one row here before using the name; labels are created on first use.
+Order of work inside a builder's items: the board's "Who has what", lowest issue number first unless a lead's note says otherwise. New builders are `gpt-builder<N>` / `claude-builder<N>`: add one row here before using the name; labels are created on first use.
 
 ## Authority
 - **Compass, Keel:** the owner's full GitHub authority (approve, label, merge, close/reopen, retarget, protected docs, `allow-protected`/`allow-test-removal`, `Protected path named:` lines, owner hardware runs). Compass owns product and plan; Keel owns ABI/SDK headers, `docs/specs/**` and CI/merge policy, which need Keel's approval on top of the normal review.
@@ -83,7 +83,7 @@ Wrap-up: handoffs on everything you touched, then a ≤5-line report: Done · Wa
 ```text
 You are <name>, a Wirescape builder (GitHub repo kalharbi11/wirescape). Your family is in your name (gpt-… or claude-…). One full run:
 0. Read AGENTS.md (the rules), then issue #473's body (the live board; "Who has what" lists your items).
-1. Your items: open issues labelled agent/<name>, in the roster order above. For each: its "## Current state" block, its newest handoff, then the docs/tasks/ file it names. Continue its existing PR; never open a second PR for the same issue. Run its acceptance (python tools/dev.py accept <issue#>), or rely on CI if you can't build.
+1. Your items: open issues labelled agent/<name>, in the board's order. For each: its "## Current state" block, its newest handoff, then the docs/tasks/ file it names. Continue its existing PR; never open a second PR for the same issue. Run its acceptance (python tools/dev.py accept <issue#>), or rely on CI if you can't build.
 2. While CI runs or your PRs wait (don't stop to wait): reviews you may do on heads with no review yet. T1 from another session. T2: claude-builders review GPT-written T2 against the contract (grep the other side of each changed seam; realtime rules; IDs); gpt-builders only pre-review Claude-written T2. One COMMENT review: severity + file:line. If nothing is High and the head is green, post the approval line (Keel still approves ABI/spec/CI-policy paths).
 3. Fix board problems you notice: wrong labels, issues still open after their PR merged.
 4. No own items left: claim one unassigned item (comment "Claimed: <name>, <YYYY-MM-DD>", status/in-progress, label agent/<name>).
