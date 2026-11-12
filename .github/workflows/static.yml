@@ -74,41 +74,10 @@ jobs:
           python "$CLANG_TIDY_DIFF" --help > /dev/null
           export CLANG_TIDY_DIFF
           python tools/ci/static_checks.py --base "$BASE_SHA" --head "$HEAD_SHA"
-      - name: Publish clang-format fix patch when Static fails
-        if: failure()
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          python - <<'PY'
-          import difflib, os, subprocess, sys
-          from pathlib import Path
-          sys.path.insert(0, "tools/ci")
-          from static_checks import changed_ranges
-          diff = subprocess.check_output(
-              ["git", "diff", "--no-ext-diff", "--no-renames", "--unified=0",
-               os.environ["BASE_SHA"] + "..." + os.environ["HEAD_SHA"], "--"], text=True)
-          patch = []
-          for name, ranges in changed_ranges(diff).items():
-              if not ranges:
-                  continue
-              source = Path(name).read_text(encoding="utf-8")
-              formatted = subprocess.check_output(
-                  ["clang-format-18", *[f"--lines={a}:{b}" for a, b in ranges], name],
-                  text=True)
-              patch.extend(difflib.unified_diff(
-                  source.splitlines(keepends=True), formatted.splitlines(keepends=True),
-                  fromfile="a/" + name, tofile="b/" + name))
-          if patch:
-              content = "".join(patch)
-              Path("format.patch").write_text(content, encoding="utf-8")
-              print("FORMAT_PATCH_BEGIN\n" + content + "FORMAT_PATCH_END")
-              with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as out:
-                  out.write("### clang-format fix patch\n\n```diff\n" + content + "\n```\n")
-          PY
       - name: Upload format-patch artifact
-        if: failure() && hashFiles('format.patch') != ''
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: format-patch
-          path: format.patch
+          path: build/static/format.patch
+          if-no-files-found: ignore
