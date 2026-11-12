@@ -74,3 +74,10 @@ jobs:
           python "$CLANG_TIDY_DIFF" --help > /dev/null
           export CLANG_TIDY_DIFF
           python tools/ci/static_checks.py --base "$BASE_SHA" --head "$HEAD_SHA"
+      - name: Upload format-patch artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: format-patch
+          path: build/static/format.patch
+          if-no-files-found: ignore

@@ -265,5 +265,78 @@ class StaticChecksTests(unittest.TestCase):
             self.assertEqual((filtered, code, count), (own, 42, 1))
 
 
+    def test_format_patch_applies_and_passes_formatter(self):
+        import shutil
+        formatter = shutil.which("clang-format-18") or shutil.which("clang-format")
+        if not formatter:
+            self.skipTest("clang-format not installed")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "native/test.cpp"
+            source.parent.mkdir()
+            source.write_text("int  main( ){return  0;}\n", encoding="utf-8")
+            command = [formatter, "--dry-run", "--Werror", "--lines=1:1", "./native/test.cpp"]
+            patch_text = static_checks.format_patch(root, "native/test.cpp", command)
+            self.assertIn("--- a/native/test.cpp", patch_text)
+            patch_file = root / "format.patch"
+            patch_file.write_text(patch_text, encoding="utf-8")
+            subprocess.run(["git", "apply", "--check", str(patch_file)], cwd=root, check=True)
+            subprocess.run(["git", "apply", str(patch_file)], cwd=root, check=True)
+            subprocess.run(command, cwd=root, check=True, capture_output=True)
+
+
+    def test_failed_format_jobs_publish_combined_applyable_patch(self):
+        import contextlib
+        import io
+        import shutil
+        formatter = shutil.which("clang-format-18") or shutil.which("clang-format")
+        if not formatter:
+            self.skipTest("clang-format not installed")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            cases = {
+                "native/one.cpp": ("int  alpha( ){return  1;}\n"
+                                   "int keep = 0;\n"
+                                   "int  beta( ){return  2;}\n"),
+                "native/two.cpp": "int  other( ){return  3;}\n",
+            }
+            for name, content in cases.items():
+                source = root / name
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text(content, encoding="utf-8")
+            diff = ("+++ b/native/one.cpp\n@@ -1 +1 @@\n+x\n"
+                    "@@ -3 +3 @@\n+x\n"
+                    "+++ b/native/two.cpp\n@@ -1 +1 @@\n+x\n")
+            real_run = subprocess.run
+
+            def execute(command, **kwargs):
+                if command[0] == "clang-format-18":
+                    return real_run([formatter, *command[1:]], **kwargs)
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            output = io.StringIO()
+            summary = root / "summary.md"
+            with (patch.object(static_checks.subprocess, "run", side_effect=execute),
+                  patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}),
+                  contextlib.redirect_stdout(output)):
+                self.assertEqual(static_checks.run_checks(root, diff, "unused"), 1)
+
+            patch_file = root / "build/static/format.patch"
+            self.assertTrue(patch_file.is_file())
+            patch_content = patch_file.read_text(encoding="utf-8")
+            for name in cases:
+                self.assertIn("--- a/" + name, patch_content)
+                self.assertIn("+++ b/" + name, patch_content)
+            self.assertIn("=== format.patch begin ===", output.getvalue())
+            self.assertIn("=== format.patch end ===", output.getvalue())
+            self.assertIn("### clang-format fix patch", summary.read_text(encoding="utf-8"))
+            real_run(["git", "apply", "--check", str(patch_file)], cwd=root, check=True)
+            real_run(["git", "apply", str(patch_file)], cwd=root, check=True)
+            for name in cases:
+                real_run([formatter, "--dry-run", "--Werror", "./" + name],
+                         cwd=root, check=True, capture_output=True)
+
+
+
 if __name__ == "__main__":
     unittest.main()
