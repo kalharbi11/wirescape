@@ -74,6 +74,7 @@ class Session {
     Json patch_, preferences_ = Json::object(), audio_devices_, midi_devices_;
     Json unavailable_audio_drivers_ = Json::array(); // optional, control-thread ASIO diagnostics
     std::string token_, device_, audio_state_ = "no-device", audio_reason_, audio_error_;
+    uint32_t requested_block_ = 0; // user's block while an ASIO driver forces another; 0 = none
     uint64_t generation_ = 0, tick_ = 0;
     std::set<uint32_t> used_ids_;
     document::telemetry::Sampler telemetry_;
@@ -100,6 +101,7 @@ class Session {
     std::chrono::milliseconds audio_backoff_{100};
     void start_audio(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
     bool poll_audio(std::chrono::steady_clock::time_point, bool enumerated);
+    void open_at_driver_block(int64_t frames);
     void stop_audio();
     void start_midi();
     void start_osc();

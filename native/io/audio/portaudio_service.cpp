@@ -55,6 +55,9 @@ struct Backend {
  decltype(&Pa_GetDefaultOutputDevice) default_device = nullptr;
  decltype(&Pa_GetErrorText) text = nullptr;
  decltype(&Pa_GetLastHostErrorInfo) last_host_error = nullptr;
+ // pa_asio.h is not vendored; this optional export exists only in ASIO-enabled builds.
+ using AsioBufferSizes = PaError (*)(PaDeviceIndex, long *, long *, long *, long *);
+ AsioBufferSizes asio_buffer_sizes = nullptr;
  decltype(&Pa_OpenStream) open=nullptr;decltype(&Pa_StartStream) start=nullptr;
  decltype(&Pa_StopStream) stop=nullptr;decltype(&Pa_AbortStream) abort=nullptr;
  decltype(&Pa_CloseStream) close=nullptr;decltype(&Pa_IsStreamActive) active=nullptr;
@@ -88,6 +91,8 @@ struct Backend {
 #ifdef _WIN32
   last_host_error = reinterpret_cast<decltype(last_host_error)>(
       GetProcAddress(static_cast<HMODULE>(library), "Pa_GetLastHostErrorInfo"));
+  asio_buffer_sizes = reinterpret_cast<AsioBufferSizes>(
+      GetProcAddress(static_cast<HMODULE>(library), "PaAsio_GetAvailableBufferSizes"));
 #else
   last_host_error = reinterpret_cast<decltype(last_host_error)>(dlsym(library, "Pa_GetLastHostErrorInfo"));
 #endif
@@ -211,9 +216,10 @@ struct Stream::Impl {
     std::unique_ptr<Context> context;
     PaStream *stream = nullptr;
     uint64_t retired_dropouts = 0;
+    uint32_t frames = 0;
     Impl(EngineOwner &engine, const StreamSelection &selection, double rate, uint32_t block,
-         std::function<void()> producers)
-        : backend(std::make_unique<Backend>(selection.directory)) {
+         std::function<void()> producers, bool allow_preferred_retry)
+        : backend(std::make_unique<Backend>(selection.directory)), frames(block) {
         auto &b = *backend;
         int device = b.default_device();
         if (!selection.name.empty()) {
@@ -239,6 +245,14 @@ struct Stream::Impl {
         if (opened < 0) {
             engine = std::move(context->engine);
             context.reset();
+            // Control thread, before any callback: report the driver's preferred
+            // size once so the owner can reprepare its graph and retry exactly once.
+            if (is_asio && allow_preferred_retry && opened != paInvalidSampleRate && b.asio_buffer_sizes) {
+                long min = 0, max = 0, preferred = 0, granularity = 0;
+                if (b.asio_buffer_sizes(device, &min, &max, &preferred, &granularity) == paNoError &&
+                    preferred != long(block))
+                    throw PreferredBufferSize(int64_t(preferred));
+            }
             b.check(opened, is_asio);
         }
         auto started = b.start(stream);
@@ -277,8 +291,8 @@ struct Stream::Impl {
     }
 };
 Stream::Stream(EngineOwner &e, const StreamSelection &selection, double rate, uint32_t block,
-               std::function<void()> producers)
-    : impl_(std::make_unique<Impl>(e, selection, rate, block, std::move(producers))) {}
+               std::function<void()> producers, bool allow_preferred_retry)
+    : impl_(std::make_unique<Impl>(e, selection, rate, block, std::move(producers), allow_preferred_retry)) {}
 Stream::~Stream() = default;
 EngineOwner Stream::stop() { return impl_->retire(); }
 bool Stream::exchange(EngineOwner &next, std::chrono::steady_clock::time_point deadline) {
@@ -288,6 +302,7 @@ bool Stream::exchange(EngineOwner &next, std::chrono::steady_clock::time_point d
     std::swap(context->engine, next); // `next` now owns the retired engine.
     return true;
 }
+uint32_t Stream::buffer_frames() const noexcept { return impl_->frames; }
 bool Stream::running() const { return impl_->stream && impl_->backend->active(impl_->stream) > 0; }
 double Stream::cpu_percent() const {
     return impl_->context ? impl_->context->metrics.read() : std::numeric_limits<double>::quiet_NaN();

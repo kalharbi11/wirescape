@@ -357,8 +357,12 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
                         if (d.is_default) device_ = d.id;
             }
             need(!device_.empty(), "unavailable", "No selected audio output");
-            stream_ = std::make_unique<audio::Stream>(engine_, audio::StreamSelection{options_.directory, device_},
-                                                      options_.rate, options_.block, [this] { midi_->stop(); });
+            try {
+                stream_ = std::make_unique<audio::Stream>(engine_, audio::StreamSelection{options_.directory, device_},
+                                                          options_.rate, options_.block, [this] { midi_->stop(); });
+            } catch (const audio::PreferredBufferSize &driver) {
+                open_at_driver_block(driver.frames()); // exactly one retry; throws on refusal
+            }
             audio_state_ = "running";
             audio_error_.clear(); // an actual successful reopen clears the last error
             audio_backoff_ = std::chrono::milliseconds(100);
@@ -426,6 +430,41 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
             throw;
         }
     }
+}
+// Control thread, no stream running (the failed open returned engine_). Keel's
+// #627 ruling: same quiescent path as setBufferFrames, one open, no persistence.
+void Session::open_at_driver_block(int64_t frames) {
+    if (frames < 1 || frames > 4096)
+        throw std::runtime_error("ASIO driver requires " + std::to_string(frames) + " frames (supported 1-4096)");
+    const auto block = uint32_t(frames);
+    document::telemetry::Sampler next_telemetry(
+        document::telemetry::plan(patch_, catalogue_.get(), /*phase_enabled=*/true, /*groove_enabled=*/true));
+    ws_engine_config next_config = config_;
+    next_config.max_block_frames = block;
+    std::string error;
+    audio::EngineOwner prepared(
+        document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config, error, &next_telemetry.taps()),
+        app_engine_destroy);
+    if (!prepared)
+        throw std::runtime_error("Graph cannot prepare at the ASIO driver's " + std::to_string(block) + " frames");
+    app_engine_prepare_master_fade_in(prepared.get());
+    auto previous = std::move(engine_);
+    engine_ = std::move(prepared);
+    active_ = engine_.get();
+    try {
+        stream_ = std::make_unique<audio::Stream>(
+            engine_, audio::StreamSelection{options_.directory, device_}, options_.rate, block,
+            [this] { midi_->stop(); },
+            /*allow_preferred_retry=*/false);
+    } catch (...) {
+        engine_ = std::move(previous); // keep the graph prepared for the configured block
+        active_ = engine_.get();
+        throw;
+    }
+    if (!requested_block_) requested_block_ = options_.block;
+    config_ = next_config;
+    options_.block = block;
+    telemetry_.swap(next_telemetry);
 }
 void Session::stop_audio() {
     stop_sink_.store(true);
@@ -804,7 +843,7 @@ Json Session::apply(const Json &command) {
         // Control thread only. Quiesce the old stream before preparing a new
         // runnable graph, retaining the document and selected MIDI endpoints.
         const auto old_config = config_;
-        const auto old_rate = options_.rate, old_block = options_.block;
+        const auto old_rate = options_.rate, old_block = options_.block, old_requested = requested_block_;
         const auto old_preferences = preferences_;
         // The stream change destroys/replaces the engine; suspend ingress first.
         osc_->stop();
@@ -838,6 +877,7 @@ Json Session::apply(const Json &command) {
             config_ = next_config;
             options_.rate = next_rate;
             options_.block = next_block;
+            requested_block_ = 0;
             start_audio();
             need(!options_.audio || (stream_ && stream_->running()), "unavailable",
                  "Audio device refused the new stream");
@@ -858,6 +898,7 @@ Json Session::apply(const Json &command) {
             config_ = old_config;
             options_.rate = old_rate;
             options_.block = old_block;
+            requested_block_ = old_requested;
             preferences_ = old_preferences;
             app_engine_prepare_master_fade_in(active_);
             start_audio();
@@ -1117,6 +1158,8 @@ Json Session::audio_status() const {
                    {"dropouts", dropouts_.load() + (stream_ ? stream_->dropouts() : 0)}};
     if (!audio_reason_.empty()) result["reason"] = audio_reason_;
     if (!audio_error_.empty()) result["error"] = audio_error_;
+    // The ASIO driver forced bufferFrames; the user's saved size is unchanged.
+    if (requested_block_ && requested_block_ != options_.block) result["requestedBufferFrames"] = requested_block_;
     if (!unavailable_audio_drivers_.empty()) result["unavailableDrivers"] = unavailable_audio_drivers_;
     return result;
 }

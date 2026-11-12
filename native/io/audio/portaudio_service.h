@@ -20,15 +20,16 @@ class RateUnsupported : public std::runtime_error {
   public:
     RateUnsupported() : std::runtime_error("rate-unsupported") {}
 };
-// Returned only after a failed ASIO open. The control owner must reprepare
-// its graph and callback scratch before the one permitted preferred-size retry.
+// Thrown only after a failed first ASIO open, with the driver's preferred size
+// (raw, unvalidated). The control owner range-checks it, reprepares its graph and
+// callback scratch at that size, and retries once with allow_preferred_retry=false.
 class PreferredBufferSize : public std::runtime_error {
-    uint32_t frames_;
+    int64_t frames_;
 
   public:
-    explicit PreferredBufferSize(uint32_t frames)
-        : std::runtime_error("ASIO preferred buffer size needs graph reprepare"), frames_(frames) {}
-    uint32_t frames() const noexcept { return frames_; }
+    explicit PreferredBufferSize(int64_t frames)
+        : std::runtime_error("ASIO driver refused the requested buffer size"), frames_(frames) {}
+    int64_t frames() const noexcept { return frames_; }
 };
 struct Device {
     std::string id, name, host_api;

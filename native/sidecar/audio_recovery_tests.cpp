@@ -14,6 +14,11 @@ std::string refuse_id; // fake a single device-specific PortAudio open failure
 std::vector<std::string> installed_asio;
 bool active = true, refuse = false, enumeration_throws = false, render = false;
 uint32_t rejected_rate = 0;
+// Fake ASIO buffer negotiation: when accept_block is set, any other block fails to
+// open; a first attempt then reports `preferred` (0 = driver offers no size).
+uint32_t accept_block = 0;
+int64_t preferred = 0;
+std::vector<uint32_t> blocks;
 std::string rate_refused_id;
 int stopped = 0, exchanges = 0;
 std::vector<wirescape::audio::DeviceQuery> queries;
@@ -38,11 +43,18 @@ struct Stream::Impl {
     EngineSlot slot;
     std::atomic<bool> quit{false};
     std::thread callback;
+    uint32_t frames = 0;
 };
 Stream::Stream(EngineOwner &owner, const StreamSelection &selection, double rate, uint32_t block,
-               std::function<void()> producers)
+               std::function<void()> producers, bool allow_preferred_retry)
     : impl_(std::make_unique<Impl>()) {
     fake::attempts.push_back(selection.name);
+    fake::blocks.push_back(block);
+    if (fake::accept_block && block != fake::accept_block) {
+        if (allow_preferred_retry && fake::preferred) throw PreferredBufferSize(fake::preferred);
+        throw std::runtime_error("fake ASIO buffer refused");
+    }
+    impl_->frames = block;
     if (resolve_device(fake::outputs, selection.name) < 0 || fake::refuse || selection.name == fake::refuse_id)
         throw std::runtime_error("fake unavailable/ambiguous output");
     if (uint32_t(rate) == fake::rejected_rate || selection.name == fake::rate_refused_id) throw RateUnsupported();
@@ -83,6 +95,7 @@ bool Stream::exchange(EngineOwner &next, std::chrono::steady_clock::time_point d
 bool Stream::running() const { return bool(impl_->engine) && fake::active; }
 double Stream::cpu_percent() const { return 0; }
 uint64_t Stream::dropouts() const { return 0; }
+uint32_t Stream::buffer_frames() const noexcept { return impl_->frames; }
 } // namespace wirescape::audio
 using namespace wirescape::sidecar;
 using namespace std::chrono_literals;
@@ -531,6 +544,59 @@ int main() {
                   "successful ASIO recovery clears the preceding failure text");
         }
         fake::installed_asio.clear();
+        // Keel #627 ruling: an ASIO driver that refuses the block gets exactly one
+        // retry at its preferred size 1..4096 after a quiescent graph reprepare.
+        fake::refuse = false;
+        fake::outputs = {{"ASIO|ASIO4ALL v2", "ASIO4ALL v2", "ASIO", 3, true}};
+        const auto saved_block = options.block;
+        options.block = 256;
+        fake::accept_block = 512;
+        fake::preferred = 512;
+        options.settings = (root / "asio-forced.json").string();
+        {
+            fake::blocks.clear();
+            Session s(options);
+            s.start(base);
+            const auto status = audio(s);
+            check(fake::blocks == std::vector<uint32_t>{256, 512} && status["state"] == "running" &&
+                      status["bufferFrames"] == 512 && status["requestedBufferFrames"] == 256 &&
+                      !status.contains("error"),
+                  "preferred size in range: one retry at the driver size, actual size reported");
+            std::ifstream saved(options.settings);
+            const auto prefs = Json::parse(saved);
+            check(!prefs.contains("audio") || prefs["audio"].value("bufferFrames", 0) != 512,
+                  "the driver-forced size is never persisted");
+            s.poll(base + 100ms);
+            check(fake::blocks.size() == 2, "a running forced stream is not reopened");
+        }
+        fake::preferred = 8192;
+        options.settings = (root / "asio-out-of-range.json").string();
+        {
+            fake::blocks.clear();
+            Session s(options);
+            s.start(base);
+            const auto status = audio(s);
+            check(fake::blocks == std::vector<uint32_t>{256} && status["state"] == "reconnecting" &&
+                      status["error"] == "ASIO driver requires 8192 frames (supported 1-4096)" &&
+                      status["bufferFrames"] == 256 && !status.contains("requestedBufferFrames"),
+                  "preferred size out of range: no second open, bounded error, configured size kept");
+        }
+        fake::accept_block = 1024; // neither the request nor the preferred size opens
+        fake::preferred = 512;
+        options.settings = (root / "asio-retry-fails.json").string();
+        {
+            fake::blocks.clear();
+            Session s(options);
+            s.start(base);
+            const auto status = audio(s);
+            check(fake::blocks == std::vector<uint32_t>{256, 512} && status["state"] == "reconnecting" &&
+                      status["error"] == "fake ASIO buffer refused" && status["bufferFrames"] == 256 &&
+                      !status.contains("requestedBufferFrames"),
+                  "failed retry: exactly one retry, error set, no loop and configured size kept");
+        }
+        fake::accept_block = 0;
+        fake::preferred = 0;
+        options.block = saved_block;
         std::cout << "audio recovery fake-backend tests passed\n";
     } catch (const std::exception &e) {
         std::cerr << e.what() << '\n';
