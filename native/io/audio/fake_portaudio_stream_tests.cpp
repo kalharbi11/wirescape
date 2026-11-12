@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Device-off PortAudio stand-in loaded by the production audio::Stream code.
 // Never enumerates or opens OS audio devices.
-#include "../third_party/portaudio/portaudio.h"
+#include "../../third_party/portaudio/portaudio.h"
 #include <atomic>
 #include <chrono>
 #include <thread>
