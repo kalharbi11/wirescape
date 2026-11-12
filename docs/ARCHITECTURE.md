@@ -9,11 +9,11 @@ have separate acceptance and hardware-evidence boundaries.
 ## Product boundaries
 
 The current desktop application uses the Electron shell, Studio renderer and
-Qt-free C++17 `wirescape-engine` sidecar. The earlier Qt Quick/ABI1 application
-remains in-tree during staged retirement, but is not the Electron renderer.
+Qt-free C++17 `wirescape-engine` sidecar. The former Qt Quick application is retired; the ABI1 engine remains separately
+until R6 and is not the Electron renderer.
 Python build tools and device APIs stay outside DSP processing.
-The original Python/browser prototype lives in `legacy/` as reference only, is not built or maintained,
-and has no bundled Surge binaries. It preserves earlier musical/design ideas, not the current runtime.
+Earlier Python/browser prototype sources remain available through the historical archive tag,
+not the supported runtime. No Surge binaries are bundled.
 
 ## Web UI
 
@@ -31,7 +31,7 @@ selects P1C's `RealEngine` when the native bridge is present and retains
 `FakeEngine` for browser tests. Native File-menu intents use that bridge without
 exposing file paths to the renderer.
 A protocol stub with null audio/fake MIDI is used by desktop Playwright tests.
-The Qt UI remains buildable as a migration baseline.
+The retired Qt UI is not part of the supported build.
 
 ### Merged feature integrations (2026-11-10)
 
@@ -72,7 +72,7 @@ chokes precede reconnect callbacks. Sidecar device pushes reflect worker snapsho
 while enabled selections remain remembered. Fake hot-plug tests cover these paths
 without opening hardware; no audio-thread polling or new protocol command is used.
 
-## Legacy Qt application: ABI1 (retained during retirement)
+## ABI1 engine (retained until R6)
 
 - `native/include/wirescape/module.h`: experimental C module boundary; immutable descriptors,
   mono float AUDIO/CONTROL ports, numeric parameter IDs, lifecycle/event/process callbacks.
@@ -152,10 +152,9 @@ Synthetic legacy fixtures are public test inputs, not personal patches.
 benchmarks and local package checks. `tools/foundation/` supplies reporting/tests;
 `tools/experiments/reference_kernels.py` is required by a helper test.
 `tools/bench/abi2_foundation.py` collects ABI2 CTest/Debug CRT, hashes and WAV statistics.
-Legacy-only tooling moved to `legacy/tools/`.
+Retired prototype tooling remains in the historical archive, not the active build.
 
 ```powershell
-$env:WIRESCAPE_QT_DIR = '<external-Qt-SDK-prefix>'
 $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
 python tools/dev.py doctor
 python tools/dev.py build
@@ -164,8 +163,6 @@ python tools/dev.py check --package
 python tools/dev.py launch
 ```
 
-Qt discovery: explicit --qt-prefix, otherwise WIRESCAPE_QT_DIR, CMAKE_PREFIX_PATH,
-then `.tools/qt/6.10.3/msvc2022_64`. No SDK or compiler is checked into this repo.
 PortAudio is dynamically loaded via WIRESCAPE_PORTAUDIO or a library beside the executable.
 Packaging accepts --portaudio, WIRESCAPE_PORTAUDIO or `.tools/portaudio/libportaudio64bit.dll`.
 CI must acquire/build the backend separately and pin its dependency version.
@@ -180,7 +177,7 @@ Manual real-device probes require explicit confirmation/authorization and are ne
 ## CI
 
 `linux-arm64` runs the headless native/ABI2 suites and ABI2 benchmark on PR updates and pushes to `main`.
-`windows-x64` runs MSVC/Qt 6.10.3 build, native tests and offscreen UI checks on main,
+`windows-x64` runs MSVC native and Qt-free app tests on main,
 manual runs and every PR run, including drafts; the `ci/windows` opt-in label is no longer needed.
 `guard` runs as a dedicated `pull_request_target` workflow and evaluates PR changes with the base branch's `tools/ci/guard.py`, reading the PR's labels live so re-runs see current labels.
 PortAudio v19.7.0 is built at `147dd722548358763a8b649b3e4b41dfffbcfbb6`
