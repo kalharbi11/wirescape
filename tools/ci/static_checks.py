@@ -27,12 +27,17 @@ def changed_ranges(diff):
 
 
 def cppcheck_model(root, source, dependencies):
-    """Choose a model from the actual compiled TU and its *transitive* headers.
+    """Choose a model from the compiled TU and its *transitive* headers.
 
-    A product header wins even when a Qt-facing document/web translation unit
-    also reaches Qt headers. Unknown/unmapped owners default to native; Qt is
-    selected only with compiler-recorded evidence of a Qt dependency.
+    Qt UI/moc sources require the Qt model even when they include product
+    headers. For other TUs, product headers win over Qt dependencies.
+    Unknown/unmapped owners default to native.
     """
+    relative = source.relative_to(root) if source.is_relative_to(root) else None
+    if source.is_relative_to(root / "native/ui") or (
+            relative is not None and relative.parts[0].startswith("build")
+            and any(part.endswith("_autogen") for part in relative.parts[:-1])):
+        return "qt"
     paths = {source, *dependencies}
     product = ("native/modules2", "native/engine2", "native/sidecar")
     if any(path.is_relative_to(root / directory)

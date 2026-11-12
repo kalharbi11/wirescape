@@ -415,7 +415,7 @@ MIDI, OSC, UDP and Monitor implementation (Track C), sequencers, subpatch UI, th
 | Licence split (D14) | Approved: `module2.h`, SDK and adapters MIT; app and Essentials GPL-3.0 | Module authors choose their own licence | 2026-10-26 |
 | Max channels default (D2) | 16 desktop | VCV-compatible mental model | 2026-10-26 |
 | Network bind default (Track C) | Approved: localhost by default, explicit "All interfaces (LAN)" toggle per module | Safe default; one firewall prompt when enabled | 2026-10-26 |
-| First implementation step | `docs/tasks/M1-1_FOUNDATION_SLICE.md` comes first, then **stop for an external review** before B2–B6 port anything else | Review the base before it spreads | 2026-10-26 |
+| First implementation step | `docs/tasks/done/M1-1_FOUNDATION_SLICE.md` comes first, then **stop for an external review** before B2–B6 port anything else | Review the base before it spreads | 2026-10-26 |
 | M1-R 1: release emergency | Keep finite release reserve and counted fan-out; global reset/choke, with Activity counters in M4 | Bounded safety; add source-scoped emergency only after measurement | 2026-10-27 |
 | M1-R 2: timestamps | Prepared max_block lookahead and bounded ±1000 ppm EWMA; no sample-accurate claim before real MIDI measurements | Fake anchors prove scheduling, not device timing | 2026-10-27 |
 | M1-R 3: PER_VOICE | Global parameters stay mono, poly modulation uses channel 0; adapters resolve note_id to channel | Avoid splitting global controls per voice | 2026-10-27 |

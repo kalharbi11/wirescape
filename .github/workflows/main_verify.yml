@@ -17,28 +17,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Dispatch only workflows with no run at the current main commit
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Dispatch only workflows missing verified runs for current main commit
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-          sha="$(gh api "repos/$GH_REPO/commits/main" --jq '.sha')"
-          test -n "$sha"
+          sha="$(git rev-parse HEAD)"
+          current="$(gh api "repos/$GH_REPO/commits/main" --jq '.sha')"
+          if [ "$current" != "$sha" ]; then echo "main advanced; retry next schedule"; exit 0; fi
+          changed="$(git diff --name-only "$sha^" "$sha")"
           for workflow in ci.yml web.yml web-demo.yml; do
-            # Any event/status counts. A failed or queued run also prevents repeat dispatch.
-            existing="$(gh run list -R "$GH_REPO" --workflow "$workflow" --commit "$sha" --limit 1 --json databaseId --jq 'length')"
-            if [ "$existing" != 0 ]; then
-              echo "$workflow: already checked $sha; no dispatch"
+            if [ "$workflow" != ci.yml ]; then
+              matched="$(WORKFLOW="$workflow" CHANGED="$changed" python3 -c 'import fnmatch,os,yaml; w=yaml.safe_load(open(".github/workflows/"+os.environ["WORKFLOW"])); paths=w.get("on",w.get(True,{}))["push"]["paths"]; print("yes" if any(fnmatch.fnmatchcase(f,p) for f in os.environ["CHANGED"].splitlines() for p in paths) else "no")')"
+              if [ "$matched" != yes ]; then echo "$workflow: no push path matched"; continue; fi
+            fi
+            runs="$(gh run list -R "$GH_REPO" --workflow "$workflow" --commit "$sha" --limit 2 --json conclusion,databaseId --jq '[.[] | (.conclusion // "pending")] | join(",")')"
+            if [ -n "$runs" ] && [ "$runs" != cancelled ]; then
+              echo "$workflow: has a non-cancelled run or its one retry; no dispatch"
               continue
             fi
-            # Avoid dispatching against a different HEAD if main advances mid-check.
             current="$(gh api "repos/$GH_REPO/commits/main" --jq '.sha')"
-            if [ "$current" != "$sha" ]; then
-              echo "main advanced; next scheduled run will evaluate $current"
-              exit 0
-            fi
+            if [ "$current" != "$sha" ]; then echo "main advanced; retry next schedule"; exit 0; fi
             gh workflow run "$workflow" --repo "$GH_REPO" --ref main
-            echo "$workflow: requested verification at $sha"
           done
