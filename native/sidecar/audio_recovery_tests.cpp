@@ -11,6 +11,7 @@ namespace fake {
 std::vector<wirescape::audio::Device> outputs;
 std::vector<std::string> attempts;
 std::string refuse_id; // fake a single device-specific PortAudio open failure
+std::string open_error; // injected malformed/multibyte host diagnostic
 std::vector<std::string> installed_asio;
 bool active = true, refuse = false, enumeration_throws = false, render = false;
 uint32_t rejected_rate = 0;
@@ -56,7 +57,7 @@ Stream::Stream(EngineOwner &owner, const StreamSelection &selection, double rate
     }
     impl_->frames = block;
     if (resolve_device(fake::outputs, selection.name) < 0 || fake::refuse || selection.name == fake::refuse_id)
-        throw std::runtime_error("fake unavailable/ambiguous output");
+        throw std::runtime_error(fake::open_error.empty() ? "fake unavailable/ambiguous output" : fake::open_error);
     if (uint32_t(rate) == fake::rejected_rate || selection.name == fake::rate_refused_id) throw RateUnsupported();
     impl_->engine = std::move(owner);
     impl_->producers = std::move(producers);
@@ -350,6 +351,21 @@ int main() {
                       fake::attempts.size() == before_open_error + 2 && audio(s)["deviceId"] == "USB Stereo" &&
                       audio(s)["state"] == "running" && !audio(s).contains("error"),
                   "failed target open preserves its error and restores the previous playing output");
+            // Both a split UTF-8 cap and arbitrary host-codepage bytes must
+            // serialize in strict JSON on refusal; rollback keeps audio running.
+            for (const auto &diagnostic :
+                 {std::string(199, 'x') + "\xc3\xa9", std::string("bad ") + "\xff\xc0\xaf" + " device"}) {
+                fake::refuse_id = "Rate DAC";
+                fake::open_error = diagnostic;
+                auto error = call("utf8-open-error", "selectAudioDevice", {{"deviceId", "Rate DAC"}});
+                const auto message = error["message"].get<std::string>();
+                check(error["code"] == "unavailable" && message.size() <= 200 && !message.empty() &&
+                          audio(s)["deviceId"] == "USB Stereo" && error.dump().find("unavailable") != std::string::npos,
+                      "failed ASIO open returns valid, bounded UTF-8 and preserves old playing stream");
+                check(Json::parse(error.dump())["message"] == message,
+                      "host errors must survive strict protocol JSON serialization");
+            }
+            fake::open_error.clear();
             fake::refuse_id.clear();
             fake::active = false;
             const auto lost = std::chrono::steady_clock::now() + 20s;
