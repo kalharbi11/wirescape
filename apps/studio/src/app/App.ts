@@ -197,6 +197,7 @@ export class App {
       },
       groove: {
         config: id => this.doc.modules.get(id)?.config,
+        clockPatched: id => this.doc.connections.some(c => c.to.module === id && c.to.port === 'clock'),
         setConfig: (id, cfg: GrooveConfig) => { if (!this.documentBusy) this.doc.setModuleConfig(id, cfg); },
         canApply: id => !this.draftVisible && !this.documentBusy && this.engine.canApplyGroove(id),
         isDraft: id => this.grooves.isDraft(id),
