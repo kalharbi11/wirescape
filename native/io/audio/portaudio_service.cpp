@@ -118,8 +118,7 @@ struct Backend {
              message += host->errorText;
          }
      }
-     if (message.size() > 200) message.resize(200);
-     throw std::runtime_error(message);
+     throw std::runtime_error(bounded_audio_error(message));
  }
 };
 struct Context {
