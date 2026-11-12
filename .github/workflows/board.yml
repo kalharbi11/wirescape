@@ -4,7 +4,9 @@
 name: Board
 on:
   issues:
-    types: [opened, closed, reopened, labeled, unlabeled]
+    # edited: Current state blocks and lead notes change by body edits. Board's own GITHUB_TOKEN
+    # edit of #473 starts no workflow, so this cannot loop.
+    types: [opened, edited, closed, reopened, labeled, unlabeled]
   pull_request_target:
     types: [opened, closed, reopened, synchronize, ready_for_review, converted_to_draft]
   issue_comment:
