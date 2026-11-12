@@ -3,6 +3,7 @@
 
 Only tasks for **open** issues live here; the board is issue #473. When an issue closes, its file moves to `done/` (`tools/dev.py accept` searches both). Keep each file ≤ ~3 KB and end it with an `acceptance` block.
 
+- [PRIORITY_CLOSEOUT_STATE.md](PRIORITY_CLOSEOUT_STATE.md) — #682 — Senior priority closeout and exact-head handoffs
 - [ASIO_NATIVE_610.md](ASIO_NATIVE_610.md) — #627 — Native ASIO diagnostics and safe preferred-buffer retry
 - [GROOVE_CLOCK_SYNC_INPUTS.md](GROOVE_CLOCK_SYNC_INPUTS.md) — Groove: external clock, run and reset inputs (#614, from #597 item 11)
 - [J5_OSC_MONITOR.md](J5_OSC_MONITOR.md) — J5: OSC In over UDP and Monitor log (#72, PR #82, stacked on J4 #81)
