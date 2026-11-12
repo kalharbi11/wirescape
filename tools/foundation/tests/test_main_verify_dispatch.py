@@ -31,7 +31,7 @@ case "$1 $2" in
     'workflow run') printf '%s\\n' "$3" >> "$STUB_LOG" ;;
     *) exit 1 ;;
 esac
-""")
+""", newline='\n')
             gh.chmod(0o755)
             log = Path(tmp) / 'dispatches'
             env = {**os.environ, 'STUB_LOG': log.as_posix(), 'GH_REPO': 'example/repo'}
