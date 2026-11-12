@@ -427,5 +427,17 @@ test('atomic rename failure preserves disk contents and the Studio dirty marker 
     await page.getByTestId('save-patch').click();
     await expect(page.getByTestId('dirty-dot')).not.toHaveClass(/on/);
     expect(fs.readFileSync(filename, 'utf8')).not.toBe(before);
-  } finally { await app.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    try {
+      await app.evaluate(() => {
+        if (globalThis.__wsOriginalRename) {
+          process.getBuiltinModule('node:fs').promises.rename = globalThis.__wsOriginalRename;
+          delete globalThis.__wsOriginalRename;
+        }
+      });
+    } finally {
+      await app.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });
