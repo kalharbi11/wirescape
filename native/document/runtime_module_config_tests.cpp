@@ -48,16 +48,21 @@ static void osc_future_keys() {
     CHECK(ignored == std::vector<std::string>({"osc.in#17.futureOption", "osc.in#17.rows[0].futureField"}));
     CHECK(future["futureOption"].is_object() && future["rows"][0]["futureField"].is_array());
 
-    for (const auto &bad : {
-             Json::parse(R"({"port":"9011","futureOption":true})"),
-             Json::parse(R"({"rows":[{"pattern":42,"futureField":true}]})"),
-             Json::parse(R"({"rows":[{"argument":32,"futureField":true}]})"),
-             Json::parse(R"({"rows":[{"kind":"other"}]})"),
-             Json::parse(R"({"rows":{}})")}) {
+    const char *invalid[] = {
+        R"({"port":"9011","futureOption":true})",
+        R"({"rows":[{"pattern":42,"futureField":true}]})",
+        R"({"rows":[{"argument":32,"futureField":true}]})",
+        R"({"rows":[{"kind":"other"}]})",
+        R"({"rows":{}})",
+    };
+    for (const char *bad : invalid) {
         bool rejected = false;
-        try { (void)runtime_module_config("osc.in", bad); }
-        catch (const std::exception &) { rejected = true; }
-        CHECK(rejected); // Known names still reject bad values/types.
+        try {
+            (void)runtime_module_config("osc.in", Json::parse(bad));
+        } catch (const std::exception &) {
+            rejected = true;
+        }
+        CHECK(rejected); // Known keys still reject invalid values/types.
     }
 
     auto many = known;
