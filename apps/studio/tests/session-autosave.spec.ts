@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { test, expect, type Page } from '@playwright/test';
 import { STARTERS, DEFAULT_STARTER } from '../src/app/starters';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { boot, state } from './helpers';
 
 const KEY = 'wirescape.autosave.v2';
@@ -134,4 +136,27 @@ test('quota-exceeded writes cannot block patch selection or editing', async ({ p
   await page.evaluate(() => window.__wirescapeTest.doc.addModule('essentials.noise', {}, 30, 40));
   await expect(page.getByTestId('dirty-dot')).toHaveClass(/on/);
   expect((await state(page)).modules).toHaveLength(1);
+});
+
+test('real Studio codec migrates v1 Six Essentials and preserves every field on v2 reload', async ({ page }) => {
+  await boot(page);
+  const source = JSON.parse(readFileSync(resolve(__dirname, '../../../native/examples/Six_Essentials_Demo.json'), 'utf8'));
+  const migrated = await page.evaluate(patch => {
+    const doc = window.__wirescapeTest.doc;
+    doc.replace(patch);
+    return doc.toJSON();
+  }, source);
+  expect(migrated.version).toBe(2);
+  expect(migrated.preserved).toEqual(source);
+  expect(migrated.modules).toHaveLength(source.modules.length);
+  expect(migrated.outputs).toEqual([
+    { module: source.outputNode, port: 'audio', bus_channel: 0 },
+    { module: source.outputNode, port: 'audio', bus_channel: 1 },
+  ]);
+  const reloaded = await page.evaluate(text => {
+    const doc = window.__wirescapeTest.doc;
+    doc.replace(JSON.parse(text));
+    return doc.toJSON();
+  }, JSON.stringify(migrated));
+  expect(reloaded).toEqual(migrated);
 });
