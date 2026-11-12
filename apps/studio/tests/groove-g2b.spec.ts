@@ -153,7 +153,7 @@ test('Roll note buttons and value sliders are keyboard-accessible', async ({ pag
   await expect(page.getByTestId('groove-roll-1-3-60')).toBeFocused();
 });
 
-test('Graphite is default, looks do not rewrite config, phone pads wrap into two rows', async ({ page }) => {
+test('Graphite is default; phone keeps the horizontal Groove card and patchable outputs', async ({ page }) => {
   expect(await pane(page).getAttribute('data-look')).toBe('graphite');
   const before = JSON.stringify(await state(page));
   await page.getByTestId('groove-look-1').selectOption('oxblood');
@@ -163,23 +163,34 @@ test('Graphite is default, looks do not rewrite config, phone pads wrap into two
   expect(JSON.stringify(await state(page))).toBe(before);
   await page.setViewportSize({ width: 390, height: 844 });
   await settle(page);
+  // Owner ruling: phones pan/zoom the original Windows-sized sequencer.
+  const dimensions = await page.evaluate(() => {
+    const card = document.querySelector<HTMLElement>('[data-testid="module-1"]')!;
+    const canvas = window.__wirescapeTest.canvas;
+    const actual = canvas.cardFor(1);
+    return { width: card.offsetWidth, stored: actual?.width, right: actual?.anchor('output', 't1_pitch')?.x };
+  });
+  expect(dimensions).toEqual({ width: 1250, stored: 1250, right: 1250 });
+  for (const id of ['t1_pitch', 't1_gate', 't1_notes']) {
+    await expect(page.getByTestId(`port-1-output-${id}`)).toHaveCSS('display', 'flex');
+  }
   const groups = await pane(page).locator('.g-pgrp').evaluateAll(els => els.slice(0, 4).map(el => {
     const r = el.getBoundingClientRect();
-    return { x: r.x, y: r.y, width: r.width };
+    return { x: r.x, y: r.y };
   }));
   expect(groups).toHaveLength(4);
-  expect(groups[0]!.y).toBe(groups[1]!.y);
-  expect(groups[2]!.y).toBeGreaterThan(groups[0]!.y);
-  const width = await pane(page).evaluate(el => el.getBoundingClientRect().width);
-  expect(width).toBeLessThanOrEqual(366);
-  const cardWidth = await page.getByTestId('module-1').evaluate(el => el.getBoundingClientRect().width);
-  expect(cardWidth).toBeLessThanOrEqual(374); // the outer card, not just its Groove child
-  await expect(page.getByTestId('module-1').locator('.port').first()).toBeHidden();
+  for (const group of groups.slice(1)) expect(Math.abs(group.y - groups[0]!.y)).toBeLessThan(1);
+  await page.evaluate(() => window.__wirescapeTest.fit());
+  await settle(page);
   await page.getByTestId('groove-view-roll-1').click();
   const roll = page.getByTestId('groove-roll-1');
   await expect(roll).toBeVisible();
+  // The Roll stays rendered at desktop width; it can scroll for long patterns,
+  // but forcing it into a phone-wide inner scroller is no longer required.
+  await expect(roll.locator('.g-roll-cell').first()).toBeVisible();
   const sizes = await roll.evaluate(el => ({ client: el.clientWidth, scroll: el.scrollWidth }));
-  expect(sizes.scroll).toBeGreaterThan(sizes.client);
+  expect(sizes.client).toBeGreaterThan(0);
+  expect(sizes.scroll).toBeGreaterThanOrEqual(sizes.client);
 });
 
 test('scale helper is saved in ui.groove, survives reload and undo, and stays out of the engine config', async ({ page }) => {

@@ -1,73 +1,60 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-11, Compass (post-v1.0 test). Earlier Keel rulings below still hold. Owner failures preempt features.
-Live heads and completed evidence govern; queued, stale and missing results never pass.
+**Updated:** 2026-11-12, Codex Lead; names/board by Keel. Owner failures preempt features.
+Board #473 BODY is the live list; agent/<name> owns an item; names gpt-builder1 etc. (AGENTS.md v4.1).
+Completed source-head evidence governs; running, missing and stale results never pass.
+## Priority and authority
+- PLAN Now: owner failures → 1.0 quick fixes/release → OSC and Quad → 1.1 queue.
+- 1.0 still needs #599/#607 and owner MIDI/release evidence; #593 owns the tag.
+- Seniors may approve T0/T1; opposite-family T2 review remains mandatory.
+- Keel retains ABI/SDK/spec/CI-policy approval; no protected approval inferred.
+- No new feature starts while the implementation queue exceeds PLAN D18's limit.
 
-## 2026-11-11 Compass (owner low on lead usage: builders work from task files; leads only on Stops)
-- 1.0 = main + #598 (approved, green pending) + #599, then the owner's MIDI test, then #593 tag. #579 approved and merged.
-- New: Quad VCA/LPG #490 → Q1 #601 (native), Q2 #602 (Studio + patches), task `docs/tasks/QUAD_VCA_LPG_490.md`.
-- OSC is owner-critical. Keel ruled on both (2026-11-11): C1 #603 drops "Clear" for "Reset to Pico defaults", and unknown `config` keys get a warning;
-  C2 #604 captures the monitor log at control-thread ingress, direct routes only (task `OSC_MONITOR_LOG_C2_604.md`). D #612 is the per-row enable (T2, after C1). Then #94.
-- Coda 2026-11-11: claimable list on #473 (SEND THESE). #588 is waiting only on Keel's CI-policy approval (#587 timing → follow-up). Groove clock/sync (#597 item 11) still needs Compass scope.
-- Cleanup order lives in `docs/planner/CLEANUP.md` "Status and order"; #571 is folded into R3b; Qt T2 goes to Coda as one batch.
-- #589 is superseded by this refresh (closed). The 1.1 queue is in PLAN "Now".
+## Immediate CI recovery and lead decisions
+- #635/#638 at e0db32d: runtime-only FFmpeg provisioning, 1200s command/30min job,
+  bounded apt retries. Keel cross-family approval posted; final CI running.
+- After #638 merges, builders merge main normally to use its workflow; plain
+  reruns retain the old merge ref. Never weaken assertions or skip tests.
+- #596/#617 at a62faf4: blanket docs/ exemption removed after Codex/Coda Medium.
+  New rule: Markdown only; fixture-only NEVER-MERGE probe #642 at7972be2 running.
+  After #638/main integration and probe evidence, Codex delta review/Keel approval.
+- #637/#639 at33ea36c: hosted-Windows wake-only single retry, strict limits,
+  negative subprocess cases; Coda T2 requested. CI running, no pass claimed.
+- #605/#608 at c80c7ea: Windows red on pinned Ninja vendor suffix
+  1.13.0.git.kitware.jobserver-pipe-1. Keel ruling pending; broad ranges excluded.
+- #601/#611 atc58e5cc: fresh Q1 CI running. Four-channel/eight-voice cost probe
+  and catalogue repairs required; explicit size disposition remains with leads.
+  Keel accepts ordinary module CI CTests without extra Pi evidence. Q2 #602 waits.
 
-## Authority and queue
-- Board #473 and newest SEND THESE comment are the live claim source; retain fresh claims.
-- Owner/Keel ASAP lanes: Chord, MIDI Learn, OSC and Groove. Other new features wait.
-- Codex Lead/Coda share senior routing; T2 requires the other model family.
-  Keel-only ABI/SDK/spec/CI-policy authority remains unchanged.
-- Chord #403/#511 and Notes→CV #421/#512 may merge independently; preserve registrations.
-  Explicit note identity reuse is last-wins; anonymous Notes→CV releases are FIFO.
-- #517 reconciles Notes→CV to FIFO and <=18 files/900 lines, retaining tests.
-- #511 at1c96ceb: task/Linux/sanitizers pass; inherited Groove emit-guard Static failure
-  and Windows seed-278 wake overrun remain. #552/#553 supplies strict guard repair.
-  Integrate after merge; Keel classifies scheduling recurrence under #513, no weaker limit.
-- #512 at7f16d17: reported exact hosted green, but branch conflicts. Existing writer
-  integrates main; independent changed-head T1 and actual Pi module CTest/ruling remain.
-- Native Groove #526/#528 atcdc474f: non-draft and mergeable, Claude T2 COMMENT and
-  actual Pi Groove CTests present. Exact-head workflow lookup empty: verify hosted gates.
-- Groove UI #527/#534 at3ca6113: draft/conflicted on merged #516 parent.
-  Claude retains claude/adoring-shannon-viv6lm; normally integrate/retarget to main.
-  Fix untouched-config tests, existing-key double-click deletion and held-chord cleanup
-  on blur/hidden/focusout with regression. Preserve native #528 dependency.
-  Scale stays in ui.groove[id]; native keys root-first, div1/2/4/8, cycle512.
-- OSC #72: A/#518 merged. B/#529 already claimed on task/529-osc-host; resume host
-  lifecycle/consent outside specs. Keel must authorize ENGINE_PROTOCOL.md on #529.
-  C follows B; cross-family T2. #94 follows complete J5 per its task, not A alone.
-- #551 Chromium acceptance fix: narrow T0 source reviewed; conflicting, missing
-  Windows/Web evidence. Existing writer integrates main and reruns full acceptance.
-- #553 atef3294b: strict emit guard source reviewed, no findings; required/Static
-  checks incomplete at review, Windows absent. No approval until final evidence.
+## Existing builder continuations
+- OSC C1 #603/#618 at1517639: Coda T1 approval exists, but conflicts and accept603
+  600s timeout remain. Log confirms repeated native build, before Playwright.
+  Integrate #638/main, resolve conflicts, full acceptance and changed-head review.
+- OSC C2 #604/#620 ate40aaf2: BLOCKED on Coda High: raw or split UTF8 OSC
+  address can throw at telemetry JSON dump. Printable ASCII capture + loopback
+  regressions required; then main integration, Coda T2 and Keel spec approval.
+- OSC row enable #612 follows actual C1 merge; #94 follows full J5 per task.
+- Groove #614/#619 at499afc0: integrate main/task, format DSP/observation files,
+  prove frozen unpatched events and exact note-offs at two external intervals.
+- Groove browser #625/#626 at7d83dce: Web demo engine/site SUCCESS, 22 tests,
+  including audible patch/mobile offscreen cable drag. Acceptance/sanitizers/
+  Static still incomplete; integrate #638 and obtain independent final T1.
+- Studio #599/#607: existing writer fixes review findings and integrates #638;
+  full acceptance and source-matched required/Web evidence remain mandatory.
+- ASIO #627/#631 atc2c36dc: Keel buffer ruling already issued: p=1..4096,
+  quiescent prepare, one retry, actual-size status, no callback resize/persistence.
+  Integrate merged #630/main, preserve attempted error through rollback refusal;
+  fake regressions, Coda T2 and Keel protected-spec final approval remain.
 
-## 2026-11-11 Keel (owner: finish MIDI/OSC/Groove/CHAOS + existing-module fixes, then move on)
-- Merged since: Chord #511, Groove native #528 + UI #534 (closes #514/#523/#526/#527), Windows wake #572,
-  patch offline smoke #568, Qt probe retirement #567.
-- #554/#565 CHAOS performer strip dropped (not planned); branch kept as archive, tag pending (Codex Lead).
-- Rulings: #528 G1 IDs byte-identical, chord IDs untagged but unique; #529 ENGINE_PROTOCOL authorized
-  (hello `osc`, `status.osc`, `--confirm-lan`); #337 nominal-pitch readout; #564 docs-only evidence transfer.
-- #569 CI speed: PR-only cancel for sanitizers/acceptance + ccache sanitizers (Codex T2).
-- Qt tests left are R3 only; Qt-only `allow-test-removal` pre-authorized once R2 replaces golden/app_patch coverage.
-
-## Completed baseline and owner evidence
-- Newly verified merged: #399 device routes, #500 MIDI Learn, #505 G1, #509 G2a,
-  #516 G2b, #518 OSC A, #520 scheduler, #533 CHAOS LFO and #546 curated layout.
-- Earlier merged: #486, #484, #461, #480, #494, #492, #453, #501, #504, #506–#508.
-- #453 pins AcceptedSha cd7999e4a02308df0db918cfbab6974b97b6782f under Keel's
-  docs-only transfer: private pi5/accept42720681421, preflight28/28 and app smoke pass.
-  #483 closed; later main is not certified by that evidence.
-- Owner next: PI_FRESH_INSTALL sections1–6 and #271 Pi portion. Windows first session
-  verified WASAPI headphones, keyboard and Launchkey at48k/256.
-- #271 hardware, #274 display/performance, #296 actual3600-second soak remain distinct.
-
-## Closeout and evidence limits
-- #482 R3a: frozen Qt/current renderer equality and independent review; no deletion
-  or hash rebaseline. R3b needs replacement map/scoped authority and archive/qt-final
-  annotated once on actual merge parent. #481 R4 follows full R3b; #470 R6 is Keel-led.
-- #543/#544/#547/#548/#549 retain existing writers; close acceptance/review gates.
-- Local checkout29611d2: acceptance-tool tests2/2, doc links2/2, all15 shared patches
-  structurally pass. Doctor stops: CMake absent; no native/newer-head acceptance claimed.
-- #519 carries this state refresh; normal main integration and exact-head checks remain.
-- Permanent: guard/Linux/Windows/sanitizers + task/Web/WASM/Pi as applicable.
-  No direct main commits, force pushes, devices/SSH or weakened assertions/thresholds.
+## Deferred work and evidence boundaries
+- #482 R3a / R3b / #481 R4 parked until owner #581 test per Keel; no feature gate.
+  Preserve frozen replacement evidence; R4 follows full R3b and archive/qt-final.
+- #487 retains D5 scope, separate from merged #572 wake scheduler; signed head
+  handoff requested. #560 CPU table blocked on dependency fetch; no invented data.
+- #91 needs Keel guard/baseline authority; #636/#640 post-merge verifier needs
+  #638 integration and Keel cross-family/protected review; no main proof yet.
+- #271 hardware, #274 physical display, #296 actual3600s soak remain distinct.
+  AcceptedSha cd7999e4a02308df0db918cfbab6974b97b6782f certifies only its evidence.
+- Dropped #554/#565 branch at73bfe95 is preserved; annotated archive tag pending.
+- Permanent: exact required/task/Web/Pi; no main push, force, devices/SSH or weak gates.

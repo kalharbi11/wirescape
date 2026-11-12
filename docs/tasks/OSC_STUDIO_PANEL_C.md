@@ -44,11 +44,13 @@ Read first: `apps/studio/AGENTS.md`, `native/modules2/osc_in/README.md`, `docs/s
 - Screenshots of the card and the dialog in the PR.
 - **Patch guide impact:** update the OSC section of `docs/PATCH_DESIGNER_GUIDE.md` (how to set an address and test with the Monitor).
 
+**Acceptance accounting (Keel 2026-11-11):** (task file exempt, Keel 2026-11-11). The 11th mechanically counted file is this task's own approved Playwright FFmpeg provisioning correction; the feature scope remains 10 files. See [Keel's PR ruling](https://github.com/kalharbi11/wirescape/pull/618#issuecomment-6797572963). No test or CI selection is changed.
+
 ```acceptance
 tier: T1
-size: <= 700 changed lines, <= 10 files
+size: <= 700 changed lines, <= 11 files
 must_pass:
-  - bash -lc 'cd apps/studio && npm ci && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [protocol/spec edit, engine or sidecar edit, enabling LAN without the existing consent, dropping unknown node/patch fields, native or config-schema change (per-row disable is #612, T2), new dependency]
 ```

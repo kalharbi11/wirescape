@@ -63,19 +63,22 @@ export interface SystemStatus {
   };
   /** Present only while a Clock module exists in the graph. */
   clock?: { bpm: number; running: boolean };
-  /**
-   * Optional (phase 5): OSC server status. An engine without OSC omits it and
-   * the UI hides the OSC settings. `recent` holds the last few messages in.
-   */
+  /** Optional OSC host routes. Real route counters come from the sidecar, not the UI. */
   osc?: OscStatus;
 }
 
 export interface OscStatus {
   enabled: boolean;
   port: number;
-  /** Off by default: listen on localhost only. On: accept from the network. */
-  allowNetwork: boolean;
-  recent: { time: number; address: string; args: (number | string)[] }[];
+  /** Actual bind address and LAN authorization, never inferred from saved config. */
+  bind?: string;
+  lan?: boolean;
+  last_error?: string;
+  routes?: { module: string; port: number; bind: string;
+    state: 'listening' | 'lan-not-confirmed' | 'port-busy' | 'disabled'; received: number; dropped: number }[];
+  /** Older fake OSC controls are unrelated to the per-module OSC host. */
+  allowNetwork?: boolean;
+  recent?: { time: number; address: string; args: (number | string)[] }[];
 }
 
 /** Live values, pushed ~30x a second. Each message is a complete snapshot. */
@@ -85,6 +88,14 @@ export interface GrooveTrackObservation {
   loop: number;
   playing: boolean;
   fired: boolean;
+}
+
+export interface MonitorEntry {
+  t: number;
+  kind: 'osc' | 'midi';
+  address?: string;
+  note?: number;
+  args: number[];
 }
 
 export interface Telemetry {
@@ -124,6 +135,10 @@ export interface Telemetry {
    * and the info-box sparklines. An engine that omits it still conforms.
    */
   outputs?: Record<string, number>;
+  /** Latest <=32 control-ingress entries per directly observed Monitor (oldest first). */
+  monitor?: Record<number, MonitorEntry[]>;
+  /** Renderer-only capability marker; not a wire protocol field. */
+  monitorAvailable?: boolean;
   /** MIDI note numbers currently held. */
   heldNotes: number[];
 }

@@ -40,7 +40,37 @@ static float loudest(int blocks) {
     return peak;
 }
 
+// Each CTest uses a fresh process: wsw_init deliberately keeps one engine per process.
+static int macro_rate(double rate) {
+    CHECK(wsw_init(rate) == 1);
+    Json patch = Json::parse(R"json({
+        "format": "wirescape.native.patch", "version": 2,
+        "settings": {"sample_rate": 48000},
+        "modules": [{"id": 1, "module": "essentials.output"}],
+        "connections": []})json");
+    CHECK(command({{"type", "loadGraph"}, {"patch", patch}})["ok"] == true);
+    patch["modules"].push_back({{"id", 2}, {"module", "ports.macro_oscillator"}});
+    const auto reply = command({{"type", "loadGraph"}, {"patch", patch}});
+    std::printf("macro rate=%.0f saved_rate=48000 reply=%s\n", rate, reply.dump().c_str());
+    if (rate == 48000) CHECK(reply["ok"] == true);
+    if (reply["ok"] == true) {
+        CHECK(reply["gen"] == "2");
+    } else {
+        CHECK(reply["code"] == "refused");
+        CHECK(reply["gen"] == "1"); // Failed prepare cannot replace the existing graph.
+        const auto message = reply.value("message", "");
+        CHECK(message.find(std::to_string(static_cast<uint32_t>(rate))) != std::string::npos);
+        CHECK(message.find("ports.macro_oscillator requires 48000 Hz") != std::string::npos);
+        CHECK(message.find("prepare") != std::string::npos);
+        CHECK(message.size() <= 320);
+        CHECK(loudest(4) == 0);
+    }
+    return failures ? 1 : 0;
+}
+
 int main(int argc, char **argv) {
+    if (argc > 1 && std::string(argv[1]) == "--macro-44100") return macro_rate(44100);
+    if (argc > 1 && std::string(argv[1]) == "--macro-48000") return macro_rate(48000);
     const std::string examples = argc > 1 ? argv[1] : "native/examples";
     CHECK(wsw_command("{}") != nullptr);
     CHECK(wsw_init(1) == 0);

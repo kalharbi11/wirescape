@@ -13,6 +13,7 @@ import { CanvasPane } from '../panels/widgets/canvasBase';
 import { CableLayer, type Point, type Resolved } from './CableLayer';
 import { ModuleCard } from './ModuleCard';
 import { el, motionOff } from '../app/dom';
+import type { OscStatus } from '../engine/EngineClient';
 
 export type Selection =
   | { kind: 'none' }
@@ -33,6 +34,8 @@ export interface CanvasServices extends PanelHost {
   confirmStereo(message: string): Promise<boolean>;
   onSelectionChange(s: Selection): void;
   rename(moduleId: number): void;
+  onEditOsc(moduleId: number): void;
+  oscStatus(): OscStatus | undefined;
   /** Send a connect to the engine; throws EngineRefusal if it is refused. */
   engineConnect(c: Connection): void;
   engineDisconnect(c: Connection): void;
@@ -84,6 +87,22 @@ export class PatchCanvas {
       c => this.describeConnection(c),
     );
     this.cableTools = this.buildCableTools();
+    // The same selected-cable deletion works from a context menu as from Delete.
+    this.cables.root.addEventListener('contextmenu', e => {
+      const hit = (e.target as Element).closest('.cable-hit');
+      const key = hit?.parentElement?.getAttribute('data-key');
+      const cable = this.s.doc.connections.find(c => connKey(c) === key);
+      if (!cable) return;
+      e.preventDefault(); e.stopPropagation();
+      this.select({ kind: 'cable', c: cable });
+      this.showMenu(e, [['Remove cable', () => {
+        if (!this.s.canEdit()) return;
+        this.s.doc.disconnect(cable);
+        try { this.s.engineDisconnect(cable); } catch { /* optimistic rollback is tracked by the host */ }
+        this.select({ kind: 'none' });
+        this.s.toast('Cable removed.');
+      }]]);
+    });
     this.world.append(this.cables.root, this.cardLayer, this.cableTools);
 
     this.marquee = el('div', 'marquee');
@@ -126,6 +145,8 @@ export class PatchCanvas {
       savedType: m.module,
       onHeaderPointerDown: e => this.beginDrag(e, id),
       onRenameRequest: () => this.s.rename(id),
+      onEditOsc: () => this.s.onEditOsc(id),
+      oscStatus: () => this.s.oscStatus(),
       wirePort: p => {
         p.addEventListener('pointerdown', e => this.beginPatch(e as PointerEvent, p));
         p.addEventListener('contextmenu', e => this.portMenu(e as MouseEvent, p));
@@ -160,6 +181,10 @@ export class PatchCanvas {
       }
     }
     this.applyPolyBadge(id);
+  }
+
+  updateOscStatus(status?: OscStatus): void {
+    for (const card of this.cards.values()) card.setOscStatus(status);
   }
 
   private applyPolyBadge(id: number): void {
@@ -420,11 +445,20 @@ export class PatchCanvas {
       return;
     }
 
-    // Pulling on an input that already has a cable grabs that cable's end.
+    // Pulling on an input grabs its destination end. Alt starts a new cable.
     if (direction === 'input') {
       const existing = this.s.doc.cablesInto(module, port);
       if (existing.length && !e.altKey) {
         this.beginGrabEnd(existing.at(-1)!, e);
+        return;
+      }
+    } else if (direction === 'output' && e.altKey) {
+      // Outputs fan out: Alt explicitly selects the newest outgoing cable,
+      // leaving an ordinary output drag free to create a new connection.
+      const existing = this.s.doc.connections.filter(c =>
+        c.from.module === module && c.from.port === port && c.kind !== 'modulation');
+      if (existing.length) {
+        this.beginGrabSource(existing.at(-1)!, e);
         return;
       }
     }
@@ -442,6 +476,19 @@ export class PatchCanvas {
     this.startDrag(e, {
       module: c.from.module, port: c.from.port, direction: 'output',
       kind: port?.kind ?? 'signal', hint: String(port?.hint ?? 'audio'),
+    }, c);
+  }
+
+  /** Grab the source end of one outgoing cable; its destination stays fixed. */
+  private beginGrabSource(c: Connection, e: PointerEvent): void {
+    const destMod = this.s.doc.modules.get(c.to.module);
+    const d = destMod && this.s.registry.get(destMod.module);
+    const port = d && findPort(d, 'input', c.to.port);
+    this.s.doc.disconnect(c);
+    try { this.s.engineDisconnect(c); } catch { /* best effort, as for input grabs */ }
+    this.startDrag(e, {
+      module: c.to.module, port: c.to.port, direction: 'input',
+      kind: port?.kind ?? c.kind, hint: String(port?.hint ?? 'audio'),
     }, c);
   }
 
@@ -550,7 +597,9 @@ export class PatchCanvas {
         return;
       }
     } else {
-      // Dropped on empty canvas: offer a filtered quick-add.
+      // A detached cable dropped on empty canvas is deliberately unplugged.
+      // Only a genuinely new cable opens the quick-add menu.
+      if (pending.detached) { this.cancelPatch(); return; }
       const world = this.viewport.toWorld(ev.clientX, ev.clientY);
       const o = pending.origin;
       const need = { direction: (o.direction === 'output' ? 'input' : 'output') as PortDirection, kind: o.kind };
@@ -1080,6 +1129,8 @@ export class PatchCanvas {
    */
   bindActivity(): void {
     const prevEvent = new Map<string, number>();
+    const activeUntil = new Map<string, number>();
+    const liveCables = new Set<string>();
     let lastCheck = 0;
     this.s.ticker.bindGlobal(t => {
       const now = performance.now();
@@ -1096,12 +1147,24 @@ export class PatchCanvas {
       }
       if (now - lastCheck > 100) {
         lastCheck = now;
+        liveCables.clear();
         for (const c of this.s.doc.connections) {
           const k = `${c.from.module}:${c.from.port}`;
-          const on = c.kind === 'event'
+          const cableKey = connKey(c);
+          liveCables.add(cableKey);
+          // -60 dBFS is 0.001 in linear amplitude. Hold for 200 ms after
+          // the last active sample; all updates stay in the 10 Hz ticker.
+          const measured = c.kind === 'event'
             ? (t.eventActivity[k] ?? 0) > 0.05
-            : Math.abs(t.outputs?.[k] ?? 0) > 0.02;
-          this.cables.setActive(connKey(c), on);
+            : Math.abs(t.outputs?.[k] ?? 0) > 0.001;
+          if (measured) activeUntil.set(cableKey, now + 200);
+          const on = measured || now < (activeUntil.get(cableKey) ?? 0);
+          if (!on) activeUntil.delete(cableKey);
+          this.cables.setActive(cableKey, on);
+        }
+        // Disconnects and patch loads must not leave old 200 ms holds cached.
+        for (const key of activeUntil.keys()) {
+          if (!liveCables.has(key)) activeUntil.delete(key);
         }
       }
       if (this.cables.settling) this.cables.step(now);

@@ -3,7 +3,7 @@
 
 **Scope:** design/acceptance study for issue #59, not an implementation specification or a claim that the app already uses engine2. No QML, C++, contract, schema, CI or device changes. M3 remains gated by M2-R; Preview 0.7 is a patching preview, not the Beta 0.8 playable-instrument milestone. Claude owns unresolved architectural/product decisions.
 
-**Contract:** [ABI2_PLAN §2 D1–D7, D10, D12](https://github.com/kalharbi11/wirescape/blob/main/docs/specs/ABI2_PLAN.md) and [§5 B5](https://github.com/kalharbi11/wirescape/blob/main/docs/specs/ABI2_PLAN.md); [M3 and Preview 0.7](https://github.com/kalharbi11/wirescape/blob/main/docs/PLAN.md). **Live-session source:** [M2_PORT_AND_APP_ENGINE §M2-L](https://github.com/kalharbi11/wirescape/blob/main/docs/tasks/M2_PORT_AND_APP_ENGINE.md). Every suggestion below is a **proposed interaction**, not an existing API or an approved visual design.
+**Contract:** [ABI2_PLAN §2 D1–D7, D10, D12](https://github.com/kalharbi11/wirescape/blob/main/docs/specs/ABI2_PLAN.md) and [§5 B5](https://github.com/kalharbi11/wirescape/blob/main/docs/specs/ABI2_PLAN.md); [M3 and Preview 0.7](https://github.com/kalharbi11/wirescape/blob/main/docs/PLAN.md). **Live-session source:** [M2_PORT_AND_APP_ENGINE §M2-L](https://github.com/kalharbi11/wirescape/blob/main/docs/tasks/done/M2_PORT_AND_APP_ENGINE.md). Every suggestion below is a **proposed interaction**, not an existing API or an approved visual design.
 
 ## Baseline: what is actually in the app
 

@@ -6,6 +6,7 @@ import type { PaneKind } from './layouts';
 import { Meter } from './widgets/Meter';
 import { Scope } from './widgets/Scope';
 import { WavePreview } from './widgets/WavePreview';
+import { RandomHistory } from './widgets/RandomHistory';
 import { EnvelopeCurve } from './widgets/EnvelopeCurve';
 import { FilterDisplay } from './widgets/FilterDisplay';
 import { ChannelMeters } from './widgets/ChannelMeters';
@@ -45,6 +46,7 @@ export function buildPane(kind: PaneKind, c: PaneContext): Pane | null {
   const v = (pid: string, fb: number) => c.doc.param(id, pid) ?? fb;
   switch (kind) {
     case 'wave':
+      if (c.descriptor.id === 'example.random_source') return new RandomHistory(id, ticker);
       return new WavePreview({
         moduleId: id, ticker,
         shape: () => {
