@@ -60,6 +60,9 @@ function Use-PinnedCMake {
     }
     Write-Warning "CMake 4.2.3 is the tested version; found '$found'. Install it: py -3.12 -m pip install cmake==4.2.3 ninja==1.13.0"
 }
+function Test-PinnedNinja([string]$v) {
+    return $v -match '^1\.13\.0(\.git\.kitware\.jobserver-pipe-\d+)?$'
+}
 function Preflight {
     Assert-GeneratedOutputs
     Use-PinnedCMake
@@ -93,7 +96,7 @@ function Preflight {
     $ninjaCmd = Get-Command ninja -ErrorAction SilentlyContinue
     $cmakeVersion = if ($cmakeCmd) { ((& cmake --version 2>$null | Select-Object -First 1) -replace '^cmake version ', '').Trim() } else { 'missing' }
     $ninjaVersion = if ($ninjaCmd) { ((& ninja --version 2>$null | Select-Object -First 1)).Trim() } else { 'missing' }
-    if ($pyVersion -eq '3.12 True' -and ($cmakeVersion -ne '4.2.3' -or $ninjaVersion -ne '1.13.0')) {
+    if ($pyVersion -eq '3.12 True' -and ($cmakeVersion -ne '4.2.3' -or -not (Test-PinnedNinja $ninjaVersion))) {
         # Pinned pip tools may exist outside PATH. Only this process changes.
         $scripts = & py -3.12 -c "import sysconfig; print(sysconfig.get_path('scripts','nt_user'))" 2>$null
         if ($LASTEXITCODE -eq 0 -and $scripts -and (Test-Path -LiteralPath $scripts)) {
@@ -130,7 +133,7 @@ function Preflight {
         (CheckRow 'rc.exe' $(if ($rc) { $rc.Source } else { 'missing' }) 'Windows SDK resource compiler' ([bool]$rc))
         (CheckRow 'Python' $pyVersion '3.12 x64' ($pyVersion -eq '3.12 True'))
         (CheckRow 'CMake' $cmakeVersion '4.2.3' ($cmakeVersion -eq '4.2.3'))
-        (CheckRow 'Ninja' $ninjaVersion '1.13.0' ($ninjaVersion -eq '1.13.0'))
+        (CheckRow 'Ninja' $ninjaVersion '1.13.0' (Test-PinnedNinja $ninjaVersion))
         (CheckRow 'Node' "$nodeVersion ($nodeArch)" '22.x x64' ($nodeVersion -match '^v22\.' -and $nodeArch -eq 'x64'))
         (CheckRow 'npm' $(if (Get-Command npm -ErrorAction SilentlyContinue) { 'found' } else { 'missing' }) 'installed' ([bool](Get-Command npm -ErrorAction SilentlyContinue)))
     )

@@ -108,6 +108,20 @@ class WindowsSetupContract(unittest.TestCase):
         self.assertIn("1.13.0", SCRIPT)
         self.assertIn("elevated", SCRIPT.lower())
 
+    def test_exact_pinned_ninja_and_kitware_wheel_suffix(self):
+        import re
+        source = re.search(r"function Test-PinnedNinja\(\[string\]\$v\)\s*\{\s*return \$v -match '([^']+)'\s*\}", SCRIPT)
+        self.assertIsNotNone(source, "one shared PowerShell version predicate")
+        pattern = source.group(1)
+        self.assertEqual(pattern, r'^1\.13\.0(\.git\.kitware\.jobserver-pipe-\d+)?$')
+        for value in ("1.13.0", "1.13.0.git.kitware.jobserver-pipe-1"):
+            with self.subTest(positive=value):
+                self.assertRegex(value, pattern)
+        for value in ("missing", "1.12.1", "1.14.0", "1.13.01", "1.13.0-rc1", "1.13.0.git.other"):
+            with self.subTest(negative=value):
+                self.assertNotRegex(value, pattern)
+        self.assertEqual(SCRIPT.count("Test-PinnedNinja $ninjaVersion"), 2)
+
     def test_process_local_x64_shell_and_pip_tool_recovery(self):
         self.assertIn("Microsoft.VisualStudio.DevShell.dll", SCRIPT)
         self.assertIn("Enter-VsDevShell", SCRIPT)
