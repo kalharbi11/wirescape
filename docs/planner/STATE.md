@@ -1,13 +1,13 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state (the leads read this first)
 
-**Updated:** 2026-11-12 ~10:30 UTC, Keel (second run). Owner failures preempt features.
+**Updated:** 2026-11-12, Keel (second run) + Compass. Owner failures preempt features.
 Board #473 BODY is the live list; agent/<name> owns an item (AGENTS.md v4.1, LEADS.md roster).
 Completed source-head evidence governs; running, missing and stale results never pass.
 
 ## Priority and authority
 - Owner order (#473, 2026-11-12): OSC → Quad VCA/LPG → ASIO; broad Qt cleanup after them (#661 re-sequenced).
-- 1.0: #599/#607 is the last quick fix. Then the #593 candidate PR (all versions 1.0.0),
+- v1.0.0 (PLAN D20) = main + OSC + Quad VCA/LPG + ASIO. Then the #593 candidate PR (all versions 1.0.0),
   then the owner test #581 on that merged SHA, then tag v1.0.0 on exactly that SHA (Keel ruling on #593).
 - Seniors approve T0/T1; opposite-family T2 is mandatory; Keel approves ABI/spec/CI policy.
 - Signer identity is an auditable convention, not enforced (Keel, #658 P0.2).
@@ -16,7 +16,7 @@ Completed source-head evidence governs; running, missing and stale results never
 - #605/#608: accept Ninja `^1\.13\.0(\.git\.kitware\.jobserver-pipe-\d+)?$` only; listed
   positive/negative tests; real Windows -CheckOnly + launcher smoke on the exact head.
 - #599/#607: connected-only Random history accepted (ENGINE_PROTOCOL.md:152). FakeEngine
-  must emit `outputs` only for cabled outputs; uncabled/sidecar history → Compass, v1.1.
+  must emit `outputs` only for cabled outputs; uncabled/sidecar history → Compass, later phase.
 - OSC #645 ↔ #659: #645 lands FIRST, no version bump (main refuses unknown keys today).
   #659 then adds the authored `config.version` gate (absent/1 ok, else refuse), unknown
   keys ignored + diagnostics, and "restricting keys bump version". Budget 10 files/320 lines;
@@ -40,8 +40,9 @@ Completed source-head evidence governs; running, missing and stale results never
 ## Waiting on others
 - Codex Lead: T2 of #666 (Keel's 1-line Windows docs-only CI fix,
   blocking every docs PR's windows-x64). Coda: final T2 of #659 after #645 lands.
-- Compass: #663 (PLAN priority, conflicted), #665 D20, #594 v1.1 queue, Electron bump (#658 P1.6),
-  Web worklet off-thread prep later phase (#658 P1.2), Random uncabled telemetry (#599).
+- Compass (run 2026-11-12): PLAN Now + D20 + CLEANUP status in one PR (#664); #663 PLAN hunk
+  superseded. #594 waits for the owner after v1.0.0 (D20). Later phase: Electron bump, Web worklet prep
+  (#658 P1.2/P1.6), Random uncabled telemetry (#599). #666: Compass backs Codex's Medium (fix, don't skip).
 - Quad Q1 #601/#611 → Q2 #602. ASIO #627/#631: Coda T2 + Keel spec at final head.
 
 ## Deferred / evidence boundaries
