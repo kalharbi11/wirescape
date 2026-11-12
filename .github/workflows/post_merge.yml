@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Durable post-merge wakeup (#696/#702). The merge gate's GITHUB_TOKEN auto-merge starts no
+# workflow, and GitHub fires auto-merge right after the last required check or the gate's own run.
+# So every completed CI, Guard and Merge gate run starts this watcher: while an open PR has
+# auto-merge armed it waits (bounded), and once one merges it dispatches main_verify.yml, which
+# reads main's live head and is idempotent per SHA. Runs main's code only; no PR code is checked out.
+name: Post-merge watch
+on:
+  workflow_run:
+    workflows: [CI, Guard, Merge gate]
+    types: [completed]
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+# A newer watch re-reads the armed PRs, so it safely replaces an older one.
+concurrency:
+  group: post-merge-watch
+  cancel-in-progress: true
+jobs:
+  watch:
+    if: github.event.workflow_run.conclusion != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: tools/board.py
+          sparse-checkout-cone-mode: false
+      - name: Wait for armed auto-merges, then verify main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/board.py --watch-merges 12

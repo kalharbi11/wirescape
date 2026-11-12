@@ -258,6 +258,18 @@ class MergeGateWorkflowTests(unittest.TestCase):
         self.assertIn('gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto', decision)
         self.assertIn('--match-head-commit "$SHA"', decision)
 
+    def test_disable_runs_only_when_auto_merge_is_armed(self):
+        # A "no" decision on a PR without auto-merge must be a quiet no-op, not a red run
+        # ("Can't disable auto-merge for this pull request"); real disable errors still fail.
+        workflow = (Path(__file__).resolve().parents[3] /
+                    '.github/workflows/merge_gate.yml').read_text(encoding='utf-8')
+        check = '--json autoMergeRequest --jq \'.autoMergeRequest != null\''
+        guarded = 'if [ "$armed" = true ]; then gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto; fi'
+        self.assertEqual(workflow.count(check), 2)
+        self.assertEqual(workflow.count(guarded), 2)
+        self.assertEqual(workflow.count('--disable-auto'), 2)
+        self.assertNotIn('not enabled', workflow)
+
 
 if __name__ == '__main__':
     unittest.main()
