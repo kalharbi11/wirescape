@@ -5,6 +5,7 @@ Read first: issue #662; board #473; AGENTS.md and docs/planner/LEADS.md.
 Align PLAN Now, STATE and CLEANUP with owner2026-11-12 direction:
 OSC first → Quad VCA/LPG → ASIO → broad Qt retirement.
 Keep feature dependencies, existing writers, actual evidence and all review gates.
+Keep STATE.md at most60 lines; board #473 carries the detailed hierarchy.
 A demonstrated direct blocker may receive a minimal repair, never weaker tests.
 Patch guide impact: none — planning only.
 
