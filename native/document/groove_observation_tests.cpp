@@ -437,17 +437,20 @@ static void unpatched_legacy_trace() {
         expected[10] = expected[11] = position;
         expected[12] = expected[13] = 1.f;
         expected[14] = fired ? 1.f : 0.f;
-        CHECK(std::memcmp(expected.data(), legacy.values.data(), sizeof(expected)) == 0);
+        std::array<unsigned char, sizeof(expected)> expected_bytes{}, observed_bytes{};
+        std::memcpy(expected_bytes.data(), expected.data(), sizeof(expected));
+        std::memcpy(observed_bytes.data(), legacy.values.data(), sizeof(expected));
+        CHECK(expected_bytes == observed_bytes);
     };
     frame(-1.f, false, false); // sample 0: no transport, both positions idle.
     legacy.controls[0] = 1.f;
-    frame(0.f, true, true);    // sample 1: START emits the first triad.
-    frame(1.f, false, false);  // sample 2: next step releases the triad.
-    frame(2.f, false, false);  // sample 3: rest.
+    frame(0.f, true, true); // sample 1: START emits the first triad.
+    frame(1.f, false, false); // sample 2: next step releases the triad.
+    frame(2.f, false, false); // sample 3: rest.
     legacy.controls[2] = 1.f;
-    frame(0.f, false, false);  // sample 4: RESET releases/rewinds.
-    frame(0.f, true, true);    // sample 5: RESET retriggers on next tick.
-    frame(1.f, false, false);  // sample 6: next step releases.
+    frame(0.f, false, false); // sample 4: RESET releases/rewinds.
+    frame(0.f, true, true); // sample 5: RESET retriggers on next tick.
+    frame(1.f, false, false); // sample 6: next step releases.
 
     // Four ordered three-voice event groups; ids must not be reused while
     // sounding. The reference is fixed independent of the new input slots.
