@@ -73,10 +73,10 @@ class MergeGateTests(unittest.TestCase):
         chatgpt = [say('ChatGPT: approved for auto-merge abc1234')]
         for path in ('native/include/wirescape/module2.h', '.github/workflows/ci.yml', 'tools/ci/guard.py',
                      'AGENTS.md', 'docs/specs/ABI2_PLAN.md', 'tools/merge_gate.py'):
-            self.assertFalse(self.check(pr(), files=[path]), path)
-            self.assertTrue(self.check(pr(), files=[path], comments=chatgpt), path)
-        self.assertFalse(self.check(pr('milestone-review')))
-        self.assertTrue(self.check(pr('milestone-review'), files=['AGENTS.md'], comments=chatgpt))
+            self.assertFalse(self.check(pr('tier/T2'), files=[path]), path)
+            self.assertTrue(self.check(pr('tier/T2'), files=[path], comments=chatgpt), path)
+        self.assertFalse(self.check(pr('tier/T1', 'milestone-review')))
+        self.assertTrue(self.check(pr('tier/T1', 'milestone-review'), files=['AGENTS.md'], comments=chatgpt))
 
 
 class ApprovalsV3Tests(unittest.TestCase):
@@ -93,17 +93,17 @@ class ApprovalsV3Tests(unittest.TestCase):
 
     def test_claude_line_finishes_any_tier(self):
         claude = [say('Claude: approved for auto-merge abc1234')]
-        for p in (pr('tier/T1'), pr('tier/T2'), pr('milestone-review')):
+        for p in (pr('tier/T1'), pr('tier/T2'), pr('tier/T1', 'milestone-review')):
             self.assertTrue(self.check(p, comments=claude))
-        self.assertTrue(self.check(pr(ref='claude/x'), files=['docs/PLAN.md', 'AGENTS.md'], comments=claude))
+        self.assertTrue(self.check(pr('tier/T2', ref='claude/x'), files=['docs/PLAN.md', 'AGENTS.md'], comments=claude))
 
     def test_control_change_needs_one_approval_cross_family_review_is_external(self):
         claude = say('Claude: approved for auto-merge abc1234')
         chatgpt = say('ChatGPT: approved for auto-merge abc1234')
         for path in ('tools/merge_gate.py', '.github/workflows/ci.yml', 'tools/ci/guard.py',
                      'native/include/wirescape/module2.h'):
-            self.assertFalse(self.check(pr(ref='claude/x'), files=[path]), path)
-            self.assertTrue(self.check(pr(ref='claude/x'), files=[path], comments=[claude]), path)
+            self.assertFalse(self.check(pr('tier/T2', ref='claude/x'), files=[path]), path)
+            self.assertTrue(self.check(pr('tier/T2', ref='claude/x'), files=[path], comments=[claude]), path)
             self.assertTrue(self.check(pr(ref='claude/x'), files=[path], comments=[chatgpt]), path)
 
 
@@ -184,7 +184,7 @@ class NeutralApprovalTests(unittest.TestCase):
     def test_t1_t2_milestone_and_protected_accept_any_signed_owner(self):
         body = 'No High findings.\n\nApproved for merge abc1234\nSigned: ChatGPT (GPT-6), 2026-11-08'
         for p, files in ((pr('tier/T1'), ['native/x.cpp']), (pr('tier/T2'), ['native/x.cpp']),
-                         (pr('milestone-review'), ['native/x.cpp']),
+                         (pr('tier/T1', 'milestone-review'), ['native/x.cpp']),
                          (pr('tier/T2', ref='claude/control'), ['.github/workflows/merge_gate.yml'])):
             with self.subTest(p=p, files=files):
                 ok, why = self.check(p, comments=[say(body)], files=files)
@@ -244,7 +244,7 @@ class NeutralApprovalTests(unittest.TestCase):
             with self.subTest(name=name):
                 body = f'{name}: approved for auto-merge abc1234'
                 self.assertTrue(self.check(pr('tier/T2'), comments=[say(body)])[0])
-                self.assertTrue(self.check(pr(), comments=[say(body)],
+                self.assertTrue(self.check(pr('tier/T2'), comments=[say(body)],
                                            files=['tools/merge_gate.py'])[0])
                 self.assertFalse(self.check(pr('tier/T1'), comments=[
                     say(f'{name}: approved for auto-merge 0000000')])[0])
