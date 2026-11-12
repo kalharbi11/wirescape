@@ -33,8 +33,8 @@ Only completed source-matched checks/runs count; queued, skipped and stale are d
   old Static generatedmoc red. Integrate#691 normally, rerun fresh exact gates,
   link completed source-matched private device-off Pi protocol/recovery proof,
   then Claude approval. No duplicated poll daemon, timeout or threshold changes.
-- #296 stays blocked: privatePR17 has no accepted/executed3600s evidence.
-  Keel Claude T2 on privateGPT slice, then gpt-builder2 continues existing branch.
+- #296 stays blocked: no accepted/executed3600s evidence supplied publicly.
+  Keel rules on pending runner integration; gpt-builder2 continues existing work.
 ## Assigned supporting queue
 - claude-builder1 #676 is unblocked by#674; non-required fuzz CI/Pi nightly
   per Keel6823484751, Codex T2 then Keel CI-policy approval. No Pi claim yet.
