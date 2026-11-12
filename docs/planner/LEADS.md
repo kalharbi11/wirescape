@@ -16,6 +16,8 @@ Every agent has a name. The name is the identity, not the chat: a fresh chat wit
 | `gpt-builder1` | GPT | often | OSC, Groove, Web |
 | `gpt-builder2` | GPT | often | Quad VCA, Windows setup, CI fixes |
 | `claude-builder1` | Claude | spare usage | Claude-written PRs, hard T2 |
+| `gpt-builder3` | GPT | side lane | CI speed (#685 → #687, in order); reviews #686 |
+| `claude-builder2` | Claude | side lane | CI speed (#686); reviews #687 |
 | `gpt-reviewer` | GPT | one-time | reviews only |
 | `claude-reviewer` | Claude | one-time | reviews only |
 | `gpt-helper`, `claude-helper` | GPT / Claude | scheduled | `lane/helper` items |
