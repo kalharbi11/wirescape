@@ -15,8 +15,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     const size_t split = separator ? size_t(separator - data) : size / 2;
     const size_t delimiter = separator ? 1 : 0;
     const std::string_view pattern(reinterpret_cast<const char *>(data), split);
-    const std::string_view address(reinterpret_cast<const char *>(data + split + delimiter),
-                                   size - split - delimiter);
+    const char *address_data = reinterpret_cast<const char *>(data + split + delimiter);
+    const std::string_view address(address_data, size - split - delimiter);
     wirescape::osc::Pattern first, reference;
     if (first.compile(pattern)) {
         // Compile and match are deterministic, including invalid UTF-8 bytes.
