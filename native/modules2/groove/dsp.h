@@ -15,10 +15,9 @@ namespace groove {
 struct Sequencer {
     static constexpr ws::Info info{"sequencing.groove", "Groove", 2};
     // New inputs append without changing any existing output or parameter slot.
-    static constexpr std::array inputs{
-        ws::port("clock", "Clock", WS2_TRIGGER, WS2_FIRST),
-        ws::port("run", "Run", WS2_GATE, WS2_FIRST),
-        ws::port("reset", "Reset", WS2_TRIGGER, WS2_FIRST)};
+    static constexpr std::array inputs{ws::port("clock", "Clock", WS2_TRIGGER, WS2_FIRST),
+                                       ws::port("run", "Run", WS2_GATE, WS2_FIRST),
+                                       ws::port("reset", "Reset", WS2_TRIGGER, WS2_FIRST)};
     // S0 t1 slots are permanent. t3/t4 slots are reserved but not declared.
     static constexpr std::array outputs{
         ws::port("t1_pitch", "T1 Pitch", WS2_PITCH),
@@ -123,7 +122,9 @@ struct Sequencer {
         phase = 0.;
         step = 0;
         next_id = 1;
-        clock_schmitt.reset(); run_schmitt.reset(); reset_schmitt.reset();
+        clock_schmitt.reset();
+        run_schmitt.reset();
+        reset_schmitt.reset();
         clock_high = run_high = reset_high = false;
         clock_connected = run_connected = reset_connected = false;
         clock_seen = run_start_pending = false;
@@ -476,7 +477,8 @@ struct Sequencer {
                     p.playing = running && p.armed;
                 }
                 run_start_pending = false;
-            } else if (run_fall) { // External STOP: release in this frame; RESET takes precedence.
+            } else if (run_fall) {
+                // External STOP: release in this frame; RESET takes precedence.
                 release_all(b, i);
                 running = stop_queued = reset_wait = run_start_pending = false;
                 for (auto &p : players)
@@ -515,7 +517,10 @@ struct Sequencer {
                 }
                 if (rise[0] && !rise[1]) {
                     if (running) stop_queued = false;
-                    else { start_transport(b, i); started = true; }
+                    else {
+                        start_transport(b, i);
+                        started = true;
+                    }
                 }
                 if (run_start_pending && !running && !external_clock) phase += 1.;
                 if (run_start_pending && !running && !run_rise &&
