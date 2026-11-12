@@ -7,8 +7,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
-#include "session.h"
 #include "../io/osc/codec.h"
+#include "session.h"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -18,7 +18,7 @@
 namespace fake {
 std::vector<wirescape::audio::Device> outputs;
 std::vector<std::string> attempts;
-std::string refuse_id; // fake a single device-specific PortAudio open failure
+std::string refuse_id;  // fake a single device-specific PortAudio open failure
 std::string open_error; // injected malformed/multibyte host diagnostic
 std::vector<std::string> installed_asio;
 bool active = true, refuse = false, enumeration_throws = false, render = false;
@@ -675,14 +675,17 @@ int main() {
             Session s(options);
             s.start(base);
             constexpr uint16_t port = 49715;
-            Json patch = {{"format", "wirescape.native.patch"},
-                          {"version", 2},
-                          {"modules", Json::array({{{"id", 1}, {"module", "essentials.output"}},
-                                                   {{"id", 2}, {"module", "osc.in"},
-                                                    {"config", {{"port", port}, {"lan", false},
-                                                                {"rows", Json::array({{{"pattern", "/reconnect"},
-                                                                                       {"kind", "cv"}}})}}}}})},
-                          {"connections", Json::array()}};
+            Json patch = {
+                {"format", "wirescape.native.patch"},
+                {"version", 2},
+                {"modules", Json::array({{{"id", 1}, {"module", "essentials.output"}},
+                                         {{"id", 2},
+                                          {"module", "osc.in"},
+                                          {"config",
+                                           {{"port", port},
+                                            {"lan", false},
+                                            {"rows", Json::array({{{"pattern", "/reconnect"}, {"kind", "cv"}}})}}}}})},
+                {"connections", Json::array()}};
             auto loaded = s.reply({{{"v", 0}, {"id", "osc-rebind"}, {"type", "loadGraph"}, {"patch", patch}}, {}, {}});
             check(loaded["ok"] == true, "OSC graph loads into fake ASIO playback");
             auto packet_received = [&](uint64_t minimum) {

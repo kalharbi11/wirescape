@@ -27,14 +27,16 @@ inline std::string bounded_audio_error(std::string_view input) {
             ++i;
             continue;
         }
-        const size_t width = lead >= 0xc2u && lead <= 0xdfu ? 2 : lead >= 0xe0u && lead <= 0xefu ? 3 :
-                             lead >= 0xf0u && lead <= 0xf4u ? 4 : 0;
+        const size_t width = lead >= 0xc2u && lead <= 0xdfu   ? 2
+                             : lead >= 0xe0u && lead <= 0xefu ? 3
+                             : lead >= 0xf0u && lead <= 0xf4u ? 4
+                                                              : 0;
         bool valid = width && width <= input.size() - i;
         if (valid) {
             const auto second = static_cast<unsigned char>(input[i + 1]);
-            valid = (second & 0xc0u) == 0x80u &&
-                    !(lead == 0xe0u && second < 0xa0u) && !(lead == 0xedu && second >= 0xa0u) &&
-                    !(lead == 0xf0u && second < 0x90u) && !(lead == 0xf4u && second >= 0x90u);
+            valid = (second & 0xc0u) == 0x80u && !(lead == 0xe0u && second < 0xa0u) &&
+                    !(lead == 0xedu && second >= 0xa0u) && !(lead == 0xf0u && second < 0x90u) &&
+                    !(lead == 0xf4u && second >= 0x90u);
             for (size_t j = 2; valid && j < width; ++j)
                 valid = (static_cast<unsigned char>(input[i + j]) & 0xc0u) == 0x80u;
         }
