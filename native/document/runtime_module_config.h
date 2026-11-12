@@ -10,7 +10,8 @@
 namespace wirescape::document {
 // Quiescent JSON-to-module adapter. The JSON shape, not struct padding, is saved.
 inline std::vector<uint8_t> runtime_module_config(const std::string&type,
-    const nlohmann::json&value, uint32_t instance_id = 0) {
+    const nlohmann::json&value, uint32_t instance_id = 0,
+    std::vector<std::string> *ignored_keys = nullptr) {
  auto require=[](bool ok,const char*s){if(!ok)throw std::runtime_error(s);};
  require(value.is_object(), "Module config must be an object");
  if (type == "essentials.chord") {
@@ -161,11 +162,20 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
      return bytes;
  }
  if (type == "osc.in") {
-     // All authored OSC configuration is validated on the control owner,
-     // then copied as bounded private POD for the module's prepare() call.
+     // Keep future authored keys in the patch, but execute only known fields.
+     // Collect bounded, printable diagnostics off the render path.
+     auto ignore = [&](std::string key) {
+         if (!ignored_keys || ignored_keys->size() >= 16) return;
+         for (char &ch : key)
+             if (static_cast<unsigned char>(ch) < 0x21 ||
+                 static_cast<unsigned char>(ch) > 0x7e) ch = '?';
+         key.resize(std::min(key.size(), size_t{64}));
+         ignored_keys->push_back("osc.in#" + std::to_string(instance_id) + "." + key);
+     };
      wirescape::osc::Configuration config;
      for (auto it = value.begin(); it != value.end(); ++it)
-         require(it.key() == "port" || it.key() == "lan" || it.key() == "rows", "Unknown OSC input setting");
+         if (it.key() != "port" && it.key() != "lan" && it.key() != "rows")
+             ignore(it.key());
      if (value.contains("port")) {
          const auto &port = value.at("port");
          require(port.is_number_integer(), "OSC port must be an integer");
@@ -217,7 +227,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
                      else if (name == "output_max") dest.output_max = n;
                      else if (name == "smoothing_ms") dest.smoothing_ms = n;
                      else dest.timeout_ms = n;
-                 } else require(false, "Unknown OSC row field");
+                 } else ignore("rows[" + std::to_string(i) + "]." + name);
              }
          }
      }
