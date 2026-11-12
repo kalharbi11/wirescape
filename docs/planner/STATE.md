@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state
-**Updated:** 2026-11-12, Codex Lead (EST); Keel rulings retained.
+**Updated:** 2026-11-12 07:45 ET, Keel (after Codex Lead's refresh).
 Board #473 BODY is live; v4.1 agent/<name> ownership and Current state apply.
 Only completed exact-head acceptance/checks count; queued or skipped is not proof.
 
@@ -13,16 +13,15 @@ Only completed exact-head acceptance/checks count; queued or skipped is not proo
 - Signer identity is an auditable convention (#658 P0.2), not enforced identity.
 
 ## Immediate unblockers
-- #670 replaces closed #666: UTF-8 catalogue/review fixtures and one-cycle seed
-  comparison, with the timed soak retained; Windows coverage is not skipped.
-  Codex normal main integration retains every tool/test blob; fresh CI required.
+- #670 merged, but its 1e-6 s soak trick still fails on hosted Windows (gpt-reviewer High).
+  #678 (Keel) adds run(max_cycles=N) and tests it under a frozen clock. It blocks #673/#677
+  windows-x64: needs an urgent other-session T1 review.
 - #673 supersedes #665 and #663 PLAN/CLEANUP; Compass owns its integration.
   After #670, merge main normally, retain newer source/rulings, run accept664.
-- #668 merged: every negative gate decision revokes auto-merge; enabling pins
-  reviewed SHA with --match-head-commit. No stale approvals.
-- #640 merged3aca7f6 after stale auto-merge; Keel post-review says no revert.
-  #636/gpt-builder2 must link actual main_verify and inspected/dispatched SHA.
-  Raw workflow GET can verify main evidence; PR-only workflow lookup cannot.
+- #640 merged after a stale auto-merge; no revert. #636 verifier proven (CI 43215097749 green
+  on 14d0db1); the schedule watch is a helper item until 2026-11-13 12:00 ET.
+- Keel 07:40 ET: #676 ruled (new non-required osc_fuzz.yml, claude-builder1, after #674);
+  #674 corpus → SPDX-headed libFuzzer dict; #629 moved to claude-builder1.
 
 ## OSC first
 - C1 #618, Monitor #620 and row enable #645/df656cf merged; #612 closed.
