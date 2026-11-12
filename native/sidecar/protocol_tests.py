@@ -570,7 +570,7 @@ if retry is not None:
     step_summary = os.environ.get('GITHUB_STEP_SUMMARY')
     if step_summary:
         with Path(step_summary).open('a', encoding='utf-8') as report:
-            report.write('- Windows wake-only retry: attempt 1 wake-only, attempt 2 clean (count 1)\\n')
+            print('- Windows wake-only retry: attempt 1 wake-only, attempt 2 clean (count 1)', file=report)
 assert summary['status'] == 'passed' and summary['seed'] == 278 and summary['seconds'] == 2
 assert isinstance(metrics, dict) and metrics['blocks'] >= 0.9 * 2 * 48000 / 256
 assert metrics['faults'] == 0 and metrics['overruns'] == 0
