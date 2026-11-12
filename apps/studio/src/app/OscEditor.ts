@@ -7,6 +7,8 @@ export interface OscRow {
   pattern: string; argument: number; kind: 'cv' | 'gate' | 'trigger';
   input_min: number; input_max: number; output_min: number; output_max: number;
   smoothing_ms: number; timeout_ms: number; stale: 'hold' | 'zero';
+  /** Optional (#612): absent means enabled; writers emit it only when false. */
+  enabled?: boolean;
 }
 export interface OscConfig { port: number; lan: boolean; rows: OscRow[] }
 
@@ -37,11 +39,12 @@ export function readOscConfig(raw: unknown): { config: OscConfig; unsupported: s
       for (const key of rowKeys) {
         if (key in row) (base as unknown as Record<string, unknown>)[key] = row[key];
       }
+      if (row.enabled === false) base.enabled = false;
     });
   }
   const unsupported = Object.keys(source).filter(k => !['port', 'lan', 'rows'].includes(k));
   if (Array.isArray(source.rows)) source.rows.forEach((v, i) => {
-    for (const key of Object.keys(object(v))) if (!rowKeys.includes(key as typeof rowKeys[number]))
+    for (const key of Object.keys(object(v))) if (key !== 'enabled' && !rowKeys.includes(key as typeof rowKeys[number]))
       unsupported.push(`rows[${i}].${key}`);
   });
   return { config, unsupported };
@@ -83,7 +86,13 @@ export function showOscEditor(modal: Modal, raw: unknown,
   const rows = el('div', 'osc-rows');
   const errors = el('p', 'osc-error'); errors.dataset.testid = 'osc-editor-errors';
   errors.setAttribute('role', 'alert');
-  const fields: Array<Record<keyof OscRow, HTMLInputElement | HTMLSelectElement>> = [];
+  type RowControls = Record<typeof rowKeys[number], HTMLInputElement | HTMLSelectElement> & { enabled: HTMLInputElement };
+  const fields: RowControls[] = [];
+  const activeCount = el('p', 'osc-active');
+  activeCount.dataset.testid = 'osc-editor-active';
+  const refreshActive = () => {
+    activeCount.textContent = `${fields.filter(c => c.enabled.checked).length} of 8 rows active`;
+  };
 
   const field = (label: string, control: HTMLInputElement | HTMLSelectElement): HTMLElement => {
     const holder = el('label', 'osc-field');
@@ -94,7 +103,16 @@ export function showOscEditor(modal: Modal, raw: unknown,
     const row = config.rows[i];
     const group = el('fieldset', 'osc-row');
     group.append(el('legend', '', `row${i + 1}`));
-    const controls = {} as Record<keyof OscRow, HTMLInputElement | HTMLSelectElement>;
+    const controls = {} as RowControls;
+    const enabled = el('input') as HTMLInputElement;
+    enabled.type = 'checkbox'; enabled.checked = row.enabled !== false;
+    enabled.dataset.testid = `osc-row${i + 1}-enabled`;
+    controls.enabled = enabled;
+    const toggle = el('label', 'osc-lan');
+    toggle.append(enabled, el('span', '', 'Listen (row on)'));
+    const mark = () => { group.classList.toggle('osc-row-off', !enabled.checked); refreshActive(); refreshExample(); };
+    enabled.addEventListener('change', mark);
+    group.classList.toggle('osc-row-off', !enabled.checked);
     const pattern = el('input', 'input-text') as HTMLInputElement;
     pattern.type = 'text'; pattern.value = String(row.pattern); pattern.placeholder = `/pico1/knob/${i + 1}`;
     pattern.dataset.testid = `osc-row${i + 1}-pattern`;
@@ -110,7 +128,7 @@ export function showOscEditor(modal: Modal, raw: unknown,
       input.value = String(row[key]); input.dataset.testid = `osc-row${i + 1}-${key}`;
       controls[key] = input;
     }
-    group.append(field('Address pattern (* allowed)', pattern), field('Kind', controls.kind),
+    group.append(toggle, field('Address pattern (* allowed)', pattern), field('Kind', controls.kind),
       field('Argument index (0–31)', controls.argument),
       field('Input min', controls.input_min), field('Input max', controls.input_max),
       field('Output min', controls.output_min), field('Output max', controls.output_max),
@@ -128,6 +146,8 @@ export function showOscEditor(modal: Modal, raw: unknown,
       fields.forEach((controls, i) => {
         const next = make(i);
         for (const key of rowKeys) controls[key].value = String(next[key]);
+        controls.enabled.checked = next.enabled !== false;
+        controls.enabled.closest('fieldset')?.classList.toggle('osc-row-off', next.enabled === false);
       });
       if (resetConnection) {
         const defaults = picoDefaults();
@@ -135,6 +155,7 @@ export function showOscEditor(modal: Modal, raw: unknown,
         lan.checked = defaults.lan;
       }
       refreshExample();
+      refreshActive();
       errors.textContent = '';
     });
     presets.append(button);
@@ -143,15 +164,22 @@ export function showOscEditor(modal: Modal, raw: unknown,
   preset('TouchOSC faders /1/fader1–8', 'osc-preset-touchosc',
     i => ({ ...defaultRow(i + 1), pattern: `/1/fader${i + 1}` }));
   preset('Reset to Pico defaults', 'osc-preset-reset', i => defaultRow(i + 1), true);
+  // Clear keeps every address so a row can be switched back on (#612).
+  preset('Clear (all rows off)', 'osc-preset-clear', i => {
+    const keep = {} as Record<string, string>;
+    for (const key of rowKeys) keep[key] = fields[i][key].value;
+    return { ...(keep as unknown as OscRow), enabled: false };
+  });
 
   const example = el('code', 'osc-example');
   example.dataset.testid = 'osc-send-example';
   const refreshExample = () => {
-    const pattern = fields.find(c => c.pattern.value.startsWith('/'))?.pattern.value ?? '/pico1/knob/1';
+    const pattern = fields.find(c => c.enabled.checked && c.pattern.value.startsWith('/'))?.pattern.value ?? '/pico1/knob/1';
     const address = pattern.replaceAll('*', '1');
     example.textContent = `send ${address} 0.5 to 127.0.0.1:${port.value || '9000'} (UDP)`;
   };
   refreshExample();
+  refreshActive();
   port.addEventListener('input', refreshExample);
   fields.forEach(c => c.pattern.addEventListener('input', refreshExample));
   const copy = el('button', 'btn', 'Copy example') as HTMLButtonElement;
@@ -199,7 +227,7 @@ export function showOscEditor(modal: Modal, raw: unknown,
         errors.textContent = `row${i + 1}: input max must exceed input min.`; return;
       }
       next.rows.push({ pattern, kind: c.kind.value as OscRow['kind'],
-        stale: c.stale.value as OscRow['stale'], ...values });
+        stale: c.stale.value as OscRow['stale'], ...values, ...(c.enabled.checked ? {} : { enabled: false }) });
     }
     submit.disabled = true;
     try {
@@ -210,6 +238,6 @@ export function showOscEditor(modal: Modal, raw: unknown,
     } finally { submit.disabled = false; }
   });
   actions.append(cancel, submit);
-  body.append(intro, warning, portRow, lanRow, presets, rows, errors, help, actions);
+  body.append(intro, warning, portRow, lanRow, presets, activeCount, rows, errors, help, actions);
   modal.open('OSC In · addresses and listening');
 }

@@ -222,6 +222,7 @@ struct Service::Impl {
                         event.bytes = uint32_t(bytes);
                         for (uint32_t r = 0; r < route_count; ++r) {
                             if (!route_enabled[r] || routes[r].port != listeners[i].requested) continue;
+                            if (sink.accept && !sink.accept(sink.context, routes[r].node, message.address)) continue;
                             const auto deliver = sink.deliver;
                             if (!deliver || deliver(sink.context, routes[r].node, event, timestamp) != WS2_OK) {
                                 dropped.fetch_add(1, std::memory_order_relaxed);
