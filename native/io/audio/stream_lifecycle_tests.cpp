@@ -3,6 +3,7 @@
 #include "portaudio_service.h"
 #include "../../document/runtime_patch.h"
 #include <chrono>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <thread>
