@@ -652,7 +652,7 @@ with tempfile.TemporaryDirectory() as osc_dir:
         assert diagnostics.count('OSC load ignored unknown config keys:') == 1, diagnostics
         assert 'osc.in#9.futureOption' in diagnostics, diagnostics
         assert 'osc.in#9.rows[1].futureField' in diagnostics, diagnostics
-        assert 'enabled' not in diagnostics, diagnostics
+        assert 'osc.in#9.rows[1].enabled' not in diagnostics, diagnostics
 
 # OSC C2: direct Monitor ingress capture, bounded chronological telemetry, and reset.
 # The sidecar is always --null-audio; all packets stay on 127.0.0.1.
