@@ -4,6 +4,10 @@
 #include "runtime_patch.h"
 #include "../engine2/engine2.h"
 #include "../tests2/allocation_watch.h"
+#include <nlohmann/json.hpp>
+#include <cstring>
+#include <vector>
+#include <chrono>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -59,6 +63,151 @@ float render_and_check(AppEngine* graph, int blocks, const char* context) {
     require(peak > 0.0f, "Qt-free loaded graph is non-silent");
     require(app_engine_native(graph).meter().faults == 0, "Qt-free loaded graph is fault-free");
     return peak;
+}
+
+
+// Loaded v1 -> serialized v2 -> disk reload -> 96,000 rendered samples.
+// This preserves the app-loader-vs-ABI1 bound from Qt abi2_app_patch_tests,
+// instead of assuming independent codec/engine unit tests cover that seam.
+void serialized_demo_equivalence(AppEngine* catalogue, const ws_engine_config& config,
+                                 const std::filesystem::path& modules,
+                                 const std::filesystem::path& demo) {
+    using Json = nlohmann::json;
+    const std::string original = fixture(demo);
+    const auto source = Json::parse(original);
+    require(source.at("version") == 1, "Six Essentials fixture remains v1");
+    auto saved = source;
+    saved["version"] = 2;
+    saved["settings"] = {{"max_channels", 16}, {"feedback_block", 1}, {"seed", 1u}};
+    saved["outputs"] = Json::array({{{"module", source.at("outputNode")},
+                                     {"port", "audio"}, {"bus_channel", 0}}});
+    for (auto& module : saved["modules"]) {
+        const auto type = module.at("type").get<std::string>();
+        module["module"] = type;
+        module["version"] = 1;
+        module["config"] = Json::object();
+        module["parameters"] = Json::object();
+        for (auto it = module["values"].begin(); it != module["values"].end(); ++it) {
+            const char* id = app_engine_parameter_id(
+                catalogue, type.c_str(), uint32_t(std::stoul(it.key())));
+            require(id != nullptr, "saved v1 parameter ID resolved in catalogue");
+            module["parameters"][id] = it.value();
+        }
+        module.erase("type");
+        module.erase("values");
+    }
+    for (auto& connection : saved["connections"]) {
+        connection["from"] = {{"module", connection["fromNode"]}, {"port", connection["fromPort"]}};
+        connection["to"] = {{"module", connection["toNode"]}, {"port", connection["toPort"]}};
+        connection["kind"] = "signal";
+        for (const char* key : {"fromNode", "fromPort", "toNode", "toPort"})
+            connection.erase(key);
+    }
+    const auto temp = std::filesystem::temp_directory_path() /
+        ("wirescape-qt-free-" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()));
+    struct RemoveTemp {
+        std::filesystem::path path;
+        ~RemoveTemp() { std::error_code error; std::filesystem::remove_all(path, error); }
+    } cleanup{temp};
+    std::filesystem::create_directories(temp);
+    const auto saved_path = temp / "saved-v2.json";
+    {
+        std::ofstream output(saved_path, std::ios::binary | std::ios::trunc);
+        require(bool(output), "open v2 save file");
+        output << saved.dump(2);
+        require(bool(output), "serialize saved v2 file");
+    }
+    const std::string reread = fixture(saved_path);
+    require(Json::parse(reread) == saved, "serialized v2 disk reload preserves complete object");
+    auto from_v1 = load(original, catalogue, config);
+    auto from_saved_v2 = load(reread, catalogue, config);
+
+    using Legacy = std::unique_ptr<ws_engine, decltype(&ws_engine_destroy)>;
+    Legacy old(ws_engine_create(&config), ws_engine_destroy);
+    require(bool(old), "create ABI1 reference engine");
+    for (const char* name : {"noise", "clock", "function_envelope", "slew",
+                              "vcf", "ladder", "vca", "output"}) {
+#ifdef _WIN32
+        const auto filename = modules / (std::string("ws_") + name + ".dll");
+#else
+        const auto filename = modules / (std::string("libws_") + name + ".so");
+#endif
+        require(ws_engine_load_module(old.get(), filename.string().c_str()) == WS_OK,
+                "load ABI1 reference module");
+    }
+    const auto descriptor = [&](const std::string& type) -> const ws_module_descriptor* {
+        for (uint32_t i = 0; i < ws_engine_module_count(old.get()); ++i) {
+            const auto* item = ws_engine_module(old.get(), i);
+            if (type == item->id) return item;
+        }
+        throw std::runtime_error("ABI1 descriptor missing");
+    };
+    const auto node = [&](int id) -> const ws_module_descriptor* {
+        for (const auto& module : source["modules"])
+            if (module.at("id") == id) return descriptor(module.at("type").get<std::string>());
+        throw std::runtime_error("ABI1 node descriptor missing");
+    };
+    const auto port = [](const ws_port_descriptor* ports, uint32_t count,
+                         const std::string& id) -> uint32_t {
+        for (uint32_t i = 0; i < count; ++i)
+            if (id == ports[i].id) return i;
+        throw std::runtime_error("ABI1 port missing");
+    };
+    for (const auto& module : source["modules"])
+        require(ws_engine_add_node(old.get(), module.at("id").get<uint32_t>(),
+                                   module.at("type").get<std::string>().c_str()) == WS_OK,
+                "ABI1 reference node added");
+    for (const auto& cable : source["connections"]) {
+        const auto from = cable.at("fromNode").get<uint32_t>();
+        const auto to = cable.at("toNode").get<uint32_t>();
+        const auto* a = node(int(from));
+        const auto* b = node(int(to));
+        require(ws_engine_connect(old.get(), from,
+                 port(a->outputs, a->output_count, cable.at("fromPort").get<std::string>()),
+                 to, port(b->inputs, b->input_count, cable.at("toPort").get<std::string>())) == WS_OK,
+                "ABI1 reference cable connected");
+    }
+    require(ws_engine_prepare(old.get(), source.at("outputNode").get<uint32_t>(), 0) == WS_OK,
+            "ABI1 reference prepared");
+    for (const auto& module : source["modules"])
+        for (auto it = module["values"].begin(); it != module["values"].end(); ++it)
+            require(ws_engine_initialize_parameter(
+                        old.get(), module.at("id").get<uint32_t>(),
+                        uint32_t(std::stoul(it.key())), it.value().get<float>()) == WS_OK,
+                    "ABI1 reference parameter initialized");
+
+    float baseline[128]{}, loaded[128]{}, reloaded[128]{};
+    double max_abs_error = 0;
+    size_t allocations = 0;
+    std::vector<float> pcm_a, pcm_b;
+    pcm_a.reserve(750 * 128);
+    pcm_b.reserve(750 * 128);
+    for (int block = 0; block < 750; ++block) {
+        require(ws_engine_render(old.get(), baseline, 128) == WS_OK, "ABI1 render");
+        int a = -1, b = -1;
+        {
+            allocation_watch::Scope watch;
+            a = app_engine_render(from_v1.get(), loaded, 128);
+            b = app_engine_render(from_saved_v2.get(), reloaded, 128);
+            allocations += watch.allocations();
+        }
+        require(a == WS_OK && b == WS_OK, "v1 and saved v2 loaded graphs render");
+        require(std::memcmp(loaded, reloaded, sizeof(loaded)) == 0,
+                "serialized v1 -> v2 -> reread yields bit-identical PCM");
+        for (int i = 0; i < 128; ++i) {
+            require(std::isfinite(loaded[i]), "saved v2 render finite");
+            max_abs_error = std::max(max_abs_error, std::abs(double(baseline[i]) - loaded[i]));
+        }
+        pcm_a.insert(pcm_a.end(), loaded, loaded + 128);
+        pcm_b.insert(pcm_b.end(), reloaded, reloaded + 128);
+    }
+    require(allocations == 0, "saved graph callbacks allocate no memory");
+    require(max_abs_error <= 1e-7, "ABI1 vs saved/reloaded app-loader bound 1e-7");
+    require(pcm_a.size() == 96000 && pcm_a == pcm_b,
+            "96,000 source and saved-reloaded PCM samples exactly equal");
+    std::cout << "v1 -> disk v2 -> reload exact PCM; ABI1 max_abs_error="
+              << max_abs_error << " allocs=" << allocations << '\n';
 }
 
 void keyboard_macro(AppEngine* catalogue, const ws_engine_config& config) {
@@ -129,11 +278,12 @@ void fake_midi_dual_chaos(AppEngine* catalogue, const ws_engine_config& config,
 
 int main(int argc, char** argv) {
     try {
-        require(argc == 2, "usage: qt_free_patch_coverage_tests <examples-directory>");
+        require(argc == 4, "usage: qt_free_patch_coverage_tests <examples-dir> <ABI1-modules-dir> <demo>");
         const ws_engine_config config{sizeof(ws_engine_config), 48000, 128, 64, 2048};
         Owner catalogue(app_engine_create(&config), app_engine_destroy);
         require(bool(catalogue), "create Qt-free catalogue");
         const std::filesystem::path examples(argv[1]);
+        serialized_demo_equivalence(catalogue.get(), config, argv[2], argv[3]);
         keyboard_macro(catalogue.get(), config);
         dual_chaos(catalogue.get(), config, examples);
         fake_midi_dual_chaos(catalogue.get(), config, examples);
