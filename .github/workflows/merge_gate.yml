@@ -4,7 +4,7 @@
 name: Merge gate
 on:
   pull_request_target:
-    types: [labeled, ready_for_review]
+    types: [labeled, ready_for_review, synchronize]
   issue_comment:
     types: [created]
 permissions:
@@ -19,11 +19,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Disable auto-merge on new push
+        if: github.event_name == 'pull_request_target' && github.event.action == 'synchronize'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if ! result=$(gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto 2>&1); then
+            if echo "$result" | grep -Eiq 'not enabled|not in auto-merge mode'; then
+              echo "$result"
+            else
+              echo "$result" >&2
+              exit 1
+            fi
+          fi
       - uses: actions/checkout@v7
+        if: github.event.action != 'synchronize'
         with:
           ref: main
           persist-credentials: false
       - name: Decide and enable auto-merge
+        if: github.event.action != 'synchronize'
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number || github.event.issue.number }}
