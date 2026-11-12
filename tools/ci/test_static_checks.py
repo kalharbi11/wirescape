@@ -132,6 +132,11 @@ class StaticChecksTests(unittest.TestCase):
             self.assertEqual(len(cpp), 2)
             self.assertNotIn("--library=qt", cpp[0])
             self.assertIn("--library=qt", cpp[1])
+            moc_only = "--suppress=preprocessorErrorDirective:*_autogen/*"
+            self.assertNotIn(moc_only, cpp[0])
+            self.assertIn(moc_only, cpp[1])
+            self.assertEqual([a for a in cpp[1] if a.startswith("--suppress=")],
+                             ["--suppress=missingIncludeSystem", moc_only])
             self.assertTrue(all("--inline-suppr" in c and "--error-exitcode=42" in c for c in cpp))
             for command, owner in zip(cpp, entries):
                 project = next(a.partition("=")[2] for a in command if a.startswith("--project="))
