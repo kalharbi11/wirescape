@@ -188,6 +188,7 @@ target_link_libraries(wirescape_audio_service PUBLIC wirescape_app_engine PRIVAT
 
 # Production Stream lifecycle through a fake dynamic PortAudio library (devices stay off).
 add_library(qt_free_fake_portaudio SHARED ../io/audio/fake_portaudio_stream_tests.cpp)
+set_target_properties(qt_free_fake_portaudio PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 target_link_libraries(qt_free_fake_portaudio PRIVATE Threads::Threads)
 if(WIN32)
   set_target_properties(qt_free_fake_portaudio PROPERTIES OUTPUT_NAME "libportaudio64bit")
