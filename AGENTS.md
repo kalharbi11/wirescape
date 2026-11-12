@@ -1,4 +1,4 @@
-# AGENTS.md: rules for every agent (workflow v4, 2026-11-12)
+# AGENTS.md: rules for every agent (workflow v4.1, 2026-11-12)
 
 Every agent has a name and owns the items labelled with it: **claim → work → review others → sign → hand off.** Your brief: `docs/planner/LEADS.md`. Detail behind these rules: `docs/WORKFLOW.md` (read it only when a rule here is unclear).
 
@@ -18,11 +18,11 @@ Open-source modular synth. A C++17 realtime engine (ABI 2 modules: `native/engin
 |---|---|---|
 | Leads | **Compass** (Claude): product, UX, plan, owns `docs/PLAN.md` · **Keel** (Claude): architecture, specs, ABI, CI policy, technical stops | scope → Compass; technical stop → Keel |
 | Senior (one role) | **Codex Lead** (GPT) or **Coda** (Claude). A run of either fills the role; both never need to run. | unblocking, routing, board, T0/T1 approvals and merges |
-| Builders | `builder-chat-1`, `builder-chat-2` (GPT, run often) · `builder-claude-1` (Claude, when the owner has spare usage). Spare names, not scheduled: `builder-chat-3`, `builder-claude-2` | build their items, then review |
-| Reviewers | `chatgpt-reviewer` (GPT) · `claude-reviewer` (Claude): one-time runs | review only, never build or push |
-| Helpers | scheduled runs, `lane/helper` items | small mechanical items |
+| Builders | `gpt-builder1`, `gpt-builder2` (run often) · `claude-builder1` (when the owner has spare usage). New ones: `gpt-builder<N>` / `claude-builder<N>` | build their items, then review |
+| Reviewers | `gpt-reviewer` · `claude-reviewer`: one-time runs | review only, never build or push |
+| Helpers | `gpt-helper` · `claude-helper`: scheduled runs, `lane/helper` items | small mechanical items |
 
-**Families:** Claude = Compass, Keel, Coda, `builder-claude-*`, `claude-reviewer`. GPT = Codex Lead, Codex tasks, `builder-chat-*`, `chatgpt-reviewer`. Ask one tier up. Address someone with `Name: …` in an issue or PR comment; they read their names. Briefs and paste-ready prompts: `docs/planner/LEADS.md`. **If your prompt is only `<name>: run`, open `docs/planner/LEADS.md`, find your name's block and follow it.**
+**Families** (the name says it): Claude = Compass, Keel, Coda, `claude-*`. GPT = Codex Lead, Codex tasks, `gpt-*`. Ask one tier up. Address someone with `Name: …` in an issue or PR comment; they read their names. Briefs and paste-ready prompts: `docs/planner/LEADS.md`. **Triggers:** `1:run` → builder 1 of your family (`gpt-builder1` in ChatGPT, `claude-builder1` in Claude), `review` → your family's reviewer, `keel: run` etc. → that lead or senior; then follow your block in `docs/planner/LEADS.md`. **Sign** every handoff, review and approval with a last line of exactly `Signed: <name>, <YYYY-MM-DD>` (New York date, nothing after it).
 
 ## Agents and the board
 - **Names:** use yours in claims, labels, handoffs and `Signed:`. No name in the prompt? Ask the owner; don't invent one. New names are added in `docs/planner/LEADS.md` only.
@@ -36,14 +36,14 @@ Open-source modular synth. A C++17 realtime engine (ABI 2 modules: `native/engin
 1. **Claim:** your own item, or an unassigned one: comment `Claimed: <name>, <date>`, set `status/in-progress`, add `agent/<name>`.
 2. **Work:** branch `task/<issue#>-<slug>`, one PR with `Closes #<issue#>`, draft until green. WIP commits may use `[skip ci]`; the final push never does. Ideas go under "Follow-ups".
 3. **Keep going:** while your PR waits for CI or review, do the rest of "Every run". Stop at your run's limit or when usage is nearly spent.
-4. **Hand off** before stopping (template below): rewrite the issue body's `## Current state` block in place (3–5 lines: `Head:`, `Passing:`, `Next:`; the board shows `Next:`) and set the status label. Keep your `agent/` label. Sign every handoff and review: `Signed: <name> (<model>), <date>`.
+4. **Hand off** before stopping (template below): rewrite the issue body's `## Current state` block in place (3–5 lines: `Head:`, `Passing:`, `Next:`; the board shows `Next:`) and set the status label. Keep your `agent/` label. Sign every handoff and review: `Signed: <name>, <YYYY-MM-DD>`.
 
 ## Done, review, merge
 - **Done** = the acceptance block passes: `python tools/dev.py accept <issue#>`; post the report.
 - **Tiers:** **T0** docs, tests, formatting, CI fixes → green + `status/ready-to-merge`, no review. **T1** features, modules + DSP, UI, tools → one review from another session. **T2** engine realtime/threading, protocol, patch format, ABI/SDK, CI/merge control → one review from the **other model family**. If the diff touches a higher tier's paths, the higher tier wins.
 - **Plan and process fast path:** a PR by Compass or Keel that changes only planning/process files (`AGENTS.md`, `CLAUDE.md`, `docs/PLAN.md`, `docs/WORKFLOW.md`, `docs/STATUS.md`, `docs/planner/**`, `docs/tasks/**`, the board tool `tools/board.py` + `.github/workflows/board.yml`) needs **no Codex or cross-family review**: the owner's OK or the other lead's review is enough. The lead applies `allow-protected` itself, posts the approval line and merges as soon as the checks report. Specs (`docs/specs/**`), CI/merge control and code keep their normal tier.
-- **Who may review:** T1: any agent from another session, builders included. T2 of GPT work: any Claude agent (Coda, Keel, Compass, `builder-claude-*`, `claude-reviewer`). T2 of Claude work: Codex Lead or `chatgpt-reviewer` (`builder-chat-*` may pre-review). The reviewer who finds nothing High posts the approval. **Extra approval still needed:** ABI/SDK headers, `docs/specs/**` and CI/merge policy → Keel; protected paths → Compass or Keel.
-- **Approve:** on a green head, a standalone line `Approved for merge <sha7>` followed by a `Signed:` line in the same comment, plus `status/ready-to-merge`. The merge gate auto-merges. A new push needs a new approval.
+- **Who may review:** T1: any agent from another session, builders included. T2 of GPT work: any Claude agent (Coda, Keel, Compass, `claude-builder*`, `claude-reviewer`). T2 of Claude work: Codex Lead or `gpt-reviewer` (`gpt-builder*` may pre-review). The reviewer who finds nothing High posts the approval. **Extra approval still needed:** ABI/SDK headers, `docs/specs/**` and CI/merge policy → Keel; protected paths → Compass or Keel.
+- **Approve:** on a green head with nothing High, post a **regular PR conversation comment** (an issue comment, the box at the bottom of the PR) whose own lines are `Approved for merge <sha7>` and then `Signed: <name>, <YYYY-MM-DD>`, nothing in front of either line (no quote, bullet or code block); then add `status/ready-to-merge`. **The gate reads only conversation comments:** an approval inside a PR review ("Review changes", or a review's summary box) or an inline code comment is ignored. Put the findings in the review if you like, then post the approval as a separate conversation comment. The merge gate auto-merges. A new push needs a new approval.
 - Reviews are `COMMENT` only, with severity + file:line. A High + `status/blocked` stops a PR.
 - Checkpoints (A, B, C in the plan) review a whole phase; they don't pause other work.
 
@@ -88,7 +88,7 @@ No agent reaches the Pi or the laptop (no SSH or anything else). Engine/DSP/side
 **Next:** ordered steps any agent can follow
 **Tests:** command → result (acceptance report link)
 **Gotchas / follow-ups:** …
-Signed: <agent> (<role>), <date>
+Signed: <name>, <YYYY-MM-DD>
 ```
 
 ## Commands (audio stays off)

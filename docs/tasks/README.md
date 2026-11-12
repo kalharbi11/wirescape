@@ -10,6 +10,7 @@ Only tasks for **open** issues live here; the board is issue #473. When an issue
 - [LEAD_QUEUE_REFRESH.md](LEAD_QUEUE_REFRESH.md) — Lead queue refresh (#517)
 - [LEAD_STATE_REFRESH_473.md](LEAD_STATE_REFRESH_473.md) — Lead queue reconciliation (#473)
 - [OSC3_PITCH_OBSERVATION.md](OSC3_PITCH_OBSERVATION.md) — #337 OSC-3: nominal oscillator pitch observation (T2)
+- [OSC_CLOSEOUT.md](OSC_CLOSEOUT.md) — OSC closeout: combined end-to-end check, CONTROLLERS.md, close J5 (#672, parent #72)
 - [OSC_CURRENT_HOST_72.md](OSC_CURRENT_HOST_72.md) — OSC current-host integration inventory (#440, parent #72)
 - [OSC_MONITOR_LOG_C2_604.md](OSC_MONITOR_LOG_C2_604.md) — OSC slice C2: Monitor log telemetry and message list (#604, part of #72)
 - [OSC_ROW_ENABLE_D.md](OSC_ROW_ENABLE_D.md) — OSC slice D: per-row enable, Studio toggle, real "Clear" (#612, part of #72)

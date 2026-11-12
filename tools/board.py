@@ -23,7 +23,7 @@ END = '<!-- board:auto:end -->'
 CLOSES = re.compile(r'\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)', re.I)
 # Owner-triggered low-usage modes: a `usage/low-<family>` label on the board issue.
 USAGE = {
-    'claude': 'Claude usage is low: builder-claude-* items and Claude-side reviews may wait unless urgent.',
+    'claude': 'Claude usage is low: claude-builder* items and Claude-side reviews may wait unless urgent.',
     'codex': 'Codex usage is low: Codex Lead work may wait; ChatGPT agents and Coda cover what they can.',
 }
 
