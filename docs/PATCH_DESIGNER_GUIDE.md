@@ -487,7 +487,10 @@ for the editor to observe them. For example, a `t1_fired` signal may drive a gat
 input to visualize a passed note condition. It is an observation held for the
 step, not an extra note-event route. All original port IDs/order remain stable.
 
-## OSC In and Monitor (host slice B of #72, once its PR merges)
+## OSC In and Monitor (native desktop, J5)
+
+**Owner controller setup:** [Connect an OSC controller](CONTROLLERS.md) explains
+UDP host/port, Pico row addresses, local/LAN consent and Monitor checks.
 
 `osc.in` has eight CV signal outputs (`row1`…`row8`) and a `messages` event
 output. Each row defaults to `/pico1/knob/1`…`/pico1/knob/8`, maps numeric
@@ -507,7 +510,7 @@ unknown keys as “ignored by this engine” and preserves them until an
 intentional OSC editor Save removes unsupported config fields. Older engines
 may still refuse a patch containing those future keys. An optional authored integer `config.version` accepts only 1; future restrictions (listening, authorization, binding or filtering) must bump it so older engines refuse rather than silently broaden behavior.
 
-**Sidecar availability, only after slice B merges:** the native Electron engine
+**Sidecar availability (native desktop):** the native Electron engine
 listens on `127.0.0.1` by default. The patch's `lan:true` alone **never**
 authorizes a LAN socket: a real owner launch must also pass `--confirm-lan`.
 CI uses localhost only. One worker shares each listening UDP port across
@@ -542,13 +545,13 @@ overrides the owner `--confirm-lan` consent. The card reads the actual route
 state and received count; `Port busy` and `LAN not confirmed` are diagnostic,
 not proof that a remote control is working.
 
-**Example wiring (native Electron after B):** add an `osc.in` with
+**Example wiring (native Electron):** add an `osc.in` with
 `config: {"port":9000,"lan":false}`, patch `osc.in.row1` to the
 `essentials.vca.gain_cv` signal input, and send an OSC 1.0 float message to
 `127.0.0.1:9000` at address `/pico1/knob/1` with a value in 0–1.
-The `monitor` module's `events`, `in1` and `in2` ports exist, but the
-user-facing Monitor log is a **separate slice C**; do not claim it is visible
-until C merges. No existing module/port/parameter IDs change.
+The `monitor` module's `events`, `in1` and `in2` ports are available;
+connect `osc.in.messages` → `monitor.events` for the message log.
+No existing module/port/parameter IDs change.
 
 ### Monitor message log (OSC C2 #604; builds advertising `telemetry.monitor`)
 
