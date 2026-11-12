@@ -115,7 +115,7 @@ void d5_phase_deadline_regression() {
     using Clock = std::chrono::steady_clock;
     using Ms = std::chrono::milliseconds;
     using Ns = std::chrono::nanoseconds;
-    const Ms period{512}; // 4096 frames at 8000 Hz
+    const Ms period{512};               // 4096 frames at 8000 Hz
     const auto gap_budget = 3 * period; // same long-block budget as production
     const Clock::time_point first_fade = Clock::time_point(Ms{1000000});
     const auto since_epoch = std::chrono::duration_cast<Ns>(first_fade.time_since_epoch());
