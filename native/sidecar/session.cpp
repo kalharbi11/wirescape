@@ -372,8 +372,7 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
         } catch (const audio::ShutdownFailure &) {
             throw;
         } catch (const std::exception &e) {
-            audio_error_ = e.what();
-            if (audio_error_.size() > 200) audio_error_.resize(200);
+            audio_error_ = audio::bounded_audio_error(e.what());
             audio_state_ = device_.empty() ? "no-device" : "reconnecting";
             audio_retry_ = now + audio_backoff_;
             audio_backoff_ = std::min(audio_backoff_ * 2, std::chrono::milliseconds(5000));
@@ -448,6 +447,32 @@ void Session::open_at_driver_block(int64_t frames) {
     if (!prepared)
         throw std::runtime_error("Graph cannot prepare at the ASIO driver's " + std::to_string(block) + " frames");
     app_engine_prepare_master_fade_in(prepared.get());
+    // Preferred-buffer retries may run after a failed startup or hot-unplug:
+    // OSC/MIDI workers can still hold the old graph while stream_ is null.
+    // Join both producers before replacing it; resume OSC against whichever
+    // graph is committed (new on success, restored on failed retry).
+    const bool had_osc = !osc_->states().empty();
+    osc_->stop();
+    auto resume_osc = [this, had_osc](void *) noexcept {
+        if (!had_osc) return;
+        try {
+            start_osc();
+        } catch (...) {
+            osc_->stop();
+        }
+    };
+    std::unique_ptr<void, decltype(resume_osc)> osc_restart(this, resume_osc);
+    midi_->stop();
+    bool restore_midi_on_failure = true;
+    auto resume_midi = [this, &restore_midi_on_failure](void *) noexcept {
+        if (!restore_midi_on_failure) return;
+        try {
+            start_midi();
+        } catch (...) {
+            midi_->stop();
+        }
+    };
+    std::unique_ptr<void, decltype(resume_midi)> midi_restart(this, resume_midi);
     auto previous = std::move(engine_);
     engine_ = std::move(prepared);
     active_ = engine_.get();
@@ -461,6 +486,7 @@ void Session::open_at_driver_block(int64_t frames) {
         active_ = engine_.get();
         throw;
     }
+    restore_midi_on_failure = false; // caller start()/poll_audio()/apply() resumes MIDI
     if (!requested_block_) requested_block_ = options_.block;
     config_ = next_config;
     options_.block = block;
