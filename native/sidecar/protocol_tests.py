@@ -559,7 +559,7 @@ with tempfile.TemporaryDirectory() as monitor_dir:
         monitor_port = available.getsockname()[1]
 
     def monitor_packet(address, values):
-        name = address.encode() + b'\0'
+        name = (address if isinstance(address, bytes) else address.encode()) + b'\0'
         name += b'\0' * (-len(name) % 4)
         tags = b',' + b'f' * len(values) + b'\0'
         tags += b'\0' * (-len(tags) % 4)
@@ -591,6 +591,9 @@ with tempfile.TemporaryDirectory() as monitor_dir:
             sender.sendto(monitor_packet(f'/observe/{index:02d}', [index / 40.]),
                           ('127.0.0.1', monitor_port))
             time.sleep(0.02)
+        # Invalid UTF-8, and a valid multibyte codepoint crossing byte 64.
+        sender.sendto(monitor_packet(b'/\xff/x', [0.125]), ('127.0.0.1', monitor_port))
+        sender.sendto(monitor_packet('/' + 'x' * 62 + 'é', [0.25]), ('127.0.0.1', monitor_port))
         sender.sendto(monitor_packet('/observe/long/' + 'x' * 75, [0.25]),
                       ('127.0.0.1', monitor_port))
         sender.sendto(monitor_packet('/observe/finite', [0.1, 0.2, 0.3, 0.4, 0.5]),
@@ -605,6 +608,8 @@ with tempfile.TemporaryDirectory() as monitor_dir:
     assert len(entries) == 32 and entries == sorted(entries, key=lambda entry: entry['t'])
     assert all(entry['kind'] == 'osc' and len(entry['args']) <= 4 for entry in entries)
     assert all(len(entry['address'].encode()) <= 64 for entry in entries)
+    assert entries[-5]['address'] == '/?/x'
+    assert entries[-4]['address'] == '/' + 'x' * 62 + '?'
     assert entries[-3]['address'] == ('/observe/long/' + 'x' * 75)[:64]
     assert entries[-2]['address'] == '/observe/finite' and len(entries[-2]['args']) == 4
     assert entries[-1]['address'] == '/observe/nonfinite' and entries[-1]['args'] == [0.75]
