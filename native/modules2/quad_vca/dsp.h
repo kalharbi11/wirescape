@@ -19,10 +19,8 @@ struct QuadVca {
                                        ws::port("cv4", "CV 4", WS2_CV_UNI, WS2_POLY, 1)};
     static constexpr uint32_t kLevel = WS2_MODULATABLE | WS2_PER_VOICE | WS2_AUDIO_RATE_OK | WS2_AUTOMATABLE;
     static constexpr uint32_t kMode = WS2_STEPPED | WS2_AUTOMATABLE;
-    static constexpr std::array outputs{ws::port("out1", "Out 1", WS2_AUDIO),
-                                        ws::port("out2", "Out 2", WS2_AUDIO),
-                                        ws::port("out3", "Out 3", WS2_AUDIO),
-                                        ws::port("out4", "Out 4", WS2_AUDIO),
+    static constexpr std::array outputs{ws::port("out1", "Out 1", WS2_AUDIO), ws::port("out2", "Out 2", WS2_AUDIO),
+                                        ws::port("out3", "Out 3", WS2_AUDIO), ws::port("out4", "Out 4", WS2_AUDIO),
                                         ws::port("mix", "Mix", WS2_AUDIO)};
     static constexpr std::array params{
         ws::param("level1", "Level 1", 0, 1, 1, "", kLevel, WS2_LINEAR, 0),
@@ -113,7 +111,6 @@ struct QuadVca {
             }
         }
     }
-
 private:
     struct VoiceState {
         float follower = 0, ic1 = 0, ic2 = 0;
