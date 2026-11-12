@@ -78,6 +78,8 @@ class StaticChecksTests(unittest.TestCase):
                 ("native/ui/qt_only.cpp", "qt.o", ["external/QtCore/QObject"], "qt"),
                 ("native/ui/mixed.cpp", "mixed.o",
                  ["external/QtCore/QObject", "native/engine2/common.h"], "qt"),
+                ("native/ui/product_only.cpp", "ui_product.o",
+                 ["native/engine2/common.h"], "qt"),
                 ("build/static/ui/foo_autogen/moc_x.cpp", "moc.o",
                  ["native/engine2/common.h"], "qt"),
                 ("build/static/ui/plain.cpp", "plain.o",
@@ -103,7 +105,8 @@ class StaticChecksTests(unittest.TestCase):
                                           builds=("build/static",))
                 self.assertEqual({Path(x["file"]).name: x["cppcheck_model"] for x in selected},
                                  {"core.cpp": "native", "mixed.cpp": "qt",
-                                  "moc_x.cpp": "qt", "plain.cpp": "native"})
+                                  "product_only.cpp": "qt", "moc_x.cpp": "qt",
+                                  "plain.cpp": "native"})
                 selected = ANALYSIS_UNITS(root, {"native/modules2/macro.inc": []},
                                           builds=("build/static",))
                 self.assertEqual([Path(x["file"]).name for x in selected], ["reader.cpp"])
