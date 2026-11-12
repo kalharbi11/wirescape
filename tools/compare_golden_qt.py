@@ -56,11 +56,11 @@ def adapt_frozen_catalogue(source_bytes):
     as the current Qt-free renderer for the frozen *temporary build*.
     """
     source = source_bytes.decode("utf-8")
-    include = '#include "module_catalog.h"\\n'
+    include = '#include "module_catalog.h"\n'
     call = "engine.add_node(1, descriptor) &&"
     if source.count(include) != 1 or source.count(call) != 1:
         raise ValueError("frozen Qt renderer no longer matches the reviewed config adapter anchors")
-    source = source.replace(include, include + '#include "runtime_module_config.h"\\n', 1)
+    source = source.replace(include, include + '#include "runtime_module_config.h"\n', 1)
     source = source.replace(
         call, "engine.add_node(1, descriptor, "
         "runtime_module_config(descriptor->id, nlohmann::json::object(), 1)) &&", 1)
