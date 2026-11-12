@@ -8,13 +8,14 @@ Required checks and acceptance apply to the final head; queued/stale is not pass
 ## 1. OSC first
 - C1 #603/#618 and C2 #604/#620 are merged; do not duplicate them.
 - Row enable #612/#645: worker source High resolved; remaining proof is
-  disabled/enabled/unmatched/mixed-bundle messages → Monitor telemetry.
-  Integrate current main and run actual accept612; task parser fixed at9b77d12.
+  Monitor/mixed-bundle regression17bcf9f and main7fd9948 integration ab92f77
+  pushed; both Monitor and row suites retained. Actual accept612/CI pending.
   Authorized850lines/22files; Codex Lead cross-family T2, Keel protected spec.
 - Unknown config keys #657/#659 is canonical; duplicate #660 closed unmerged,
   branch/evidence preserved. Ignore unknowns, retain strict known-value checks.
-  Integrate known enabled from #645; fix changed-range format, actual accept657/
-  Windows/full native+Web, then Coda T2. Do not merge two adapters/task titles.
+  b62beb6 removes duplicate known-row diagnostics via parser fall-through,
+  after Keel80034f3 formatting. Integrate known enabled from #645; actual
+  accept657/Windows/native+Web and Coda T2 pending. One adapter/task only.
 - Combined OSC closeout: status, presets/Clear, save/load, row outputs/Monitor,
   patch-guide wiring; #94 follows full J5 acceptance.
 
@@ -38,9 +39,12 @@ Required checks and acceptance apply to the final head; queued/stale is not pass
 - #617b06e1bb MERGED after final Codex review5868834370 and Keel disposition;
   no remaining Codex review or CI-policy approval request on that PR.
 - #6409d415b5 Windows Git-Bash/LF/fake-gh harness: four local cases pass;
-  actual hosted required checks and Keel refreshed policy approval still govern.
-- #6470b1d428 bounded Web macro refusal/static repair: actual acceptance/
-  real-WASM/Static evidence exists; final required checks and independent T1.
+  hosted Windows exit90 persists; no flake/green assumed. Keel review needed.
+- #647 MERGED as7fd9948; bounded Web macro refusal/rollback fix complete.
+- #666 d7b754f: Codex Medium on dropping Windows foundation coverage;
+  prefer explicit UTF-8 IO and deterministic test clock, keep assertions.
+- #665 needs discoverable #664 task; Compass D20 says these finish v1.0.
+- Lead automation aligned to current owner hierarchy; schedule unchanged.
 - Existing Groove #619/#626, Studio #607, D5 #648 retain writers, below OSC
   for unrelated review/lead capacity. No #526/#528 changes in this lead session.
 
