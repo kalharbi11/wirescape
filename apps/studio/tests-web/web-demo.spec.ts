@@ -53,6 +53,30 @@ test('web demo refuses MIDI modules without breaking the live patch', async ({ p
   await expect.poll(() => peak(page), { timeout: 15_000 }).toBeGreaterThan(0.001);
 });
 
+// The WASM worklet has no UDP socket. OSC must be absent from the *live*
+// catalogue and refused through the same gate as loadGraph, not just hidden UI.
+test('web demo refuses OSC In without mutating the live graph', async ({ page }) => {
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  const before = await page.evaluate(() =>
+    (window as unknown as { __wirescapeWeb: { gen: string } }).__wirescapeWeb.gen);
+  const reply = await page.evaluate(() => new Promise<Record<string, unknown>>(resolve => {
+    const w = (window as unknown as { __wirescapeWeb: {
+      send(m: Record<string, unknown>): void;
+      onMessage(cb: (m: Record<string, unknown>) => void): () => void;
+    } }).__wirescapeWeb;
+    const off = w.onMessage(m => { if (m.re === 'osc-add') { off(); resolve(m); } });
+    w.send({ v: 0, id: 'osc-add', type: 'addModule', moduleId: 9001, moduleType: 'osc.in' });
+  }));
+  expect(reply.ok).toBe(false);
+  expect(reply.code).toBe('unknown-module');
+  expect(await page.evaluate(() =>
+    (window as unknown as { __wirescapeWeb: { gen: string } }).__wirescapeWeb.gen)).toBe(before);
+  await send(page, { v: 0, id: 'osc-negative-on', type: 'noteOn', note: 64, velocity: 1 });
+  await expect.poll(() => peak(page), { timeout: 15_000 }).toBeGreaterThan(0.001);
+});
+
 const held = (page: Page) => page.evaluate(() =>
   (window as unknown as { __wirescapeTest: { ticker: { last?: { heldNotes: number[] } } } }).__wirescapeTest.ticker.last?.heldNotes ?? []);
 
@@ -123,6 +147,7 @@ test('web demo lists only starters and modules its engine can play', async ({ pa
   const catalogue = await page.evaluate(() =>
     (window as unknown as { __wirescapeTest: { registry: { all: { id: string }[] } } }).__wirescapeTest.registry.all.map(m => m.id));
   expect(catalogue.some(id => id.startsWith('midi.'))).toBe(false);
+  expect(catalogue.some(id => id.startsWith('osc.'))).toBe(false);
   const starters = await page.evaluate(() =>
     (window as unknown as { __wirescapeTest: { starters: { id: string; patch(): { modules: { module: string }[] } }[] } })
       .__wirescapeTest.starters.map(s => ({ id: s.id, modules: s.patch().modules.map(m => m.module) })));

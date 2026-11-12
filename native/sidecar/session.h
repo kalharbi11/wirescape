@@ -68,6 +68,7 @@ class Session {
     AppEngine *active_ = nullptr;
     std::unique_ptr<audio::Stream> stream_;
     ObservedMidi *observer_ = nullptr;
+    std::unique_ptr<monitor::Capture> monitor_;
     std::unique_ptr<midi::Host> midi_;
     std::unique_ptr<osc::Host> osc_;
     Json patch_, preferences_ = Json::object(), audio_devices_, midi_devices_;
