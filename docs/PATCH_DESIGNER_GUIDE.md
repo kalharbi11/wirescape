@@ -497,7 +497,7 @@ per successful graph load; it does not rewrite the authored JSON. Invalid
 values of **known** keys still refuse the patch. Studio identifies these
 unknown keys as “ignored by this engine” and preserves them until an
 intentional OSC editor Save removes unsupported config fields. Older engines
-may still refuse a patch containing those future keys.
+may still refuse a patch containing those future keys. An optional authored integer `config.version` accepts only 1; future restrictions (listening, authorization, binding or filtering) must bump it so older engines refuse rather than silently broaden behavior.
 
 **Sidecar availability, only after slice B merges:** the native Electron engine
 listens on `127.0.0.1` by default. The patch's `lan:true` alone **never**
