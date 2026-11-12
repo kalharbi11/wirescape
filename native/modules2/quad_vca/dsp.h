@@ -9,19 +9,21 @@
 namespace quad_vca {
 struct QuadVca {
     static constexpr ws::Info info{"essentials.quad_vca", "Quad VCA", 1};
-    static constexpr std::array inputs{
-        ws::port("in1", "Input 1", WS2_AUDIO), ws::port("in2", "Input 2", WS2_AUDIO),
-        ws::port("in3", "Input 3", WS2_AUDIO), ws::port("in4", "Input 4", WS2_AUDIO),
-        ws::port("cv1", "CV 1", WS2_CV_UNI, WS2_POLY, 1),
-        ws::port("cv2", "CV 2", WS2_CV_UNI, WS2_POLY, 1),
-        ws::port("cv3", "CV 3", WS2_CV_UNI, WS2_POLY, 1),
-        ws::port("cv4", "CV 4", WS2_CV_UNI, WS2_POLY, 1)};
+    static constexpr std::array inputs{ws::port("in1", "Input 1", WS2_AUDIO),
+                                       ws::port("in2", "Input 2", WS2_AUDIO),
+                                       ws::port("in3", "Input 3", WS2_AUDIO),
+                                       ws::port("in4", "Input 4", WS2_AUDIO),
+                                       ws::port("cv1", "CV 1", WS2_CV_UNI, WS2_POLY, 1),
+                                       ws::port("cv2", "CV 2", WS2_CV_UNI, WS2_POLY, 1),
+                                       ws::port("cv3", "CV 3", WS2_CV_UNI, WS2_POLY, 1),
+                                       ws::port("cv4", "CV 4", WS2_CV_UNI, WS2_POLY, 1)};
     static constexpr uint32_t kLevel = WS2_MODULATABLE | WS2_PER_VOICE | WS2_AUDIO_RATE_OK | WS2_AUTOMATABLE;
     static constexpr uint32_t kMode = WS2_STEPPED | WS2_AUTOMATABLE;
-    static constexpr std::array outputs{
-        ws::port("out1", "Out 1", WS2_AUDIO), ws::port("out2", "Out 2", WS2_AUDIO),
-        ws::port("out3", "Out 3", WS2_AUDIO), ws::port("out4", "Out 4", WS2_AUDIO),
-        ws::port("mix", "Mix", WS2_AUDIO)};
+    static constexpr std::array outputs{ws::port("out1", "Out 1", WS2_AUDIO),
+                                        ws::port("out2", "Out 2", WS2_AUDIO),
+                                        ws::port("out3", "Out 3", WS2_AUDIO),
+                                        ws::port("out4", "Out 4", WS2_AUDIO),
+                                        ws::port("mix", "Mix", WS2_AUDIO)};
     static constexpr std::array params{
         ws::param("level1", "Level 1", 0, 1, 1, "", kLevel),
         ws::param("level2", "Level 2", 0, 1, 1, "", kLevel),
@@ -55,8 +57,8 @@ struct QuadVca {
         const uint32_t voices = std::min<uint32_t>(b.channels(), uint32_t(16));
         bool constant = true;
         for (uint32_t k = 0; k < 4; ++k) {
-            constant = constant && b.in(k).constant() && b.in(k + 4).constant() &&
-                       b.param(k).constant() && b.param(k + 4).constant();
+            constant = constant && b.in(k).constant() && b.in(k + 4).constant() && b.param(k).constant() &&
+                       b.param(k + 4).constant();
         }
         constant = constant && b.param(8).constant();
         for (uint32_t k = 0; k < 4 && constant; ++k)
@@ -113,7 +115,9 @@ struct QuadVca {
     }
 
 private:
-    struct VoiceState { float follower = 0, ic1 = 0, ic2 = 0; };
+    struct VoiceState {
+        float follower = 0, ic1 = 0, ic2 = 0;
+    };
     static float lookup(const std::array<float, 257> &table, float x) {
         const float scaled = std::clamp(x, 0.f, 1.f) * 256.f;
         const uint32_t index = std::min<uint32_t>(uint32_t(scaled), uint32_t(255));
