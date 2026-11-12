@@ -44,6 +44,20 @@ def _idle(delta):
     return f'{hours // 24}d' if hours >= 48 else f'{hours}h'
 
 
+def next_step(body):
+    """The `Next:` line of the issue body's `## Current state` block (edited in place by whoever holds it)."""
+    block = re.split(r'^##\s+Current state\s*$', body or '', maxsplit=1, flags=re.M | re.I)
+    if len(block) < 2:
+        return ''
+    for line in block[1].splitlines():
+        if line.startswith('## '):
+            break
+        hit = re.match(r'^\s*[-*]?\s*\**Next:?\**:?\s*(.+)', line, re.I)
+        if hit:
+            return hit.group(1).replace('|', '/').strip()[:90]
+    return ''
+
+
 def link_prs(prs):
     """Map issue number -> newest open PR that says Closes #N (or names task/N- as its branch)."""
     out = {}
@@ -105,7 +119,7 @@ def render(issues, prs, now, board=473):
         tier = ' '.join(_pick(labels, 'tier/'))
         pr_cell = f"#{pr['number']}" + (' draft' if pr.get('draft') else '') if pr else ''
         rows[key].append(f"| #{issue['number']} {issue['title'][:70]} | {tier} | {wanted} | {holder} | "
-                         f"{pr_cell} | {_idle(idle)} {note}".rstrip() + ' |')
+                         f"{pr_cell} | {_idle(idle)} {note}".rstrip() + f" | {next_step(issue.get('body'))} |")
     out = [START, f"## Live board (auto, {now:%Y-%m-%d %H:%M} UTC)",
            'Rebuilt from labels by `tools/board.py` on every issue/PR change. Do not edit between the markers; '
            'change labels instead. Rules: AGENTS.md "Agent names and the board".', '']
@@ -114,7 +128,7 @@ def render(issues, prs, now, board=473):
         out.append(f"### {title} ({len(rows[key])})")
         out.append(hint)
         if rows[key]:
-            out += ['', '| Issue | Tier | For | Claimed by | PR | Idle |', '|---|---|---|---|---|---|', *rows[key]]
+            out += ['', '| Issue | Tier | For | Claimed by | PR | Idle | Next step |', '|---|---|---|---|---|---|---|', *rows[key]]
         out.append('')
     out.append(END)
     return '\n'.join(out)

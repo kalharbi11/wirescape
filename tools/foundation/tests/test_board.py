@@ -72,6 +72,12 @@ class BoardTests(unittest.TestCase):
         text = board.render([issue(9, 'status/todo')], [pr(90, ref='task/9-thing')], NOW)
         self.assertIn('#90', rows(text, 'Open')[0])
 
+    def test_next_step_comes_from_current_state_block(self):
+        item = issue(3, 'status/in-progress')
+        item['body'] = 'Goal text\nNext: not this one\n\n## Current state\nHead: abc1234\n**Next:** fix Windows red | rerun\n## Notes\nNext: nor this'
+        self.assertIn('| fix Windows red / rerun |', rows(board.render([item], [], NOW), 'In progress')[0])
+        self.assertEqual(board.next_step('no block here\nNext: x'), '')
+
     def test_splice_replaces_only_between_markers(self):
         body = f'notes above\n{board.START}\nold\n{board.END}\nnotes below'
         out = board.splice(body, f'{board.START}\nnew\n{board.END}')

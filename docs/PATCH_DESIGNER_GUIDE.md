@@ -677,7 +677,7 @@ Four native CHAOS LFO waveforms **merged in #533**. The original sine
 shape remains the default; triangle, sample-and-hold and smooth random
 are additive. The #555 public patch candidates use shapes 2 and 3 without
 new modules or port changes. The compatibility/test plan is in
-`docs/tasks/CHAOS_LFO_SHAPES_532.md`. Eight module presets are available
+`docs/tasks/done/CHAOS_LFO_SHAPES_532.md`. Eight module presets are available
 from merged #522; patch JSON stores parameter values rather than preset
 names. Real device listening remains owner-only.
 

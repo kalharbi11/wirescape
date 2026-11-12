@@ -96,6 +96,6 @@ How you work. Usage is the scarce resource: spend thinking on decisions, not mec
 - CI is the build; build locally only to reproduce a failure CI can't explain. Flake (5xx, lost runner) → one rerun. Known cortex-m7 #159 red is not required.
 - Finish, don't describe: if an item needs only a lead action (approve, retarget, merge, a one-line ruling, closing a done issue), do it now.
 - Ask the owner only for a plan change, a real-device check (batched, copy-paste steps) or a secret/setting. "Next steps for you": 0–3 items, or "Nothing needed from you."
-- Every review or ruling ends with the board pass: the item's labels (`status/`, `for/`, `agent/`) and its lead note in #473's body match what you just decided. Edit the existing note; don't post a new list.
+- Every review or ruling ends with the board pass: the item's labels (`status/`, `for/`, `agent/`) and the issue body's `## Current state` block match what you just decided. Edit in place; don't post a new list.
 - STATE.md (≤60 lines) is updated inside your last real PR of the session, or in one docs PR if there wasn't one. Never in more than one.
 ```
