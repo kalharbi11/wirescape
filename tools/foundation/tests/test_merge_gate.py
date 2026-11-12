@@ -22,6 +22,19 @@ class MergeGateTests(unittest.TestCase):
     def check(self, p, files=('native/x.cpp',), comments=()):
         return gate.decide(p, list(files), list(comments), 'owner')[0]
 
+    def test_tier_is_required_even_with_signed_or_legacy_approval(self):
+        approval = [say('Approved for merge abc1234\\nSigned: gpt-reviewer, 2026-11-12')]
+        for labels in ((), ('tier/T0', 'tier/T2'), ('tier/T1', 'tier/T2')):
+            with self.subTest(labels=labels):
+                p = pr(*labels)
+                ok, reason = gate.decide(p, ['native/x.cpp'], approval, 'owner')
+                self.assertFalse(ok)
+                self.assertEqual(reason, 'needs exactly one tier/* label')
+                self.assertFalse(self.check(p, comments=[say('Codex: approved for auto-merge abc1234')]))
+        self.assertTrue(self.check(pr('tier/T0'), files=['docs/README.md']))
+        self.assertTrue(self.check(pr('tier/T1'), comments=approval))
+        self.assertTrue(self.check(pr('tier/T2'), comments=approval))
+
     def test_explicit_markdown_only_t0_needs_only_ready_label_on_main(self):
         md = ('docs/README.md', 'docs/tasks/TASK.md')
         self.assertTrue(self.check(pr('tier/T0'), files=md))
