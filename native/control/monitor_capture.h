@@ -102,7 +102,12 @@ class Capture {
             Entry entry;
             entry.kind = 1;
             const size_t size = std::min<size_t>(64, message.address.size());
-            std::memcpy(entry.address, message.address.data(), size);
+            // OSC addresses are ASCII. Never send raw non-ASCII bytes or a
+            // truncated UTF-8 sequence into JSON telemetry (nlohmann rejects it).
+            for (size_t i = 0; i < size; ++i) {
+                const auto byte = static_cast<unsigned char>(message.address[i]);
+                entry.address[i] = byte >= 0x21 && byte <= 0x7e ? char(byte) : '?';
+            }
             for (uint32_t i = 0; i < message.count && entry.count < entry.args.size(); ++i) {
                 double value = 0;
                 if (!wirescape::osc::numeric(message.arguments[i], value) || !std::isfinite(value)) continue;
