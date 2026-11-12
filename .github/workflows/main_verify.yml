@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Post-merge verification for GITHUB_TOKEN merge-gate commits: no push event is generated.
+name: Verify main after gate merges
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+permissions:
+  actions: write
+  contents: read
+# Serialize checks to avoid dispatching the same workflow twice for one SHA.
+concurrency:
+  group: verify-main
+  cancel-in-progress: false
+jobs:
+  missing-main-runs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch only workflows with no run at the current main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(gh api "repos/$GH_REPO/commits/main" --jq '.sha')"
+          test -n "$sha"
+          for workflow in ci.yml web.yml web-demo.yml; do
+            # Any event/status counts. A failed or queued run also prevents repeat dispatch.
+            existing="$(gh run list -R "$GH_REPO" --workflow "$workflow" --commit "$sha" --limit 1 --json databaseId --jq 'length')"
+            if [ "$existing" != 0 ]; then
+              echo "$workflow: already checked $sha; no dispatch"
+              continue
+            fi
+            # Avoid dispatching against a different HEAD if main advances mid-check.
+            current="$(gh api "repos/$GH_REPO/commits/main" --jq '.sha')"
+            if [ "$current" != "$sha" ]; then
+              echo "main advanced; next scheduled run will evaluate $current"
+              exit 0
+            fi
+            gh workflow run "$workflow" --repo "$GH_REPO" --ref main
+            echo "$workflow: requested verification at $sha"
+          done
