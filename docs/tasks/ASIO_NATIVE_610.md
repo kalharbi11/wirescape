@@ -11,7 +11,7 @@
 
 ```acceptance
 tier: T2
-size: <= 450 changed lines, <= 10 files
+size: <= 600 changed lines, <= 10 files  # Keel authorized for OSC/MIDI UAF and UTF-8 fixes on #631, 2026-11-12
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
