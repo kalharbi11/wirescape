@@ -118,17 +118,19 @@ void d5_phase_deadline_regression() {
     const Ms period{512}; // 4096 frames at 8000 Hz
     const auto gap_budget = 3 * period; // same long-block budget as production
     const Clock::time_point first_fade = Clock::time_point(Ms{1000000});
-    const auto first_ns = uint64_t(std::chrono::duration_cast<Ns>(first_fade.time_since_epoch()).count());
+    const auto since_epoch = std::chrono::duration_cast<Ns>(first_fade.time_since_epoch());
+    const auto first_ns = uint64_t(since_epoch.count());
     const auto actual_deadline = d5_gap_deadline(first_ns, gap_budget);
     check(actual_deadline == first_fade + gap_budget);
     for (const auto wait_before_fade : {Ms{1}, period - Ms{1}}) {
         const auto request = first_fade - wait_before_fade;
         const auto fade_in = first_fade + 2 * period + Ms{10};
         check(fade_in < actual_deadline);
-        if (wait_before_fade == period - Ms{1})
+        if (wait_before_fade == period - Ms{1}) {
             check(fade_in > request + gap_budget); // fails the old request-origin clock
-        else
+        } else {
             check(fade_in < request + gap_budget);
+        }
         // The unchanged bounded request/mute watchdog still expires independently.
         check(request + gap_budget < actual_deadline);
     }
