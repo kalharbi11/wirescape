@@ -43,12 +43,13 @@ source .foundation-venv/bin/activate
 export PIP_CACHE_DIR="$repo_root/.tools/pip-cache"
 # Match CI. tools/ and the headless CTest suite otherwise use Python's stdlib;
 # NumPy experiments, Valgrind/sanitizers, Qt and PortAudio are optional.
-python -m pip install --disable-pip-version-check cmake==4.2.3 ninja==1.13.0
+python -m pip install --disable-pip-version-check cmake==4.2.3 ninja==1.13.0 clang-format==18.1.8
 
 printf '#include <optional>\nint main() { std::optional<int> n{17}; return *n != 17; }\n' |
     "${CXX:-c++}" -std=c++17 -x c++ -fsyntax-only -
 cmake --version
 ninja --version
+clang-format --version
 python tools/dev.py doctor
 printf '\nSetup complete. In each development shell, run:\n'
 printf '  cd %q && source .foundation-venv/bin/activate\n' "$repo_root"
