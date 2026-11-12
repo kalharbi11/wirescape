@@ -11,5 +11,3 @@ Only tasks for **open** issues live here; the board is issue #473. When an issue
 - [STUDIO_AUDIO_RECOVERY.md](STUDIO_AUDIO_RECOVERY.md) — Studio: diagnose silence and make physical audio output selection clear
 - [We_BENCH_GATE.md](We_BENCH_GATE.md) — W-e: benchmark regression gate (#91)
 - [Wh_FUZZ.md](Wh_FUZZ.md) — W-h: OSC/UDP codec fuzzing (after J5 merges) (#94)
-- [CI_SPEED_1_RERUNS.md](CI_SPEED_1_RERUNS.md) — #685 CI speed 1: no rerun on draft→ready, Windows on drafts, clang-format setup + Static format patch (side lane, priority)
-- [CI_SPEED_3_ID_SETS.md](CI_SPEED_3_ID_SETS.md) — #687 CI speed 3: catalogue-count literals become module ID-set checks (side lane)

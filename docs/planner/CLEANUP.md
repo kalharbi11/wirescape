@@ -34,7 +34,7 @@ owner's 1.0 test commit is unaffected.
 | 5 | **R4** #481: `tools/dev.py` around Electron (merge `main` forward; don't rebuild the PR) | T1 | gpt-builder1 → another session | R3b |
 | 6 | Private `wirescape-pi`: drop `laptop.py`'s Qt mode (`WIRESCAPE_QT_DIR`) and its tests | — | Codex Lead or owner | R3b |
 | 7 | Task sweep: move task files for closed issues to `docs/tasks/done/` | T0 | helper | none |
-| 8 | **R6** ABI1 retirement #470 | T2 | Keel-led | v1.2 |
+| 8 | **R6** ABI1 retirement #470 | T2 | Keel-led | not scheduled; the owner decides after the Qt removal (D20) |
 | 9 | **R7** renames | — | Keel decides | after R6, optional |
 
 **Assertion groups R3b-pre must cover** (from the #468 audit; refresh it against the actual R3b base first):

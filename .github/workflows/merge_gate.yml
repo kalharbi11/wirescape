@@ -25,14 +25,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          if ! result=$(gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto 2>&1); then
-            if echo "$result" | grep -Eiq 'not enabled|not in auto-merge mode'; then
-              echo "$result"
-            else
-              echo "$result" >&2
-              exit 1
-            fi
-          fi
+          # Disable only when auto-merge is actually on: GitHub's error text for a no-op disable varies
+          # ("Can't disable auto-merge for this pull request"), and a harmless no-op must not go red.
+          armed=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json autoMergeRequest --jq '.autoMergeRequest != null')
+          if [ "$armed" = true ]; then gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto; fi
       - uses: actions/checkout@v7
         if: github.event.action != 'synchronize'
         with:
@@ -50,8 +46,6 @@ jobs:
             [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
             gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash --match-head-commit "$SHA"
           else
-            if ! result=$(gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto 2>&1); then
-              echo "$result" >&2
-              echo "$result" | grep -Eiq 'not enabled|not in auto-merge mode' || exit 1
-            fi
+            armed=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json autoMergeRequest --jq '.autoMergeRequest != null')
+            if [ "$armed" = true ]; then gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto; fi
           fi

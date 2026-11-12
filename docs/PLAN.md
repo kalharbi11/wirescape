@@ -1,14 +1,16 @@
 # Wirescape plan (v3: standalone app with the web UI)
 
-Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-12 (Compass: owner priority OSC → Quad VCA/LPG → ASIO; D20).
+Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-12 (Compass: owner scope = Qt removal, agreed CI efficiency tasks, open claimed tasks).
 How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) live in git history; their results are summarised under "Where we are".
 
 ## Now
-- **Update 2026-11-12 (Keel; owner priority, board #473).** OSC, Quad VCA/LPG, ASIO, Groove clock inputs and the D5 big-buffer fix are merged. **v1.0.0 candidate = `cdb74f2`** (#700 versions 1.0.0, plus #703 PowerShell 5.1 setup and #706 cable rendering). The owner tests exactly that SHA (#581, sheet + R1–R8 in `docs/releases/v1.0.md`), and `v1.0.0` is tagged on it if it passes (#593). Nobody plans the next update until the owner does (D20, #594).
-- **Qt removal #661, running now** (plan: `docs/planner/CLEANUP.md`, revised #705). R3a #482 (`gpt-builder2`) and R3b-pre #704 (`gpt-builder1`) in parallel → R3b #468 deletes the Qt files (held until the owner's #581 report) → R5c archives/docs (`claude-builder2`) and R4 #481 tools (`gpt-builder1`). Qt T2 PRs are reviewed by the Claude family.
-- **CI and process:** #702 (board follow-ups + post-merge watch, Keel), #693 (#685 CI speed 1, `gpt-builder3`), #692 (#687, `claude-builder2`), #701 (gate fails closed on a missing tier, after #693), #676 (OSC fuzz CI, `claude-builder1`).
-- **After Qt:** optimisation (benchmark gate #91, Web AudioWorklet off the render thread per #658), then improving existing modules and the engine. Stereo Output #600, oscillator gate/tracking #337, cross-mod #332 and the Pi soak #296 wait for the owner's ranking.
-- **Reviews:** T1 needs another session; T2 the other family; Keel approves ABI/spec/CI policy. Owner hardware checks are batched in #581 (Windows) and #45 (Pi).
+- **Owner scope (2026-11-12, Compass):** OSC, Quad VCA/LPG, ASIO, Groove clock and D5 are merged. Until the owner sets the next plan, work is limited to the three groups below. Nothing else starts (D18).
+- **1.0.0:** the owner tests candidate `cdb74f2` (#581; Keel #593 tags exactly that SHA). Fixes the test finds (#597) go to `main` and get a new candidate SHA.
+- **A. Qt removal #661** (order and rules: `docs/planner/CLEANUP.md`): R3a #482 (`gpt-builder2`) and R3b-pre #704/#707 (`gpt-builder1`) → R3b #468 deletes Qt (`gpt-builder2`; Keel tags `archive/qt-final`) → R5c archives + docs (`claude-builder2`) and R4 #481 `tools/dev.py` (`gpt-builder1`) → the private Pi runner drops its Qt mode. The hold condition is met (#700 merged, SHA on #581), so R3b merges as soon as it is green and reviewed. The owner's test runs on its pinned SHA, so deletion on `main` doesn't affect it.
+- **B. Agreed efficiency tasks:** CI speed 1 #685/#693 (`gpt-builder3`) and CI speed 3 #687/#692 (`claude-builder2`). CI speed 2 #686 is merged. Nothing else is queued here.
+- **C. Open tasks already claimed:** gate fails closed on a missing tier #701 (`gpt-builder3`), board/main-verify fix #696/#702 (Keel), OSC fuzz CI #676 (`claude-builder1`), Pi soak #296 (`gpt-builder2`, after R3b), review packs #540 (helper).
+- **Parked until the owner's next plan:** R6 ABI1 #470, Web AudioWorklet off the render thread (#658 P1.2), Stereo Output #600, Macro gate/tracking #337, cross_mod #332, benchmark gate #91, #594.
+- **Reviews:** T1 needs another session; T2 the other family; Keel approves ABI/spec/CI policy. T0 tests are additive only (AGENTS.md "Tiers"). Owner checks are batched in #581.
 
 ## Where we are (2026-11-09)
 **Works (verified on `main`):** Phase 1 code is merged: the `wirescape-engine` sidecar, `RealEngine`, the Electron shell, autostart, patch codec and catalogue sync. Live replan (#209). 28 ABI2 modules in the app catalogue, including Quantizer, Delay, Reverb, Spectral (with Interleave/Vocoder), Blend, Resonator, the 16-step Step Sequencer, Random Source and Groove (S1 native dual 32-step tracks). Telemetry with a measured LFO phase (#379), eight curated patches (#412), the device-free offline render and WAV evidence (#398), and the Windows sidecar pipe fix (#439, so the protocol tests now run on Windows). Pi headless audio and M8 MIDI were verified by the owner on 2026-11-07 (`docs/DEMO_CLASS.md` §1).

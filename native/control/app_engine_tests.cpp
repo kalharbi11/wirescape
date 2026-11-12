@@ -7,17 +7,32 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <stdexcept>
+#include <string>
 #include <thread>
 static void check(bool ok,const char*message){if(!ok)throw std::runtime_error(message);}
 using App=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
 static App make(){ws_engine_config c{sizeof(c),48000,128,32,2048};App e(app_engine_create(&c),app_engine_destroy);check(bool(e),"create app engine");return e;}
 static void shim(const char*library){
     auto source = make();
-    check(app_engine_module_count(source.get()) == 33,
-          "Thirty-one builtins (including Quad VCA, Chord, Notes-to-CV, OSC In and Monitor) plus two SDK sources");
+    // Known IDs may only grow (#687): every one must be present, none twice.
+    std::set<std::string> ids;
+    for (uint32_t i = 0; i < app_engine_module_count(source.get()); ++i)
+        check(ids.insert(app_engine_module(source.get(), i)->id).second, "duplicate catalogue module ID");
+    std::ifstream known(WS_KNOWN_MODULE_IDS);
+    check(bool(known), "known module ID list readable");
+    size_t known_count = 0;
+    for (std::string line; std::getline(known, line);) {
+        line.erase(line.find_last_not_of(" \t\r") + 1);
+        if (line.empty() || line[0] == '#') continue;
+        ++known_count;
+        if (!ids.count(line)) throw std::runtime_error("known module ID missing from catalogue: " + line);
+    }
+    check(known_count >= 33, "known module ID list holds the 1.0 catalogue");
     bool quad_seen = false;
     for (auto *native : wirescape::app::builtin_modules()) {
         const ws_module_descriptor *metadata = nullptr;
