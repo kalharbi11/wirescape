@@ -209,6 +209,8 @@ add_test(NAME midi_host_tests COMMAND midi_host_tests)
 add_test(NAME abi2_midi_live_host_tests COMMAND midi_host_tests)
 add_executable(app_engine_tests ../control/app_engine_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(app_engine_tests PRIVATE wirescape_app_engine)
+target_compile_definitions(app_engine_tests PRIVATE
+  WS_KNOWN_MODULE_IDS="${CMAKE_CURRENT_SOURCE_DIR}/../../tools/foundation/fixtures/known_module_ids.txt")
 add_library(app_legacy_fixture SHARED ../control/app_legacy_fixture.cpp)
 target_include_directories(app_legacy_fixture PRIVATE ../include)
 add_dependencies(app_engine_tests app_legacy_fixture)

@@ -33,7 +33,7 @@ target_compile_features(golden_render_qt_frozen PRIVATE cxx_std_17)
 target_compile_definitions(golden_render_qt_frozen PRIVATE QT_NO_KEYWORDS)
 target_include_directories(golden_render_qt_frozen PRIVATE
   "{native}/document" "{native}/control")
-target_link_libraries(golden_render_qt_frozen PRIVATE wirescape_document)
+target_link_libraries(golden_render_qt_frozen PRIVATE wirescape_document nlohmann_json::nlohmann_json)
 set_target_properties(golden_render_qt_frozen PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${{CMAKE_BINARY_DIR}}")
 function(require_frozen_qt_document)

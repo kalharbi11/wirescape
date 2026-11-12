@@ -11,15 +11,32 @@
 #include <QTemporaryDir>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <fstream>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <stdexcept>
+#include <string>
 using namespace wirescape::document;
 static void require(bool ok,const char*s){if(!ok)throw std::runtime_error(s);}
 int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  require(argc==4,"modules, demo and legacy fixtures arguments");ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>cat(app_engine_create(&cfg),app_engine_destroy);
- require(app_engine_module_count(cat.get()) == 33, "Thirty-one builtins plus two SDK sources in catalogue");
+ // Known IDs may only grow (#687): every one present, none twice; adding a module is free.
+ std::set<std::string> catalogue_ids;
+ for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i)
+     require(catalogue_ids.insert(app_engine_module(cat.get(), i)->id).second, "duplicate catalogue module ID");
+ std::ifstream known_ids(WS_KNOWN_MODULE_IDS);
+ require(bool(known_ids), "known module ID list readable");
+ size_t known_count = 0;
+ for (std::string line; std::getline(known_ids, line);) {
+     line.erase(line.find_last_not_of(" \t\r") + 1);
+     if (line.empty() || line[0] == '#') continue;
+     ++known_count;
+     if (!catalogue_ids.count(line)) throw std::runtime_error("known module ID missing from catalogue: " + line);
+ }
+ require(known_count >= 33, "known module ID list holds the 1.0 catalogue");
  for (const char *expected : {"essentials.vco",
                               "essentials.lfo",
                               "essentials.vcf",

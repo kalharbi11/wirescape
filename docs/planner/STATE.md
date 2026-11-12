@@ -47,7 +47,8 @@ Board#473 BODY is live; retain named claims. Only completed source-matched proof
   statuses cleared as mitigation. Durable scoped permission/ordering fix pending.
 - Last verified mainbf444ad7 required checks pass; new mergedmain verification
   is separate. Keel#679 durable postmerge-wakeup High remains; no blind approval.
-- Compass reconciles PLAN Now with completed priorities and current owners.
+- Compass (owner scope): PLAN Now = Qt removal + CI speed #685/#687 + claimed open tasks;
+  all else parked until the owner's next plan. R3b need not wait for the #581 report.
 - Broad Qt#661 software-priority gate is cleared; Keel sequences existing
   replacement/archive/protected packets. No test deletion without replacements.
 - No devices, LAN, SSH, force/direct-main pushes or weakened tests.

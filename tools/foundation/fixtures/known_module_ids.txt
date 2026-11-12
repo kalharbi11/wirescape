@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Module IDs that must stay in the catalogue (issue #687). This list only grows:
+# add a new module's ID here; never remove or rename one. One ID per line.
+essentials.adsr
+essentials.chaos_lite
+essentials.chord
+essentials.clock
+essentials.function_envelope
+essentials.ladder
+essentials.lfo
+essentials.mixer
+essentials.noise
+essentials.notes_to_cv
+essentials.output
+essentials.quad_vca
+essentials.quantizer
+essentials.resonator
+essentials.scale_offset
+essentials.slew
+essentials.vca
+essentials.vcf
+essentials.vco
+example.random_source
+example.step_sequencer
+fx.delay
+fx.reverb
+host.keyboard
+midi.cc_to_cv
+midi.in
+midi.to_cv
+monitor
+osc.in
+ports.macro_oscillator
+sequencing.groove
+sound.blend
+sound.spectral
