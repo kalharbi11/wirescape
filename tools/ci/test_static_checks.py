@@ -260,5 +260,24 @@ class StaticChecksTests(unittest.TestCase):
             self.assertEqual((filtered, code, count), (own, 42, 1))
 
 
+    def test_format_patch_applies_and_passes_formatter(self):
+        import shutil
+        formatter = shutil.which("clang-format-18") or shutil.which("clang-format")
+        if not formatter:
+            self.skipTest("clang-format not installed")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "native/test.cpp"
+            source.parent.mkdir()
+            source.write_text("int  main( ){return  0;}\\n", encoding="utf-8")
+            command = [formatter, "--dry-run", "--Werror", "--lines=1:1", "./native/test.cpp"]
+            patch_text = static_checks.format_patch(root, "native/test.cpp", command)
+            self.assertIn("--- a/native/test.cpp", patch_text)
+            patch_file = root / "format.patch"
+            patch_file.write_text(patch_text, encoding="utf-8")
+            subprocess.run(["git", "apply", "--check", str(patch_file)], cwd=root, check=True)
+            subprocess.run(["git", "apply", str(patch_file)], cwd=root, check=True)
+            subprocess.run(command, cwd=root, check=True, capture_output=True)
+
 if __name__ == "__main__":
     unittest.main()
