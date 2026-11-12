@@ -43,14 +43,24 @@ static void shim(const char*library){
                   "catalogue output kind");
     }
     check(quad_seen, "Quad VCA is present in the native catalogue");
- check(app_engine_load_module(source.get(),library)==WS_OK,"load third-party ABI1 shared library");
- auto e=make();check(app_engine_copy_modules(e.get(),source.get())==WS_OK,"replacement catalogue");source.reset();
- check(std::strcmp(app_engine_parameter_id(e.get(),"test.app_legacy",0),"7")==0,"preserve non-contiguous ABI1 ID and library lifetime");
- check(app_engine_add_node(e.get(),9,"test.app_legacy")==WS_OK,"shim node");
- check(app_engine_prepare(e.get(),9,0)==WS_OK,"shim prepare");
- check(app_engine_initialize_parameter(e.get(),9,7,.5f)==WS_OK,"shim parameter init by ID");
- float out[128];int result;size_t allocations=0;
- {allocation_watch::Scope watch;result=app_engine_render(e.get(),out,128);allocations+=watch.allocations();}
+    check(app_engine_load_module(source.get(), library) == WS_OK, "load third-party ABI1 shared library");
+    auto e = make();
+    check(app_engine_copy_modules(e.get(), source.get()) == WS_OK, "replacement catalogue");
+    source.reset();
+    check(std::strcmp(app_engine_parameter_id(e.get(), "test.app_legacy", 0), "7") == 0,
+          "preserve non-contiguous ABI1 ID and library lifetime");
+    check(app_engine_add_node(e.get(), 9, "test.app_legacy") == WS_OK, "shim node");
+    check(app_engine_prepare(e.get(), 9, 0) == WS_OK, "shim prepare");
+    check(app_engine_initialize_parameter(e.get(), 9, 7, .5f) == WS_OK, "shim parameter init by ID");
+    float out[128];
+    int result;
+    size_t allocations = 0;
+    {
+        allocation_watch::Scope watch;
+        result = app_engine_render(e.get(), out, 128);
+        allocations += watch.allocations();
+    }
+
  check(result==WS_OK&&std::all_of(out,out+128,[](float v){return v==.5f;}),"shim initial output exact");
  ws_event input{sizeof(input),128,9,WS_PARAMETER,7,.75f,1,0,app_engine_generation(e.get())};
  check(app_engine_enqueue(e.get(),&input)==WS_OK,"enqueue ABI1 parameter ID, not array index");

@@ -25,15 +25,15 @@ struct QuadVca {
                                         ws::port("out4", "Out 4", WS2_AUDIO),
                                         ws::port("mix", "Mix", WS2_AUDIO)};
     static constexpr std::array params{
-        ws::param("level1", "Level 1", 0, 1, 1, "", kLevel),
-        ws::param("level2", "Level 2", 0, 1, 1, "", kLevel),
-        ws::param("level3", "Level 3", 0, 1, 1, "", kLevel),
-        ws::param("level4", "Level 4", 0, 1, 1, "", kLevel),
+        ws::param("level1", "Level 1", 0, 1, 1, "", kLevel, WS2_LINEAR, 0),
+        ws::param("level2", "Level 2", 0, 1, 1, "", kLevel, WS2_LINEAR, 1),
+        ws::param("level3", "Level 3", 0, 1, 1, "", kLevel, WS2_LINEAR, 2),
+        ws::param("level4", "Level 4", 0, 1, 1, "", kLevel, WS2_LINEAR, 3),
         ws::param("mode1", "Mode 1", 0, 1, 0, "", kMode, WS2_LINEAR, 4, 4, 1),
         ws::param("mode2", "Mode 2", 0, 1, 0, "", kMode, WS2_LINEAR, 5, 4, 1),
         ws::param("mode3", "Mode 3", 0, 1, 0, "", kMode, WS2_LINEAR, 6, 4, 1),
         ws::param("mode4", "Mode 4", 0, 1, 0, "", kMode, WS2_LINEAR, 7, 4, 1),
-        ws::param("response", "Response", 0, 1, .4f, "", WS2_MODULATABLE | WS2_AUTOMATABLE)};
+        ws::param("response", "Response", 0, 1, .4f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, 8)};
 
     void prepare(const ws::Setup &s) {
         const double rate = s.sample_rate();

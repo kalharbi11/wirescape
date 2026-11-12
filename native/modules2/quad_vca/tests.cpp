@@ -82,6 +82,12 @@ struct Rig {
     }
 };
 
+void test_legacy_slots() {
+    const auto &params = quad_vca::QuadVca::params;
+    REQUIRE(params.size() == 9);
+    for (uint32_t p = 0; p < params.size(); ++p) REQUIRE(params[p].legacy_index == p);
+}
+
 void test_vca_and_normalling() {
     Rig r;
     r.connect(0);
@@ -216,6 +222,7 @@ void test_lpg_closing_darkens() {
 } // namespace
 
 int main() {
+    test_legacy_slots();
     test_vca_and_normalling();
     test_varying_control();
     test_frame_rate_voice_matrix();

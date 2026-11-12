@@ -3,11 +3,13 @@
 #include "../../tests2/module_loader.h"
 #include "benchmark_graph.h"
 #include "wirescape/engine.h"
+#include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <memory>
 #include <string>
 
-int main(int argc, char **argv) {
+static void probe(int argc, char **argv) {
     VERIFY(argc == 4);
     const std::string mode = argv[2];
     char *end = nullptr;
@@ -48,5 +50,15 @@ int main(int argc, char **argv) {
         VERIFY(mode == "abi2_mono" || mode == "abi2_modulated" || mode == "abi2_poly8");
         auto graph = make(mode == "abi2_poly8" ? 8 : 1, mode == "abi2_modulated");
         for (unsigned long i = 0; i < blocks; ++i) VERIFY(graph->render(out, 1, 256) == 0);
+    }
+}
+
+int main(int argc, char **argv) {
+    try {
+        probe(argc, argv);
+        return 0;
+    } catch (const std::exception &e) {
+        std::fprintf(stderr, "%s\n", e.what());
+        return 2;
     }
 }
