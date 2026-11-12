@@ -111,7 +111,8 @@ struct QuadVca {
             }
         }
     }
-private:
+
+  private:
     struct VoiceState {
         float follower = 0, ic1 = 0, ic2 = 0;
     };
