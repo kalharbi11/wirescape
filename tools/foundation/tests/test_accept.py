@@ -108,6 +108,31 @@ class AcceptanceTests(unittest.TestCase):
         with patch.object(subprocess, "check_output", side_effect=[b"abc123\n", b"-\t-\tfile.bin\0"]):
             self.assertEqual(acceptance.size_check(self.root, "<= 10 changed lines, <= 1 files")["status"], "failed")
 
+    def test_size_excludes_generated_and_planning_paths(self):
+        excluded = (b"400\t0\tapps/studio/public/wirescape_modules.json\0"
+                    b"90\t10\tdocs/tasks/CI_SPEED_2_ACCEPTANCE.md\0"
+                    b"30\t5\tdocs/planner/STATE.md\0")
+        with patch.object(subprocess, "check_output", side_effect=[b"abc123\n", excluded + b"10\t0\ttool.py\0"]):
+            report = acceptance.size_check(self.root, "<= 10 changed lines, <= 1 files")
+        self.assertEqual(report["status"], "passed")
+        self.assertEqual((report["changed_lines"], report["files"]), (10, 1))
+        self.assertEqual([entry["lines"] for entry in report["excluded"]], [400, 100, 35])
+        with patch.object(subprocess, "check_output", side_effect=[b"abc123\n", excluded + b"11\t0\ttool.py\0"]):
+            self.assertEqual(acceptance.size_check(self.root, "<= 10 changed lines, <= 1 files")["status"], "failed")
+        with patch.object(subprocess, "check_output", side_effect=[b"abc123\n", b"-\t-\tdocs/tasks/x.png\0"]):
+            self.assertEqual(acceptance.size_check(self.root, "<= 10 changed lines, <= 1 files")["status"], "failed")
+        self.assertFalse(acceptance.size_excluded("docs/tasks.md"))
+
+    def test_trailing_comments_are_stripped_but_quotes_and_issue_refs_stay(self):
+        text = ("# Fixture (#85)\n```acceptance\ntier: T1  # note\nsize: <= 10 changed lines, <= 1 files # why\n"
+                "must_pass:\n  - python x.py  # why\n  - python -c \"print(' # kept')\"\n"
+                "  # full-line comment\nstops: [see #123]\n```\n")
+        spec = acceptance.parse(text)
+        self.assertEqual(spec["tier"], "T1")
+        self.assertEqual(spec["size"], "<= 10 changed lines, <= 1 files")
+        self.assertEqual(spec["must_pass"], ["python x.py", "python -c \"print(' # kept')\""])
+        self.assertEqual(spec["stops"], "[see #123]")
+
     def test_stacked_base_counts_own_diff_and_reports_resolved_revision(self):
         def git(*args):
             return subprocess.check_output(["git", *args], cwd=self.root, stderr=subprocess.PIPE).decode().strip()
