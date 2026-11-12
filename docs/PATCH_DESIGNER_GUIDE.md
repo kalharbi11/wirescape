@@ -310,6 +310,14 @@ Final integration evidence and owner listening remain separate; larger sizes and
 mode crossfades need their measured budget. Keep older-build availability and
 browser deployment limits visible when sharing patches.
 
+## Quad VCA / low-pass gate (Q1 #601; available after native merge)
+
+`essentials.quad_vca` has four independent, polyphonic audio paths: `in1`…`in4` → `out1`…`out4`, and a summed, **unnormalized** `mix` output (clamped to ±4). Each `level1`…`level4` knob (0–1, default 1) multiplies its matching `cv1`…`cv4` input (unpatched CV defaults to 1). `mode1`…`mode4` chooses 0 = linear VCA or 1 = low-pass gate. Shared `response` (0–1, default 0.4) sets the LPG's approximately 60 ms–1.5 s release; the gate closes its two-pole low-pass cutoff as its volume decays. All four paths support up to 16 voices.
+
+**Normalled input:** leaving `in2`, `in3` or `in4` unplugged reuses the preceding channel's *input* (not its post-gate output), recursively. A single VCO plugged into `in1` can therefore feed four independently controlled gates. For a four-part tremolo: connect one VCO to `in1`, four slow LFOs or ADSRs to `cv1`…`cv4`, set all four modes to LPG for darker decays, and connect `mix` to `essentials.output`'s left input (and optionally right). Keep total gain under control: `mix` adds rather than averages.
+
+The native module and IDs are supplied by Q1 #601. A dedicated four-column Studio card and two example patches follow separately in Q2 #602; do not claim them available until Q2 merges.
+
 ## Designer procedure
 
 1. Read this guide, patches/README and the actual module catalogue.
