@@ -61,7 +61,16 @@ test('Groove retains authored BPM and unknown config across external clock cable
     const snapshot = window.__wirescapeTest.save();
     const groove = snapshot.modules.find((m: { module: string; config?: unknown }) => m.module === 'sequencing.groove');
     if (!groove) throw new Error('Missing Groove fixture');
-    groove.config = { ...(groove.config as Record<string, unknown>), futureVendorField: { keep: [1, 2, 3] } };
+    // A newly added Groove has no config until edited; author a valid v2
+    // pattern before adding unknown data, or the editor correctly goes read-only.
+    groove.config = {
+      version: 2, bpm: 137,
+      tracks: [
+        { length: 16, steps: [{ kind: 'rest' }] },
+        { length: 16, steps: [{ kind: 'rest' }] },
+      ],
+      futureVendorField: { keep: [1, 2, 3] },
+    };
     window.__wirescapeTest.load(snapshot, 'Groove future data');
   });
   await showGroove(page);
@@ -70,6 +79,7 @@ test('Groove retains authored BPM and unknown config across external clock cable
   const bpm = page.getByTestId('groove-bpm-1');
   const ext = page.getByTestId('groove-ext-1');
   const authoredBpm = await bpm.inputValue();
+  expect(authoredBpm).toBe('137');
   await page.evaluate(() => window.__wirescapeTest.addModule('essentials.clock'));
   const cable = { kind: 'signal' as const, from: { module: 2, port: 'clock' }, to: { module: 1, port: 'clock' } };
   await page.evaluate(c => window.__wirescapeTest.connect(c), cable);
