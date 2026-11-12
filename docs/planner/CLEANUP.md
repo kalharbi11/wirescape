@@ -19,13 +19,17 @@ The repo carries three products' worth of code for one product: the Qt app (`nat
 | ABI1 engine path | `native/src/engine.cpp`, `native/modules/*`, ABI1 bridge in `native/engine2/engine2.cpp` (`add_abi1`, `rebind_abi1_descriptor`), `native/control/app_engine.cpp` (`legacy` engine, `app_engine_load_module`), `native/cli/play.cpp:69`, `ws_engine_config` used as a config struct in sidecar and web, ABI1 links in `abi2_benchmark`/`abi2_integration_tests`/`abi2_cost_probe`/`abi2_returned_filter_stress`, `tools/capture/reference.py` | Separate track (R6, D17) |
 | Windows sidecar SKIP 77 | fixed by #439 (merged) | No longer a blocker |
 
-## Status and order (Compass, 2026-11-11, for v1.1)
-The owner runs the v1.0.0 tag for a week, so cleanup lands on `main` alongside that. Builders are independent agents (ChatGPT/Codex). Leads come in only for a Stop. All Qt T2 work goes to Coda in **one** batch review.
+## Status and deferred order (owner priority, 2026-11-12)
+**Finish OSC, then Quad VCA/LPG, then ASIO before broad Qt retirement.** The ordered packets below are parked; they are not prerequisites for those features. Preserve existing drafts, frozen replacement evidence and archive/test/review gates. Resume this chain after the three priority lanes finish.
+
+The known Qt moc/control-header analyzer regression has a targeted fix, #653/#654, already merged. Verify it on current heads. If a different Qt error directly blocks a required check or those products, make only the smallest evidenced repair; do not remove tests, suppress diagnostics or start R3 deletion to clear an inherited non-required red. R3a's golden port and R3b deletion are useful retirement work, not implementations of OSC routing, VCA DSP or ASIO recovery.
+
+Builders retain their claims. All resumed Qt T2 goes to the opposite model family in one batch (Codex/GPT work → Coda). Board #473 is the live priority hierarchy.
 | # | Packet | Tier | Builder → reviewer | Depends on |
 |---|---|---|---|---|
-| 1 | **R3a** #482: product goldens without Qt (draft; finish exact-head CI) | T2 | existing Codex writer → Coda (batch) | — |
+| 1 | **R3a** #482: product goldens without Qt (draft parked; resume after priority lanes) | T2 | existing Codex writer → Coda (batch) | — |
 | 2 | **R3b**: delete `native/ui/`, the QtCore document targets, Qt in `ci.yml`/`static.yml`/`codeql.yml` and `--library=qt` in `tools/ci/static_checks.py`. Set `archive/qt-final` on the merge parent. | T2 | any agent → Coda (same batch) | R3a |
-| 3 | **#571** cppcheck Qt model: **folded into R3b** (deleting Qt removes the model); close #571 when R3b merges | — | — | R3b |
+| 3 | Scoped Qt analyzer repair **#653/#654 is merged**; retiring the remaining Qt model still follows R3b | — | — | R3b |
 | 4 | **R5c**: Qt/pre-1A clauses out of `AGENTS.md`/`CLAUDE.md`; remove `legacy/` and `docs/history/` (label-only, Compass applies `allow-protected`) | T0 | any agent | R3b |
 | 5 | **R4** #481: `tools/dev.py` around Electron, < ~500 lines | T1 | any agent → another session | R3b |
 | 6 | Task sweep: move task files for closed issues to `docs/tasks/done/` and refresh the index | T0 | helper | none (start now) |
