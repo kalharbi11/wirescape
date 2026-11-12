@@ -140,7 +140,7 @@ set_tests_properties(abi2_osc_graph_ingress_tests PROPERTIES TIMEOUT 30)
 
 # Always compile the two harness translation units for Static ownership coverage.
 # This OBJECT library never links or runs libFuzzer in the standard build.
-add_library(abi2_osc_fuzz_compile OBJECT io/osc/fuzz_codec.cpp io/osc/fuzz_pattern.cpp)
+add_library(abi2_osc_fuzz_compile OBJECT io/osc/fuzz.cpp)
 # Opt-in device-free OSC libFuzzer executables; disabled in normal builds.
 option(WIRESCAPE_OSC_FUZZ "Build Clang libFuzzer OSC packet/pattern targets" OFF)
 if(WIRESCAPE_OSC_FUZZ)
@@ -148,7 +148,10 @@ if(WIRESCAPE_OSC_FUZZ)
     message(FATAL_ERROR "WIRESCAPE_OSC_FUZZ requires Clang with libFuzzer")
   endif()
   foreach(kind codec pattern)
-    add_executable(abi2_osc_${kind}_fuzz io/osc/fuzz_${kind}.cpp)
+    add_executable(abi2_osc_${kind}_fuzz io/osc/fuzz.cpp)
+    if(kind STREQUAL "pattern")
+      target_compile_definitions(abi2_osc_${kind}_fuzz PRIVATE WIRESCAPE_OSC_PATTERN=1)
+    endif()
     target_compile_options(abi2_osc_${kind}_fuzz PRIVATE
       -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer)
     target_link_options(abi2_osc_${kind}_fuzz PRIVATE -fsanitize=fuzzer,address,undefined)
