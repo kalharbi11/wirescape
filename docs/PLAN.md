@@ -1,24 +1,17 @@
 # Wirescape plan (v3: standalone app with the web UI)
 
-Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-11 (Compass, post-v1.0 test).
+Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issue. Last updated 2026-11-12 (Compass: owner priority OSC → Quad VCA/LPG → ASIO; D20).
 How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) live in git history; their results are summarised under "Where we are".
 
 ## Now
-- **Update 2026-11-11 (Compass, after the owner's v1.0 test #597).** 1.0 is the current `main` plus the quick fixes below. Then comes the owner's MIDI test (test sheet #7) and the release #593 (tag `v1.0.0`). The owner then plays 1.0 for about a week; larger work is 1.1. Leads check in rarely. **Builders are independent agents** (ChatGPT/Codex) working from task files; a lead joins only for a Stop.
-- **1.0 quick fixes:** #598 (CHAOS Fall, reverb Mix, ASIO, Output meter; approved, merges on green) and #599 (Studio visuals: Random scope, unplug from either end, cable activity, Output meter). The clicks (#597 items 1–3) wait for the owner's ASIO re-test.
-- **New starts now (owner):**
-  - **Finish OSC.** C1 #603 is the friendly OSC In editor (UI only, T1; `docs/tasks/OSC_STUDIO_PANEL_C.md`). C2 #604 is the Monitor message list (T2, after Keel's protocol ruling on the issue). Then #94 codec fuzzing.
-  - **Quad VCA / LPG #490** (`docs/tasks/QUAD_VCA_LPG_490.md`). Q1 #601 is the native module; Q2 #602 is the Studio card and patches, after Q1. Both T1.
-- **1.1 queue (in order; builders may start the T0/T1 items now on `main`):**
-  1. Cleanup per `docs/planner/CLEANUP.md` "Status and order": R3a #482 → R3b (#571 folded in) → R5c → R4 #481, plus a task sweep helper.
-  2. Stereo Output #600 (T2; UX signed off on the issue).
-  3. Groove external clock/run/reset inputs #614 (T1; `docs/tasks/GROOVE_CLOCK_SYNC_INPUTS.md`; may start now).
-  4. CI speed #584–#588/#596.
-  5. Pi 1.0 evidence (#271, #296).
-  6. Engine debt #487/#91.
-  Later candidates (#436 installer, #491 CHAOS, #332, #428) are ranked after the owner's week.
-- **Priority order:** (1) owner-reported failures; (2) the 1.0 release; (3) OSC finish and Quad VCA; (4) the 1.1 queue above; (5) everything else.
-- **Reviews:** T1 needs one review from another session (builders may review each other). Qt/R3 T2 goes to Coda as **one** batch. Keel only rules on Stops, ABI/spec or CI policy.
+- **Update 2026-11-12 (Compass; owner priority, board #473).** **v1.0.0** = today's `main` + the three lanes below (D20). Then the #593 candidate PR (versions 1.0.0), the owner test #581 on that merged SHA, and the tag. Nobody plans the next update until the owner does. Finish what is open before starting anything new (D18).
+- **1. OSC (first call on builders, reviews, lead rulings).** Merged: C1 #618, C2 #620, row enable #645 (#612). Next: #659 (#657, `gpt-builder1`) adds the `config.version` gate per Keel, Coda T2 → closeout #672 (`docs/tasks/OSC_CLOSEOUT.md`) → #94 codec fuzzing (`claude-builder1`).
+- **2. Quad VCA/LPG #490.** Q1 #601/#611 (`gpt-builder2`, native, independent T1) → merge → Q2 #602 (Studio card, two library patches, guide).
+- **3. ASIO.** #627/#631 (`claude-builder1`, T2: Codex Lead or `gpt-reviewer`, Keel for the spec) and Windows setup #605/#608 (`gpt-builder2`, T1). The owner alone checks real ASIO sound.
+- **Other open work keeps its writer but never takes review time from the lanes:** Groove inputs #614/#619, D5 #648 (#487), Web parity #629.
+- **Supporting fixes only when they block a lane:** the Windows docs-only foundation failure (#666) is the current one. Fix the cause (UTF-8 IO, deterministic test clock); no skipped coverage.
+- **After the three lanes:** Qt removal #661 (R3a #482 → R3b #468 → R5c → R4 #481, pre-authorized), then optimisation, then improving existing modules and the engine. Stereo Output #600, CI speed, Pi evidence (#271, #296) and engine debt (#91) follow; the owner ranks them.
+- **Reviews:** T1 needs another session; T2 the other family; Keel approves ABI/spec/CI policy. Owner checks are batched in #45/#581.
 
 ## Where we are (2026-11-09)
 **Works (verified on `main`):** Phase 1 code is merged: the `wirescape-engine` sidecar, `RealEngine`, the Electron shell, autostart, patch codec and catalogue sync. Live replan (#209). 28 ABI2 modules in the app catalogue, including Quantizer, Delay, Reverb, Spectral (with Interleave/Vocoder), Blend, Resonator, the 16-step Step Sequencer, Random Source and Groove (S1 native dual 32-step tracks). Telemetry with a measured LFO phase (#379), eight curated patches (#412), the device-free offline render and WAV evidence (#398), and the Windows sidecar pipe fix (#439, so the protocol tests now run on Windows). Pi headless audio and M8 MIDI were verified by the owner on 2026-11-07 (`docs/DEMO_CLASS.md` §1).
@@ -58,6 +51,7 @@ Wirescape app (Electron: native window, title bar, minimize/close, menus, F11 fu
 | D17 | **ABI1 retires after Qt**, as its own Keel-led T2 track (R6): the ABI1 bridge in engine2, `native/src/`, the 13 ABI1 modules in `native/modules/` and the ABI1 tests, with equivalence vectors and baselines frozen first. Folder renames (R7: `modules2`→`modules`, `engine2`→`engine`) wait for a quiet window. | A second module path inside the realtime core plus duplicate modules confuse agents and reviews. |
 | D18 | **Finish before start.** While 10 or more implementation PRs are open, no lane opens a new module or feature issue; it merges or closes what it has first. Existing claims continue. Only one sequencer effort at a time is in active build (16-step → Groove → Chord). | ~20 open PRs with few merging; throughput comes from merging, not from more parallel starts. |
 | D19 | **Git history is the archive.** No separate archive repo. `legacy/` and `docs/history/` leave the tree at tag `archive/qt-final`, done task files move to `docs/tasks/done/`, and `Wirescape-UI` is archived on GitHub. The read map is AGENTS → STATE → PLAN → task → ARCHITECTURE/specs. | Smaller search space and context; nothing is lost. |
+| D20 | **App versions are releases, not development phases** (owner, 2026-11-12). A version (`v1.0.0`, then `v1.0.x` fixes, `v1.1.0` …) is a rebuilt, tested build the owner chooses to share. Development work is named by phases, sections and issue numbers, never by a future version, and nobody plans "v1.1 work" until the owner does. **v1.0.0** = today's 1.0 plus the owner-test fixes (#597) and the current priority lanes: OSC finished, Quad VCA/LPG, ASIO driver visibility (FlexASIO, #627) and the Studio visual fixes (#599). It is tagged by #593 once the owner test (#581) finds no major problems. Checkpoint tags (`checkpoint-<X>`, `archive/*`) are agent bookkeeping and are not app versions. | The owner ships updates when they are ready; phases describe the work, versions describe what users get. |
 
 ## Phases
 
@@ -125,14 +119,14 @@ Sequence and file lists: `docs/planner/CLEANUP.md`.
 - [ ] **4G ABI1 retirement and renames** (R6, R7; Keel, T2).
 - [ ] **4H Laptop session** (the Windows half of J9 #45).
 
-### ◆ Checkpoint C: Qt is gone, both platforms are packaged → Preview 0.7
+### ◆ Checkpoint C: Qt is gone, both platforms are packaged
 
 ### Phase 5: Later (in plan, not priority; in this order)
 1. Touchscreen: real touch gestures on the Pi display, touch-friendly multi-cable add (UI Q-B), an on-screen keyboard.
 2. Macro Oscillator (Plaits) signature panel polish and all 24 models checked.
 3. A CHAOS-lite custom panel (generic until the owner redesigns it).
 4. Dark theme (UI Q-C).
-5. Beta 0.8 musical core: Quantizer (pulled forward into the module lane, `docs/tasks/done/MOD_QUANTIZER.md`), a native Basic Sequencer, MIDI Out/Clock, MPE.
+5. Musical core: Quantizer (pulled forward into the module lane, `docs/tasks/done/MOD_QUANTIZER.md`), a native Basic Sequencer, MIDI Out/Clock, MPE.
 6. Instruments: subpatches/macros, Channel Expander, CHAOS rebuild, a proper Plaits/Braids port.
 7. Portability and freeze: CLAP adapter, Daisy, ABI freeze (#44, #161), Windows mono perf #64, benchmark gate #91.
 8. A browser/LAN mode (open the UI from another device). Deferred; nothing in Phases 1–4 depends on it.
