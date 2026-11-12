@@ -95,6 +95,70 @@ class WindowsSetupContract(unittest.TestCase):
         self.assertIn("['userData','user']", SMOKE)
         self.assertIn("['sessionData','session']", SMOKE)
 
+    def test_preflight_reports_all_tool_versions_before_failing(self):
+        # One diagnostic table, not the old first-missing-tool exception.
+        self.assertIn('Format-Table Tool, Found, Required, OK', SCRIPT)
+        self.assertIn('Preflight failed ($($failures.Count) checks)', SCRIPT)
+        for tool in ('Process', 'Visual Studio', 'cl.exe', 'Windows SDK', 'rc.exe',
+                     'Python', 'CMake', 'Ninja', 'Node', 'npm'):
+            self.assertIn("CheckRow '" + tool + "'", SCRIPT)
+        self.assertIn("Node", SCRIPT)
+        self.assertIn("22.x x64", SCRIPT)
+        self.assertIn("4.2.3", SCRIPT)
+        self.assertIn("1.13.0", SCRIPT)
+        self.assertIn("elevated", SCRIPT.lower())
+
+    def test_exact_pinned_ninja_and_kitware_wheel_suffix(self):
+        import re
+        source = re.search(r"function Test-PinnedNinja\(\[string\]\$v\)\s*\{\s*return \$v -match '([^']+)'\s*\}", SCRIPT)
+        self.assertIsNotNone(source, "one shared PowerShell version predicate")
+        pattern = source.group(1)
+        self.assertEqual(pattern, r'^1\.13\.0(\.git\.kitware\.jobserver-pipe-\d+)?$')
+        for value in ("1.13.0", "1.13.0.git.kitware.jobserver-pipe-1"):
+            with self.subTest(positive=value):
+                self.assertRegex(value, pattern)
+        for value in ("missing", "1.12.1", "1.14.0", "1.13.01", "1.13.0-rc1", "1.13.0.git.other"):
+            with self.subTest(negative=value):
+                self.assertNotRegex(value, pattern)
+        self.assertEqual(SCRIPT.count("Test-PinnedNinja $ninjaVersion"), 2)
+
+    def test_process_local_x64_shell_and_pip_tool_recovery(self):
+        self.assertIn("Microsoft.VisualStudio.DevShell.dll", SCRIPT)
+        self.assertIn("Enter-VsDevShell", SCRIPT)
+        self.assertIn("-arch=x64 -host_arch=x64", SCRIPT)
+        self.assertIn("sysconfig.get_path('scripts','nt_user')", SCRIPT)
+        self.assertIn('$env:Path = "$scripts;$env:Path"', SCRIPT)
+        self.assertIn("$env:npm_config_update_notifier = 'false'", SCRIPT)
+        # None of these may globally install tools or edit a user's PATH.
+        self.assertNotIn("SetEnvironmentVariable", SCRIPT)
+        self.assertNotIn("Install-Module", SCRIPT)
+
+    def test_owner_launcher_smoke_is_device_off_and_bounded(self):
+        self.assertIn('WIRESCAPE_SETUP_SMOKE', SCRIPT)
+        self.assertIn('Wirescape.cmd', SCRIPT)
+        self.assertIn('--null-audio', SCRIPT)
+        self.assertIn('Start-Process -FilePath $env:ComSpec', SCRIPT)
+        self.assertIn('Start-Sleep -Seconds 3', SCRIPT)
+        self.assertIn('taskkill.exe /PID $launcherProcess.Id /T /F', SCRIPT)
+        self.assertIn('if "%WIRESCAPE_SETUP_SMOKE%"=="1"', LAUNCHER)
+        self.assertIn('exit /b %errorlevel%', LAUNCHER)
+        self.assertIn('Write-Host "Summary: $summary"', SCRIPT)
+
+    def test_launcher_smoke_isolated_and_existing_profile_preserved(self):
+        # This is a source contract; the Windows job also runs the real smoke.
+        self.assertIn("NewGuid().ToString('N')", SCRIPT)
+        self.assertIn("$profileDir = Join-Path $smokeBase 'isolated-profile'", SCRIPT)
+        self.assertIn("$existingProfile = Join-Path $smokeBase 'existing-profile'", SCRIPT)
+        self.assertIn("Set-Content -LiteralPath $existingMarker", SCRIPT)
+        self.assertIn(' --null-audio --profile-dir "{1}"', SCRIPT)
+        self.assertIn("Wirescape.cmd --null-audio --profile-dir exited early", SCRIPT)
+        for subdir in ("userData", "sessionData"):
+            self.assertIn("'"+subdir+"'", SCRIPT)
+        self.assertIn("[Convert]::ToBase64String($existingBefore)", SCRIPT)
+        self.assertIn("[Convert]::ToBase64String($existingAfter)", SCRIPT)
+        self.assertIn("Launcher smoke changed the existing profile sentinel", SCRIPT)
+        self.assertIn("Remove-Item Env:WIRESCAPE_SETUP_SMOKE", SCRIPT)
+
     def test_node_and_windows_preflight(self):
         self.assertIn("v22", SCRIPT)
         self.assertIn("3.12 True", SCRIPT)
