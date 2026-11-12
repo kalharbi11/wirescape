@@ -26,6 +26,23 @@ def changed_ranges(diff):
     return files
 
 
+def cppcheck_model(root, source, dependencies):
+    """Choose a model from the actual compiled TU and its *transitive* headers.
+
+    A product header wins even when a Qt-facing document/web translation unit
+    also reaches Qt headers. Unknown/unmapped owners default to native; Qt is
+    selected only with compiler-recorded evidence of a Qt dependency.
+    """
+    paths = {source, *dependencies}
+    product = ("native/modules2", "native/engine2", "native/sidecar")
+    if any(path.is_relative_to(root / directory)
+           for path in paths for directory in product):
+        return "native"
+    qt_parts = {"QtCore", "QtGui", "QtWidgets", "QtNetwork", "QtOpenGL",
+                "QtQml", "QtQuick", "QtSvg", "QtTest"}
+    return "qt" if any(qt_parts.intersection(path.parts) for path in paths) else "native"
+
+
 def build_units(root, files, build):
     """Use compiler-recorded Ninja dependencies, including nested/X-macro includes."""
     database = json.loads((build / "compile_commands.json").read_text())
@@ -49,7 +66,8 @@ def build_units(root, files, build):
         key = os.path.relpath(obj, build)
         reached = ({source} | dependencies.get(key, set())) & wanted
         if reached:
-            selected.append({**entry, "file": str(source), "build": str(build)})
+            selected.append({**entry, "file": str(source), "build": str(build),
+                             "cppcheck_model": cppcheck_model(root, source, dependencies.get(key, set()))})
             covered.update(reached)
     return selected, covered
 
@@ -130,14 +148,26 @@ def run_checks(root, diff, tidy_diff):
         for entry in units if any(files.values()) else []:
             jobs.append(("clang-tidy diff " + entry["file"], ["clang-tidy-18", "-p", entry["build"],
                          "--header-filter=.*", "--line-filter=" + line_filter, entry["file"]], None))
-        if units:
-            project = root / "build/static/cppcheck_changed.json"
+        for model in ("native", "qt"):
+            owners = [entry for entry in units if entry.get("cppcheck_model", "native") == model]
+            if not owners:
+                continue
+            # Preserve the historical check name and all analyzer options. Only
+            # the project membership and Qt keyword model differ per TU.
+            suffix = "_qt" if model == "qt" else ""
+            project = root / ("build/static/cppcheck_changed" + suffix + ".json")
             project.parent.mkdir(parents=True, exist_ok=True)
-            project.write_text(json.dumps([{k: v for k, v in entry.items() if k != "build"}
-                                           for entry in units]), encoding="utf-8")
-            jobs.append(("cppcheck changed files", ["cppcheck", "--enable=warning,performance",
-                         "--error-exitcode=42", "--suppress=missingIncludeSystem", "--inline-suppr", "--template=gcc",
-                         "--library=qt", "--project=" + str(project)], None))
+            project.write_text(json.dumps([
+                {k: v for k, v in entry.items() if k not in ("build", "cppcheck_model")}
+                for entry in owners
+            ]), encoding="utf-8")
+            command = ["cppcheck", "--enable=warning,performance",
+                       "--error-exitcode=42", "--suppress=missingIncludeSystem",
+                       "--inline-suppr", "--template=gcc"]
+            if model == "qt":
+                command.append("--library=qt")
+            command.append("--project=" + str(project))
+            jobs.append(("cppcheck changed files", command, None))
         for name, ranges in files.items():
             if ranges:
                 jobs.append(("clang-format " + name, ["clang-format-18", "--dry-run", "--Werror",
