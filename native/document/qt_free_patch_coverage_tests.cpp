@@ -235,6 +235,7 @@ void keyboard_macro(AppEngine* catalogue, const ws_engine_config& config) {
     render_and_check(graph.get(), 64, "keyboard to Macro");
     require(app_engine_native(graph.get()).output_channels(2, 0) == 4,
             "Macro loader preserves four voices");
+    const auto original_generation = app_engine_generation(graph.get());
     for (double rate : {44100.0, 96000.0}) {
         auto rejected_rate = config;
         rejected_rate.sample_rate = rate;
@@ -242,6 +243,17 @@ void keyboard_macro(AppEngine* catalogue, const ws_engine_config& config) {
         Owner rejected(wirescape::document::load_runtime_patch(
                            source, catalogue, rejected_rate, error), app_engine_destroy);
         require(!rejected && !error.empty(), "loaded Macro rejects unsupported rate");
+        require(app_engine_generation(graph.get()) == original_generation,
+                "failed candidate prepare leaves accepted graph generation untouched");
+        float previous[128]{};
+        size_t allocations = 0;
+        int status;
+        { allocation_watch::Scope watch;
+          status = app_engine_render(graph.get(), previous, 128);
+          allocations = watch.allocations(); }
+        require(status == WS_OK && allocations == 0 &&
+                    app_engine_native(graph.get()).meter().faults == 0,
+                "failed candidate prepare preserves running graph ownership and render safety");
     }
 }
 
