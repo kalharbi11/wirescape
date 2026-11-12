@@ -465,6 +465,50 @@ static void external_clock_contract() {
     for (uint32_t i = 0; i < 6; ++i) gate.render();
     CHECK(gate.offs == 1 && gate.values[1] == 0);
 
+    // Observe real NOTE_OFF frames after two measured master periods and a
+    // live interval change. Checking only samples_per_step misses a stuck gate.
+    PolyRig varying;
+    auto &notes = varying.sequencer.pattern.tracks[0];
+    notes.div = 1;
+    for (auto &row : notes.steps) {
+        row = notes.steps[0];
+        row.kind = groove::Note;
+        row.gate_q = 1;
+    }
+    varying.sequencer.internal_samples_per_step = varying.sequencer.samples_per_step = 16;
+    varying.inputs[0].flags |= WS2_CONNECTED;
+    varying.start();
+    const auto pulse_at = [&](uint32_t sample) {
+        varying.input_values[0] = 0;
+        while (varying.sample + 1 < sample) varying.render_sample();
+        varying.input_values[0] = 1;
+        varying.render_sample();
+        CHECK(varying.sample == sample);
+    };
+    pulse_at(10); // The first edge still uses BPM as fallback.
+    pulse_at(18); // An 8-sample measured period now sets the gate length.
+    CHECK(varying.sequencer.samples_per_step == 8);
+    CHECK(varying.count(WS2_NOTE_ON) == 9);
+    const uint32_t short_on_frame = varying.event_samples[varying.event_count - 1];
+    const uint32_t short_offs = varying.count(WS2_NOTE_OFF);
+    varying.input_values[0] = 0;
+    varying.render_sample();
+    varying.render_sample();
+    CHECK(varying.count(WS2_NOTE_OFF) == short_offs + 3);
+    CHECK(varying.event_samples[varying.event_count - 1] - short_on_frame == 2);
+
+    pulse_at(30); // Period changes from 8 to 12 while the sequence runs.
+    CHECK(varying.sequencer.samples_per_step == 12);
+    CHECK(varying.count(WS2_NOTE_ON) == 12);
+    const uint32_t long_on_frame = varying.event_samples[varying.event_count - 1];
+    const uint32_t long_offs = varying.count(WS2_NOTE_OFF);
+    varying.input_values[0] = 0;
+    for (uint32_t i = 0; i < 3; ++i) varying.render_sample();
+    CHECK(varying.count(WS2_NOTE_OFF) == long_offs + 3);
+    CHECK(varying.event_samples[varying.event_count - 1] - long_on_frame == 3);
+    for (uint32_t i = 0; i < 24; ++i) varying.render_sample();
+    CHECK(varying.count(WS2_NOTE_ON) == 12); // Lost clock never free-runs.
+
     // A run edge coincident with a clock edge waits for the following pulse.
     Rig simultaneous;
     simultaneous.inputs[0].flags |= WS2_CONNECTED;
