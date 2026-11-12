@@ -45,6 +45,27 @@ cmake_language(DEFER CALL require_frozen_qt_document)
 '''
 
 
+
+def adapt_frozen_catalogue(source_bytes):
+    """Adapt only the old default-module setup to the current runtime config API.
+
+    The verified pre-port source stays immutable in Git. Its Qt serialization,
+    hashing, patch execution and case enumeration are untouched. Newly added
+    Chord requires an instance-id config to prepare; the historic renderer's
+    two-argument add_node predates that contract. Use the same config adapter
+    as the current Qt-free renderer for the frozen *temporary build*.
+    """
+    source = source_bytes.decode("utf-8")
+    include = '#include "module_catalog.h"\\n'
+    call = "engine.add_node(1, descriptor) &&"
+    if source.count(include) != 1 or source.count(call) != 1:
+        raise ValueError("frozen Qt renderer no longer matches the reviewed config adapter anchors")
+    source = source.replace(include, include + '#include "runtime_module_config.h"\\n', 1)
+    source = source.replace(
+        call, "engine.add_node(1, descriptor, "
+        "runtime_module_config(descriptor->id, nlohmann::json::object(), 1)) &&", 1)
+    return source.encode("utf-8")
+
 def generator_options():
     cache = ROOT / "build/native/CMakeCache.txt"
     if not cache.is_file():
@@ -81,7 +102,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="qt-golden-", dir=build_root) as tmp:
         directory = Path(tmp)
         source = directory / "golden_render_qt_frozen.cpp"
-        source.write_bytes(frozen)
+        source.write_bytes(adapt_frozen_catalogue(frozen))
         include = directory / "frozen.cmake"
         include.write_text(hook(source), encoding="utf-8")
         build = directory / "native"
@@ -101,7 +122,8 @@ def main():
                     for name in ("golden_render", "golden_render_qt_frozen"))
         for name, path in (("current", new), ("frozen", old)):
             print(f"{name} renderer sha256={hashlib.sha256(path.read_bytes()).hexdigest()}", flush=True)
-        print(f"candidate={candidate} frozen-source={BASE}:{SOURCE} blob={digest}", flush=True)
+        print(f"candidate={candidate} frozen-source={BASE}:{SOURCE} blob={digest} "
+              "adapter=default-module-runtime-config-only", flush=True)
         subprocess.check_call([sys.executable, str(ROOT / "tools/golden.py"), "check",
                                "--renderer", str(new), "--compare-renderer", str(old),
                                "--report", str(output)], cwd=ROOT, env=env)
