@@ -5,6 +5,7 @@ Keel-approved follow-up after #635: every 30 minutes or on manual dispatch,
 dispatch CI for every unverified main SHA, and path-matching Web/Web demo
 only. A cancelled-only run gets one retry; failures never repeat.
 Cache save on main includes dispatch, not pull requests.
+The scheduler pins PyYAML 6.0.2 for parsing its workflow push paths.
 
 ```acceptance
 tier: T2

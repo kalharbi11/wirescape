@@ -48,11 +48,18 @@ case "$1" in
   *) exit 1 ;;
 esac
 """, newline='\n')
+            (folder / 'yaml.py').write_text("""def safe_load(stream):
+    s = stream.read().split('  push:', 1)[1].split('permissions:', 1)[0]
+    paths = [l.split('-', 1)[1].strip().strip(chr(39)+chr(34)) for l in s.splitlines()
+             if l.lstrip().startswith('- ')]
+    return {'on': {'push': {'paths': paths}}}
+""", newline='\n')
             for stub in ('gh', 'git'):
                 (folder / stub).chmod(0o755)
             log, hits = folder / 'dispatches', folder / 'invocations'
             env = {**os.environ, 'STUB_LOG': posix + '/dispatches',
-                   'STUB_HITS': posix + '/invocations', 'GH_REPO': 'example/repo'}
+                   'STUB_HITS': posix + '/invocations', 'GH_REPO': 'example/repo',
+                   'PYTHONPATH': str(folder) + os.pathsep + os.environ.get('PYTHONPATH', '')}
             prefix = 'export PATH=' + shlex.quote(posix) + ':"$PATH"\n'
             cases = (
                 ('ci.yml,web.yml,web-demo.yml', 'apps/studio/src/a.ts', []),
