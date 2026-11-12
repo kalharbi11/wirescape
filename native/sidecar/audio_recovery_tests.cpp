@@ -603,7 +603,7 @@ int main() {
             const auto error = status["status"]["audio"]["error"].get<std::string>();
             check(error.size() <= 200 && Json::parse(status.dump())["status"]["audio"]["error"] == error,
                   "malformed/split host failure must serialize as bounded status.audio.error");
-            check(error.find('\\xff') == std::string::npos && error.find('\\xc0') == std::string::npos,
+            check(error.find('\xff') == std::string::npos && error.find('\xc0') == std::string::npos,
                   "invalid host bytes must not survive in status.audio.error");
             fake::refuse = false;
             s.poll(base + 100ms);
