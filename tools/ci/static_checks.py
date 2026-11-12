@@ -27,7 +27,7 @@ def changed_ranges(diff):
 
 
 def cppcheck_model(root, source, dependencies):
-    """All compiled translation units use the native C++ model after Qt retirement."""
+    """Every compiled translation unit gets strict native C++ analysis."""
     return "native"
 
 
@@ -137,7 +137,7 @@ def run_checks(root, diff, tidy_diff):
             jobs.append(("clang-tidy diff " + entry["file"], ["clang-tidy-18", "-p", entry["build"],
                          "--header-filter=.*", "--line-filter=" + line_filter, entry["file"]], None))
         if units:
-            # Every compiled owner is analyzed, with no Qt model/suppression.
+            # Every compiled owner is analyzed; no model-specific exemptions.
             project = root / "build/static/cppcheck_changed.json"
             project.parent.mkdir(parents=True, exist_ok=True)
             project.write_text(json.dumps([
