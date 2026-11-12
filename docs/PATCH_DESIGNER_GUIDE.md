@@ -316,7 +316,12 @@ browser deployment limits visible when sharing patches.
 
 **Normalled input:** leaving `in2`, `in3` or `in4` unplugged reuses the preceding channel's *input* (not its post-gate output), recursively. A single VCO plugged into `in1` can therefore feed four independently controlled gates. For a four-part tremolo: connect one VCO to `in1`, four slow LFOs or ADSRs to `cv1`…`cv4`, set all four modes to LPG for darker decays, and connect `mix` to `essentials.output`'s left input (and optionally right). Keep total gain under control: `mix` adds rather than averages.
 
-The native module and IDs are supplied by Q1 #601. A dedicated four-column Studio card and two example patches follow separately in Q2 #602; do not claim them available until Q2 merges.
+The native module and IDs shipped with Q1 #601. Q2 #602 adds a four-column Studio card (Level and VCA/LPG mode for each channel, one shared Response knob; `in1`…`in4`, `cv1`…`cv4` and five outputs on visible side rails) and two public starter patches, available only after **Q2 merges and the web/desktop build updates**:
+
+- **`quad-vca-01-lpg-plucks.json` — LPG Plucks:** `host.keyboard.pitch → essentials.vco.pitch`, VCO `audio → Quad VCA.in1`; keyboard `gate → essentials.adsr.gate → Quad VCA.cv1`. Set `mode1=1`, `response≈0.48`, route `out1 → essentials.output.audio`. Play short notes: the ADSR opens the LPG, whose cutoff darkens during decay. Change Response for tail length.
+- **`quad-vca-02-four-gate-mix.json` — Four-Gate Mix:** one free-running VCO `audio → in1`; leave `in2`…`in4` **unpatched**, so all four channels use that same source *before* gating. Four independent slow, positively offset LFO signals feed `cv1`…`cv4`; all `modeN=0`. Listen to `mix → essentials.output.audio`, then vary each Level and LFO rate. Levels are intentionally below 1 to manage the unnormalised sum.
+
+Both patches use native v2 module/port IDs, 48 kHz, and no hardware devices. These are design/routing examples, **not evidence of an owner audition or verified sound quality**. Older deployed builds without Q1/Q2 cannot load them.
 
 ## Designer procedure
 
@@ -473,6 +478,31 @@ than silently misplay them. Studio authoring for both is described in
 is a separate owner check. Check deployed SHAs for native and WebAssembly
 support.
 
+## Groove external-clock patching (#614; builds containing this integration)
+
+`sequencing.groove` now has three optional **mono** input jacks: `clock`
+(trigger), `run` (gate), and `reset` (trigger). Connect
+`essentials.clock:clock` to `sequencing.groove:clock` with
+`ticks_per_beat=4`: each rising edge advances one sixteenth-note tick.
+The Clock module's BPM sets the tempo; Groove's BPM is disabled in Studio
+and an **EXT** badge appears while the `clock` cable is present. Tracks'
+`div` values still divide ticks. Between pulses, Groove does not free-run,
+although already-sounding short gates release on schedule. The first two
+pulses use Groove's BPM as a fallback until a pulse period is measured.
+
+An optional sustained 0→1 gate on `run` starts Groove at step 1 on the
+next tick; its falling edge releases notes immediately. Use
+`essentials.scale_offset:control` with unpatched input and `offset=1`
+as a constant run gate. A rising `reset` pulse returns to step 1.
+The transport buttons still work. Without the new cables, existing Groove
+patterns and their internal BPM timing are unchanged. These are additive
+port IDs: saved pattern versions, note/CV outputs and parameter IDs stay
+the same. They do not implement MIDI clock or DAW sync.
+
+The library example `basics-08-clocked-groove` wires Clock → Groove
+`clock`, constant run gate → Groove `run`, `t1_pitch` → Quantizer → VCO,
+and `t1_gate` → ADSR → VCA → Delay → stereo Output.
+
 ## Groove observation outputs (PR #501)
 
 Groove observation outputs append to its existing pitch/gate/mod/notes ports:
@@ -497,6 +527,15 @@ default 9000), `lan` (default false), and up to eight row maps with
 `pattern`, `kind` (`cv|gate|trigger`), `argument`, input/output ranges,
 `smoothing_ms`, `timeout_ms` and `stale` (`hold|zero`). Invalid data
 refuses activation without rewriting the saved patch.
+
+**Forward-compatible OSC config (#657; engines containing this fix):**
+unknown `config` or individual `rows[i]` keys are ignored at execution, not
+refused. The native loader prints one bounded diagnostic listing ignored fields
+per successful graph load; it does not rewrite the authored JSON. Invalid
+values of **known** keys still refuse the patch. Studio identifies these
+unknown keys as “ignored by this engine” and preserves them until an
+intentional OSC editor Save removes unsupported config fields. Older engines
+may still refuse a patch containing those future keys. An optional authored integer `config.version` accepts only 1; future restrictions (listening, authorization, binding or filtering) must bump it so older engines refuse rather than silently broaden behavior.
 
 **Sidecar availability, only after slice B merges:** the native Electron engine
 listens on `127.0.0.1` by default. The patch's `lan:true` alone **never**

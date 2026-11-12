@@ -86,7 +86,7 @@ test('presets fill all rows, while config unknowns only drop on editor save', as
   await settle(page);
   expect((await state(page)).modules[0].config.futureOption).toBe(123);
   await open(page);
-  await expect(page.getByTestId('osc-unknown-warning')).toContainText('engine will refuse: futureOption, rows[0].futureField');
+  await expect(page.getByTestId('osc-unknown-warning')).toContainText('ignored by this engine: futureOption, rows[0].futureField');
   expect((await state(page)).modules[0].config.futureOption).toBe(123);
   await page.getByTestId('osc-preset-touchosc').click();
   await expect(page.getByTestId('osc-row1-pattern')).toHaveValue('/1/fader1');
@@ -102,6 +102,35 @@ test('presets fill all rows, while config unknowns only drop on editor save', as
   expect(saved.modules[0].config.rows[7].pattern).toBe('/1/fader8');
   expect(saved.modules[0].ownerNote).toBe('keep me');
   expect(saved.ownerExtension).toEqual({ survive: 1 });
+});
+
+test('authored OSC config version is preserved and unsupported versions cannot be saved', async ({ page }) => {
+  const authored = patch({ version: 2, port: 9011, futureOption: true, rows: [{ enabled: false }] });
+  await page.evaluate(p => window.__wirescapeTest.load(p), authored);
+  await settle(page);
+  await open(page);
+  await expect(page.getByTestId('osc-unknown-warning')).toContainText('Unsupported OSC config version');
+  await page.getByTestId('osc-editor-save').click();
+  await expect(page.getByTestId('osc-editor-errors')).toContainText('Unsupported OSC config version');
+  expect((await state(page)).modules[0].config).toMatchObject(authored.modules[0].config as Record<string, unknown>);
+  await page.getByTestId('osc-editor').getByRole('button', { name: 'Cancel' }).click();
+  await page.evaluate(() => window.__wirescapeTest.addModule('essentials.vco'));
+  await settle(page);
+  expect((await state(page)).modules[0].config).toMatchObject(authored.modules[0].config as Record<string, unknown>);
+
+  // Explicit v1 survives a genuine editor Save; omitted v1 stays omitted.
+  await page.evaluate(p => window.__wirescapeTest.load(p), patch({ version: 1, port: 9011 }));
+  await settle(page);
+  await open(page);
+  await expect(page.getByTestId('osc-unknown-warning')).toBeHidden();
+  await page.getByTestId('osc-editor-save').click();
+  await expect(page.getByTestId('osc-editor')).toBeHidden();
+  expect((await state(page)).modules[0].config.version).toBe(1);
+  await page.evaluate(p => window.__wirescapeTest.load(p), patch({ port: 9011 }));
+  await settle(page);
+  await open(page);
+  await page.getByTestId('osc-editor-save').click();
+  expect((await state(page)).modules[0].config.version).toBeUndefined();
 });
 
 test('Reset to Pico defaults restores UDP port and clears LAN request before save', async ({ page }) => {
@@ -206,7 +235,7 @@ test('unknown row keys on a disabled row survive unrelated edits and drop only o
   }));
   await settle(page);
   await open(page);
-  await expect(page.getByTestId('osc-unknown-warning')).toContainText('engine will refuse: rows[1].futureRowKey');
+  await expect(page.getByTestId('osc-unknown-warning')).toContainText('ignored by this engine: rows[1].futureRowKey');
   await expect(page.getByTestId('osc-row2-enabled')).not.toBeChecked();
   await page.getByTestId('osc-editor').getByRole('button', { name: 'Cancel' }).click();
   // An unrelated document edit keeps the row's unknown key and its enabled flag.

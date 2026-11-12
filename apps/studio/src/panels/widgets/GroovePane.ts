@@ -17,6 +17,8 @@ import '../../styles/groove.css';
 /** What the Groove editor may ask of the app. Nothing here starts audio on its own. */
 export interface GrooveHost {
   config(id: number): unknown;
+  /** Whether the Groove's clock input has an authored signal cable. */
+  clockPatched(id: number): boolean;
   setConfig(id: number, config: GrooveConfig): void;
   /** Current-generation measured stop (G3 `canApplyGroove`); false when the engine cannot say. */
   canApply(id: number): boolean;
@@ -64,6 +66,7 @@ export class GroovePane {
   private readonly undoBtn: HTMLButtonElement;
   private readonly redoBtn: HTMLButtonElement;
   private readonly bpm = el('input', 'g-bpm') as HTMLInputElement;
+  private readonly extBadge = el('span', 'g-draft', 'EXT');
   private readonly view: View;
   private cfg: GrooveConfig | null = null;
   private applied: GrooveConfig | null = null;
@@ -117,6 +120,9 @@ export class GroovePane {
     this.draftEl.dataset.testid = `groove-draft-${id}`;
     this.bpm.type = 'number'; this.bpm.min = '20'; this.bpm.max = '300'; this.bpm.step = '0.1';
     this.bpm.dataset.testid = `groove-bpm-${id}`;
+    this.extBadge.dataset.testid = `groove-ext-${id}`;
+    this.extBadge.title = 'Following the external clock input';
+    this.extBadge.hidden = true;
     this.bpm.setAttribute('aria-label', 'Tempo (BPM)');
     this.bpm.addEventListener('change', () => {
       const v = Number(this.bpm.value);
@@ -134,7 +140,7 @@ export class GroovePane {
     transport.append(this.play, reset, this.status, el('span', 'g-sp'), this.draftEl, this.apply, this.stopApply,
       this.revert, el('span', 'g-lbl', 'BPM'), this.bpm, this.undoBtn, this.redoBtn);
     const head = el('div', 'g-row g-head');
-    head.append(el('span', 'g-identity', 'GRV  Groove'), el('span', 'g-sp'));
+    head.append(el('span', 'g-identity', 'GRV  Groove'), this.extBadge, el('span', 'g-sp'));
     const viewSwitch = el('span', 'g-seg underline');
     for (const mode of ['pads', 'roll'] as const) {
       const b = this.button(this.view.mode === mode ? 'on' : '', 'view-' + mode, '', mode);
@@ -1025,6 +1031,10 @@ export class GroovePane {
   // ---- live (telemetry only) ------------------------------------------------
 
   private paintLive(): void {
+    const ext = this.host.clockPatched(this.id);
+    this.extBadge.hidden = !ext;
+    this.bpm.disabled = !this.cfg || ext;
+    this.bpm.title = ext ? 'Following the clock input; unplug to edit BPM' : '';
     const ph = this.measured(), obs = this.last?.groove?.[this.id];
     const running = this.running(), canApply = this.host.canApply(this.id), draft = this.host.isDraft(this.id);
     if (!running) this.stopRequested = false;

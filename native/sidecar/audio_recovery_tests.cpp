@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Link-time fake implements the existing audio service boundary; never loads PortAudio.
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
+#include "../io/osc/codec.h"
 #include "session.h"
 #include <algorithm>
 #include <filesystem>
@@ -10,8 +18,16 @@
 namespace fake {
 std::vector<wirescape::audio::Device> outputs;
 std::vector<std::string> attempts;
+std::string refuse_id;  // fake a single device-specific PortAudio open failure
+std::string open_error; // injected malformed/multibyte host diagnostic
+std::vector<std::string> installed_asio;
 bool active = true, refuse = false, enumeration_throws = false, render = false;
 uint32_t rejected_rate = 0;
+// Fake ASIO buffer negotiation: when accept_block is set, any other block fails to
+// open; a first attempt then reports `preferred` (0 = driver offers no size).
+uint32_t accept_block = 0;
+int64_t preferred = 0;
+std::vector<uint32_t> blocks;
 std::string rate_refused_id;
 int stopped = 0, exchanges = 0;
 std::vector<wirescape::audio::DeviceQuery> queries;
@@ -23,6 +39,7 @@ wirescape::audio::Device output(const std::string &name, int index, bool is_defa
     return {name, name, "", index, is_default};
 }
 namespace wirescape::audio {
+std::vector<std::string> installed_asio_drivers() { return fake::installed_asio; }
 std::vector<Device> devices(const std::string &, const DeviceQuery &query) {
     fake::queries.push_back(query);
     if (fake::enumeration_throws) throw std::runtime_error("fake enumeration failure");
@@ -35,13 +52,20 @@ struct Stream::Impl {
     EngineSlot slot;
     std::atomic<bool> quit{false};
     std::thread callback;
+    uint32_t frames = 0;
 };
 Stream::Stream(EngineOwner &owner, const StreamSelection &selection, double rate, uint32_t block,
-               std::function<void()> producers)
+               std::function<void()> producers, bool allow_preferred_retry)
     : impl_(std::make_unique<Impl>()) {
     fake::attempts.push_back(selection.name);
-    if (resolve_device(fake::outputs, selection.name) < 0 || fake::refuse)
-        throw std::runtime_error("fake unavailable/ambiguous output");
+    fake::blocks.push_back(block);
+    if (fake::accept_block && block != fake::accept_block) {
+        if (allow_preferred_retry && fake::preferred) throw PreferredBufferSize(fake::preferred);
+        throw std::runtime_error("fake ASIO buffer refused");
+    }
+    impl_->frames = block;
+    if (resolve_device(fake::outputs, selection.name) < 0 || fake::refuse || selection.name == fake::refuse_id)
+        throw std::runtime_error(fake::open_error.empty() ? "fake unavailable/ambiguous output" : fake::open_error);
     if (uint32_t(rate) == fake::rejected_rate || selection.name == fake::rate_refused_id) throw RateUnsupported();
     impl_->engine = std::move(owner);
     impl_->producers = std::move(producers);
@@ -80,6 +104,7 @@ bool Stream::exchange(EngineOwner &next, std::chrono::steady_clock::time_point d
 bool Stream::running() const { return bool(impl_->engine) && fake::active; }
 double Stream::cpu_percent() const { return 0; }
 uint64_t Stream::dropouts() const { return 0; }
+uint32_t Stream::buffer_frames() const noexcept { return impl_->frames; }
 } // namespace wirescape::audio
 using namespace wirescape::sidecar;
 using namespace std::chrono_literals;
@@ -87,6 +112,32 @@ void check(bool ok, const char *message) {
     if (!ok) throw std::runtime_error(message);
 }
 Json audio(const Session &s) { return s.status()["status"]["audio"]; }
+// Only loopback UDP: no real audio, MIDI, device enumeration, or LAN binding.
+void send_local_osc(uint16_t port) {
+    wirescape::osc::Message m;
+    m.address = "/reconnect";
+    m.count = 1;
+    m.arguments[0].type = 'f';
+    m.arguments[0].real = 0.5f;
+    uint8_t packet[1024]{};
+    bool truncated = false;
+    const auto size = wirescape::osc::encode(m, packet, sizeof(packet), truncated);
+    check(size > 0 && !truncated, "encode bounded OSC loopback message");
+    const auto sender = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    check(sender != -1, "create UDP loopback sender");
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port);
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    const auto sent = ::sendto(sender, reinterpret_cast<const char *>(packet), int(size), 0,
+                               reinterpret_cast<sockaddr *>(&address), sizeof(address));
+#ifdef _WIN32
+    closesocket(sender);
+#else
+    close(sender);
+#endif
+    check(sent == int(size), "send OSC packet to localhost only");
+}
 int main() {
     const auto root = std::filesystem::temp_directory_path() /
                       ("wirescape-audio-recovery-" + std::to_string(app_engine_clock_ns()));
@@ -116,6 +167,19 @@ int main() {
               "ASIO fake host API is published with its stable device ID");
         check(fake::attempts.size() == opens_before_list, "listAudioDevices never opens a fake or real stream");
 
+        const auto missing_asio = wirescape::audio::unavailable_asio_drivers(
+            {"ASIO4ALL v2", "FlexASIO"}, {{"ASIO4ALL v2", "ASIO"}, {"Headphones", "Windows WASAPI"}});
+        check(missing_asio == std::vector<std::string>{"FlexASIO"},
+              "registry drivers missing from PortAudio are distinct, never selectable devices");
+        std::vector<std::string> many_asio;
+        many_asio.reserve(30);
+        for (int i = 0; i < 30; ++i) many_asio.push_back("Unseen ASIO " + std::to_string(i));
+        check(wirescape::audio::unavailable_asio_drivers(many_asio, {}).size() == 16,
+              "registry diagnostics are limited to sixteen entries");
+        const std::string long_asio = std::string(63, 'a') + "\xc3\xa9" + "driver";
+        const auto clipped = wirescape::audio::unavailable_asio_drivers({long_asio, long_asio}, {});
+        check(clipped.size() == 1 && clipped.front() == std::string(63, 'a'),
+              "ASIO names truncate at UTF-8 boundaries and are deduplicated");
         Options options;
         options.audio = true; // fake linked service, never the physical backend
         options.settings = (root / "settings.json").string();
@@ -311,6 +375,32 @@ int main() {
             s.poll(std::chrono::steady_clock::now() + 10s);
             check(fake::attempts.size() == opened, "rate refusal must never retry the rejected route");
             fake::rate_refused_id.clear();
+            // A failing candidate must report its real open error in the reply,
+            // even though the successful rollback clears status.audio.error.
+            const auto before_open_error = fake::attempts.size();
+            fake::refuse_id = "Rate DAC";
+            auto attempted = call("route-open-error", "selectAudioDevice", {{"deviceId", "Rate DAC"}});
+            check(attempted["ok"] == false && attempted["code"] == "unavailable" &&
+                      attempted["message"] == "fake unavailable/ambiguous output" &&
+                      fake::attempts.size() == before_open_error + 2 && audio(s)["deviceId"] == "USB Stereo" &&
+                      audio(s)["state"] == "running" && !audio(s).contains("error"),
+                  "failed target open preserves its error and restores the previous playing output");
+            // Both a split UTF-8 cap and arbitrary host-codepage bytes must
+            // serialize in strict JSON on refusal; rollback keeps audio running.
+            for (const auto &diagnostic :
+                 {std::string(199, 'x') + "\xc3\xa9", std::string("bad ") + "\xff\xc0\xaf" + " device"}) {
+                fake::refuse_id = "Rate DAC";
+                fake::open_error = diagnostic;
+                auto error = call("utf8-open-error", "selectAudioDevice", {{"deviceId", "Rate DAC"}});
+                const auto message = error["message"].get<std::string>();
+                check(error["code"] == "unavailable" && message.size() <= 200 && !message.empty() &&
+                          audio(s)["deviceId"] == "USB Stereo" && error.dump().find("unavailable") != std::string::npos,
+                      "failed ASIO open returns valid, bounded UTF-8 and preserves old playing stream");
+                check(Json::parse(error.dump())["message"] == message,
+                      "host errors must survive strict protocol JSON serialization");
+            }
+            fake::open_error.clear();
+            fake::refuse_id.clear();
             fake::active = false;
             const auto lost = std::chrono::steady_clock::now() + 20s;
             s.poll(lost);
@@ -467,6 +557,172 @@ int main() {
             s.shutdown();
         }
         fake::render = false;
+        // Registry and PortAudio enumeration are separately faked: no OS registry,
+        // PortAudio DLL or physical device is ever touched by this test executable.
+        fake::installed_asio = {"ASIO4ALL v2", "FlexASIO"};
+        fake::outputs = {{"ASIO|ASIO4ALL v2", "ASIO4ALL v2", "ASIO", 3, true}};
+        options.settings = (root / "asio-diagnostics.json").string();
+        {
+            Session s(options);
+            s.start(base);
+            const auto all = s.devices();
+            check(all["audioDevices"].size() == 1 && all["audioDevices"][0]["id"] == "ASIO|ASIO4ALL v2",
+                  "existing PortAudio identity is preserved");
+            check(all["audio"]["unavailableDrivers"].size() == 1 &&
+                      all["audio"]["unavailableDrivers"][0]["name"] == "FlexASIO" &&
+                      all["audio"]["unavailableDrivers"][0]["hostApi"] == "ASIO" &&
+                      all["audio"]["unavailableDrivers"][0]["reason"] == "driver-init-failed",
+                  "missing ASIO init is a separate optional diagnostic, not a selectable endpoint");
+            const auto listed = s.reply({{{"v", 0}, {"id", "asio-list"}, {"type", "listAudioDevices"}}, {}, {}});
+            check(listed["ok"] == true && listed["result"]["devices"].size() == 1 &&
+                      listed["result"]["audio"]["unavailableDrivers"].size() == 1 &&
+                      s.hello()["audio"]["unavailableDrivers"].size() == 1,
+                  "hello and explicit enumeration expose the same optional unavailable-driver diagnostic");
+        }
+        fake::refuse = true;
+        options.settings = (root / "asio-error.json").string();
+        {
+            Session s(options);
+            s.start(base);
+            const auto status = audio(s);
+            check(status["state"] == "reconnecting" && status["error"] == "fake unavailable/ambiguous output",
+                  "control-thread opening failure must reach bounded audio status");
+            fake::refuse = false;
+            s.poll(base + 100ms);
+            check(audio(s)["state"] == "running" && !audio(s).contains("error"),
+                  "successful ASIO recovery clears the preceding failure text");
+        }
+        fake::refuse = true;
+        for (const auto &diagnostic :
+             {std::string(199, 'x') + "\xc3\xa9", std::string("host ") + "\xff\xc0" + " refusal"}) {
+            fake::open_error = diagnostic;
+            options.settings = (root / "asio-invalid-utf8-status.json").string();
+            Session s(options);
+            s.start(base);
+            const auto status = s.status();
+            const auto error = status["status"]["audio"]["error"].get<std::string>();
+            check(error.size() <= 200 && Json::parse(status.dump())["status"]["audio"]["error"] == error,
+                  "malformed/split host failure must serialize as bounded status.audio.error");
+            check(error.find('\xff') == std::string::npos && error.find('\xc0') == std::string::npos,
+                  "invalid host bytes must not survive in status.audio.error");
+            fake::refuse = false;
+            s.poll(base + 100ms);
+            check(audio(s)["state"] == "running" && !audio(s).contains("error"),
+                  "successful reopen clears the sanitized host error");
+            fake::refuse = true;
+        }
+        fake::refuse = false;
+        fake::open_error.clear();
+        fake::installed_asio.clear();
+        // Keel #627 ruling: an ASIO driver that refuses the block gets exactly one
+        // retry at its preferred size 1..4096 after a quiescent graph reprepare.
+        fake::refuse = false;
+        fake::outputs = {{"ASIO|ASIO4ALL v2", "ASIO4ALL v2", "ASIO", 3, true}};
+        const auto saved_block = options.block;
+        options.block = 256;
+        fake::accept_block = 512;
+        fake::preferred = 512;
+        options.settings = (root / "asio-forced.json").string();
+        {
+            fake::blocks.clear();
+            Session s(options);
+            s.start(base);
+            const auto status = audio(s);
+            check(fake::blocks == std::vector<uint32_t>{256, 512} && status["state"] == "running" &&
+                      status["bufferFrames"] == 512 && status["requestedBufferFrames"] == 256 &&
+                      !status.contains("error"),
+                  "preferred size in range: one retry at the driver size, actual size reported");
+            std::ifstream saved(options.settings);
+            const auto prefs = Json::parse(saved);
+            check(!prefs.contains("audio") || prefs["audio"].value("bufferFrames", 0) != 512,
+                  "the driver-forced size is never persisted");
+            s.poll(base + 100ms);
+            check(fake::blocks.size() == 2, "a running forced stream is not reopened");
+        }
+        fake::preferred = 8192;
+        options.settings = (root / "asio-out-of-range.json").string();
+        {
+            fake::blocks.clear();
+            Session s(options);
+            s.start(base);
+            const auto status = audio(s);
+            check(fake::blocks == std::vector<uint32_t>{256} && status["state"] == "reconnecting" &&
+                      status["error"] == "ASIO driver requires 8192 frames (supported 1-4096)" &&
+                      status["bufferFrames"] == 256 && !status.contains("requestedBufferFrames"),
+                  "preferred size out of range: no second open, bounded error, configured size kept");
+        }
+        fake::accept_block = 1024; // neither the request nor the preferred size opens
+        fake::preferred = 512;
+        options.settings = (root / "asio-retry-fails.json").string();
+        {
+            fake::blocks.clear();
+            Session s(options);
+            s.start(base);
+            const auto status = audio(s);
+            check(fake::blocks == std::vector<uint32_t>{256, 512} && status["state"] == "reconnecting" &&
+                      status["error"] == "fake ASIO buffer refused" && status["bufferFrames"] == 256 &&
+                      !status.contains("requestedBufferFrames"),
+                  "failed retry: exactly one retry, error set, no loop and configured size kept");
+        }
+        // Device-off regression for Codex's OSC worker UAF: the worker holds a
+        // borrowed AppEngine* while an ASIO preferred-size retry swaps graphs.
+        // Prove loopback ingress still works after both commit and rollback.
+        fake::accept_block = 0;
+        fake::preferred = 0;
+        options.settings = (root / "asio-osc-rebind.json").string();
+        fake::render = true; // live loadGraph needs the paced fake callback for its D5 handoff
+        {
+            Session s(options);
+            s.start(base);
+            constexpr uint16_t port = 49715;
+            Json patch = {
+                {"format", "wirescape.native.patch"},
+                {"version", 2},
+                {"modules", Json::array({{{"id", 1}, {"module", "essentials.output"}},
+                                         {{"id", 2},
+                                          {"module", "osc.in"},
+                                          {"config",
+                                           {{"port", port},
+                                            {"lan", false},
+                                            {"rows", Json::array({{{"pattern", "/reconnect"}, {"kind", "cv"}}})}}}}})},
+                {"connections", Json::array()}};
+            auto loaded = s.reply({{{"v", 0}, {"id", "osc-rebind"}, {"type", "loadGraph"}, {"patch", patch}}, {}, {}});
+            check(loaded["ok"] == true, "OSC graph loads into fake ASIO playback");
+            auto packet_received = [&](uint64_t minimum) {
+                const auto deadline = std::chrono::steady_clock::now() + 1200ms;
+                while (std::chrono::steady_clock::now() < deadline) {
+                    const auto routes = s.status()["status"]["osc"]["routes"];
+                    if (!routes.empty() && routes[0]["received"].get<uint64_t>() >= minimum) return true;
+                    std::this_thread::sleep_for(10ms);
+                }
+                return false;
+            };
+            send_local_osc(port);
+            check(packet_received(1), "OSC works before ASIO device loss");
+            fake::active = false;
+            s.poll(base + 100ms);
+            fake::accept_block = 512;
+            fake::preferred = 512;
+            s.poll(base + 200ms);
+            check(audio(s)["state"] == "running" && audio(s)["bufferFrames"] == 512,
+                  "preferred-size reconnect swaps the live graph");
+            send_local_osc(port);
+            check(packet_received(1), "OSC worker rebinds to the new graph after preferred-size retry");
+            fake::active = false;
+            s.poll(base + 300ms);
+            fake::accept_block = 1024;
+            fake::preferred = 256;
+            s.poll(base + 400ms);
+            check(audio(s)["state"] == "reconnecting" && audio(s)["bufferFrames"] == 512,
+                  "failed ASIO retry restores old block and graph");
+            send_local_osc(port);
+            check(packet_received(1), "OSC worker rebinds to the restored graph after failed retry");
+            s.shutdown();
+        }
+        fake::render = false;
+        fake::accept_block = 0;
+        fake::preferred = 0;
+        options.block = saved_block;
         std::cout << "audio recovery fake-backend tests passed\n";
     } catch (const std::exception &e) {
         std::cerr << e.what() << '\n';

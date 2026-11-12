@@ -1,0 +1,81 @@
+{
+  "code": "QVCA",
+  "width": 550,
+  "sections": [
+    {
+      "label": "LEVEL · CHANNELS 1–4",
+      "columns": 4,
+      "params": [
+        "level1",
+        "level2",
+        "level3",
+        "level4"
+      ]
+    },
+    {
+      "label": "MODE · VCA / LPG",
+      "columns": 4,
+      "params": [
+        "mode1",
+        "mode2",
+        "mode3",
+        "mode4"
+      ]
+    },
+    {
+      "label": "LPG · ALL CHANNELS",
+      "columns": 1,
+      "params": [
+        "response"
+      ]
+    }
+  ],
+  "roles": {
+    "level1": "secondary",
+    "level2": "secondary",
+    "level3": "secondary",
+    "level4": "secondary",
+    "mode1": "mode",
+    "mode2": "mode",
+    "mode3": "mode",
+    "mode4": "mode",
+    "response": "primary"
+  },
+  "short": {
+    "level1": "1",
+    "level2": "2",
+    "level3": "3",
+    "level4": "4",
+    "mode1": "1",
+    "mode2": "2",
+    "mode3": "3",
+    "mode4": "4",
+    "response": "Response"
+  },
+  "modPorts": [],
+  "ports": {
+    "input": {
+      "shown": 8,
+      "priority": [
+        "in1",
+        "cv1",
+        "in2",
+        "cv2",
+        "in3",
+        "cv3",
+        "in4",
+        "cv4"
+      ]
+    },
+    "output": {
+      "shown": 5,
+      "priority": [
+        "out1",
+        "out2",
+        "out3",
+        "out4",
+        "mix"
+      ]
+    }
+  }
+}

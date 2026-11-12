@@ -3,6 +3,8 @@
 
 Only tasks for **open** issues live here; the board is issue #473. When an issue closes, its file moves to `done/` (`tools/dev.py accept` searches both). Keep each file ≤ ~3 KB and end it with an `acceptance` block.
 
+- [PRIORITY_CLOSEOUT_STATE.md](PRIORITY_CLOSEOUT_STATE.md) — #682 — Senior priority closeout and exact-head handoffs
+- [CODEX_FOLLOWUP_STATE.md](CODEX_FOLLOWUP_STATE.md) — #694 — Requested Codex followup evidence and release handoffs
 - [ASIO_NATIVE_610.md](ASIO_NATIVE_610.md) — #627 — Native ASIO diagnostics and safe preferred-buffer retry
 - [GROOVE_CLOCK_SYNC_INPUTS.md](GROOVE_CLOCK_SYNC_INPUTS.md) — Groove: external clock, run and reset inputs (#614, from #597 item 11)
 - [J5_OSC_MONITOR.md](J5_OSC_MONITOR.md) — J5: OSC In over UDP and Monitor log (#72, PR #82, stacked on J4 #81)
@@ -33,3 +35,6 @@ Only tasks for **open** issues live here; the board is issue #473. When an issue
 - [CHAOS_LFO_SHAPE_TESTS_556.md](CHAOS_LFO_SHAPE_TESTS_556.md) — #556: CHAOS LFO shape-switch regression tests
 - [MAIN_CONFIG_TEST_COLLISION.md](MAIN_CONFIG_TEST_COLLISION.md) — #485 Repair the combined MIDI/Groove runtime-config test collision
 - [NATIVE_ONLY_FEATURE_TESTS.md](NATIVE_ONLY_FEATURE_TESTS.md) — Native-only feature tests (#566)
+- [CI_SPEED_1_RERUNS.md](CI_SPEED_1_RERUNS.md) — #685 CI speed 1: no rerun on draft→ready, Windows on drafts, clang-format setup + Static format patch (side lane, priority)
+- [CI_SPEED_2_ACCEPTANCE.md](CI_SPEED_2_ACCEPTANCE.md) — #686 CI speed 2: size check counts authored lines only; parser accepts inline comments (side lane)
+- [CI_SPEED_3_ID_SETS.md](CI_SPEED_3_ID_SETS.md) — #687 CI speed 3: catalogue-count literals become module ID-set checks (side lane)
