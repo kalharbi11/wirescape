@@ -119,7 +119,7 @@ void send_local_osc(uint16_t port) {
     m.count = 1;
     m.arguments[0].type = 'f';
     m.arguments[0].real = 0.5f;
-    uint8_t packet[256]{};
+    uint8_t packet[1024]{};
     bool truncated = false;
     const auto size = wirescape::osc::encode(m, packet, sizeof(packet), truncated);
     check(size > 0 && !truncated, "encode bounded OSC loopback message");
