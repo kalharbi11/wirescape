@@ -18,24 +18,23 @@ Only completed exact-head acceptance/checks count; queued/skipped/stale is not p
   required checks and independent T1; close parent#72 only after actual merge.
 - #94/#674 gpt-builder2: old25523fb acceptance could not invoke raw cmake/
   codec commands through the allowed runner; seed decoding and5OSC CTests pass.
-  f855d15 wraps unchanged build/codec commands in bash; fresh60s/target proof
-  and required/Static gates still needed. No workflow in this PR.
+  f855d15 fixes invocation; configure now proves clang++-18 absent in runner.
+  Provision named compiler/runtime, then fresh60s/target proof. No workflow.
 - #676 claude-builder1 follows#674: Keel's approved non-required fuzz CI/
   Pi nightly packet, with Codex T2 and Keel final CI-policy disposition.
 
 ## Quad VCA/LPG and ASIO
 - Native Q1#611 merged62fa9ec; setup#608 merged3a3bd34.
-- Q2#602/#675 source57b48dc: Codex final T1 source review has no High/Medium.
-  Hosted library-smoke PASS covers both new patches with production finite/
-  non-silent/fault-free renders. Windows and sanitizers now green; selected
-  accept602 still running at inspection. Approve only once all gates complete.
+- Q2#675 source57b48dc MERGED0cc86f76 after independent Codex T1 and all
+  required/applicable gates plus actual selectedaccept602 completed. Parent
+  #490 and child#602 are closed. Both production library renders pass.
 - #627/#631 owner gpt-builder2: Keel authorized600lines/10files and unchanged
   spec. Both original Codex Highs source-fixed: producer join/rebind before
   graph replacement; valid UTF-8-safe bounded diagnostics/status/refusals.
 - Codex narrow9576c82 fixed strict task-size syntax and enabled the existing
   paced fake callback for live OSC loadGraph; local task parser passes.
-  New b71a16e fixes codec fixture capacity256→1024. Fresh native/Windows/
-  sanitizers/accept627/Static/Web required; prior head fails are not passes.
+  New b71a16e fixes codec fixture capacity256→1024; selectedaccept627 native
+  build/test and Linux/TSan pass. Windows/ASan/Static/Web still running.
   Codex Claude-retry delta posted; Claude must review GPT fixes/test repair.
   Only owner checks physical ASIO sound; close#610 after#631 actually merges.
 
