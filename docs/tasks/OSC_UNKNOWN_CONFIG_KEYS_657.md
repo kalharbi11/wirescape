@@ -23,7 +23,7 @@ Read first: `native/document/runtime_module_config.h` (OSC adapter),
 
 ```acceptance
 tier: T2
-size: <= 200 changed lines, <= 7 files
+size: <= 320 changed lines, <= 10 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
