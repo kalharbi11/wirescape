@@ -366,7 +366,7 @@ Everything here runs against the fake engine; the real engine fills the same fie
 
 | group | items |
 |---|---|
-| Audio | output device, sample rate (the device's rates), buffer size (latency follows) |
+| Audio | driver type (host API), filtered physical output device, sample rate (the device's rates), buffer size (latency follows) |
 | MIDI | each device on/off (all on by default) |
 | OSC | server on/off (off by default), port (1024–65535; anything else is refused and rolled back), allow network (off = localhost only), recent messages (last 8, live) |
 | Interface | motion, performance profile, **switch to Pi when slow** (on by default), hit areas, UI scale, theme, port labels |

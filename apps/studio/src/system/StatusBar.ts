@@ -120,10 +120,11 @@ export class StatusBar {
 
     if (s.osc?.enabled) {
       this.osc.style.display = '';
-      const last = s.osc.recent[0];
-      this.osc.textContent = `OSC ${s.osc.port} · ${s.osc.allowNetwork ? 'NETWORK' : 'LOCAL'}`;
-      this.osc.title = last ? `Last: ${last.address} ${last.args.join(' ')}` : 'OSC on, no messages yet';
-      this.osc.classList.toggle('warn', s.osc.allowNetwork);
+      const last = s.osc.recent?.[0];
+      const network = s.osc.allowNetwork ?? s.osc.lan ?? false;
+      this.osc.textContent = `OSC ${s.osc.port} · ${network ? 'NETWORK' : 'LOCAL'}`;
+      this.osc.title = last ? `Last: ${last.address} ${last.args.join(' ')}` : 'OSC listening; open the OSC In card for route counters.';
+      this.osc.classList.toggle('warn', network);
     } else {
       this.osc.style.display = 'none';
     }
