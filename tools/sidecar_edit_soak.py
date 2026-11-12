@@ -316,7 +316,7 @@ def main(argv=None):
             if not hosted_windows():
                 raise
             print(f'hosted Windows wake-only attempt 1 failed: {first}', file=sys.stderr)
-            result = run(binary.resolve(), args.seconds, args.seed)  # one fresh null-sink attempt
+            result = run(binary.resolve(), args.seconds, args.seed)  # one retry; failure remains fatal
             print(f'hosted Windows wake-only attempt 2 passed: {result["performance_evidence"]}', file=sys.stderr)
         print(json.dumps(result, sort_keys=True))
         return 0
