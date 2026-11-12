@@ -592,6 +592,24 @@ int main() {
             check(audio(s)["state"] == "running" && !audio(s).contains("error"),
                   "successful ASIO recovery clears the preceding failure text");
         }
+        for (const auto &diagnostic :
+             {std::string(199, 'x') + "\\xc3\\xa9", std::string("host ") + "\\xff\\xc0" + " refusal"}) {
+            fake::open_error = diagnostic;
+            options.settings = (root / "asio-invalid-utf8-status.json").string();
+            Session s(options);
+            s.start(base);
+            const auto status = s.status();
+            const auto error = status["status"]["audio"]["error"].get<std::string>();
+            check(error.size() <= 200 && Json::parse(status.dump())["status"]["audio"]["error"] == error,
+                  "malformed/split host failure must serialize as bounded status.audio.error");
+            fake::refuse = false;
+            s.poll(base + 100ms);
+            check(audio(s)["state"] == "running" && !audio(s).contains("error"),
+                  "successful reopen clears the sanitized host error");
+            fake::refuse = true;
+        }
+        fake::refuse = false;
+        fake::open_error.clear();
         fake::installed_asio.clear();
         // Keel #627 ruling: an ASIO driver that refuses the block gets exactly one
         // retry at its preferred size 1..4096 after a quiescent graph reprepare.
