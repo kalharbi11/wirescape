@@ -269,7 +269,7 @@ class StaticChecksTests(unittest.TestCase):
             root = Path(tmp)
             source = root / "native/test.cpp"
             source.parent.mkdir()
-            source.write_text("int  main( ){return  0;}\\n", encoding="utf-8")
+            source.write_text("int  main( ){return  0;}\n", encoding="utf-8")
             command = [formatter, "--dry-run", "--Werror", "--lines=1:1", "./native/test.cpp"]
             patch_text = static_checks.format_patch(root, "native/test.cpp", command)
             self.assertIn("--- a/native/test.cpp", patch_text)
