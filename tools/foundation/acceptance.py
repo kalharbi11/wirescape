@@ -44,19 +44,32 @@ def size_excluded(path):
 
 
 def strip_comment(line):
-    """Drop a trailing ' # note' outside quotes; '#123' references stay."""
+    """Drop a trailing ' # note' outside shell quotes; preserve literal hashes."""
     quote = None
+    escaped = False
     for index, char in enumerate(line):
-        if quote:
-            if char == quote:
+        if escaped:
+            escaped = False
+            continue
+        # POSIX-style single quotes treat backslashes literally.
+        if quote == "'":
+            if char == "'":
                 quote = None
-        elif char in "'\"":
+            continue
+        # Unquoted and double-quoted backslashes can escape a quote/hash.
+        if char == "\\":
+            escaped = True
+            continue
+        if quote == '"':
+            if char == '"':
+                quote = None
+            continue
+        if char == "'" or char == '"':
             quote = char
         elif (char == "#" and index and line[index - 1] in " \t"
               and (index + 1 == len(line) or line[index + 1] in " \t")):
             return line[:index].rstrip()
     return line
-
 
 def parse(text):
     blocks = re.findall(r"(?ms)^```acceptance[^\S\n]*\n(.*?)^```[^\S\n]*$", text)
