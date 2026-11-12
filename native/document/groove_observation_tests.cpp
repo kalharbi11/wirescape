@@ -444,12 +444,12 @@ static void unpatched_legacy_trace() {
     };
     frame(-1.f, false, false); // sample 0: no transport, both positions idle.
     legacy.controls[0] = 1.f;
-    frame(0.f, true, true); // sample 1: START emits the first triad.
+    frame(0.f, true, true);   // sample 1: START emits the first triad.
     frame(1.f, false, false); // sample 2: next step releases the triad.
     frame(2.f, false, false); // sample 3: rest.
     legacy.controls[2] = 1.f;
     frame(0.f, false, false); // sample 4: RESET releases/rewinds.
-    frame(0.f, true, true); // sample 5: RESET retriggers on next tick.
+    frame(0.f, true, true);   // sample 5: RESET retriggers on next tick.
     frame(1.f, false, false); // sample 6: next step releases.
 
     // Four ordered three-voice event groups; ids must not be reused while
