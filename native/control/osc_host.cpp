@@ -7,8 +7,10 @@ int Host::deliver(void *context, uint32_t node, const ws2_event &event, uint64_t
     auto &self = *static_cast<Host *>(context);
     if (!self.engine_) return WS2_INVALID;
     auto &graph = app_engine_native(self.engine_);
-    return graph.enqueue(2, node, WS2_DIRECT_PORT, event, timestamp, engine2::Timing::Timestamped,
-                         self.engine_generation_);
+    const int result = graph.enqueue(2, node, WS2_DIRECT_PORT, event, timestamp, engine2::Timing::Timestamped,
+                                     self.engine_generation_);
+    if (result == WS2_OK && self.monitor_) self.monitor_->osc(node, event, timestamp);
+    return result;
 }
 // A message is dropped only if it matches a disabled row and no enabled row;
 // unmatched traffic still reaches `messages` so users can discover addresses.

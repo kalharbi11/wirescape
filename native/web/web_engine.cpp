@@ -141,7 +141,25 @@ struct Web {
         using wirescape::document::load_runtime_patch;
         Owner next(load_runtime_patch(candidate.dump(), catalogue.get(), config, error, &next_telemetry.taps()),
                    app_engine_destroy);
-        need(bool(next), "refused", "Graph configuration refused");
+        if (!next) {
+            // Explain the fixed-rate module's prepare failure without changing reply fields.
+            if (rate != 48000) {
+                for (const auto &module : candidate["modules"])
+                    if (module.at("module") == "ports.macro_oscillator") {
+                        error.insert(0, "ports.macro_oscillator requires 48000 Hz; ");
+                        break;
+                    }
+            }
+            // Loader errors are control-path diagnostics; keep messages bounded and valid UTF-8.
+            error.resize(std::min(error.size(), size_t(240)));
+            for (char &c : error)
+                if (static_cast<unsigned char>(c) < 32 || static_cast<unsigned char>(c) > 126) c = '?';
+            std::string message = "Graph configuration refused at ";
+            message += std::to_string(static_cast<uint32_t>(rate));
+            message += " Hz: ";
+            message += error;
+            throw Refusal{"refused", std::move(message)};
+        }
         if (live) {
             app_engine_panic(live.get());
             old = std::move(live);

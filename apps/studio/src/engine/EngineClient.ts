@@ -90,6 +90,14 @@ export interface GrooveTrackObservation {
   fired: boolean;
 }
 
+export interface MonitorEntry {
+  t: number;
+  kind: 'osc' | 'midi';
+  address?: string;
+  note?: number;
+  args: number[];
+}
+
 export interface Telemetry {
   /** Actual outer wire generation, attached by RealEngine. */
   gen?: string;
@@ -127,6 +135,10 @@ export interface Telemetry {
    * and the info-box sparklines. An engine that omits it still conforms.
    */
   outputs?: Record<string, number>;
+  /** Latest <=32 control-ingress entries per directly observed Monitor (oldest first). */
+  monitor?: Record<number, MonitorEntry[]>;
+  /** Renderer-only capability marker; not a wire protocol field. */
+  monitorAvailable?: boolean;
   /** MIDI note numbers currently held. */
   heldNotes: number[];
 }
