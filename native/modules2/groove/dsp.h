@@ -481,8 +481,7 @@ struct Sequencer {
                 // External STOP: release in this frame; RESET takes precedence.
                 release_all(b, i);
                 running = stop_queued = reset_wait = run_start_pending = false;
-                for (auto &p : players)
-                    p.playing = p.enter = p.stop = p.fired = p.skipped_cond = false;
+                for (auto &p : players) p.playing = p.enter = p.stop = p.fired = p.skipped_cond = false;
             } else {
                 if (rise[1] && running) stop_queued = !stop_queued;
                 for (uint32_t t = 0; t < kTracks; ++t) {
