@@ -45,14 +45,14 @@ function Run([string]$exe, [string[]]$parameters) {
 function Use-PinnedCMake {
     $want = 'cmake version 4.2.3'
     $found = ''
-    if (Get-Command cmake -ErrorAction SilentlyContinue) { $found = [string](& cmake --version | Select-Object -First 1) }
+    if (Get-Command cmake -ErrorAction SilentlyContinue) { $found = [string]@(& cmake --version)[0] }
     if ($found -eq $want) { return }
     if (-not (Get-Command py -ErrorAction SilentlyContinue)) { return }
     foreach ($kind in @('nt_user', 'nt')) {
         $dir = [string](& py -3.12 -c "import sysconfig;print(sysconfig.get_path('scripts','$kind'))")
         if ($dir -and (Test-Path -LiteralPath (Join-Path $dir.Trim() 'cmake.exe'))) {
             $env:Path = $dir.Trim() + ';' + $env:Path
-            if ([string](& cmake --version | Select-Object -First 1) -eq $want) {
+            if ([string]@(& cmake --version)[0] -eq $want) {
                 Write-Host "Using pinned CMake 4.2.3 from $($dir.Trim()) (this run only)."
                 return
             }
@@ -89,13 +89,15 @@ function Preflight {
     $pyCmd = Get-Command py -ErrorAction SilentlyContinue
     $pyVersion = 'missing'
     if ($pyCmd) {
-        $pyVersion = (& py -3.12 -c "import sys; print(str(sys.version_info.major)+'.'+str(sys.version_info.minor)+' '+str(sys.maxsize > 2**32))" 2>$null | Select-Object -First 1)
+        # Capture all output, then index: in Windows PowerShell 5.1, `| Select-Object -First 1` stops the
+        # pipeline and kills the native process, so $LASTEXITCODE becomes -1 (owner report, 2026-11-12).
+        $pyVersion = @(& py -3.12 -c "import sys; print(str(sys.version_info.major)+'.'+str(sys.version_info.minor)+' '+str(sys.maxsize > 2**32))" 2>$null)[0]
         if ($LASTEXITCODE -ne 0 -or -not $pyVersion) { $pyVersion = 'missing' }
     }
     $cmakeCmd = Get-Command cmake -ErrorAction SilentlyContinue
     $ninjaCmd = Get-Command ninja -ErrorAction SilentlyContinue
-    $cmakeVersion = if ($cmakeCmd) { ((& cmake --version 2>$null | Select-Object -First 1) -replace '^cmake version ', '').Trim() } else { 'missing' }
-    $ninjaVersion = if ($ninjaCmd) { ((& ninja --version 2>$null | Select-Object -First 1)).Trim() } else { 'missing' }
+    $cmakeVersion = if ($cmakeCmd) { ([string]@(& cmake --version 2>$null)[0] -replace '^cmake version ', '').Trim() } else { 'missing' }
+    $ninjaVersion = if ($ninjaCmd) { ([string]@(& ninja --version 2>$null)[0]).Trim() } else { 'missing' }
     if ($pyVersion -eq '3.12 True' -and ($cmakeVersion -ne '4.2.3' -or -not (Test-PinnedNinja $ninjaVersion))) {
         # Pinned pip tools may exist outside PATH. Only this process changes.
         $scripts = & py -3.12 -c "import sysconfig; print(sysconfig.get_path('scripts','nt_user'))" 2>$null
@@ -103,13 +105,13 @@ function Preflight {
             $env:Path = "$scripts;$env:Path"
             $cmakeCmd = Get-Command cmake -ErrorAction SilentlyContinue
             $ninjaCmd = Get-Command ninja -ErrorAction SilentlyContinue
-            $cmakeVersion = if ($cmakeCmd) { ((& cmake --version 2>$null | Select-Object -First 1) -replace '^cmake version ', '').Trim() } else { 'missing' }
-            $ninjaVersion = if ($ninjaCmd) { ((& ninja --version 2>$null | Select-Object -First 1)).Trim() } else { 'missing' }
+            $cmakeVersion = if ($cmakeCmd) { ([string]@(& cmake --version 2>$null)[0] -replace '^cmake version ', '').Trim() } else { 'missing' }
+            $ninjaVersion = if ($ninjaCmd) { ([string]@(& ninja --version 2>$null)[0]).Trim() } else { 'missing' }
         }
     }
     $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
-    $nodeVersion = if ($nodeCmd) { (& node --version 2>$null | Select-Object -First 1) } else { 'missing' }
-    $nodeArch = if ($nodeCmd) { (& node -p 'process.arch' 2>$null | Select-Object -First 1) } else { 'missing' }
+    $nodeVersion = if ($nodeCmd) { @(& node --version 2>$null)[0] } else { 'missing' }
+    $nodeArch = if ($nodeCmd) { @(& node -p 'process.arch' 2>$null)[0] } else { 'missing' }
     $sdk = if ($env:WindowsSDKVersion) { $env:WindowsSDKVersion.TrimEnd('\') } else { 'missing' }
     $rc = Get-Command rc.exe -ErrorAction SilentlyContinue
     $cl = Get-Command cl.exe -ErrorAction SilentlyContinue

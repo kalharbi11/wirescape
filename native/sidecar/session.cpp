@@ -1213,7 +1213,7 @@ Json Session::hello() const {
             {"session", token_},
             {"type", "hello"},
             {"protocol", 0},
-            {"engine", {{"version", "0.1.0"}, {"sha", WIRESCAPE_ENGINE_SHA}}},
+            {"engine", {{"version", "1.0.0"}, {"sha", WIRESCAPE_ENGINE_SHA}}},
             {"capabilities", std::move(capabilities)},
             {"catalogue", catalogue(catalogue_.get())},
             {"audioDevices", audio_devices_},

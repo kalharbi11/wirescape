@@ -45,6 +45,8 @@ export class CableLayer {
   /** True while the user drags something cables hang from: reroutes spring instead of snapping. */
   springy = false;
   private last = 0;
+  /** Current SVG bounds in world units ("x y w h"), so bounds are only rewritten on change. */
+  private bounds = '';
 
   constructor(
     private resolve: Resolver,
@@ -106,6 +108,7 @@ export class CableLayer {
       const title = e.group.querySelector('title');
       if (title) title.textContent = this.describe(c);
     }
+    this.fitBounds();
   }
 
   /** Mark a cable as carrying signal (dotted, DESIGN §9). Class change only on a flip. */
@@ -121,15 +124,41 @@ export class CableLayer {
     const dt = Math.min(0.05, this.last ? (now - this.last) / 1000 : 0.016);
     this.last = now;
     const damp = Math.pow(DAMP, dt);
+    let drew = false;
     for (const e of this.entries.values()) {
       if (!e.moving) continue;
-      if (springStep(e, sagPoint(e.a, e.b), dt, damp)) this.draw(e);
+      if (springStep(e, sagPoint(e.a, e.b), dt, damp)) { this.draw(e); drew = true; }
       else { e.moving = false; }
     }
     const g = this.ghostState;
     if (g && springStep(g, sagPoint(g.a, g.b), dt, damp)) {
       this.ghost.setAttribute('d', quad(g.a, g.cp, g.b));
+      drew = true;
     }
+    if (drew) this.fitBounds();
+  }
+
+  /**
+   * Size the SVG to cover every cable. A 1x1 `overflow: visible` SVG gives Chromium's GPU
+   * rasteriser a wrong paint rectangle: cables were only repainted near cards and ended
+   * mid-canvas in the desktop app (owner report, Basics 2 at 100 %, 2026-11-12). The viewBox
+   * keeps paths in world units. Snapped to 64 px so springs and drags rarely rewrite it.
+   */
+  private fitBounds(): void {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const add = (p: Point) => { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); };
+    const curve = (a: Point, cp: Point, b: Point) => { const [c1, c2] = ctrl(a, cp, b); add(a); add(b); add(c1); add(c2); };
+    for (const e of this.entries.values()) if (e.group.style.display !== 'none') curve(e.a, e.cp, e.b);
+    if (this.ghostState) curve(this.ghostState.a, this.ghostState.cp, this.ghostState.b);
+    if (x0 === Infinity) { x0 = 0; y0 = 0; x1 = 1; y1 = 1; }
+    const pad = 64, snap = (n: number) => Math.floor(n / pad) * pad;
+    const x = snap(x0 - pad), y = snap(y0 - pad);
+    const w = snap(x1 + 2 * pad) - x, h = snap(y1 + 2 * pad) - y;
+    const next = `${x} ${y} ${w} ${h}`;
+    if (next === this.bounds) return;
+    this.bounds = next;
+    this.root.setAttribute('viewBox', next);
+    Object.assign(this.root.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` });
   }
 
   get settling(): boolean {
@@ -187,6 +216,7 @@ export class CableLayer {
     this.ghostState.a = from; this.ghostState.b = to;
     this.ghost.setAttribute('d', quad(from, this.ghostState.cp, to));
     this.ghost.classList.toggle('invalid', invalid);
+    this.fitBounds();
   }
 
   clear(): void {

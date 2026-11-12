@@ -201,7 +201,9 @@ jobs:
           node-version: '22'
       - name: Windows source setup parse, read-only preflight and real app smoke
         if: runner.os == 'Windows' && env.CODE == 'true'
-        shell: pwsh
+        # Windows PowerShell 5.1, the shell the owner's VS x64 Developer PowerShell opens. Two 5.1-only
+        # breaks reached the owner after passing under pwsh: $home (2026-11-11), Select-Object -First (2026-11-12).
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $tokens = $null; $errors = $null
