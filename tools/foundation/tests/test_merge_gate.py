@@ -232,22 +232,7 @@ class MergeGateWorkflowTests(unittest.TestCase):
     def test_new_push_only_disables_auto_merge_without_running_pr_code(self):
         workflow = (Path(__file__).resolve().parents[3] /
                     '.github/workflows/merge_gate.yml').read_text(encoding='utf-8')
-        self.assertRegex(workflow, r'(?m)^    types: \[labeled, ready_for_review, synchronize\]
-        disable = workflow.split('      - name: Disable auto-merge on new push\n', 1)[1].split(
-            '      - uses: actions/checkout@', 1)[0]
-        self.assertIn("if: github.event_name == 'pull_request_target' && github.event.action == 'synchronize'",
-                      disable)
-        self.assertIn('gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto', disable)
-        self.assertNotIn('--auto --squash', disable)
-        self.assertIn("if: github.event.action != 'synchronize'\n        with:\n          ref: main",
-                      workflow)
-        self.assertIn("      - name: Decide and enable auto-merge\n"
-                      "        if: github.event.action != 'synchronize'", workflow)
-
-
-if __name__ == '__main__':
-    unittest.main()
-)
+        self.assertRegex(workflow, r'(?m)^    types: \[labeled, ready_for_review, synchronize\]$')
         disable = workflow.split('      - name: Disable auto-merge on new push\n', 1)[1].split(
             '      - uses: actions/checkout@', 1)[0]
         self.assertIn("if: github.event_name == 'pull_request_target' && github.event.action == 'synchronize'",
