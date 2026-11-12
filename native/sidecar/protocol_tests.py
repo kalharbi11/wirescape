@@ -645,7 +645,9 @@ with tempfile.TemporaryDirectory() as osc_dir:
         for unsupported_version in (0, 2, '1', 1.5, None):
             cfg['version'] = unsupported_version
             refusal = tolerant.call('loadGraph', expected=False, patch=future_patch)
-            assert 'Unsupported OSC config version' in refusal['message'], refusal
+            # The sidecar intentionally uses a generic public refusal; the native parser
+            # asserts the specific version diagnostic in runtime_module_config_tests.
+            assert refusal['code'] == 'refused' and refusal['message'] == 'Graph configuration or state refused', refusal
             assert refusal['gen'] == accepted_gen, 'refused OSC version committed a graph'
         tolerant.close()
         diagnostics = tolerant.stderr()
