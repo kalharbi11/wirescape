@@ -67,7 +67,7 @@ export function showOscEditor(modal: Modal, raw: unknown,
     'OSC is UDP input. LAN requests still require the owner launcher --confirm-lan; this toggle alone never opens the network.');
   const warning = el('p', 'osc-warning');
   warning.dataset.testid = 'osc-unknown-warning';
-  if (unsupported.length) warning.textContent = `engine will refuse: ${unsupported.join(', ')}. Saving from this editor removes these unsupported config keys only.`;
+  if (unsupported.length) warning.textContent = `ignored by this engine: ${unsupported.join(', ')}. Saving from this editor removes these unsupported config keys only.`;
   else warning.hidden = true;
   const port = el('input', 'input-number') as HTMLInputElement;
   port.type = 'number'; port.min = '1024'; port.max = '65535'; port.step = '1';
