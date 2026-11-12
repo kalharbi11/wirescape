@@ -518,8 +518,10 @@ the addresses, so you can switch rows back on later. A module with all rows off
 binds no UDP port, and its card reads `All rows off · not listening`. Otherwise
 the card shows `n of 8 rows active`. Patches saved before #612 open with every
 row on. In JSON, a row off is `"enabled": false`; leave the key out for on.
-Saving applies the patch through the normal graph replan. The editor warns
-about unsupported `config` fields and drops them only on an intentional save;
+Saving applies the patch through the normal graph replan. Unknown `config` or
+row fields (e.g. from a newer build) no longer stop the patch from loading: the
+engine ignores them (#657). The editor warns "ignored by this engine" and drops
+them only on an intentional save;
 unknown fields elsewhere in the patch are preserved. A LAN toggle alone never
 overrides the owner `--confirm-lan` consent. The card reads the actual route
 state and received count; `Port busy` and `LAN not confirmed` are diagnostic,

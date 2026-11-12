@@ -86,7 +86,7 @@ test('presets fill all rows, while config unknowns only drop on editor save', as
   await settle(page);
   expect((await state(page)).modules[0].config.futureOption).toBe(123);
   await open(page);
-  await expect(page.getByTestId('osc-unknown-warning')).toContainText('engine will refuse: futureOption, rows[0].futureField');
+  await expect(page.getByTestId('osc-unknown-warning')).toContainText('ignored by this engine: futureOption, rows[0].futureField');
   expect((await state(page)).modules[0].config.futureOption).toBe(123);
   await page.getByTestId('osc-preset-touchosc').click();
   await expect(page.getByTestId('osc-row1-pattern')).toHaveValue('/1/fader1');
@@ -206,7 +206,7 @@ test('unknown row keys on a disabled row survive unrelated edits and drop only o
   }));
   await settle(page);
   await open(page);
-  await expect(page.getByTestId('osc-unknown-warning')).toContainText('engine will refuse: rows[1].futureRowKey');
+  await expect(page.getByTestId('osc-unknown-warning')).toContainText('ignored by this engine: rows[1].futureRowKey');
   await expect(page.getByTestId('osc-row2-enabled')).not.toBeChecked();
   await page.getByTestId('osc-editor').getByRole('button', { name: 'Cancel' }).click();
   // An unrelated document edit keeps the row's unknown key and its enabled flag.

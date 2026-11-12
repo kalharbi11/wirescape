@@ -571,6 +571,17 @@ with tempfile.TemporaryDirectory() as osc_dir:
 
         osc = cleared_route('disabled')
         assert osc['enabled'] is False and 'last_error' not in osc
+        # #657: unknown osc.in keys from a newer build load (not refused) and are
+        # listed once in the stderr load diagnostics.
+        future = json.loads(json.dumps(rows_off))
+        future['modules'][1]['config']['futureOption'] = 1
+        future['modules'][1]['config']['rows'][0]['futureField'] = True
+        cleared.call('loadGraph', patch=future)
+        osc = cleared_route('disabled')
+        until = time.monotonic() + 4
+        while 'ignored unknown config keys: futureOption, rows[0].futureField' not in cleared.stderr():
+            assert time.monotonic() < until, 'Missing OSC unknown-key diagnostic: ' + cleared.stderr()
+            time.sleep(0.05)
         assert osc['routes'][0]['module'] == '9' and osc['routes'][0]['port'] == port
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as free:
             free.bind(('127.0.0.1', port))  # a cleared module holds no listener

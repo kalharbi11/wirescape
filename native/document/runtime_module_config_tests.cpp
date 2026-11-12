@@ -29,6 +29,30 @@ static void instance_config_union() {
     CHECK(groove::decode(legacy.data(), static_cast<uint32_t>(legacy.size()), config));
     CHECK(config.instance_seed == 0 && config.authored_version == 1 && config.tracks[0].length == 32);
 }
+static void osc_unknown_keys_ignored() {
+    // #657: unknown osc.in and row keys are ignored and reported, not refused.
+    const auto value = nlohmann::json::parse(
+        R"({"port":9100,"futureOption":1,"rows":[{"pattern":"/a","futureField":true},{"enabled":false,"x":[]}]})");
+    const auto bytes = runtime_module_config("osc.in", value);
+    const auto ignored = osc_unknown_config_keys(value);
+    wirescape::osc::Configuration config;
+    CHECK(wirescape::osc::configuration(bytes.data(), static_cast<uint32_t>(bytes.size()), config));
+    CHECK(config.port == 9100 && std::string(config.rows[0].pattern) == "/a" && config.rows[1].enabled == 0);
+    CHECK((ignored == std::vector<std::string>{"futureOption", "rows[0].futureField", "rows[1].x"}));
+    CHECK(osc_unknown_config_keys(nlohmann::json::parse(R"({"port":1,"rows":[{"pattern":"/a"}]})")).empty());
+    // Bad values of known keys still refuse.
+    for (const char *s : {R"({"port":70000})", R"({"lan":1})", R"({"rows":[{"pattern":"no-slash"}]})",
+                          R"({"rows":[{"kind":"wobble"}]})", R"({"rows":[{"input_min":1,"input_max":0}]})",
+                          R"({"rows":[{},{},{},{},{},{},{},{},{}]})"}) {
+        bool rejected = false;
+        try {
+            runtime_module_config("osc.in", nlohmann::json::parse(s));
+        } catch (const std::exception &) {
+            rejected = true;
+        }
+        CHECK(rejected);
+    }
+}
 static void osc_row_enabled() {
     // #612: absent `enabled` means enabled; false disables only that row.
     wirescape::osc::Configuration config;
@@ -170,6 +194,7 @@ int main() try {
  }
  instance_config_union();
  osc_row_enabled();
+ osc_unknown_keys_ignored();
  std::puts("PASS bounded typed MIDI and Groove configurations and invalid row rejection");
 } catch(const std::exception& error) {
  std::fprintf(stderr,"FAIL runtime module configuration: %s\n",error.what());return EXIT_FAILURE;

@@ -8,9 +8,27 @@
 #include <map>
 #include <set>
 #include <stdexcept>
+
+#include <iostream>
 namespace wirescape::document {
 namespace {
 using Json=nlohmann::json;
+// Control-thread load diagnostic, once per load (#657). Keys come from untrusted
+// patch JSON, so the line is bounded and printable.
+void log_ignored_keys(uint32_t node, const std::string &type, const std::vector<std::string> &keys) {
+    if (keys.empty()) return;
+    std::string list;
+    for (const auto &key : keys) {
+        if (list.size() > 480) {
+            list += ", ...";
+            break;
+        }
+        list += (list.empty() ? "" : ", ") + key;
+    }
+    for (auto &c : list)
+        if (static_cast<unsigned char>(c) < 0x20 || static_cast<unsigned char>(c) > 0x7e) c = '?';
+    std::cerr << "module " << node << " (" << type << "): ignored unknown config keys: " << list << '\n';
+}
 void need(bool ok,const char*why){if(!ok)throw std::runtime_error(why);}
 uint32_t id(const Json&v){need(v.is_number_integer(),"Expected integer ID");auto n=v.get<int64_t>();need(n>0&&n<=UINT32_MAX,"ID outside range");return static_cast<uint32_t>(n);}
 std::vector<uint8_t> state_bytes(const Json&s){
@@ -57,6 +75,8 @@ AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws
    need(descriptor != nullptr, "unknown-module");
    if(version==2){need(m.at("version").is_number_integer()&&m.at("version").get<int64_t>()>0,"Invalid module version");if(m.contains("config"))need(m["config"].is_object(),"Module config must be an object");}
    auto module_config=runtime_module_config(type,version==2?m.value("config",Json::object()):Json::object(),node);
+   if (type == "osc.in" && version == 2)
+       log_ignored_keys(node, type, osc_unknown_config_keys(m.value("config", Json::object())));
    need(app_engine_add_node_config(engine.get(),node,type.c_str(),module_config)==WS_OK,"Module unavailable or prepare failed");
    nodes[node] = descriptor;
   }

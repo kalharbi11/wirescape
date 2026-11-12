@@ -8,6 +8,27 @@
 #include <string>
 #include <vector>
 namespace wirescape::document {
+// Unknown osc.in keys (top level and per row) are tolerated data from newer
+// builds (#657): the adapter ignores them and the loader lists them once.
+inline std::vector<std::string> osc_unknown_config_keys(const nlohmann::json &value) {
+    std::vector<std::string> out;
+    if (!value.is_object()) return out;
+    for (auto it = value.begin(); it != value.end(); ++it)
+        if (it.key() != "port" && it.key() != "lan" && it.key() != "rows") out.push_back(it.key());
+    if (!value.contains("rows") || !value.at("rows").is_array()) return out;
+    const auto &rows = value.at("rows");
+    for (size_t i = 0; i < rows.size(); ++i) {
+        if (!rows.at(i).is_object()) continue;
+        for (auto it = rows.at(i).begin(); it != rows.at(i).end(); ++it) {
+            const auto &k = it.key();
+            if (k != "pattern" && k != "kind" && k != "stale" && k != "enabled" && k != "argument" &&
+                k != "input_min" && k != "input_max" && k != "output_min" && k != "output_max" && k != "smoothing_ms" &&
+                k != "timeout_ms")
+                out.push_back("rows[" + std::to_string(i) + "]." + k);
+        }
+    }
+    return out;
+}
 // Quiescent JSON-to-module adapter. The JSON shape, not struct padding, is saved.
 inline std::vector<uint8_t> runtime_module_config(const std::string&type,
     const nlohmann::json&value, uint32_t instance_id = 0) {
@@ -164,8 +185,8 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
      // All authored OSC configuration is validated on the control owner,
      // then copied as bounded private POD for the module's prepare() call.
      wirescape::osc::Configuration config;
-     for (auto it = value.begin(); it != value.end(); ++it)
-         require(it.key() == "port" || it.key() == "lan" || it.key() == "rows", "Unknown OSC input setting");
+     // Unknown keys are ignored (#657, see osc_unknown_config_keys); bad values of
+     // known keys still refuse below.
      if (value.contains("port")) {
          const auto &port = value.at("port");
          require(port.is_number_integer(), "OSC port must be an integer");
@@ -221,7 +242,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
                      else if (name == "output_max") dest.output_max = n;
                      else if (name == "smoothing_ms") dest.smoothing_ms = n;
                      else dest.timeout_ms = n;
-                 } else require(false, "Unknown OSC row field");
+                 } // other keys: ignored, reported by osc_unknown_config_keys (#657)
              }
          }
      }
