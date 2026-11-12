@@ -3,8 +3,8 @@
 // This is not a FakeEngine test or an owner hardware/audio listening check.
 import { expect, test, type Page } from '@playwright/test';
 import { CURATED_PATCHES } from '../src/app/curated';
-import echo from '../patches/basics-03-echo-and-reverb.json';
-import randomMelody from '../patches/basics-05-random-melody.json';
+import echo from '../patches/basics-03-echo-and-reverb.json' with { type: 'json' };
+import randomMelody from '../patches/basics-05-random-melody.json' with { type: 'json' };
 
 type Reply = { re?: string; ok?: boolean; code?: string };
 const scene = (id: string) => CURATED_PATCHES.find(p => p.id === id)!.patch;
