@@ -70,6 +70,32 @@ class UiCatalogueTests(unittest.TestCase):
         self.assertEqual(generated, param)
 
 
+def known_module_ids(path=ROOT / 'tools/foundation/fixtures/known_module_ids.txt'):
+    lines = (line.strip() for line in path.read_text(encoding='utf-8').splitlines())
+    return [line for line in lines if line and not line.startswith('#')]
+
+
+class KnownModuleIdTests(unittest.TestCase):
+    """Adding a module touches no test; removing or renaming a known ID fails (#687)."""
+
+    def test_generated_catalogue_is_a_superset_of_known_ids(self):
+        known = known_module_ids()
+        self.assertEqual(len(known), len(set(known)), 'duplicate known module ID')
+        modules = json.loads((ROOT / 'apps/studio/public/wirescape_modules.json').read_text(encoding='utf-8'))['modules']
+        ids = [module['id'] for module in modules]
+        self.assertEqual(len(ids), len(set(ids)), 'duplicate module ID in the generated catalogue')
+        self.assertEqual(sorted(set(known) - set(ids)), [], 'known module IDs missing from the catalogue')
+
+    def test_missing_known_id_is_reported(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'known.txt'
+            path.write_text('# header\nessentials.vco\nexample.removed\n', encoding='utf-8')
+            known = known_module_ids(path)
+        self.assertEqual(known, ['essentials.vco', 'example.removed'])
+        modules = json.loads((ROOT / 'apps/studio/public/wirescape_modules.json').read_text(encoding='utf-8'))['modules']
+        self.assertEqual(sorted(set(known) - {module['id'] for module in modules}), ['example.removed'])
+
+
 class ChaosCatalogueContractTests(unittest.TestCase):
     """Keep native CHAOS IDs, generated descriptors, and its Studio panel in sync."""
 

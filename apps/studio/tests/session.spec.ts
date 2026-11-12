@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { test, expect } from '@playwright/test';
+// @ts-expect-error Node is provided by Playwright; Studio's app tsconfig is browser-only.
+import { readFileSync } from 'node:fs';
+// @ts-expect-error Node is provided by Playwright; Studio's app tsconfig is browser-only.
+import { resolve } from 'node:path';
 import {
   boot, settle, state, addModuleAt, patch, patchToKnob, port, knob, markerAngle, dragModuleTo,
 } from './helpers';
@@ -225,7 +229,15 @@ test.describe('the catalogue', () => {
       return out;
     });
 
-    expect(report).toHaveLength(33);
+    // Known IDs may only grow (#687); adding a module needs no test change.
+    const catalogueIds: string[] = JSON.parse(readFileSync(resolve('public/wirescape_modules.json'), 'utf8'))
+      .modules.map((m: { id: string }) => m.id);
+    const knownIds: string[] = readFileSync(resolve('../../tools/foundation/fixtures/known_module_ids.txt'), 'utf8')
+      .split('\n').map((line: string) => line.trim()).filter((line: string) => line && !line.startsWith('#'));
+    const reportIds = report.map(r => r.id);
+    expect(reportIds).toHaveLength(catalogueIds.length);
+    expect(new Set(reportIds).size).toBe(reportIds.length);
+    expect(knownIds.filter(id => !reportIds.includes(id))).toEqual([]);
     expect(report.some(r => r.id === 'essentials.notes_to_cv')).toBe(true);
     expect(report.some(r => r.id === 'essentials.chord')).toBe(true);
     expect(report.some(r => r.id === 'essentials.quantizer')).toBe(true);
