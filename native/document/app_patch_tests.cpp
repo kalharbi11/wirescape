@@ -216,7 +216,8 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>e(build_app_patch(cat.get(),patch,cfg,error),app_engine_destroy);if(!e)std::cerr<<error.toStdString()<<'\n';require(bool(e),"build engine2 demo from loader");
  require(app_engine_native(e.get()).descriptor(1)->abi_version==2,"app uses ABI2, not shim for Essentials");
  auto view=editor_view(patch,cat.get());auto saved=editor_patch(view,cat.get(),PatchDocument{patch.object,bytes,2,{}});require(saved.valid()&&saved.object==patch.object,"v2 editor roundtrip preserves complete object");
- QTemporaryDir temp;require(temp.isValid(),"tempdir");
+ QTemporaryDir temp;
+ require(temp.isValid(), "tempdir");
  // OSC J5 closeout: real Qt document edit/save/read round-trip must retain
  // authored disabled rows, edited patterns, and unknown future config keys.
  {
@@ -256,7 +257,7 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
          build_app_patch(cat.get(), reloaded_doc, cfg, error), app_engine_destroy);
      require(bool(osc_engine), "OSC future keys ignored by execution without deleting document fields");
  }
- require(save_patch(temp.filePath("demo.json"),patch,&error),"v2 atomic save");
+ require(save_patch(temp.filePath("demo.json"), patch, &error), "v2 atomic save");
  QFile v2file(temp.filePath("demo.json"));require(v2file.open(QIODevice::ReadOnly),"read saved v2");
  auto v2=read_patch(v2file.readAll(),app_catalog(cat.get()));require(v2.valid()&&v2.source_version==2,"reload v2 document");
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>reloaded(build_app_patch(cat.get(),v2,cfg,error),app_engine_destroy);require(bool(reloaded),"build saved v2 through real loader");
