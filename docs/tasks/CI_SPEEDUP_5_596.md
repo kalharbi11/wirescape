@@ -11,8 +11,7 @@ Owner: Keel. Full brief and ruling: issue #596; design and evidence: PR #617.
   still report and run the full foundation Python suite) and both sanitizer
   lanes. The required `sanitizers` aggregate accepts skipped lanes only when
   `changes` succeeded with `code=false`; otherwise both lanes must be `success`.
-- Acceptance job: provisions Playwright ffmpeg for Studio tasks; per-command
-  timeout 1200 s, job 30 min (runtime budget only).
+- The acceptance ffmpeg/timeout and apt-retry fixes landed separately in #638.
 - Evidence: docs-only green in 38 s (#622), mixed takes the full path (#623),
   broken classifier fails closed (#624); a
   fixture-only change under `docs/` must take the full path (probe 4).
