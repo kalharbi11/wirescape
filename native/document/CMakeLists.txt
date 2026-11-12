@@ -20,6 +20,12 @@ set_tests_properties(groove_runtime_tests PROPERTIES TIMEOUT 60)
 add_executable(runtime_patch_tests runtime_patch_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(runtime_patch_tests PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
 add_test(NAME abi2_runtime_patch_tests COMMAND runtime_patch_tests "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
+# Preserve loaded document graph guarantees before removing the Qt controller tests.
+# This target builds and runs regardless of Qt availability; no devices are opened.
+add_executable(qt_free_patch_coverage_tests qt_free_patch_coverage_tests.cpp ../tests2/allocation_watch.cpp)
+target_link_libraries(qt_free_patch_coverage_tests PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
+add_test(NAME qt_free_patch_coverage_tests COMMAND qt_free_patch_coverage_tests "${PROJECT_SOURCE_DIR}/examples")
+
 add_executable(builtin_source_tests builtin_source_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(builtin_source_tests PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
 add_test(NAME abi2_builtin_source_tests COMMAND builtin_source_tests)
