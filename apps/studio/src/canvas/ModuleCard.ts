@@ -6,7 +6,7 @@ import { Panel, type PanelHost } from '../panels/PanelBuilder';
 import type { PanelOverride } from '../panels/layouts';
 import { attachModuleInfo } from '../panels/widgets/InfoBox';
 import { el, motionOff } from '../app/dom';
-import type { Telemetry } from '../engine/EngineClient';
+import type { Telemetry, OscStatus } from '../engine/EngineClient';
 
 export interface PortAnchor { x: number; y: number }
 
@@ -19,6 +19,8 @@ export interface CardOptions {
   savedType: string;
   onHeaderPointerDown(e: PointerEvent): void;
   onRenameRequest(): void;
+  onEditOsc?(): void;
+  oscStatus?(): OscStatus | undefined;
   /** Wire a port node's gestures (called once per node, when it is created). */
   wirePort?(node: HTMLElement): void;
   /** The rails changed (a node appeared or went): re-measure and reroute. */
@@ -76,6 +78,10 @@ export class ModuleCard {
   private readonly polyBadge: HTMLElement;
   private readonly info: { destroy(): void } | null = null;
   private monitorOff: (() => void) | null = null;
+  private oscLabel?: HTMLElement;
+  private oscCount?: HTMLElement;
+  private oscDot?: HTMLElement;
+  private oscLastReceived: number | undefined;
 
   constructor(private readonly o: CardOptions) {
     const d = o.descriptor;
@@ -134,6 +140,23 @@ export class ModuleCard {
 
     this.body.append(coreEl);
     if (d?.id === 'monitor') this.mountMonitorLog();
+    if (d?.id === 'osc.in') {
+      const box = el('div', 'osc-card');
+      this.oscLabel = el('span', 'osc-status-label', 'OSC status unavailable');
+      this.oscLabel.dataset.testid = `osc-status-${o.moduleId}`;
+      this.oscCount = el('span', 'osc-counter', 'Received: 0');
+      this.oscCount.dataset.testid = `osc-received-${o.moduleId}`;
+      this.oscDot = el('span', 'osc-activity-dot');
+      this.oscDot.setAttribute('aria-hidden', 'true');
+      const status = el('div', 'osc-status-row');
+      status.append(this.oscDot, this.oscLabel);
+      const edit = el('button', 'btn osc-edit', 'Edit…') as HTMLButtonElement;
+      edit.type = 'button'; edit.dataset.testid = `osc-edit-${o.moduleId}`;
+      edit.addEventListener('click', () => o.onEditOsc?.());
+      box.append(status, this.oscCount, edit);
+      this.body.append(box);
+      this.setOscStatus(o.oscStatus?.());
+    }
     this.sigIns = ins;
     this.sigOuts = outs;
     // The rails set their own height in syncPorts (a collapsed rail is short), so the base only keeps two rows.
@@ -524,6 +547,23 @@ export class ModuleCard {
     this.titleEl.textContent = label ?? base;
     this.titleEl.title = label ? `${label} — ${base} · double-click to rename` : 'Double-click to rename';
     this.titleEl.dataset.testid = `module-title-${this.o.moduleId}`;
+  }
+
+  /** Actual route counters are per-module, not the global OSC aggregate. */
+  setOscStatus(osc?: OscStatus): void {
+    if (!this.oscLabel || !this.oscCount || !this.oscDot) return;
+    const route = osc?.routes?.find(r => r.module === String(this.o.moduleId));
+    this.oscLabel.textContent = !route ? 'OSC host unavailable' :
+      route.state === 'port-busy' ? `Port busy · ${route.port}` :
+      route.state === 'lan-not-confirmed' ? `LAN not confirmed · 127.0.0.1:${route.port}` :
+      `Listening on ${route.bind}:${route.port}`;
+    this.oscCount.textContent = `Received: ${route?.received ?? 0}`;
+    if (route && this.oscLastReceived !== undefined && route.received > this.oscLastReceived && !motionOff()) {
+      this.oscDot.animate([{ opacity: 1, transform: 'scale(1.6)' },
+        { opacity: 0.25, transform: 'scale(1)' }], { duration: 400, easing: 'ease-out' });
+    }
+    this.oscDot.classList.toggle('listening', route?.state === 'listening');
+    this.oscLastReceived = route?.received;
   }
 
   /** Poly badge shows the voice count when the module is polyphonic. */
