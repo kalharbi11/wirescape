@@ -36,7 +36,9 @@ class StaticChecksTests(unittest.TestCase):
             deps += "\n    " + str(root / "native/catalog.inc") + "\n"
             with patch.object(static_checks.subprocess, "check_output", return_value=deps):
                 self.assertEqual(ANALYSIS_UNITS(root, {"native/nested.h": [], "native/catalog.inc": []},
-                                                builds=("build/static",)), [{**e, "build": str(build)} for e in entries])
+                                                builds=("build/static",)), [{**e, "build": str(build),
+                                                                           "cppcheck_model": "native"}
+                                                                          for e in entries])
                 with self.assertRaisesRegex(ValueError, "No compiled owner"):
                     ANALYSIS_UNITS(root, {"native/orphan.h": []}, builds=("build/static",))
 
@@ -61,6 +63,82 @@ class StaticChecksTests(unittest.TestCase):
                 (root / "build/static-web/compile_commands.json").unlink()
                 with self.assertRaises(FileNotFoundError):
                     ANALYSIS_UNITS(root, {"native/test.cpp": []})
+
+
+    def test_transitive_product_headers_win_even_in_mixed_qt_and_document_tus(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            build = root / "build/static"
+            build.mkdir(parents=True)
+            cases = [
+                ("native/engine2/core.cpp", "core.o", ["native/engine2/common.h"], "native"),
+                ("native/document/reader.cpp", "reader.o",
+                 ["native/modules2/macro.inc", "external/QtCore/QObject"], "native"),
+                ("native/web/writer.cpp", "writer.o", ["native/sidecar/session.h"], "native"),
+                ("native/ui/qt_only.cpp", "qt.o", ["external/QtCore/QObject"], "qt"),
+                ("native/ui/mixed.cpp", "mixed.o",
+                 ["external/QtCore/QObject", "native/engine2/common.h"], "qt"),
+                ("native/ui/x.cpp", "qt_product.o", ["native/engine2/common.h"], "qt"),
+                ("build/static/ui/foo_autogen/moc_x.cpp", "moc.o",
+                 ["native/engine2/common.h"], "qt"),
+                ("build-debug/ui/bar_autogen/moc_y.cpp", "moc_y.o",
+                 ["native/engine2/common.h"], "qt"),
+                ("build/static/ui/plain.cpp", "plain.o", ["native/engine2/common.h"], "native"),
+                ("native/misc/unknown.cpp", "unknown.o", ["native/misc/local.h"], "native"),
+            ]
+            entries, blocks = [], []
+            for source, obj, deps, _ in cases:
+                entries.append({"directory": str(build), "file": str(root / source),
+                                "command": f"c++ -DKEEP_COMPILE_FLAGS -o {obj} -c {root / source}"})
+                blocks.append(f"{obj}: #deps {len(deps)}, deps mtime 1 (VALID)")
+                blocks.extend("    " + str(root / dep) for dep in deps)
+            (build / "compile_commands.json").write_text(json.dumps(entries))
+            with patch.object(static_checks.subprocess, "check_output", return_value="\n".join(blocks) + "\n"):
+                wanted = {source: [(1, 1)] for source, _, _, _ in cases}
+                selected = ANALYSIS_UNITS(root, wanted, builds=("build/static",))
+                self.assertEqual([(Path(x["file"]).relative_to(root).as_posix(), x["cppcheck_model"])
+                                  for x in selected],
+                                 [(source, model) for source, _, _, model in cases])
+                # A changed product header reaches both native and Qt-facing includers
+                # through the compiler-recorded dependency graph, not guessed by path.
+                selected = ANALYSIS_UNITS(root, {"native/engine2/common.h": []},
+                                          builds=("build/static",))
+                self.assertEqual({Path(x["file"]).name: x["cppcheck_model"] for x in selected},
+                                 {"core.cpp": "native", "mixed.cpp": "qt",
+                                  "x.cpp": "qt", "moc_x.cpp": "qt", "moc_y.cpp": "qt",
+                                  "plain.cpp": "native"})
+                selected = ANALYSIS_UNITS(root, {"native/modules2/macro.inc": []},
+                                          builds=("build/static",))
+                self.assertEqual([Path(x["file"]).name for x in selected], ["reader.cpp"])
+                self.assertEqual(selected[0]["cppcheck_model"], "native")
+
+    def test_cppcheck_native_and_qt_projects_preserve_commands_and_gate_options(self):
+        entries = [
+            {"file": "/repo/native/document/reader.cpp", "directory": "/repo",
+             "command": "c++ -DKEEP_FLAG -c reader.cpp", "build": "/repo/build/static",
+             "cppcheck_model": "native"},
+            {"file": "/repo/native/ui/qt_only.cpp", "directory": "/repo",
+             "command": "c++ -DKEEP_FLAG -c qt_only.cpp", "build": "/repo/build/static",
+             "cppcheck_model": "qt"},
+        ]
+        diff = "+++ b/native/document/reader.cpp\n@@ -1 +1 @@\n+int x;\n" + (
+            "+++ b/native/ui/qt_only.cpp\n@@ -1 +1 @@\n+int y;\n")
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(static_checks, "analysis_units", return_value=entries), \
+                patch.object(static_checks.subprocess, "run",
+                             return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
+            self.assertEqual(static_checks.run_checks(Path(tmp), diff, "unused"), 0)
+            cpp = [x.args[0] for x in run.call_args_list if x.args[0][0] == "cppcheck"]
+            self.assertEqual(len(cpp), 2)
+            self.assertNotIn("--library=qt", cpp[0])
+            self.assertIn("--library=qt", cpp[1])
+            self.assertTrue(all("--inline-suppr" in c and "--error-exitcode=42" in c for c in cpp))
+            for command, owner in zip(cpp, entries):
+                project = next(a.partition("=")[2] for a in command if a.startswith("--project="))
+                content = json.loads(Path(project).read_text())
+                self.assertEqual(content, [{k: v for k, v in owner.items()
+                                            if k not in ("build", "cppcheck_model")}])
+                self.assertIn("-DKEEP_FLAG", content[0]["command"])
 
     def test_tidy_selects_each_units_build(self):
         entries = [{"file": "native/web/test.cpp", "directory": "/repo", "command": "c++ -c test.cpp",
@@ -108,7 +186,7 @@ class StaticChecksTests(unittest.TestCase):
             self.assertEqual(static_checks.run_checks(Path("."), diff, "tidy.py"), 0)
         commands = [c.args[0] for c in run.call_args_list if c.args[0][0] == "cppcheck"]
         self.assertEqual(len(commands), 1)
-        self.assertIn("--library=qt", commands[0])
+        self.assertNotIn("--library=qt", commands[0])
         # Honour vendor annotations such as nlohmann/json_fwd.hpp's "cppcheck-suppress syntaxError".
         self.assertIn("--inline-suppr", commands[0])
         project = next(arg.split("=", 1)[1] for arg in commands[0] if arg.startswith("--project="))

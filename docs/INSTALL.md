@@ -108,11 +108,15 @@ This is the owner launcher. It enables audio and MIDI (`--confirm-audio --confir
 any DAW that holds the audio device exclusively. With shared WASAPI, set Wirescape to
 the device's own sample rate; 48 kHz with a buffer of 256 is the known-good setting.
 
-**ASIO:** setup builds PortAudio with ASIO, so installed ASIO drivers (your
-interface's driver, FlexASIO, ASIO4ALL) appear in the audio device list as
-`ASIO` entries. Pick one there; buffer size and sample rate for ASIO are often
-set in the driver's own control panel (FlexASIO: `%USERPROFILE%\FlexASIO.toml`).
-ASIO opens one driver at a time, so close Ableton or any other ASIO app first.
+**ASIO:** in Settings, choose **Driver type: ASIO** and then an installed
+**ASIO driver** as the Device. These entries are drivers, not individual
+speakers/headphones; direct Windows headphone outputs are under **WASAPI**.
+ASIO4ALL needs its outputs enabled in its own control panel. FlexASIO must be
+installed separately and configured (usually `%USERPROFILE%\FlexASIO.toml`).
+Only drivers PortAudio successfully enumerates can appear; a driver visible in
+Ableton but absent here is not proof it is uninstalled. ASIO buffer size and
+sample rate often require a matching setting in the driver panel. Close Ableton
+or any other app holding the ASIO driver, then reopen Settings to enumerate.
 If the ASIO SDK download fails, rerun setup with `-NoAsio`.
 Settings live in `user_data\settings.json` in this checkout. Patch files you saved
 earlier stay where you saved them: open them with **Load**.
@@ -161,4 +165,5 @@ folder's `tools\windows\Wirescape.cmd`.
 | `Stale/Qt-enabled CMake cache.` | You reused an old folder. Do step 2 again in a new folder. |
 | `Source worktree is dirty` | You changed files in the checkout. Use a fresh folder. |
 | No sound | Check the output device and rate in Settings, close any DAW that holds the device, try 48 kHz / 256. |
+| `Source worktree is dirty` | Setup builds only an exact commit. Move stray files (logs) out of the folder; for edited repo files, `git stash` them. To try a local hotfix, commit it locally and pass that commit: `git commit -am "local fix"`, then `$Ref = (git rev-parse HEAD).Trim()`. Report the fix so it lands on `main`. |
 | Crackles | Try an `ASIO` device (FlexASIO or your interface driver), then a 512 buffer; copy any `overrun` lines from the terminal into your report. |
