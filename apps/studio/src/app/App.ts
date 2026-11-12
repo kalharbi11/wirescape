@@ -20,6 +20,7 @@ import { ComputerKeyboard, isTyping } from './Keyboard';
 import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
+import { showOscEditor, type OscConfig } from './OscEditor';
 import { STARTERS, BUNDLED_STARTERS, DEFAULT_STARTER, type Starter } from './starters';
 import { CURATED_PATCHES } from './curated';
 import { sharedPatches } from './SharedPatches';
@@ -62,6 +63,7 @@ export class App {
   private piano!: OnScreenKeyboard;
   private devPanel!: DevPanel;
   private settings = new Modal('settings-modal');
+  private oscEditor = new Modal('osc-editor');
   private shortcuts = new Modal('shortcuts-modal');
   private patchBrowser = new Modal('patch-browser');
   private bundledPatch = false;
@@ -187,6 +189,8 @@ export class App {
       confirmStereo: msg => this.confirmStereo(msg),
       onSelectionChange: s => this.onSelectionChange(s),
       rename: id => this.renameModule(id),
+      onEditOsc: id => this.openOscEditor(id),
+      oscStatus: () => this.lastStatus?.osc,
       engineConnect: c => {
         this.editEngine().connect(c);
         this.trackRollback(() => { this.doc.disconnect(c); this.canvas.shake(c.to.module); });
@@ -248,7 +252,7 @@ export class App {
 
     this.root.append(
       this.library.root, main, this.libraryScrim, this.toasts.root, this.quick.root,
-      this.devPanel.root, this.learn.root, this.settings.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
+      this.devPanel.root, this.learn.root, this.settings.root, this.oscEditor.root, this.shortcuts.root, this.patchBrowser.root, this.recovery.root, this.fileInput,
     );
 
     this.attachDropTarget();
@@ -394,7 +398,10 @@ export class App {
     this.ticker.throttleHz = this.prefs.profile === 'pi' ? 30 : 0;
     this.ticker.start();
     this.engine.onTelemetry(t => { if (!this.draftVisible) this.ticker.push(t); });
-    this.engine.onStatus(s => { this.announceStatus(this.lastStatus, s); this.lastStatus = s; this.statusBar.update(s); });
+    this.engine.onStatus(s => {
+      this.announceStatus(this.lastStatus, s); this.lastStatus = s;
+      this.statusBar.update(s); this.canvas.updateOscStatus(s.osc);
+    });
     this.engine.onRefusal?.(r => this.toasts.show(r.detail.message, 'error'));
     if (this.engine instanceof RealEngine) {
       this.engine.onConnection(state => {
@@ -924,6 +931,36 @@ export class App {
    * The UI draws a change at once, sends it to the engine, and rolls back
    * with a message if the engine refuses.
    */
+  private openOscEditor(id: number): void {
+    if (this.documentBusy || this.doc.modules.get(id)?.module !== 'osc.in') return;
+    showOscEditor(this.oscEditor, this.doc.modules.get(id)?.config,
+      async (config: OscConfig) => this.commitOscConfig(id, config));
+  }
+
+  /** A config save is one authored edit and one ordinary whole-graph replan. */
+  private async commitOscConfig(id: number, config: OscConfig): Promise<boolean> {
+    const mod = this.doc.modules.get(id);
+    if (this.documentBusy || !mod || mod.module !== 'osc.in') return false;
+    const previous = mod.config === undefined ? undefined : structuredClone(mod.config);
+    const epoch = this.viewEpoch;
+    this.history.flush();
+    this.doc.setModuleConfig(id, config);
+    try {
+      await this.editEngine().loadGraph(this.doc.toJSON());
+      if (epoch !== this.viewEpoch) return false;
+      this.history.flush();
+      this.toasts.show('OSC addresses applied.');
+      return true;
+    } catch (e) {
+      if (epoch === this.viewEpoch) {
+        this.doc.setModuleConfig(id, previous);
+        this.history.flush();
+        this.toasts.show(e instanceof Error ? e.message : 'OSC configuration refused.', 'error');
+      }
+      return false;
+    }
+  }
+
   /** One snapshot for the preset, each value still uses the normal engine setParam. */
   private applyModulePreset(moduleId: number, values: Readonly<Record<string, number>>): void {
     if (this.documentBusy) return;
@@ -1431,6 +1468,10 @@ export class App {
       }
       const currentId = this.lastStatus?.audio.deviceId ?? '';
       const routes = devices;
+      // Group by the native host API, never by mutable PortAudio device index.
+      const driverOf = (d: Device) => d.hostApi ?? d.backend
+        ?? (d.id.includes('|') ? d.id.split('|')[0]! : 'Other');
+      const drivers = [...new Set(routes.map(driverOf))];
       // A missing or duplicate remembered identity must not select the first device.
       const count = (id: string) => routes.filter(d => d.id === id).length;
       const usable = (d: Device) => count(d.id) === 1 && d.supported !== false;
@@ -1438,6 +1479,8 @@ export class App {
         d.backend ?? d.hostApi, d.outputChannels === undefined ? undefined : `${d.outputChannels} channels`,
       ].filter(Boolean).join(' · ');
       const current = routes.find(d => d.id === currentId && usable(d));
+      const preferredDriver = drivers.includes(this.prefs.audioDriverType)
+        ? this.prefs.audioDriverType : current ? driverOf(current) : drivers[0]!;
       const placeholder = currentId
         ? `Unavailable, ambiguous or unsupported: ${this.lastStatus?.audio.deviceName ?? currentId}`
         : 'Choose a physical output…';
@@ -1476,26 +1519,49 @@ export class App {
         const identity = repeated ? ` — ${d.hostApi ?? d.backend ?? 'audio'}${ordinal ? ` ${ordinal}` : ''}` : '';
         return `${d.name}${identity}${details(d) ? ` · ${details(d)}` : ''}${d.supported === false ? ` — unavailable: ${d.unsupportedReason ?? 'unsupported'}` : ''}`;
       };
-      const choices = routes.map(d => ({
-        value: d.id,
-        label: label(d),
-      }));
-      if (!current) choices.unshift({ value: '', label: placeholder });
-      const sel = select(choices, current?.id ?? '', v => {
-        const chosen = routes.find(d => d.id === v && usable(d));
+      const driver = select(drivers.map(name => ({ value: name, label: name })),
+        preferredDriver, name => {
+          // Changing driver type only filters choices. Never silently switch audio output.
+          this.setPref({ audioDriverType: name });
+          refreshDevices();
+        });
+      driver.dataset.testid = 'audio-driver-type';
+      audioFields.append(field('Driver type', driver,
+        'ASIO lists installed drivers, not headphones. Select outputs inside ASIO4ALL/FlexASIO; '
+        + 'FlexASIO requires a separate installation. For direct Windows outputs use WASAPI.'));
+      const sel = select([], '', v => {
+        const chosen = routes.find(d => d.id === v && driverOf(d) === driver.value && usable(d));
         if (!chosen) return;
         engine.selectAudioDevice(v);
-        route.textContent = `Requested physical route: ${routes.find(d => d.id === v)!.name} (awaiting engine status)`;
+        route.textContent = `Requested physical route: ${chosen.name} (awaiting engine status)`;
         if (engine.setSampleRate) refreshRates(v);
         if (buffer) buffer.disabled = false;
       });
-      for (const option of sel.options) {
-        if (option.value && !routes.some(d => d.id === option.value && usable(d))) option.disabled = true;
-      }
+      const refreshDevices = () => {
+        const visible = routes.filter(d => driverOf(d) === driver.value);
+        const active = visible.find(d => d.id === currentId && usable(d));
+        const choices = visible.map(d => ({ value: d.id, label: label(d) }));
+        if (!active) choices.unshift({ value: '', label: 'Choose an output device…' });
+        sel.replaceChildren(...choices.map(choice => {
+          const option = document.createElement('option');
+          option.value = choice.value;
+          option.textContent = choice.label;
+          option.disabled = !!choice.value && !visible.some(d => d.id === choice.value && usable(d));
+          return option;
+        }));
+        sel.value = active?.id ?? '';
+        // Keep the current engine route visible even when inspecting another driver.
+        if (current && driverOf(current) !== driver.value)
+          route.textContent = `Current physical route: ${current.name} (${driverOf(current)}). Choose a ${driver.value} output to switch.`;
+        else if (current)
+          route.textContent = `${this.lastStatus?.audio.state === 'running' ? 'Active' : 'Selected'} physical route: ${current.name}${details(current) ? ` (${details(current)})` : ''}`;
+        if (engine.setSampleRate) refreshRates(sel.value);
+        if (buffer) buffer.disabled = !active;
+      };
       sel.dataset.testid = 'audio-device';
-      audioFields.append(field('Physical output device (not graph Output)', sel));
+      audioFields.append(field('Output device (not graph Output)', sel));
+      refreshDevices();
       if (engine.setSampleRate) {
-        refreshRates(current?.id ?? '');
         audioFields.append(field('Sample rate', rates));
       }
       if (engine.setBufferFrames) {
@@ -1504,7 +1570,7 @@ export class App {
           String(this.lastStatus?.audio.bufferFrames ?? 256),
           v => engine.setBufferFrames?.(Number(v)),
         );
-        buffer.disabled = !current;
+        buffer.disabled = !current || driverOf(current) !== driver.value;
         buffer.dataset.testid = 'audio-buffer';
         audioFields.append(field('Buffer size', buffer, 'Lower is tighter, and more likely to drop out'));
       }
@@ -1564,7 +1630,7 @@ export class App {
         }
       });
       b.append(field('Port', port));
-      const net = switchButton(osc.allowNetwork, v => engine.setOsc!({ allowNetwork: v }));
+      const net = switchButton(!!osc.allowNetwork, v => engine.setOsc!({ allowNetwork: v }));
       net.dataset.testid = 'osc-network';
       b.append(field('Allow network', net, 'Off: this computer only. On: any device on your network can control the patch'));
       const mon = el('div', 'osc-monitor');

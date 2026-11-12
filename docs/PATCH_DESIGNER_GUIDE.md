@@ -145,6 +145,13 @@ descriptor or a promise that pending modules are available on a deployed SHA.
 
 ### Macro Oscillator model names (48 kHz only)
 
+The native and Web Macro Oscillator requires **48 kHz**. Patches containing it
+are refused at 44.1 or 96 kHz with a diagnostic explaining the 48 kHz requirement,
+not silently resampled within the module. The Web demo requests a 48 kHz
+AudioContext (letting the browser resample at the device boundary); browsers
+that reject the request fall back to their actual default rate, where a
+non-48-kHz macro patch is still refused.
+
 These **0-based** model indices follow the exact `plaits::Voice::Init` registration order
 at pinned `pichenettes/eurorack` commit `f4cfa7697095a28d292bff758beb51deb49b5a86`
 (`plaits/dsp/voice.cc`). The index is stored in `ports.macro_oscillator.model`;
@@ -517,6 +524,23 @@ affected OSC inputs remain inactive and `status.osc.routes` reports
 `port-busy`. An unconfirmed LAN toggle still works on localhost and reports
 `lan-not-confirmed`. No OSC Out, browser/WASM networking or native OSC
 listener exists in builds lacking B.
+The browser/WASM AudioWorklet has no UDP ingress: its live catalogue excludes
+`osc.in`, and a browser patch containing it is refused rather than silently
+claiming to listen. Use the native Electron sidecar for OSC input.
+
+**Studio address editor (slice C1 #603):** on an OSC In card, click **Edit…**
+to choose the UDP port (1024–65535), inspect or change all eight `row1`…
+`row8` address patterns and mapping ranges, and select CV, gate, or trigger,
+argument index, smoothing, timeout and hold/zero behavior. The **Pico knobs**
+and **TouchOSC faders** presets fill those rows; **Reset to Pico defaults**
+restores the original eight Pico listeners. It does *not* disable listening.
+To stop a specific row requires the separate per-row enable contract (#612).
+Saving applies the patch through the normal graph replan. The editor warns
+about unsupported `config` fields and drops them only on an intentional save;
+unknown fields elsewhere in the patch are preserved. A LAN toggle alone never
+overrides the owner `--confirm-lan` consent. The card reads the actual route
+state and received count; `Port busy` and `LAN not confirmed` are diagnostic,
+not proof that a remote control is working.
 
 **Example wiring (native Electron after B):** add an `osc.in` with
 `config: {"port":9000,"lan":false}`, patch `osc.in.row1` to the
@@ -525,6 +549,22 @@ listener exists in builds lacking B.
 The `monitor` module's `events`, `in1` and `in2` ports exist, but the
 user-facing Monitor log is a **separate slice C**; do not claim it is visible
 until C merges. No existing module/port/parameter IDs change.
+
+### Monitor message log (OSC C2 #604; builds advertising `telemetry.monitor`)
+
+Patch `osc.in.messages` → `monitor.events` to see incoming OSC addresses,
+arrival times and up to four finite numeric arguments. The same
+`monitor.events` input can receive a *direct* `midi.in.midi` cable; MIDI
+entries report `note` as the note/CC number and `args` as [status, value].
+The sidecar captures only these **direct** event cables (not intervening
+module hops), on its control-owned OSC/MIDI ingestion workers rather than the
+render callback. Monitor shows at most 32 recent entries in oldest-first
+order, newest at the bottom. **Pause** freezes the view; **Clear** hides
+previous entries in Studio only, and does not mutate the patch or stop ingress.
+The engine discards the captured ring on each successful graph commit. If
+the engine does not advertise `telemetry.monitor`, Studio reports
+**not available** rather than inventing messages. The original input ports,
+OSC bind consent and LAN restrictions are unchanged.
 
 ## Groove editor in Studio (G2a #498; builds containing this integration)
 

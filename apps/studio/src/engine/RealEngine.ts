@@ -52,6 +52,7 @@ export class RealEngine implements EngineClient {
   private session = '';
   private gen = '0';
   private playheadEnabled = false;
+  private monitorEnabled = false;
   private playhead: Telemetry['playhead'] = {};
   private statusGen = '';
   private serial = 0;
@@ -219,6 +220,7 @@ export class RealEngine implements EngineClient {
       this.session = '';
       this.playhead = {}; this.statusGen = '';
       this.playheadEnabled = false;
+      this.monitorEnabled = false;
       this.ready = false;
       this.confirmed = null;
       this.setState('restarting');
@@ -241,6 +243,7 @@ export class RealEngine implements EngineClient {
       this.confirmed = null;
       const capabilities = Array.isArray(message.capabilities) ? message.capabilities : [];
       this.playheadEnabled = capabilities.includes('telemetry.playhead');
+      this.monitorEnabled = capabilities.includes('telemetry.monitor');
       this.setSampleRate = capabilities.includes('setSampleRate')
         ? hz => this.control('setSampleRate', { hz }) : undefined;
       this.setBufferFrames = capabilities.includes('setBufferFrames')
@@ -288,6 +291,8 @@ export class RealEngine implements EngineClient {
         if (this.status) this.emitStatus({ ...this.status, midi: { ...this.status.midi, devices: this.midiDevices } });
       } else if (message.type === 'telemetry' && isRecord(message.telemetry)) {
         const t = { ...message.telemetry, gen: message.gen } as unknown as Telemetry;
+        t.monitorAvailable = this.monitorEnabled; // Renderer-only support bit from hello.
+        if (!this.monitorEnabled) delete t.monitor;
         // Older/absent generations are unknown: never let them authorize Apply.
         this.playhead = this.playheadEnabled && message.gen === this.gen && isRecord(t.playhead) ? t.playhead : {};
         if (!this.playheadEnabled) { delete t.playhead; delete t.groove; }
