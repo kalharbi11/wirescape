@@ -424,6 +424,50 @@ static void coherent_snapshots() {
     render.join();
     CHECK(observed > 0);
 }
+// Frozen no-input trace from the pre-#614 internal-clock control flow:
+// idle, START, two sixteenth ticks, RESET, retrigger, and one more tick.
+// Expected signal bytes and NOTE_ON/OFF fields are literals, not produced
+// by a second instance of the modified implementation.
+static void unpatched_legacy_trace() {
+    PolyRig legacy;
+    const auto frame = [&](float position, bool gate, bool fired) {
+        legacy.render_sample();
+        std::array<float, 18> expected{};
+        expected[1] = gate ? 1.f : 0.f;
+        expected[10] = expected[11] = position;
+        expected[12] = expected[13] = 1.f;
+        expected[14] = fired ? 1.f : 0.f;
+        CHECK(std::memcmp(expected.data(), legacy.values.data(), sizeof(expected)) == 0);
+    };
+    frame(-1.f, false, false); // sample 0: no transport, both positions idle.
+    legacy.controls[0] = 1.f;
+    frame(0.f, true, true);    // sample 1: START emits the first triad.
+    frame(1.f, false, false);  // sample 2: next step releases the triad.
+    frame(2.f, false, false);  // sample 3: rest.
+    legacy.controls[2] = 1.f;
+    frame(0.f, false, false);  // sample 4: RESET releases/rewinds.
+    frame(0.f, true, true);    // sample 5: RESET retriggers on next tick.
+    frame(1.f, false, false);  // sample 6: next step releases.
+
+    // Four ordered three-voice event groups; ids must not be reused while
+    // sounding. The reference is fixed independent of the new input slots.
+    CHECK(legacy.event_count == 12);
+    constexpr std::array<uint32_t, 4> event_frames{1, 2, 5, 6};
+    constexpr std::array<uint32_t, 4> event_types{WS2_NOTE_ON, WS2_NOTE_OFF, WS2_NOTE_ON, WS2_NOTE_OFF};
+    constexpr std::array<int32_t, 3> keys{60, 64, 67};
+    for (uint32_t group = 0; group < event_frames.size(); ++group) {
+        for (uint32_t voice = 0; voice < keys.size(); ++voice) {
+            const uint32_t index = group * 3 + voice;
+            const auto &event = legacy.log[index];
+            CHECK(legacy.event_samples[index] == event_frames[group]);
+            CHECK(event.struct_size == sizeof(ws2_event) && event.port == 4 && event.offset == 0);
+            CHECK(event.type == event_types[group] && event.channel == 0);
+            CHECK(event.note_id == int32_t((group / 2) * 3 + voice + 1));
+            CHECK(event.key == keys[voice] && event.value == (group % 2 ? 0.f : 0.8f));
+        }
+    }
+}
+
 static void unpatched_input_equivalence() {
     // Disconnected input buffers, even nonzero ones, must have zero influence
     // on the legacy signal and event stream. Both instances have identical
@@ -608,6 +652,7 @@ static void external_clock_contract() {
     CHECK(!transport.sequencer.running);
 }
 int main() {
+    unpatched_legacy_trace();
     unpatched_input_equivalence();
     external_clock_contract();
     chord_egress_contract();
