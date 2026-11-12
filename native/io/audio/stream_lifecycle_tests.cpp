@@ -3,6 +3,7 @@
 #include "../../document/runtime_patch.h"
 #include "portaudio_service.h"
 #include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -18,7 +19,12 @@ static void require(bool value, const char *message) {
 }
 int main(int argc, char **argv) {
     try {
-        require(argc == 3, "fake backend directory and exact library path required");
+        require(argc == 4, "fake backend directory, library, and sidecar directory required");
+        require(std::filesystem::weakly_canonical(argv[1]) != std::filesystem::weakly_canonical(argv[3]),
+                "fake PortAudio must never be placed beside wirescape-engine");
+        require(std::filesystem::weakly_canonical(argv[2]).parent_path() ==
+                    std::filesystem::weakly_canonical(argv[1]),
+                "fake PortAudio library must reside inside its test-only directory");
 #ifdef _WIN32
         auto *library = LoadLibraryA(argv[2]);
         require(library != nullptr, "load fake DLL exclusively");
@@ -62,15 +68,19 @@ int main(int argc, char **argv) {
         int stopped_producers = 0;
         wirescape::audio::Stream stream(engine, selection, 48000, 128, [&] { ++stopped_producers; });
         require(!engine && stream.buffer_frames() == 128, "stream owns engine and real block size");
-        std::this_thread::sleep_for(std::chrono::milliseconds(15));
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
         int before[5]{};
-        stats(before);
+        do {
+            stats(before);
+            if (before[2] > 0) break;
+            std::this_thread::yield();
+        } while (std::chrono::steady_clock::now() < deadline);
         require(before[0] >= 3 && before[1] >= 2 && before[2] > 0, "fake callbacks actually entered production Stream");
         engine = stream.stop();
         require(bool(engine) && stopped_producers > 0, "quiescent stop returns engine after stopping producers");
         int stopped[5]{};
         stats(stopped);
-        std::this_thread::sleep_for(std::chrono::milliseconds(12));
+        std::this_thread::yield();
         int later[5]{};
         stats(later);
         require(stopped[2] == later[2] && stopped[3] >= 2 && stopped[4] >= 2,
