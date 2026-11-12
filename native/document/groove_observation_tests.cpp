@@ -421,6 +421,31 @@ static void coherent_snapshots() {
     render.join();
     CHECK(observed > 0);
 }
+static void unpatched_input_equivalence() {
+    // Disconnected input buffers, even nonzero ones, must have zero influence
+    // on the legacy signal and event stream. Both instances have identical
+    // authored state, graph seed and control events.
+    PolyRig original;
+    PolyRig disconnected;
+    for (uint32_t frame = 0; frame < 64; ++frame) {
+        if (frame == 1) original.controls[0] = disconnected.controls[0] = 1.f;
+        disconnected.input_values = {frame % 2 ? 1.f : -1.f, 1.f, -1.f};
+        original.render_sample();
+        disconnected.render_sample();
+        CHECK(std::memcmp(original.values.data(), disconnected.values.data(),
+                          sizeof(original.values)) == 0);
+        CHECK(original.event_count == disconnected.event_count);
+        for (uint32_t i = 0; i < original.event_count; ++i) {
+            const auto &a = original.log[i];
+            const auto &b = disconnected.log[i];
+            CHECK(original.event_samples[i] == disconnected.event_samples[i]);
+            CHECK(a.type == b.type && a.port == b.port && a.offset == b.offset);
+            CHECK(a.note_id == b.note_id && a.channel == b.channel && a.key == b.key);
+            CHECK(a.value == b.value);
+        }
+    }
+}
+
 static void external_clock_contract() {
     const char *names[]{"clock", "run", "reset"};
     CHECK(groove::Sequencer::inputs.size() == 3);
@@ -573,6 +598,7 @@ static void external_clock_contract() {
     CHECK(!transport.sequencer.running);
 }
 int main() {
+    unpatched_input_equivalence();
     external_clock_contract();
     chord_egress_contract();
     chord_identity_lifetime();
