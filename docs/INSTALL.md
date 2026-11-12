@@ -153,16 +153,59 @@ apps/desktop/node_modules/.bin/electron apps/desktop/build/main.js \
 
 The Pi needs Node 22, Python 3.12, `build-essential`, `pkg-config`,
 `libasound2-dev` and `libportaudio2`. Only build a commit that has Pi evidence
-recorded in the release notes. Until 1.0 gets its own Pi run, the last
-Pi-certified commit is `cd7999e`.
+recorded in the release notes or the [Pi nightly summary #101](https://github.com/kalharbi11/wirescape/issues/101)
+(newest nightly pass: `5de0a92`, 2026-11-12).
 
 ## Update to a later version
 
 Versions are 1.0, 1.1, 1.2, … ([releases/README.md](releases/README.md)).
-For each new version, repeat Windows steps 2–4 in a **new folder**, using
-that version's commit from its release notes. Keep the previous folder until
-the new one passes your test; switching back just means running the old
-folder's `tools\windows\Wirescape.cmd`.
+There are two ways to update. Both leave saved patch files where they are.
+
+### Update the folder you already built (fastest)
+
+Settings (`user_data\settings.json`) and build caches stay, so only what
+changed is rebuilt (usually a few minutes). Close Wirescape first.
+
+**Windows** (VS x64 Developer PowerShell, in your existing folder):
+
+```powershell
+cd C:\src\wirescape-1.0                    # your existing checkout
+git status --short                          # must print nothing; commit or move local edits first
+git fetch --prune origin
+$Ref = (git rev-parse origin/main).Trim()   # or the commit named in the release notes
+git switch --detach $Ref
+.\tools\windows\setup.ps1 -CheckOnly        # prints "Preflight PASS: <sha>"
+.\tools\windows\setup.ps1 -Ref $Ref         # ends with status=windows-device-off-smoke-passed
+.\tools\windows\Wirescape.cmd               # sound + MIDI
+```
+
+If preflight says **Stale/Qt-enabled CMake cache**, the folder predates the
+Qt-free build: use a new folder (below) instead of deleting anything.
+
+**Raspberry Pi 5** (terminal in your existing checkout):
+
+```sh
+git status --short                           # must print nothing
+git fetch --prune origin
+Ref=$(git rev-parse origin/main)             # use the same commit as Windows
+sh tools/pi/update-and-build.sh "$Ref"       # fetch, switch, Release build, Studio + Desktop; --jobs 1 if low on memory
+python3 tools/dev.py test                    # headless tests, devices off
+python3 tools/pi/app_smoke.py --report build_reports/pi-app-smoke
+```
+
+Then launch with sound and MIDI using the command the updater prints, or:
+`apps/desktop/node_modules/.bin/electron apps/desktop/build/main.js --engine "$PWD/build/native/wirescape-engine" --confirm-audio --confirm-midi`.
+
+To go back, `git switch --detach <old sha>` and rerun the same build commands.
+`build_reports\windows-setup\summary.txt` (Windows) and
+`build_reports/pi-source-build/<sha>/` (Pi) record which commit each build used.
+
+### Or: a new folder per version (safest)
+
+Repeat Windows steps 2–4 in a **new folder**, using that version's commit from
+its release notes. Keep the previous folder until the new one passes your test.
+Switching back just means running the old folder's `tools\windows\Wirescape.cmd`.
+On the Pi, follow [PI_FRESH_INSTALL.md](PI_FRESH_INSTALL.md) in a new folder.
 
 ## Troubleshooting
 
