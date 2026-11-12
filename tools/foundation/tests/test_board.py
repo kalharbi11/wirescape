@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
+import io
 import sys
 import unittest
+import urllib.error
+from unittest import mock
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -119,6 +122,45 @@ class BoardTests(unittest.TestCase):
         ]
         self.assertEqual(board.stale_status(items),
                          [(1, 'status/in-progress'), (3, 'status/ready-to-merge'), (3, 'status/blocked')])
+
+    def test_closes_quoted_in_code_is_not_a_directive(self):
+        body = 'Use `Closes #5` in the PR.\n```\nCloses #6\n```\nCloses #7'
+        pr = {'number': 20, 'body': body, 'merged_at': '2026-11-12T09:00:00Z', 'base': {'ref': 'main'},
+              'merge_commit_sha': 'abc1234'}
+        self.assertEqual(board.pending_closes([pr], NOW), [(7, 20, 'abc1234')])
+
+    def _fake_api(self, calls, label_error=None):
+        closed_pr = {'number': 30, 'state': 'closed', 'pull_request': {}, 'labels': [{'name': 'status/review'}]}
+
+        def api(path, token, method='GET', data=None):
+            calls.append((method, path))
+            if path == 'commits/main':
+                return {'sha': 'f' * 40}
+            if path.startswith('actions/workflows/main_verify.yml/runs'):
+                return {'total_count': 0}
+            if path.startswith('pulls?'):
+                return []
+            if path.startswith('issues?state=closed'):
+                return [closed_pr]
+            if method == 'DELETE' and label_error:
+                raise urllib.error.HTTPError(path, label_error, 'denied', {}, io.BytesIO())
+            return {}
+        return api
+
+    def test_followups_verify_main_first_and_label_403_stays_visible(self):
+        calls = []
+        with mock.patch.object(board, '_api', self._fake_api(calls, label_error=403)), \
+                mock.patch.object(sys, 'stderr', io.StringIO()) as err:
+            self.assertEqual(board.followups('t', NOW), 1)
+        methods = [c for c in calls if c[0] != 'GET']
+        self.assertEqual(methods[0], ('POST', 'actions/workflows/main_verify.yml/dispatches'))
+        self.assertIn(('DELETE', 'issues/30/labels/status%2Freview'), methods)
+        self.assertIn('_clear_closed_status failed', err.getvalue())
+
+    def test_followups_label_404_is_idempotent(self):
+        calls = []
+        with mock.patch.object(board, '_api', self._fake_api(calls, label_error=404)):
+            self.assertEqual(board.followups('t', NOW), 0)
 
 if __name__ == '__main__':
     unittest.main()

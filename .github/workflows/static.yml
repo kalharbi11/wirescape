@@ -11,7 +11,7 @@ jobs:
   static:
     # Informational rollout: do not add this job to branch protection yet.
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 40 # all-TU clang-tidy reached 20 min on busy PRs (#648 run 43203746541)
     steps:
       - uses: actions/checkout@v7
         with:
