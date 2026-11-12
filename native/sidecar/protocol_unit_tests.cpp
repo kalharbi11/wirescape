@@ -392,9 +392,13 @@ int run_tests() {
     check(bool(reference) && bool(faded));
     float dry[128]{}, wet[128]{};
     float *dry_rows[] = {dry}, *wet_rows[] = {wet};
-    auto render = [&](AppEngine *left, AppEngine *right, uint64_t callback_ns = UINT64_MAX) {
-        check(app_engine_render_live(left, wet_rows, 1, 128, callback_ns) == WS_OK);
+    auto render = [&](AppEngine *left, AppEngine *right) {
+        check(app_engine_render_channels(left, wet_rows, 1, 128) == WS_OK);
         check(app_engine_render_channels(right, dry_rows, 1, 128) == WS_OK);
+    };
+    auto render_at = [&](uint64_t callback_ns) {
+        check(app_engine_render_live(faded.get(), wet_rows, 1, 128, callback_ns) == WS_OK);
+        check(app_engine_render_channels(reference.get(), dry_rows, 1, 128) == WS_OK);
     };
     render(faded.get(), reference.get()); // both graphs initially at unity
     app_engine_begin_master_fade_out(faded.get());
@@ -408,7 +412,7 @@ int run_tests() {
     const uint64_t first_fade_ns = app_engine_clock_ns() + 1000000000ULL;
     check(first_fade_ns > app_engine_master_fade_out_requested_ns(faded.get()));
     while (!app_engine_master_fade_silent(faded.get()) && blocks < 8) {
-        render(faded.get(), reference.get(), first_fade_ns + uint64_t(blocks) * 2666667ULL);
+        render_at(first_fade_ns + uint64_t(blocks) * 2666667ULL);
         ++blocks;
         for (int i = 0; i < 128; ++i) {
             expected_gain = std::max(0.0f, expected_gain - step);
