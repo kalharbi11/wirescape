@@ -76,7 +76,7 @@ jobs:
           python tools/ci/static_checks.py --base "$BASE_SHA" --head "$HEAD_SHA"
       - name: Upload format-patch artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: format-patch
           path: build/static/format.patch
