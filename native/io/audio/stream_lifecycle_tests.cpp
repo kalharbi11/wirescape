@@ -22,9 +22,9 @@ int main(int argc, char **argv) {
         require(argc == 4, "fake backend directory, library, and sidecar directory required");
         require(std::filesystem::weakly_canonical(argv[1]) != std::filesystem::weakly_canonical(argv[3]),
                 "fake PortAudio must never be placed beside wirescape-engine");
-        require(std::filesystem::weakly_canonical(argv[2]).parent_path() ==
-                    std::filesystem::weakly_canonical(argv[1]),
-                "fake PortAudio library must reside inside its test-only directory");
+        const auto fake_dir = std::filesystem::weakly_canonical(argv[1]);
+        const auto library_dir = std::filesystem::weakly_canonical(argv[2]).parent_path();
+        require(library_dir == fake_dir, "fake PortAudio library must reside inside its test-only directory");
 #ifdef _WIN32
         auto *library = LoadLibraryA(argv[2]);
         require(library != nullptr, "load fake DLL exclusively");
