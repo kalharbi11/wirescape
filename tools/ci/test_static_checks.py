@@ -65,7 +65,7 @@ class StaticChecksTests(unittest.TestCase):
                     ANALYSIS_UNITS(root, {"native/test.cpp": []})
 
 
-    def test_transitive_product_headers_win_even_in_mixed_qt_and_document_tus(self):
+    def test_qt_source_tus_win_but_other_transitive_product_headers_stay_native(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
             build = root / "build/static"
@@ -77,7 +77,11 @@ class StaticChecksTests(unittest.TestCase):
                 ("native/web/writer.cpp", "writer.o", ["native/sidecar/session.h"], "native"),
                 ("native/ui/qt_only.cpp", "qt.o", ["external/QtCore/QObject"], "qt"),
                 ("native/ui/mixed.cpp", "mixed.o",
-                 ["external/QtCore/QObject", "native/engine2/common.h"], "native"),
+                 ["external/QtCore/QObject", "native/engine2/common.h"], "qt"),
+                ("build/static/ui/foo_autogen/moc_x.cpp", "moc.o",
+                 ["native/engine2/common.h"], "qt"),
+                ("build/static/ui/plain.cpp", "plain.o",
+                 ["native/engine2/common.h"], "native"),
                 ("native/misc/unknown.cpp", "unknown.o", ["native/misc/local.h"], "native"),
             ]
             entries, blocks = [], []
@@ -93,13 +97,13 @@ class StaticChecksTests(unittest.TestCase):
                 self.assertEqual([(Path(x["file"]).relative_to(root).as_posix(), x["cppcheck_model"])
                                   for x in selected],
                                  [(source, model) for source, _, _, model in cases])
-                # A changed product header reaches both native and Qt-facing includers
-                # through the compiler-recorded dependency graph, not guessed by path.
+                # A changed product header reaches native, Qt UI and generated
+                # moc owners. Only Qt-owned source TUs receive the Qt model.
                 selected = ANALYSIS_UNITS(root, {"native/engine2/common.h": []},
                                           builds=("build/static",))
-                self.assertEqual({Path(x["file"]).name for x in selected},
-                                 {"core.cpp", "mixed.cpp"})
-                self.assertTrue(all(x["cppcheck_model"] == "native" for x in selected))
+                self.assertEqual({Path(x["file"]).name: x["cppcheck_model"] for x in selected},
+                                 {"core.cpp": "native", "mixed.cpp": "qt",
+                                  "moc_x.cpp": "qt", "plain.cpp": "native"})
                 selected = ANALYSIS_UNITS(root, {"native/modules2/macro.inc": []},
                                           builds=("build/static",))
                 self.assertEqual([Path(x["file"]).name for x in selected], ["reader.cpp"])
