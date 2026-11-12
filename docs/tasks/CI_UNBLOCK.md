@@ -19,10 +19,7 @@ Urgent Keel-approved CI recovery, extracted from the runtime-only portions of
 
 ## Verification
 
-- `actionlint` must parse the changed workflow.
-- Guard, Linux ARM64 and both sanitizer lanes/aggregate must pass on the
-  exact PR head; owner hardware is not involved.
-- A task which does not invoke Studio Playwright remains unmodified.
+Run exact-head acceptance; no hardware or unrelated test selection changes.
 
 ```acceptance
 tier: T2
