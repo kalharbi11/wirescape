@@ -23,7 +23,7 @@ test.beforeEach(async ({ page }) => {
 
 test('OSC In card shows actual route state, received counter and activity', async ({ page }, testInfo) => {
   await page.evaluate(() => { window.__wirescapeTest.engine.debug.oscTraffic = false; });
-  await expect(page.getByTestId('osc-status-1')).toHaveText('Listening on 127.0.0.1:9000');
+  await expect(page.getByTestId('osc-status-1')).toHaveText('Listening on 127.0.0.1:9000 · 8 of 8 rows active');
   await expect(page.getByTestId('osc-received-1')).toHaveText('Received: 0');
   await page.evaluate(() => window.__wirescapeTest.engine.setOscReceived(1, 8));
   await expect(page.getByTestId('osc-received-1')).toHaveText('Received: 8');
@@ -155,4 +155,47 @@ test('LAN checkbox requests a route but cannot authorize a LAN socket', async ({
   await page.getByTestId('osc-editor-save').click();
   await expect(page.getByTestId('osc-status-1')).toContainText('LAN not confirmed');
   expect((await state(page)).modules[0].config.lan).toBe(true);
+});
+
+test('row toggles round-trip, Clear disables all rows and old patches open with all rows on (#612)', async ({ page }) => {
+  // An old patch without `enabled` keeps every row on.
+  await page.evaluate(p => window.__wirescapeTest.load(p), patch({ rows: [{ pattern: '/legacy/1' }] }));
+  await settle(page);
+  await expect(page.getByTestId('osc-status-1')).toContainText('8 of 8 rows active');
+  await open(page);
+  for (let i = 1; i <= 8; i++) await expect(page.getByTestId(`osc-row${i}-enabled`)).toBeChecked();
+  await expect(page.getByTestId('osc-editor-active')).toHaveText('8 of 8 rows active');
+  await page.getByTestId('osc-row3-enabled').uncheck();
+  await expect(page.getByTestId('osc-editor-active')).toHaveText('7 of 8 rows active');
+  await page.getByTestId('osc-editor-save').click();
+  await expect(page.getByTestId('osc-editor')).toBeHidden();
+  let saved = await state(page);
+  const rows = saved.modules[0].config.rows as Record<string, unknown>[];
+  // Writers emit `enabled` only when false.
+  expect(rows[2]).toMatchObject({ pattern: '/pico1/knob/3', enabled: false });
+  expect(rows.filter(r => 'enabled' in r)).toHaveLength(1);
+  expect(rows[0].pattern).toBe('/legacy/1');
+  await expect(page.getByTestId('osc-status-1')).toHaveText('Listening on 127.0.0.1:9000 · 7 of 8 rows active');
+
+  // Clear keeps addresses; the engine then reports the module as not listening.
+  await open(page);
+  await expect(page.getByTestId('osc-row3-enabled')).not.toBeChecked();
+  await page.getByTestId('osc-preset-clear').click();
+  await expect(page.getByTestId('osc-editor-active')).toHaveText('0 of 8 rows active');
+  await page.getByTestId('osc-editor-save').click();
+  await expect(page.getByTestId('osc-editor')).toBeHidden();
+  saved = await state(page);
+  const cleared = saved.modules[0].config.rows as Record<string, unknown>[];
+  expect(cleared.every(r => r.enabled === false)).toBe(true);
+  expect(cleared[0].pattern).toBe('/legacy/1');
+  expect(cleared[7].pattern).toBe('/pico1/knob/8');
+  await expect(page.getByTestId('osc-status-1')).toHaveText('All rows off · not listening');
+
+  // Pico preset switches every row back on.
+  await open(page);
+  await page.getByTestId('osc-preset-pico').click();
+  await expect(page.getByTestId('osc-editor-active')).toHaveText('8 of 8 rows active');
+  await page.getByTestId('osc-editor-save').click();
+  saved = await state(page);
+  expect((saved.modules[0].config.rows as Record<string, unknown>[]).some(r => 'enabled' in r)).toBe(false);
 });

@@ -486,6 +486,8 @@ body.hide-port-labels .port-label { display: none; }
 .osc-row { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px; border: 1px solid var(--hair); padding: 12px; }
 .osc-row legend { font: 600 11px var(--mono); }
+.osc-row.osc-row-off { opacity: .55; }
+.osc-active { margin: 4px 0; font: 600 11px var(--mono); }
 .osc-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; min-width: 0; }
 .osc-field input, .osc-field select { min-width: 0; width: 100%; box-sizing: border-box; }
 .osc-lan { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 10px; }

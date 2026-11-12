@@ -123,13 +123,16 @@ export class FakeEngine implements EngineClient {
       const cfg = m.config && typeof m.config === 'object' && !Array.isArray(m.config)
         ? m.config as Record<string, unknown> : {};
       const port = typeof cfg.port === 'number' ? cfg.port : 9000;
+      // Mirrors the sidecar (#612): eight explicitly disabled rows bind nothing.
+      const rows = Array.isArray(cfg.rows) ? cfg.rows : [];
+      const cleared = rows.filter(r => (r as { enabled?: unknown } | null)?.enabled === false).length >= 8;
       return {
         module: String(m.id), port, bind: '127.0.0.1',
-        state: cfg.lan === true ? 'lan-not-confirmed' as const : 'listening' as const,
+        state: cleared ? 'disabled' as const : cfg.lan === true ? 'lan-not-confirmed' as const : 'listening' as const,
         received: 0, dropped: 0,
       };
     });
-    this.osc.enabled = this.osc.routes.length > 0 || this.legacyOsc.enabled;
+    this.osc.enabled = this.osc.routes.some(r => r.state !== 'disabled') || this.legacyOsc.enabled;
     this.osc.bind = '127.0.0.1';
     this.osc.lan = false;
     this.osc.port = this.osc.routes[0]?.port ?? this.legacyOsc.port;

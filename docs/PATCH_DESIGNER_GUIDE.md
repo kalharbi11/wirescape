@@ -501,8 +501,13 @@ to choose the UDP port (1024–65535), inspect or change all eight `row1`…
 `row8` address patterns and mapping ranges, and select CV, gate, or trigger,
 argument index, smoothing, timeout and hold/zero behavior. The **Pico knobs**
 and **TouchOSC faders** presets fill those rows; **Reset to Pico defaults**
-restores the original eight Pico listeners. It does *not* disable listening.
-To stop a specific row requires the separate per-row enable contract (#612).
+restores the original eight Pico listeners. Each row has a **Listen** toggle
+(#612). A row that is off ignores its address: a CV row holds its output min and a
+gate/trigger row stays low. **Clear (all rows off)** turns every row off and keeps
+the addresses, so you can switch rows back on later. A module with all rows off
+binds no UDP port, and its card reads `All rows off · not listening`. Otherwise
+the card shows `n of 8 rows active`. Patches saved before #612 open with every
+row on. In JSON, a row off is `"enabled": false`; leave the key out for on.
 Saving applies the patch through the normal graph replan. The editor warns
 about unsupported `config` fields and drops them only on an intentional save;
 unknown fields elsewhere in the patch are preserved. A LAN toggle alone never

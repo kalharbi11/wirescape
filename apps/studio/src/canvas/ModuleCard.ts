@@ -470,10 +470,15 @@ export class ModuleCard {
   setOscStatus(osc?: OscStatus): void {
     if (!this.oscLabel || !this.oscCount || !this.oscDot) return;
     const route = osc?.routes?.find(r => r.module === String(this.o.moduleId));
+    const rows = (this.o.host.doc.modules.get(this.o.moduleId)?.config as { rows?: unknown } | undefined)?.rows;
+    const off = Array.isArray(rows) ? rows.slice(0, 8)
+      .filter(r => (r as { enabled?: unknown } | null)?.enabled === false).length : 0;
+    const active = ` · ${8 - off} of 8 rows active`;
     this.oscLabel.textContent = !route ? 'OSC host unavailable' :
-      route.state === 'port-busy' ? `Port busy · ${route.port}` :
-      route.state === 'lan-not-confirmed' ? `LAN not confirmed · 127.0.0.1:${route.port}` :
-      `Listening on ${route.bind}:${route.port}`;
+      route.state === 'disabled' ? 'All rows off · not listening' :
+      route.state === 'port-busy' ? `Port busy · ${route.port}${active}` :
+      route.state === 'lan-not-confirmed' ? `LAN not confirmed · 127.0.0.1:${route.port}${active}` :
+      `Listening on ${route.bind}:${route.port}${active}`;
     this.oscCount.textContent = `Received: ${route?.received ?? 0}`;
     if (route && this.oscLastReceived !== undefined && route.received > this.oscLastReceived && !motionOff()) {
       this.oscDot.animate([{ opacity: 1, transform: 'scale(1.6)' },
