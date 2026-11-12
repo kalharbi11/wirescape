@@ -16,8 +16,9 @@ using App=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
 static App make(){ws_engine_config c{sizeof(c),48000,128,32,2048};App e(app_engine_create(&c),app_engine_destroy);check(bool(e),"create app engine");return e;}
 static void shim(const char*library){
     auto source = make();
-    check(app_engine_module_count(source.get()) == 32,
-          "Thirty builtins (including Chord, Notes-to-CV, OSC In and Monitor) plus two SDK sources");
+    check(app_engine_module_count(source.get()) == 33,
+          "Thirty-one builtins (including Quad VCA, Chord, Notes-to-CV, OSC In and Monitor) plus two SDK sources");
+    bool quad_seen = false;
     for (auto *native : wirescape::app::builtin_modules()) {
         const ws_module_descriptor *metadata = nullptr;
         for (uint32_t i = 0; i < app_engine_module_count(source.get()); ++i) {
@@ -27,6 +28,11 @@ static void shim(const char*library){
         check(metadata && metadata->input_count == native->input_count &&
                   metadata->output_count == native->output_count,
               "catalogue port counts");
+        if (!std::strcmp(native->id, "essentials.quad_vca")) {
+            check(metadata->input_count == 8 && metadata->output_count == 5,
+                  "Quad VCA must expose eight inputs and five outputs");
+            quad_seen = true;
+        }
         for (uint32_t i = 0; i < native->input_count; ++i)
             check(metadata->inputs[i].kind ==
                       static_cast<uint32_t>(native->inputs[i].hint == WS2_AUDIO ? WS_AUDIO : WS_CONTROL),
@@ -36,6 +42,7 @@ static void shim(const char*library){
                       static_cast<uint32_t>(native->outputs[i].hint == WS2_AUDIO ? WS_AUDIO : WS_CONTROL),
                   "catalogue output kind");
     }
+    check(quad_seen, "Quad VCA is present in the native catalogue");
  check(app_engine_load_module(source.get(),library)==WS_OK,"load third-party ABI1 shared library");
  auto e=make();check(app_engine_copy_modules(e.get(),source.get())==WS_OK,"replacement catalogue");source.reset();
  check(std::strcmp(app_engine_parameter_id(e.get(),"test.app_legacy",0),"7")==0,"preserve non-contiguous ABI1 ID and library lifetime");
