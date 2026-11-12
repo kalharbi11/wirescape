@@ -26,6 +26,9 @@ are binding. This T1 follow-up does not change the Windows W1 architecture.
 - No Node 24, CMake 4.4, Ninja >=1.12 ranges or any new dependency:
   broader toolchain support is deferred pending separate Keel evidence.
 
+Acceptance must be selected on a current-head CI event with `Closes #605`.
+An optional task job that prints "No Closes #N reference" is a skip, not proof.
+
 Patch guide impact: none — setup/bootstrap tooling, not patch behavior.
 
 ```acceptance
