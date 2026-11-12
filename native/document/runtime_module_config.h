@@ -165,17 +165,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
      // then copied as bounded private POD for the module's prepare() call.
      wirescape::osc::Configuration config;
      for (auto it = value.begin(); it != value.end(); ++it)
-         require(it.key() == "version" || it.key() == "port" || it.key() == "lan" || it.key() == "rows",
-                 "Unknown OSC input setting");
-     // Authored schema version (absent = 1). Version 2 adds the restricting row
-     // `enabled:false` (#612): engines without it refuse version 2 instead of
-     // silently listening (Keel's version rule, #659).
-     int64_t authored_version = 1;
-     if (value.contains("version")) {
-         require(value.at("version").is_number_integer(), "OSC config version must be an integer");
-         authored_version = value.at("version").get<int64_t>();
-         require(authored_version == 1 || authored_version == 2, "Unsupported OSC config version");
-     }
+         require(it.key() == "port" || it.key() == "lan" || it.key() == "rows", "Unknown OSC input setting");
      if (value.contains("port")) {
          const auto &port = value.at("port");
          require(port.is_number_integer(), "OSC port must be an integer");
@@ -235,8 +225,6 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
              }
          }
      }
-     for (const auto &row : config.rows)
-         require(row.enabled || authored_version >= 2, "OSC row enabled:false needs config version 2");
      require(wirescape::osc::configuration(nullptr, 0, config), "Invalid OSC module configuration");
      std::vector<uint8_t> bytes(sizeof(config));
      std::memcpy(bytes.data(), &config, sizeof(config));

@@ -10,8 +10,7 @@ export interface OscRow {
   /** Optional (#612): absent means enabled; writers emit it only when false. */
   enabled?: boolean;
 }
-/** `version: 2` is written only when a row is off (#612): older engines refuse it rather than listen. */
-export interface OscConfig { version?: 2; port: number; lan: boolean; rows: OscRow[] }
+export interface OscConfig { port: number; lan: boolean; rows: OscRow[] }
 
 const defaultRow = (n: number): OscRow => ({
   pattern: `/pico1/knob/${n}`, argument: 0, kind: 'cv',
@@ -43,7 +42,7 @@ export function readOscConfig(raw: unknown): { config: OscConfig; unsupported: s
       if (row.enabled === false) base.enabled = false;
     });
   }
-  const unsupported = Object.keys(source).filter(k => !['version', 'port', 'lan', 'rows'].includes(k));
+  const unsupported = Object.keys(source).filter(k => !['port', 'lan', 'rows'].includes(k));
   if (Array.isArray(source.rows)) source.rows.forEach((v, i) => {
     for (const key of Object.keys(object(v))) if (key !== 'enabled' && !rowKeys.includes(key as typeof rowKeys[number]))
       unsupported.push(`rows[${i}].${key}`);
@@ -205,7 +204,7 @@ export function showOscEditor(modal: Modal, raw: unknown,
     if (!port.value || !Number.isInteger(n) || n < 1024 || n > 65535) {
       errors.textContent = 'UDP port must be an integer from 1024 to 65535.'; return;
     }
-    let next: OscConfig = { port: n, lan: lan.checked, rows: [] };
+    const next: OscConfig = { port: n, lan: lan.checked, rows: [] };
     for (const [i, c] of fields.entries()) {
       const pattern = c.pattern.value;
       if (!pattern.startsWith('/') || new TextEncoder().encode(pattern).length >= 256 || pattern.includes('\0')) {
@@ -230,7 +229,6 @@ export function showOscEditor(modal: Modal, raw: unknown,
       next.rows.push({ pattern, kind: c.kind.value as OscRow['kind'],
         stale: c.stale.value as OscRow['stale'], ...values, ...(c.enabled.checked ? {} : { enabled: false }) });
     }
-    if (next.rows.some(r => r.enabled === false)) next = { version: 2, ...next };
     submit.disabled = true;
     try {
       if (await save(next)) modal.close();

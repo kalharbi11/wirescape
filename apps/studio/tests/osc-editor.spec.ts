@@ -173,8 +173,6 @@ test('row toggles round-trip, Clear disables all rows and old patches open with 
   const rows = saved.modules[0].config.rows as Record<string, unknown>[];
   // Writers emit `enabled` only when false.
   expect(rows[2]).toMatchObject({ pattern: '/pico1/knob/3', enabled: false });
-  // A restricting enabled:false bumps the authored config version (Keel's rule).
-  expect(saved.modules[0].config.version).toBe(2);
   expect(rows.filter(r => 'enabled' in r)).toHaveLength(1);
   expect(rows[0].pattern).toBe('/legacy/1');
   await expect(page.getByTestId('osc-status-1')).toHaveText('Listening on 127.0.0.1:9000 · 7 of 8 rows active');
@@ -200,12 +198,11 @@ test('row toggles round-trip, Clear disables all rows and old patches open with 
   await page.getByTestId('osc-editor-save').click();
   saved = await state(page);
   expect((saved.modules[0].config.rows as Record<string, unknown>[]).some(r => 'enabled' in r)).toBe(false);
-  expect(saved.modules[0].config.version).toBeUndefined();
 });
 
 test('unknown row keys on a disabled row survive unrelated edits and drop only on editor save (#612)', async ({ page }) => {
   await page.evaluate(p => window.__wirescapeTest.load(p), patch({
-    version: 2, rows: [{ pattern: '/a' }, { pattern: '/b', enabled: false, futureRowKey: 'x' }],
+    rows: [{ pattern: '/a' }, { pattern: '/b', enabled: false, futureRowKey: 'x' }],
   }));
   await settle(page);
   await open(page);

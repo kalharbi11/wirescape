@@ -18,9 +18,7 @@ Stale `zero` sets a timed-out target to0; `hold` retains it. Timeout0 disables e
 Default rows match `/pico1/knob/1`…`8`. Unknown kinds, bad ranges and invalid patterns
 fail preparation. Raw messages are forwarded as valid OSC wire packets.
 
-Per-row `enabled` (#612) is an optional boolean. `enabled:false` needs the config's
-`"version": 2` (absent = 1; versions other than 1 and 2 refuse), so engines that
-predate the key refuse the patch instead of listening. Absent means `true`, so older
+Per-row `enabled` (#612) is an optional boolean. Absent means `true`, so older
 patches keep listening; writers emit it only as `false`. A disabled row ignores
 every message: a CV row holds `output_min` and a gate/trigger row stays low. Its
 pattern and ranges are kept for re-enabling. A message that matches only
