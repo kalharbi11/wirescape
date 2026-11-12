@@ -47,6 +47,40 @@ test.describe('system', () => {
     await expect(page.getByTestId('status-audio-detail')).toContainText('44.1 kHz · 512 frames · 23.2 ms');
   });
 
+  test('audio driver picker groups ASIO drivers without opening or selecting devices implicitly', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => {
+      const e = window.__wirescapeTest.engine as any;
+      e.status.audio.deviceId = 'Windows WASAPI|Headphones';
+      e.status.audio.deviceName = 'Headphones';
+      e.pushStatus();
+      e.selectedAudioCalls = [];
+      e.selectAudioDevice = (id: string) => { e.selectedAudioCalls.push(id); };
+      e.listAudioDevices = async () => [
+        { id: 'Windows WASAPI|Headphones', name: 'Headphones', kind: 'audio',
+          hostApi: 'Windows WASAPI', supported: true, sampleRates: [48000] },
+        { id: 'ASIO|ASIO4ALL v2', name: 'ASIO4ALL v2', kind: 'audio',
+          hostApi: 'ASIO', supported: true, sampleRates: [44100] },
+        { id: 'ASIO|FlexASIO', name: 'FlexASIO', kind: 'audio',
+          hostApi: 'ASIO', supported: false, unsupportedReason: 'rate-unsupported' },
+      ];
+    });
+    await page.getByTestId('open-settings').click();
+    await expect(page.getByTestId('audio-driver-type')).toHaveValue('Windows WASAPI');
+    await expect(page.getByTestId('audio-device').locator('option')).toHaveCount(1);
+    await page.getByTestId('audio-driver-type').selectOption('ASIO');
+    await expect(page.getByTestId('audio-device').locator('option')).toHaveCount(3);
+    await expect(page.getByTestId('audio-device').locator('option', { hasText: 'FlexASIO' })).toBeDisabled();
+    expect(await page.evaluate(() => (window.__wirescapeTest.engine as any).selectedAudioCalls)).toEqual([]);
+    await page.getByTestId('audio-device').selectOption('ASIO|ASIO4ALL v2');
+    await expect(page.getByTestId('audio-rate').locator('option')).toHaveCount(1);
+    expect(await page.evaluate(() => (window.__wirescapeTest.engine as any).selectedAudioCalls))
+      .toEqual(['ASIO|ASIO4ALL v2']);
+    await page.getByTestId('settings-modal-close').click();
+    await page.getByTestId('open-settings').click();
+    await expect(page.getByTestId('audio-driver-type')).toHaveValue('ASIO');
+  });
+
   test('audio settings tolerate no devices and missing optional capabilities', async ({ page }) => {
     await boot(page);
     const errors: string[] = [];

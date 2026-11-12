@@ -30,11 +30,13 @@ Read first: `docs/specs/ENGINE_PROTOCOL.md` §7 (telemetry, `eventActivity`), `n
 - Playwright with FakeEngine: the list renders, and pause, clear, and capability-absent all work.
 - Self-review states the realtime check: no capture, allocation or lock on the audio thread.
 
+**Acceptance accounting (Keel #604):** (+3 conformance files, Keel #604; task file exempt). The 18 mechanically counted files comprise 17 Keel-authorized implementation/conformance files and this task's own approved Playwright FFmpeg provisioning correction. See [Keel's PR ruling](https://github.com/kalharbi11/wirescape/pull/620#issuecomment-6797573988). The full Studio suite and CI selection are unchanged.
+
 ```acceptance
 tier: T2
-size: <= 900 changed lines, <= 14 files
+size: <= 900 changed lines, <= 18 files
 must_pass:
-  - bash -lc 'cd apps/studio && npm ci && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
+  - bash -lc 'cd apps/studio && npm ci && npx playwright install ffmpeg && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [render-path capture or allocation, any protocol change beyond the ruled field, LAN bind or device open in tests, ID changes, new dependency]
 ```

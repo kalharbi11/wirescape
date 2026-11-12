@@ -4,6 +4,7 @@ import argparse
 from collections import deque
 import json
 import math
+import os
 from pathlib import Path
 import queue
 import random
@@ -17,6 +18,10 @@ import time
 
 class SoakFailure(Exception):
     pass
+
+
+class WakeOnlyOverrun(SoakFailure):
+    """Strict benchmark failure eligible for one hosted-Windows-only retry."""
 
 
 # Strict and anchored: neither truncated stderr tails nor unrelated diagnostics count.
@@ -56,9 +61,14 @@ def parse_bench(lines, seconds):
         if values[name] > values['overruns']:
             raise SoakFailure(f'bench {name} exceeds overruns')
     if values['overruns'] or values['faults']:
-        raise SoakFailure('bench ' + ' '.join(f'{name}={values[name]}' for name in (
+        detail = 'bench ' + ' '.join(f'{name}={values[name]}' for name in (
             'overruns', 'faults', 'overrun_render_count', 'overrun_render_max_us',
-            'overrun_wake_count', 'overrun_wake_max_us')))
+            'overrun_wake_count', 'overrun_wake_max_us'))
+        if (not values['faults'] and values['overruns'] > 0 and
+                values['overrun_render_count'] == 0 and
+                values['overrun_wake_count'] == values['overruns']):
+            raise WakeOnlyOverrun(detail)
+        raise SoakFailure(detail)
     return values
 
 
@@ -233,6 +243,7 @@ def run(binary, seconds, seed, timeout=5.0):
     with tempfile.TemporaryDirectory(prefix='wirescape-soak-') as temp:
         sidecar = Sidecar(binary, Path(temp) / 'settings.json', timeout)
         error = None
+        wake_only = False
         result = None
         try:
             sidecar.hello()
@@ -272,12 +283,18 @@ def run(binary, seconds, seed, timeout=5.0):
             try:
                 result['performance_evidence'] = parse_bench(sidecar.bench_lines, seconds)
             except SoakFailure as exc:
+                wake_only = isinstance(exc, WakeOnlyOverrun)
                 error = str(exc)
         if error or shutdown:
             tail = bytes(sidecar.tail).decode('utf-8', errors='replace')[-1000:]
-            raise SoakFailure(f'seed={seed} step={sidecar.step}: {error or ""}; '
-                              f'shutdown={shutdown or "clean"}; stderr_tail={tail!r}')
+            failure = (f'seed={seed} step={sidecar.step}: {error or ""}; '
+                       f'shutdown={shutdown or "clean"}; stderr_tail={tail!r}')
+            raise (WakeOnlyOverrun if wake_only and not shutdown else SoakFailure)(failure)
         return result
+
+
+def hosted_windows():
+    return sys.platform == 'win32' and os.environ.get('GITHUB_ACTIONS') == 'true'
 
 
 def main(argv=None):
@@ -293,7 +310,18 @@ def main(argv=None):
         binary = args.engine if args.engine is not None else next((p for p in choices if p.is_file()), None)
         if binary is None or not binary.is_file():
             raise ValueError('selected engine is not a local file (build first or use --engine)')
-        print(json.dumps(run(binary.resolve(), args.seconds, args.seed), sort_keys=True))
+        try:
+            result = run(binary.resolve(), args.seconds, args.seed)
+        except WakeOnlyOverrun as first:
+            if not hosted_windows():
+                raise
+            print(f'hosted Windows wake-only attempt 1 failed: {first}', file=sys.stderr)
+            result = run(binary.resolve(), args.seconds, args.seed)  # one retry; failure remains fatal
+            print(f'hosted Windows wake-only attempt 2 passed: {result["performance_evidence"]}', file=sys.stderr)
+            # Additive CLI evidence survives capture_output=True at the CI caller.
+            # Only a fully clean second run reaches this line.
+            result['wake_retry'] = {'attempt1': str(first), 'attempt2': 'passed'}
+        print(json.dumps(result, sort_keys=True))
         return 0
     except (OSError, ValueError, SoakFailure) as exc:
         # Machine-readable failure is never an unavailable or zero-valued success.

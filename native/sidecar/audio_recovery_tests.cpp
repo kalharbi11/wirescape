@@ -108,6 +108,16 @@ int main() {
         check(invalid.known && invalid.rates.empty(), "only invalid-rate results prove no supported rate");
         check(!busy.known && busy.rates.empty() && !mixed.known && mixed.rates.empty(),
               "busy/unknown errors omit the set, including mixed success and unknown results");
+        // The UI's driver picker receives a real host-API string through the
+        // sidecar protocol, exercised here with link-time fakes (no devices opened).
+        const auto opens_before_list = fake::attempts.size();
+        fake::outputs = {{"ASIO|ASIO4ALL v2", "ASIO4ALL v2", "ASIO", 7, false, "ASIO", 2, {48000}, true, ""}};
+        const auto asio_list = audio_devices("", false);
+        check(asio_list.size() == 1 && asio_list[0]["hostApi"] == "ASIO" && asio_list[0]["backend"] == "ASIO" &&
+                  asio_list[0]["id"] == "ASIO|ASIO4ALL v2",
+              "ASIO fake host API is published with its stable device ID");
+        check(fake::attempts.size() == opens_before_list, "listAudioDevices never opens a fake or real stream");
+
         const auto missing_asio = wirescape::audio::unavailable_asio_drivers(
             {"ASIO4ALL v2", "FlexASIO"}, {{"ASIO4ALL v2", "ASIO"}, {"Headphones", "Windows WASAPI"}});
         check(missing_asio == std::vector<std::string>{"FlexASIO"},
@@ -228,8 +238,8 @@ int main() {
                 return s.reply({cmd, {}, {}});
             };
             auto hello = s.hello();
-            const auto caps =
-                Json::array({"midiLearn", "telemetry.playhead", "setSampleRate", "setBufferFrames", "osc"});
+            const auto caps = Json::array(
+                {"midiLearn", "telemetry.playhead", "telemetry.monitor", "setSampleRate", "setBufferFrames", "osc"});
             check(hello["audioDevices"].size() == 2 && hello["capabilities"] == caps,
                   "hello must expose the supported device catalogue and methods");
             auto listed = call("list", "listAudioDevices")["result"]["devices"];
