@@ -29,6 +29,41 @@ static void instance_config_union() {
     CHECK(groove::decode(legacy.data(), static_cast<uint32_t>(legacy.size()), config));
     CHECK(config.instance_seed == 0 && config.authored_version == 1 && config.tracks[0].length == 32);
 }
+static void osc_future_keys() {
+    using Json = nlohmann::json;
+    const Json known = Json::parse(R"({"port":9011,"rows":[{"pattern":"/voice","kind":"gate","argument":2}]})");
+    const auto expected = runtime_module_config("osc.in", known, 17);
+    auto future = known;
+    future["futureOption"] = Json::object({{"nested", 1}});
+    future["rows"][0]["futureField"] = Json::array({1, 2});
+    std::vector<std::string> ignored;
+    const auto actual = runtime_module_config("osc.in", future, 17, &ignored);
+    CHECK(actual == expected);
+    CHECK(ignored == std::vector<std::string>({"osc.in#17.futureOption", "osc.in#17.rows[0].futureField"}));
+    CHECK(future["futureOption"].is_object() && future["rows"][0]["futureField"].is_array());
+
+    for (const auto &bad : {
+             Json::parse(R"({"port":"9011","futureOption":true})"),
+             Json::parse(R"({"rows":[{"pattern":42,"futureField":true}]})"),
+             Json::parse(R"({"rows":[{"argument":32,"futureField":true}]})"),
+             Json::parse(R"({"rows":[{"kind":"other"}]})"),
+             Json::parse(R"({"rows":{}})")}) {
+        bool rejected = false;
+        try { (void)runtime_module_config("osc.in", bad); }
+        catch (const std::exception &) { rejected = true; }
+        CHECK(rejected); // Known names still reject bad values/types.
+    }
+
+    auto many = known;
+    for (int n = 0; n < 24; ++n)
+        many["rows"][0]["future" + std::to_string(n)] = n;
+    many["rows"][0]["a\nunsafe"] = true;
+    ignored.clear();
+    CHECK(runtime_module_config("osc.in", many, 17, &ignored) == expected);
+    CHECK(ignored.size() == 16);
+    for (const auto &name : ignored)
+        CHECK(name.size() <= 80 && name.find('\n') == std::string::npos);
+}
 int main() try {
  auto encode=[](const char*s){return runtime_module_config("midi.cc_to_cv",nlohmann::json::parse(s));};
  auto bytes=encode(R"({"rows":[{"channel":16,"controller":31,"fourteen_bit":true,"bipolar":true,"smoothing_ms":0}]})");
@@ -150,6 +185,7 @@ int main() try {
      refused_groove(doc);
  }
  instance_config_union();
+ osc_future_keys();
  std::puts("PASS bounded typed MIDI and Groove configurations and invalid row rejection");
 } catch(const std::exception& error) {
  std::fprintf(stderr,"FAIL runtime module configuration: %s\n",error.what());return EXIT_FAILURE;
