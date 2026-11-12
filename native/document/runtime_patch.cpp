@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#include "runtime_patch.h"
 #include "runtime_module_config.h"
+#include "runtime_patch.h"
 #include <nlohmann/json.hpp>
 #include <cmath>
 #include <cstdio>
@@ -58,8 +58,8 @@ AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws
    }
    need(descriptor != nullptr, "unknown-module");
    if(version==2){need(m.at("version").is_number_integer()&&m.at("version").get<int64_t>()>0,"Invalid module version");if(m.contains("config"))need(m["config"].is_object(),"Module config must be an object");}
-   auto module_config=runtime_module_config(type,version==2?m.value("config",Json::object()):Json::object(),
-                                            node,&ignored_osc_keys);
+   const auto authored_config = version == 2 ? m.value("config", Json::object()) : Json::object();
+   auto module_config = runtime_module_config(type, authored_config, node, &ignored_osc_keys);
    need(app_engine_add_node_config(engine.get(),node,type.c_str(),module_config)==WS_OK,"Module unavailable or prepare failed");
    nodes[node] = descriptor;
   }
@@ -82,14 +82,14 @@ AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws
    for(auto it=values.begin();it!=values.end();++it){bool found=false;for(uint32_t p=0;p<d->parameter_count;++p){bool matches=version==1?it.key()==std::to_string(d->parameters[p].id):it.key()==app_engine_parameter_id(engine.get(),d->id,p);if(!matches)continue;need(it.value().is_number(),"Invalid parameter value");float v=it.value().get<float>();need(std::isfinite(v)&&app_engine_initialize_parameter(engine.get(),node,d->parameters[p].id,v)==WS_OK,"Parameter outside range");found=true;break;}need(version==1||found,"Unknown parameter ID");}
    if(version==2&&m.contains("state"))need(graph.load_state(node,state_bytes(m.at("state")))==WS2_OK,"Unsupported module state");
   }
-  if (!ignored_osc_keys.empty()) {
-   std::string message;
-   for (const auto &key : ignored_osc_keys) {
-    if (!message.empty()) message += ", ";
-    message += key;
-   }
-   std::fprintf(stderr, "OSC load ignored unknown config keys: %s\n", message.c_str());
-  }
+        if (!ignored_osc_keys.empty()) {
+            std::string message;
+            for (const auto &key : ignored_osc_keys) {
+                if (!message.empty()) message += ", ";
+                message += key;
+            }
+            std::fprintf(stderr, "OSC load ignored unknown config keys: %s\n", message.c_str());
+        }
   error.clear();return engine.release();
  }catch(const std::exception&e){error=e.what();return nullptr;}
 }
