@@ -670,6 +670,7 @@ int main() {
         fake::accept_block = 0;
         fake::preferred = 0;
         options.settings = (root / "asio-osc-rebind.json").string();
+        fake::render = true; // live loadGraph needs the paced fake callback for its D5 handoff
         {
             Session s(options);
             s.start(base);
@@ -715,6 +716,7 @@ int main() {
             check(packet_received(1), "OSC worker rebinds to the restored graph after failed retry");
             s.shutdown();
         }
+        fake::render = false;
         fake::accept_block = 0;
         fake::preferred = 0;
         options.block = saved_block;

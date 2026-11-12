@@ -9,9 +9,13 @@
 
 **Tests (no real device):** the fake PortAudio/registry seam lists 2 registry drivers with only 1 PortAudio device, giving one `unavailableDrivers` entry. A fake open failure puts the error text in status. A fake buffer rejection retries once and reports the actual size. Golden/conformance expectation updates for these additive fields are part of the change (standing Keel rule) and don't count against the budget.
 
+Budget: Keel authorized 600 changed lines / 10 files for the OSC/MIDI and UTF-8 fixes
+([#631 ruling](https://github.com/kalharbi11/wirescape/pull/631#issuecomment-6824198537)).
+Assertions, limits and stops are unchanged.
+
 ```acceptance
 tier: T2
-size: <= 600 changed lines, <= 10 files  # Keel authorized for OSC/MIDI UAF and UTF-8 fixes on #631, 2026-11-12
+size: <= 600 changed lines, <= 10 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
