@@ -18,6 +18,9 @@ struct Rig {
     std::array<float, 10> controls{};
     std::array<const float *, 10> control_rows{};
     std::array<ws2_signal, 10> params{};
+    std::array<float, 3> input_values{};
+    std::array<const float *, 3> input_rows{};
+    std::array<ws2_signal, 3> inputs{};
     ws2_process raw{};
     bool refuse_off = false;
     uint32_t ons = 0, offs = 0;
@@ -45,7 +48,15 @@ struct Rig {
             control_rows[i] = &controls[i];
             params[i] = {sizeof(ws2_signal), &control_rows[i], 1, WS2_CONSTANT};
         }
-        raw.frames = 1; raw.output_count = 18; raw.param_count = 10;
+        for (uint32_t i = 0; i < inputs.size(); ++i) {
+            input_rows[i] = &input_values[i];
+            inputs[i] = {sizeof(ws2_signal), &input_rows[i], 1, WS2_CONSTANT};
+        }
+        raw.frames = 1;
+        raw.input_count = 3;
+        raw.output_count = 18;
+        raw.param_count = 10;
+        raw.inputs = inputs.data();
         raw.outputs = outputs.data(); raw.params = params.data(); raw.event_outputs = events.data();
         auto &track = sequencer.pattern.tracks[0];
         for (auto &step : track.steps) step.kind = groove::Tie;
@@ -413,7 +424,240 @@ static void coherent_snapshots() {
     render.join();
     CHECK(observed > 0);
 }
+// Frozen no-input trace from the pre-#614 internal-clock control flow:
+// idle, START, two sixteenth ticks, RESET, retrigger, and one more tick.
+// Expected signal bytes and NOTE_ON/OFF fields are literals, not produced
+// by a second instance of the modified implementation.
+static void unpatched_legacy_trace() {
+    PolyRig legacy;
+    const auto frame = [&](float position, bool gate, bool fired) {
+        legacy.render_sample();
+        std::array<float, 18> expected{};
+        expected[1] = gate ? 1.f : 0.f;
+        expected[10] = expected[11] = position;
+        expected[12] = expected[13] = 1.f;
+        expected[14] = fired ? 1.f : 0.f;
+        std::array<unsigned char, sizeof(expected)> expected_bytes{}, observed_bytes{};
+        std::memcpy(expected_bytes.data(), expected.data(), sizeof(expected));
+        std::memcpy(observed_bytes.data(), legacy.values.data(), sizeof(expected));
+        CHECK(expected_bytes == observed_bytes);
+    };
+    frame(-1.f, false, false); // sample 0: no transport, both positions idle.
+    legacy.controls[0] = 1.f;
+    frame(0.f, true, true);   // sample 1: START emits the first triad.
+    frame(1.f, false, false); // sample 2: next step releases the triad.
+    frame(2.f, false, false); // sample 3: rest.
+    legacy.controls[2] = 1.f;
+    frame(0.f, false, false); // sample 4: RESET releases/rewinds.
+    frame(0.f, true, true);   // sample 5: RESET retriggers on next tick.
+    frame(1.f, false, false); // sample 6: next step releases.
+
+    // Four ordered three-voice event groups; ids must not be reused while
+    // sounding. The reference is fixed independent of the new input slots.
+    CHECK(legacy.event_count == 12);
+    constexpr std::array<uint32_t, 4> event_frames{1, 2, 5, 6};
+    constexpr std::array<uint32_t, 4> event_types{WS2_NOTE_ON, WS2_NOTE_OFF, WS2_NOTE_ON, WS2_NOTE_OFF};
+    constexpr std::array<int32_t, 3> keys{60, 64, 67};
+    for (uint32_t group = 0; group < event_frames.size(); ++group) {
+        for (uint32_t voice = 0; voice < keys.size(); ++voice) {
+            const uint32_t index = group * 3 + voice;
+            const auto &event = legacy.log[index];
+            CHECK(legacy.event_samples[index] == event_frames[group]);
+            CHECK(event.struct_size == sizeof(ws2_event) && event.port == 4 && event.offset == 0);
+            CHECK(event.type == event_types[group] && event.channel == 0);
+            CHECK(event.note_id == int32_t((group / 2) * 3 + voice + 1));
+            CHECK(event.key == keys[voice] && event.value == (group % 2 ? 0.f : 0.8f));
+        }
+    }
+}
+
+static void unpatched_input_equivalence() {
+    // Disconnected input buffers, even nonzero ones, must have zero influence
+    // on the legacy signal and event stream. Both instances have identical
+    // authored state, graph seed and control events.
+    PolyRig original;
+    PolyRig disconnected;
+    for (uint32_t frame = 0; frame < 64; ++frame) {
+        if (frame == 1) original.controls[0] = disconnected.controls[0] = 1.f;
+        disconnected.input_values = {frame % 2 ? 1.f : -1.f, 1.f, -1.f};
+        original.render_sample();
+        disconnected.render_sample();
+        // Preserve byte-for-byte floating output equivalence without comparing float object
+        // representations through memcmp (which clang-tidy rejects).
+        for (size_t i = 0; i < original.values.size(); ++i) {
+            std::array<unsigned char, sizeof(float)> a{}, b{};
+            std::memcpy(a.data(), &original.values[i], sizeof(float));
+            std::memcpy(b.data(), &disconnected.values[i], sizeof(float));
+            CHECK(a == b);
+        }
+        CHECK(original.event_count == disconnected.event_count);
+        for (uint32_t i = 0; i < original.event_count; ++i) {
+            const auto &a = original.log[i];
+            const auto &b = disconnected.log[i];
+            CHECK(original.event_samples[i] == disconnected.event_samples[i]);
+            CHECK(a.type == b.type && a.port == b.port && a.offset == b.offset);
+            CHECK(a.note_id == b.note_id && a.channel == b.channel && a.key == b.key);
+            CHECK(a.value == b.value);
+        }
+    }
+}
+
+static void external_clock_contract() {
+    const char *names[]{"clock", "run", "reset"};
+    CHECK(groove::Sequencer::inputs.size() == 3);
+    for (uint32_t i = 0; i < 3; ++i) CHECK(std::strcmp(names[i], groove::Sequencer::inputs[i].id) == 0);
+
+    // The first pulse uses the authored BPM. The second supplies a real period.
+    Rig clocked;
+    clocked.sequencer.internal_samples_per_step = clocked.sequencer.samples_per_step = 16;
+    clocked.sequencer.pattern.tracks[0].div = 2;
+    clocked.inputs[0].flags |= WS2_CONNECTED;
+    clocked.render();
+    clocked.controls[0] = 1;
+    clocked.render();
+    CHECK(clocked.sequencer.running && clocked.sequencer.step == 0);
+    clocked.input_values[0] = 1;
+    clocked.render();
+    CHECK(clocked.sequencer.step == 1 && clocked.sequencer.step_t[0] == 0);
+    clocked.input_values[0] = 0;
+    for (uint32_t i = 0; i < 4; ++i) clocked.render();
+    clocked.input_values[0] = 1;
+    clocked.render();
+    CHECK(clocked.sequencer.step == 2 && clocked.sequencer.step_t[0] == 1);
+    CHECK(clocked.sequencer.samples_per_step == 5);
+    clocked.input_values[0] = 0;
+    for (uint32_t i = 0; i < 40; ++i) clocked.render();
+    CHECK(clocked.sequencer.step == 2); // Missing master pulses never free-run.
+    clocked.inputs[0].flags &= ~uint32_t(WS2_CONNECTED);
+    clocked.render();
+    CHECK(clocked.sequencer.samples_per_step == 16); // Disconnect restores BPM.
+
+    // A short note expires even when the external pulse train goes missing.
+    Rig gate;
+    gate.sequencer.internal_samples_per_step = gate.sequencer.samples_per_step = 16;
+    for (auto &row : gate.sequencer.pattern.tracks[0].steps) row.kind = groove::Rest;
+    gate.sequencer.pattern.tracks[0].steps[0].kind = groove::Note;
+    gate.sequencer.pattern.tracks[0].steps[0].velocity = 1;
+    gate.sequencer.pattern.tracks[0].steps[0].gate_q = 1;
+    gate.inputs[0].flags |= WS2_CONNECTED;
+    gate.render();
+    gate.controls[0] = 1;
+    gate.render();
+    CHECK(gate.ons == 1 && gate.offs == 0);
+    for (uint32_t i = 0; i < 6; ++i) gate.render();
+    CHECK(gate.offs == 1 && gate.values[1] == 0);
+
+    // Observe real NOTE_OFF frames after two measured master periods and a
+    // live interval change. Checking only samples_per_step misses a stuck gate.
+    PolyRig varying;
+    auto &notes = varying.sequencer.pattern.tracks[0];
+    notes.div = 1;
+    for (auto &row : notes.steps) {
+        row = notes.steps[0];
+        row.kind = groove::Note;
+        row.gate_q = 1;
+    }
+    varying.sequencer.internal_samples_per_step = varying.sequencer.samples_per_step = 16;
+    varying.inputs[0].flags |= WS2_CONNECTED;
+    varying.start();
+    const auto pulse_at = [&](uint32_t sample) {
+        varying.input_values[0] = 0;
+        while (varying.sample + 1 < sample) varying.render_sample();
+        varying.input_values[0] = 1;
+        varying.render_sample();
+        CHECK(varying.sample == sample);
+    };
+    pulse_at(10); // The first edge still uses BPM as fallback.
+    pulse_at(18); // An 8-sample measured period now sets the gate length.
+    CHECK(varying.sequencer.samples_per_step == 8);
+    CHECK(varying.count(WS2_NOTE_ON) == 9);
+    const uint32_t short_on_frame = varying.event_samples[varying.event_count - 1];
+    const uint32_t short_offs = varying.count(WS2_NOTE_OFF);
+    varying.input_values[0] = 0;
+    varying.render_sample();
+    varying.render_sample();
+    CHECK(varying.count(WS2_NOTE_OFF) == short_offs + 3);
+    CHECK(varying.event_samples[varying.event_count - 1] - short_on_frame == 2);
+
+    pulse_at(30); // Period changes from 8 to 12 while the sequence runs.
+    CHECK(varying.sequencer.samples_per_step == 12);
+    CHECK(varying.count(WS2_NOTE_ON) == 12);
+    const uint32_t long_on_frame = varying.event_samples[varying.event_count - 1];
+    const uint32_t long_offs = varying.count(WS2_NOTE_OFF);
+    varying.input_values[0] = 0;
+    for (uint32_t i = 0; i < 3; ++i) varying.render_sample();
+    CHECK(varying.count(WS2_NOTE_OFF) == long_offs + 3);
+    CHECK(varying.event_samples[varying.event_count - 1] - long_on_frame == 3);
+    for (uint32_t i = 0; i < 24; ++i) varying.render_sample();
+    CHECK(varying.count(WS2_NOTE_ON) == 12); // Lost clock never free-runs.
+
+    // A run edge coincident with a clock edge waits for the following pulse.
+    Rig simultaneous;
+    simultaneous.inputs[0].flags |= WS2_CONNECTED;
+    simultaneous.inputs[1].flags |= WS2_CONNECTED;
+    simultaneous.render();
+    simultaneous.input_values[0] = simultaneous.input_values[1] = 1;
+    simultaneous.render();
+    CHECK(!simultaneous.sequencer.running && simultaneous.ons == 0);
+    simultaneous.input_values[0] = 0;
+    simultaneous.render();
+    simultaneous.input_values[0] = 1;
+    simultaneous.render();
+    CHECK(simultaneous.sequencer.running && simultaneous.sequencer.step == 0);
+
+    // RESET outranks an external run STOP when both edges land in one frame.
+    Rig priority;
+    for (auto &input : priority.inputs) input.flags |= WS2_CONNECTED;
+    priority.render();
+    priority.input_values[1] = 1;
+    priority.render();
+    priority.input_values[0] = 1;
+    priority.render();
+    CHECK(priority.sequencer.running);
+    priority.input_values[0] = 0;
+    priority.render();
+    priority.input_values[0] = priority.input_values[2] = 1;
+    priority.input_values[1] = 0;
+    priority.render();
+    CHECK(priority.sequencer.running && priority.sequencer.step == 0);
+
+    // The run input starts on the NEXT pulse, unlike the existing manual START.
+    Rig transport;
+    transport.inputs[0].flags |= WS2_CONNECTED;
+    transport.inputs[1].flags |= WS2_CONNECTED;
+    transport.inputs[2].flags |= WS2_CONNECTED;
+    transport.render();
+    transport.input_values[1] = 1;
+    transport.render();
+    CHECK(!transport.sequencer.running && transport.ons == 0);
+    transport.input_values[0] = 1;
+    transport.render();
+    CHECK(transport.sequencer.running && transport.sequencer.step == 0 && transport.ons == 1);
+    transport.input_values[0] = 0;
+    transport.render();
+    transport.input_values[0] = 1;
+    transport.render();
+    CHECK(transport.sequencer.step == 1);
+    transport.input_values[0] = 0;
+    transport.render();
+    transport.input_values[2] = 1;
+    transport.input_values[0] = 1; // RESET wins over a simultaneous clock tick.
+    transport.render();
+    CHECK(transport.sequencer.step == 0 && transport.offs == 1);
+    transport.input_values[2] = 0;
+    transport.input_values[0] = 0;
+    transport.render();
+    transport.input_values[1] = 0;
+    transport.render();
+    CHECK(!transport.sequencer.running && transport.values[1] == 0);
+    transport.input_values[0] = 1;
+    transport.render();
+    CHECK(!transport.sequencer.running);
+}
 int main() {
+    unpatched_legacy_trace();
+    unpatched_input_equivalence();
+    external_clock_contract();
     chord_egress_contract();
     chord_identity_lifetime();
     speed_clock_contract();

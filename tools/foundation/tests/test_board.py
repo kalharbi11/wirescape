@@ -89,5 +89,26 @@ class BoardTests(unittest.TestCase):
         self.assertTrue(out.endswith('lead notes'))
 
 
+    def test_pending_closes_takes_recent_main_merges_only(self):
+        def merged(number, body, at='2026-11-12T09:00:00Z', base='main'):
+            return {'number': number, 'body': body, 'merged_at': at, 'base': {'ref': base},
+                    'merge_commit_sha': 'abcdef0123'}
+        out = board.pending_closes([
+            merged(10, 'Closes #664\nRefs #662'),
+            merged(11, 'Fixes #5, resolves #6'),
+            merged(12, 'Closes #7', at='2026-11-01T09:00:00Z'),  # older than the window
+            merged(13, 'Closes #8', base='release'),
+            {'number': 14, 'body': 'Closes #9', 'merged_at': None, 'base': {'ref': 'main'}},  # closed, not merged
+        ], NOW)
+        self.assertEqual(out, [(664, 10, 'abcdef0123'), (5, 11, 'abcdef0123'), (6, 11, 'abcdef0123')])
+
+    def test_should_close_leaves_prs_closed_and_reopened_issues(self):
+        note = {'body': 'Closed by #10\n' + board.MARKER.format(pr=10)}
+        self.assertTrue(board.should_close({'state': 'open'}, [], 10))
+        self.assertFalse(board.should_close({'state': 'closed'}, [], 10))
+        self.assertFalse(board.should_close({'state': 'open', 'pull_request': {}}, [], 10))
+        self.assertFalse(board.should_close({'state': 'open'}, [note], 10))  # reopened after our close
+        self.assertTrue(board.should_close({'state': 'open'}, [note], 11))
+
 if __name__ == '__main__':
     unittest.main()

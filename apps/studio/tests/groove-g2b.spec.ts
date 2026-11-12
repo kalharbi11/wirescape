@@ -30,6 +30,78 @@ test.beforeEach(async ({ page }) => {
   await showGroove(page);
 });
 
+test('Groove EXT badge follows a clock cable and leaves BPM editable when unplugged', async ({ page }) => {
+  const ext = page.getByTestId('groove-ext-1');
+  const bpm = page.getByTestId('groove-bpm-1');
+  await expect(ext).toBeHidden();
+  await expect(bpm).toBeEnabled();
+  await page.evaluate(() => window.__wirescapeTest.addModule('essentials.clock'));
+  const cable = {
+    kind: 'signal' as const,
+    from: { module: 2, port: 'clock' },
+    to: { module: 1, port: 'clock' },
+  };
+  await page.evaluate(c => window.__wirescapeTest.connect(c), cable);
+  await expect(ext).toBeVisible();
+  await expect(bpm).toBeDisabled();
+  await expect(bpm).toHaveAttribute('title', /Following the clock input/);
+  await page.evaluate(c => {
+    const api = window.__wirescapeTest;
+    api.engine.disconnect(c);
+    api.doc.disconnect(c);
+  }, cable);
+  await expect(ext).toBeHidden();
+  await expect(bpm).toBeEnabled();
+});
+
+
+test('Groove retains authored BPM and unknown config across external clock cable and reload', async ({ page }) => {
+  // A future key is opaque authored data, never a trigger to rewrite the sequencer.
+  await page.evaluate(() => {
+    const snapshot = window.__wirescapeTest.save();
+    const groove = snapshot.modules.find((m: { module: string; config?: unknown }) => m.module === 'sequencing.groove');
+    if (!groove) throw new Error('Missing Groove fixture');
+    // A newly added Groove has no config until edited; author a valid v2
+    // pattern before adding unknown data, or the editor correctly goes read-only.
+    groove.config = {
+      version: 2, bpm: 137,
+      tracks: [
+        { length: 16, steps: [{ kind: 'rest' }] },
+        { length: 16, steps: [{ kind: 'rest' }] },
+      ],
+      futureVendorField: { keep: [1, 2, 3] },
+    };
+    window.__wirescapeTest.load(snapshot, 'Groove future data');
+  });
+  await showGroove(page);
+  const original = await cfg(page);
+  expect(original.futureVendorField).toEqual({ keep: [1, 2, 3] });
+  const bpm = page.getByTestId('groove-bpm-1');
+  const ext = page.getByTestId('groove-ext-1');
+  const authoredBpm = await bpm.inputValue();
+  expect(authoredBpm).toBe('137');
+  await page.evaluate(() => window.__wirescapeTest.addModule('essentials.clock'));
+  const cable = { kind: 'signal' as const, from: { module: 2, port: 'clock' }, to: { module: 1, port: 'clock' } };
+  await page.evaluate(c => window.__wirescapeTest.connect(c), cable);
+  await expect(ext).toBeVisible();
+  await expect(bpm).toBeDisabled();
+  expect(await cfg(page)).toEqual(original);
+  await page.evaluate(c => {
+    const api = window.__wirescapeTest;
+    api.engine.disconnect(c);
+    api.doc.disconnect(c);
+  }, cable);
+  await expect(ext).toBeHidden();
+  await expect(bpm).toBeEnabled();
+  await expect(bpm).toHaveValue(authoredBpm);
+  const saved = await page.evaluate(() => JSON.stringify(window.__wirescapeTest.save()));
+  await page.evaluate(json => window.__wirescapeTest.load(JSON.parse(json), 'Groove reload'), saved);
+  await showGroove(page);
+  expect(await cfg(page)).toEqual(original);
+  await expect(ext).toBeHidden();
+  await expect(bpm).toBeEnabled();
+});
+
 test('scale helper is view-only; pitch gestures advance through selected scale', async ({ page }) => {
   await toggle(page, 2);
   const before = JSON.stringify(await cfg(page));

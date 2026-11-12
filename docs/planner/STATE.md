@@ -12,14 +12,14 @@ Only completed exact-head acceptance/checks count; queued/skipped/stale is not p
 ## OSC closeout
 - #645 row enable and #659 compatibility/version gate are MERGED.
   #659 source2fdd993 landed ase82868a with Claude review and exact-head green.
-- #672 gpt-builder1 is now unblocked and STARTED branch task/672-osc-closeout.
+- #672 gpt-builder1: final closeout#684 sourceb843bdd is in review/CI.
   Combine edited/disabled/unknown/version save-reload, real loopback outputs/
   Monitor, truthful status, CONTROLLERS.md≤2KB and guide link. Then accept672,
   required checks and independent T1; close parent#72 only after actual merge.
-- #94/#674 gpt-builder2: old25523fb acceptance could not invoke raw cmake/
-  codec commands through the allowed runner; seed decoding and5OSC CTests pass.
-  f855d15 fixes invocation; configure now proves clang++-18 absent in runner.
-  Provision named compiler/runtime, then fresh60s/target proof. No workflow.
+- #94/#674 gpt-builder2 sourcec76f189: bounded named Clang18 setup fixed
+  runner provisioning; hosted accept94 built both targets, decoded seeds,
+  ran60s/target and OSC CTests, all passed(run),99/250lines5/6files.
+  Guard/Linux/sanitizers/Static green; final independent T1. No workflow.
 - #676 claude-builder1 follows#674: Keel's approved non-required fuzz CI/
   Pi nightly packet, with Codex T2 and Keel final CI-policy disposition.
 
@@ -34,20 +34,20 @@ Only completed exact-head acceptance/checks count; queued/skipped/stale is not p
 - Codex narrow9576c82 fixed strict task-size syntax and enabled the existing
   paced fake callback for live OSC loadGraph; local task parser passes.
   New b71a16e fixes codec fixture capacity256→1024; selectedaccept627 native
-  build/test and Linux/TSan pass. Windows/ASan/Static/Web still running.
+  build/test, Windows/Linux/sanitizers/Web pass. Static failed only format.
   Codex Claude-retry delta posted; Claude must review GPT fixes/test repair.
   Only owner checks physical ASIO sound; close#610 after#631 actually merges.
 
 ## Supporting work and decisions
-- #619/#614 source014b14e: final T1 source pass found no new High/Medium;
-  frozen byte/event trace, exact note-offs at8/12samples and input precedence.
-  Complete current acceptance/required/Static/Web; OSC closeout stays first.
+- #619/#614 source014b14e MERGED91ffa3b: actual accept614 build/test/Studio
+  passed(run),562/600lines10/10files, required Windows/sanitizers green.
+  Frozen byte/event trace,8/12sample note-offs and edge precedence checked.
 - #648/#487 now97f9e63: format-only changes and normal main integration;
   source-matched private device-off Pi run still required, then Claude T2.
 - #6791974969: green CI but reviewer High remains: Guard completion can miss
   a later auto-merge when cron is dead. Keel owns durable wakeup/race proof.
-- #681bbca518 Keel board fast path: senior Medium on raw closing-directive
-  regex consuming Markdown examples; Keel fixes/disposes. No policy bypass.
+- #681bbca518 MERGED6f8942a through Keel board fast path. Senior Medium on
+  raw closing regex executing Markdown examples remains for Keel disposition.
 - #636 helper watch: manual main_verify43215072597→CI43215097749 green on
  14d0db1; by2026-11-13 noonET link schedule or report it never fired.
 - #629 claude-builder1 audits real WASM/FakeEngine parity after urgent reviews.
