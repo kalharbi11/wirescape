@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # CodeQL code scanning (#88). Advanced setup so it needs no repository settings change.
-# build-mode none: C/C++ is analysed from source without a build, so no Qt or devices are involved.
+# build-mode none: C/C++ is analysed from source without a build or physical devices.
 name: CodeQL
 
 on:

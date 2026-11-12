@@ -68,28 +68,39 @@ Immediately before R3b merges, Codex Lead may create the immutable annotated
 actual prerequisite merge SHAs (Keel's latest ruling supersedes lightweight).
 Private Pi Qt-mode removal is a separate PR under this same issue.
 
+## R3b deletion packet (stacked draft, 2026-11-12)
+
+R3a equality proven in Windows CI 43297728628: all 39 patch/module Qt-vs-Qt-free
+signal/event SHA256 cases matched, immutable historical blob `8c136f28872a38024345427433afa905dbb1e318`.
+R3b deletes ONLY the approved 30 Qt source/fixture paths; R5c separately
+archives 192 `legacy/**` and `docs/history/**` paths. Retain all three Qt-free
+golden CTests, settings, hashes and realtime/noallocation requirements.
+
+**Draft / merge stop:** #482 R3a and #707 R3b-pre must first merge; refresh
+the Qt-only assertion A-D replacement mapping, integrate current main, obtain
+independent Claude-family T2 and Keel's scoped allow-protected/allow-test-removal
+labels, then Keel creates the single immutable annotated `archive/qt-final`
+tag on the exact R3b main merge parent. Never tag this draft branch.
+Retarget this stacked PR from R3a to main AFTER R3a merges.
+Outside the exact 30-file manifest, keep authored changes <=800 lines / <=12
+modified or added files. The one-time frozen helper is retired only now that its
+comparison succeeded. R4 separately owns remaining Qt launcher/Windows/Pi
+script references: coordinate; don't preempt another builder's live branch or
+claim its final cross-tree grep is already empty.
+
 ```acceptance
 tier: T2
-size: <= 800 changed lines, <= 12 files
+size: <= 30808 changed lines, <= 234 files
 must_pass:
-  - python -m unittest tools.foundation.tests.test_golden -v
+  - python -m unittest tools.ci.test_static_checks tools.foundation.tests.test_golden -v
   - python tools/dev.py build --headless
-  - ctest --test-dir build/native --output-on-failure --no-tests=error -R '^golden_(render_hashes|event_stream|serialization)$'
   - python tools/dev.py test
+  - bash -lc '! git grep -n "find_package(Qt6" -- native'
   - ci: guard
-  - ci: linux-arm64 including all three golden CTests on the exact head
-  - ci: windows-x64 including all three golden CTests on the exact head
+  - ci: linux-arm64
+  - ci: windows-x64
   - ci: sanitizers
-  - ci: actual frozen Qt vs Qt-free per-case hash comparison from the same immutable source tree, with both revisions recorded
-stops: [Qt or archive deletion in R3a, product test loss, hash/settings rebaseline, threshold change, new dependency, ABI/runtime protocol edit, tag creation in R3a]
+stops: [R3a unmerged, R3b-pre unmerged, missing Claude-family T2/Keel approvals, missing scoped labels, missing archive tag, deletions outside approved manifest and frozen helper, changed golden settings/thresholds, ABI/protocol edit, new dependency]
 ```
 
-This acceptance block governs R3a only. Before R3b is claimed, restore the final
-30808-line/234-file manifest cap (recomputed if needed), retain the 800/12 authored
-cap, require a no-Qt-installed build/full test and the final no-Qt grep:
-`bash -lc '! git grep -n "find_package(Qt6" -- native'`. Keep all existing required
-check names. R3a's green report is not deletion authorization or final R3 completion.
-A same-build hash equality report alone is not an executed frozen-Qt comparison;
-record any actual `--compare-renderer` result separately with both source revisions.
-
-Signed: Codex Lead (Codex, delegated R3 golden-port builder), 2026-11-09.
+Signed: gpt-builder2, 2026-11-12
