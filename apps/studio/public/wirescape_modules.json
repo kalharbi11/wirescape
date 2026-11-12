@@ -2198,6 +2198,292 @@
    }
   },
   {
+   "id": "essentials.quad_vca",
+   "name": "Quad VCA",
+   "category": "Dynamics",
+   "ports": [
+    {
+     "id": "in1",
+     "name": "Input 1",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "in2",
+     "name": "Input 2",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "in3",
+     "name": "Input 3",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "in4",
+     "name": "Input 4",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "cv1",
+     "name": "CV 1",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_uni",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "cv2",
+     "name": "CV 2",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_uni",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "cv3",
+     "name": "CV 3",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_uni",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "cv4",
+     "name": "CV 4",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_uni",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "out1",
+     "name": "Out 1",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "out2",
+     "name": "Out 2",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "out3",
+     "name": "Out 3",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "out4",
+     "name": "Out 4",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "mix",
+     "name": "Mix",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [
+    {
+     "id": "level1",
+     "name": "Level 1",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "level2",
+     "name": "Level 2",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "level3",
+     "name": "Level 3",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "level4",
+     "name": "Level 4",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "mode1",
+     "name": "Mode 1",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "VCA"
+      },
+      {
+       "value": 1,
+       "label": "LPG"
+      }
+     ]
+    },
+    {
+     "id": "mode2",
+     "name": "Mode 2",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "VCA"
+      },
+      {
+       "value": 1,
+       "label": "LPG"
+      }
+     ]
+    },
+    {
+     "id": "mode3",
+     "name": "Mode 3",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "VCA"
+      },
+      {
+       "value": 1,
+       "label": "LPG"
+      }
+     ]
+    },
+    {
+     "id": "mode4",
+     "name": "Mode 4",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "VCA"
+      },
+      {
+       "value": 1,
+       "label": "LPG"
+      }
+     ]
+    },
+    {
+     "id": "response",
+     "name": "Response",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.4,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    }
+   ],
+   "version": 1,
+   "legacy_parameters": {
+    "level1": 0,
+    "level2": 1,
+    "level3": 2,
+    "level4": 3,
+    "mode1": 4,
+    "mode2": 5,
+    "mode3": 6,
+    "mode4": 7,
+    "response": 8
+   }
+  },
+  {
    "id": "essentials.vca",
    "name": "VCA",
    "category": "Dynamics",

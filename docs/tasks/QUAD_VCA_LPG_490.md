@@ -22,6 +22,10 @@ This is an owner request, unshelved on 2026-11-11. It adds a new module with the
 - **Poly:** channels follow `in1` (or the widest patched input), up to 16. State is per voice channel in fixed arrays.
 - **State:** none is saved beyond the parameters. `reset()` zeroes the followers and filters.
 
+Q1 size exception: **≤20 files / ≤900 changed lines**, authorized by Keel on 2026-11-12
+([#611 ruling](https://github.com/kalharbi11/wirescape/pull/611#issuecomment-6811078526)).
+This accounts for module registrations, generated catalogue, conformance expectations, and cost coverage.
+
 ## Q1 #601: native module (builder: any independent agent)
 - Add `native/modules2/quad_vca/`: `module.json`, `dsp.h`, `module.cpp`, `README.md` (the contract above), `DESIGN.md` and `tests.cpp`.
 - Follow `docs/MODULE_BUILD_GUIDE.md` §B step by step, including all five registration edits.
@@ -46,7 +50,7 @@ This is an owner request, unshelved on 2026-11-11. It adds a new module with the
 
 ```acceptance
 tier: T1
-size: <= 700 changed lines, <= 12 files
+size: <= 900 changed lines, <= 20 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test

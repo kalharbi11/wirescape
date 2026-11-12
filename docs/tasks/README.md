@@ -25,6 +25,7 @@ Only tasks for **open** issues live here; the board is issue #473. When an issue
 - [STUDIO_AUDIO_RECOVERY.md](STUDIO_AUDIO_RECOVERY.md) — Studio: diagnose silence and make physical audio output selection clear
 - [STUDIO_MODULATION_FEEDBACK.md](STUDIO_MODULATION_FEEDBACK.md) — Studio: actual modulation feedback and LFO activity telemetry
 - [W1_WINDOWS_SETUP.md](W1_WINDOWS_SETUP.md) — #436 W1 — one Windows Electron source-setup path
+- [WINDOWS_SETUP_PREFLIGHT_605.md](WINDOWS_SETUP_PREFLIGHT_605.md) — #605 — Windows x64 preflight and pinned Ninja follow-up
 - [WEBAPP_PARITY_629.md](WEBAPP_PARITY_629.md) — #629 — Independent non-OSC real-WASM module matrix
 - [We_BENCH_GATE.md](We_BENCH_GATE.md) — W-e: benchmark regression gate (#91)
 - [Wh_FUZZ.md](Wh_FUZZ.md) — W-h: OSC/UDP codec fuzzing (after J5 merges) (#94)
