@@ -907,12 +907,16 @@ Json Session::apply(const Json &command) {
             persist();
         } catch (...) {
             const bool rate_refused = audio_reason_ == "rate-unsupported";
+            // Preserve the attempted PortAudio/ASIO failure before a successful
+            // rollback reopens the old stream and clears audio.error.
+            const std::string failed_open = audio_error_;
             midi_->stop();
             stop_audio();
             device_ = old_device;
             start_audio();
             start_midi();
             if (rate_refused) refuse_rate();
+            if (!failed_open.empty()) throw Refusal("unavailable", failed_open.c_str());
             throw;
         }
         refresh_devices(true, false);
