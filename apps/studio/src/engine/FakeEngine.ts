@@ -404,7 +404,7 @@ export class FakeEngine implements EngineClient {
     }
     // Evaluate meters only after every modulated effective value has been computed.
     for (const n of this.nodes.values()) {
-      if (n.type === 'essentials.lfo' || n.type === 'example.random_source' || n.type === 'essentials.clock') {
+      if (n.type === 'essentials.lfo' || n.type === 'essentials.clock') {
         phase[n.id] = this.phases.get(n.id) ?? 0;
       }
       if (n.type === 'example.step_sequencer') {
@@ -449,7 +449,8 @@ export class FakeEngine implements EngineClient {
       }
     }
 
-    // Current value of every connected signal output (optional telemetry field).
+    // The optional outputs field reports only cabled signal sources, as the
+    // real Web engine does. No uncabled Random Source preview is fabricated.
     const outputs: Record<string, number> = {};
     for (const c of this.conns) {
       if (c.kind === 'event') continue;
@@ -512,7 +513,6 @@ export class FakeEngine implements EngineClient {
         const smooth = Math.max(0.001, n.params.smooth ?? 0.05);
         st.value += (st.target - st.value) * Math.min(1, dt / smooth);
         this.randomHold.set(n.id, st);
-        this.phases.set(n.id, (st.value + 1) / 2);
         break;
       }
       case 'example.step_sequencer': {

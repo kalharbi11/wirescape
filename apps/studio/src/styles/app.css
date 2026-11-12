@@ -162,10 +162,15 @@ button { cursor: pointer; }
 /* ---- cables (DESIGN §9): colour is the user's pick and carries no meaning */
 .cable {
   fill: none; stroke-width: 1.6; stroke-linecap: round;
+  stroke-opacity: 0.68; transition: stroke-opacity 200ms ease;
   vector-effect: non-scaling-stroke; pointer-events: none;
 }
-/* Carrying signal: static round dots (OPEN-4). */
-.cable.active { stroke-dasharray: 0.1 5; stroke-width: 2.4; }
+/* Carrying signal: a brighter static dotted highlight, never a per-frame
+   path animation. Reduced-motion users get the same static state instantly. */
+.cable.active { stroke-dasharray: 0.1 5; stroke-width: 2.8; stroke-opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .cable { transition: none; }
+}
 .cable.selected { stroke-width: 2.6; }
 .cable.active.selected { stroke-width: 3.2; }
 .cable.stereo { stroke-opacity: 0.92; }
