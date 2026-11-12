@@ -66,14 +66,12 @@ static void osc_future_keys() {
     }
 
     auto many = known;
-    for (int n = 0; n < 24; ++n)
-        many["rows"][0]["future" + std::to_string(n)] = n;
+    for (int n = 0; n < 24; ++n) many["rows"][0]["future" + std::to_string(n)] = n;
     many["rows"][0]["a\nunsafe"] = true;
     ignored.clear();
     assert_known_values(many, &ignored);
     CHECK(ignored.size() == 16);
-    for (const auto &name : ignored)
-        CHECK(name.size() <= 80 && name.find('\n') == std::string::npos);
+    for (const auto &name : ignored) CHECK(name.size() <= 80 && name.find('\n') == std::string::npos);
 }
 int main() try {
  auto encode=[](const char*s){return runtime_module_config("midi.cc_to_cv",nlohmann::json::parse(s));};
