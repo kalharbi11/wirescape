@@ -16,9 +16,11 @@ Read first: `native/modules2/osc_in/{config.h,README.md,tests.cpp}`, `native/doc
 - Protocol (`--null-audio`, loopback 127.0.0.1): route status for a disabled row.
 - Playwright with FakeEngine: the toggle round-trips, Clear disables all rows, and an old patch without `enabled` opens with all rows on.
 
+Budget authorized by Keel, 2026-11-12: <=850 changed lines / <=22 files.
+
 ```acceptance
 tier: T2
-size: <= 850 changed lines, <= 22 files (Keel 2026-11-12)
+size: <= 850 changed lines, <= 22 files
 must_pass:
   - bash -lc 'cd apps/studio && npm ci && WIRESCAPE_CHROMIUM=$(command -v chromium || command -v chromium-browser || command -v google-chrome) npm test'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
