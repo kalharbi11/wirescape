@@ -185,6 +185,21 @@ add_test(NAME abi2_host_keyboard_tests COMMAND abi2_host_keyboard_tests)
 
 add_library(wirescape_audio_service STATIC ../io/audio/portaudio_service.cpp ../io/audio/device_identity.cpp)
 target_link_libraries(wirescape_audio_service PUBLIC wirescape_app_engine PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
+
+# Production Stream lifecycle through a fake dynamic PortAudio library (devices stay off).
+add_library(qt_free_fake_portaudio SHARED ../io/audio/fake_portaudio_stream_tests.cpp)
+target_link_libraries(qt_free_fake_portaudio PRIVATE Threads::Threads)
+if(WIN32)
+  set_target_properties(qt_free_fake_portaudio PROPERTIES OUTPUT_NAME "libportaudio64bit")
+else()
+  set_target_properties(qt_free_fake_portaudio PROPERTIES OUTPUT_NAME "portaudio" VERSION 2.0 SOVERSION 2)
+endif()
+add_executable(qt_free_stream_lifecycle_tests ../io/audio/stream_lifecycle_tests.cpp)
+target_link_libraries(qt_free_stream_lifecycle_tests PRIVATE wirescape_runtime_document wirescape_audio_service Threads::Threads ${CMAKE_DL_LIBS})
+add_dependencies(qt_free_stream_lifecycle_tests qt_free_fake_portaudio)
+add_test(NAME qt_free_stream_lifecycle_tests COMMAND qt_free_stream_lifecycle_tests
+  "$<TARGET_FILE_DIR:qt_free_fake_portaudio>" "$<TARGET_FILE:qt_free_fake_portaudio>")
+
 if(WIN32)
   target_link_libraries(wirescape_audio_service PRIVATE advapi32)
 endif()
