@@ -347,9 +347,8 @@ int main() {
             auto attempted = call("route-open-error", "selectAudioDevice", {{"deviceId", "Rate DAC"}});
             check(attempted["ok"] == false && attempted["code"] == "unavailable" &&
                       attempted["message"] == "fake unavailable/ambiguous output" &&
-                      fake::attempts.size() == before_open_error + 2 &&
-                      audio(s)["deviceId"] == "USB Stereo" && audio(s)["state"] == "running" &&
-                      !audio(s).contains("error"),
+                      fake::attempts.size() == before_open_error + 2 && audio(s)["deviceId"] == "USB Stereo" &&
+                      audio(s)["state"] == "running" && !audio(s).contains("error"),
                   "failed target open preserves its error and restores the previous playing output");
             fake::refuse_id.clear();
             fake::active = false;
