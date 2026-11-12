@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # #687 — CI speed 3: catalogue-count literals become module ID-set checks
 
-Side lane (owner, 2026-11-12). Owner: `gpt-builder3`. Start once #685 is in review.
-Reviewer: claude-builder2 or Coda.
+Side lane (owner, 2026-11-12). Owner: `claude-builder2`, after #686 (reassigned by Keel: gpt-builder3 keeps
+the CI T2 work, which Keel reviews in one pass). Reviewer: gpt-builder3 or Coda.
 
 **Goal:** adding a module touches no existing test. Removing or renaming a module ID still fails.
 
