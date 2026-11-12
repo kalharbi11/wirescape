@@ -1,60 +1,52 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state
-**Updated:** 2026-11-12, Codex Lead (EST); Keel rulings retained.
-Board #473 BODY is live; v4.1 agent/<name> ownership and Current state apply.
+**Updated:** 2026-11-12, Coda (senior run). Board #473 BODY is live; agent/<name> owns.
 Only completed exact-head acceptance/checks count; queued or skipped is not proof.
 
 ## Priority and authority
-- Owner order: OSC → Quad VCA/LPG → ASIO, then broad Qt retirement.
-- v1.0.0 includes #597 fixes, OSC, Quad, ASIO/FlexASIO and #599.
-  #593 candidate versions first; owner #581 tests its merged SHA, then tags it.
-  Future app versions are owner decisions; #673 records D20 and PLAN Now.
+- Owner order: OSC → Quad VCA/LPG → ASIO, then broad Qt retirement (#661).
+- v1.0.0 = #597 fixes + OSC + Quad + ASIO + #599; #593 tags after owner #581.
 - Seniors approve T0/T1; T2 needs the other family; Keel approves ABI/spec/CI.
-- Signer identity is an auditable convention (#658 P0.2), not enforced identity.
+- Claude-family T2 reviews of GPT work are the bottleneck: Coda, Keel or
+  claude-builder1 take #659/#648/#631 approvals the moment each head is green.
 
-## Immediate unblockers
-- #670 replaces closed #666: UTF-8 catalogue/review fixtures and one-cycle seed
-  comparison, with the timed soak retained; Windows coverage is not skipped.
-  Codex normal main integration retains every tool/test blob; fresh CI required.
-- #673 supersedes #665 and #663 PLAN/CLEANUP; Compass owns its integration.
-  After #670, merge main normally, retain newer source/rulings, run accept664.
-- #668 merged: every negative gate decision revokes auto-merge; enabling pins
-  reviewed SHA with --match-head-commit. No stale approvals.
-- #640 merged3aca7f6 after stale auto-merge; Keel post-review says no revert.
-  #636/gpt-builder2 must link actual main_verify and inspected/dispatched SHA.
-  Raw workflow GET can verify main evidence; PR-only workflow lookup cannot.
+## Merged this run
+- #670 (14d0db1): Windows-portable foundation tests. Its 1e-6 s soak runs
+  still looped on Windows' 15.6 ms clock (1 vs 3 cycles); #677 fixes the test.
 
 ## OSC first
-- C1 #618, Monitor #620 and row enable #645/df656cf merged; #612 closed.
-- #657/#659: gpt-builder1, authored config.version absent/1 only; known enabled,
-  unknown fields preserved/ignored with bounded diagnostics; spec pre-cleared.
-  New head26c26c4; builder reports a repeated formatting stop. Keel supplies
-  function-only clang-format correction; budget10files/320lines plus permitted
-  separate formatting commit. Fresh accept657/Windows/Web and Claude T2.
-- #672/gpt-builder1 follows #659: combined save/reload/presets/Clear, loopback
-  row outputs/Monitor, truthful status, guide and CONTROLLERS.md, then #72.
-- Keel explicitly unblocked codec fuzzing #94 before full #72 closeout;
-  gpt-builder2/#674 owns it. Keel must approve workflow/Pi nightly policy.
+- #657/#659 (gpt-builder1): Coda pushed format-only 57d84fd (token-identical,
+  changed-range clang-format 440 → 0). Coda T2: no High/Medium; Keel spec
+  approval carries over. Remaining: green CI + accept657 on 57d84fd → approve.
+- #672 (gpt-builder1) starts the moment #659 merges; then close #72.
+- #94/#674 (gpt-builder2): acceptance made runnable by Coda (cmake fuzz build,
+  hex seed decode, 60 s per target). Coda's local run at b10c244: codec 32.2M,
+  pattern 1.3M executions, 0 findings. CI job + Pi nightly split to #676
+  (Keel CI-policy ruling). Builder: merge main, run accept 94, T1 review.
 
 ## Quad VCA/LPG and ASIO
-- #601/#611 fa7db47: gpt-builder2, CI/accept601/Static/Web now pass.
-  Independent final T1 review/approval needed, then Q1 merge.
-  Preserve slots0..8, four-channel/eight-voice cost, budget20files/900lines.
-- #602 same owner starts only after actual Q1 merge; separate card/patch/docs T1.
-- #605/#608 320f10e: scratch --profile-dir fixes Codex review Medium;
-  exact CI/Static pass. Verify actual Windows isolation/accept605, then T1.
-  Narrow Ninja1.13.0 Kitware suffix only; broader toolchains deferred.
-- #627/#631 4e79e59: current owner gpt-builder2; Claude retry code plus GPT parts.
-  CI/Static/Web pass, but latest guard FAILS; diagnose before approval.
-  Preferred1..4096, quiescent prepare, one retry, no persistence; Keel spec.
-  Codex reviews Claude portions; Claude reviews GPT portions; owner tests sound.
+- Q1 #611 merged (62fa9ec). Q2 #602/#675 (gpt-builder2) in progress, T1.
+- #627/#631 (gpt-builder2) 17abf2f: both Codex Highs fixed (OSC/MIDI joined
+  before preferred-size swap, rebound after; UTF-8-safe bounded errors).
+  Coda T2: one Medium (status test injects "\\xc3" text, not bytes). Then
+  CI + accept627, Claude approval, Codex delta on Claude retry, Keel spec.
+- #610: picker (item 1) and ASIO docs (item 3) already on main with tests;
+  item 2 is #627. Close #610 when #631 merges.
+- #605/#608 merged (3a3bd34).
 
-## Other continuations and permanent boundaries
-- #487/#648 b1403b5: gpt-builder2; Low render_at fix pushed; exact CI/Static
-  and source-matched private device-off Pi recovery evidence still govern.
-- #614/#619 8f2a9d1: gpt-builder1; frozen unpatched events and exact note-offs.
-- #629 after priority OSC: real WASM vs FakeEngine visual/telemetry matrix.
-- #482→#468/archive→#481/#469 deferred; #661 keeps replacement/tag protections.
-- #271 hardware, #274 display, #296 actual3600s, #581/#593 release are distinct.
-- No new features, weakened tests, main/force push, device/SSH/LAN access.
-Signed: Codex Lead, 2026-11-12
+## Other continuations
+- #487/#648 (gpt-builder2) b1403b5: Coda T2 no High/Medium. Static was
+  cancelled → rerun triggered; private ci/pi device-off run must be linked.
+- #636: main_verify.yml had zero runs since #640 merged (schedule never
+  fired). Coda dispatched it manually on 14d0db1; link that run's result.
+- #614/#619 (gpt-builder1) Groove external clock; #629 WASM parity after OSC.
+- #673 (Compass) D20 / PLAN Now: integrate main after #670, then fast path.
+- #560 CPU table and full native CMake need dependency downloads: cloud
+  sandboxes get HTTP 403 from codeload.github.com; use CI or the owner's box.
+
+## Deferred and permanent boundaries
+- #482→#468/archive→#481/#469 deferred; #661 keeps replacement/tag gates.
+- #600 Stereo Output, #337, #436, #332 wait for the owner's next-version pick.
+- #271 hardware, #274 display, #296 3600 s soak, #581/#593 release distinct.
+- No weakened tests, main/force push, device/SSH/LAN access.
+Signed: Coda, 2026-11-12
