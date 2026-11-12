@@ -32,13 +32,19 @@ static void instance_config_union() {
 static void osc_future_keys() {
     using Json = nlohmann::json;
     const Json known = Json::parse(R"({"port":9011,"rows":[{"pattern":"/voice","kind":"gate","argument":2}]})");
-    const auto expected = runtime_module_config("osc.in", known, 17);
+    auto assert_known_values = [&](const Json &source, std::vector<std::string> *ignored = nullptr) {
+        const auto bytes = runtime_module_config("osc.in", source, 17, ignored);
+        wirescape::osc::Configuration decoded;
+        CHECK(wirescape::osc::configuration(bytes.data(), static_cast<uint32_t>(bytes.size()), decoded));
+        CHECK(decoded.port == 9011 && decoded.rows[0].argument == 2 && decoded.rows[0].kind == 1);
+        CHECK(std::strcmp(decoded.rows[0].pattern, "/voice") == 0);
+    };
+    assert_known_values(known);
     auto future = known;
     future["futureOption"] = Json::object({{"nested", 1}});
     future["rows"][0]["futureField"] = Json::array({1, 2});
     std::vector<std::string> ignored;
-    const auto actual = runtime_module_config("osc.in", future, 17, &ignored);
-    CHECK(actual == expected);
+    assert_known_values(future, &ignored);
     CHECK(ignored == std::vector<std::string>({"osc.in#17.futureOption", "osc.in#17.rows[0].futureField"}));
     CHECK(future["futureOption"].is_object() && future["rows"][0]["futureField"].is_array());
 
@@ -59,7 +65,7 @@ static void osc_future_keys() {
         many["rows"][0]["future" + std::to_string(n)] = n;
     many["rows"][0]["a\nunsafe"] = true;
     ignored.clear();
-    CHECK(runtime_module_config("osc.in", many, 17, &ignored) == expected);
+    assert_known_values(many, &ignored);
     CHECK(ignored.size() == 16);
     for (const auto &name : ignored)
         CHECK(name.size() <= 80 && name.find('\n') == std::string::npos);
