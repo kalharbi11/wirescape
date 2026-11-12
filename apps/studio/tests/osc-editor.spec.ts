@@ -104,6 +104,35 @@ test('presets fill all rows, while config unknowns only drop on editor save', as
   expect(saved.ownerExtension).toEqual({ survive: 1 });
 });
 
+test('authored OSC config version is preserved and unsupported versions cannot be saved', async ({ page }) => {
+  const authored = patch({ version: 2, port: 9011, futureOption: true, rows: [{ enabled: false }] });
+  await page.evaluate(p => window.__wirescapeTest.load(p), authored);
+  await settle(page);
+  await open(page);
+  await expect(page.getByTestId('osc-unknown-warning')).toContainText('Unsupported OSC config version');
+  await page.getByTestId('osc-editor-save').click();
+  await expect(page.getByTestId('osc-editor-errors')).toContainText('Unsupported OSC config version');
+  expect((await state(page)).modules[0].config).toMatchObject(authored.modules[0].config as object);
+  await page.getByTestId('osc-editor').getByRole('button', { name: 'Cancel' }).click();
+  await page.evaluate(() => window.__wirescapeTest.addModule('essentials.vco'));
+  await settle(page);
+  expect((await state(page)).modules[0].config).toMatchObject(authored.modules[0].config as object);
+
+  // Explicit v1 survives a genuine editor Save; omitted v1 stays omitted.
+  await page.evaluate(p => window.__wirescapeTest.load(p), patch({ version: 1, port: 9011 }));
+  await settle(page);
+  await open(page);
+  await expect(page.getByTestId('osc-unknown-warning')).toBeHidden();
+  await page.getByTestId('osc-editor-save').click();
+  await expect(page.getByTestId('osc-editor')).toBeHidden();
+  expect((await state(page)).modules[0].config.version).toBe(1);
+  await page.evaluate(p => window.__wirescapeTest.load(p), patch({ port: 9011 }));
+  await settle(page);
+  await open(page);
+  await page.getByTestId('osc-editor-save').click();
+  expect((await state(page)).modules[0].config.version).toBeUndefined();
+});
+
 test('Reset to Pico defaults restores UDP port and clears LAN request before save', async ({ page }) => {
   await open(page);
   await page.getByTestId('osc-editor-port').fill('9123');
