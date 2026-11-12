@@ -28,7 +28,15 @@ export class WebBridge implements WirescapeBridge {
 
   /** Must run from a user gesture: browsers only start audio after a click or key. */
   async start(base: string, options: { readyTimeoutMs?: number; processorUrl?: string } = {}): Promise<void> {
-    const context = new AudioContext({ latencyHint: 'interactive' });
+    // Plaits Macro Oscillator is prepared only at 48 kHz. Ask the browser to
+    // resample at the device boundary, not inside the module DSP. Unsupported
+    // requested-rate constructors fall back to the device's real sample rate.
+    let context: AudioContext;
+    try {
+      context = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 });
+    } catch {
+      context = new AudioContext({ latencyHint: 'interactive' });
+    }
     // iOS Safari needs resume() invoked during the original tap, not after
     // asynchronous WASM compilation or worklet installation has consumed it.
     // Keep the promise pending until the processor is connected below.

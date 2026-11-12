@@ -63,19 +63,22 @@ export interface SystemStatus {
   };
   /** Present only while a Clock module exists in the graph. */
   clock?: { bpm: number; running: boolean };
-  /**
-   * Optional (phase 5): OSC server status. An engine without OSC omits it and
-   * the UI hides the OSC settings. `recent` holds the last few messages in.
-   */
+  /** Optional OSC host routes. Real route counters come from the sidecar, not the UI. */
   osc?: OscStatus;
 }
 
 export interface OscStatus {
   enabled: boolean;
   port: number;
-  /** Off by default: listen on localhost only. On: accept from the network. */
-  allowNetwork: boolean;
-  recent: { time: number; address: string; args: (number | string)[] }[];
+  /** Actual bind address and LAN authorization, never inferred from saved config. */
+  bind?: string;
+  lan?: boolean;
+  last_error?: string;
+  routes?: { module: string; port: number; bind: string;
+    state: 'listening' | 'lan-not-confirmed' | 'port-busy'; received: number; dropped: number }[];
+  /** Older fake OSC controls are unrelated to the per-module OSC host. */
+  allowNetwork?: boolean;
+  recent?: { time: number; address: string; args: (number | string)[] }[];
 }
 
 /** Live values, pushed ~30x a second. Each message is a complete snapshot. */

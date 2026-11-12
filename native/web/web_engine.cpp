@@ -142,11 +142,19 @@ struct Web {
         Owner next(load_runtime_patch(candidate.dump(), catalogue.get(), config, error, &next_telemetry.taps()),
                    app_engine_destroy);
         if (!next) {
+            // Explain the fixed-rate module's prepare failure without changing reply fields.
+            if (rate != 48000) {
+                for (const auto &module : candidate["modules"])
+                    if (module.at("module") == "ports.macro_oscillator") {
+                        error = "ports.macro_oscillator requires 48000 Hz; " + error;
+                        break;
+                    }
+            }
             // Loader errors are control-path diagnostics; keep messages bounded and valid UTF-8.
             error.resize(std::min(error.size(), size_t(240)));
             for (char &c : error)
                 if (static_cast<unsigned char>(c) < 32 || static_cast<unsigned char>(c) > 126) c = '?';
-            throw Refusal{"refused", "Graph configuration refused at " + std::to_string(rate) + " Hz: " + error};
+            throw Refusal{"refused", "Graph configuration refused at " + std::to_string(static_cast<uint32_t>(rate)) + " Hz: " + error};
         }
         if (live) {
             app_engine_panic(live.get());

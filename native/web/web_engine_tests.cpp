@@ -52,15 +52,15 @@ static int macro_rate(double rate) {
     patch["modules"].push_back({{"id", 2}, {"module", "ports.macro_oscillator"}});
     const auto reply = command({{"type", "loadGraph"}, {"patch", patch}});
     std::printf("macro rate=%.0f saved_rate=48000 reply=%s\n", rate, reply.dump().c_str());
-    if (rate == 48000) {
-        CHECK(reply["ok"] == true);
+    if (rate == 48000) CHECK(reply["ok"] == true);
+    if (reply["ok"] == true) {
         CHECK(reply["gen"] == "2");
     } else {
-        CHECK(reply["ok"] == false);
         CHECK(reply["code"] == "refused");
         CHECK(reply["gen"] == "1"); // Failed prepare cannot replace the existing graph.
         const auto message = reply.value("message", "");
-        CHECK(message.find("44100") != std::string::npos);
+        CHECK(message.find(std::to_string(static_cast<uint32_t>(rate))) != std::string::npos);
+        CHECK(message.find("ports.macro_oscillator requires 48000 Hz") != std::string::npos);
         CHECK(message.find("prepare") != std::string::npos);
         CHECK(message.size() <= 320);
         CHECK(loudest(4) == 0);
