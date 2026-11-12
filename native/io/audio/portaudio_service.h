@@ -20,6 +20,16 @@ class RateUnsupported : public std::runtime_error {
   public:
     RateUnsupported() : std::runtime_error("rate-unsupported") {}
 };
+// Returned only after a failed ASIO open. The control owner must reprepare
+// its graph and callback scratch before the one permitted preferred-size retry.
+class PreferredBufferSize : public std::runtime_error {
+    uint32_t frames_;
+
+  public:
+    explicit PreferredBufferSize(uint32_t frames)
+        : std::runtime_error("ASIO preferred buffer size needs graph reprepare"), frames_(frames) {}
+    uint32_t frames() const noexcept { return frames_; }
+};
 struct Device {
     std::string id, name, host_api;
     int index = -1;
@@ -98,7 +108,7 @@ class Stream {
 
   public:
     Stream(EngineOwner &, const StreamSelection &selection, double rate, uint32_t block,
-           std::function<void()> stop_producers = {});
+           std::function<void()> stop_producers = {}, bool allow_preferred_retry = true);
     ~Stream();
     EngineOwner stop();
     // Hands `next` to the running callback at a block boundary without reopening the
@@ -108,6 +118,7 @@ class Stream {
     bool running() const;
     double cpu_percent() const;
     uint64_t dropouts() const;
+    uint32_t buffer_frames() const noexcept; // accepted PortAudio framesPerBuffer
 };
 // Enumeration never starts a stream. Only CLI --confirm-audio calls play().
 void list_devices(const std::string& directory);
