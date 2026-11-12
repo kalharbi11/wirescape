@@ -7,6 +7,7 @@ belongs to (`agent/<name>`), its open PR, how long it has been idle and its `Nex
   python tools/board.py             # print the auto section (needs GH_TOKEN or GITHUB_TOKEN)
   python tools/board.py --write 473 # replace the section in issue #473's body
   python tools/board.py --followups # finish what gate merges skip (see followups())
+  python tools/board.py --watch-merges 12 # wait for armed auto-merges, then verify main (post_merge.yml)
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -260,16 +262,42 @@ def _clear_closed_status(token, now):
                 raise
 
 
+def watch_merges(token, minutes, sleep=time.sleep, clock=time.monotonic):
+    """Durable post-merge wakeup (#702, gpt-reviewer High). The gate's GITHUB_TOKEN auto-merge
+    starts no workflow, and an event that ran just before it saw the old main. post_merge.yml runs
+    this after every CI, Guard and Merge gate run: while any open PR has auto-merge armed it waits,
+    bounded by `minutes`, and as soon as one has merged it verifies main (main_verify.yml reads
+    main's live head and is idempotent per SHA). It always verifies main once before returning."""
+    deadline = clock() + minutes * 60
+    while True:
+        armed = [pr['number'] for pr in _all('pulls?state=open', token) if pr.get('auto_merge')]
+        merged_now = False
+        for n in list(armed):
+            if _api(f'pulls/{n}', token).get('merged'):
+                merged_now = True
+                armed.remove(n)
+                print(f'board.py: #{n} merged; verifying main')
+        if merged_now or not armed or clock() >= deadline:
+            _verify_main(token, None)
+        if not armed or clock() >= deadline:
+            return 0
+        sleep(20)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--write', type=int, metavar='ISSUE', help='update this issue body in place')
     ap.add_argument('--followups', action='store_true', help='close issues of gate merges, clear stale status labels, verify main')
+    ap.add_argument('--watch-merges', type=float, metavar='MINUTES',
+                    help='wait (bounded) for armed auto-merges to land, then verify main')
     args = ap.parse_args(argv)
     token = os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN')
     if not token:
         sys.exit('board.py: set GH_TOKEN or GITHUB_TOKEN')
     if args.followups:
         return followups(token, datetime.now(timezone.utc))
+    if args.watch_merges is not None:
+        return watch_merges(token, min(max(args.watch_merges, 0), 30))
     issues = [i for i in _all('issues?state=open', token) if 'pull_request' not in i]
     prs = _all('pulls?state=open', token)
     auto = render(issues, prs, datetime.now(timezone.utc), board=args.write or 473)

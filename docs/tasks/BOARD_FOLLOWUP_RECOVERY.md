@@ -18,13 +18,16 @@ Folds in #679's sound parts; #679's Guard `workflow_run` trigger is dropped (gpt
 4. From #679: the merge gate disables auto-merge only when it is armed (no red runs for a "no");
    guard reads `Protected path named:` only from owner/member/collaborator issues; Static 40 min.
 
-Post-merge wakeup (the #679 High): the board workflow runs on every agent issue, PR and comment
-event, and `_verify_main` reads `main`'s live head at run time, so the first agent event after a gate
-merge verifies the new commit. No Guard ordering is involved.
+Post-merge wakeup (the #679 and #702 High): `post_merge.yml` runs after every completed CI, Guard
+and Merge gate run (GitHub arms and fires auto-merge right after one of these). `board.py
+--watch-merges 12` waits, bounded to 12 minutes, while any open PR has auto-merge armed, and verifies
+main once a merge lands and always once before it exits. A newer watch replaces an older one
+(concurrency group). Regressions cover a merge that lands after the Board run, no armed PRs, and an
+auto-merge that never lands (bounded).
 
 ```acceptance
 tier: T2
-size: <= 200 changed lines, <= 10 files
+size: <= 300 changed lines, <= 10 files
 must_pass:
   - actionlint
   - python -m unittest discover -s tools/foundation/tests -p test_board.py
