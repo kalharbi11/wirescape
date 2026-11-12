@@ -1,0 +1,213 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "name": "Quad VCA · Four-Gate Mix",
+  "description": "Autoplay: a single sine VCO feeds in1; in2–in4 stay unplugged to use Quad VCA's input normalling, so every channel receives that same oscillator. Four independent slow LFOs enter cv1–cv4 and open four VCA gates at different rates. The unnormalised mix output combines them. Tune the four Levels and LFO rates to hear interlocking waves; add a second source to in3 to break normalling.",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 6022,
+    "timing_mode": "immediate"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": {
+        "frequency": 174
+      }
+    },
+    {
+      "id": 2,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.23,
+        "depth": 0.48,
+        "offset": 0.5
+      }
+    },
+    {
+      "id": 3,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.37,
+        "depth": 0.45,
+        "offset": 0.5
+      }
+    },
+    {
+      "id": 4,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.53,
+        "depth": 0.48,
+        "offset": 0.5
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": {
+        "rate": 0.71,
+        "depth": 0.42,
+        "offset": 0.5
+      }
+    },
+    {
+      "id": 6,
+      "module": "essentials.quad_vca",
+      "version": 1,
+      "parameters": {
+        "level1": 0.32,
+        "level2": 0.24,
+        "level3": 0.22,
+        "level4": 0.21,
+        "mode1": 0,
+        "mode2": 0,
+        "mode3": 0,
+        "mode4": 0,
+        "response": 0.4
+      }
+    },
+    {
+      "id": 7,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": {
+        "module": 1,
+        "port": "audio"
+      },
+      "to": {
+        "module": 6,
+        "port": "in1"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 2,
+        "port": "control"
+      },
+      "to": {
+        "module": 6,
+        "port": "cv1"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 3,
+        "port": "control"
+      },
+      "to": {
+        "module": 6,
+        "port": "cv2"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 4,
+        "port": "control"
+      },
+      "to": {
+        "module": 6,
+        "port": "cv3"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 5,
+        "port": "control"
+      },
+      "to": {
+        "module": 6,
+        "port": "cv4"
+      }
+    },
+    {
+      "kind": "signal",
+      "from": {
+        "module": 6,
+        "port": "mix"
+      },
+      "to": {
+        "module": 7,
+        "port": "audio"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "module": 7,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 7,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [
+        60,
+        192
+      ],
+      "2": [
+        60,
+        900
+      ],
+      "3": [
+        920,
+        900
+      ],
+      "4": [
+        1780,
+        900
+      ],
+      "5": [
+        2640,
+        900
+      ],
+      "6": [
+        3600,
+        192
+      ],
+      "7": [
+        4640,
+        192
+      ]
+    },
+    "labels": {
+      "1": "Shared oscillator",
+      "2": "Gate 1 LFO",
+      "3": "Gate 2 LFO",
+      "4": "Gate 3 LFO",
+      "5": "Gate 4 LFO",
+      "6": "Four independent gates",
+      "7": "Stereo mix"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 0.5
+    }
+  }
+}
