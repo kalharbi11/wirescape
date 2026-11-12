@@ -152,6 +152,7 @@ def main(argv=None):
     files = [f['filename'] for f in gh_json(f'{base}/pulls/{args.pr}/files?per_page=100')]
     comments = gh_json(f'{base}/issues/{args.pr}/comments?per_page=100')
     ok, reason = decide(pr, files, comments, args.repo.split('/')[0])
+    print(f"head: {pr['head']['sha']}")
     print(('ok: ' if ok else 'wait: ') + reason)
     return 0 if ok else 3
 

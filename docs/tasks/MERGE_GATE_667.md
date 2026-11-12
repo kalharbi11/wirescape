@@ -1,16 +1,11 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # #667 Merge-gate exact-head safety and explicit Markdown-only T0
 
-Read first: issue #667 (Keel's binding ruling), `tools/merge_gate.py`,
-`.github/workflows/merge_gate.yml`, and current merge-gate unit tests.
+Read first: #667 ruling, `tools/merge_gate.py`, `.github/workflows/merge_gate.yml`, merge-gate tests.
 
-- On `pull_request_target.synchronize`, disable auto-merge without running
-  incoming PR code or the approval script. Ignore only already-disabled errors.
-- Permit no-approval auto-merge only with `tier/T0`, no conflicting T1/T2 tier,
-  and a nonempty diff containing exclusively `.md` files. Protected paths and
-  milestone reviews still require exact-head owner-authored signed approval.
-- Prove positive/negative decisions and the synchronize-only workflow path
-  without changing required checks, workflow permissions or tokens.
+- On `pull_request_target.synchronize`, disable auto-merge without PR code; every gate denial also revokes it; enabling must match the full checked SHA.
+- Permit no-approval auto-merge only with explicit `tier/T0`, no T1/T2 conflict, nonempty `.md`-only diff; protected and milestone PRs still require exact-head signed approval.
+- Prove positive/negative decisions and synchronize-only behavior without new tokens, permissions, or weakening required checks.
 
 ```acceptance
 tier: T2

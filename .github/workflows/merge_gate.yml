@@ -44,6 +44,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: |
-          if python tools/merge_gate.py --pr "$PR"; then
-            gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash
+          if decision=$(python tools/merge_gate.py --pr "$PR"); then
+            echo "$decision"
+            SHA=$(printf '%s\n' "$decision" | sed -n 's/^head: //p')
+            [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+            gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash --match-head-commit "$SHA"
+          else
+            if ! result=$(gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto 2>&1); then
+              echo "$result" >&2
+              echo "$result" | grep -Eiq 'not enabled|not in auto-merge mode' || exit 1
+            fi
           fi

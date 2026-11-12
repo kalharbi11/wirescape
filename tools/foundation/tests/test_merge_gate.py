@@ -243,6 +243,9 @@ class MergeGateWorkflowTests(unittest.TestCase):
                       workflow)
         self.assertIn("      - name: Decide and enable auto-merge\n"
                       "        if: github.event.action != 'synchronize'", workflow)
+        decision = workflow.split('      - name: Decide and enable auto-merge\n', 1)[1]
+        self.assertIn('gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto', decision)
+        self.assertIn('--match-head-commit "$SHA"', decision)
 
 
 if __name__ == '__main__':
