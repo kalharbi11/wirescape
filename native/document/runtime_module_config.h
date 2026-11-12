@@ -164,6 +164,13 @@ inline std::vector<uint8_t> runtime_module_config_impl(const std::string &type, 
      // All authored OSC configuration is validated on the control owner,
      // then copied as bounded private POD for the module's prepare() call.
      wirescape::osc::Configuration config;
+     // This authored JSON version is not the private POD version. Restrictive
+     // future keys must bump it so older engines refuse instead of broadening behavior.
+     if (value.contains("version")) {
+         const auto &authored = value.at("version");
+         require(authored.is_number_integer() && authored.get<int64_t>() == 1,
+                 "Unsupported OSC config version");
+     }
      auto record = [&](std::string name) {
          if (!ignored_keys || ignored_keys->size() >= 16) return;
          for (char &ch : name) {
@@ -174,7 +181,8 @@ inline std::vector<uint8_t> runtime_module_config_impl(const std::string &type, 
      };
      // Future top-level keys do not affect the native execution configuration.
      for (auto it = value.begin(); it != value.end(); ++it)
-         if (it.key() != "port" && it.key() != "lan" && it.key() != "rows") record(it.key());
+         if (it.key() != "version" && it.key() != "port" && it.key() != "lan" && it.key() != "rows")
+             record(it.key());
      if (value.contains("port")) {
          const auto &port = value.at("port");
          require(port.is_number_integer(), "OSC port must be an integer");
