@@ -1130,6 +1130,7 @@ export class PatchCanvas {
   bindActivity(): void {
     const prevEvent = new Map<string, number>();
     const activeUntil = new Map<string, number>();
+    const liveCables = new Set<string>();
     let lastCheck = 0;
     this.s.ticker.bindGlobal(t => {
       const now = performance.now();
@@ -1146,9 +1147,11 @@ export class PatchCanvas {
       }
       if (now - lastCheck > 100) {
         lastCheck = now;
+        liveCables.clear();
         for (const c of this.s.doc.connections) {
           const k = `${c.from.module}:${c.from.port}`;
           const cableKey = connKey(c);
+          liveCables.add(cableKey);
           // -60 dBFS is 0.001 in linear amplitude. Hold for 200 ms after
           // the last active sample; all updates stay in the 10 Hz ticker.
           const measured = c.kind === 'event'
@@ -1158,6 +1161,10 @@ export class PatchCanvas {
           const on = measured || now < (activeUntil.get(cableKey) ?? 0);
           if (!on) activeUntil.delete(cableKey);
           this.cables.setActive(cableKey, on);
+        }
+        // Disconnects and patch loads must not leave old 200 ms holds cached.
+        for (const key of activeUntil.keys()) {
+          if (!liveCables.has(key)) activeUntil.delete(key);
         }
       }
       if (this.cables.settling) this.cables.step(now);
