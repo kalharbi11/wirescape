@@ -21,9 +21,11 @@ Read first: `native/document/runtime_module_config.h` (OSC adapter),
 - Coordinate with #645's separate existing per-row `enabled` implementation;
   do not edit that branch or silently treat other module config types as OSC.
 
+**Size budget (Coda, 2026-11-12, recording Keel's #659 ruling of 10:05 ET):** authored changes stay within **320 lines / 10 files** (242 at `26c26c4`). The measured limit below also counts Keel's pre-authorized style-only commit `57d84fd` (`clang-format runtime_module_config_impl`, 566 lines, token-identical to `26c26c4`) and this note. Any further authored change must still fit the 320-line budget.
+
 ```acceptance
 tier: T2
-size: <= 320 changed lines, <= 10 files
+size: <= 780 changed lines, <= 10 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
