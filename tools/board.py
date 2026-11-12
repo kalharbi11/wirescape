@@ -15,6 +15,8 @@ import json
 import os
 import re
 import sys
+import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -194,11 +196,19 @@ def should_close(issue, comments, pr):
     return not any(marker in (c.get('body') or '') for c in comments)
 
 
+def stale_status(items):
+    """(number, label) for every status/* label left on a closed issue or PR. Status labels describe
+    live work only; GitHub keeps them when an item closes, so closed items show up as in-progress."""
+    return [(item['number'], name) for item in items if item.get('state') == 'closed'
+            for name in _labels(item) if name.startswith('status/')]
+
+
 def followups(token, now):
     """Merges the gate makes run as GITHUB_TOKEN, and GitHub starts no follow-ups for those:
     `Closes #N` is not applied, no push CI runs on main and schedules never register. This runs on
     agents' own issue/PR events instead: it closes the linked issues and starts main_verify.yml
-    once per main commit (that workflow dispatches whatever CI the commit is missing)."""
+    once per main commit (that workflow dispatches whatever CI the commit is missing). It also clears
+    status/* labels from recently closed issues and PRs, however they were closed."""
     merged = _api('pulls?state=closed&base=main&sort=updated&direction=desc&per_page=50', token)
     for n, pr, sha in pending_closes(merged, now):
         issue = _api(f'issues/{n}', token)
@@ -210,6 +220,15 @@ def followups(token, now):
         _api(f'issues/{n}', token, 'PATCH', {'state': 'closed', 'state_reason': 'completed'})
         _api(f'issues/{n}/comments', token, 'POST', {'body': note})
         print(f'board.py: closed #{n} (from #{pr})')
+    # After the closes above, so issues closed in this run are cleared in this run too.
+    recent = _api('issues?state=closed&sort=updated&direction=desc&per_page=50', token)
+    for n, name in stale_status(recent):
+        try:
+            _api(f'issues/{n}/labels/{urllib.parse.quote(name, safe="")}', token, 'DELETE')
+            print(f'board.py: removed {name} from closed #{n}')
+        except urllib.error.HTTPError as error:  # already removed by someone else
+            if error.code != 404:
+                raise
     sha = _api('commits/main', token)['sha']
     runs = _api(f'actions/workflows/main_verify.yml/runs?head_sha={sha}&per_page=1', token)
     if not runs.get('total_count'):
@@ -221,7 +240,7 @@ def followups(token, now):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--write', type=int, metavar='ISSUE', help='update this issue body in place')
-    ap.add_argument('--followups', action='store_true', help='close issues of gate merges, verify main')
+    ap.add_argument('--followups', action='store_true', help='close issues of gate merges, clear stale status labels, verify main')
     args = ap.parse_args(argv)
     token = os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN')
     if not token:
