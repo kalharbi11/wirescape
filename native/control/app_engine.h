@@ -33,6 +33,10 @@ uint64_t app_engine_clock_ns();
 int app_engine_render_live(AppEngine *, float *const *, uint32_t, uint32_t, uint64_t callback_time_ns);
 // Internal D5 mute-gap controls; only the callback owns the current gain.
 void app_engine_begin_master_fade_out(AppEngine *) noexcept;
+// First fade-out render callback in steady-clock ns; 0 until a callback observes it.
+uint64_t app_engine_master_fade_out_started_ns(const AppEngine *) noexcept;
+// Test/diagnostic-only off-RT accessor for the clock-origin overlap contract.
+uint64_t app_engine_master_fade_out_requested_ns(const AppEngine *) noexcept;
 bool app_engine_master_fade_silent(const AppEngine *) noexcept;
 void app_engine_prepare_master_fade_in(AppEngine *) noexcept; // only on a quiescent engine
 void app_engine_resume_master_fade(AppEngine *) noexcept;

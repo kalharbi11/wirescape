@@ -19,8 +19,8 @@ The repo carries three products' worth of code for one product: the Qt app (`nat
 | ABI1 engine path | `native/src/engine.cpp`, `native/modules/*`, ABI1 bridge in `native/engine2/engine2.cpp` (`add_abi1`, `rebind_abi1_descriptor`), `native/control/app_engine.cpp` (`legacy` engine, `app_engine_load_module`), `native/cli/play.cpp:69`, `ws_engine_config` used as a config struct in sidecar and web, ABI1 links in `abi2_benchmark`/`abi2_integration_tests`/`abi2_cost_probe`/`abi2_returned_filter_stress`, `tools/capture/reference.py` | Separate track (R6, D17) |
 | Windows sidecar SKIP 77 | fixed by #439 (merged) | No longer a blocker |
 
-## Status and order (Compass, 2026-11-11, for v1.1)
-The owner runs the v1.0.0 tag for a week, so cleanup lands on `main` alongside that. Builders are independent agents (ChatGPT/Codex). Leads come in only for a Stop. All Qt T2 work goes to Coda in **one** batch review.
+## Status and order (Compass, 2026-11-12: after OSC, Quad VCA/LPG and ASIO)
+Owner order (board #473): finish OSC, then Quad VCA/LPG, then ASIO; this chain starts after those three and is not a prerequisite for them. The execution checklist and pre-authorizations are on #661. Keep existing drafts, replacement evidence and the archive tag rule. A Qt problem that blocks a required check gets only the smallest targeted fix now (#653/#654 is merged). All Qt T2 work goes to the other family in **one** batch review.
 | # | Packet | Tier | Builder → reviewer | Depends on |
 |---|---|---|---|---|
 | 1 | **R3a** #482: product goldens without Qt (draft; finish exact-head CI) | T2 | existing Codex writer → Coda (batch) | — |

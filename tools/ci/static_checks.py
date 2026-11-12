@@ -171,6 +171,11 @@ def run_checks(root, diff, tidy_diff):
                        "--inline-suppr", "--template=gcc"]
             if model == "qt":
                 command.append("--library=qt")
+                # Generated moc TUs: cppcheck can't see Qt's system headers, so moc's
+                # own "doesn't include <QObject>" #error guard fires on every Qt TU
+                # reached through a product header (#487). Only that ID, only in
+                # generated *_autogen/ files; authored #error directives still fail.
+                command.append("--suppress=preprocessorErrorDirective:*_autogen/*")
             command.append("--project=" + str(project))
             jobs.append(("cppcheck changed files", command, None))
         for name, ranges in files.items():

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "session.h"
+#include "d5_gap_deadline.h"
 #include "null_sink_wait.h"
 #include "runtime_patch.h"
 #include "wirescape_sidecar_categories.h"
@@ -357,16 +358,22 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
                         if (d.is_default) device_ = d.id;
             }
             need(!device_.empty(), "unavailable", "No selected audio output");
-            stream_ = std::make_unique<audio::Stream>(engine_, audio::StreamSelection{options_.directory, device_},
-                                                      options_.rate, options_.block, [this] { midi_->stop(); });
+            try {
+                stream_ = std::make_unique<audio::Stream>(engine_, audio::StreamSelection{options_.directory, device_},
+                                                          options_.rate, options_.block, [this] { midi_->stop(); });
+            } catch (const audio::PreferredBufferSize &driver) {
+                open_at_driver_block(driver.frames()); // exactly one retry; throws on refusal
+            }
             audio_state_ = "running";
+            audio_error_.clear(); // an actual successful reopen clears the last error
             audio_backoff_ = std::chrono::milliseconds(100);
         } catch (const audio::RateUnsupported &) {
             audio_state_ = "no-device";
             audio_reason_ = "rate-unsupported"; // invalid rates are refusals, never retry loops
         } catch (const audio::ShutdownFailure &) {
             throw;
-        } catch (const std::exception &) {
+        } catch (const std::exception &e) {
+            audio_error_ = audio::bounded_audio_error(e.what());
             audio_state_ = device_.empty() ? "no-device" : "reconnecting";
             audio_retry_ = now + audio_backoff_;
             audio_backoff_ = std::min(audio_backoff_ * 2, std::chrono::milliseconds(5000));
@@ -424,6 +431,68 @@ void Session::start_audio(std::chrono::steady_clock::time_point now) {
         }
     }
 }
+// Control thread, no stream running (the failed open returned engine_). Keel's
+// #627 ruling: same quiescent path as setBufferFrames, one open, no persistence.
+void Session::open_at_driver_block(int64_t frames) {
+    if (frames < 1 || frames > 4096)
+        throw std::runtime_error("ASIO driver requires " + std::to_string(frames) + " frames (supported 1-4096)");
+    const auto block = uint32_t(frames);
+    document::telemetry::Sampler next_telemetry(
+        document::telemetry::plan(patch_, catalogue_.get(), /*phase_enabled=*/true, /*groove_enabled=*/true));
+    ws_engine_config next_config = config_;
+    next_config.max_block_frames = block;
+    std::string error;
+    audio::EngineOwner prepared(
+        document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config, error, &next_telemetry.taps()),
+        app_engine_destroy);
+    if (!prepared)
+        throw std::runtime_error("Graph cannot prepare at the ASIO driver's " + std::to_string(block) + " frames");
+    app_engine_prepare_master_fade_in(prepared.get());
+    // Preferred-buffer retries may run after a failed startup or hot-unplug:
+    // OSC/MIDI workers can still hold the old graph while stream_ is null.
+    // Join both producers before replacing it; resume OSC against whichever
+    // graph is committed (new on success, restored on failed retry).
+    const bool had_osc = !osc_->states().empty();
+    osc_->stop();
+    auto resume_osc = [this, had_osc](void *) noexcept {
+        if (!had_osc) return;
+        try {
+            start_osc();
+        } catch (...) {
+            osc_->stop();
+        }
+    };
+    std::unique_ptr<void, decltype(resume_osc)> osc_restart(this, resume_osc);
+    midi_->stop();
+    bool restore_midi_on_failure = true;
+    auto resume_midi = [this, &restore_midi_on_failure](void *) noexcept {
+        if (!restore_midi_on_failure) return;
+        try {
+            start_midi();
+        } catch (...) {
+            midi_->stop();
+        }
+    };
+    std::unique_ptr<void, decltype(resume_midi)> midi_restart(this, resume_midi);
+    auto previous = std::move(engine_);
+    engine_ = std::move(prepared);
+    active_ = engine_.get();
+    try {
+        stream_ = std::make_unique<audio::Stream>(
+            engine_, audio::StreamSelection{options_.directory, device_}, options_.rate, block,
+            [this] { midi_->stop(); },
+            /*allow_preferred_retry=*/false);
+    } catch (...) {
+        engine_ = std::move(previous); // keep the graph prepared for the configured block
+        active_ = engine_.get();
+        throw;
+    }
+    restore_midi_on_failure = false; // caller start()/poll_audio()/apply() resumes MIDI
+    if (!requested_block_) requested_block_ = options_.block;
+    config_ = next_config;
+    options_.block = block;
+    telemetry_.swap(next_telemetry);
+}
 void Session::stop_audio() {
     stop_sink_.store(true);
 #ifdef _WIN32
@@ -478,7 +547,17 @@ bool Session::refresh_devices(bool audio, bool probe_rates, const std::string &t
                         entry["sampleRates"].push_back(options_.rate);
                 }
             }
+            // Registry discovery is read-only and never initializes an audio driver.
+            // The fake-backend test supplies the registry list through this seam.
+            std::vector<audio::RawDevice> visible;
+            for (const auto &entry : next)
+                if (entry.value("hostApi", std::string{}) == "ASIO")
+                    visible.push_back({entry.at("name").get<std::string>(), "ASIO"});
+            Json unavailable = Json::array();
+            for (const auto &name : audio::unavailable_asio_drivers(audio::installed_asio_drivers(), visible))
+                unavailable.push_back({{"hostApi", "ASIO"}, {"name", name}, {"reason", "driver-init-failed"}});
             audio_devices_ = std::move(next);
+            unavailable_audio_drivers_ = std::move(unavailable);
         } catch (...) {
             enumerated = false; // Keep the last successful list; failure is not disappearance.
         }
@@ -630,6 +709,8 @@ void Session::commit(Json patch, bool new_namespace) {
     // D5 budgets (see kMuteBudget/kGapBudget); they stretch only when a block period is longer.
     const auto period = std::chrono::microseconds(int64_t(1e6 * double(options_.block) / double(options_.rate)));
     const auto gap_budget = std::max<std::chrono::microseconds>(kGapBudget, 3 * period);
+    // The request/mute watchdog is separate from the actual audio interruption.
+    auto gap_deadline = begun + gap_budget;
     auto output_live = [&] {
         return (stream_ && stream_->running()) || sink_rendering_.load(std::memory_order_acquire);
     };
@@ -658,6 +739,14 @@ void Session::commit(Json patch, bool new_namespace) {
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
+        if (app_engine_master_fade_silent(active_)) {
+            const auto first_fade_ns = app_engine_master_fade_out_started_ns(active_);
+            if (first_fade_ns == 0) {
+                app_engine_resume_master_fade(active_);
+                throw Refusal("unavailable", "Audio fade callback unavailable");
+            }
+            gap_deadline = d5_gap_deadline(first_fade_ns, gap_budget);
+        }
     }
     app_engine_prepare_master_fade_in(candidate.get());
     try {
@@ -673,7 +762,7 @@ void Session::commit(Json patch, bool new_namespace) {
         // candidate, so the gap is a few block periods. Reopening a Windows device
         // cannot fit the gap budget, so the stream is never restarted here.
         AppEngine *const previous = active_, *const next = candidate.get();
-        if (!exchange(candidate, begun + gap_budget)) {
+        if (!exchange(candidate, gap_deadline)) {
             app_engine_resume_master_fade(active_);
             start_midi();
             throw Refusal("unavailable", "Audio swap exceeded gap budget");
@@ -683,7 +772,7 @@ void Session::commit(Json patch, bool new_namespace) {
         try {
             start_midi();
             while (!app_engine_master_fade_in_started(active_)) {
-                if (std::chrono::steady_clock::now() >= begun + gap_budget)
+                if (std::chrono::steady_clock::now() >= gap_deadline)
                     throw Refusal("unavailable", "Audio swap exceeded gap budget");
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
@@ -713,7 +802,7 @@ void Session::commit(Json patch, bool new_namespace) {
             start_midi();
             if (stream_ || sink_.joinable()) {
                 while (!app_engine_master_fade_in_started(active_)) {
-                    if (std::chrono::steady_clock::now() >= begun + gap_budget)
+                    if (std::chrono::steady_clock::now() >= gap_deadline)
                         throw Refusal("unavailable", "Audio swap exceeded gap budget");
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }
@@ -746,7 +835,9 @@ Json Session::apply(const Json &command) {
     auto type = command.at("type").get<std::string>();
     if (type == "listAudioDevices") {
         refresh_devices();
-        return {{"devices", audio_devices_}};
+        Json result = {{"devices", audio_devices_}};
+        if (!unavailable_audio_drivers_.empty()) result["audio"] = {{"unavailableDrivers", unavailable_audio_drivers_}};
+        return result;
     }
     if (type == "listMidiDevices") return {{"devices", midi_devices_}};
     if (type == "midiLearn") {
@@ -789,7 +880,7 @@ Json Session::apply(const Json &command) {
         // Control thread only. Quiesce the old stream before preparing a new
         // runnable graph, retaining the document and selected MIDI endpoints.
         const auto old_config = config_;
-        const auto old_rate = options_.rate, old_block = options_.block;
+        const auto old_rate = options_.rate, old_block = options_.block, old_requested = requested_block_;
         const auto old_preferences = preferences_;
         // The stream change destroys/replaces the engine; suspend ingress first.
         osc_->stop();
@@ -823,6 +914,7 @@ Json Session::apply(const Json &command) {
             config_ = next_config;
             options_.rate = next_rate;
             options_.block = next_block;
+            requested_block_ = 0;
             start_audio();
             need(!options_.audio || (stream_ && stream_->running()), "unavailable",
                  "Audio device refused the new stream");
@@ -843,6 +935,7 @@ Json Session::apply(const Json &command) {
             config_ = old_config;
             options_.rate = old_rate;
             options_.block = old_block;
+            requested_block_ = old_requested;
             preferences_ = old_preferences;
             app_engine_prepare_master_fade_in(active_);
             start_audio();
@@ -892,12 +985,16 @@ Json Session::apply(const Json &command) {
             persist();
         } catch (...) {
             const bool rate_refused = audio_reason_ == "rate-unsupported";
+            // Preserve the attempted PortAudio/ASIO failure before a successful
+            // rollback reopens the old stream and clears audio.error.
+            const std::string failed_open = audio_error_;
             midi_->stop();
             stop_audio();
             device_ = old_device;
             start_audio();
             start_midi();
             if (rate_refused) refuse_rate();
+            if (!failed_open.empty()) throw Refusal("unavailable", failed_open.c_str());
             throw;
         }
         refresh_devices(true, false);
@@ -1097,6 +1194,10 @@ Json Session::audio_status() const {
                    {"cpuPercent", measured ? cpu : 0},
                    {"dropouts", dropouts_.load() + (stream_ ? stream_->dropouts() : 0)}};
     if (!audio_reason_.empty()) result["reason"] = audio_reason_;
+    if (!audio_error_.empty()) result["error"] = audio_error_;
+    // The ASIO driver forced bufferFrames; the user's saved size is unchanged.
+    if (requested_block_ && requested_block_ != options_.block) result["requestedBufferFrames"] = requested_block_;
+    if (!unavailable_audio_drivers_.empty()) result["unavailableDrivers"] = unavailable_audio_drivers_;
     return result;
 }
 Json Session::midi_status() const {
@@ -1205,6 +1306,7 @@ Json Session::devices() {
     value["type"] = "devices";
     value["audioDevices"] = audio_devices_;
     value["midiDevices"] = midi_devices_;
+    if (!unavailable_audio_drivers_.empty()) value["audio"] = {{"unavailableDrivers", unavailable_audio_drivers_}};
     return value;
 }
 bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumerated) {
@@ -1242,6 +1344,7 @@ bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumera
 bool Session::poll(std::chrono::steady_clock::time_point now) {
     observer_->expire_learning(now);
     auto old_audio = audio_devices_, old_midi = midi_devices_;
+    const auto old_unavailable = unavailable_audio_drivers_;
     if (midi_->enabled().empty()) observer_->endpoints();
     // Warm polling refreshes identities only: ALSA format probes can open a busy PCM.
     // Without a stream every call is a cold init, so space those out.
@@ -1251,7 +1354,8 @@ bool Session::poll(std::chrono::steady_clock::time_point now) {
     if (!warm && cold_due) cold_enumeration_ = now;
     const auto enumerated = refresh_devices(warm || cold_due, !warm);
     auto changed = poll_audio(now, enumerated);
-    return changed || old_audio != audio_devices_ || old_midi != midi_devices_;
+    return changed || old_audio != audio_devices_ || old_midi != midi_devices_ ||
+           old_unavailable != unavailable_audio_drivers_;
 }
 } // namespace wirescape::sidecar
 

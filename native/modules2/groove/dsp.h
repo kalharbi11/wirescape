@@ -14,7 +14,10 @@
 namespace groove {
 struct Sequencer {
     static constexpr ws::Info info{"sequencing.groove", "Groove", 2};
-    static constexpr std::array<ws2_port, 0> inputs{};
+    // New inputs append without changing any existing output or parameter slot.
+    static constexpr std::array inputs{ws::port("clock", "Clock", WS2_TRIGGER, WS2_FIRST),
+                                       ws::port("run", "Run", WS2_GATE, WS2_FIRST),
+                                       ws::port("reset", "Reset", WS2_TRIGGER, WS2_FIRST)};
     // S0 t1 slots are permanent. t3/t4 slots are reserved but not declared.
     static constexpr std::array outputs{
         ws::port("t1_pitch", "T1 Pitch", WS2_PITCH),
@@ -74,7 +77,12 @@ struct Sequencer {
     std::array<Player, kTracks> players{};
     std::array<bool, kParams> observed{}, control_high{};
     std::array<bool, kTracks> mod1_active{}, mod2_active{};
-    double samples_per_step = 6000., phase = 0.;
+    double samples_per_step = 6000., internal_samples_per_step = 6000., phase = 0.;
+    ws::Schmitt clock_schmitt, run_schmitt, reset_schmitt;
+    bool clock_high = false, run_high = false, reset_high = false;
+    bool clock_connected = false, run_connected = false, reset_connected = false;
+    bool clock_seen = false, run_start_pending = false;
+    uint64_t clock_samples = 0;
     uint32_t step = 0;
     std::array<uint32_t, kTracks> step_t{};
     uint32_t rng_seed = 1;
@@ -83,7 +91,7 @@ struct Sequencer {
 
     bool prepare(const ws::Setup &s) {
         if (!decode(s.config.data, s.config.bytes, pattern)) return false;
-        samples_per_step = s.sample_rate() * 15. / pattern.bpm;
+        internal_samples_per_step = samples_per_step = s.sample_rate() * 15. / pattern.bpm;
         // The quiescent adapter carries the graph's stable numeric instance ID.
         // Mixing the optional host seed adds repeatability without pointer or clock entropy.
         rng_seed = pattern.instance_seed ^ static_cast<uint32_t>(s.config.seed) ^
@@ -114,6 +122,13 @@ struct Sequencer {
         phase = 0.;
         step = 0;
         next_id = 1;
+        clock_schmitt.reset();
+        run_schmitt.reset();
+        reset_schmitt.reset();
+        clock_high = run_high = reset_high = false;
+        clock_connected = run_connected = reset_connected = false;
+        clock_seen = run_start_pending = false;
+        clock_samples = 0;
     }
 
     // Quiescent module-state envelope; never part of authored config JSON.
@@ -360,7 +375,44 @@ struct Sequencer {
             }
         }
     }
+    void start_transport(ws::Block &b, uint32_t i) {
+        running = true;
+        stop_queued = reset_wait = run_start_pending = false;
+        phase = 0.;
+        step = 0;
+        step_t.fill(0);
+        for (uint32_t t = 0; t < kTracks; ++t) {
+            auto &p = players[t];
+            p.playing = t < pattern.track_count && p.armed;
+            p.enter = p.stop = p.fired = p.skipped_cond = false;
+            p.loop = 1;
+            p.rng = seed_for(t);
+        }
+        trigger_all(b, i);
+    }
     void process(ws::Block &b) {
+        const bool external_clock = b.in(0).connected();
+        const bool external_run = b.in(1).connected();
+        const bool external_reset = b.in(2).connected();
+        if (external_clock != clock_connected) {
+            clock_schmitt.reset();
+            clock_high = clock_seen = false;
+            clock_samples = 0;
+            samples_per_step = internal_samples_per_step;
+            phase = 0.;
+        }
+        if (external_run != run_connected) {
+            run_schmitt.reset();
+            run_high = false;
+            run_start_pending = false;
+        }
+        if (external_reset != reset_connected) {
+            reset_schmitt.reset();
+            reset_high = false;
+        }
+        clock_connected = external_clock;
+        run_connected = external_run;
+        reset_connected = external_reset;
         for (uint32_t t = 0; t < kTracks; ++t) {
             const uint32_t base = t * 5;
             for (uint32_t p = 0; p < 4; ++p) {
@@ -385,10 +437,33 @@ struct Sequencer {
                     release(b, t, i);
                 flush(b, t, i);
             }
+            bool clock_rise = false, run_rise = false, run_fall = false, reset_rise = false;
+            if (external_clock) {
+                const bool now = clock_schmitt.process(b.in(0).ch(0)[i]);
+                clock_rise = now && !clock_high;
+                clock_high = now;
+                if (clock_samples != UINT64_MAX) ++clock_samples;
+                if (clock_rise) {
+                    if (clock_seen) samples_per_step = static_cast<double>(clock_samples);
+                    clock_seen = true;
+                    clock_samples = 0;
+                }
+            }
+            if (external_run) {
+                const bool now = run_schmitt.process(b.in(1).ch(0)[i]);
+                run_rise = now && !run_high;
+                run_fall = !now && run_high;
+                run_high = now;
+            }
+            if (external_reset) {
+                const bool now = reset_schmitt.process(b.in(2).ch(0)[i]);
+                reset_rise = now && !reset_high;
+                reset_high = now;
+            }
             std::array<bool, kParams> rise{};
             for (uint32_t p = 0; p < kParams; ++p) rise[p] = edge(b, p, i);
             bool started = false;
-            if (rise[2]) { // RESET > STOP > MUTE > START > step advance.
+            if (rise[2] || reset_rise) { // RESET > STOP > MUTE > START > step advance.
                 release_all(b, i);
                 phase = 0.;
                 step = 0;
@@ -401,6 +476,12 @@ struct Sequencer {
                     p.rng = seed_for(static_cast<uint32_t>(&p - players.data()));
                     p.playing = running && p.armed;
                 }
+                run_start_pending = false;
+            } else if (run_fall) {
+                // External STOP: release in this frame; RESET takes precedence.
+                release_all(b, i);
+                running = stop_queued = reset_wait = run_start_pending = false;
+                for (auto &p : players) p.playing = p.enter = p.stop = p.fired = p.skipped_cond = false;
             } else {
                 if (rise[1] && running) stop_queued = !stop_queued;
                 for (uint32_t t = 0; t < kTracks; ++t) {
@@ -429,37 +510,38 @@ struct Sequencer {
                     if (p.playing) p.stop = false;
                     else p.enter = true;
                 }
+                if (run_rise && !running) {
+                    run_start_pending = true; // An external run edge begins on the next tick.
+                    phase = 0.;
+                }
                 if (rise[0] && !rise[1]) {
                     if (running) stop_queued = false;
                     else {
-                        running = true;
-                        stop_queued = reset_wait = false;
-                        phase = 0.;
-                        step = 0;
-                        step_t.fill(0);
-                        for (uint32_t t = 0; t < kTracks; ++t) {
-                            auto &p = players[t];
-                            p.playing = t < pattern.track_count && p.armed;
-                            p.enter = p.stop = p.fired = p.skipped_cond = false;
-                            p.loop = 1;
-                            p.rng = seed_for(t);
-                        }
-                        trigger_all(b, i);
+                        start_transport(b, i);
                         started = true;
                     }
                 }
+                if (run_start_pending && !running && !external_clock) phase += 1.;
+                if (run_start_pending && !running && !run_rise &&
+                    (external_clock ? clock_rise : phase >= samples_per_step)) {
+                    start_transport(b, i);
+                    started = true;
+                }
                 if (running && !started) {
-                    phase += 1.;
-                    if (phase >= samples_per_step) {
-                        phase -= samples_per_step;
-                        if (reset_wait) {
-                            step = 0;
-                            step_t.fill(0);
-                            reset_wait = false;
+                    if (external_clock || ++phase >= samples_per_step) {
+                        if (external_clock && !clock_rise) {
+                            // A missing master pulse holds position but gate ages still advance.
                         } else {
-                            boundary(b, i);
+                            if (!external_clock) phase -= samples_per_step;
+                            if (reset_wait) {
+                                step = 0;
+                                step_t.fill(0);
+                                reset_wait = false;
+                            } else {
+                                boundary(b, i);
+                            }
+                            if (running) trigger_all(b, i);
                         }
-                        if (running) trigger_all(b, i);
                     }
                 }
             }
