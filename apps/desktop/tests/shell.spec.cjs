@@ -415,6 +415,8 @@ test('atomic rename failure preserves disk contents and the Studio dirty marker 
       globalThis.__wsOriginalRename = fsm.promises.rename;
       fsm.promises.rename = async () => { throw new Error('injected commit refusal'); };
     }, filename);
+    const recovery = page.getByTestId('recovery-modal');
+    if (await recovery.isVisible()) await recovery.getByRole('button', { name: /dismiss|close|continue|ok/i }).click();
     await page.getByTestId('save-patch').click();
     await expect(page.getByText('Could not save patch')).toBeVisible();
     await expect(page.getByTestId('dirty-dot')).toHaveClass(/on/);
