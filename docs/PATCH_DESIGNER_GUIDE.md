@@ -525,6 +525,22 @@ The `monitor` module's `events`, `in1` and `in2` ports exist, but the
 user-facing Monitor log is a **separate slice C**; do not claim it is visible
 until C merges. No existing module/port/parameter IDs change.
 
+### Monitor message log (OSC C2 #604; builds advertising `telemetry.monitor`)
+
+Patch `osc.in.messages` → `monitor.events` to see incoming OSC addresses,
+arrival times and up to four finite numeric arguments. The same
+`monitor.events` input can receive a *direct* `midi.in.midi` cable; MIDI
+entries report `note` as the note/CC number and `args` as [status, value].
+The sidecar captures only these **direct** event cables (not intervening
+module hops), on its control-owned OSC/MIDI ingestion workers rather than the
+render callback. Monitor shows at most 32 recent entries in oldest-first
+order, newest at the bottom. **Pause** freezes the view; **Clear** hides
+previous entries in Studio only, and does not mutate the patch or stop ingress.
+The engine discards the captured ring on each successful graph commit. If
+the engine does not advertise `telemetry.monitor`, Studio reports
+**not available** rather than inventing messages. The original input ports,
+OSC bind consent and LAN restrictions are unchanged.
+
 ## Groove editor in Studio (G2a #498; builds containing this integration)
 
 Studio now edits `sequencing.groove` patterns on its card (Pads view, two lanes: Trig and

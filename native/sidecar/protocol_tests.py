@@ -450,7 +450,8 @@ with tempfile.TemporaryDirectory() as osc_dir:
         port = occupied.getsockname()[1]
         osc_engine = Engine(Path(osc_dir) / 'settings.json')
         assert osc_engine.hello['capabilities'] == ['midiLearn', 'telemetry.playhead',
-                                                    'setSampleRate', 'setBufferFrames', 'osc']
+                                                    'telemetry.monitor', 'setSampleRate',
+                                                    'setBufferFrames', 'osc']
         osc_patch = minimal()
         osc_patch['modules'].append(dict(id=9, module='osc.in',
                                          config=dict(port=port, lan=True,
@@ -550,6 +551,86 @@ with tempfile.TemporaryDirectory() as osc_dir:
         else:
             raise AssertionError('Null sink did not enforce loopback-only OSC ingress')
         confirmed.close()
+
+# OSC C2: direct Monitor ingress capture, bounded chronological telemetry, and reset.
+# The sidecar is always --null-audio; all packets stay on 127.0.0.1.
+with tempfile.TemporaryDirectory() as monitor_dir:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as available:
+        available.bind(('127.0.0.1', 0))
+        monitor_port = available.getsockname()[1]
+
+    def monitor_packet(address, values):
+        name = (address if isinstance(address, bytes) else address.encode()) + b'\0'
+        name += b'\0' * (-len(name) % 4)
+        tags = b',' + b'f' * len(values) + b'\0'
+        tags += b'\0' * (-len(tags) % 4)
+        return name + tags + b''.join(struct.pack('>f', value) for value in values)
+
+    monitor_engine = Engine(Path(monitor_dir) / 'monitor.json')
+    assert 'telemetry.monitor' in monitor_engine.hello['capabilities']
+    monitor_patch = minimal()
+    monitor_patch['modules'] += [
+        dict(id=31, module='osc.in',
+             config=dict(port=monitor_port, lan=False,
+                         rows=[dict(pattern='/observe/*', kind='cv', smoothing_ms=0)])),
+        dict(id=32, module='monitor'),
+        dict(id=33, module='host.keyboard'),
+        dict(id=34, module='essentials.chord'),
+        dict(id=35, module='monitor'),
+    ]
+    monitor_patch['connections'] = [
+        edge('event', 31, 'messages', 32, 'events'),
+        edge('event', 33, 'notes', 34, 'notes'),
+        edge('event', 34, 'notes', 35, 'events'),
+    ]
+    monitor_gen = monitor_engine.call('loadGraph', patch=monitor_patch)['gen']
+    telemetry_when(monitor_engine, monitor_gen,
+                   lambda t: not t.get('monitor'))
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+        for index in range(40):
+            sender.sendto(monitor_packet(f'/observe/{index:02d}', [index / 40.]),
+                          ('127.0.0.1', monitor_port))
+            time.sleep(0.02)
+        # Invalid UTF-8, and a valid multibyte codepoint crossing byte 64.
+        sender.sendto(monitor_packet(b'/\xff/x', [0.125]), ('127.0.0.1', monitor_port))
+        sender.sendto(monitor_packet('/' + 'x' * 62 + 'é', [0.25]), ('127.0.0.1', monitor_port))
+        sender.sendto(monitor_packet('/observe/long/' + 'x' * 75, [0.25]),
+                      ('127.0.0.1', monitor_port))
+        sender.sendto(monitor_packet('/observe/finite', [0.1, 0.2, 0.3, 0.4, 0.5]),
+                      ('127.0.0.1', monitor_port))
+        sender.sendto(monitor_packet('/observe/nonfinite', [float('nan'), 0.75]),
+                      ('127.0.0.1', monitor_port))
+    entries_snapshot = telemetry_when(
+        monitor_engine, monitor_gen,
+        lambda t: any(row.get('address') == '/observe/nonfinite'
+                      for row in t.get('monitor', {}).get('32', [])))
+    entries = entries_snapshot['monitor']['32']
+    assert len(entries) == 32 and entries == sorted(entries, key=lambda entry: entry['t'])
+    assert all(entry['kind'] == 'osc' and len(entry['args']) <= 4 for entry in entries)
+    assert all(len(entry['address'].encode()) <= 64 for entry in entries)
+    assert entries[-5]['address'] == '/?/x'
+    assert entries[-4]['address'] == '/' + 'x' * 62 + '?'
+    assert entries[-3]['address'] == ('/observe/long/' + 'x' * 75)[:64]
+    assert entries[-2]['address'] == '/observe/finite' and len(entries[-2]['args']) == 4
+    assert entries[-1]['address'] == '/observe/nonfinite' and entries[-1]['args'] == [0.75]
+    assert '35' not in entries_snapshot['monitor'], 'indirect Monitor must not capture'
+
+    # An event reaches the indirect keyboard -> chord -> Monitor route, but
+    # ingress-only capture must still omit that Monitor.
+    monitor_engine.call('noteOn', note=60, velocity=0.8)
+    monitor_engine.call('noteOff', note=60)
+    no_indirect = telemetry_when(
+        monitor_engine, monitor_gen,
+        lambda t: len(t.get('monitor', {}).get('32', [])) == 32)
+    assert '35' not in no_indirect.get('monitor', {})
+
+    # Commit resets the old ring and its per-node generation. No new packet is sent.
+    new_gen = monitor_engine.call('loadGraph', patch=monitor_patch)['gen']
+    assert new_gen != monitor_gen
+    reset = telemetry_when(monitor_engine, new_gen, lambda t: not t.get('monitor'))
+    assert 'monitor' not in reset or not reset['monitor']
+    monitor_engine.close()
 
 # Real, short, device-free end-to-end benchmark ingestion on the production sidecar.
 harness = Path(__file__).resolve().parents[2] / 'tools' / 'sidecar_edit_soak.py'
