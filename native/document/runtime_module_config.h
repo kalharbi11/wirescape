@@ -3,7 +3,6 @@
 #include "../modules2/groove/config.h"
 #include "../modules2/midi_cc_to_cv/config.h"
 #include "../modules2/osc_in/config.h"
-#include <algorithm>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
@@ -11,8 +10,7 @@
 namespace wirescape::document {
 // Quiescent JSON-to-module adapter. The JSON shape, not struct padding, is saved.
 inline std::vector<uint8_t> runtime_module_config(const std::string&type,
-    const nlohmann::json&value, uint32_t instance_id = 0,
-    std::vector<std::string> *ignored_keys = nullptr) {
+    const nlohmann::json&value, uint32_t instance_id = 0) {
  auto require=[](bool ok,const char*s){if(!ok)throw std::runtime_error(s);};
  require(value.is_object(), "Module config must be an object");
  if (type == "essentials.chord") {
@@ -163,20 +161,10 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
      return bytes;
  }
  if (type == "osc.in") {
-     // Keep future authored keys in the patch, but execute only known fields.
-     // Collect bounded, printable diagnostics off the render path.
-     auto ignore = [&](std::string key) {
-         if (!ignored_keys || ignored_keys->size() >= 16) return;
-         for (char &ch : key)
-             if (static_cast<unsigned char>(ch) < 0x21 ||
-                 static_cast<unsigned char>(ch) > 0x7e) ch = '?';
-         key.resize(std::min(key.size(), size_t{64}));
-         ignored_keys->push_back("osc.in#" + std::to_string(instance_id) + "." + key);
-     };
+     // All authored OSC configuration is validated on the control owner,
+     // then copied as bounded private POD for the module's prepare() call.
      wirescape::osc::Configuration config;
-     for (auto it = value.begin(); it != value.end(); ++it)
-         if (it.key() != "port" && it.key() != "lan" && it.key() != "rows")
-             ignore(it.key());
+     // Future top-level keys do not affect the native execution configuration.
      if (value.contains("port")) {
          const auto &port = value.at("port");
          require(port.is_number_integer(), "OSC port must be an integer");
@@ -228,7 +216,7 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
                      else if (name == "output_max") dest.output_max = n;
                      else if (name == "smoothing_ms") dest.smoothing_ms = n;
                      else dest.timeout_ms = n;
-                 } else ignore("rows[" + std::to_string(i) + "]." + name);
+                 } // Future row fields are ignored; known fields still validate.
              }
          }
      }
@@ -270,5 +258,42 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
  }
  require(wirescape::midi::cc_configuration(nullptr,0,config),"Invalid CC row combination");
  std::vector<uint8_t>bytes(sizeof(config));std::memcpy(bytes.data(),&config,sizeof(config));return bytes;
+}
+
+// Control-thread overload: gather bounded diagnostics without changing the
+// original three-argument conversion or any existing validation of known fields.
+inline std::vector<uint8_t> runtime_module_config(
+    const std::string &type, const nlohmann::json &value, uint32_t instance_id,
+    std::vector<std::string> *ignored_keys) {
+    if (type == "osc.in" && ignored_keys && value.is_object()) {
+        auto record = [&](std::string name) {
+            if (ignored_keys->size() >= 16) return;
+            for (char &ch : name) {
+                if (static_cast<unsigned char>(ch) < 0x21 ||
+                    static_cast<unsigned char>(ch) > 0x7e)
+                    ch = '?';
+            }
+            if (name.size() > 64) name.resize(64);
+            ignored_keys->push_back("osc.in#" + std::to_string(instance_id) + "." + name);
+        };
+        for (auto it = value.begin(); it != value.end(); ++it)
+            if (it.key() != "port" && it.key() != "lan" && it.key() != "rows")
+                record(it.key());
+        if (value.contains("rows") && value.at("rows").is_array()) {
+            const auto &rows = value.at("rows");
+            for (size_t i = 0; i < rows.size() && i < 8; ++i) {
+                if (!rows[i].is_object()) continue;
+                for (auto it = rows[i].begin(); it != rows[i].end(); ++it) {
+                    const auto &key = it.key();
+                    if (key != "pattern" && key != "kind" && key != "stale" &&
+                        key != "argument" && key != "input_min" && key != "input_max" &&
+                        key != "output_min" && key != "output_max" &&
+                        key != "smoothing_ms" && key != "timeout_ms")
+                        record("rows[" + std::to_string(i) + "]." + key);
+                }
+            }
+        }
+    }
+    return runtime_module_config(type, value, instance_id);
 }
 }
