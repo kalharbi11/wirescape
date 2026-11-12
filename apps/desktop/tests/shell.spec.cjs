@@ -397,3 +397,35 @@ test('v1 Save and Save As publish exact no-clobber backups and atomic v2 documen
     expect(fs.readdirSync(dir).filter(name => name.endsWith('.tmp'))).toEqual([]);
   } finally { await app.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('atomic rename failure preserves disk contents and the Studio dirty marker until retry', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wirescape-commit-failure-'));
+  const filename = path.join(dir, 'edited.json');
+  const before = '{"format":"wirescape.native.patch","version":2,"modules":[],"connections":[]}\n';
+  fs.writeFileSync(filename, before);
+  const app = await launch();
+  try {
+    const page = await app.firstWindow();
+    await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+    await page.evaluate(() => window.__wirescapeTest.doc.addModule('essentials.noise', {}, 30, 40));
+    await expect(page.getByTestId('dirty-dot')).toHaveClass(/on/);
+    await app.evaluate(async ({ dialog }, selected) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath: selected });
+      const fsm = await import('node:fs');
+      globalThis.__wsOriginalRename = fsm.promises.rename;
+      fsm.promises.rename = async () => { throw new Error('injected commit refusal'); };
+    }, filename);
+    await page.getByTestId('save-patch').click();
+    await expect(page.getByText('Could not save patch')).toBeVisible();
+    await expect(page.getByTestId('dirty-dot')).toHaveClass(/on/);
+    expect(fs.readFileSync(filename, 'utf8')).toBe(before);
+    expect(fs.readdirSync(dir).filter(name => name.endsWith('.tmp'))).toEqual([]);
+    await app.evaluate(async () => {
+      const fsm = await import('node:fs');
+      fsm.promises.rename = globalThis.__wsOriginalRename;
+    });
+    await page.getByTestId('save-patch').click();
+    await expect(page.getByTestId('dirty-dot')).not.toHaveClass(/on/);
+    expect(fs.readFileSync(filename, 'utf8')).not.toBe(before);
+  } finally { await app.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
