@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "session.h"
-#include "null_sink_wait.h"
 #include "d5_gap_deadline.h"
+#include "null_sink_wait.h"
 #include "runtime_patch.h"
 #include "wirescape_sidecar_categories.h"
 #include <algorithm>
