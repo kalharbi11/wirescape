@@ -5,8 +5,10 @@ import unittest
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 
+
 def source(path):
     return (ROOT / path).read_text(encoding="utf-8")
+
 
 class CITriggers(unittest.TestCase):
     def test_no_ready_event_rerun(self):
@@ -29,7 +31,11 @@ class CITriggers(unittest.TestCase):
         self.assertIn("clang-format --version", setup)
     def test_static_provides_applyable_patch(self):
         workflow = source(".github/workflows/static.yml")
-        self.assertIn("FORMAT_PATCH_BEGIN", workflow)
-        self.assertIn('Path("format.patch").write_text', workflow)
-        self.assertIn("actions/upload-artifact@v4", workflow)
+        helper = source("tools/ci/static_checks.py")
+        self.assertIn("=== format.patch begin ===", helper)
+        self.assertIn("patches.append(patch_text)", helper)
+        self.assertIn("publish_format_patch(root, patches)", helper)
+        self.assertIn("if: always()", workflow)
+        self.assertIn("actions/upload-artifact@v7", workflow)
+        self.assertIn("path: build/static/format.patch", workflow)
         self.assertIn("name: format-patch", workflow)
