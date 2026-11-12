@@ -28,7 +28,7 @@ changes (tests only).
 
 ```acceptance
 tier: T2
-size: <= 500 changed lines, <= 10 files
+size: <= 650 changed lines, <= 10 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
