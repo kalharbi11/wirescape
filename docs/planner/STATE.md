@@ -22,7 +22,7 @@ Required checks and acceptance apply to the final head; queued/stale is not pass
 ## 2. Quad VCA/LPG
 - #601/#611 Q1 retains writer: permanent slots0..8 and regression,4ch×8voice
   cost, exception boundary, changed-range formatting, conformance/catalogue.
-  Keel20files/900lines authorized; actual accept601/required and independent T1.
+  Keel 20 files / 900 lines authorized; actual accept601/required and independent T1.
 - #602 Q2 starts only after Q1 merges: Studio card/two patches/docs/tests,
   separate T1 with save/reload/accessibility and Playwright.
 
@@ -36,7 +36,7 @@ Required checks and acceptance apply to the final head; queued/stale is not pass
 
 ## Supporting work and completed review
 - Qt analyzer #653/#654 MERGED; verify current-head effect, no deletion needed.
-- #617b06e1bb MERGED after final Codex review5868834370 and Keel disposition;
+- #617 b06e1bb MERGED after final Codex review5868834370 and Keel disposition;
   no remaining Codex review or CI-policy approval request on that PR.
 - #6409d415b5 Windows Git-Bash/LF/fake-gh harness: four local cases pass;
   hosted Windows exit90 persists; no flake/green assumed. Keel review needed.
