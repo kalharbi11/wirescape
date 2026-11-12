@@ -58,6 +58,7 @@ Wirescape app (Electron: native window, title bar, minimize/close, menus, F11 fu
 | D17 | **ABI1 retires after Qt**, as its own Keel-led T2 track (R6): the ABI1 bridge in engine2, `native/src/`, the 13 ABI1 modules in `native/modules/` and the ABI1 tests, with equivalence vectors and baselines frozen first. Folder renames (R7: `modules2`→`modules`, `engine2`→`engine`) wait for a quiet window. | A second module path inside the realtime core plus duplicate modules confuse agents and reviews. |
 | D18 | **Finish before start.** While 10 or more implementation PRs are open, no lane opens a new module or feature issue; it merges or closes what it has first. Existing claims continue. Only one sequencer effort at a time is in active build (16-step → Groove → Chord). | ~20 open PRs with few merging; throughput comes from merging, not from more parallel starts. |
 | D19 | **Git history is the archive.** No separate archive repo. `legacy/` and `docs/history/` leave the tree at tag `archive/qt-final`, done task files move to `docs/tasks/done/`, and `Wirescape-UI` is archived on GitHub. The read map is AGENTS → STATE → PLAN → task → ARCHITECTURE/specs. | Smaller search space and context; nothing is lost. |
+| D20 | **App versions are releases, not development phases** (owner, 2026-11-12). A version (`v1.0.0`, then `v1.0.x` fixes, `v1.1.0` …) is a rebuilt, tested build the owner chooses to share. Development work is named by phases, sections and issue numbers, never by a future version, and nobody plans "v1.1 work" until the owner does. **v1.0.0** = today's 1.0 plus the owner-test fixes (#597) and the current priority lanes: OSC finished, Quad VCA/LPG, ASIO driver visibility (FlexASIO, #627) and the Studio visual fixes (#599). It is tagged by #593 once the owner test (#581) finds no major problems. Checkpoint tags (`checkpoint-<X>`, `archive/*`) are agent bookkeeping and are not app versions. | The owner ships updates when they are ready; phases describe the work, versions describe what users get. |
 
 ## Phases
 
@@ -125,14 +126,14 @@ Sequence and file lists: `docs/planner/CLEANUP.md`.
 - [ ] **4G ABI1 retirement and renames** (R6, R7; Keel, T2).
 - [ ] **4H Laptop session** (the Windows half of J9 #45).
 
-### ◆ Checkpoint C: Qt is gone, both platforms are packaged → Preview 0.7
+### ◆ Checkpoint C: Qt is gone, both platforms are packaged
 
 ### Phase 5: Later (in plan, not priority; in this order)
 1. Touchscreen: real touch gestures on the Pi display, touch-friendly multi-cable add (UI Q-B), an on-screen keyboard.
 2. Macro Oscillator (Plaits) signature panel polish and all 24 models checked.
 3. A CHAOS-lite custom panel (generic until the owner redesigns it).
 4. Dark theme (UI Q-C).
-5. Beta 0.8 musical core: Quantizer (pulled forward into the module lane, `docs/tasks/done/MOD_QUANTIZER.md`), a native Basic Sequencer, MIDI Out/Clock, MPE.
+5. Musical core: Quantizer (pulled forward into the module lane, `docs/tasks/done/MOD_QUANTIZER.md`), a native Basic Sequencer, MIDI Out/Clock, MPE.
 6. Instruments: subpatches/macros, Channel Expander, CHAOS rebuild, a proper Plaits/Braids port.
 7. Portability and freeze: CLAP adapter, Daisy, ABI freeze (#44, #161), Windows mono perf #64, benchmark gate #91.
 8. A browser/LAN mode (open the UI from another device). Deferred; nothing in Phases 1–4 depends on it.
