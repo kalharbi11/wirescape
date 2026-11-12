@@ -13,17 +13,17 @@ Completed source-head evidence governs; running, missing and stale results never
 
 ## Immediate CI recovery and lead decisions
 - #635/#638 at e0db32d: runtime-only FFmpeg provisioning, 1200s command/30min job,
-  bounded apt retries. Keel cross-family/protected review requested; CI running.
+  bounded apt retries. Keel cross-family approval posted; final CI running.
 - After #638 merges, builders merge main normally to use its workflow; plain
   reruns retain the old merge ref. Never weaken assertions or skip tests.
-- #596/#617 at acb2adf: CI/Static green, Codex cross-family COMMENT posted.
-  Medium: blanket docs/ exemption skips native tests for a consumed JSON fixture.
-  Keel narrows classifier, adds fixture-only proof, integrates #638; new review needed.
-- #637/#639 at f4121bc: hosted-Windows wake-only single retry, strict limits,
+- #596/#617 at a62faf4: blanket docs/ exemption removed after Codex/Coda Medium.
+  New rule: Markdown only; fixture-only NEVER-MERGE probe #642 at7972be2 running.
+  After #638/main integration and probe evidence, Codex delta review/Keel approval.
+- #637/#639 at33ea36c: hosted-Windows wake-only single retry, strict limits,
   negative subprocess cases; Coda T2 requested. CI running, no pass claimed.
 - #605/#608 at c80c7ea: Windows red on pinned Ninja vendor suffix
   1.13.0.git.kitware.jobserver-pipe-1. Keel ruling pending; broad ranges excluded.
-- #601/#611 at 70c7b67: fresh Q1 CI running. Four-channel/eight-voice cost probe
+- #601/#611 atc58e5cc: fresh Q1 CI running. Four-channel/eight-voice cost probe
   and catalogue repairs required; explicit size disposition remains with leads.
   Keel accepts ordinary module CI CTests without extra Pi evidence. Q2 #602 waits.
 
@@ -52,9 +52,9 @@ Completed source-head evidence governs; running, missing and stale results never
   Preserve frozen replacement evidence; R4 follows full R3b and archive/qt-final.
 - #487 retains D5 scope, separate from merged #572 wake scheduler; signed head
   handoff requested. #560 CPU table blocked on dependency fetch; no invented data.
-- #91 requires Keel guard authorization and trusted baseline collection route.
+- #91 needs Keel guard/baseline authority; #636/#640 post-merge verifier needs
+  #638 integration and Keel cross-family/protected review; no main proof yet.
 - #271 hardware, #274 physical display, #296 actual3600s soak remain distinct.
   AcceptedSha cd7999e4a02308df0db918cfbab6974b97b6782f certifies only its evidence.
 - Dropped #554/#565 branch at73bfe95 is preserved; annotated archive tag pending.
-- Permanent: exact required/task/Web/Pi as applicable; no direct main, force push,
-  devices/SSH, fabricated evidence or weakened thresholds.
+- Permanent: exact required/task/Web/Pi; no main push, force, devices/SSH or weak gates.
