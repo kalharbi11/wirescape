@@ -132,7 +132,8 @@ def _api(path, token, method='GET', data=None):
     req = urllib.request.Request(f'https://api.github.com/repos/{REPO}/{path}', method=method,
                                  data=json.dumps(data).encode() if data else None,
                                  headers={'Authorization': f'Bearer {token}',
-                                          'Accept': 'application/vnd.github+json'})
+                                          'Accept': 'application/vnd.github+json',
+                                          'Content-Type': 'application/json'})
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.load(resp)
 
