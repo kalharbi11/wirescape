@@ -35,10 +35,10 @@ inline bool configuration(const uint8_t *data, uint32_t bytes, Configuration &c)
     if (c.version != 1 || c.port < 1 || c.port > 65535 || c.lan > 1) return false;
     for (const auto &r : c.rows)
         if (!std::memchr(r.pattern, 0, sizeof(r.pattern)) || r.pattern[0] != '/' || r.argument >= 32 || r.kind > 2 ||
-            r.stale > 1 || r.enabled > 1 || !std::isfinite(r.input_min) || !std::isfinite(r.input_max) || r.input_max <= r.input_min ||
-            !std::isfinite(r.output_min) || !std::isfinite(r.output_max) || !std::isfinite(r.smoothing_ms) ||
-            r.smoothing_ms < 0 || r.smoothing_ms > 2000 || !std::isfinite(r.timeout_ms) || r.timeout_ms < 0 ||
-            r.timeout_ms > 3600000)
+            r.stale > 1 || r.enabled > 1 || !std::isfinite(r.input_min) || !std::isfinite(r.input_max) ||
+            r.input_max <= r.input_min || !std::isfinite(r.output_min) || !std::isfinite(r.output_max) ||
+            !std::isfinite(r.smoothing_ms) || r.smoothing_ms < 0 || r.smoothing_ms > 2000 ||
+            !std::isfinite(r.timeout_ms) || r.timeout_ms < 0 || r.timeout_ms > 3600000)
             return false;
     return true;
 }

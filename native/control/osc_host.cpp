@@ -34,8 +34,7 @@ void Host::start(AppEngine *engine, const std::string &document) {
             state.lan_requested = lan;
             state.state = "disabled";
             disabled_.push_back(state);
-        } else
-            routes.push_back({node, uint16_t(port), lan});
+        } else routes.push_back({node, uint16_t(port), lan});
     }
     if (routes.size() + disabled_.size() > 32) throw std::runtime_error("Too many OSC routes");
     if (routes.empty()) return;

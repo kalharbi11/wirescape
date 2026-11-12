@@ -68,7 +68,8 @@ struct OscIn {
             r.count = r.poly && r.active ? 0 : 1;
             r.triggers = 0;
             // A disabled CV row holds output_min; disabled gate/trigger rows stay low.
-            if (!r.active && config.rows[i].kind == 0) r.voices[0].current = r.voices[0].target = config.rows[i].output_min;
+            if (!r.active && config.rows[i].kind == 0)
+                r.voices[0].current = r.voices[0].target = config.rows[i].output_min;
         }
     }
     static int32_t index(std::string_view address) {
