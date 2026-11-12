@@ -16,7 +16,7 @@ python tools/dev.py test --config Release
 
 Use `python3` on the Pi. `--headless` builds the engine, CLI and device-free
 native tests without a GUI toolkit; this is also the default after R1. The retained
-Qt app requires explicit `--with-qt` and is outside the product setup path.
+The supported application is Electron with the Qt-free sidecar; use the headless build and app setup paths below.
 The historical UI and ABI1 code remain in
 the tree while the [cleanup plan](../docs/planner/CLEANUP.md) moves coverage and
 retires them; they are not the application setup path.
