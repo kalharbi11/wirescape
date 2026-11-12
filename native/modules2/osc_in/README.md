@@ -16,7 +16,7 @@ and smooths them; gate uses0/1 and threshold0.5; trigger fires at least1ms even 
 message with no arguments/Impulse. At most64 triggers per row/block are accepted.
 Stale `zero` sets a timed-out target to0; `hold` retains it. Timeout0 disables expiry.
 Default rows match `/pico1/knob/1`…`8`. Unknown kinds, bad ranges and invalid patterns
-fail preparation. Raw messages are forwarded as valid OSC wire packets.
+fail preparation. Unknown authored config/row keys are ignored with bounded control-thread load diagnostics, but an authored integer `config.version` other than 1 (or a non-integer) refuses; future restricting keys must bump that version so old engines refuse instead of broadening listening or permissions. Raw messages are forwarded as valid OSC wire packets.
 
 Per-row `enabled` (#612) is an optional boolean. Absent means `true`, so older
 patches keep listening; writers emit it only as `false`. A disabled row ignores

@@ -627,6 +627,35 @@ with tempfile.TemporaryDirectory() as osc_dir:
         assert received_at_least(4) == 4, 'disabled bundle child reached the engine'
         cleared.close()
 
+        # #657: the same real OSC worker accepts future additive keys,
+        # diagnoses only those keys once per successful graph load, and keeps
+        # #612's known enabled:false behavior and strict authored version gate.
+        tolerant = Engine(Path(osc_dir) / 'tolerant.json')
+        future_patch = json.loads(json.dumps(rows_off))
+        cfg = future_patch['modules'][1]['config']
+        cfg['futureOption'] = dict(nested=1)
+        cfg['rows'][1]['futureField'] = [1, 2]
+        loaded_gen = tolerant.call('loadGraph', patch=future_patch)['gen']
+        assert loaded_gen != '0'
+        cfg.pop('futureOption')
+        cfg['rows'][1].pop('futureField')
+        cfg['version'] = 1
+        accepted_gen = tolerant.call('loadGraph', patch=future_patch)['gen']
+        assert accepted_gen != loaded_gen
+        for unsupported_version in (0, 2, '1', 1.5, None):
+            cfg['version'] = unsupported_version
+            refusal = tolerant.call('loadGraph', expected=False, patch=future_patch)
+            # The sidecar intentionally uses a generic public refusal; the native parser
+            # asserts the specific version diagnostic in runtime_module_config_tests.
+            assert refusal['code'] == 'refused' and refusal['message'] == 'Graph configuration or state refused', refusal
+            assert refusal['gen'] == accepted_gen, 'refused OSC version committed a graph'
+        tolerant.close()
+        diagnostics = tolerant.stderr()
+        assert diagnostics.count('OSC load ignored unknown config keys:') == 1, diagnostics
+        assert 'osc.in#9.futureOption' in diagnostics, diagnostics
+        assert 'osc.in#9.rows[1].futureField' in diagnostics, diagnostics
+        assert 'osc.in#9.rows[1].enabled' not in diagnostics, diagnostics
+
 # OSC C2: direct Monitor ingress capture, bounded chronological telemetry, and reset.
 # The sidecar is always --null-audio; all packets stay on 127.0.0.1.
 with tempfile.TemporaryDirectory() as monitor_dir:
