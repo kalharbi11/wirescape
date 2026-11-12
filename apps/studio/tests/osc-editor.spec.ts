@@ -112,11 +112,11 @@ test('authored OSC config version is preserved and unsupported versions cannot b
   await expect(page.getByTestId('osc-unknown-warning')).toContainText('Unsupported OSC config version');
   await page.getByTestId('osc-editor-save').click();
   await expect(page.getByTestId('osc-editor-errors')).toContainText('Unsupported OSC config version');
-  expect((await state(page)).modules[0].config).toMatchObject(authored.modules[0].config as object);
+  expect((await state(page)).modules[0].config).toMatchObject(authored.modules[0].config as Record<string, unknown>);
   await page.getByTestId('osc-editor').getByRole('button', { name: 'Cancel' }).click();
   await page.evaluate(() => window.__wirescapeTest.addModule('essentials.vco'));
   await settle(page);
-  expect((await state(page)).modules[0].config).toMatchObject(authored.modules[0].config as object);
+  expect((await state(page)).modules[0].config).toMatchObject(authored.modules[0].config as Record<string, unknown>);
 
   // Explicit v1 survives a genuine editor Save; omitted v1 stays omitted.
   await page.evaluate(p => window.__wirescapeTest.load(p), patch({ version: 1, port: 9011 }));
