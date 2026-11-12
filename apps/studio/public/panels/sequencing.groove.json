@@ -16,5 +16,16 @@
     "t2_mute"
   ],
   "modPorts": [],
-  "width": 1250
+  "width": 1250,
+  "ports": {
+    "output": {
+      "shown": 4,
+      "priority": [
+        "t1_pitch",
+        "t1_gate",
+        "t1_notes",
+        "t2_pitch"
+      ]
+    }
+  }
 }

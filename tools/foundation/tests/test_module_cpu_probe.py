@@ -80,7 +80,7 @@ class ModuleCpuProbeTests(unittest.TestCase):
         # At 48k/128 and size=3, each 4096/4-sample Spectral hop spans 8 blocks.
         # The probe sets mode before every block; tick() reads it on each hop's
         # last sample. Inspect the checked-in acceptance command directly.
-        task = Path(__file__).resolve().parents[3] / 'docs/tasks/S1_1_SPECTRAL.md'
+        task = Path(__file__).resolve().parents[3] / 'docs/tasks/done/S1_1_SPECTRAL.md'
         lines = [line.strip() for line in task.read_text(encoding='utf-8').splitlines()
                  if line.strip().startswith('- pi-run:') and '--alternate mode=' in line]
         self.assertEqual(len(lines), 1)
