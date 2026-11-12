@@ -138,7 +138,10 @@ add_test(NAME abi2_osc_graph_ingress_tests COMMAND abi2_osc_graph_ingress_tests)
 set_tests_properties(abi2_osc_graph_ingress_tests PROPERTIES TIMEOUT 30)
 
 
-# Opt-in device-free OSC libFuzzer targets; never built on normal CI/device paths.
+# Always compile the two harness translation units for Static ownership coverage.
+# This OBJECT library never links or runs libFuzzer in the standard build.
+add_library(abi2_osc_fuzz_compile OBJECT io/osc/fuzz_codec.cpp io/osc/fuzz_pattern.cpp)
+# Opt-in device-free OSC libFuzzer executables; disabled in normal builds.
 option(WIRESCAPE_OSC_FUZZ "Build Clang libFuzzer OSC packet/pattern targets" OFF)
 if(WIRESCAPE_OSC_FUZZ)
   if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
