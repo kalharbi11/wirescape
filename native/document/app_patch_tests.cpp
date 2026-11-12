@@ -19,13 +19,14 @@ static void require(bool ok,const char*s){if(!ok)throw std::runtime_error(s);}
 int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
  require(argc==4,"modules, demo and legacy fixtures arguments");ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>cat(app_engine_create(&cfg),app_engine_destroy);
- require(app_engine_module_count(cat.get()) == 32,
-         "Thirty builtins (including Chord, Notes-to-CV, OSC In and Monitor) plus two SDK sources in catalogue");
+ require(app_engine_module_count(cat.get()) == 33,
+         "Thirty-one builtins (including Quad VCA, Chord, Notes-to-CV, OSC In and Monitor) plus two SDK sources in catalogue");
  for (const char *expected : {"essentials.vco",
                               "essentials.lfo",
                               "essentials.vcf",
                               "essentials.adsr",
                               "essentials.vca",
+                              "essentials.quad_vca",
                               "essentials.clock",
                               "essentials.function_envelope",
                               "essentials.ladder",
@@ -86,6 +87,13 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
      }
  }
  require(found_quantizer, "quantizer in catalogue");
+ for (uint32_t i = 0; i < app_engine_module_count(cat.get()); ++i) {
+     const auto *module = app_engine_module(cat.get(), i);
+     if (std::string(module->id) == "essentials.quad_vca") {
+         require(module->input_count == 8 && module->output_count == 5,
+                 "Quad VCA catalogue port counts");
+     }
+ }
  {
      const QByteArray fixture = R"({
        "format":"wirescape.native.patch","version":2,"name":"Offline keyboard to Macro",
