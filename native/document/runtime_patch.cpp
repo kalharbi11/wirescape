@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "runtime_module_config.h"
 #include "runtime_patch.h"
-#include <nlohmann/json.hpp>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <limits>
 #include <map>
+#include <nlohmann/json.hpp>
 #include <set>
 #include <stdexcept>
 namespace wirescape::document {
