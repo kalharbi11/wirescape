@@ -46,14 +46,16 @@ int main(int argc, char **argv) {
     CHECK(wsw_init(1) == 0);
     CHECK(wsw_init(48000) == 1);
     auto catalogue = Json::parse(wsw_catalogue());
-    bool has_vco = false, has_midi = false;
+    bool has_vco = false, has_midi = false, has_osc = false;
     for (auto &m : catalogue["modules"]) {
         auto id = m["id"].get<std::string>();
         has_vco |= id == "essentials.vco";
         has_midi |= id.rfind("midi.", 0) == 0;
+        has_osc |= id.rfind("osc.", 0) == 0;
     }
     CHECK(has_vco);
     CHECK(!has_midi);
+    CHECK(!has_osc);
 
     // No graph yet: silence, and edits are refused.
     CHECK(loudest(4) == 0);
@@ -114,6 +116,10 @@ int main(int argc, char **argv) {
     CHECK(reply["ok"] == true);
     CHECK(command({{"type", "removeModule"}, {"moduleId", 900}})["code"] == "not-found");
     CHECK(command({{"type", "addModule"}, {"moduleId", 901}, {"moduleType", "midi.in"}})["code"] == "unknown-module");
+    // The browser has no UDP ingress: refuse OSC as well, without touching the live graph.
+    auto osc_refusal = command({{"type", "addModule"}, {"moduleId", 902}, {"moduleType", "osc.in"}});
+    CHECK(osc_refusal["ok"] == false);
+    CHECK(osc_refusal["code"] == "unknown-module");
     CHECK(command({{"type", "selectAudioDevice"}})["code"] == "invalid");
     CHECK(Json::parse(wsw_command("not json"))["code"] == "invalid");
     CHECK(wsw_render(4096) == nullptr);
