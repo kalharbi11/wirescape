@@ -225,11 +225,11 @@ int main(int argc,char**argv){QCoreApplication app(argc,argv);try{
        "format":"wirescape.native.patch","version":2,
        "settings":{"sample_rate":48000,"max_block_frames":128,"max_channels":16},
        "modules":[
-         {"id":31,"module":"osc.in","config":{"version":1,"port":9011,
+         {"id":31,"module":"osc.in","version":1,"parameters":{},"config":{"version":1,"port":9011,
            "rows":[{"pattern":"/closeout/edited","kind":"gate","argument":1},
                    {"pattern":"/closeout/off","enabled":false,"futureCurve":"retain"}],
            "futureMapping":{"safeToRetain":true}}},
-         {"id":32,"module":"essentials.output"}],
+         {"id":32,"module":"essentials.output","version":2,"parameters":{}}],
        "connections":[],"outputs":[{"module":32,"port":"audio","bus_channel":0}],
        "ui":{"futureLayout":"retain"}})";
      const auto source_doc = read_patch(osc_source, app_catalog(cat.get()));
