@@ -1,18 +1,32 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { test, expect } from '@playwright/test';
-import { boot, settle, state, addModuleAt, patch, port } from './helpers';
+import { boot, settle, state, addModuleAt, patch, patchToKnob, port } from './helpers';
 
 test.describe('v1 owner-reported Studio visuals (#599)', () => {
-  test('Random Source displays actual step and smooth history, never a sine phase', async ({ page }, info) => {
+  test('Random Source displays actual cabled step and smooth history, never a sine phase', async ({ page }, info) => {
     await boot(page);
-    const id = await addModuleAt(page, 'example.random_source', 150, 180);
+    await page.evaluate(() => window.__wirescapeTest.zoomTo(0.6));
+    const id = await addModuleAt(page, 'example.random_source', 70, 180);
+    const dest = await addModuleAt(page, 'essentials.vcf', 850, 180);
     const history = page.getByTestId(`random-history-${id}`);
     await expect(history).toBeVisible();
+    await expect(history).toContainText('Connect step or smooth to view live values');
+    await patchToKnob(page, { module: id, port: 'step' }, { module: dest, param: 'cutoff' });
+    await patchToKnob(page, { module: id, port: 'smooth' }, { module: dest, param: 'cutoff' });
     await expect.poll(async () => Number(await history.getAttribute('data-samples'))).toBeGreaterThan(12);
     await expect.poll(async () => Number(await history.getAttribute('data-step-changes'))).toBeGreaterThan(1);
     await expect(history).not.toContainText('phase not available');
     await expect(history).toContainText('SMOOTH');
     await info.attach('random-history.png', { body: await page.screenshot(), contentType: 'image/png' });
+  });
+
+  test('Random Source with no cable reports unavailable output history', async ({ page }) => {
+    await boot(page);
+    const id = await addModuleAt(page, 'example.random_source', 150, 180);
+    const history = page.getByTestId(`random-history-${id}`);
+    await expect(history).toBeVisible();
+    await expect(history).toContainText('Connect step or smooth to view live values');
+    await expect(history).toHaveAttribute('data-samples', '0');
   });
 
   test('Alt-drag unplugs the newest cable at its source, input drag unplugs the other end, Undo restores', async ({ page }, info) => {
