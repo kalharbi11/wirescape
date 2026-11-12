@@ -1,6 +1,6 @@
-# AGENTS.md: rules for every agent (workflow v3.2, 2026-11-12)
+# AGENTS.md: rules for every agent (workflow v4, 2026-11-12)
 
-Any agent may pick up any open item: **claim → work → sign → hand off.** Leads, seniors and helpers: your brief and authority are in `docs/planner/LEADS.md`. Detail behind these rules: `docs/WORKFLOW.md` (read it only when a rule here is unclear).
+Every agent has a name and owns the items labelled with it: **claim → work → review others → sign → hand off.** Your brief: `docs/planner/LEADS.md`. Detail behind these rules: `docs/WORKFLOW.md` (read it only when a rule here is unclear).
 
 ## Read map (only this, in this order)
 1. This file (already loaded).
@@ -14,33 +14,35 @@ Never read `legacy/`, `docs/history/`, `docs/tasks/done/`, `build*/`, `build_rep
 Open-source modular synth. A C++17 realtime engine (ABI 2 modules: `native/engine2`, `native/modules2`) runs as a separate process, `wirescape-engine` (`native/sidecar`), talking over stdin/stdout JSON lines to an Electron app (`apps/desktop`) around a TypeScript web UI (`apps/studio`). Raspberry Pi 5 (ARM64) first, Windows next; module DSP stays portable to plugins and Daisy-class hardware. Contracts: `docs/specs/ABI2_PLAN.md`, `docs/specs/ENGINE_PROTOCOL.md`. Built today: `docs/ARCHITECTURE.md`. Qt (`native/ui/`) and ABI1 (`native/src`, `native/modules`) are being removed: don't touch or extend them.
 
 ## Who's who
-| Tier | Names | Ask them about |
+| Role | Names (model family) | Does |
 |---|---|---|
-| Leads (Claude) | **Compass** (product, UX, plan; owns `docs/PLAN.md`) · **Keel** (architecture, specs, ABI, CI policy, technical stops) | scope → Compass; technical stop → Keel |
-| Seniors | **Codex Lead** (Codex: build queue, board #473) · **Coda** (Claude: T2 reviews of Codex/GPT work, hard fixes) | anything a builder can't decide |
-| Builders | any agent (Codex, ChatGPT, …) | — |
-| Helpers | scheduled mid-tier runs, `lane/helper` items | — |
+| Leads | **Compass** (Claude): product, UX, plan, owns `docs/PLAN.md` · **Keel** (Claude): architecture, specs, ABI, CI policy, technical stops | scope → Compass; technical stop → Keel |
+| Senior (one role) | **Codex Lead** (GPT) or **Coda** (Claude). A run of either fills the role; both never need to run. | unblocking, routing, board, T0/T1 approvals and merges |
+| Builders | `builder-chat-1`, `builder-chat-2` (GPT, run often) · `builder-claude-1` (Claude, when the owner has spare usage). Spare names, not scheduled: `builder-chat-3`, `builder-claude-2` | build their items, then review |
+| Reviewers | `chatgpt-reviewer` (GPT) · `claude-reviewer` (Claude): one-time runs | review only, never build or push |
+| Helpers | scheduled runs, `lane/helper` items | small mechanical items |
 
-Ask one tier up. Address someone with `Name: …` in an issue or PR comment; they read their names.
+**Families:** Claude = Compass, Keel, Coda, `builder-claude-*`, `claude-reviewer`. GPT = Codex Lead, Codex tasks, `builder-chat-*`, `chatgpt-reviewer`. Ask one tier up. Address someone with `Name: …` in an issue or PR comment; they read their names. Briefs and paste-ready prompts: `docs/planner/LEADS.md`. **If your prompt is only `<name>: run`, open `docs/planner/LEADS.md`, find your name's block and follow it.**
 
-## Agent names and the board
-- **Names** (the owner says yours in the prompt; use it in claims, labels, handoffs and `Signed:`): recurring builders `builder-chat-1`, `builder-chat-2`, `builder-chat-3` (ChatGPT, most available), `builder-claude-1`, `builder-claude-2` (occasional). One-time runs are `<family>-<job>` with no number (`chatgpt-reviewer`). Focus variants keep the base (`builder-chat-2 (groove-ui)`). New names are added in `docs/planner/LEADS.md` "Builders" only. No name given? Ask the owner; don't invent one.
-- **Labels:** most items, and all new ones, carry no name: anyone takes them. `prefer/<name>` = preferred agent, only when continuity matters (same PR or slice, or a T2 fix that must stay in the author's model family); after 6 h idle anyone may take it. `agent/<name>` = who holds it now (set on claim, removed on handoff/done). `prefer/owner|keel|compass|codex-lead|coda` never open to builders.
-- **Board = issue #473's body, the only live list.** Its auto section is rebuilt from labels on every issue/PR change (`tools/board.py`); lead notes sit below it and are edited in place, never re-posted as a new list.
-- **Reading an item:** its `## Current state` block, then only the newest handoff. Older comments are history; skip them.
-- **Picking order:** first your own `agent/<you>` and `prefer/<you>` items (you may have started them in another chat), then "Open", then "Handed off", then preferred items marked **open to all** (preferred agent idle 6 h+) or **STALE** claims (post `Taking over from <name>`, continue the same PR). Never say "nothing to do" before checking all four.
-- **Reviewers and leads** (Compass, Keel, Codex Lead, Coda, `*-reviewer`): after reviewing an item, fix its labels (status, `prefer/`, `agent/`) and its `## Current state` block in the same pass, so a fresh agent sees the current next step.
+## Agents and the board
+- **Names:** use yours in claims, labels, handoffs and `Signed:`. No name in the prompt? Ask the owner; don't invent one. New names are added in `docs/planner/LEADS.md` only.
+- **`agent/<name>` = the item belongs to that agent** (set by a lead when assigning, or by you when claiming). It stays until merge, even while the PR waits for review. Nobody else works on a named item unless a lead reassigns it. Items with no `agent/` label are open to any agent. Lead and owner items use `agent/keel`, `agent/compass`, `agent/owner`.
+- **Board = issue #473's body, the only live list.** Its auto section is rebuilt from labels on every issue/PR change (`tools/board.py`). It lists who has what. Lead notes below it are edited in place, never re-posted as a new list.
+- **Reading an item:** its `## Current state` block, then only the newest handoff, then the diff. Older comments are history; skip them.
+- **Every run does all it can (any role):** 1 your own `agent/<you>` items, in issue order; 2 reviews you're allowed to do (below) on PRs with no review on their current head; 3 board fixes you notice (wrong labels, issue still open after its PR merged, missing `## Current state`); 4 an unassigned item, if you're a builder. Be usage-conscious in *how* you read (labels, Current state, diffs, log tails), not by skipping steps. Never end a run with "nothing to do" while any step has work.
+- **Low-usage mode** (only the owner turns it on, by telling any lead; the lead adds `usage/low-claude` or `usage/low-codex` to #473 and removes it when told): that family's builder items and non-urgent reviews wait, untouched and unreassigned. Urgent (red `main`, a 1.0 blocker) still goes ahead.
 
 ## The loop
-1. **Claim:** comment `Claimed: <name>, <date>`, set `status/in-progress` and add `agent/<name>`. A claim with no push or handoff for 6 h may be taken over (say so in a comment, swap the `agent/` label).
+1. **Claim:** your own item, or an unassigned one: comment `Claimed: <name>, <date>`, set `status/in-progress`, add `agent/<name>`.
 2. **Work:** branch `task/<issue#>-<slug>`, one PR with `Closes #<issue#>`, draft until green. WIP commits may use `[skip ci]`; the final push never does. Ideas go under "Follow-ups".
-3. **Keep going (queue mode):** when your item is green and handed off, take the next unclaimed item in your lane in the same session instead of ending it. Stop at your run's item limit or when usage is nearly spent.
-4. **Hand off** before stopping (template below), rewrite the issue body's `## Current state` block in place (3–5 lines: `Head:`, `Passing:`, `Next:`; the board shows `Next:`), set the status label and remove your `agent/` label (keep or set `prefer/<you>` if you should be the one to continue). Sign every handoff and review: `Signed: <name> (<model>), <date>`.
+3. **Keep going:** while your PR waits for CI or review, do the rest of "Every run". Stop at your run's limit or when usage is nearly spent.
+4. **Hand off** before stopping (template below): rewrite the issue body's `## Current state` block in place (3–5 lines: `Head:`, `Passing:`, `Next:`; the board shows `Next:`) and set the status label. Keep your `agent/` label. Sign every handoff and review: `Signed: <name> (<model>), <date>`.
 
 ## Done, review, merge
 - **Done** = the acceptance block passes: `python tools/dev.py accept <issue#>`; post the report.
 - **Tiers:** **T0** docs, tests, formatting, CI fixes → green + `status/ready-to-merge`, no review. **T1** features, modules + DSP, UI, tools → one review from another session. **T2** engine realtime/threading, protocol, patch format, ABI/SDK, CI/merge control → one review from the **other model family**. If the diff touches a higher tier's paths, the higher tier wins.
-- **Approve:** on a green head, a standalone line `Approved for merge <sha7>` followed by a `Signed:` line in the same comment, plus `status/ready-to-merge`. The merge gate auto-merges. A new push needs a new approval. Who may approve what: `docs/planner/LEADS.md` "Authority".
+- **Who may review:** T1: any agent from another session, builders included. T2 of GPT work: any Claude agent (Coda, Keel, Compass, `builder-claude-*`, `claude-reviewer`). T2 of Claude work: Codex Lead or `chatgpt-reviewer` (`builder-chat-*` may pre-review). The reviewer who finds nothing High posts the approval. **Extra approval still needed:** ABI/SDK headers, `docs/specs/**` and CI/merge policy → Keel; protected paths → Compass or Keel.
+- **Approve:** on a green head, a standalone line `Approved for merge <sha7>` followed by a `Signed:` line in the same comment, plus `status/ready-to-merge`. The merge gate auto-merges. A new push needs a new approval.
 - Reviews are `COMMENT` only, with severity + file:line. A High + `status/blocked` stops a PR.
 - Checkpoints (A, B, C in the plan) review a whole phase; they don't pause other work.
 
@@ -76,7 +78,7 @@ No agent reaches the Pi or the laptop (no SSH or anything else). Engine/DSP/side
 - Bundle related small changes into one PR (target size/m): if a diff is smaller than its handoff + review comments, it should have been bundled.
 
 ## Labels
-`status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · `tier/T0|T1|T2` · `size/s|m|l` · `phase/0..5` · `checkpoint` · `lane/helper` (an item a helper may build; set by builders and up) · `prefer/<name>` (preferred agent) · `agent/<name>` (current holder) · overrides `allow-protected`, `allow-test-removal` (owner, Compass or Keel). Old `agent/codex` labels mean an unnamed Codex claim.
+`status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · `tier/T0|T1|T2` · `size/s|m|l` · `phase/0..5` · `checkpoint` · `lane/helper` (an item a helper may build; set by builders and up) · `agent/<name>` (whose item it is) · `usage/low-claude|low-codex` (on #473, owner-triggered) · overrides `allow-protected`, `allow-test-removal` (owner, Compass or Keel). Old `agent/codex` labels mean an unnamed Codex claim.
 
 ## Handoff template
 ```

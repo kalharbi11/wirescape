@@ -2,7 +2,7 @@
 # Planner state (the leads read this first)
 
 **Updated:** 2026-11-12, Codex Lead; names/board by Keel. Owner failures preempt features.
-Board #473 BODY is the live list (auto section from labels; names AGENTS.md v3.2).
+Board #473 BODY is the live list; agent/<name> owns an item (AGENTS.md v4, LEADS.md roster).
 Completed source-head evidence governs; running, missing and stale results never pass.
 ## Priority and authority
 - PLAN Now: owner failures → 1.0 quick fixes/release → OSC and Quad → 1.1 queue.

@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Workflow v3 (adopted 2026-11-06)
+# Workflow v4 (adopted 2026-11-12; v3 2026-11-06)
 
 `AGENTS.md` holds the rules. This file is the detail behind them. v2 (agent roster, approvals v3, scheduled check-ins, external queue) is in git history and retired.
 
@@ -12,8 +12,8 @@
 - **Devices:** no agent opens an audio/MIDI device or a LAN socket. Localhost is fine. Real devices only behind `--confirm-*`, run by the owner.
 
 ## 2. Picking up work
-1. Open the board (issue #473's body; its auto section is rebuilt from labels by `.github/workflows/board.yml` + `tools/board.py`). Take your own `agent/<name>`/`prefer/<name>` items first, then "Open", "Handed off", then items marked **open to all** or **STALE** (6 h with no push or handoff).
-2. Comment `Claimed: <name>, <date>`, then set `status/in-progress` and `agent/<name>`. Names: `AGENTS.md` "Agent names and the board".
+1. Open the board (issue #473's body; its auto section is rebuilt from labels by `.github/workflows/board.yml` + `tools/board.py`). Take your own `agent/<name>` items first, then reviews you may do, then an unassigned item. Items labelled with another agent's name are theirs unless a lead reassigns them.
+2. Comment `Claimed: <name>, <date>`, then set `status/in-progress` and `agent/<name>`. Names: `AGENTS.md` "Agents and the board".
 3. Read the issue's latest handoff and the task file; then code.
 4. If you continue someone else's branch, say so in the claim (`Continuing from <sha7>`). Never force-push over their commits.
 
@@ -33,7 +33,7 @@ Every handoff, review and approval comment ends with `Signed: <agent + model>, <
 - **Approval line** (gate v4, `docs/tasks/done/W_GATE_V4.md`): a standalone line `Approved for merge <sha7>` followed by a `Signed:` line, in the same comment. A new push needs a new line. The old `<Name>: approved for auto-merge` lines are legacy; don't post new ones. Who may sign: `docs/planner/LEADS.md` "Authority".
 - **Self-review first:** before `status/ready-to-merge` the author runs `python tools/review_pack.py <PR#>`, checks it against the checklist (realtime, IDs, state/versioning, thresholds, licences, devices) and posts a `Self-review` comment. The reviewer starts from the same pack.
 - Any reviewer can stop a PR with a High + `status/blocked`. The gate never merges a blocked PR, and an author never approves over an open High.
-- Builders and helpers don't click merge; only Compass, Keel, and Codex Lead or Coda under delegation (b) merge directly (`AGENTS.md`). The merge gate (`.github/workflows/merge_gate.yml` + `tools/merge_gate.py`) enables auto-merge; GitHub waits for the required checks. Stacked PRs wait for retargeting to `main`, then re-run their acceptance against `main`.
+- Builders and helpers don't click merge; only Compass, Keel and the senior (Codex Lead or Coda) merge directly (`docs/planner/LEADS.md` "Authority"). The merge gate (`.github/workflows/merge_gate.yml` + `tools/merge_gate.py`) enables auto-merge; GitHub waits for the required checks. Stacked PRs wait for retargeting to `main`, then re-run their acceptance against `main`.
 - Owner-only: licence changes, `legacy/**`, `docs/history/**`, branch protection, real-device results, `allow-test-removal`.
 
 ## 5. Decisions a builder may make alone
@@ -83,7 +83,7 @@ At the end of Phases 1, 2 and 4 (`docs/PLAN.md`): tag `checkpoint-<X>`, build th
 - **Queue mode.** When an item is green and handed off, take the next unclaimed item in your lane in the same session. Fewer cold starts means fewer re-reads of the rules. Stop at the run's item limit or near a usage limit.
 - **One item per context.** Start a fresh thread or clear/compact between items; long threads re-send everything each turn. The handoff is the memory.
 - **Bundle.** Target size/m. Group related small items (one review's doc fixes, packets that touch the same editor) into one issue and PR. If a diff is smaller than its handoff + review comments, it should have been bundled.
-- **Batch T2 asks** into one `Coda: T2 batch` (or `Keel: T2 batch`) per day, not per PR.
+- **Batch T2 asks** into one comment per day, not per PR. Any agent of the other family may take it (`AGENTS.md` "Who may review"); Keel-only approvals go in one `Keel: T2 batch`.
 - **Model per job:** Claude Opus for rulings and T2 only; Sonnet subagents for mechanical repo work inside a Claude session; Haiku for read-only search and log tails; Codex `-mini` at low/medium for helpers, rebases, formatting, CI triage; the full Codex model at high for realtime and engine bugs; ChatGPT chats for task files, briefs, test plans and log summaries.
 - **Briefs live in issue comments**, not chat, so the owner pastes "work on #NNN" instead of a whole brief.
 - Don't run the full suite locally when CI will. Run the tests for the files you touched, push, and read the CI summary. Pi evidence only for compiled-code changes; no re-runs after a merge from `main` that touches no compiled code.

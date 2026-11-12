@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Live work board: rebuilds the auto section of the board issue (#473) from labels.
 
-Every open issue with a status/* label lands in exactly one section, with who it is
-for (`prefer/<agent>`), who holds it (`agent/<agent>`), its open PR and how long it has
-been idle. Humans write only outside the markers; this script writes only inside.
+Every open issue with a status/* label lands in exactly one section, with the agent it
+belongs to (`agent/<name>`), its open PR, how long it has been idle and its `Next:` line. Humans write only outside the markers; this script writes only inside.
 
   python tools/board.py             # print the auto section (needs GH_TOKEN or GITHUB_TOKEN)
   python tools/board.py --write 473 # replace the section in issue #473's body
@@ -16,15 +15,17 @@ import os
 import re
 import sys
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 REPO = os.environ.get('GITHUB_REPOSITORY', 'kalharbi11/wirescape')
 START = '<!-- board:auto:start -->'
 END = '<!-- board:auto:end -->'
-STALE = timedelta(hours=6)
-# Reserved for a person or lead role: never opens to builders by idling.
-NOT_BUILDERS = {'owner', 'compass', 'keel', 'codex-lead', 'coda'}
 CLOSES = re.compile(r'\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)', re.I)
+# Owner-triggered low-usage modes: a `usage/low-<family>` label on the board issue.
+USAGE = {
+    'claude': 'Claude usage is low: builder-claude-* items and Claude-side reviews may wait unless urgent.',
+    'codex': 'Codex usage is low: Codex Lead work may wait; ChatGPT agents and Coda cover what they can.',
+}
 
 
 def _labels(item):
@@ -71,64 +72,68 @@ def link_prs(prs):
     return out
 
 
-def section(issue, labels):
+def section(labels):
     if 'status/blocked' in labels:
         return 'blocked'
     if {'status/review', 'status/ready-to-merge'} & set(labels):
         return 'review'
-    if 'status/in-progress' in labels or _pick(labels, 'agent/'):
+    if 'status/in-progress' in labels:
         return 'working'
-    if 'status/handoff-ready' in labels:
-        return 'handoff'
-    if 'status/todo' in labels:
-        return 'preferred' if _pick(labels, 'prefer/') else 'open'
+    if _pick(labels, 'agent/') and {'status/todo', 'status/handoff-ready'} & set(labels):
+        return 'assigned'
+    if {'status/todo', 'status/handoff-ready'} & set(labels):
+        return 'open'
     return None
 
 
 TITLES = {
-    'open': ('Open: take these first', 'Not reserved for anyone. Claim, then add your `agent/<name>` label.'),
-    'handoff': ('Handed off: anyone may continue', 'Read the latest handoff; continue the same PR. Names in "for" go first if they are around.'),
-    'preferred': ('Preferred agent', 'Others take one only when it is marked **open to all** (idle 6 h+). `prefer/owner`, `prefer/keel` etc. never open.'),
-    'working': ('In progress', '**STALE** = no activity for 6 h: post `Taking over from <name>` and continue the same PR.'),
-    'review': ('Waiting for review or merge', 'Builders may review T1 from another session; T2 goes to the other model family.'),
-    'blocked': ('Blocked', 'Waiting for a ruling or a dependency; the issue says on what.'),
+    'open': ('Unassigned: any agent may take these', 'Claim one: comment, `status/in-progress`, add `agent/<your name>`.'),
+    'assigned': ('Assigned, not started', 'Belongs to the named agent. Others leave it unless a lead reassigns it.'),
+    'working': ('In progress', '"no name" = a claim without an `agent/` label; leads fix it.'),
+    'review': ('Waiting for review or merge', 'Reviewers: AGENTS.md "Done, review, merge". The author keeps its `agent/` label until merge.'),
+    'blocked': ('Blocked', 'Waiting for a ruling, the owner or a dependency; the issue says which.'),
 }
-ORDER = ['open', 'handoff', 'preferred', 'working', 'review', 'blocked']
+ORDER = ['open', 'assigned', 'working', 'review', 'blocked']
 
 
 def render(issues, prs, now, board=473):
     links = link_prs(prs)
     rows = {key: [] for key in ORDER}
+    load = {}
+    board_labels = []
     for issue in sorted(issues, key=lambda i: i['number']):
-        if issue['number'] == board or issue.get('pull_request'):
+        if issue.get('pull_request'):
             continue
         labels = _labels(issue)
-        key = section(issue, labels)
+        if issue['number'] == board:
+            board_labels = labels
+            continue
+        key = section(labels)
         if key is None:
             continue
         pr = links.get(issue['number'])
         last = max([_when(issue['updated_at'])] + ([_when(pr['updated_at'])] if pr else []))
-        idle = now - last
-        holder = ', '.join(_pick(labels, 'agent/')) or ('unnamed claim' if key == 'working' else '')
-        wanted_names = _pick(labels, 'prefer/')
-        wanted = ', '.join(wanted_names)
-        builder_wanted = wanted_names and not set(wanted_names) & NOT_BUILDERS
-        note = ''
-        if idle >= STALE and (key == 'working' or (builder_wanted and key in ('preferred', 'handoff'))):
-            note = '**STALE**' if key == 'working' else '**open to all**'
+        names = _pick(labels, 'agent/')
+        for name in names:
+            load.setdefault(name, []).append(f"#{issue['number']}")
+        holder = ', '.join(names) or ('no name' if key == 'working' else '')
         tier = ' '.join(_pick(labels, 'tier/'))
         pr_cell = f"#{pr['number']}" + (' draft' if pr.get('draft') else '') if pr else ''
-        rows[key].append(f"| #{issue['number']} {issue['title'][:70]} | {tier} | {wanted} | {holder} | "
-                         f"{pr_cell} | {_idle(idle)} {note}".rstrip() + f" | {next_step(issue.get('body'))} |")
+        rows[key].append(f"| #{issue['number']} {issue['title'][:70]} | {tier} | {holder} | {pr_cell} | "
+                         f"{_idle(now - last)} | {next_step(issue.get('body'))} |")
     out = [START, f"## Live board (auto, {now:%Y-%m-%d %H:%M} UTC)",
            'Rebuilt from labels by `tools/board.py` on every issue/PR change. Do not edit between the markers; '
-           'change labels instead. Rules: AGENTS.md "Agent names and the board".', '']
+           'change labels instead. Rules: AGENTS.md "Agents and the board".', '']
+    for family in _pick(board_labels, 'usage/low-'):
+        out += [f"> **Low-usage mode ({family}):** {USAGE.get(family, 'set by the owner.')}", '']
+    if load:
+        out += ['**Who has what:** ' + ' · '.join(f"`{name}` {' '.join(items)}" for name, items in sorted(load.items())), '']
     for key in ORDER:
         title, hint = TITLES[key]
         out.append(f"### {title} ({len(rows[key])})")
         out.append(hint)
         if rows[key]:
-            out += ['', '| Issue | Tier | Preferred | Claimed by | PR | Idle | Next step |', '|---|---|---|---|---|---|---|', *rows[key]]
+            out += ['', '| Issue | Tier | Agent | PR | Idle | Next step |', '|---|---|---|---|---|---|', *rows[key]]
         out.append('')
     out.append(END)
     return '\n'.join(out)

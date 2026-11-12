@@ -12,8 +12,9 @@ FRESH = '2026-11-12T10:00:00Z'
 OLD = '2026-11-10T10:00:00Z'
 
 
-def issue(number, *labels, updated=FRESH, title='Item'):
-    return {'number': number, 'title': title, 'updated_at': updated, 'labels': [{'name': n} for n in labels]}
+def issue(number, *labels, updated=FRESH, title='Item', body=''):
+    return {'number': number, 'title': title, 'updated_at': updated, 'body': body,
+            'labels': [{'name': n} for n in labels]}
 
 
 def pr(number, body='', ref='feature', updated=FRESH, draft=False):
@@ -29,59 +30,52 @@ class BoardTests(unittest.TestCase):
     def test_each_status_lands_in_one_section(self):
         text = board.render([
             issue(1, 'status/todo'),
-            issue(2, 'status/todo', 'prefer/builder-chat-1'),
+            issue(2, 'status/todo', 'agent/builder-chat-1'),
             issue(3, 'status/in-progress', 'agent/builder-chat-2'),
-            issue(4, 'status/review'),
-            issue(5, 'status/blocked', 'agent/builder-chat-3'),
+            issue(4, 'status/review', 'agent/builder-claude-1'),
+            issue(5, 'status/blocked'),
             issue(6, 'status/handoff-ready'),
-            issue(7),  # tracking issue without a status: not on the board
+            issue(7, 'status/handoff-ready', 'agent/builder-chat-1'),
+            issue(8),  # tracking issue without a status: not on the board
         ], [], NOW)
-        self.assertEqual(len(rows(text, 'Open')), 1)
-        self.assertIn('builder-chat-1', rows(text, 'Preferred')[0])
+        self.assertEqual(len(rows(text, 'Unassigned')), 2)
+        self.assertEqual(len(rows(text, 'Assigned')), 2)
         self.assertIn('builder-chat-2', rows(text, 'In progress')[0])
         self.assertEqual(len(rows(text, 'Waiting')), 1)
         self.assertEqual(len(rows(text, 'Blocked')), 1)
-        self.assertEqual(len(rows(text, 'Handed off')), 1)
-        self.assertNotIn('| #7 ', text)
+        self.assertNotIn('| #8 ', text)
 
-    def test_board_issue_itself_is_skipped(self):
-        self.assertNotIn('| #473 ', board.render([issue(473, 'status/todo')], [], NOW))
+    def test_who_has_what_lists_every_item_per_agent(self):
+        text = board.render([issue(2, 'status/todo', 'agent/builder-chat-1'),
+                             issue(9, 'status/review', 'agent/builder-chat-1'),
+                             issue(4, 'status/in-progress', 'agent/keel')], [], NOW)
+        self.assertIn('`builder-chat-1` #2 #9', text)
+        self.assertIn('`keel` #4', text)
 
-    def test_idle_claim_is_stale_and_unnamed_claim_is_flagged(self):
-        text = board.render([issue(3, 'status/in-progress', updated=OLD)], [], NOW)
-        line = rows(text, 'In progress')[0]
-        self.assertIn('unnamed claim', line)
-        self.assertIn('**STALE**', line)
+    def test_claim_without_a_name_is_flagged(self):
+        self.assertIn('| no name |', rows(board.render([issue(3, 'status/in-progress')], [], NOW), 'In progress')[0])
 
-    def test_idle_reservation_opens_to_all(self):
-        text = board.render([issue(2, 'status/todo', 'prefer/builder-claude-1', updated=OLD)], [], NOW)
-        self.assertIn('**open to all**', rows(text, 'Preferred')[0])
+    def test_board_issue_is_skipped_and_its_usage_label_shows_a_banner(self):
+        text = board.render([issue(473, 'status/todo', 'usage/low-claude')], [], NOW)
+        self.assertNotIn('| #473 ', text)
+        self.assertIn('Low-usage mode (claude)', text)
+        self.assertNotIn('Low-usage mode', board.render([issue(473)], [], NOW))
 
-    def test_preference_opens_after_six_hours_not_before(self):
-        five = board.render([issue(2, 'status/todo', 'prefer/builder-chat-1', updated='2026-11-12T07:00:00Z')], [], NOW)
-        seven = board.render([issue(2, 'status/todo', 'prefer/builder-chat-1', updated='2026-11-12T05:00:00Z')], [], NOW)
-        self.assertNotIn('open to all', rows(five, 'Preferred')[0])
-        self.assertIn('open to all', rows(seven, 'Preferred')[0])
-
-    def test_lead_or_owner_reservation_never_opens(self):
-        text = board.render([issue(2, 'status/todo', 'prefer/owner', updated=OLD)], [], NOW)
-        self.assertNotIn('open to all', rows(text, 'Preferred')[0])
-
-    def test_recent_pr_push_keeps_claim_fresh(self):
-        text = board.render([issue(3, 'status/in-progress', updated=OLD)],
+    def test_idle_counts_from_latest_issue_or_pr_activity(self):
+        text = board.render([issue(3, 'status/in-progress', 'agent/x', updated=OLD)],
                             [pr(30, 'Closes #3', updated=FRESH, draft=True)], NOW)
         line = rows(text, 'In progress')[0]
         self.assertIn('#30 draft', line)
-        self.assertNotIn('STALE', line)
+        self.assertIn('| 2h |', line)
 
     def test_pr_links_by_branch_name(self):
-        text = board.render([issue(9, 'status/todo')], [pr(90, ref='task/9-thing')], NOW)
-        self.assertIn('#90', rows(text, 'Open')[0])
+        self.assertIn('#90', rows(board.render([issue(9, 'status/todo')], [pr(90, ref='task/9-thing')], NOW),
+                                  'Unassigned')[0])
 
     def test_next_step_comes_from_current_state_block(self):
-        item = issue(3, 'status/in-progress')
-        item['body'] = 'Goal text\nNext: not this one\n\n## Current state\nHead: abc1234\n**Next:** fix Windows red | rerun\n## Notes\nNext: nor this'
-        self.assertIn('| fix Windows red / rerun |', rows(board.render([item], [], NOW), 'In progress')[0])
+        body = 'Goal\nNext: not this\n\n## Current state\nHead: abc1234\n**Next:** fix Windows red | rerun\n## Notes\nNext: nor this'
+        line = rows(board.render([issue(3, 'status/in-progress', body=body)], [], NOW), 'In progress')[0]
+        self.assertIn('| fix Windows red / rerun |', line)
         self.assertEqual(board.next_step('no block here\nNext: x'), '')
 
     def test_splice_replaces_only_between_markers(self):
