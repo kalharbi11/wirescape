@@ -167,7 +167,7 @@ void serialized_demo_equivalence(AppEngine *catalogue, const ws_engine_config &c
                                                    uint32_t(std::stoul(it.key())), it.value().get<float>()) == WS_OK,
                     "ABI1 reference parameter initialized");
     float baseline[128]{}, loaded[128]{}, reloaded[128]{};
-    double max_abs_error = 0;
+    double max_abs_error = 0, baseline_peak = 0;
     size_t allocations = 0, rendered = 0;
     for (int block = 0; block < 750; ++block) {
         require(ws_engine_render(old.get(), baseline, 128) == WS_OK, "ABI1 render");
@@ -182,10 +182,12 @@ void serialized_demo_equivalence(AppEngine *catalogue, const ws_engine_config &c
         for (int i = 0; i < 128; ++i) {
             require(std::isfinite(loaded[i]), "saved v2 render finite");
             require(loaded[i] == reloaded[i], "v1 to disk v2 renders exactly equal PCM samples");
+            baseline_peak = std::max(baseline_peak, std::abs(double(baseline[i])));
             max_abs_error = std::max(max_abs_error, std::abs(double(baseline[i]) - loaded[i]));
         }
         rendered += 128;
     }
+    require(baseline_peak > 0.0, "ABI1 reference render must not be silent");
     require(allocations == 0, "saved graph callbacks allocate no memory");
     require(max_abs_error <= 1e-7, "ABI1 vs saved/reloaded app-loader bound 1e-7");
     require(rendered == 96000u, "96,000 source and saved-reloaded PCM samples compared");
@@ -216,7 +218,8 @@ void keyboard_macro(AppEngine *catalogue, const ws_engine_config &config) {
     }
     render_and_check(graph.get(), 64, "keyboard to Macro");
     require(app_engine_native(graph.get()).output_channels(2, 0) == 4, "Macro loader preserves four voices");
-    const auto original_generation = app_engine_generation(graph.get());
+    // This asserts off-rate loader refusal only. Sidecar protocol_tests.py
+    // separately checks failed loadGraph commits and continued live output.
     for (double rate : {44100.0, 96000.0}) {
         auto rejected_rate = config;
         rejected_rate.sample_rate = rate;
@@ -224,8 +227,6 @@ void keyboard_macro(AppEngine *catalogue, const ws_engine_config &config) {
         Owner rejected(wirescape::document::load_runtime_patch(source, catalogue, rejected_rate, error),
                        app_engine_destroy);
         require(!rejected && !error.empty(), "loaded Macro rejects unsupported rate");
-        require(app_engine_generation(graph.get()) == original_generation,
-                "failed candidate prepare leaves accepted graph generation untouched");
         float previous[128]{};
         size_t allocations = 0;
         int status;
@@ -235,7 +236,7 @@ void keyboard_macro(AppEngine *catalogue, const ws_engine_config &config) {
             allocations = watch.allocations();
         }
         require(status == WS_OK && allocations == 0 && app_engine_native(graph.get()).meter().faults == 0,
-                "failed candidate prepare preserves running graph ownership and render safety");
+                "off-rate loader refusal leaves the separately loaded graph renderable");
     }
 }
 void dual_chaos(AppEngine *catalogue, const ws_engine_config &config, const std::filesystem::path &examples) {
