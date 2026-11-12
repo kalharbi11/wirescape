@@ -35,8 +35,8 @@ Required checks and acceptance apply to the final head; queued/stale is not pass
 
 ## Supporting work and completed review
 - Qt analyzer #653/#654 MERGED; verify current-head effect, no deletion needed.
-- #617b06e1bb final designated Codex review COMPLETE (review5868834370);
-  no High/Medium and required green. Keel final protected-policy approval remains.
+- #617b06e1bb MERGED after final Codex review5868834370 and Keel disposition;
+  no remaining Codex review or CI-policy approval request on that PR.
 - #6409d415b5 Windows Git-Bash/LF/fake-gh harness: four local cases pass;
   actual hosted required checks and Keel refreshed policy approval still govern.
 - #6470b1d428 bounded Web macro refusal/static repair: actual acceptance/

@@ -12,7 +12,7 @@ How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) liv
 - **ASIO:** #627/#631 native diagnostics/safe buffer retry and #605/#608 setup correctness retain separate writers. Existing buffer ruling stands; Keel decides the pinned Ninja suffix. Owner alone tests physical sound.
 - **Supporting fixes only:** move a small CI/build/test repair ahead when actual evidence shows it directly blocks these lanes. Do not weaken checks or turn a diagnostic red into a broad cleanup project.
 - **Qt:** #653/#654's targeted analyzer fix is merged. Broad #482 R3a → #468 R3b → R4/ABI1 cleanup is deferred until OSC, VCA and ASIO finish; none is a feature acceptance prerequisite. Preserve drafts and replacement/tag gates.
-- **CI closeout:** #617b06e1bb final Codex cross-family review is complete; Keel final CI-policy approval remains. #640 must pass actual Windows/required CI and Keel review before claiming main verification.
+- **CI closeout:** #617b06e1bb is merged after final Codex cross-family review and Keel policy disposition. #640 must pass actual Windows/required CI and Keel review before claiming main verification.
 - Existing Groove #619/#626, Studio #607 and D5 #648 writers keep their work, without taking review/lead priority over OSC for unrelated expansion.
 - Owner hardware #271/#274, actual3600s soak #296, Windows release test #581 and tag #593 remain separate evidence; do not claim them from agent CI.
 - Finish current work before new features or broad cleanup. T1 needs another session; T2 needs the other family; protected authority and exact-head acceptance remain mandatory.
