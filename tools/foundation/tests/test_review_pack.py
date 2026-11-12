@@ -42,7 +42,7 @@ class ReviewPackTests(unittest.TestCase):
             self.assertEqual(len(paths), 3)
             self.assertTrue(all(p.stat().st_size <= 8192 // 3 for p in paths))
             self.assertLessEqual(sum(p.stat().st_size for p in paths), 8192)
-            self.assertEqual("".join(p.read_text() for p in paths), text)
+            self.assertEqual("".join(p.read_text(encoding="utf-8") for p in paths), text)
             self.assertEqual(b"".join(p.read_bytes() for p in paths), text.encode("utf-8"))
             self.assertIn("Diff truncated by size cap", text)
 
@@ -65,7 +65,7 @@ class ReviewPackTests(unittest.TestCase):
                                     capture_output=True, text=True, env=env)
             self.assertEqual(result.returncode, 0, result.stderr)
             paths = sorted((Path(tmp) / "out").glob("*.md"))
-            text = "".join(p.read_text() for p in paths)
+            text = "".join(p.read_text(encoding="utf-8") for p in paths)
             self.assertEqual(len(paths), 3)
             self.assertIn("offline mode; no CI request made", text)
             self.assertIn("Head: `unavailable`", text)

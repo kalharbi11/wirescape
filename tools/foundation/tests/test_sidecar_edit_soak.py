@@ -117,11 +117,16 @@ class EditSoakTests(unittest.TestCase):
 
     def test_success_and_seed_reproducibility(self):
         with self.engine('ok'):
-            a = soak.run(self.stub, .02, 278)
-            b = soak.run(self.stub, .02, 278)
+            # A 1 µs duration runs exactly one cycle, so the comparison is not wall-clock dependent
+            # (Windows timer granularity gave 1 vs 2 cycles at 20 ms).
+            a = soak.run(self.stub, 1e-6, 278)
+            b = soak.run(self.stub, 1e-6, 278)
+            timed = soak.run(self.stub, .02, 278)
         self.assertEqual(a['status'], 'passed')
         self.assertEqual(a['commands'], b['commands'])
-        self.assertGreaterEqual(a['cycles'], 1)
+        self.assertEqual((a['cycles'], b['cycles']), (1, 1))
+        self.assertEqual(timed['status'], 'passed')
+        self.assertGreaterEqual(timed['cycles'], 1)
         self.assertEqual(a['steps'], 2 + 9 * a['cycles'])
         self.assertEqual(a['performance_evidence'],
                          {'blocks': 1000, 'p50': 1.0, 'p99': 2.0, 'max': 3.5,
