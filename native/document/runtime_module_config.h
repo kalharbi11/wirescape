@@ -262,32 +262,27 @@ inline std::vector<uint8_t> runtime_module_config(const std::string&type,
 
 // Control-thread overload: gather bounded diagnostics without changing the
 // original three-argument conversion or any existing validation of known fields.
-inline std::vector<uint8_t> runtime_module_config(
-    const std::string &type, const nlohmann::json &value, uint32_t instance_id,
-    std::vector<std::string> *ignored_keys) {
+inline std::vector<uint8_t> runtime_module_config(const std::string &type, const nlohmann::json &value,
+                                                  uint32_t instance_id, std::vector<std::string> *ignored_keys) {
     if (type == "osc.in" && ignored_keys && value.is_object()) {
         auto record = [&](std::string name) {
             if (ignored_keys->size() >= 16) return;
             for (char &ch : name) {
-                if (static_cast<unsigned char>(ch) < 0x21 ||
-                    static_cast<unsigned char>(ch) > 0x7e)
-                    ch = '?';
+                if (static_cast<unsigned char>(ch) < 0x21 || static_cast<unsigned char>(ch) > 0x7e) ch = '?';
             }
             if (name.size() > 64) name.resize(64);
             ignored_keys->push_back("osc.in#" + std::to_string(instance_id) + "." + name);
         };
         for (auto it = value.begin(); it != value.end(); ++it)
-            if (it.key() != "port" && it.key() != "lan" && it.key() != "rows")
-                record(it.key());
+            if (it.key() != "port" && it.key() != "lan" && it.key() != "rows") record(it.key());
         if (value.contains("rows") && value.at("rows").is_array()) {
             const auto &rows = value.at("rows");
             for (size_t i = 0; i < rows.size() && i < 8; ++i) {
                 if (!rows[i].is_object()) continue;
                 for (auto it = rows[i].begin(); it != rows[i].end(); ++it) {
                     const auto &key = it.key();
-                    if (key != "pattern" && key != "kind" && key != "stale" &&
-                        key != "argument" && key != "input_min" && key != "input_max" &&
-                        key != "output_min" && key != "output_max" &&
+                    if (key != "pattern" && key != "kind" && key != "stale" && key != "argument" &&
+                        key != "input_min" && key != "input_max" && key != "output_min" && key != "output_max" &&
                         key != "smoothing_ms" && key != "timeout_ms")
                         record("rows[" + std::to_string(i) + "]." + key);
                 }
