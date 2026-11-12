@@ -290,18 +290,18 @@ class StaticChecksTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
             cases = {
-                "native/one.cpp": ("int  alpha( ){return  1;}\\n"
-                                   "int keep = 0;\\n"
-                                   "int  beta( ){return  2;}\\n"),
-                "native/two.cpp": "int  other( ){return  3;}\\n",
+                "native/one.cpp": ("int  alpha( ){return  1;}\n"
+                                   "int keep = 0;\n"
+                                   "int  beta( ){return  2;}\n"),
+                "native/two.cpp": "int  other( ){return  3;}\n",
             }
             for name, content in cases.items():
                 source = root / name
                 source.parent.mkdir(parents=True, exist_ok=True)
-                source.write_text(content.replace("\\\\n", "\\n"), encoding="utf-8")
-            diff = ("+++ b/native/one.cpp\\n@@ -1 +1 @@\\n+x\\n"
-                    "@@ -3 +3 @@\\n+x\\n"
-                    "+++ b/native/two.cpp\\n@@ -1 +1 @@\\n+x\\n").replace("\\\\n", "\\n")
+                source.write_text(content, encoding="utf-8")
+            diff = ("+++ b/native/one.cpp\n@@ -1 +1 @@\n+x\n"
+                    "@@ -3 +3 @@\n+x\n"
+                    "+++ b/native/two.cpp\n@@ -1 +1 @@\n+x\n")
             real_run = subprocess.run
 
             def execute(command, **kwargs):
@@ -311,16 +311,17 @@ class StaticChecksTests(unittest.TestCase):
 
             output = io.StringIO()
             summary = root / "summary.md"
-            with patch.object(static_checks.subprocess, "run", side_effect=execute), \\
-                    patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}), \\
-                    contextlib.redirect_stdout(output):
+            with (patch.object(static_checks.subprocess, "run", side_effect=execute),
+                  patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}),
+                  contextlib.redirect_stdout(output)):
                 self.assertEqual(static_checks.run_checks(root, diff, "unused"), 1)
 
             patch_file = root / "build/static/format.patch"
             self.assertTrue(patch_file.is_file())
+            patch_content = patch_file.read_text(encoding="utf-8")
             for name in cases:
-                self.assertIn("--- a/" + name, patch_file.read_text(encoding="utf-8"))
-                self.assertIn("+++ b/" + name, patch_file.read_text(encoding="utf-8"))
+                self.assertIn("--- a/" + name, patch_content)
+                self.assertIn("+++ b/" + name, patch_content)
             self.assertIn("=== format.patch begin ===", output.getvalue())
             self.assertIn("=== format.patch end ===", output.getvalue())
             self.assertIn("### clang-format fix patch", summary.read_text(encoding="utf-8"))
