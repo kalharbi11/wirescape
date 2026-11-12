@@ -166,7 +166,15 @@ class EditSoakTests(unittest.TestCase):
                         status = soak.main(['--engine', str(self.stub), '--seconds', '.02'])
                 self.assertEqual(status, expected)
                 self.assertEqual(self.launches, launches)
-                self.assertEqual(json.loads(stdout.getvalue())['status'], 'passed' if not status else 'failed')
+                verdict = json.loads(stdout.getvalue())
+                self.assertEqual(verdict['status'], 'passed' if not status else 'failed')
+                if hosted and modes == ('wake-only', 'ok'):
+                    retry = verdict.get('wake_retry')
+                    self.assertIsInstance(retry, dict)
+                    self.assertIn('overrun_wake_count=1', retry['attempt1'])
+                    self.assertEqual(retry['attempt2'], 'passed')
+                else:
+                    self.assertNotIn('wake_retry', verdict)
                 if hosted and modes[0] == 'wake-only':
                     self.assertIn('wake-only attempt 1 failed', stderr.getvalue())
                     self.assertEqual('attempt 2 passed' in stderr.getvalue(), status == 0)
