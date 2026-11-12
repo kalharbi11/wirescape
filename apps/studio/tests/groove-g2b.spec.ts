@@ -59,7 +59,7 @@ test('Groove retains authored BPM and unknown config across external clock cable
   // A future key is opaque authored data, never a trigger to rewrite the sequencer.
   await page.evaluate(() => {
     const snapshot = window.__wirescapeTest.save();
-    const groove = snapshot.modules.find(m => m.module === 'sequencing.groove');
+    const groove = snapshot.modules.find((m: { module: string; config?: unknown }) => m.module === 'sequencing.groove');
     if (!groove) throw new Error('Missing Groove fixture');
     groove.config = { ...(groove.config as Record<string, unknown>), futureVendorField: { keep: [1, 2, 3] } };
     window.__wirescapeTest.load(snapshot, 'Groove future data');
