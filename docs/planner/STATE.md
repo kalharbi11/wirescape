@@ -37,8 +37,11 @@ Only completed exact-head acceptance/checks count; queued or skipped is not proo
 ## Other continuations
 - #487/#648 (gpt-builder2) b1403b5: Coda T2 no High/Medium. Static was
   cancelled → rerun triggered; private ci/pi device-off run must be linked.
-- #636: main_verify.yml had zero runs since #640 merged (schedule never
-  fired). Coda dispatched it manually on 14d0db1; link that run's result.
+- Gate merges (GITHUB_TOKEN) get no follow-ups: no push CI, no `Closes #N`
+  (#664, #636 stayed open) and no schedules (board + main_verify: 0 runs).
+  Keel fix: board.yml `followups` job closes linked issues and dispatches
+  main_verify once per main commit, on agents' own events. Real fix = a
+  GitHub App token for the gate (owner decision on #473).
 - #614/#619 (gpt-builder1) Groove external clock; #629 WASM parity after OSC.
 - #673 (Compass) D20 / PLAN Now: integrate main after #670, then fast path.
 - #560 CPU table and full native CMake need dependency downloads: cloud
@@ -49,4 +52,4 @@ Only completed exact-head acceptance/checks count; queued or skipped is not proo
 - #600 Stereo Output, #337, #436, #332 wait for the owner's next-version pick.
 - #271 hardware, #274 display, #296 3600 s soak, #581/#593 release distinct.
 - No weakened tests, main/force push, device/SSH/LAN access.
-Signed: Coda, 2026-11-12
+Signed: Keel, 2026-11-12
