@@ -10,6 +10,7 @@
 namespace fake {
 std::vector<wirescape::audio::Device> outputs;
 std::vector<std::string> attempts;
+std::string refuse_id; // fake a single device-specific PortAudio open failure
 std::vector<std::string> installed_asio;
 bool active = true, refuse = false, enumeration_throws = false, render = false;
 uint32_t rejected_rate = 0;
@@ -42,7 +43,7 @@ Stream::Stream(EngineOwner &owner, const StreamSelection &selection, double rate
                std::function<void()> producers)
     : impl_(std::make_unique<Impl>()) {
     fake::attempts.push_back(selection.name);
-    if (resolve_device(fake::outputs, selection.name) < 0 || fake::refuse)
+    if (resolve_device(fake::outputs, selection.name) < 0 || fake::refuse || selection.name == fake::refuse_id)
         throw std::runtime_error("fake unavailable/ambiguous output");
     if (uint32_t(rate) == fake::rejected_rate || selection.name == fake::rate_refused_id) throw RateUnsupported();
     impl_->engine = std::move(owner);
@@ -326,6 +327,18 @@ int main() {
             s.poll(std::chrono::steady_clock::now() + 10s);
             check(fake::attempts.size() == opened, "rate refusal must never retry the rejected route");
             fake::rate_refused_id.clear();
+            // A failing candidate must report its real open error in the reply,
+            // even though the successful rollback clears status.audio.error.
+            const auto before_open_error = fake::attempts.size();
+            fake::refuse_id = "Rate DAC";
+            auto attempted = call("route-open-error", "selectAudioDevice", {{"deviceId", "Rate DAC"}});
+            check(attempted["ok"] == false && attempted["code"] == "unavailable" &&
+                      attempted["message"] == "fake unavailable/ambiguous output" &&
+                      fake::attempts.size() == before_open_error + 2 &&
+                      audio(s)["deviceId"] == "USB Stereo" && audio(s)["state"] == "running" &&
+                      !audio(s).contains("error"),
+                  "failed target open preserves its error and restores the previous playing output");
+            fake::refuse_id.clear();
             fake::active = false;
             const auto lost = std::chrono::steady_clock::now() + 20s;
             s.poll(lost);
