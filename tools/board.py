@@ -2,7 +2,7 @@
 """Live work board: rebuilds the auto section of the board issue (#473) from labels.
 
 Every open issue with a status/* label lands in exactly one section, with who it is
-for (`for/<agent>`), who holds it (`agent/<agent>`), its open PR and how long it has
+for (`prefer/<agent>`), who holds it (`agent/<agent>`), its open PR and how long it has
 been idle. Humans write only outside the markers; this script writes only inside.
 
   python tools/board.py             # print the auto section (needs GH_TOKEN or GITHUB_TOKEN)
@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 REPO = os.environ.get('GITHUB_REPOSITORY', 'kalharbi11/wirescape')
 START = '<!-- board:auto:start -->'
 END = '<!-- board:auto:end -->'
-STALE = timedelta(hours=24)
+STALE = timedelta(hours=6)
 # Reserved for a person or lead role: never opens to builders by idling.
 NOT_BUILDERS = {'owner', 'compass', 'keel', 'codex-lead', 'coda'}
 CLOSES = re.compile(r'\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)', re.I)
@@ -81,15 +81,15 @@ def section(issue, labels):
     if 'status/handoff-ready' in labels:
         return 'handoff'
     if 'status/todo' in labels:
-        return 'preferred' if _pick(labels, 'for/') else 'open'
+        return 'preferred' if _pick(labels, 'prefer/') else 'open'
     return None
 
 
 TITLES = {
     'open': ('Open: take these first', 'Not reserved for anyone. Claim, then add your `agent/<name>` label.'),
     'handoff': ('Handed off: anyone may continue', 'Read the latest handoff; continue the same PR. Names in "for" go first if they are around.'),
-    'preferred': ('Reserved for a named agent', 'Others take one only when it is marked **open to all** (idle 24 h+). `for/owner`, `for/keel` etc. never open.'),
-    'working': ('In progress', '**STALE** = no activity for 24 h: post `Taking over from <name>` and continue the same PR.'),
+    'preferred': ('Preferred agent', 'Others take one only when it is marked **open to all** (idle 6 h+). `prefer/owner`, `prefer/keel` etc. never open.'),
+    'working': ('In progress', '**STALE** = no activity for 6 h: post `Taking over from <name>` and continue the same PR.'),
     'review': ('Waiting for review or merge', 'Builders may review T1 from another session; T2 goes to the other model family.'),
     'blocked': ('Blocked', 'Waiting for a ruling or a dependency; the issue says on what.'),
 }
@@ -110,7 +110,7 @@ def render(issues, prs, now, board=473):
         last = max([_when(issue['updated_at'])] + ([_when(pr['updated_at'])] if pr else []))
         idle = now - last
         holder = ', '.join(_pick(labels, 'agent/')) or ('unnamed claim' if key == 'working' else '')
-        wanted_names = _pick(labels, 'for/')
+        wanted_names = _pick(labels, 'prefer/')
         wanted = ', '.join(wanted_names)
         builder_wanted = wanted_names and not set(wanted_names) & NOT_BUILDERS
         note = ''
@@ -128,7 +128,7 @@ def render(issues, prs, now, board=473):
         out.append(f"### {title} ({len(rows[key])})")
         out.append(hint)
         if rows[key]:
-            out += ['', '| Issue | Tier | For | Claimed by | PR | Idle | Next step |', '|---|---|---|---|---|---|---|', *rows[key]]
+            out += ['', '| Issue | Tier | Preferred | Claimed by | PR | Idle | Next step |', '|---|---|---|---|---|---|---|', *rows[key]]
         out.append('')
     out.append(END)
     return '\n'.join(out)

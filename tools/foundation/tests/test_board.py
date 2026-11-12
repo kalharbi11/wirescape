@@ -29,7 +29,7 @@ class BoardTests(unittest.TestCase):
     def test_each_status_lands_in_one_section(self):
         text = board.render([
             issue(1, 'status/todo'),
-            issue(2, 'status/todo', 'for/builder-chat-1'),
+            issue(2, 'status/todo', 'prefer/builder-chat-1'),
             issue(3, 'status/in-progress', 'agent/builder-chat-2'),
             issue(4, 'status/review'),
             issue(5, 'status/blocked', 'agent/builder-chat-3'),
@@ -37,7 +37,7 @@ class BoardTests(unittest.TestCase):
             issue(7),  # tracking issue without a status: not on the board
         ], [], NOW)
         self.assertEqual(len(rows(text, 'Open')), 1)
-        self.assertIn('builder-chat-1', rows(text, 'Reserved')[0])
+        self.assertIn('builder-chat-1', rows(text, 'Preferred')[0])
         self.assertIn('builder-chat-2', rows(text, 'In progress')[0])
         self.assertEqual(len(rows(text, 'Waiting')), 1)
         self.assertEqual(len(rows(text, 'Blocked')), 1)
@@ -54,12 +54,18 @@ class BoardTests(unittest.TestCase):
         self.assertIn('**STALE**', line)
 
     def test_idle_reservation_opens_to_all(self):
-        text = board.render([issue(2, 'status/todo', 'for/builder-claude-1', updated=OLD)], [], NOW)
-        self.assertIn('**open to all**', rows(text, 'Reserved')[0])
+        text = board.render([issue(2, 'status/todo', 'prefer/builder-claude-1', updated=OLD)], [], NOW)
+        self.assertIn('**open to all**', rows(text, 'Preferred')[0])
+
+    def test_preference_opens_after_six_hours_not_before(self):
+        five = board.render([issue(2, 'status/todo', 'prefer/builder-chat-1', updated='2026-11-12T07:00:00Z')], [], NOW)
+        seven = board.render([issue(2, 'status/todo', 'prefer/builder-chat-1', updated='2026-11-12T05:00:00Z')], [], NOW)
+        self.assertNotIn('open to all', rows(five, 'Preferred')[0])
+        self.assertIn('open to all', rows(seven, 'Preferred')[0])
 
     def test_lead_or_owner_reservation_never_opens(self):
-        text = board.render([issue(2, 'status/todo', 'for/owner', updated=OLD)], [], NOW)
-        self.assertNotIn('open to all', rows(text, 'Reserved')[0])
+        text = board.render([issue(2, 'status/todo', 'prefer/owner', updated=OLD)], [], NOW)
+        self.assertNotIn('open to all', rows(text, 'Preferred')[0])
 
     def test_recent_pr_push_keeps_claim_fresh(self):
         text = board.render([issue(3, 'status/in-progress', updated=OLD)],

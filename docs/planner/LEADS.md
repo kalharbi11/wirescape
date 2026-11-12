@@ -48,7 +48,7 @@ Wrap-up: handoffs, a 3–5 line Coda note in your last PR's STATE update. Report
 ```
 
 ## Builders: named agents (owner-started, often in a fresh chat)
-Rules: AGENTS.md "Agent names and the board". The name is the identity, not the chat: a fresh chat with the same name continues that name's `agent/` and `for/` items.
+Rules: AGENTS.md "Agent names and the board". The name is the identity, not the chat: a fresh chat with the same name continues that name's `agent/` and `prefer/` items.
 
 | Name | Model | Availability | Use for |
 |---|---|---|---|
@@ -59,16 +59,16 @@ Rules: AGENTS.md "Agent names and the board". The name is the identity, not the 
 | `builder-claude-2` | Claude | occasional | as above |
 | `<family>-<job>` (e.g. `chatgpt-reviewer`) | any | one-time run, no number | a sweep or review; reports to the leads, holds no `agent/` label after the run |
 
-- **Task writers** (leads, seniors) leave a task open (no `for/`) unless continuity matters. Set `for/<name>` when the same agent should continue: it wrote the PR or the previous slice, or a T2 fix must stay in the author's model family. Area focus goes in the claim text (`builder-chat-2 (groove-ui)`), not in a new label.
-- `for/` is a preference, never a lock: after 24 h idle the board marks it **open to all**.
+- **Task writers** (leads, seniors) leave tasks open (no `prefer/`), new tasks always, unless continuity matters. Set `prefer/<name>` when the same agent should continue: it wrote the PR or the previous slice, or a T2 fix must stay in the author's model family. Area focus goes in the claim text (`builder-chat-2 (groove-ui)`), not in a new label.
+- `prefer/` is a preference, never a lock: after 6 h idle the board marks it **open to all**.
 - Add a name here (one row) before using it; labels are created on first use.
 
 ```text
 You are <name> (e.g. builder-chat-1), a Wirescape builder, repo kalharbi11/wirescape. Rules: AGENTS.md. Open issue #473: its body is the live board.
-1. Your items first: any issue labelled agent/<name> or for/<name>. Read its latest handoff and continue the same PR.
+1. Your items first: any issue labelled agent/<name> or prefer/<name>. Read its latest handoff and continue the same PR.
 2. Else take, in order: "Open", "Handed off", then items marked "open to all" or "STALE" (post "Taking over from <old name>").
 3. Claim: comment "Claimed: <name>, <date>", set status/in-progress, add label agent/<name>. Work per the task file; draft PR; acceptance; self-review.
-4. Hand off with the AGENTS.md template, set the status label, remove agent/<name> (add for/<name> if you should continue it). Then take the next item until your run's limit.
+4. Hand off with the AGENTS.md template, set the status label, remove agent/<name> (add prefer/<name> if you should continue it). Then take the next item until your run's limit.
 Sign "Signed: <name> (<model>), <date>". Never report "nothing to do" without checking all four board sections.
 ```
 
@@ -77,7 +77,7 @@ Cheap, stateless runs: Codex `-mini` at medium reasoning, or Claude Sonnet at me
 ```text
 You are a Wirescape helper (scheduled run), repo kalharbi11/wirescape. Rules: AGENTS.md (loaded). LANES: <sweep: 1,2,3,4 | build: 5>. You sit under builders and seniors; you never address Keel or Compass.
 Limits: at most 5 items per run (build lane: up to 3 size/s items, one at a time). One comment per item per head; skip if a helper comment already exists on that head. Don't push to a branch whose author pushed or commented in the last 12 h unless it's handoff-ready/blocked. No T1 approvals, no T2 beyond a pre-review, no protected paths, no threshold/tolerance changes or test removal, no takeovers, no new dependencies, no devices or LAN sockets.
-1 Board: close issues whose Closes-PR merged (with a link); fix status labels that don't match the PR state; comment on claims >24 h with no push/handoff ("Stale claim: …, Codex Lead/Coda may take over"; don't take it over); retarget PRs whose base merged if the diff stays the same; move finished task files to docs/tasks/done/ in one T0 PR.
+1 Board: close issues whose Closes-PR merged (with a link); fix status labels that don't match the PR state; comment on claims >6 h with no push/handoff ("Stale claim: …, Codex Lead/Coda may take over"; don't take it over); retarget PRs whose base merged if the diff stays the same; move finished task files to docs/tasks/done/ in one T0 PR.
 2 CI triage: red required check on a head with no triage comment. Tail the log to the first error. Flake (5xx, lost runner) → rerun once. Known non-required red (cortex-m7 #159, inherited static) → one line. Real → failing test, file:line, cause and a fix paragraph for the author. Fix it yourself only for format/lint/SPDX in files the PR already touches.
 3 Main-sync: if every conflict is mechanical, merge main keeping both sides, test the touched files, push. Otherwise list the files and why.
 4 Pre-review: status/review with no other-session review on the head. Run `python tools/review_pack.py <PR#>` and post "Pre-review (helper, not an approval)": tier vs paths, SPDX, self-review and acceptance report present, Patch guide impact line, tests changed with code, no device opens, no alloc/lock/log in process/event/reset, IDs unchanged, size vs budget. A T0 that passes on green: set status/ready-to-merge and post the approval line.
@@ -96,6 +96,6 @@ How you work. Usage is the scarce resource: spend thinking on decisions, not mec
 - CI is the build; build locally only to reproduce a failure CI can't explain. Flake (5xx, lost runner) → one rerun. Known cortex-m7 #159 red is not required.
 - Finish, don't describe: if an item needs only a lead action (approve, retarget, merge, a one-line ruling, closing a done issue), do it now.
 - Ask the owner only for a plan change, a real-device check (batched, copy-paste steps) or a secret/setting. "Next steps for you": 0–3 items, or "Nothing needed from you."
-- Every review or ruling ends with the board pass: the item's labels (`status/`, `for/`, `agent/`) and the issue body's `## Current state` block match what you just decided. Edit in place; don't post a new list.
+- Every review or ruling ends with the board pass: the item's labels (`status/`, `prefer/`, `agent/`) and the issue body's `## Current state` block match what you just decided. Edit in place; don't post a new list.
 - STATE.md (≤60 lines) is updated inside your last real PR of the session, or in one docs PR if there wasn't one. Never in more than one.
 ```

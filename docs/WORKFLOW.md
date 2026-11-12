@@ -12,7 +12,7 @@
 - **Devices:** no agent opens an audio/MIDI device or a LAN socket. Localhost is fine. Real devices only behind `--confirm-*`, run by the owner.
 
 ## 2. Picking up work
-1. Open the board (issue #473's body; its auto section is rebuilt from labels by `.github/workflows/board.yml` + `tools/board.py`). Take your own `agent/<name>`/`for/<name>` items first, then "Open", "Handed off", then items marked **open to all** or **STALE** (24 h with no push or handoff; 6 h for Codex Lead or Coda on critical-path work).
+1. Open the board (issue #473's body; its auto section is rebuilt from labels by `.github/workflows/board.yml` + `tools/board.py`). Take your own `agent/<name>`/`prefer/<name>` items first, then "Open", "Handed off", then items marked **open to all** or **STALE** (6 h with no push or handoff).
 2. Comment `Claimed: <name>, <date>`, then set `status/in-progress` and `agent/<name>`. Names: `AGENTS.md` "Agent names and the board".
 3. Read the issue's latest handoff and the task file; then code.
 4. If you continue someone else's branch, say so in the claim (`Continuing from <sha7>`). Never force-push over their commits.
