@@ -478,7 +478,8 @@ export class ModuleCard {
       route.state === 'disabled' ? 'All rows off · not listening' :
       route.state === 'port-busy' ? `Port busy · ${route.port}${active}` :
       route.state === 'lan-not-confirmed' ? `LAN not confirmed · 127.0.0.1:${route.port}${active}` :
-      `Listening on ${route.bind}:${route.port}${active}`;
+      route.state === 'listening' ? `Listening on ${route.bind}:${route.port}${active}` :
+      `OSC: ${String(route.state)}`;
     this.oscCount.textContent = `Received: ${route?.received ?? 0}`;
     if (route && this.oscLastReceived !== undefined && route.received > this.oscLastReceived && !motionOff()) {
       this.oscDot.animate([{ opacity: 1, transform: 'scale(1.6)' },

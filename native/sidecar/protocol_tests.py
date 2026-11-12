@@ -577,11 +577,30 @@ with tempfile.TemporaryDirectory() as osc_dir:
         rows_off['modules'][1]['config']['rows'][1]['enabled'] = True
         cleared.call('loadGraph', patch=rows_off)
         assert cleared_route('listening')['enabled'] is True
+
+        def osc_float(address):
+            data = address.encode() + b'\0'
+            data += b'\0' * ((-len(data)) % 4)
+            return data + b',f\0\0' + struct.pack('>f', 0.5)
+
+        def received_at_least(count):
+            until = time.monotonic() + 8
+            while True:
+                seen = cleared_route('listening')['routes'][0]['received']
+                if seen >= count:
+                    return seen
+                assert time.monotonic() < until, 'Partially enabled OSC module stopped receiving'
+
+        # Ingress filter: row1 (disabled) is dropped on the worker before any engine
+        # event or Monitor capture; row2 (enabled) and unmatched addresses still pass.
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
-            sender.sendto(packet, ('127.0.0.1', port))
-        until = time.monotonic() + 8
-        while cleared_route('listening')['routes'][0]['received'] < 1:
-            assert time.monotonic() < until, 'Partially enabled OSC module stopped receiving'
+            sender.sendto(osc_float('/pico1/knob/1'), ('127.0.0.1', port))
+            sender.sendto(osc_float('/pico1/knob/2'), ('127.0.0.1', port))
+            assert received_at_least(1) == 1
+            time.sleep(0.3)
+            assert received_at_least(1) == 1, 'disabled-only OSC address reached the engine'
+            sender.sendto(osc_float('/not/a/row'), ('127.0.0.1', port))
+            assert received_at_least(2) == 2
         cleared.close()
 
 # Real, short, device-free end-to-end benchmark ingestion on the production sidecar.

@@ -199,3 +199,25 @@ test('row toggles round-trip, Clear disables all rows and old patches open with 
   saved = await state(page);
   expect((saved.modules[0].config.rows as Record<string, unknown>[]).some(r => 'enabled' in r)).toBe(false);
 });
+
+test('unknown row keys on a disabled row survive unrelated edits and drop only on editor save (#612)', async ({ page }) => {
+  await page.evaluate(p => window.__wirescapeTest.load(p), patch({
+    rows: [{ pattern: '/a' }, { pattern: '/b', enabled: false, futureRowKey: 'x' }],
+  }));
+  await settle(page);
+  await open(page);
+  await expect(page.getByTestId('osc-unknown-warning')).toContainText('engine will refuse: rows[1].futureRowKey');
+  await expect(page.getByTestId('osc-row2-enabled')).not.toBeChecked();
+  await page.getByTestId('osc-editor').getByRole('button', { name: 'Cancel' }).click();
+  // An unrelated document edit keeps the row's unknown key and its enabled flag.
+  await page.evaluate(() => window.__wirescapeTest.addModule('essentials.vco'));
+  await settle(page);
+  let row = (await state(page)).modules[0].config.rows[1];
+  expect(row).toMatchObject({ pattern: '/b', enabled: false, futureRowKey: 'x' });
+  await open(page);
+  await page.getByTestId('osc-editor-save').click();
+  await expect(page.getByTestId('osc-editor')).toBeHidden();
+  row = (await state(page)).modules[0].config.rows[1];
+  expect(row).toMatchObject({ pattern: '/b', enabled: false });
+  expect(row.futureRowKey).toBeUndefined();
+});

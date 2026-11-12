@@ -156,12 +156,18 @@ struct OscIn {
                     }
             },
             [&](const ws2_event &e) {
+                bool on = false, off = false; // #612: matched an enabled / a disabled row
                 bool valid = message(e, [&](const Message &m) {
                     ++statistics->received;
                     for (uint32_t r = 0; r < 8; ++r) {
                         auto &row = rows[r];
                         const auto &cfg = config.rows[r];
-                        if (!row.active || !row.pattern.match(m.address)) continue;
+                        if (!row.pattern.match(m.address)) continue;
+                        if (!row.active) {
+                            off = true;
+                            continue;
+                        }
+                        on = true;
                         const int c = slot(row, m.address, false);
                         if (c < 0) continue;
                         auto &v = row.voices[c];
@@ -190,7 +196,9 @@ struct OscIn {
                 });
                 if (e.type == WS2_MESSAGE && e.message_kind == WS2_MSG_OSC) {
                     if (!valid) ++statistics->malformed;
-                    else if (!b.emit(8, e)) ++statistics->dropped;
+                    else if (off && !on) {
+                        // Only disabled rows match: no row change and no `messages` event.
+                    } else if (!b.emit(8, e)) ++statistics->dropped;
                 }
                 ++sequence;
             });

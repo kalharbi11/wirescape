@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 namespace wirescape::osc {
 struct Route {
@@ -15,6 +16,9 @@ struct Route {
 struct Sink {
     void *context = nullptr;
     int (*deliver)(void *, uint32_t node, const ws2_event &, uint64_t timestamp_ns) noexcept = nullptr;
+    // Optional worker-thread filter (#612): false skips one decoded message for
+    // one route before delivery, without counting it as received or dropped.
+    bool (*accept)(void *, uint32_t node, std::string_view address) noexcept = nullptr;
 };
 struct RouteState {
     uint32_t node = 0;

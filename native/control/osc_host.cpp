@@ -10,6 +10,22 @@ int Host::deliver(void *context, uint32_t node, const ws2_event &event, uint64_t
     return graph.enqueue(2, node, WS2_DIRECT_PORT, event, timestamp, engine2::Timing::Timestamped,
                          self.engine_generation_);
 }
+// A message is dropped only if it matches a disabled row and no enabled row;
+// unmatched traffic still reaches `messages` so users can discover addresses.
+bool Host::accept(void *context, uint32_t node, std::string_view address) noexcept {
+    const auto &self = *static_cast<Host *>(context);
+    for (const auto &filter : self.filters_) {
+        if (filter->node != node) continue;
+        bool disabled = false;
+        for (uint32_t r = 0; r < 8; ++r)
+            if (filter->patterns[r].match(address)) {
+                if (filter->enabled[r]) return true;
+                disabled = true;
+            }
+        return !disabled;
+    }
+    return true;
+}
 void Host::start(AppEngine *engine, const std::string &document) {
     stop();
     auto patch = nlohmann::json::parse(document);
@@ -24,9 +40,27 @@ void Host::start(AppEngine *engine, const std::string &document) {
         // Absent `enabled` means enabled; only a module whose eight rows are all
         // explicitly disabled ("Clear") is left unbound and reported as disabled.
         uint32_t disabled = 0;
+        auto filter = std::make_unique<Filter>();
+        filter->node = node;
+        filter->enabled.fill(true);
+        std::array<std::string, 8> patterns;
+        for (uint32_t i = 0; i < 8; ++i) patterns[i] = "/pico1/knob/" + std::to_string(i + 1);
         if (config.contains("rows") && config.at("rows").is_array())
-            for (const auto &row : config.at("rows"))
-                if (row.is_object() && row.contains("enabled") && row.at("enabled") == false) ++disabled;
+            for (size_t i = 0; i < config.at("rows").size() && i < 8; ++i) {
+                const auto &row = config.at("rows").at(i);
+                if (!row.is_object()) continue;
+                if (row.contains("pattern") && row.at("pattern").is_string())
+                    patterns[i] = row.at("pattern").get<std::string>();
+                if (row.contains("enabled") && row.at("enabled") == false) {
+                    filter->enabled[i] = false;
+                    ++disabled;
+                }
+            }
+        if (disabled > 0 && disabled < 8) {
+            for (uint32_t i = 0; i < 8; ++i)
+                if (!filter->patterns[i].compile(patterns[i])) throw std::runtime_error("Invalid OSC row pattern");
+            filters_.push_back(std::move(filter));
+        }
         if (disabled >= 8) {
             RouteState state;
             state.node = node;
@@ -38,7 +72,7 @@ void Host::start(AppEngine *engine, const std::string &document) {
     }
     if (routes.size() + disabled_.size() > 32) throw std::runtime_error("Too many OSC routes");
     if (routes.empty()) return;
-    service_ = std::make_unique<Service>(Sink{this, deliver}, authorized_);
+    service_ = std::make_unique<Service>(Sink{this, deliver, accept}, authorized_);
     for (const auto &route : routes)
         if (!service_->add(route)) throw std::runtime_error("Cannot stage OSC route");
     engine_ = engine;
@@ -52,6 +86,7 @@ void Host::stop() noexcept {
         service_.reset();
     }
     disabled_.clear();
+    filters_.clear();
     engine_ = nullptr;
     engine_generation_ = 0;
 }

@@ -155,12 +155,15 @@ int main() {
         off.rows[2].kind = 2;
         off.rows[2].enabled = 0;
         auto knob1 = packet("/pico1/knob/1", .5f), knob2 = packet("/pico1/knob/2", .5f);
+        auto unmatched = packet("/somewhere/else", 1);
         Rig disabled(off);
-        disabled.run({message(knob1), message(knob2), message(fire)});
+        disabled.run({message(knob1), message(knob2), message(fire), message(unmatched)});
         REQUIRE(disabled.data->values[0][0][0] == -.25f && disabled.data->values[0][0][31] == -.25f);
         REQUIRE(disabled.data->values[1][0][0] == .5f);
         REQUIRE(disabled.data->values[2][0][0] == 0 && disabled.data->values[2][0][31] == 0);
-        REQUIRE(disabled.emitted == 3 && offStats.received == 3 && offStats.dropped == 0);
+        // Disabled-only addresses (knob1, /fire) emit nothing on `messages`; the enabled
+        // row and unmatched traffic (address discovery via Monitor) still pass.
+        REQUIRE(disabled.emitted == 2 && offStats.received == 4 && offStats.dropped == 0);
         osc::Configuration bad;
         bad.rows[3].enabled = 2;
         REQUIRE(!osc::configuration(reinterpret_cast<const uint8_t *>(&bad), sizeof(bad), bad));

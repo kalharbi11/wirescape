@@ -510,7 +510,10 @@ argument index, smoothing, timeout and hold/zero behavior. The **Pico knobs**
 and **TouchOSC faders** presets fill those rows; **Reset to Pico defaults**
 restores the original eight Pico listeners. Each row has a **Listen** toggle
 (#612). A row that is off ignores its address: a CV row holds its output min and a
-gate/trigger row stays low. **Clear (all rows off)** turns every row off and keeps
+gate/trigger row stays low. A message for an off row's address is dropped before
+it reaches the patch, so it doesn't appear on `messages` or in a Monitor. Addresses
+that match no row still pass, so you can keep using a Monitor to discover them.
+**Clear (all rows off)** turns every row off and keeps
 the addresses, so you can switch rows back on later. A module with all rows off
 binds no UDP port, and its card reads `All rows off · not listening`. Otherwise
 the card shows `n of 8 rows active`. Patches saved before #612 open with every
