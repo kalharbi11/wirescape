@@ -277,16 +277,20 @@ Session::Session(Options options)
     auto observed = std::make_unique<ObservedMidi>(options_.null_audio, options_.midi);
     observer_ = observed.get();
     observer_->endpoints();
+    monitor_ = std::make_unique<monitor::Capture>();
     midi_ = std::make_unique<midi::Host>(options_.midi || options_.null_audio, std::move(observed));
+    midi_->observe(monitor_.get());
     // The device-off null sink must not bind LAN, even when its stub launcher
     // exercises --confirm-lan forwarding. Real consent still needs both flags.
     osc_ = std::make_unique<osc::Host>(options_.lan && !options_.null_audio);
+    osc_->observe(monitor_.get());
     if ((options_.midi || options_.null_audio) && preferences_.contains("devices")) midi_->restore(preferences_.dump());
     patch_ = {{"format", "wirescape.native.patch"},
               {"version", 2},
               {"modules", Json::array({{{"id", 1}, {"module", "essentials.output"}}})},
               {"connections", Json::array()}};
     patch_ = execution(patch_);
+    monitor_->configure(patch_);
     std::string error;
     engine_.reset(document::load_runtime_patch(patch_.dump(), catalogue_.get(), config_, error));
     need(bool(engine_), "unavailable", "Cannot create startup graph");
@@ -608,6 +612,8 @@ void Session::commit(Json patch, bool new_namespace) {
             if (midi_->replan(candidate.get(), patch_bytes, timeout_ns, error)) {
                 patch_.swap(patch);
                 used_ids_.swap(ids);
+                // Rebuild direct-only routing and clear old ring on commit.
+                monitor_->configure(patch_);
                 telemetry_.swap(next_telemetry); // Engine2 counts restart at every replan.
                 ++generation_;
                 std::cerr << "commit path=live gen=" << generation_ << '\n';
@@ -727,6 +733,8 @@ void Session::commit(Json patch, bool new_namespace) {
     ++generation_;
     keyboard_.fill(false);
     used_ids_.swap(ids);
+    // No old-generation messages survive a successful graph commit.
+    monitor_->configure(patch_);
     telemetry_.swap(next_telemetry); // D5 also resets all last-seen event counts.
     std::cerr << "commit path=d5 gen=" << generation_ << '\n';
 }
@@ -1098,7 +1106,8 @@ Json Session::midi_status() const {
     return result;
 }
 Json Session::hello() const {
-    Json capabilities = Json::array({"midiLearn", "telemetry.playhead", "setSampleRate", "setBufferFrames", "osc"});
+    Json capabilities = Json::array(
+        {"midiLearn", "telemetry.playhead", "telemetry.monitor", "setSampleRate", "setBufferFrames", "osc"});
     return {{"v", 0},
             {"session", token_},
             {"type", "hello"},
@@ -1123,10 +1132,11 @@ Json Session::status() const {
     bool any_bound = false, any_lan = false, port_busy = false;
     for (const auto &route : osc_->states()) {
         if (osc_routes.empty()) osc_status["port"] = route.port;
-        const bool listening = std::string(route.state) != "port-busy";
+        const std::string state = route.state;
+        const bool listening = state == "listening" || state == "lan-not-confirmed";
         any_bound |= listening;
         any_lan |= listening && route.lan_bound;
-        port_busy |= !listening;
+        port_busy |= state == "port-busy"; // a disabled route (#612) is not an error
         Json entry = Json::object();
         entry["module"] = std::to_string(route.node);
         entry["port"] = route.port;
@@ -1183,6 +1193,8 @@ Json Session::telemetry() {
     telemetry["scope"] = Json::object();
     auto snapshot = telemetry_.sample(active_);
     telemetry.update(snapshot);
+    auto monitors = monitor_->snapshot(); // ingress-owned rings; never read in the render callback
+    if (!monitors.empty()) telemetry["monitor"] = std::move(monitors);
     auto value = base();
     value["type"] = "telemetry";
     value["telemetry"] = telemetry;

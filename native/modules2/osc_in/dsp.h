@@ -37,7 +37,7 @@ struct OscIn {
         Pattern pattern;
         std::array<Voice, 16> voices{};
         uint32_t count = 1, triggers = 0;
-        bool poly = false;
+        bool poly = false, active = true; // active=false: disabled in config, matches nothing
         double coefficient = 1;
     };
     Configuration config;
@@ -55,16 +55,21 @@ struct OscIn {
             if (!rows[i].pattern.compile(config.rows[i].pattern)) return false;
             const char *component = std::strrchr(config.rows[i].pattern, '/');
             rows[i].poly = component && std::strpbrk(component, "*?[{");
+            rows[i].active = config.rows[i].enabled != 0;
             rows[i].coefficient =
                 config.rows[i].smoothing_ms > 0 ? 1. - std::exp(-1000. / (config.rows[i].smoothing_ms * rate)) : 1;
         }
         return true;
     }
     void reset() {
-        for (auto &r : rows) {
+        for (uint32_t i = 0; i < 8; ++i) {
+            auto &r = rows[i];
             r.voices = {};
-            r.count = r.poly ? 0 : 1;
+            r.count = r.poly && r.active ? 0 : 1;
             r.triggers = 0;
+            // A disabled CV row holds output_min; disabled gate/trigger rows stay low.
+            if (!r.active && config.rows[i].kind == 0)
+                r.voices[0].current = r.voices[0].target = config.rows[i].output_min;
         }
     }
     static int32_t index(std::string_view address) {
@@ -102,7 +107,8 @@ struct OscIn {
         for (const auto &e : b.events())
             message(e, [&](const Message &m) {
                 for (auto &row : rows)
-                    if (row.pattern.match(m.address) && slot(row, m.address, true) < 0) ++statistics->dropped;
+                    if (row.active && row.pattern.match(m.address) && slot(row, m.address, true) < 0)
+                        ++statistics->dropped;
             });
         for (auto &row : rows) {
             row.triggers = 0;
@@ -112,7 +118,7 @@ struct OscIn {
         for (const auto &e : b.events()) {
             message(e, [&](const Message &m) {
                 for (uint32_t r = 0; r < 8; ++r)
-                    if (config.rows[r].kind != 2 && rows[r].pattern.match(m.address)) {
+                    if (rows[r].active && config.rows[r].kind != 2 && rows[r].pattern.match(m.address)) {
                         const int c = slot(rows[r], m.address, false);
                         if (c >= 0) rows[r].voices[c].last_event = sequence;
                     }
@@ -150,12 +156,18 @@ struct OscIn {
                     }
             },
             [&](const ws2_event &e) {
+                bool on = false, off = false; // #612: matched an enabled / a disabled row
                 bool valid = message(e, [&](const Message &m) {
                     ++statistics->received;
                     for (uint32_t r = 0; r < 8; ++r) {
                         auto &row = rows[r];
                         const auto &cfg = config.rows[r];
                         if (!row.pattern.match(m.address)) continue;
+                        if (!row.active) {
+                            off = true;
+                            continue;
+                        }
+                        on = true;
                         const int c = slot(row, m.address, false);
                         if (c < 0) continue;
                         auto &v = row.voices[c];
@@ -184,7 +196,9 @@ struct OscIn {
                 });
                 if (e.type == WS2_MESSAGE && e.message_kind == WS2_MSG_OSC) {
                     if (!valid) ++statistics->malformed;
-                    else if (!b.emit(8, e)) ++statistics->dropped;
+                    else if (off && !on) {
+                        // Only disabled rows match: no row change and no `messages` event.
+                    } else if (!b.emit(8, e)) ++statistics->dropped;
                 }
                 ++sequence;
             });

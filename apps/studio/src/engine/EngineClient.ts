@@ -75,7 +75,7 @@ export interface OscStatus {
   lan?: boolean;
   last_error?: string;
   routes?: { module: string; port: number; bind: string;
-    state: 'listening' | 'lan-not-confirmed' | 'port-busy'; received: number; dropped: number }[];
+    state: 'listening' | 'lan-not-confirmed' | 'port-busy' | 'disabled'; received: number; dropped: number }[];
   /** Older fake OSC controls are unrelated to the per-module OSC host. */
   allowNetwork?: boolean;
   recent?: { time: number; address: string; args: (number | string)[] }[];
@@ -88,6 +88,14 @@ export interface GrooveTrackObservation {
   loop: number;
   playing: boolean;
   fired: boolean;
+}
+
+export interface MonitorEntry {
+  t: number;
+  kind: 'osc' | 'midi';
+  address?: string;
+  note?: number;
+  args: number[];
 }
 
 export interface Telemetry {
@@ -127,6 +135,10 @@ export interface Telemetry {
    * and the info-box sparklines. An engine that omits it still conforms.
    */
   outputs?: Record<string, number>;
+  /** Latest <=32 control-ingress entries per directly observed Monitor (oldest first). */
+  monitor?: Record<number, MonitorEntry[]>;
+  /** Renderer-only capability marker; not a wire protocol field. */
+  monitorAvailable?: boolean;
   /** MIDI note numbers currently held. */
   heldNotes: number[];
 }

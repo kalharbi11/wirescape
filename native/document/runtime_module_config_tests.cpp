@@ -29,6 +29,25 @@ static void instance_config_union() {
     CHECK(groove::decode(legacy.data(), static_cast<uint32_t>(legacy.size()), config));
     CHECK(config.instance_seed == 0 && config.authored_version == 1 && config.tracks[0].length == 32);
 }
+static void osc_row_enabled() {
+    // #612: absent `enabled` means enabled; false disables only that row.
+    wirescape::osc::Configuration config;
+    auto bytes = runtime_module_config("osc.in", nlohmann::json::parse(R"({"rows":[{"pattern":"/a"}]})"));
+    CHECK(wirescape::osc::configuration(bytes.data(), static_cast<uint32_t>(bytes.size()), config));
+    for (const auto &row : config.rows) CHECK(row.enabled == 1);
+    bytes = runtime_module_config(
+        "osc.in", nlohmann::json::parse(R"({"rows":[{"pattern":"/a","enabled":false},{"enabled":true}]})"));
+    CHECK(wirescape::osc::configuration(bytes.data(), static_cast<uint32_t>(bytes.size()), config));
+    CHECK(config.rows[0].enabled == 0 && std::string(config.rows[0].pattern) == "/a");
+    CHECK(config.rows[1].enabled == 1 && config.rows[2].enabled == 1);
+    bool rejected = false;
+    try {
+        runtime_module_config("osc.in", nlohmann::json::parse(R"({"rows":[{"enabled":0}]})"));
+    } catch (const std::exception &) {
+        rejected = true;
+    }
+    CHECK(rejected);
+}
 static void osc_future_keys() {
     using Json = nlohmann::json;
     const Json known = Json::parse(R"({"port":9011,"rows":[{"pattern":"/voice","kind":"gate","argument":2}]})");
@@ -203,6 +222,7 @@ int main() try {
      refused_groove(doc);
  }
  instance_config_union();
+ osc_row_enabled();
  osc_future_keys();
  std::puts("PASS bounded typed MIDI and Groove configurations and invalid row rejection");
 } catch(const std::exception& error) {

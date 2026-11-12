@@ -62,5 +62,5 @@ three CHAOS Lab patches predate the internal LFO shape expansion; the two
 0=Sine (legacy default), 1=Triangle, 2=Sample & hold, 3=Smooth random.
 The pad's keyboard gate reaches its ADSR and the stereo VCAs, not CHAOS;
 the autoplay FX uses a clocked function envelope for its stereo VCAs.
-See `docs/tasks/CHAOS_ATMOSPHERES_530.md` and
-`docs/tasks/CHAOS_LFO_PATCHES_555.md` for task acceptance.
+See `docs/tasks/done/CHAOS_ATMOSPHERES_530.md` and
+`docs/tasks/done/CHAOS_LFO_PATCHES_555.md` for task acceptance.
