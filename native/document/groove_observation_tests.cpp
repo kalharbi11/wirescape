@@ -435,8 +435,7 @@ static void unpatched_input_equivalence() {
         disconnected.input_values = {frame % 2 ? 1.f : -1.f, 1.f, -1.f};
         original.render_sample();
         disconnected.render_sample();
-        CHECK(std::memcmp(original.values.data(), disconnected.values.data(),
-                          sizeof(original.values)) == 0);
+        CHECK(std::memcmp(original.values.data(), disconnected.values.data(), sizeof(original.values)) == 0);
         CHECK(original.event_count == disconnected.event_count);
         for (uint32_t i = 0; i < original.event_count; ++i) {
             const auto &a = original.log[i];
