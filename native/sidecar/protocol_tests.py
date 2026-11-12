@@ -558,6 +558,18 @@ with tempfile.TemporaryDirectory() as osc_dir:
             port=port, rows=[dict(pattern='/pico1/knob/%d' % (i + 1), enabled=False) for i in range(8)])))
         rows_off['modules'].append(dict(id=10, module='monitor'))
         rows_off['connections'] = [edge('event', 9, 'messages', 10, 'events')]
+        # End-to-end CV check: an enabled OSC row controls a running VCA and
+        # thus moves a real null-sink output meter, not only the route counter.
+        rows_off['modules'] += [
+            dict(id=11, module='essentials.vco', parameters=dict(frequency=220)),
+            dict(id=12, module='essentials.vca', parameters=dict(gain=1)),
+        ]
+        rows_off['connections'] += [
+            edge('signal', 11, 'audio', 12, 'audio'),
+            edge('signal', 9, 'row2', 12, 'gain_cv'),
+            edge('signal', 12, 'audio', 7, 'audio'),
+        ]
+        rows_off['outputs'] = [dict(module=7, port='audio', bus_channel=0)]
         cleared = Engine(Path(osc_dir) / 'cleared.json')
         assert 'telemetry.monitor' in cleared.hello['capabilities']
         cleared.call('loadGraph', patch=rows_off)
@@ -576,6 +588,8 @@ with tempfile.TemporaryDirectory() as osc_dir:
         osc = cleared_route('disabled')
         assert osc['enabled'] is False and 'last_error' not in osc
         assert osc['routes'][0]['module'] == '9' and osc['routes'][0]['port'] == port
+        idle = telemetry_when(cleared, cleared.last_gen, lambda t: '7' in t['meters'])
+        assert idle['meters']['7'][0] == 0, 'all disabled OSC rows must hold VCA at zero'
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as free:
             free.bind(('127.0.0.1', port))  # a cleared module holds no listener
         rows_off['modules'][1]['config']['rows'][1]['enabled'] = True
@@ -601,6 +615,9 @@ with tempfile.TemporaryDirectory() as osc_dir:
             sender.sendto(osc_float('/pico1/knob/1'), ('127.0.0.1', port))
             sender.sendto(osc_float('/pico1/knob/2'), ('127.0.0.1', port))
             assert received_at_least(1) == 1
+            active = telemetry_when(cleared, cleared.last_gen,
+                                    lambda t: t['meters'].get('7', [0])[0] > 0.05)
+            assert active['meters']['7'][0] > 0.05, 'enabled OSC row must drive native VCA output'
             time.sleep(0.3)
             assert received_at_least(1) == 1, 'disabled-only OSC address reached the engine'
             sender.sendto(osc_float('/not/a/row'), ('127.0.0.1', port))
