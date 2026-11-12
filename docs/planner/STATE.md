@@ -11,7 +11,8 @@ Only completed exact-head acceptance/checks count; queued or skipped is not proo
   claude-builder1 take #659/#648/#631 approvals the moment each head is green.
 
 ## Merged this run
-- #670 (14d0db1): Windows-portable foundation tests; unblocks docs-only PRs.
+- #670 (14d0db1): Windows-portable foundation tests. Its 1e-6 s soak runs
+  still looped on Windows' 15.6 ms clock (1 vs 3 cycles); #677 fixes the test.
 
 ## OSC first
 - #657/#659 (gpt-builder1): Coda pushed format-only 57d84fd (token-identical,
