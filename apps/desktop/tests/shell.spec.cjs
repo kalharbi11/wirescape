@@ -409,9 +409,9 @@ test('atomic rename failure preserves disk contents and the Studio dirty marker 
     await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
     await page.evaluate(() => window.__wirescapeTest.doc.addModule('essentials.noise', {}, 30, 40));
     await expect(page.getByTestId('dirty-dot')).toHaveClass(/on/);
-    await app.evaluate(async ({ dialog }, selected) => {
+    await app.evaluate(({ dialog }, selected) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: selected });
-      const fsm = await import('node:fs');
+      const fsm = process.getBuiltinModule('node:fs');
       globalThis.__wsOriginalRename = fsm.promises.rename;
       fsm.promises.rename = async () => { throw new Error('injected commit refusal'); };
     }, filename);
@@ -420,8 +420,8 @@ test('atomic rename failure preserves disk contents and the Studio dirty marker 
     await expect(page.getByTestId('dirty-dot')).toHaveClass(/on/);
     expect(fs.readFileSync(filename, 'utf8')).toBe(before);
     expect(fs.readdirSync(dir).filter(name => name.endsWith('.tmp'))).toEqual([]);
-    await app.evaluate(async () => {
-      const fsm = await import('node:fs');
+    await app.evaluate(() => {
+      const fsm = process.getBuiltinModule('node:fs');
       fsm.promises.rename = globalThis.__wsOriginalRename;
     });
     await page.getByTestId('save-patch').click();
