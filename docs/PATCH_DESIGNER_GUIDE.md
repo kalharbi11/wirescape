@@ -492,6 +492,9 @@ affected OSC inputs remain inactive and `status.osc.routes` reports
 `port-busy`. An unconfirmed LAN toggle still works on localhost and reports
 `lan-not-confirmed`. No OSC Out, browser/WASM networking or native OSC
 listener exists in builds lacking B.
+The browser/WASM AudioWorklet has no UDP ingress: its live catalogue excludes
+`osc.in`, and a browser patch containing it is refused rather than silently
+claiming to listen. Use the native Electron sidecar for OSC input.
 
 **Example wiring (native Electron after B):** add an `osc.in` with
 `config: {"port":9000,"lan":false}`, patch `osc.in.row1` to the
