@@ -318,6 +318,9 @@ def main(argv=None):
             print(f'hosted Windows wake-only attempt 1 failed: {first}', file=sys.stderr)
             result = run(binary.resolve(), args.seconds, args.seed)  # one retry; failure remains fatal
             print(f'hosted Windows wake-only attempt 2 passed: {result["performance_evidence"]}', file=sys.stderr)
+            # Additive CLI evidence survives capture_output=True at the CI caller.
+            # Only a fully clean second run reaches this line.
+            result['wake_retry'] = {'attempt1': str(first), 'attempt2': 'passed'}
         print(json.dumps(result, sort_keys=True))
         return 0
     except (OSError, ValueError, SoakFailure) as exc:

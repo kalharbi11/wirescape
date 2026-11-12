@@ -2,6 +2,7 @@
 """Process conformance: pipes, null sink and an explicitly fake device catalogue."""
 import atexit
 import json
+import os
 import queue
 import re
 import socket
@@ -554,9 +555,22 @@ with tempfile.TemporaryDirectory() as osc_dir:
 harness = Path(__file__).resolve().parents[2] / 'tools' / 'sidecar_edit_soak.py'
 smoke = subprocess.run([sys.executable, str(harness), '--engine', BINARY,
                         '--seconds', '2', '--seed', '278'], capture_output=True, text=True, timeout=30)
-assert smoke.returncode == 0, smoke.stderr[-1200:] + smoke.stdout[-1200:]
+assert smoke.returncode == 0, smoke.stderr[-4000:] + smoke.stdout[-1200:]
 summary = json.loads(smoke.stdout, object_pairs_hook=strict_object)
 metrics = summary.get('performance_evidence')
+retry = summary.get('wake_retry')
+if retry is not None:
+    assert isinstance(retry, dict) and retry.get('attempt2') == 'passed'
+    first = retry.get('attempt1')
+    assert isinstance(first, str) and 'overrun_wake_count=' in first and len(first) <= 3000
+    # The subprocess stderr was captured even on success. Re-emit first failure
+    # and clean second outcome so the Windows job logs can be audited.
+    print(f'hosted Windows wake-only attempt 1 failed: {first}', file=sys.stderr)
+    print('hosted Windows wake-only attempt 2 passed', file=sys.stderr)
+    step_summary = os.environ.get('GITHUB_STEP_SUMMARY')
+    if step_summary:
+        with Path(step_summary).open('a', encoding='utf-8') as report:
+            print('- Windows wake-only retry: attempt 1 wake-only, attempt 2 clean (count 1)', file=report)
 assert summary['status'] == 'passed' and summary['seed'] == 278 and summary['seconds'] == 2
 assert isinstance(metrics, dict) and metrics['blocks'] >= 0.9 * 2 * 48000 / 256
 assert metrics['faults'] == 0 and metrics['overruns'] == 0
