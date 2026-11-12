@@ -33,3 +33,6 @@ Only tasks for **open** issues live here; the board is issue #473. When an issue
 - [CHAOS_LFO_SHAPE_TESTS_556.md](CHAOS_LFO_SHAPE_TESTS_556.md) — #556: CHAOS LFO shape-switch regression tests
 - [MAIN_CONFIG_TEST_COLLISION.md](MAIN_CONFIG_TEST_COLLISION.md) — #485 Repair the combined MIDI/Groove runtime-config test collision
 - [NATIVE_ONLY_FEATURE_TESTS.md](NATIVE_ONLY_FEATURE_TESTS.md) — Native-only feature tests (#566)
+- [CI_SPEED_1_RERUNS.md](CI_SPEED_1_RERUNS.md) — #685 CI speed 1: no rerun on draft→ready, Windows on drafts, clang-format in cloud setup (side lane, priority)
+- [CI_SPEED_2_ACCEPTANCE.md](CI_SPEED_2_ACCEPTANCE.md) — #686 CI speed 2: size check counts authored lines only; parser accepts inline comments (side lane)
+- [CI_SPEED_3_ID_SETS.md](CI_SPEED_3_ID_SETS.md) — #687 CI speed 3: catalogue-count literals become module ID-set checks (side lane)
