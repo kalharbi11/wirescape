@@ -306,16 +306,36 @@ try {
     # W1 drives Electron directly. Also exercise the *owner's* Wirescape.cmd
     # launcher, whose cmd quoting previously failed despite green W1.
     # Foreground smoke mode is process-local and --null-audio overrides devices.
+    # The real launcher must use a fresh opt-in app profile, not the
+    # machine's normal Electron userData/sessionData or native settings.
+    # Keep a separate existing-profile sentinel to detect accidental reuse.
+    $smokeBase = Join-Path $logs ('launcher-smoke-' + [Guid]::NewGuid().ToString('N'))
+    $profileDir = Join-Path $smokeBase 'isolated-profile'
+    $existingProfile = Join-Path $smokeBase 'existing-profile'
+    New-Item -ItemType Directory -Path $existingProfile | Out-Null
+    $existingMarker = Join-Path $existingProfile 'saved-patch.json'
+    Set-Content -LiteralPath $existingMarker -Value '{"preserve":true}' -Encoding utf8
+    $existingBefore = [IO.File]::ReadAllBytes($existingMarker)
     $launcherProcess = $null
     $env:WIRESCAPE_SETUP_SMOKE = '1'
     try {
         $launcher = Join-Path $root 'tools\windows\Wirescape.cmd'
-        $arguments = '/d /s /c ""{0}" --null-audio"' -f $launcher
+        $arguments = '/d /s /c ""{0}" --null-audio --profile-dir "{1}""' -f $launcher, $profileDir
         $launcherProcess = Start-Process -FilePath $env:ComSpec -ArgumentList $arguments -PassThru -WindowStyle Hidden
         Start-Sleep -Seconds 3
         if ($launcherProcess.HasExited) {
-            throw "Wirescape.cmd --null-audio exited early ($($launcherProcess.ExitCode))."
+            throw "Wirescape.cmd --null-audio --profile-dir exited early ($($launcherProcess.ExitCode))."
         }
+        foreach ($subdir in @('userData', 'sessionData')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $profileDir $subdir) -PathType Container)) {
+                throw "Wirescape.cmd failed to initialize isolated $subdir."
+            }
+        }
+        $existingAfter = [IO.File]::ReadAllBytes($existingMarker)
+        if (-not [Linq.Enumerable]::SequenceEqual([byte[]]$existingBefore, [byte[]]$existingAfter)) {
+            throw 'Launcher smoke changed the existing profile sentinel.'
+        }
+        Write-Host "Isolated launcher profile: $profileDir (existing profile preserved)."
     } finally {
         if ($launcherProcess -and -not $launcherProcess.HasExited) {
             & taskkill.exe /PID $launcherProcess.Id /T /F 2>$null | Out-Null
