@@ -235,7 +235,8 @@ test.describe('the catalogue', () => {
     const knownIds: string[] = readFileSync(resolve('../../tools/foundation/fixtures/known_module_ids.txt'), 'utf8')
       .split('\n').map((line: string) => line.trim()).filter((line: string) => line && !line.startsWith('#'));
     const reportIds = report.map(r => r.id);
-    expect(reportIds).toHaveLength(catalogueIds.length);
+    // Exactly the generated catalogue: no substitution, omission or duplicate.
+    expect([...reportIds].sort()).toEqual([...catalogueIds].sort());
     expect(new Set(reportIds).size).toBe(reportIds.length);
     expect(knownIds.filter(id => !reportIds.includes(id))).toEqual([]);
     expect(report.some(r => r.id === 'essentials.notes_to_cv')).toBe(true);
