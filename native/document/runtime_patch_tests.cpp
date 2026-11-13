@@ -117,10 +117,13 @@ static void saved_midi_cv_patch(AppEngine *catalog, const ws_engine_config &cfg)
                 audible |= std::abs(sample) > 1e-6f;
             }
             check(audible, "saved pitch and gate reach audible output on every rotating voice");
+            const float envelope = graph.output_sample(4, 0, lane, 127);
+            check(envelope > 0.01f, "saved graph ADSR opens for each voice");
             check(graph.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x80, keys[i], 0), graph.meter().frame) == WS2_OK,
                   "saved graph accepts MIDI note-off");
             check(app_engine_render(loaded.get(), samples, 128) == WS_OK, "saved graph renders note release");
             check(graph.output_sample(cv, 1, lane, 127) == 0.f, "saved graph releases each lane");
+            check(graph.output_sample(4, 0, lane, 127) < envelope, "saved graph ADSR releases each voice");
         }
         check(graph.meter().faults == 0 && graph.meter().dropped == 0, "saved graph fault-free");
     }
