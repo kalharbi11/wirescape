@@ -10,7 +10,7 @@ from pathlib import Path
 
 from guard import check as guard_check
 from guard import linked_issue, named_paths, violations, warn_tier
-from guard import check_staged, check_staged_format
+from guard import check_staged, check_staged_format, tier_errors
 
 
 class GuardTests(unittest.TestCase):
@@ -46,6 +46,28 @@ class GuardTests(unittest.TestCase):
         self.assertTrue(violations('R100', ['native/tests/a.cpp', 'native/a.cpp'], [], set()))
         self.assertFalse(self.check('native/tests/a.cpp', status='D', labels=['allow-test-removal']))
         self.assertFalse(self.check('native/tests/a.cpp', status='M'))
+
+    def test_markdown_documentation_named_test_can_be_removed_or_renamed(self):
+        old = 'docs/tasks/OWNER_TEST_SESSION_271.md'
+        new = 'docs/tasks/done/OWNER_TEST_SESSION_271.md'
+        self.assertFalse(self.check(old, status='D'))
+        self.assertEqual(violations('R100', [old, new], [], set()), [])
+        self.assertFalse(self.check('docs/reviews/TEST_REPORT.md', status='D'))
+        self.assertFalse(self.check('docs/tasks/SYSTEM_TEST.md', status='D'))
+        # The exception is only for Markdown below docs/ outside test* folders.
+        self.assertTrue(self.check('docs/tasks/test_runner.py', status='D'))
+        self.assertTrue(self.check('README_TEST.md', status='D'))
+
+    def test_test_directories_and_source_fixtures_stay_guarded(self):
+        for path in ('tools/ci/test_guard.py', 'native/tests/x.cpp',
+                     'apps/studio/tests/a.spec.ts', 'docs/tests/x.md',
+                     'docs/testdata/report.md', 'apps/desktop/tests/x.json'):
+            with self.subTest(path=path):
+                self.assertIn('test deletion/rename requires allow-test-removal',
+                              self.check(path, status='D', labels=['allow-protected']))
+                self.assertNotIn('test deletion/rename requires allow-test-removal',
+                                 self.check(path, status='D',
+                                            labels=['allow-protected', 'allow-test-removal']))
 
     def test_binary_private_cannot_be_overridden(self):
         for path in ('x.DLL', 'x.exe', 'x.zip', 'x.wav', 'x.ttf', 'x.otf',
@@ -130,6 +152,13 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(run.call_args.kwargs['input'], b'// index content\n')
             self.assertIn('--lines=1:2', run.call_args.args[0])
             self.assertIn('--dry-run', run.call_args.args[0])
+
+    def test_tier_labels_fail_closed_in_ci(self):
+        for labels in (set(), {'tier/T0', 'tier/T2'}, {'tier/T1', 'tier/T2'}):
+            with self.subTest(labels=labels):
+                self.assertEqual(tier_errors(labels), ['add exactly one tier/* label'])
+        for tier in ('tier/T0', 'tier/T1', 'tier/T2'):
+            self.assertEqual(tier_errors({tier, 'status/ready-to-merge'}), [])
 
     def test_tier_warning_is_advisory_and_accepts_markdown(self):
         with patch('builtins.print') as output:
