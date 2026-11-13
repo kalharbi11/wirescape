@@ -349,8 +349,10 @@ per datagram to a nonblocking socket bound to and sending solely over
 `127.0.0.1`. The bus survives while its graph is active; the worker is
 joined before live replan, graph retirement, stream replacement or shutdown.
 Its bounded `status.osc.out` list reports per-module sending state and
-send/drop counters without packet payloads. OSC Out never enables LAN,
-regardless of `--confirm-lan`.
+send/drop counters without packet payloads. `sent` counts local `sendto`
+acceptance, not confirmed UDP delivery; `dropped` counts only observed send
+errors, ring overflow and coalesced gate edges, never an absent receiver.
+OSC Out never enables LAN, regardless of `--confirm-lan`.
 
 ## Stdio engine sidecar (P1B)
 
