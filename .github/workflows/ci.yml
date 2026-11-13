@@ -37,7 +37,7 @@ jobs:
           PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           python - <<'PY'
-          import hashlib, io, os, re, subprocess, sys, tarfile, urllib.request
+          import hashlib, io, os, re, shutil, subprocess, sys, tarfile, urllib.request
           sys.path.insert(0, 'tools')
           from pathlib import Path
           from foundation.acceptance import select_pr_task
@@ -85,6 +85,13 @@ jobs:
           # Provision once without changing any selected test or assertion.
           if re.search(r'apps/studio.*(npm test|playwright test)', task.read_text()):
               subprocess.check_call('cd apps/studio && npm ci && npx playwright install ffmpeg', shell=True)
+              # Match the Web workflow's host Chromium lookup; fail closed if absent.
+              browser = next((path for name in ('chromium', 'chromium-browser', 'google-chrome')
+                              if (path := shutil.which(name))), None)
+              if not browser or not os.access(browser, os.X_OK):
+                  raise RuntimeError('No executable runner Chromium for Studio task acceptance')
+              os.environ['WIRESCAPE_CHROMIUM'] = browser
+              print(f'Task acceptance Chromium: {browser}')
           subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'cmake==4.2.3', 'ninja==1.13.0'])
           subprocess.check_call([sys.executable, 'tools/dev.py', 'build', '--headless'])
           base = 'origin/' + os.environ['PR_BASE_REF']
