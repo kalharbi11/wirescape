@@ -147,7 +147,13 @@ static void osc_out_config_validation() {
                             R"({"notes":{"enabled":1}})", R"({"notes":{"address":"/a b"}})"})
         rejected(bad);
     const auto defaults = runtime_module_config("osc.out", Json::object());
-    CHECK(defaults.empty());
+    CHECK(defaults.size() == sizeof(wirescape::osc::OutConfiguration));
+    wirescape::osc::OutConfiguration binary_defaults;
+    CHECK(wirescape::osc::out_configuration(
+        defaults.data(), static_cast<uint32_t>(defaults.size()), binary_defaults));
+    CHECK(binary_defaults.bus == nullptr && binary_defaults.port == 9001);
+    CHECK(binary_defaults.rows[0].enabled == 1 && binary_defaults.notes.enabled == 0);
+    CHECK(std::strcmp(binary_defaults.rows[0].address, "/ws/row/1") == 0);
 }
 int main() try {
  auto encode=[](const char*s){return runtime_module_config("midi.cc_to_cv",nlohmann::json::parse(s));};

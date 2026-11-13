@@ -21,7 +21,8 @@ inline std::vector<uint8_t> runtime_module_config_impl(const std::string &type, 
         return {uint8_t(instance_id), uint8_t(instance_id >> 8), uint8_t(instance_id >> 16),
                 uint8_t(instance_id >> 24)};
     }
-    if (value.empty()) return {};
+    // OSC Out always needs its complete binary config: the host injects OutBus* on prepare.
+    if (value.empty() && type != "osc.out") return {};
     if (type == "sequencing.groove") {
         using namespace groove;
         require(value.size() == 3 && value.contains("version") && value.contains("bpm") && value.contains("tracks"),
