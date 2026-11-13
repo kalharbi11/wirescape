@@ -42,7 +42,8 @@ class WindowsSetupContract(unittest.TestCase):
         self.assertIn("'-G',$script:generator,'-A','x64'", SCRIPT)
         self.assertNotIn("WIRESCAPE_BUILD_UI", SCRIPT)
         self.assertNotIn("WIRESCAPE_QT_DIR", SCRIPT)
-        self.assertIn("'WIRESCAPE_PORTAUDIO', 'ELECTRON_RUN_AS_NODE', 'WIRESCAPE_TEST_STUB'", SCRIPT)
+        self.assertIn("'CMAKE_PREFIX_PATH', 'WIRESCAPE_PORTAUDIO', 'ELECTRON_RUN_AS_NODE', 'WIRESCAPE_TEST_STUB'", SCRIPT)
+        self.assertIn('Remove-Item "Env:$name" -ErrorAction SilentlyContinue', SCRIPT)
         self.assertIn("if ($Ref -notmatch", SCRIPT)
 
     def test_pinned_x64_portaudio_and_fail_closed_native_suite(self):
