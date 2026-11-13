@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#include "runtime_patch.h"
 #include "../engine2/engine2.h"
 #include "../io/midi/module_test_support.h"
-#include <filesystem>
-#include <cstring>
 #include "../tests2/allocation_watch.h"
-#include <nlohmann/json.hpp>
+#include "runtime_patch.h"
+#include <cmath>
+#include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
-#include <cmath>
 using Json=nlohmann::json;
 using Owner=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
 static void check(bool value,const char*why){if(!value)throw std::runtime_error(why);}
@@ -85,8 +85,8 @@ static void saved_midi_cv_patch(AppEngine *catalog, const ws_engine_config &cfg)
             patch["connections"][1]["from"]["module"] = 7;
             patch["connections"][2]["from"]["module"] = 7;
             patch["connections"].push_back({{"kind", "event"},
-                                             {"from", {{"module", 2}, {"port", "notes"}}},
-                                             {"to", {{"module", 7}, {"port", "notes"}}}});
+                                            {"from", {{"module", 2}, {"port", "notes"}}},
+                                            {"to", {{"module", 7}, {"port", "notes"}}}});
         }
         std::string error;
         Owner loaded(wirescape::document::load_runtime_patch(patch.dump(), catalog, cfg, error), app_engine_destroy);
@@ -99,8 +99,8 @@ static void saved_midi_cv_patch(AppEngine *catalog, const ws_engine_config &cfg)
         float samples[128]{};
         for (uint32_t i = 0; i < 5; ++i) {
             const uint32_t lane = i % 4;
-            check(graph.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x90, keys[i], 110),
-                                graph.meter().frame) == WS2_OK, "saved graph accepts MIDI note-on");
+            check(graph.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x90, keys[i], 110), graph.meter().frame) == WS2_OK,
+                  "saved graph accepts MIDI note-on");
             {
                 allocation_watch::Scope scope;
                 check(app_engine_render(loaded.get(), samples, 128) == WS_OK && scope.allocations() == 0,
@@ -117,10 +117,9 @@ static void saved_midi_cv_patch(AppEngine *catalog, const ws_engine_config &cfg)
                 audible |= std::abs(sample) > 1e-6f;
             }
             check(audible, "saved pitch and gate reach audible output on every rotating voice");
-            check(graph.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x80, keys[i], 0),
-                                graph.meter().frame) == WS2_OK, "saved graph accepts MIDI note-off");
-            check(app_engine_render(loaded.get(), samples, 128) == WS_OK,
-                  "saved graph renders note release");
+            check(graph.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x80, keys[i], 0), graph.meter().frame) == WS2_OK,
+                  "saved graph accepts MIDI note-off");
+            check(app_engine_render(loaded.get(), samples, 128) == WS_OK, "saved graph renders note release");
             check(graph.output_sample(cv, 1, lane, 127) == 0.f, "saved graph releases each lane");
         }
         check(graph.meter().faults == 0 && graph.meter().dropped == 0, "saved graph fault-free");
