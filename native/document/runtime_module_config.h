@@ -4,11 +4,27 @@
 #include "../modules2/midi_cc_to_cv/config.h"
 #include "../modules2/osc_in/config.h"
 #include "../modules2/osc_out/config.h"
+#include <cstring>
+#include <map>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
 #include <vector>
 namespace wirescape::document {
+// This control-thread-only scope injects a host-owned bus during graph prepare.
+// Its pointer never enters a saved patch or the audio callback.
+inline thread_local const std::map<uint32_t, osc::OutBus *> *staged_out_buses = nullptr;
+class ScopedOutBuses {
+    const std::map<uint32_t, osc::OutBus *> *previous_;
+
+  public:
+    explicit ScopedOutBuses(const std::map<uint32_t, osc::OutBus *> &buses) noexcept : previous_(staged_out_buses) {
+        staged_out_buses = &buses;
+    }
+    ~ScopedOutBuses() { staged_out_buses = previous_; }
+    ScopedOutBuses(const ScopedOutBuses &) = delete;
+    ScopedOutBuses &operator=(const ScopedOutBuses &) = delete;
+};
 // Quiescent JSON-to-module adapter. The JSON shape, not struct padding, is saved.
 inline std::vector<uint8_t> runtime_module_config_impl(const std::string &type, const nlohmann::json &value,
                                                        uint32_t instance_id, std::vector<std::string> *ignored_keys) {
@@ -395,6 +411,16 @@ inline std::vector<uint8_t> runtime_module_config(const std::string &type, const
 // Control-thread diagnostics come from the parser's unknown-field fall-through.
 inline std::vector<uint8_t> runtime_module_config(const std::string &type, const nlohmann::json &value,
                                                   uint32_t instance_id, std::vector<std::string> *ignored_keys) {
-    return runtime_module_config_impl(type, value, instance_id, ignored_keys);
+    auto bytes = runtime_module_config_impl(type, value, instance_id, ignored_keys);
+    if (type == "osc.out" && staged_out_buses) {
+        const auto it = staged_out_buses->find(instance_id);
+        if (it == staged_out_buses->end() || bytes.size() != sizeof(osc::OutConfiguration))
+            throw std::runtime_error("OSC output bus unavailable");
+        osc::OutConfiguration config{};
+        std::memcpy(&config, bytes.data(), sizeof(config));
+        config.bus = it->second;
+        std::memcpy(bytes.data(), &config, sizeof(config));
+    }
+    return bytes;
 }
 }
