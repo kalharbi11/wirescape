@@ -185,7 +185,6 @@ void OutHost::loop() noexcept {
                         cursor.initialized = true;
                     }
                 }
-                cursor.blocks = blocks;
             }
             if (route.config.notes.enabled) {
                 // SPSC: render owns head and writes the event before release; this
