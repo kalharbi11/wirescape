@@ -51,7 +51,7 @@ Open-source modular synth. A C++17 realtime engine (ABI 2 modules: `native/engin
 ABI header edit · a design choice outside the spec/plan that changes IDs, formats, ABI or realtime behaviour · removing a test or loosening a tolerance/threshold · a new dependency not named in the task or PLAN D12 · diff >50 % over the size budget · two failed attempts at the same failure. Keel rules on technical stops, Compass on plan stops.
 
 ## Safety rails
-- **Label-only paths** (need `allow-protected` from the owner, Compass or Keel): `AGENTS.md`, `CLAUDE.md`, `tools/ci/**`, `.github/workflows/guard.yml`, `.github/CODEOWNERS`, `native/include/wirescape/*.h`, `LICENSE*`, `LICENSES/**`, `docs/history/**`, `legacy/**`. **Protected** (the label, or a `Protected path named:` line with the path in backticks in the linked issue): `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`, `.github/**`. Who may write those lines: `docs/planner/LEADS.md`.
+- **Label-only paths** (need `allow-protected` from the owner, Compass or Keel): `AGENTS.md`, `CLAUDE.md`, `tools/ci/**`, `.github/workflows/guard.yml`, `.github/CODEOWNERS`, `native/include/wirescape/*.h`, `LICENSE*`, `LICENSES/**`. **Protected** (the label, or a `Protected path named:` line with the path in backticks in the linked issue): `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`, `.github/**`. Who may write those lines: `docs/planner/LEADS.md`.
 - Never weaken CI to pass, force-push, rewrite published history or commit to `main`.
 - Never commit generated/binary files, fonts, `user_data/`, `local_backups/`, `.tools/`, `node_modules/`, `dist/`, credentials or machine-specific absolute paths.
 
