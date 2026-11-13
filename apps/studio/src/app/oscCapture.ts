@@ -72,17 +72,24 @@ function walk(tokens: Token[], bytes: Uint8Array, starts: Set<number>): Set<numb
   let positions = starts;
   for (const token of tokens) {
     const next = new Set<number>();
-    for (const at of positions) {
-      if (token.kind === 'alt') {
-        for (const option of token.options ?? [])
-          for (const end of walk(option, bytes, new Set([at]))) next.add(end);
-      } else if (token.kind === 'star') {
-        next.add(at);
-        for (let j = at; j < bytes.length && bytes[j] !== 47; j++) next.add(j + 1);
-      } else if (at < bytes.length &&
-        (token.kind === 'literal' && bytes[at] === token.byte ||
-          token.kind === 'any' && bytes[at] !== 47 ||
-          token.kind === 'class' && token.mask?.[bytes[at]] === 1)) next.add(at + 1);
+    if (token.kind === 'alt') {
+      for (const option of token.options ?? [])
+        for (const end of walk(option, bytes, positions)) next.add(end);
+    } else if (token.kind === 'star') {
+      // Prefix closure in each slash-separated segment: O(bytes), not O(bytes²).
+      let reachable = false;
+      for (let at = 0; at <= bytes.length; at++) {
+        if (positions.has(at)) reachable = true;
+        if (reachable) next.add(at);
+        if (bytes[at] === 47) reachable = false;
+      }
+    } else {
+      for (const at of positions) {
+        if (at < bytes.length &&
+          (token.kind === 'literal' && bytes[at] === token.byte ||
+            token.kind === 'any' && bytes[at] !== 47 ||
+            token.kind === 'class' && token.mask?.[bytes[at]] === 1)) next.add(at + 1);
+      }
     }
     positions = next;
     if (!positions.size) break;
