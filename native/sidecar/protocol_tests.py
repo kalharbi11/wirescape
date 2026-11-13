@@ -778,15 +778,19 @@ with tempfile.TemporaryDirectory() as outgoing_dir:
         outgoing_patch['modules'] += [
             dict(id=19, module='osc.out', config=dict(
                 port=output_port, rate_hz=20,
-                rows=[dict(address='/ws/row/1', kind='cv', deadband=0)] +
-                     [dict(enabled=False) for _ in range(7)],
+                rows=[dict(address='/ws/row/1', kind='cv', deadband=0),
+                      dict(address='/ws/row/2', kind='gate')] +
+                     [dict(enabled=False) for _ in range(6)],
                 notes=dict(address='/ws/note', enabled=True))),
             dict(id=20, module='essentials.lfo'),
-            dict(id=21, module='host.keyboard')
+            dict(id=21, module='host.keyboard'),
+            dict(id=22, module='essentials.notes_to_cv')
         ]
         outgoing_patch['connections'] += [
             edge('signal', 20, 'control', 19, 'row1'),
-            edge('event', 21, 'notes', 19, 'notes')
+            edge('event', 21, 'notes', 19, 'notes'),
+            edge('event', 21, 'notes', 22, 'notes'),
+            edge('signal', 22, 'gate', 19, 'row2')
         ]
         outgoing_gen = out_engine.call('loadGraph', patch=outgoing_patch)['gen']
 
@@ -811,6 +815,7 @@ with tempfile.TemporaryDirectory() as outgoing_dir:
         # configured 20 Hz by more than one datagram per whole second.
         row_samples = []
         received_notes = []
+        gate_samples = []
         started = time.monotonic()
         while time.monotonic() - started < 0.6:
             try:
@@ -822,6 +827,9 @@ with tempfile.TemporaryDirectory() as outgoing_dir:
             if address == '/ws/row/1':
                 assert tags == ',f' and len(values) == 1
                 row_samples.append((time.monotonic(), values[0]))
+            elif address == '/ws/row/2':
+                assert tags == ',f' and values[0] in (0, 1)
+                gate_samples.append(values[0])
             else:
                 assert address == '/ws/note', address
                 received_notes.append(values)
@@ -832,9 +840,10 @@ with tempfile.TemporaryDirectory() as outgoing_dir:
             assert right[0] - left[0] >= 0.035, row_samples
 
         out_engine.call('noteOn', note=64, velocity=0.8)
+        time.sleep(0.06)  # render several null-sink blocks with a high gate
         out_engine.call('noteOff', note=64)
         deadline = time.monotonic() + 2.0
-        while len(received_notes) < 2 and time.monotonic() < deadline:
+        while (len(received_notes) < 2 or 1 not in gate_samples or gate_samples[-1] != 0) and time.monotonic() < deadline:
             try:
                 payload, _ = receiver.recvfrom(1500)
             except socket.timeout:
@@ -843,9 +852,14 @@ with tempfile.TemporaryDirectory() as outgoing_dir:
             if address == '/ws/note':
                 assert tags == ',ifi'
                 received_notes.append(values)
+            elif address == '/ws/row/2':
+                assert tags == ',f' and values[0] in (0, 1)
+                gate_samples.append(values[0])
         assert len(received_notes) >= 2, received_notes
         assert [row[0] for row in received_notes[:2]] == [64, 64], received_notes
         assert received_notes[0][1] > 0 and received_notes[1][1] == 0, received_notes
+        assert 1 in gate_samples and gate_samples.index(1) < len(gate_samples) - 1
+        assert gate_samples[-1] == 0, gate_samples
 
         # Runtime status is bounded and never contains OSC packet contents.
         observed_out = None
