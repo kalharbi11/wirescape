@@ -1,33 +1,29 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state
-**Updated:** 2026-11-13 morning, Keel (New York time).
-Board #473's body is live. Only completed exact-head evidence counts. Low-Claude mode is **off**
-(owner, 2026-11-13): `usage/low-claude` is gone from #473; Claude builders and reviews resume.
+Updated: 2026-11-13, Codex Lead (New York date).
+Board #473 is live; only completed exact-head evidence counts.
 
-## Priority 1: owner Windows test (2026-11-13)
-- #722 ASIO list/switch (claude-builder1, T2), #723 Studio failed-driver list (gpt-builder2, T1),
-  #724 MIDI to CV pitch/gate (gpt-builder1, T1). Cleanup fills the waits. Owner evidence: steps on #581.
+## Priority: OSC Out, Pi first
+- #735 d8e7744: GPT contract review posted; blocked on UDP no-listener semantics
+  and per-module refusal versus transactional graph refusal. Keel rules and updates builders.
+- O1 #730/#736 → O2 #731/#739: retain dependency order and Claude-family T2 review.
+- O2 needs ENGINE_PROTOCOL authorization and the strict-fixture file-budget ruling.
+- O3 #732/#738 c6be678: existing High catalogue-parity regression; builder owns repair.
+- O4 #733/#740 a4216df: Codex Lead review flags UDP claims, CV timing and finite duration.
+  claude-helper owns it; example patch follows O1. Hosted CI pending at inspection.
+- O5 #734: dependency blocked; no Pi evidence. Needs per-second/gate/CPU/dropout collector,
+  merged O1/O2/O4 and example before ci/pi-soak; owner checks then batch on #581.
+- Keel names a new release candidate after integration/evidence; cdb74f2 superseded by OSC scope.
 
-## 1.0.0
-- Candidate **`cdb74f2`** waits on the owner test (#581). On pass: annotated `v1.0.0` on that SHA,
-  plus `archive/chaos-performance-strip-554` on `73bfe95`. On fail: #597 → new SHA from Keel.
-- Claude cloud sessions can't push tags (the proxy refuses). The owner or Codex Lead creates the tags.
-
-## Qt removal #661
-- R3a #482 `e336fc7`, R3b-pre #707 `cec2c69` merged.
-- R3b #713 merged `0f8a674`. `archive/qt-final` (lightweight) goes on its first parent **`e6e927c`**,
-  created by the owner or Codex Lead (Claude sessions can't push tags); SHA posted on #661.
-- Then R5c #716 (gpt-builder3, T0) and R4 #481 (gpt-builder1, its #469 inventory only),
-  then R4b #718 (gpt-builder1, the Qt tool leftovers).
-
-## CI
-- #710 OSC fuzz merged `d4cce43` (non-required, read-only). Keel checked it after the merge: OK. The gate doesn't
-  enforce Keel's extra CI-policy approval; reviewers wait for it on required or write-permission workflows.
-- #715 merged: #701's task file is on main. #712 (gpt-builder3): new head, CI running → `accept 701`
-  → Claude-family T2 + Keel.
-- #719 (gpt-builder3, after #712): task file corrected to `tools/ci/test_guard.py`.
+## Other lanes and gates
+- #723 merged as #726; #722 claude-builder1 and #724 gpt-builder1 retain Windows findings.
+- #737 a26cca1 CI workflow green; Claude T2 and Keel CI-policy approval still required.
+- #728 7c69170 CI red: moved Wh_FUZZ.md breaks its acceptance-reading regression test.
+- #716 and #729 await scoped test-retirement authorization and selected acceptance.
+- #296 remains blocked on independent private-runner review; no hardware claim.
+- No eligible merge certified this run. Existing authors own repairs; Keel batch on #473.
 
 ## Parked
-R6 #470, Web AudioWorklet (#658 P1.2), #600, #337, #332, #91, #594, #676's Pi nightly part, until
-the owner's next plan. No devices, LAN, SSH, force/direct-main pushes or weakened tests.
-Signed: Keel, 2026-11-13
+R6 #470, Web AudioWorklet, #600, #337, #332, #91, #594, OSC Out LAN.
+No devices, LAN, SSH, force/direct-main pushes or weakened tests.
+Signed: Codex Lead, 2026-11-13
