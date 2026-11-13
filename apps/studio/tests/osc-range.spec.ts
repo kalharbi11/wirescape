@@ -146,3 +146,17 @@ test('clamp hint only reflects observed direct ingress outside configured range'
   await settle(page);
   await expect(clamp).toBeHidden();
 });
+
+test('editing another valid row cannot enable Save while captured row is invalid', async ({ page }) => {
+  await page.evaluate(p => window.__wirescapeTest.load(p), patch());
+  await settle(page);
+  await open(page);
+  await push(page, 200);
+  await page.getByTestId('osc-row1-set-min').click();
+  await expect(page.getByTestId('osc-editor-save')).toBeDisabled();
+  await page.getByTestId('osc-row2-input_max').fill('50');
+  await expect(page.getByTestId('osc-editor-save')).toBeDisabled();
+  await expect(page.getByTestId('osc-editor-errors')).toContainText('row1: input max');
+  await page.getByTestId('osc-row1-input_max').fill('201');
+  await expect(page.getByTestId('osc-editor-save')).toBeEnabled();
+});
