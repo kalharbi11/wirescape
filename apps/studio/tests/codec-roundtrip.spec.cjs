@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 const { test, expect } = require('@playwright/test');
-const { readFileSync, readdirSync, writeFileSync } = require('node:fs');
+const { readFileSync, readdirSync } = require('node:fs');
 const { resolve } = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { PatchDoc } = require('../src/patch/PatchDoc');
@@ -10,15 +10,23 @@ const catalogue = require('../public/wirescape_modules.json');
 const { boot, settle } = require('./helpers');
 
 const root = resolve(process.cwd(), '../..');
-test('native starter fixtures are actual UI exports; catalogue has no drift', () => {
+test('frozen native fixtures and current starters both round-trip without drift', () => {
   execFileSync(process.platform === 'win32' ? 'python' : 'python3', ['tools/gen_ui_catalogue.py', '--check'], { cwd: root });
-  const exports = STARTERS.map(s => ({ id: s.id, patch: PatchDoc.from(s.patch()).toJSON() }));
+  // ui_starters.json is a historical native export snapshot, not a mirror of
+  // the current application list. Retiring Qt starters must not rewrite it.
   const fixture = resolve(root, 'native/document/ui_starters.json');
-  if (process.env.WIRESCAPE_WRITE_FIXTURES === '1') {
-    writeFileSync(fixture, '[\n' + exports.map(s => ' ' + JSON.stringify(s)).join(',\n') + '\n]\n');
-  }
-  expect(JSON.parse(readFileSync(fixture, 'utf8'))).toEqual(exports);
-  for (const { patch } of exports) {
+  const frozen = JSON.parse(readFileSync(fixture, 'utf8'));
+  expect(frozen.map(s => s.id)).toEqual([
+    'keyboard-voice', 'hollow-chapel', 'breathing-walls', 'black-ice-choir',
+    'vowel-apparitions', 'glass-cathedrals', 'dust-reactor', 'witching-hour',
+    'neon-elegy', 'qt-minimal', 'qt-lfo-filter', 'qt-midi', 'qt-poly', 'qt-chaos', 'qt-macro',
+  ]);
+  const current = STARTERS.map(s => ({ id: s.id, patch: PatchDoc.from(s.patch()).toJSON() }));
+  expect(new Set(current.map(s => s.id)).size).toBe(current.length);
+  expect(current.map(s => s.id).filter(id => id.startsWith('qt-'))).toEqual([]);
+  expect(current.map(s => s.id)).toContain('midi-keys-and-knobs');
+  for (const { patch } of [...frozen, ...current]) {
+    expect(PatchDoc.from(patch).toJSON()).toEqual(patch);
     expect(patch.settings).toBeDefined();
     expect(patch.outputs.length).toBeGreaterThan(0);
     for (const m of patch.modules) expect(m.version).toBeGreaterThan(0);

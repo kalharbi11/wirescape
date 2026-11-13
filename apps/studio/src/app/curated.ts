@@ -43,7 +43,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       ],
       outputs: [{"module":5,"port":"audio","bus_channel":0},{"module":10,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[80,1270],"3":[860,80],"4":[1400,80],"5":[2060,80],"6":[740,2350],"7":[1400,2350],"8":[860,1270],"9":[1400,1270],"10":[2060,1270]},
+        positions: {"1":[80,80],"2":[80,1270],"3":[1430,80],"4":[2130,80],"5":[2830,80],"6":[740,2350],"7":[1400,2350],"8":[1430,1270],"9":[2130,1270],"10":[2830,1270]},
         labels: {"1":"Stone choir · low L/R","2":"Stone choir · high L/R","6":"Slow tide","7":"Counterphase haze","8":"Right body mix","9":"Right-hand shadow"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
@@ -78,7 +78,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       ],
       outputs: [{"module":5,"port":"audio","bus_channel":0},{"module":5,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[80,1180],"3":[860,80],"4":[1400,80],"5":[2060,80],"6":[740,1180],"7":[1400,1180],"8":[2060,1180]},
+        positions: {"1":[80,80],"2":[80,1180],"3":[1430,80],"4":[2130,80],"5":[2830,80],"6":[740,1180],"7":[1400,1180],"8":[2060,1180]},
         labels: {"1":"Bent wall","2":"Air leakage","7":"Slow random wander","8":"Structural pulse"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
@@ -111,14 +111,14 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       ],
       outputs: [{"module":4,"port":"audio","bus_channel":0},{"module":4,"port":"audio","bus_channel":1}],
       ui: {
-        positions: {"1":[80,80],"2":[740,80],"3":[1540,80],"4":[2060,80],"5":[80,1180],"6":[740,1180],"7":[1400,1180]},
+        positions: {"1":[80,80],"2":[740,80],"3":[2070,80],"4":[2770,80],"5":[80,1180],"6":[740,1180],"7":[1400,1180]},
         labels: {"2":"Frozen voices","5":"Slow apparition","6":"Body tide","7":"Filter tide"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
   },
   {
     id: "vowel-apparitions", name: "04 · Vowel Apparitions",
-    note: "Play keys · Vocal/formant textures with independent vowel and filter-breath modulation.",
+    note: "Play keys · Chiptune model 7 with independently moving morph and filter-breath modulation.",
     patch: {
       "SPDX-License-Identifier": "GPL-3.0-only",
       name: "04 · Vowel Apparitions", format: "wirescape.native.patch", version: 2,
@@ -148,13 +148,13 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       outputs: [{"module":5,"port":"audio","bus_channel":0},{"module":5,"port":"audio","bus_channel":1}],
       ui: {
         positions: {"1":[80,80],"2":[740,80],"3":[1400,80],"4":[2060,80],"5":[2720,80],"6":[80,1180],"7":[740,1180],"8":[2060,1180]},
-        labels: {"2":"Vocal engine · model 7","6":"Long breath","7":"Vowel drift","8":"Independent filter breath"}, view: {"x":0,"y":0,"zoom":1},
+        labels: {"2":"Chiptune · model 7","6":"Long breath","7":"Vowel drift","8":"Independent filter breath"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
   },
   {
     id: "glass-cathedrals", name: "05 · Glass Cathedrals",
-    note: "Play keys · Macro model 12, main/aux resonant blend and slowly drifting overtones.",
+    note: "Play keys · Additive model 12, main/aux overtone blend and slowly drifting harmonics.",
     patch: {
       "SPDX-License-Identifier": "GPL-3.0-only",
       name: "05 · Glass Cathedrals", format: "wirescape.native.patch", version: 2,
@@ -182,7 +182,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       outputs: [{"module":4,"port":"audio","bus_channel":0},{"module":4,"port":"audio","bus_channel":1}],
       ui: {
         positions: {"1":[80,80],"2":[740,80],"3":[2060,80],"4":[2720,80],"5":[740,1180],"6":[2060,1180],"7":[1400,80]},
-        labels: {"2":"Modal engine · model 12","5":"Glass shimmer","6":"Slow shadow","7":"Modal + overtone blend"}, view: {"x":0,"y":0,"zoom":1},
+        labels: {"2":"Additive · model 12","5":"Glass shimmer","6":"Slow shadow","7":"Additive + overtone blend"}, view: {"x":0,"y":0,"zoom":1},
       },
     },
   },
@@ -231,7 +231,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       settings: {"sample_rate":48000,"max_block_frames":128,"max_channels":16,"feedback_block":32,"seed":1107,"timing_mode":"immediate"},
       modules: [
         {"id":1,"module":"essentials.clock","parameters":{"bpm":82,"ticks_per_beat":2,"duty":0.56,"run":1},"version":2},
-        {"id":2,"module":"example.step_sequencer","parameters":{"run":1,"length":8,"pitch1":-0.8333333333333334,"gate1":1,"vel1":0.86,"pitch2":-0.5833333333333334,"gate2":1,"vel2":0.62,"pitch3":-0.25,"gate3":1,"vel3":0.76,"pitch4":0,"gate4":2,"vel4":0.76,"pitch5":-0.16666666666666666,"gate5":1,"vel5":0.88,"pitch6":-0.4166666666666667,"gate6":1,"vel6":0.65,"pitch7":-0.5833333333333334,"gate7":0,"vel7":0.55,"pitch8":-0.25,"gate8":1,"vel8":0.79},"version":1},
+        {"id":2,"module":"example.step_sequencer","parameters":{"run":1,"length":8,"pitch1":-0.8333333333333334,"gate1":1,"vel1":0.86,"pitch2":-0.5833333333333334,"gate2":1,"vel2":0.62,"pitch3":-0.25,"gate3":1,"vel3":0.76,"pitch4":0,"gate4":2,"vel4":0.76,"pitch5":-0.16666666666666666,"gate5":1,"vel5":0.88,"pitch6":-0.4166666666666667,"gate6":1,"vel6":0.65,"pitch7":-0.5833333333333334,"gate7":0,"vel7":0.55,"pitch8":-0.25,"gate8":1,"vel8":0.79},"version":2},
         {"id":3,"module":"essentials.vco","parameters":{"frequency":110},"version":2},
         {"id":4,"module":"essentials.vcf","parameters":{"cutoff":1150,"resonance":0.37},"version":2},
         {"id":5,"module":"essentials.vca","parameters":{"gain":0.6},"version":2},
@@ -265,7 +265,7 @@ export const CURATED_PATCHES: CuratedPatch[] = [
       settings: {"sample_rate":48000,"max_block_frames":128,"max_channels":16,"feedback_block":32,"seed":1108,"timing_mode":"immediate"},
       modules: [
         {"id":1,"module":"essentials.clock","parameters":{"bpm":94,"ticks_per_beat":2,"duty":0.58,"run":1},"version":2},
-        {"id":2,"module":"example.step_sequencer","parameters":{"run":1,"length":8,"pitch1":-0.25,"gate1":1,"vel1":0.78,"pitch2":0,"gate2":1,"vel2":0.64,"pitch3":0.3333333333333333,"gate3":1,"vel3":0.84,"pitch4":0.5833333333333334,"gate4":1,"vel4":0.6,"pitch5":-0.5833333333333334,"gate5":1,"vel5":0.83,"pitch6":-0.25,"gate6":2,"vel6":0.83,"pitch7":0,"gate7":1,"vel7":0.71,"pitch8":-0.4166666666666667,"gate8":0,"vel8":0.5},"version":1},
+        {"id":2,"module":"example.step_sequencer","parameters":{"run":1,"length":8,"pitch1":-0.25,"gate1":1,"vel1":0.78,"pitch2":0,"gate2":1,"vel2":0.64,"pitch3":0.3333333333333333,"gate3":1,"vel3":0.84,"pitch4":0.5833333333333334,"gate4":1,"vel4":0.6,"pitch5":-0.5833333333333334,"gate5":1,"vel5":0.83,"pitch6":-0.25,"gate6":2,"vel6":0.83,"pitch7":0,"gate7":1,"vel7":0.71,"pitch8":-0.4166666666666667,"gate8":0,"vel8":0.5},"version":2},
         {"id":3,"module":"ports.macro_oscillator","parameters":{"model":2,"coarse":-12,"harmonics":0.38,"timbre":0.62,"morph":0.31,"timbre_amount":0.29,"morph_amount":0.24,"decay":0.3,"lpg_colour":0.59},"version":1},
         {"id":4,"module":"essentials.ladder","parameters":{"cutoff":3300,"resonance":0.24,"drive":0.12},"version":2},
         {"id":5,"module":"essentials.output","parameters":{},"version":2},

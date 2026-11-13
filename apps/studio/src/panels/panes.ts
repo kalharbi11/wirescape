@@ -6,11 +6,13 @@ import type { PaneKind } from './layouts';
 import { Meter } from './widgets/Meter';
 import { Scope } from './widgets/Scope';
 import { WavePreview } from './widgets/WavePreview';
+import { RandomHistory } from './widgets/RandomHistory';
 import { EnvelopeCurve } from './widgets/EnvelopeCurve';
 import { FilterDisplay } from './widgets/FilterDisplay';
 import { ChannelMeters } from './widgets/ChannelMeters';
 import { ModelGrid } from './widgets/ModelGrid';
 import { StepsPane } from './widgets/StepsPane';
+import { GroovePane, type GrooveHost } from './widgets/GroovePane';
 
 /** Everything a display pane may read or write. Values go through the engine via `setValue`. */
 export interface PaneContext {
@@ -23,6 +25,10 @@ export interface PaneContext {
   setValue(id: string, v: number, commit?: boolean): void;
   /** Free-form options from `panels/<id>.json` → `paneOptions[kind]`. */
   options: Record<string, unknown>;
+  /** Present when the app can apply Groove drafts (the `groove` pane needs it). */
+  groove?: GrooveHost;
+  /** The pane changed its own height (e.g. a longer Groove track). */
+  layoutChanged?(): void;
 }
 
 export interface Pane {
@@ -40,6 +46,7 @@ export function buildPane(kind: PaneKind, c: PaneContext): Pane | null {
   const v = (pid: string, fb: number) => c.doc.param(id, pid) ?? fb;
   switch (kind) {
     case 'wave':
+      if (c.descriptor.id === 'example.random_source') return new RandomHistory(id, ticker);
       return new WavePreview({
         moduleId: id, ticker,
         shape: () => {
@@ -82,13 +89,22 @@ export function buildPane(kind: PaneKind, c: PaneContext): Pane | null {
     case 'scope': return new Scope(id, ticker);
     case 'channels': return new ChannelMeters(c);
     case 'models': return new ModelGrid(c);
-    case 'steps':
+    case 'steps': {
+      // Derive the editable count from the live engine catalogue, not a UI constant.
+      // Keep the shipped eight-step view intact until a 16-step descriptor is available.
+      let steps = 0;
+      while (steps < 16 && c.param(`pitch${steps + 1}`) && c.param(`gate${steps + 1}`)
+          && c.param(`vel${steps + 1}`)) steps++;
+      if (!steps) return null;
       return new StepsPane({
-        moduleId: id, ticker, steps: 8,
+        moduleId: id, ticker, steps,
         param: pid => c.param(pid),
         getValue: pid => c.getValue(pid),
         setValue: (pid, val, commit) => c.setValue(pid, val, commit),
       });
+    }
+    case 'groove':
+      return c.groove ? new GroovePane(id, ticker, c.groove, c.layoutChanged) : null;
     default: return null;
   }
 }

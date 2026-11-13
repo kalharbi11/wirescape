@@ -88,6 +88,19 @@ target_link_libraries(ws2_groove PRIVATE wirescape_sdk2)
 add_library(ws2_host_keyboard SHARED ../modules2/host_keyboard/module.cpp)
 target_link_libraries(ws2_host_keyboard PRIVATE wirescape_sdk2 wirescape_voice2)
 
+# Portable OSC codec and ABI2 modules; no UDP socket or sidecar worker in this slice.
+add_executable(abi2_osc_codec_tests ../io/osc/tests.cpp)
+target_link_libraries(abi2_osc_codec_tests PRIVATE wirescape_sdk2)
+add_test(NAME abi2_osc_codec_tests COMMAND abi2_osc_codec_tests)
+foreach(module osc_in monitor)
+  add_library(ws2_${module} SHARED ../modules2/${module}/module.cpp)
+  target_link_libraries(ws2_${module} PRIVATE wirescape_sdk2)
+  add_executable(abi2_${module}_tests ../modules2/${module}/tests.cpp ../tests2/allocation_watch.cpp)
+  target_link_libraries(abi2_${module}_tests PRIVATE wirescape_sdk2)
+  add_dependencies(abi2_${module}_tests ws2_${module})
+  add_test(NAME abi2_${module}_tests COMMAND abi2_${module}_tests)
+endforeach()
+
 foreach(module vco lfo vcf adsr vca clock function_envelope ladder mixer noise output scale_offset slew)
   add_library(ws2_${module} SHARED ../modules2/${module}/module.cpp)
   target_link_libraries(ws2_${module} PRIVATE wirescape_sdk2)
@@ -172,6 +185,32 @@ add_test(NAME abi2_host_keyboard_tests COMMAND abi2_host_keyboard_tests)
 
 add_library(wirescape_audio_service STATIC ../io/audio/portaudio_service.cpp ../io/audio/device_identity.cpp)
 target_link_libraries(wirescape_audio_service PUBLIC wirescape_app_engine PRIVATE ${CMAKE_DL_LIBS} Threads::Threads)
+
+# Production Stream lifecycle through a fake dynamic PortAudio library (devices stay off).
+add_library(qt_free_fake_portaudio SHARED ../io/audio/fake_portaudio_stream_tests.cpp)
+set_target_properties(qt_free_fake_portaudio PROPERTIES
+  WINDOWS_EXPORT_ALL_SYMBOLS ON
+  # The production sidecar loads PortAudio from its own executable directory first.
+  # Never let this device-off test DLL/so override or get packaged as the real backend.
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/fake_portaudio/$<CONFIG>"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/fake_portaudio/$<CONFIG>"
+  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/fake_portaudio/$<CONFIG>")
+target_link_libraries(qt_free_fake_portaudio PRIVATE Threads::Threads)
+if(WIN32)
+  set_target_properties(qt_free_fake_portaudio PROPERTIES OUTPUT_NAME "libportaudio64bit")
+else()
+  set_target_properties(qt_free_fake_portaudio PROPERTIES OUTPUT_NAME "portaudio" VERSION 2.0 SOVERSION 2)
+endif()
+add_executable(qt_free_stream_lifecycle_tests ../io/audio/stream_lifecycle_tests.cpp)
+target_link_libraries(qt_free_stream_lifecycle_tests PRIVATE wirescape_runtime_document wirescape_audio_service Threads::Threads ${CMAKE_DL_LIBS})
+add_dependencies(qt_free_stream_lifecycle_tests qt_free_fake_portaudio)
+add_test(NAME qt_free_stream_lifecycle_tests COMMAND qt_free_stream_lifecycle_tests
+  "$<TARGET_FILE_DIR:qt_free_fake_portaudio>" "$<TARGET_FILE:qt_free_fake_portaudio>"
+  "$<TARGET_FILE_DIR:wirescape_engine_sidecar>")
+
+if(WIN32)
+  target_link_libraries(wirescape_audio_service PRIVATE advapi32)
+endif()
 target_link_libraries(wirescape_cli PRIVATE wirescape_runtime_document wirescape_audio_service)
 add_executable(audio_callback_live_midi_tests ../io/audio/callback_live_midi_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(audio_callback_live_midi_tests PRIVATE wirescape_app_engine)
@@ -193,23 +232,17 @@ add_test(NAME midi_host_tests COMMAND midi_host_tests)
 add_test(NAME abi2_midi_live_host_tests COMMAND midi_host_tests)
 add_executable(app_engine_tests ../control/app_engine_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(app_engine_tests PRIVATE wirescape_app_engine)
+target_compile_definitions(app_engine_tests PRIVATE
+  WS_KNOWN_MODULE_IDS="${CMAKE_CURRENT_SOURCE_DIR}/../../tools/foundation/fixtures/known_module_ids.txt")
 add_library(app_legacy_fixture SHARED ../control/app_legacy_fixture.cpp)
 target_include_directories(app_legacy_fixture PRIVATE ../include)
 add_dependencies(app_engine_tests app_legacy_fixture)
 add_test(NAME app_engine_tests COMMAND app_engine_tests $<TARGET_FILE:app_legacy_fixture>)
-if(TARGET wirescape_document)
-  target_link_libraries(wirescape_soak PRIVATE wirescape_document)
-  target_compile_definitions(wirescape_soak PRIVATE WS_SOAK_DOCUMENT)
-  add_test(NAME app_document_soak COMMAND wirescape_soak --patch
-    "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json" --rate 48000 --block 128 --seconds 0.01)
-  set_tests_properties(app_document_soak PROPERTIES TIMEOUT 15)
-  # wirescape_soak links QtCore through wirescape_document; Windows needs its DLL directory on PATH.
-  if(WIN32)
-    find_package(Qt6 6.5 QUIET COMPONENTS Core)
-    set_tests_properties(abi2_soak_smoke abi2_soak_cli app_document_soak PROPERTIES
-      ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
-  endif()
-endif()
+# Document soak uses the same Qt-free execution copy as the sidecar.
+target_link_libraries(wirescape_soak PRIVATE wirescape_runtime_document)
+add_test(NAME app_document_soak COMMAND wirescape_soak --patch
+  "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json" --rate 48000 --block 128 --seconds 0.01)
+set_tests_properties(app_document_soak PROPERTIES TIMEOUT 15)
 add_subdirectory(../modules2/chaos_lite chaos_lite)
 add_subdirectory(../modules2/blend blend)
 add_subdirectory(../modules2/resonator resonator)
@@ -217,3 +250,6 @@ add_subdirectory(../modules2/spectral spectral)
 add_subdirectory(../modules2/delay delay)
 add_subdirectory(../modules2/reverb reverb)
 add_subdirectory(../modules2/quantizer quantizer)
+add_subdirectory(../modules2/quad_vca quad_vca)
+add_subdirectory(../modules2/notes_to_cv notes_to_cv)
+add_subdirectory(../modules2/chord chord)

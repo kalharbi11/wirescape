@@ -1,0 +1,349 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Groove S1 — stopped-editor design study</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="groove-s1-study.css">
+  <style>body{margin:0;background:var(--paper);background-image:radial-gradient(var(--dot) .6px,transparent .75px);background-size:16px 16px}</style>
+</head>
+<body>
+<main class="groove-study">
+  <header>
+    <div class="intro-bar"><span class="study-chip">WIRESCAPE / DESIGN STUDY</span>
+      <span class="study-chip">GROOVE S1 / TWO TRACKS</span>
+      <span class="study-chip">SIMULATION ONLY — NO ENGINE</span></div>
+    <h1>A 32-step instrument that stays honest about what is playing</h1>
+    <p class="lede">Two synchronized sixteenth-note tracks, each split across two pages of 16. This is a local layout/behavior fixture, not an engine client. Transport, playhead, Apply confirmations and refusal below are manually simulated and must never stand in for native evidence.</p>
+  </header>
+
+  <section aria-labelledby="alternatives-title">
+    <div class="section-head"><h2 id="alternatives-title">01 / Layout alternatives</h2>
+      <span class="caption">Both retain one selected track, two visible track statuses</span></div>
+    <div class="concepts">
+      <article class="concept">
+        <div class="intro-bar"><span class="study-chip">A / RECOMMENDED</span><h3>Lane switch + selected-step inspector</h3></div>
+        <p>Step identity and kind remain legible at every density. Edit pitch, velocity, Mod1 and Mod2 precisely in one always-present inspector; optional lane switch changes overview values without changing the pattern.</p>
+        <div class="mini-steps" aria-label="Illustration: eight of sixteen steps, different kinds">
+          <span class="note-on">C4</span><span class="tie">Tie</span><span>Rest</span><span class="note-on">G4</span>
+          <span>Rest</span><span class="note-on">D4</span><span class="tie">Tie</span><span>Rest</span>
+        </div>
+        <div class="caption-line">16 large step targets / 1 selected-step inspector / one rail of values at a time</div>
+      </article>
+      <article class="concept">
+        <div class="intro-bar"><span class="study-chip">B / COMPARISON</span><h3>Stacked value lanes</h3></div>
+        <p>Every mod and velocity is visible simultaneously, but four value lanes turn 16 steps into a tall panel and compress the tap targets. Keep this as a wide-screen analytical view, not the default on the Pi.</p>
+        <div class="mini-lanes" aria-label="Illustration: stacked value lanes across eight steps">
+          <span class="label">Pitch</span><span>C4</span><span>—</span><span>—</span><span>G4</span><span>—</span><span>D4</span><span>—</span><span>—</span>
+          <span class="label">Vel</span><span>.8</span><span>—</span><span>—</span><span>.7</span><span>—</span><span>.9</span><span>—</span><span>—</span>
+          <span class="label">M1</span><span>.2</span><span>—</span><span>—</span><span>.5</span><span>—</span><span>.8</span><span>—</span><span>—</span>
+          <span class="label">M2</span><span>.7</span><span>—</span><span>—</span><span>.3</span><span>—</span><span>.2</span><span>—</span><span>—</span>
+        </div>
+        <div class="caption-line">4 simultaneous value lanes / more scanability / more vertical reach and clutter</div>
+      </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="card-title">
+    <div class="section-head"><h2 id="card-title">02 / Compact in-patch module card</h2>
+      <span class="caption">Small performance overview; expand to edit</span></div>
+    <div class="module-card">
+      <div class="intro-bar"><span class="stage-title">GRV · Groove</span><span class="study-chip">sequencing.groove</span></div>
+      <div class="mono">120.0 BPM · 1× · 32 STEPS / TRACK</div>
+      <div class="caption-line" style="margin-top:12px">TRACK 1 · ARMED / TRACK 2 · ARMED</div>
+      <div class="card-preview" aria-hidden="true"><span class="on"></span><span></span><span></span><span class="on"></span><span></span><span class="on"></span><span></span><span></span></div>
+      <div class="caption-line">PAGE 1/2 · NO NATIVE STATE CONNECTED</div>
+      <div class="rail" aria-label="Five output types repeated for tracks 1 and 2">
+        <span class="jack pitch" title="Pitch (x2)"></span><span class="jack" title="Gate (x2)"></span>
+        <span class="jack cv" title="Mod 1 (x2)"></span><span class="jack cv" title="Mod 2 (x2)"></span>
+        <span class="jack events" title="Notes (x2)"></span></div>
+    </div>
+    <p class="note" style="margin-top:8px">Port rail illustration only. Production requires separate stable T1 and T2 pitch/gate/mod1/mod2/notes connectors, never a collapsed shared port.</p>
+  </section>
+
+  <section aria-labelledby="editor-title">
+    <div class="section-head"><h2 id="editor-title">03 / Developed expanded editor · alternative A</h2>
+      <span class="caption">Open beside/over the patch canvas as a non-modal inspector</span></div>
+    <div class="stage">
+      <div class="stage-bar">
+        <div><div class="stage-title">GROOVE · STOPPED PATTERN EDITOR</div>
+          <div class="mono muted" id="global-summary" aria-live="polite">Demo: stopped / loaded</div></div>
+        <div class="transport" role="group" aria-label="Simulated transport controls">
+          <button id="start" type="button">Start</button><button id="stop" type="button">Stop</button>
+          <button id="reset" type="button">Reset</button><button id="global-mute" type="button" aria-pressed="false">Mute</button>
+        </div>
+      </div>
+      <div class="tracks" role="group" aria-label="Select track">
+        <button id="track-0" class="track is-selected" type="button" aria-pressed="true">
+          <strong>Track 1</strong><span class="track-meta"><span id="track-status-0">Armed</span><span>Pitch · Gate · Mod1 · Mod2 · Notes</span></span>
+        </button>
+        <button id="track-1" class="track" type="button" aria-pressed="false">
+          <strong>Track 2</strong><span class="track-meta"><span id="track-status-1">Armed</span><span>Pitch · Gate · Mod1 · Mod2 · Notes</span></span>
+        </button>
+      </div>
+      <div class="timeline">
+        <div class="timeline-head">
+          <div class="stage-tools" role="group" aria-label="Page navigation">
+            <button id="page-0" type="button" aria-pressed="true">01–16</button>
+            <button id="page-1" type="button" aria-pressed="false">17–32</button>
+            <span class="caption">FOUR-STEP BEAT GROUPS</span>
+          </div>
+          <span class="mono" id="position" aria-live="polite">Native playhead: demo 01 / 32</span>
+        </div>
+        <div class="step-scroller" tabindex="0" aria-label="16-step editor; scroll horizontally if needed">
+          <div id="steps" class="step-grid" role="group" aria-label="Steps for selected track and page"></div>
+        </div>
+        <p class="note">Changing page or selected step never changes the musical position. An off-page playhead remains identified by its absolute step number.</p>
+      </div>
+      <div class="panel-grid">
+        <section class="panel" style="margin:0" aria-labelledby="inspector-title">
+          <h3 id="inspector-title">Selected step <span id="selected-number">01</span> · <span id="edit-lock">Editable (demo)</span></h3>
+          <div class="action-row" role="group" aria-label="Step kind">
+            <button id="kind-note" type="button" aria-pressed="true">Note</button>
+            <button id="kind-rest" type="button" aria-pressed="false">Rest</button>
+            <button id="kind-tie" type="button" aria-pressed="false">Tie</button>
+          </div>
+          <div class="fields">
+            <label>MIDI key (0–127)<input id="key" type="number" min="0" max="127" step="1" inputmode="numeric"></label>
+            <label>Velocity (0–1)<input id="velocity" type="number" min="0" max="1" step=".05" inputmode="decimal"></label>
+            <label>Mod1 (0–1)<input id="mod1" type="number" min="0" max="1" step=".05" inputmode="decimal"></label>
+            <label>Mod2 (0–1)<input id="mod2" type="number" min="0" max="1" step=".05" inputmode="decimal"></label>
+          </div>
+          <p class="note" style="margin-top:8px">C4 = MIDI 60 = 0 V/oct. Velocity 0 is a rest; ties and rests hold prior modulation. Exact values are part of authored JSON, not live scalar parameters.</p>
+          <div class="action-row" style="margin-top:12px">
+            <button id="undo" type="button">Undo</button><button id="redo" type="button">Redo</button>
+            <button id="track-start" type="button">Track Start</button>
+            <button id="track-stop" type="button">Track Stop</button>
+            <button id="track-mute" type="button">Track Mute</button>
+          </div>
+        </section>
+        <section class="panel" style="margin:0" aria-labelledby="apply-title">
+          <h3 id="apply-title">Authored draft / engine-loaded state</h3>
+          <div class="status" id="loaded-status" role="status" aria-live="polite">Demo native: stopped / loaded</div>
+          <div class="caption-line" id="saved-status" style="margin-top:8px">SAVED DRAFT: unchanged</div>
+          <div class="action-row" style="margin-top:12px">
+            <button id="save-draft" type="button">Save draft (demo)</button>
+            <button id="apply" type="button">Apply</button>
+          </div>
+          <p class="note caution">Apply replaces the current graph and may interrupt/reset unrelated modules. Only actual native completed STOP permits editing; queued STOP or mute does not.</p>
+          <div class="demo-control">
+            <div class="eyebrow">SIMULATED NATIVE EVENTS / NOT ENGINE TELEMETRY</div>
+            <p class="note">These buttons stand in for future verified native observations and load ACK/refusal; they deliberately never fire on a timer.</p>
+            <div class="action-row" style="margin-top:10px">
+              <button id="sim-complete" type="button">Complete queued STOP</button>
+              <button id="sim-ack" type="button">Confirm Apply ACK</button>
+              <button id="sim-refuse" type="button">Refuse Apply</button>
+              <button id="sim-advance" type="button">Show step 23</button>
+              <button id="sim-disconnect" type="button">Disconnect</button>
+              <button id="sim-recover" type="button">Confirm STOP + prior load</button>
+            </div>
+            <div id="demo-log" class="mono muted" aria-live="polite" style="margin-top:12px">Demo event: initial simulated stopped/loaded snapshot.</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="states-title">
+    <div class="section-head"><h2 id="states-title">04 / Required state samples</h2>
+      <span class="caption">Static truth table · no inferred audio/phase</span></div>
+    <div class="state-gallery">
+      <article class="state-sample"><strong>Stopped / loaded</strong><p>Native completed STOP confirmed and loaded generation known. Editor unlocked. Start only for the confirmed config.</p></article>
+      <article class="state-sample"><strong>Stopped / dirty</strong><p>Authored draft differs from loaded config. Pattern can be edited and saved, but Start remains blocked until Apply ACK.</p></article>
+      <article class="state-sample"><strong>Running / locked</strong><p>Both tracks show performance state. Grid and numerical inputs are read-only; no live pattern write command.</p></article>
+      <article class="state-sample"><strong>STOP queued / locked</strong><p>Global STOP waits for the step-32 boundary. A command ACK is not completion. Second press cancels queue.</p></article>
+      <article class="state-sample"><strong>Applying</strong><p>Prepared candidate submitted off render thread. Editor locked while awaiting loadGraph response; do not Start.</p></article>
+      <article class="state-sample"><strong>Refused / draft retained</strong><p>Candidate not loaded; previous loaded graph cannot be confused with the edited draft. Start disabled.</p></article>
+      <article class="state-sample"><strong>Unknown / disconnected</strong><p>Native completion/generation cannot be established. Status reads unknown; edits/Start disabled until confirmed.</p></article>
+      <article class="state-sample"><strong>Track mute / start queued</strong><p>Track mute releases sound immediately but clock keeps running. Track Start while global run is active queues step-1 entry at shared boundary.</p></article>
+      <article class="state-sample"><strong>Off-page playhead</strong><p>Selected page stays at steps 1–16 while native position may be step 23; label shows “step 23, off-page” without auto-navigation.</p></article>
+    </div>
+  </section>
+
+  <section aria-label="Optional future extras">
+    <div class="section-head"><h2>05 / S1b extras (not implemented)</h2></div>
+    <p class="note">Quarter / half / three-quarter / full-step gate lengths and selected-step or page copy, clear and duplicate may be separate follow-ups. This prototype deliberately omits the controls to keep the verified two-track workflow visible.</p>
+  </section>
+  <footer class="footnotes note">Source: <code>docs/sequencer/UI_DESIGN_BRIEF.md</code> and #432 Keel-reviewed contract. No live audio, native engine, network, patch persistence or hardware certification. Plain CSS, no libraries, no timer-driven playhead.</footer>
+</main>
+<script>
+(function () {
+  "use strict";
+  // DEMO-ONLY LOCAL STATE. Not a substitute for native STOP/playhead/ACK/generation.
+  const $ = (id) => document.getElementById(id);
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  const makeTrack = () => Array.from({ length: 32 }, () =>
+    ({kind: "rest", key: 60, velocity: .8, mod1: 0, mod2: 0}));
+  const initial = [makeTrack(), makeTrack()];
+  function note(track, step, key, vel, mod1, mod2) {
+    initial[track][step] = {kind:"note", key:key, velocity:vel, mod1:mod1, mod2:mod2};
+  }
+  note(0, 0, 60, .8, .25, .75); initial[0][1].kind = "tie";
+  note(0, 3, 67, .7, .5, .3); note(0, 5, 62, .9, .8, .2);
+  note(0, 17, 64, .7, .2, .6); note(0, 31, 72, .8, .65, .4);
+  note(1, 0, 67, .8, .4, .6); initial[1][1].kind = "tie";
+  note(1, 7, 72, .6, .15, .9); note(1, 23, 55, .7, .7, .3);
+  let draft = clone(initial), loaded = clone(initial), saved = clone(initial);
+  let past = [], future = [], track = 0, page = 0, selected = 0;
+  let mode = "stopped", verified = true, refused = false, muted = false, localMute = [false,false];
+  let trackQueued = [false,false], trackStop = [false,false], armed = [true,true], playhead = null;
+  let lastEvent = "Initial simulated stopped/loaded snapshot.";
+  const editable = () => verified && (mode === "stopped" || mode === "refused");
+  const dirty = () => JSON.stringify(draft) !== JSON.stringify(loaded);
+  const savedDirty = () => JSON.stringify(draft) !== JSON.stringify(saved);
+  function pitchName(key) {
+    const names = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+    return names[((key % 12) + 12) % 12] + String(Math.floor(key / 12) - 1);
+  }
+  function record(message) { lastEvent = message; render(); }
+  function changeStep(changer) {
+    if (!editable()) return;
+    past.push(clone(draft)); if (past.length > 32) past.shift();
+    future = []; changer(draft[track][selected]);
+    record("Draft edited; not yet loaded or audible.");
+  }
+  function setButton(id, active) { $(id).setAttribute("aria-pressed", String(active)); }
+  function render() {
+    const isEditing = editable();
+    $("global-summary").textContent = "SIMULATED · " + mode.toUpperCase() +
+      (muted ? " · GLOBAL MUTE" : "") + (dirty() ? " · DRAFT DIFFERS" : " · DRAFT MATCHES");
+    $("track-0").classList.toggle("is-selected", track === 0);
+    $("track-1").classList.toggle("is-selected", track === 1);
+    for (let t = 0; t < 2; t++) {
+      setButton("track-" + t, track === t);
+      $("track-status-" + t).textContent = localMute[t] ? "Muted / phase continues" :
+        trackQueued[t] ? "START queued" : trackStop[t] ? "STOP queued" :
+        (mode === "running" || mode === "queued") && armed[t] ? "Running" :
+        armed[t] ? "Armed" : "Disarmed";
+    }
+    setButton("page-0", page === 0); setButton("page-1", page === 1);
+    setButton("global-mute", muted);
+    const label = playhead === null ? "No confirmed playhead position" :
+      "Demo playhead: " + String(playhead + 1).padStart(2,"0") + " / 32" +
+      (Math.floor(playhead / 16) === page ? "" : " · OFF PAGE");
+    $("position").textContent = label;
+    const grid = $("steps");
+    grid.replaceChildren();
+    for (let i = 0; i < 16; i++) {
+      const absolute = page * 16 + i, step = draft[track][absolute];
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "step-cell";
+      b.dataset.kind = step.kind;
+      b.classList.toggle("is-selected", selected === absolute);
+      b.classList.toggle("is-playhead", playhead === absolute && (mode === "running" || mode === "queued"));
+      b.setAttribute("aria-pressed", String(selected === absolute));
+      b.setAttribute("aria-label", "Track " + (track + 1) + ", step " + (absolute + 1) +
+        ", " + (step.kind === "note" ? pitchName(step.key) : step.kind) +
+        (selected === absolute ? ", selected" : ""));
+      const number = document.createElement("small");
+      number.textContent = String(absolute + 1).padStart(2,"0");
+      const value = document.createElement("span");
+      value.className = "step-label";
+      value.textContent = step.kind === "note" && step.velocity > 0 ? pitchName(step.key) :
+        step.kind === "tie" ? "Tie" : "—";
+      b.append(number, value);
+      b.addEventListener("click", () => {selected = absolute; render();});
+      grid.append(b);
+    }
+    const step = draft[track][selected];
+    $("selected-number").textContent = String(selected + 1).padStart(2,"0");
+    $("edit-lock").textContent = isEditing ? "Editable (demo confirmed STOP)" : "LOCKED: " + mode;
+    for (const kind of ["note","rest","tie"]) {
+      setButton("kind-" + kind, step.kind === kind);
+      $("kind-" + kind).disabled = !isEditing;
+    }
+    for (const name of ["key","velocity","mod1","mod2"]) {
+      $(name).value = String(step[name]);
+      $(name).disabled = !isEditing || (step.kind !== "note" && (name === "key" || name === "velocity"));
+    }
+    $("undo").disabled = !isEditing || !past.length;
+    $("redo").disabled = !isEditing || !future.length;
+    $("apply").disabled = !isEditing || !dirty();
+    $("start").disabled = !verified || mode !== "stopped" || dirty();
+    $("stop").disabled = !verified || (mode !== "running" && mode !== "queued");
+    $("sim-complete").disabled = mode !== "queued";
+    $("sim-ack").disabled = mode !== "applying";
+    $("sim-refuse").disabled = mode !== "applying";
+    $("sim-recover").disabled = mode !== "unknown";
+    $("save-draft").disabled = !isEditing || !savedDirty();
+    for (const id of ["reset", "global-mute", "track-start", "track-stop", "track-mute"])
+      $(id).disabled = mode === "applying" || mode === "unknown";
+    $("loaded-status").textContent = mode === "applying" ? "SIMULATED / Applying candidate — waiting for loadGraph ACK. START LOCKED." :
+      mode === "refused" ? "SIMULATED / Refused. Draft retained, candidate NOT loaded. START LOCKED." :
+      mode === "unknown" ? "UNKNOWN / Disconnected. Native stop and loaded generation not verified." :
+      mode === "queued" ? "SIMULATED / STOP queued, NOT complete. Edit locked until native completion." :
+      mode === "running" ? "SIMULATED / Running. Edit locked; mute does not change that." :
+      dirty() ? "SIMULATED / Native stopped. Draft differs from acknowledged graph; Apply before Start." :
+      "SIMULATED / Native stopped and loaded. Start will begin step 1.";
+    $("saved-status").textContent = savedDirty() ? "SAVED DRAFT: unsaved edits in this local fixture" :
+      "SAVED DRAFT: matches last demo save (not persisted to disk)";
+    $("demo-log").textContent = "Demo event: " + lastEvent;
+  }
+  $("track-0").onclick = () => {track=0; selected=page*16; render();};
+  $("track-1").onclick = () => {track=1; selected=page*16; render();};
+  $("page-0").onclick = () => {page=0; selected=0; render();};
+  $("page-1").onclick = () => {page=1; selected=16; render();};
+  for (const kind of ["note","rest","tie"]) $("kind-" + kind).onclick = () => changeStep(s => { s.kind = kind; });
+  for (const name of ["key","velocity","mod1","mod2"]) {
+    $(name).addEventListener("change", () => {
+      const n = Number($(name).value), lo = 0, hi = name === "key" ? 127 : 1;
+      if (!Number.isFinite(n) || n < lo || n > hi || (name === "key" && !Number.isInteger(n))) {
+        record("Invalid " + name + " rejected; valid range is " + lo + " to " + hi + "."); return;
+      }
+      if (draft[track][selected][name] !== n) changeStep(s => {s[name] = n;});
+    });
+  }
+  $("undo").onclick = () => {if (!editable() || !past.length) return;
+    future.push(clone(draft)); draft=past.pop(); record("Undo changed the draft only.");};
+  $("redo").onclick = () => {if (!editable() || !future.length) return;
+    past.push(clone(draft)); draft=future.pop(); record("Redo changed the draft only.");};
+  $("save-draft").onclick = () => {if (!editable()) return;
+    saved=clone(draft); record("Demo save marker updated, no actual file written.");};
+  $("apply").onclick = () => {if (!editable() || !dirty()) return;
+    mode="applying"; record("Candidate submitted (simulated); pending ACK or refusal.");};
+  $("sim-ack").onclick = () => {if (mode !== "applying") return;
+    loaded=clone(draft); mode="stopped"; refused=false; verified=true; playhead=null;
+    record("Demo ACK: newly loaded graph is stopped. Start remains separate.");};
+  $("sim-refuse").onclick = () => {if (mode !== "applying") return;
+    mode="refused"; refused=true; record("Demo refusal: changed draft kept, old loaded graph unchanged.");};
+  $("start").onclick = () => {if (mode!=="stopped" || dirty() || !verified) return;
+    mode="running"; playhead=0; trackQueued=[false,false];trackStop=[false,false];
+    record("Demo START at step 1; no timing/audio engine attached.");};
+  $("stop").onclick = () => {if (mode==="running") {mode="queued";record("Demo STOP requested; waiting for step-32 boundary.");}
+    else if (mode==="queued") {mode="running";record("Second STOP press cancelled the queue.");}};
+  $("sim-complete").onclick = () => {if (mode!=="queued") return;
+    mode="stopped";verified=true;playhead=null;trackQueued=[false,false];trackStop=[false,false];
+    record("Demo native confirmation: global STOP complete; editor unlocked.");};
+  $("reset").onclick = () => {if (mode==="unknown" || mode==="applying") return;playhead=null;trackQueued=[false,false];trackStop=[false,false];
+    record("Demo RESET released notes, cleared queues, and preserved running intent.");};
+  $("global-mute").onclick = () => {if (mode==="unknown" || mode==="applying") return;
+    muted=!muted;record("Global mute toggled. Native clock status unchanged; no editing bypass.");};
+  $("track-start").onclick = () => {if (mode==="unknown" || mode==="applying") return;
+    if (mode==="running" || mode==="queued") {
+      if (trackStop[track]) {trackStop[track]=false;record("Track START cancelled pending STOP.");}
+      else if (!armed[track]) {trackQueued[track]=true;record("Track START queued for shared boundary (simulated).");}
+      else record("Track already playing; START does not retrigger.");
+    } else {armed[track]=true;record("Track armed while globally stopped.");}};
+  $("track-stop").onclick = () => {if (mode==="unknown" || mode==="applying") return;
+    if (mode==="running" || mode==="queued") {
+      if (trackQueued[track]) {trackQueued[track]=false;record("Track STOP cancelled queued entry.");}
+      else if (armed[track]) {trackStop[track]=!trackStop[track];
+        record("Track STOP pending toggled; phase unaffected until boundary.");}
+    } else {armed[track]=false;record("Track disarmed while globally stopped.");}};
+  $("track-mute").onclick = () => {if (mode==="unknown" || mode==="applying") return;
+    localMute[track]=!localMute[track];record("Track mute toggled; phase unchanged and editor lock retained.");};
+  $("sim-advance").onclick = () => {if (mode !== "running" && mode !== "queued") {
+    record("Step 23 fixture only applies to simulated running or queued state.");return;}
+    playhead=22;record("Demo/native playhead fixture set to step 23; editor page not moved.");};
+  $("sim-disconnect").onclick = () => {mode="unknown";verified=false;playhead=null;
+    record("Demo disconnect: native STOP/playhead/loaded truth unknown; edits blocked.");};
+  $("sim-recover").onclick = () => {if (mode !== "unknown") return;
+    mode=refused ? "refused" : "stopped";verified=true;playhead=null;
+    record("Demo confirmed STOP and prior acknowledged load; draft/refusal retained. Apply before Start if dirty.");};
+  render();
+})();
+</script>
+</body>
+</html>

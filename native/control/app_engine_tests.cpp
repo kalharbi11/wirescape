@@ -7,17 +7,33 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <stdexcept>
+#include <string>
 #include <thread>
 static void check(bool ok,const char*message){if(!ok)throw std::runtime_error(message);}
 using App=std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>;
 static App make(){ws_engine_config c{sizeof(c),48000,128,32,2048};App e(app_engine_create(&c),app_engine_destroy);check(bool(e),"create app engine");return e;}
 static void shim(const char*library){
     auto source = make();
-    check(app_engine_module_count(source.get()) == 28,
-          "Twenty-six builtins (including Groove and Quantizer) plus the two SDK sources");
+    // Known IDs may only grow (#687): every one must be present, none twice.
+    std::set<std::string> ids;
+    for (uint32_t i = 0; i < app_engine_module_count(source.get()); ++i)
+        check(ids.insert(app_engine_module(source.get(), i)->id).second, "duplicate catalogue module ID");
+    std::ifstream known(WS_KNOWN_MODULE_IDS);
+    check(bool(known), "known module ID list readable");
+    size_t known_count = 0;
+    for (std::string line; std::getline(known, line);) {
+        line.erase(line.find_last_not_of(" \t\r") + 1);
+        if (line.empty() || line[0] == '#') continue;
+        ++known_count;
+        if (!ids.count(line)) throw std::runtime_error("known module ID missing from catalogue: " + line);
+    }
+    check(known_count >= 33, "known module ID list holds the 1.0 catalogue");
+    bool quad_seen = false;
     for (auto *native : wirescape::app::builtin_modules()) {
         const ws_module_descriptor *metadata = nullptr;
         for (uint32_t i = 0; i < app_engine_module_count(source.get()); ++i) {
@@ -27,6 +43,11 @@ static void shim(const char*library){
         check(metadata && metadata->input_count == native->input_count &&
                   metadata->output_count == native->output_count,
               "catalogue port counts");
+        if (!std::strcmp(native->id, "essentials.quad_vca")) {
+            check(metadata->input_count == 8 && metadata->output_count == 5,
+                  "Quad VCA must expose eight inputs and five outputs");
+            quad_seen = true;
+        }
         for (uint32_t i = 0; i < native->input_count; ++i)
             check(metadata->inputs[i].kind ==
                       static_cast<uint32_t>(native->inputs[i].hint == WS2_AUDIO ? WS_AUDIO : WS_CONTROL),
@@ -36,14 +57,25 @@ static void shim(const char*library){
                       static_cast<uint32_t>(native->outputs[i].hint == WS2_AUDIO ? WS_AUDIO : WS_CONTROL),
                   "catalogue output kind");
     }
- check(app_engine_load_module(source.get(),library)==WS_OK,"load third-party ABI1 shared library");
- auto e=make();check(app_engine_copy_modules(e.get(),source.get())==WS_OK,"replacement catalogue");source.reset();
- check(std::strcmp(app_engine_parameter_id(e.get(),"test.app_legacy",0),"7")==0,"preserve non-contiguous ABI1 ID and library lifetime");
- check(app_engine_add_node(e.get(),9,"test.app_legacy")==WS_OK,"shim node");
- check(app_engine_prepare(e.get(),9,0)==WS_OK,"shim prepare");
- check(app_engine_initialize_parameter(e.get(),9,7,.5f)==WS_OK,"shim parameter init by ID");
- float out[128];int result;size_t allocations=0;
- {allocation_watch::Scope watch;result=app_engine_render(e.get(),out,128);allocations+=watch.allocations();}
+    check(quad_seen, "Quad VCA is present in the native catalogue");
+    check(app_engine_load_module(source.get(), library) == WS_OK, "load third-party ABI1 shared library");
+    auto e = make();
+    check(app_engine_copy_modules(e.get(), source.get()) == WS_OK, "replacement catalogue");
+    source.reset();
+    check(std::strcmp(app_engine_parameter_id(e.get(), "test.app_legacy", 0), "7") == 0,
+          "preserve non-contiguous ABI1 ID and library lifetime");
+    check(app_engine_add_node(e.get(), 9, "test.app_legacy") == WS_OK, "shim node");
+    check(app_engine_prepare(e.get(), 9, 0) == WS_OK, "shim prepare");
+    check(app_engine_initialize_parameter(e.get(), 9, 7, .5f) == WS_OK, "shim parameter init by ID");
+    float out[128];
+    int result;
+    size_t allocations = 0;
+    {
+        allocation_watch::Scope watch;
+        result = app_engine_render(e.get(), out, 128);
+        allocations += watch.allocations();
+    }
+
  check(result==WS_OK&&std::all_of(out,out+128,[](float v){return v==.5f;}),"shim initial output exact");
  ws_event input{sizeof(input),128,9,WS_PARAMETER,7,.75f,1,0,app_engine_generation(e.get())};
  check(app_engine_enqueue(e.get(),&input)==WS_OK,"enqueue ABI1 parameter ID, not array index");

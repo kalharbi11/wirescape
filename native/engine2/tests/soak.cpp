@@ -1,25 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#include "engine2.h"
-#include "soak_stats.h"
-#include "../../tests2/module_loader.h"
-#include "../../tests2/allocation_watch.h"
-#include "../../modules2/vco/dsp.h"
-#include "../../modules2/vcf/dsp.h"
 #include "../../modules2/adsr/dsp.h"
 #include "../../modules2/vca/dsp.h"
+#include "../../modules2/vcf/dsp.h"
+#include "../../modules2/vco/dsp.h"
+#include "../../tests2/allocation_watch.h"
+#include "../../tests2/module_loader.h"
+#include "engine2.h"
+#include "runtime_patch.h"
+#include "soak_stats.h"
 #include <chrono>
 #include <cmath>
-#include <stdexcept>
-#include <vector>
+#include <cstdint>
 #include <cstdio>
+#include <fstream>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <thread>
-#include <cstdint>
-#ifdef WS_SOAK_DOCUMENT
-#include "app_patch.h"
-#include <QFile>
-#endif
+#include <vector>
 #ifndef _WIN32
 #include <time.h>
 #endif
@@ -88,29 +86,33 @@ static std::unique_ptr<Engine> graph(const Options&o,ModuleLoader&loader){
 }
 static bool run(const Options&o){
  ModuleLoader loader(o.modules.c_str());auto builtin=o.patch.empty()?graph(o,loader):nullptr;Engine*e=builtin.get();
-#ifdef WS_SOAK_DOCUMENT
  std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>app(nullptr,app_engine_destroy);
  if(!o.patch.empty()){
   using namespace wirescape::document;
   ws_engine_config config{sizeof(config),o.rate,o.block,64,8192};
   std::unique_ptr<AppEngine,decltype(&app_engine_destroy)>catalog(app_engine_create(&config),app_engine_destroy);require(bool(catalog));
-  QFile file(QString::fromStdString(o.patch));if(!file.open(QIODevice::ReadOnly))throw std::runtime_error("cannot read document patch");
-  auto patch=read_patch(file.readAll(),app_catalog(catalog.get()));QString error;
-  app.reset(build_app_patch(catalog.get(),patch,config,error));if(!app)throw std::runtime_error(error.toStdString());e=&app_engine_native(app.get());
+  std::ifstream file(o.patch, std::ios::binary);
+  if (!file) throw std::runtime_error("cannot read document patch");
+  std::string bytes(RuntimePatchLimit + 1, '\0');
+  file.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+  bytes.resize(static_cast<size_t>(file.gcount()));
+  std::string error;
+  app.reset(load_runtime_patch(bytes, catalog.get(), config, error));
+  if (!app) throw std::runtime_error(error);
+  e = &app_engine_native(app.get());
  }
-#else
- if(!o.patch.empty())throw std::runtime_error("document soak requires Qt Core development files at build time");
-#endif
  size_t count=static_cast<size_t>(std::ceil(o.rate*o.seconds/o.block));
  std::vector<double>times(count),cpu_times(count);std::vector<float>buffer(o.block);float*out[]={buffer.data()};
  uint64_t allocations=0;double peak=0;
- auto render=[&](){int result;{allocation_watch::Scope watch;
-#ifdef WS_SOAK_DOCUMENT
-  result=app?app_engine_render(app.get(),buffer.data(),o.block):e->render(out,1,o.block);
-#else
-  result=e->render(out,1,o.block);
-#endif
-  allocations+=watch.allocations();}require(result==WS2_OK);};
+ auto render = [&]() {
+     int result;
+     {
+         allocation_watch::Scope watch;
+         result = app ? app_engine_render(app.get(), buffer.data(), o.block) : e->render(out, 1, o.block);
+         allocations += watch.allocations();
+     }
+     require(result == WS2_OK);
+ };
  for(int i=0;i<256;++i)render();
  double period=1e9*o.block/o.rate;size_t late=0;auto start=Clock::now();
  for(size_t i=0;i<count;++i){

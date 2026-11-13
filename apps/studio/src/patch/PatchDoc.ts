@@ -17,6 +17,7 @@ export type PatchEvent =
   | { t: 'mod-amount'; c: Connection; amount: number }
   | { t: 'position'; id: number }
   | { t: 'label'; id: number }
+  | { t: 'ui'; id: number }
   | { t: 'view' };
 
 type Listener = (e: PatchEvent) => void;
@@ -60,6 +61,40 @@ export class PatchDoc {
   }
 
   replace(patch: PatchV2): void {
+    // Validate the ingress envelope before clearing the current editable document.
+    // Legacy Python/visual formats are inspection-only, never native migrations.
+    if (!patch || patch.format !== 'wirescape.native.patch' ||
+        !Number.isInteger(patch.version) || ![1, 2].includes(patch.version)) {
+      throw new Error('Unsupported patch format or version; the current patch was kept.');
+    }
+    if ((patch.modules !== undefined && !Array.isArray(patch.modules)) ||
+        (patch.connections !== undefined && !Array.isArray(patch.connections))) {
+      throw new Error('Invalid patch containers; the current patch was kept.');
+    }
+    const object = (value: unknown): boolean => !!value && typeof value === 'object' && !Array.isArray(value);
+    if (patch.ui !== undefined && (!object(patch.ui) ||
+        ['positions', 'view', 'labels', 'cableColors'].some(key => patch.ui?.[key] !== undefined && !object(patch.ui[key])))) {
+      throw new Error('Invalid patch UI containers; the current patch was kept.');
+    }
+    const v1 = (patch as { version: number }).version === 1;
+    if (v1 && (!Array.isArray(patch.modules) || !Array.isArray(patch.connections))) {
+      throw new Error('Invalid v1 patch containers; the current patch was kept.');
+    }
+    const ids = new Set<number>();
+    for (const m of patch.modules ?? []) {
+      if (!m || !Number.isSafeInteger(m.id) || m.id <= 0 || ids.has(m.id) ||
+          typeof (v1 ? m.type : m.module) !== 'string' ||
+          (v1 && m.values != null && typeof m.values !== 'object')) {
+        throw new Error('Invalid or duplicate patch module; the current patch was kept.');
+      }
+      ids.add(m.id);
+    }
+    for (const c of patch.connections ?? []) {
+      const readable = v1 ? c && ['audio', 'control', 'signal', 'modulation', 'event'].includes(c.kind) &&
+        Number.isSafeInteger(c.fromNode) && Number(c.fromNode) > 0 && typeof c.fromPort === 'string' &&
+        Number.isSafeInteger(c.toNode) && Number(c.toNode) > 0 && typeof c.toPort === 'string' : isConnection(c);
+      if (!readable) throw new Error('Invalid patch connection; the current patch was kept.');
+    }
     // Mirror the native document's v1 migration, preserving the original envelope.
     if ((patch as { version: number }).version === 1) patch = migrateV1(patch);
     patch = structuredClone(patch);
@@ -67,10 +102,9 @@ export class PatchDoc {
     this.extras = rest;
     this.modules.clear();
     for (const m of modules ?? []) {
-      if (typeof m?.id !== 'number' || typeof m?.module !== 'string') continue;
       this.modules.set(m.id, m);
     }
-    this.connections = (connections ?? []).filter(isConnection).map(c => ({ ...c }));
+    this.connections = (connections ?? []).map(c => ({ ...c }));
     this.sourceHasUi = 'ui' in patch;
     this.ui = ui ?? {};
     this.emit({ t: 'reset' });
@@ -117,6 +151,8 @@ export class PatchDoc {
     if (Array.isArray(this.extras.outputs)) this.extras.outputs = this.extras.outputs.filter(o => o.module !== id);
     if (this.ui.positions) delete this.ui.positions[String(id)];
     if (this.ui.labels) delete this.ui.labels[String(id)];
+    const g = this.ui.groove;
+    if (g && typeof g === 'object') delete g[String(id)];
     this.emit({ t: 'module-removed', id });
   }
 
@@ -131,6 +167,21 @@ export class PatchDoc {
     const map = { ...(this.ui.cableColors ?? {}) };
     if (name) map[key] = name; else delete map[key];
     this.ui.cableColors = map;
+  }
+
+  /** The Groove scale helper saved for `id`, if it is well formed. */
+  grooveScale(id: number): { root: number; scale: string } | undefined {
+    const g = this.ui.groove, v = g && typeof g === 'object' ? g[String(id)] : undefined;
+    if (!v || typeof v !== 'object' || !Number.isInteger(v.root) || v.root < 0 || v.root > 11
+      || typeof v.scale !== 'string') return undefined;
+    return { root: v.root, scale: v.scale };
+  }
+  /** Save the scale helper in `ui.groove`, keeping other keys there; never touches module config. */
+  setGrooveScale(id: number, root: number, scale: string): void {
+    const g = this.ui.groove && typeof this.ui.groove === 'object' ? this.ui.groove : (this.ui.groove = {});
+    const prev = g[String(id)];
+    g[String(id)] = { ...(prev && typeof prev === 'object' ? prev : {}), root, scale };
+    this.emit({ t: 'ui', id });
   }
 
   label(id: number): string | undefined { return this.ui.labels?.[String(id)]; }
@@ -169,6 +220,31 @@ export class PatchDoc {
     const { system_name: _drop, ...rest } = config;
     m.config = systemName === undefined ? { ...rest, endpoint }
       : { ...rest, endpoint, system_name: systemName };
+    this.emit({ t: 'config', id });
+  }
+
+  /** Replace one module's authored config (Groove editor); unknown keys are the caller's to keep. */
+  setModuleConfig(id: number, config: unknown): void {
+    const m = this.modules.get(id);
+    if (!m) return;
+    if (config === undefined) delete m.config; else m.config = structuredClone(config);
+    this.emit({ t: 'config', id });
+  }
+
+  /** The explicit `config.rows` of a `midi.cc_to_cv` module (rows beyond them keep their CC n defaults). */
+  ccRows(id: number): Record<string, unknown>[] {
+    const m = this.modules.get(id);
+    const rows = m?.module === 'midi.cc_to_cv' && m.config && typeof m.config === 'object'
+      ? (m.config as { rows?: unknown }).rows : undefined;
+    return Array.isArray(rows) ? rows.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object') : [];
+  }
+
+  /** Replace a module's whole `config` (absent when `undefined`); Learn's rows and their inverse. */
+  setConfig(id: number, config: unknown): void {
+    const m = this.modules.get(id);
+    if (!m) return;
+    if (config === undefined) delete m.config;
+    else m.config = structuredClone(config) as typeof m.config;
     this.emit({ t: 'config', id });
   }
 
@@ -248,7 +324,7 @@ function isConnection(c: unknown): c is Connection {
 }
 function isEndpoint(e: unknown): e is Endpoint {
   const x = e as Endpoint;
-  return !!x && typeof x === 'object' && typeof x.module === 'number' && typeof x.port === 'string';
+  return !!x && typeof x === 'object' && Number.isSafeInteger(x.module) && x.module > 0 && typeof x.port === 'string';
 }
 export const EMPTY = EMPTY_PATCH;
 

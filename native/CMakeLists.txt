@@ -1,20 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
-project(WirescapeNative VERSION 0.1.0 LANGUAGES CXX)
+project(WirescapeNative VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-option(WIRESCAPE_BUILD_UI "Build optional UI device bridge and Qt shell" OFF)
-# Qt SDK discovery is opt-in local configuration.
-if(WIRESCAPE_BUILD_UI)
-  if(DEFINED ENV{WIRESCAPE_QT_DIR} AND NOT "$ENV{WIRESCAPE_QT_DIR}" STREQUAL "")
-    list(PREPEND CMAKE_PREFIX_PATH "$ENV{WIRESCAPE_QT_DIR}")
-  elseif(NOT CMAKE_PREFIX_PATH AND NOT DEFINED ENV{CMAKE_PREFIX_PATH})
-    set(_wirescape_local_qt "${CMAKE_CURRENT_SOURCE_DIR}/../.tools/qt/6.10.3/msvc2022_64")
-    if(EXISTS "${_wirescape_local_qt}/lib/cmake/Qt6/Qt6Config.cmake")
-      list(PREPEND CMAKE_PREFIX_PATH "${_wirescape_local_qt}")
-    endif()
-  endif()
-endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 add_library(wirescape_engine SHARED src/engine.cpp)
@@ -98,9 +86,6 @@ foreach(module noise slew function_envelope clock vcf ladder)
   add_test(NAME essentials_${module}_tests COMMAND essentials_${module}_tests $<TARGET_FILE:ws_${module}>)
   set_tests_properties(essentials_${module}_tests PROPERTIES TIMEOUT 30)
 endforeach()
-if(WIRESCAPE_BUILD_UI AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ui/CMakeLists.txt")
-  add_subdirectory(ui)
-endif()
 add_executable(returned_filter_stress tests/returned_filter_stress.cpp)
 target_link_libraries(returned_filter_stress PRIVATE wirescape_engine)
 add_dependencies(returned_filter_stress ws_vcf ws_ladder)
@@ -115,10 +100,57 @@ add_subdirectory(tools/render)
 # Offline analysis tests only; real endpoint capture is always a manual command.
 add_subdirectory(tools/capture)
 
+# Independent localhost UDP worker; production Session integration follows in OSC B.
+add_library(wirescape_osc_service STATIC io/net/osc_service.cpp)
+target_include_directories(wirescape_osc_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(wirescape_osc_service PUBLIC Threads::Threads)
+if(WIN32)
+  target_link_libraries(wirescape_osc_service PUBLIC ws2_32)
+endif()
+add_executable(abi2_osc_host_service_tests io/net/tests.cpp)
+target_include_directories(abi2_osc_host_service_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sdk)
+target_link_libraries(abi2_osc_host_service_tests PRIVATE wirescape_osc_service)
+add_test(NAME abi2_osc_host_service_tests COMMAND abi2_osc_host_service_tests)
+set_tests_properties(abi2_osc_host_service_tests PROPERTIES TIMEOUT 30)
+
+# Offline real engine route: measured worker timestamp, one-block lead and
+# no audio-thread allocation. Only binds a loopback ephemeral UDP socket.
+add_executable(abi2_osc_graph_ingress_tests io/net/graph_tests.cpp tests2/allocation_watch.cpp)
+target_include_directories(abi2_osc_graph_ingress_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sdk)
+target_link_libraries(abi2_osc_graph_ingress_tests PRIVATE
+  wirescape_runtime_document wirescape_osc_service nlohmann_json::nlohmann_json)
+add_test(NAME abi2_osc_graph_ingress_tests COMMAND abi2_osc_graph_ingress_tests)
+set_tests_properties(abi2_osc_graph_ingress_tests PROPERTIES TIMEOUT 30)
+
+
+# Always compile the two harness translation units for Static ownership coverage.
+# This OBJECT library never links or runs libFuzzer in the standard build.
+add_library(abi2_osc_fuzz_compile OBJECT io/osc/fuzz.cpp)
+# Opt-in device-free OSC libFuzzer executables; disabled in normal builds.
+option(WIRESCAPE_OSC_FUZZ "Build Clang libFuzzer OSC packet/pattern targets" OFF)
+if(WIRESCAPE_OSC_FUZZ)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "WIRESCAPE_OSC_FUZZ requires Clang with libFuzzer")
+  endif()
+  foreach(kind codec pattern)
+    add_executable(abi2_osc_${kind}_fuzz io/osc/fuzz.cpp)
+    if(kind STREQUAL "pattern")
+      target_compile_definitions(abi2_osc_${kind}_fuzz PRIVATE WIRESCAPE_OSC_PATTERN=1)
+    endif()
+    target_compile_options(abi2_osc_${kind}_fuzz PRIVATE
+      -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer)
+    target_link_options(abi2_osc_${kind}_fuzz PRIVATE -fsanitize=fuzzer,address,undefined)
+  endforeach()
+endif()
+
 # Qt-free stdio engine process; no devices without explicit confirmation.
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
 execute_process(COMMAND git rev-parse --short=12 HEAD WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   OUTPUT_VARIABLE engine_sha OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+add_library(wirescape_osc_host STATIC control/osc_host.cpp)
+target_include_directories(wirescape_osc_host PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/control)
+target_link_libraries(wirescape_osc_host PUBLIC wirescape_osc_service wirescape_runtime_document
+  nlohmann_json::nlohmann_json)
 add_executable(wirescape_engine_sidecar sidecar/main.cpp sidecar/protocol.cpp sidecar/session.cpp sidecar/devices.cpp)
 set_target_properties(wirescape_engine_sidecar PROPERTIES OUTPUT_NAME wirescape-engine)
 # Compile native catalogue categories from the same presentation source as
@@ -140,7 +172,7 @@ file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/wirescape_sidecar_categories.h
 target_include_directories(wirescape_engine_sidecar PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(wirescape_engine_sidecar PRIVATE WIRESCAPE_ENGINE_SHA="${engine_sha}")
 target_link_libraries(wirescape_engine_sidecar PRIVATE wirescape_runtime_document wirescape_audio_service
-  wirescape_midi_host nlohmann_json::nlohmann_json Threads::Threads)
+  wirescape_midi_host wirescape_osc_host nlohmann_json::nlohmann_json Threads::Threads)
 add_test(NAME abi2_sidecar_protocol_tests COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/sidecar/protocol_tests.py
   $<TARGET_FILE:wirescape_engine_sidecar> ${PROJECT_SOURCE_DIR}/examples)
 set_tests_properties(abi2_sidecar_protocol_tests PROPERTIES TIMEOUT 90)
@@ -149,7 +181,7 @@ add_test(NAME sidecar_golden COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURC
 set_tests_properties(sidecar_golden PROPERTIES TIMEOUT 180)
 add_executable(sidecar_protocol_unit_tests sidecar/protocol_unit_tests.cpp sidecar/protocol.cpp sidecar/devices.cpp tests2/allocation_watch.cpp)
 target_link_libraries(sidecar_protocol_unit_tests PRIVATE wirescape_runtime_document wirescape_audio_service
-  wirescape_midi_host nlohmann_json::nlohmann_json Threads::Threads)
+  wirescape_midi_host wirescape_osc_host nlohmann_json::nlohmann_json Threads::Threads)
 add_test(NAME abi2_sidecar_unit_tests COMMAND sidecar_protocol_unit_tests)
 set_tests_properties(abi2_sidecar_unit_tests PROPERTIES TIMEOUT 30)
 add_executable(sidecar_audio_recovery_tests sidecar/audio_recovery_tests.cpp sidecar/session.cpp io/audio/device_identity.cpp
@@ -158,6 +190,6 @@ target_include_directories(sidecar_audio_recovery_tests PRIVATE "${CMAKE_CURRENT
 target_compile_definitions(sidecar_audio_recovery_tests PRIVATE WIRESCAPE_ENGINE_SHA="${engine_sha}")
 # Deliberately omit wirescape_audio_service: the test supplies its fake boundary.
 target_link_libraries(sidecar_audio_recovery_tests PRIVATE wirescape_runtime_document
-  wirescape_midi_host nlohmann_json::nlohmann_json Threads::Threads)
+  wirescape_midi_host wirescape_osc_host nlohmann_json::nlohmann_json Threads::Threads)
 add_test(NAME abi2_sidecar_audio_recovery_tests COMMAND sidecar_audio_recovery_tests)
 set_tests_properties(abi2_sidecar_audio_recovery_tests PROPERTIES TIMEOUT 30)

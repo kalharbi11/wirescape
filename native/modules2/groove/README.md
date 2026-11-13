@@ -1,31 +1,69 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Groove S0 module
+# Groove playable v1 — native G1/G4a/G5a config v2 (#496, #526)
 
-`sequencing.groove` is a native **configuration proof**, not the S1 instrument.
-Authored v2 patch `modules[].config` must be
-`{"version":1,"bpm":120,"tracks":[{"steps":[{"kind":"note","key":60,"velocity":0.8},{"kind":"rest"}]}]}`.
-One track with 1–8 sixteenth-note steps at 20–300 BPM is accepted.
-Kinds are note, rest, tie; a note has integer MIDI key 0–127 and velocity
-0–1. Velocity zero suppresses the note; ties sustain the previous note;
-a tie without a sounding note is a rest. Steps loop. Unknown keys,
-unsupported versions and invalid values are refused before activation.
+`sequencing.groove` is a two-track sixteenth-note sequencer with independent
+8/16/32/64-step lengths. **Persisted patch JSON**, not the native transient
+POD, defines its behavior. Existing authored `config.version:1` patches keep
+their exact S1(a) 32-step clocks and full-length gates; they are accepted by
+the v2 engine without rewriting the saved document. G1 is not the Studio
+G2 editor and not a hardware listening acceptance.
 
-S0 output slots are `t1_pitch` (V/oct, C4=0), `t1_gate` (0/1),
-`t1_mod1` and `t1_mod2` (zero during S0), `t1_notes` (matched
-NOTE_ON/OFF). The single scalar `run` parameter is a temporary
-rising-edge proof control, not S1's queued transport. A fresh load is
-always stopped, including a saved `run=1`; a new low→high edge starts
-step 1. Falling edge releases notes. Reset releases via host choke.
-Pitch holds the last note, gate drops on stop and mod outputs are zero.
-If NOTE_OFF delivery fails, it is retried before another note can begin.
+New patterns use `{"version":2,"bpm":120,"tracks":[{"length":16,
+"steps":[{"kind":"note","key":60,"velocity":0.8,"gate":0.5,
+"cond":{"type":"chance","p":50},"mod1":0.25,"mod2":0.75},
+{"kind":"tie","gate":0.75}]}]}`. V2 lengths are one of 8/16/32/64,
+default 16 if omitted; v1 missing lengths imply 32. Omitted steps are rests.
+At most two tracks play. With G5a each track optionally sets `div` to
+1/2/4/8 sixteenths per step (default 1), with the greatest armed
+`length × div` (up to 512 sixteenths) setting the global STOP/Apply
+master cycle. Track STOP uses its own `length × div` cycle end; track
+START still enters on the next 16-step bar. Chance uses a reproducible instance/track-seeded xorshift32.
+Other `cond` types: `{"type":"ab","a":1,"b":4}` (track loops),
+`{"type":"first"}`, and `{"type":"not_first"}`; no condition means
+always. Conditions are accepted only on note steps. A skipped trig drops its
+note/ties but still updates its Mod1/Mod2. Gate length is 1/4, 1/2, 3/4
+or 1 step; ties extend through to the last tie step's gate. Zero velocity
+remains a rest. G4a accepts a note step's optional `keys`: 1–5 distinct
+integer MIDI pitches, root equal to `key` in slot 0, remaining pitches
+ascending. Studio writes it only for chords of two or more notes; omission
+retains a one-note step. Every chord voice attacks at the same sample
+offset with a distinct ID, and ties/gates/STOP/RESET release all accepted
+voices. Refused NOTE_OFFs retry before new attacks. Invalid `keys`, `div`,
+and unknown settings refuse before graph mutation.
+
+S0 output slots remain `t1_pitch` (V/oct, C4=0), `t1_gate` (0/1),
+`t1_mod1`, `t1_mod2` (sample-and-hold 0..1), `t1_notes` (matched
+NOTE_ON/OFF). Five new slots append `t2_pitch/gate/mod1/mod2/notes`.
+Both mods latch on admitted NOTE_ON; rest/tie/stop/reset hold pitch/mods.
+A fresh load is always stopped, including saved `run=1`; only a fresh
+low→high edge starts step 1. Pending NOTE_OFF blocks new NOTE_ON.
+
+Scalar IDs: `run` 0, `stop` 1, `reset` 2, `mute` 3,
+`t1_run/stop/mute` 4/5/6, `t2_run/stop/mute` 7/8/9.
+All are rising-edge commands after first-sample baseline. Global STOP queues to the maximum armed `length × div` cycle;
+track STOP queues to its own slowed cycle, and new v2 track START enters at the
+next 16-step bar boundary. Authored v1 track START still enters only at its
+original 32-step cycle boundary. START arms/queues;
+MUTE releases immediately without losing phase; RESET releases and
+clears queues. Priority RESET > STOP > MUTE > START > step advance.
+All same-frame releases occur before any new NOTE_ON.
+
+
+Native #526 engines play chord steps and slowed tracks; older engines
+refuse those keys rather than guessing. Example authoring:
+`{"version":2,"bpm":120,"tracks":[{"length":16,"div":4,
+"steps":[{"kind":"note","key":60,"keys":[60,64,67],"velocity":0.8}]}]}`.
+Wire `t1_notes` → a polyphonic Notes→CV `notes` input, then
+pitch/gate to a VCO and ADSR/VCA voice chain. The separate production
+Notes→CV module (#512) may not yet be available; the native graph test uses
+`ws2test::NotesToCv` without audio/MIDI devices.
 
 The patch stores structured JSON, never the internal C++ byte layout.
 The runtime adapter parses off the render thread. Stopping this module
 does **not** authorize mutating a graph whose render callback is active.
-S1 will add 2×32 steps, two active mods, queued transport and a stopped
-Studio editor/Apply acknowledgement. No live-edit, seamless Apply, or
-finished instrument is claimed by this proof. Physical listening is
-owner-only.
+The G3 native authoritative STOP/playhead observation is appended as
+ports 10–17 and routed through the current-generation telemetry snapshot;
+the G2 editor is separate application work. No live-edit, seamless Apply or physical listening is claimed.
 
 ## Stopped configuration workflow (manual S0 / S1 UI contract)
 
@@ -37,12 +75,12 @@ transaction, then await the **native load ACK**. On success the new graph
 starts stopped; issue a fresh Start to play from step 1. On a native
 refusal retain the draft and report the refusal; **never start a rejected
 candidate**. Existing graph reload may interrupt/reset other modules,
-so seamless Apply and phase continuity are later work. S0 exposes this
-as a manual contract only: it **does not** provide a graphical editor,
-global STOP acknowledgement, or a native loaded/refused UI. Those
-belong to #432 (S1).
+so seamless Apply and phase continuity are later work. S1(a) still exposes only this manual contract: the graphical editor,
+global STOP acknowledgement and truthful native playhead are S1(b).
 
-The S0 config v1 restriction (one eight-step track) is persisted and
-must remain readable when S1 introduces two 32-step tracks. Any schema
-version migration/extension and true queued transport needs Keel T2
-review. Live per-step editing is deferred to S2 or explicitly S3.
+Native transient POD version 2 reserves 4×64 slots (only two tracks active).
+Version-1 transient layout is accepted and upgraded with length32/full gate;
+module-state version 2 saves loop/RNG counters and version-1 state defaults them
+to loop 1 and the deterministic seed. The patch format remains JSON, and a
+v1-authored patch does not gain v2-only fields on load.
+Live per-step DSP editing remains deferred to S2.

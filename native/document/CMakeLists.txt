@@ -10,6 +10,9 @@ target_include_directories(wirescape_runtime_document PUBLIC ${CMAKE_CURRENT_SOU
 target_link_libraries(wirescape_runtime_document PUBLIC wirescape_app_engine PRIVATE nlohmann_json::nlohmann_json)
 
 
+add_executable(groove_observation_tests groove_observation_tests.cpp ../tests2/allocation_watch.cpp)
+target_link_libraries(groove_observation_tests PRIVATE wirescape_engine2)
+add_test(NAME groove_observation_tests COMMAND groove_observation_tests)
 add_executable(groove_runtime_tests groove_runtime_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(groove_runtime_tests PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
 add_test(NAME groove_runtime_tests COMMAND groove_runtime_tests)
@@ -17,6 +20,14 @@ set_tests_properties(groove_runtime_tests PROPERTIES TIMEOUT 60)
 add_executable(runtime_patch_tests runtime_patch_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(runtime_patch_tests PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
 add_test(NAME abi2_runtime_patch_tests COMMAND runtime_patch_tests "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
+# Preserve loaded document graph guarantees before removing the Qt controller tests.
+# This target builds and runs regardless of Qt availability; no devices are opened.
+add_executable(qt_free_patch_coverage_tests qt_free_patch_coverage_tests.cpp ../tests2/allocation_watch.cpp)
+target_link_libraries(qt_free_patch_coverage_tests PRIVATE wirescape_runtime_document wirescape_engine nlohmann_json::nlohmann_json ${CMAKE_DL_LIBS})
+add_dependencies(qt_free_patch_coverage_tests ws_noise ws_clock ws_function_envelope ws_slew ws_vcf ws_ladder ws_vca ws_output)
+add_test(NAME qt_free_patch_coverage_tests COMMAND qt_free_patch_coverage_tests
+  "${PROJECT_SOURCE_DIR}/examples" $<TARGET_FILE_DIR:ws_noise> "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
+
 add_executable(builtin_source_tests builtin_source_tests.cpp ../tests2/allocation_watch.cpp)
 target_link_libraries(builtin_source_tests PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
 add_test(NAME abi2_builtin_source_tests COMMAND builtin_source_tests)
@@ -45,45 +56,13 @@ add_executable(runtime_module_config_tests runtime_module_config_tests.cpp)
 target_link_libraries(runtime_module_config_tests PRIVATE nlohmann_json::nlohmann_json)
 add_test(NAME runtime_module_config_tests COMMAND runtime_module_config_tests)
 
-find_package(Qt6 6.5 QUIET COMPONENTS Core)
-if(NOT TARGET Qt6::Core)
-  message(STATUS "Qt Core unavailable: document inspection tests disabled")
-  return()
-endif()
-add_library(wirescape_document STATIC document_reader.cpp patch_document.cpp app_patch.cpp)
-target_include_directories(wirescape_document PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(wirescape_document PUBLIC Qt6::Core wirescape_app_engine wirescape_runtime_document)
-add_executable(document_reader_tests ../tests/document_reader_tests.cpp)
-target_link_libraries(document_reader_tests PRIVATE wirescape_document)
-add_test(NAME document_reader_tests COMMAND document_reader_tests "${PROJECT_SOURCE_DIR}/tests/fixtures/legacy_documents")
-set_tests_properties(document_reader_tests PROPERTIES TIMEOUT 15
-  ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
-add_executable(patch_document_tests ../tests/patch_document_tests.cpp)
-target_link_libraries(patch_document_tests PRIVATE wirescape_document)
-add_test(NAME patch_document_tests COMMAND patch_document_tests "${PROJECT_SOURCE_DIR}/tests/fixtures/legacy_documents"
-  "${PROJECT_SOURCE_DIR}/../docs/specs/patch_v2_draft.example.json")
-set_tests_properties(patch_document_tests PROPERTIES TIMEOUT 15
-  ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
-add_executable(patch_render_tests ../tests/patch_render_tests.cpp)
-target_include_directories(patch_render_tests PRIVATE ${PROJECT_SOURCE_DIR}/tests2)
-target_link_libraries(patch_render_tests PRIVATE wirescape_document wirescape_engine ${CMAKE_DL_LIBS})
-add_dependencies(patch_render_tests ws_noise ws_clock ws_function_envelope ws_slew ws_vcf ws_ladder ws_vca ws_output)
-add_test(NAME patch_render_tests COMMAND patch_render_tests $<TARGET_FILE_DIR:ws_noise>
-  "${PROJECT_SOURCE_DIR}/modules" "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json")
-set_tests_properties(patch_render_tests PROPERTIES TIMEOUT 30
-  ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
-add_executable(app_patch_tests app_patch_tests.cpp ../tests2/allocation_watch.cpp)
-target_link_libraries(app_patch_tests PRIVATE wirescape_document)
-add_test(NAME abi2_app_patch_tests COMMAND app_patch_tests $<TARGET_FILE_DIR:ws_noise> "${PROJECT_SOURCE_DIR}/examples/Six_Essentials_Demo.json"
-  "${PROJECT_SOURCE_DIR}/tests/fixtures/legacy_documents")
-set_tests_properties(abi2_app_patch_tests PROPERTIES
-  ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
+# Product audio/event goldens run even when Qt inspection tools are unavailable.
 add_executable(golden_render ../tests/golden_render.cpp)
-target_link_libraries(golden_render PRIVATE wirescape_document)
-target_compile_definitions(golden_render PRIVATE QT_NO_KEYWORDS)
+target_link_libraries(golden_render PRIVATE wirescape_runtime_document nlohmann_json::nlohmann_json)
 add_test(NAME golden_render_hashes COMMAND "${Python3_EXECUTABLE}"
   "${PROJECT_SOURCE_DIR}/../tools/golden.py" check --renderer $<TARGET_FILE:golden_render>)
-add_test(NAME golden_event_stream COMMAND golden_render --event-self-test)
-set_tests_properties(golden_render_hashes golden_event_stream PROPERTIES TIMEOUT 60
-  ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>\;$ENV{PATH}")
+add_test(NAME golden_event_stream COMMAND "${Python3_EXECUTABLE}"
+  "${PROJECT_SOURCE_DIR}/../tools/golden.py" event-self-test --renderer $<TARGET_FILE:golden_render>)
+add_test(NAME golden_serialization COMMAND "${Python3_EXECUTABLE}"
+  "${PROJECT_SOURCE_DIR}/../tools/golden.py" serialization-self-test --renderer $<TARGET_FILE:golden_render>)
+set_tests_properties(golden_render_hashes golden_event_stream golden_serialization PROPERTIES TIMEOUT 60)

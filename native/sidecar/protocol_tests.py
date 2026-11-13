@@ -2,8 +2,11 @@
 """Process conformance: pipes, null sink and an explicitly fake device catalogue."""
 import atexit
 import json
+import os
 import queue
 import re
+import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -67,6 +70,7 @@ class Engine:
         assert self.hello['type'] == 'hello' and self.hello['protocol'] == 0
         self.session = self.hello['session']
         assert self.session and self.hello['v'] == 0
+        assert self.hello['engine']['version'] == '1.0.0'  # release version (#593)
         assert 'setOsc' not in self.hello['capabilities']
         ids = {module['id'] for module in self.hello['catalogue']['modules']}
         assert {'essentials.output', 'essentials.vco', 'midi.in', 'midi.cc_to_cv'} <= ids
@@ -141,7 +145,7 @@ def telemetry_when(engine, gen, predicate, timeout=8.0):
         if message.get('type') == 'telemetry' and message['gen'] == gen:
             data = message['telemetry']
             assert all(isinstance(data[key], dict)
-                       for key in ('effective', 'phase', 'envelope', 'eventActivity'))
+                       for key in ('effective', 'phase', 'envelope', 'eventActivity', 'effective_pitch'))
             if predicate(data):
                 return data
     raise AssertionError(f'no matching telemetry at gen {gen}: {engine.stderr()}')
@@ -169,7 +173,7 @@ def edge(kind, source, output, dest, port, **extra):
 
 with tempfile.TemporaryDirectory() as directory:
     settings = Path(directory) / 'settings.json'
-    engine = Engine(settings, '--confirm-audio', '--confirm-midi')  # null overrides both
+    engine = Engine(settings, '--confirm-audio', '--confirm-midi', '--confirm-lan')  # null overrides audio/MIDI; no OSC routes
     assert 'midiLearn' in engine.hello['capabilities']
     assert 'learn' not in engine.hello['midi']
     assert engine.call('midiLearn', armed=True)['result'] == {'armed': True}
@@ -266,6 +270,24 @@ with tempfile.TemporaryDirectory() as directory:
                 break
     else:
         raise AssertionError('no measured null-sink output')
+    # Owner v1: stereo patches route one Output per side; both meters must be observed.
+    stereo = dict(format='wirescape.native.patch', version=2,
+                  modules=[dict(id=1, module='essentials.vco', parameters=dict(frequency=220)),
+                           dict(id=2, module='essentials.vco', parameters=dict(frequency=330)),
+                           dict(id=8, module='essentials.output'), dict(id=9, module='essentials.output')],
+                  connections=[edge('signal', 1, 'audio', 8, 'audio'), edge('signal', 2, 'audio', 9, 'audio')],
+                  outputs=[dict(module=8, port='audio', bus_channel=0),
+                           dict(module=9, port='audio', bus_channel=1)])
+    engine.call('loadGraph', patch=stereo)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        message = engine.receive()
+        if message.get('type') == 'telemetry':
+            meters = message['telemetry']['meters']
+            if all(meters.get(key, [0, 0])[0] > 0 and meters[key][1] > 0 for key in ('8', '9')):
+                break
+    else:
+        raise AssertionError('stereo Output meters not observed')
     for path in sorted(Path(EXAMPLES).glob('class_demo_*.json')):
         engine.call('loadGraph', patch=json.loads(path.read_text()))
         engine.call('noteOn', note=60, velocity=0.8)
@@ -351,6 +373,39 @@ with tempfile.TemporaryDirectory() as directory:
     # Replacing the graph must remove phase immediately, even with reused IDs.
     no_lfo = observed.call('loadGraph', patch=minimal())['gen']
     telemetry_when(observed, no_lfo, lambda t: t['phase'] == {})
+    # OSC-3 nominal pitch on the same render-backed map, including unpatched
+    # oscillators and unpitched Plaits models (nominal ≠ audible fundamental).
+    pitch_patch = minimal()
+    pitch_patch['modules'] += [
+        dict(id=9, module='essentials.vco', parameters=dict(frequency=440)),
+        dict(id=8, module='ports.macro_oscillator', parameters=dict(coarse=9)),
+    ]
+    pitch_gen = observed.call('loadGraph', patch=pitch_patch)['gen']
+    observed_pitch = telemetry_when(observed, pitch_gen, lambda t:
+        '9' in t['effective_pitch'] and '8' in t['effective_pitch'])
+    assert abs(observed_pitch['effective_pitch']['9'] - 69) < 0.02
+    assert abs(observed_pitch['effective_pitch']['8'] - 69) < 0.02
+    # Successful graph replacements must evict the previous instance values.
+    blank_gen = observed.call('loadGraph', patch=minimal())['gen']
+    telemetry_when(observed, blank_gen, lambda t: t['effective_pitch'] == {})
+    # Same-generation Groove tuples and typed tracks are one uncabled render snapshot.
+    assert 'telemetry.playhead' in observed.hello['capabilities']
+    groove_patch = minimal()
+    groove_patch['modules'].append(dict(id=1, module='sequencing.groove',
+        config=dict(version=1, bpm=300, tracks=[dict(steps=[dict(kind='note', key=60, velocity=1)])])))
+    groove_gen = observed.call('loadGraph', patch=groove_patch)['gen']
+    stopped = telemetry_when(observed, groove_gen, lambda t: t['playhead'].get('1') == [-1, -1])
+    assert stopped['groove']['1'][0] == dict(step=-1, loop=1, playing=False, fired=False)
+    observed.call('setParam', moduleId=1, paramId='run', value=1)
+    playing = telemetry_when(observed, groove_gen, lambda t: t['groove'].get('1', [{}])[0].get('playing'))
+    for track, position in zip(playing['groove']['1'], playing['playhead']['1']):
+        assert track['step'] == position and track['playing'] == (position >= 0)
+        assert isinstance(track['loop'], int) and isinstance(track['fired'], bool)
+    observed.call('setParam', moduleId=1, paramId='stop', value=1)
+    telemetry_when(observed, groove_gen, lambda t: t['playhead'].get('1') == [-1, -1])
+    # Reused node IDs after a replacement cannot retain the old Groove entry.
+    cleared_gen = observed.call('loadGraph', patch=minimal())['gen']
+    telemetry_when(observed, cleared_gen, lambda t: t['playhead'] == {} and t['groove'] == {})
     observed.close()
     restarted = Engine(settings)
     assert restarted.session != old_session
@@ -366,11 +421,16 @@ with tempfile.TemporaryDirectory() as directory:
              if line.startswith('bench ')]
     assert len(lines) == 1, lines
     match = re.fullmatch(
-        r'bench blocks=(\d+) p50=(\d+) p99=(\d+) max=(\d+(?:\.\d+)?(?:e[+-]?\d+)?) overruns=(\d+) faults=(\d+)',
+        r'bench blocks=(\d+) p50=(\d+) p99=(\d+) max=(\d+(?:\.\d+)?(?:e[+-]?\d+)?) overruns=(\d+) faults=(\d+) '
+        r'overrun_render_count=(\d+) overrun_render_max_us=([0-9.e+-]+) '
+        r'overrun_wake_count=(\d+) overrun_wake_max_us=([0-9.e+-]+)',
         lines[0])
     assert match, lines[0]
-    blocks, p50, p99, maximum, overruns, faults = map(float, match.groups())
+    blocks, p50, p99, maximum, overruns, faults = map(float, match.groups()[:6])
     assert blocks > 0 and 0 <= p50 <= p99 <= maximum and overruns >= 0 and faults == 0
+    render_count, render_max_us, wake_count, wake_max_us = map(float, match.groups()[6:])
+    assert 0 <= render_count <= overruns and 0 <= wake_count <= overruns
+    assert 0 <= render_max_us < float('inf') and 0 <= wake_max_us < float('inf')
     # Long block periods cannot delay hello or EOF teardown. 8 kHz x 4096 frames is the
     # longest supported period (~512 ms); the engine refuses rates below 8 kHz.
     started = time.monotonic()
@@ -380,16 +440,350 @@ with tempfile.TemporaryDirectory() as directory:
     closing = time.monotonic()
     slow.close()
     assert time.monotonic() - closing < 2.0, 'EOF teardown waited on block-paced work'
+    # D5 phase sweep: real device-off 512 ms render periods and repeated replacements.
+    # Deliberately vary the request phase; the unchanged gap budget must not reject
+    # a replacement merely because the first faded callback is late in its period.
+    phases = Engine(Path(directory) / 'd5-phases.json', '--rate', '8000', '--block', '4096')
+    for generation, offset in enumerate((0, 0.061, 0.137, 0.229, 0.313, 0.407, 0.491, 0.077), start=1):
+        if offset:
+            time.sleep(offset)  # vary the request phase, not a retry on refusal
+        result = phases.call('loadGraph', patch=minimal())
+        assert result['gen'] == str(generation), result
+    phases.close()
     for flags in [('--unknown',), ('--rate', '0'), ('--block', '4097'), ('--device',), ('--bench-summary',)]:
         result = subprocess.run([BINARY, *flags], input=b'', capture_output=True, timeout=10)
         assert result.returncode != 0 and not result.stdout
+# OSC B: no physical devices and no LAN bind. An unconfirmed per-route
+# lan:true still accepts the patch and listens only on 127.0.0.1.
+with tempfile.TemporaryDirectory() as osc_dir:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as occupied:
+        occupied.bind(('127.0.0.1', 0))
+        port = occupied.getsockname()[1]
+        osc_engine = Engine(Path(osc_dir) / 'settings.json')
+        assert osc_engine.hello['capabilities'] == ['midiLearn', 'telemetry.playhead',
+                                                    'telemetry.monitor', 'setSampleRate',
+                                                    'setBufferFrames', 'osc']
+        osc_patch = minimal()
+        osc_patch['modules'].append(dict(id=9, module='osc.in',
+                                         config=dict(port=port, lan=True,
+                                                     rows=[dict(pattern='/pico1/knob/1', kind='cv',
+                                                                smoothing_ms=0)])))
+        gen = osc_engine.call('loadGraph', patch=osc_patch)['gen']
+
+        def osc_route_when(predicate):
+            until = time.monotonic() + 8
+            while time.monotonic() < until:
+                message = osc_engine.pushes.pop(0) if osc_engine.pushes else osc_engine.receive()
+                if message.get('type') != 'status' or message.get('gen') != osc_engine.last_gen:
+                    continue
+                osc = message['status']['osc']
+                assert {'enabled', 'bind', 'port', 'lan', 'routes'} <= osc.keys()
+                assert osc['port'] == port and osc['bind'] == '127.0.0.1'
+                assert osc['lan'] is False
+                routes = osc['routes']
+                if len(routes) == 1 and predicate(routes[0]):
+                    assert osc['enabled'] == (routes[0]['state'] != 'port-busy')
+                    assert (osc.get('last_error') == 'port-busy') == (
+                        routes[0]['state'] == 'port-busy')
+                    return routes[0]
+            raise AssertionError('No matching OSC route status: ' + osc_engine.stderr())
+
+        failure = osc_route_when(lambda route: route['state'] == 'port-busy')
+        assert failure['port'] == port and failure['received'] == 0 and failure['dropped'] == 0
+        assert failure['module'] == '9'
+        invalid = json.loads(json.dumps(osc_patch))
+        invalid['modules'][1]['config']['port'] = 65536
+        assert osc_engine.call('loadGraph', False, patch=invalid)['gen'] == gen
+        # A refusal must retain the same committed busy route and generation.
+        assert osc_route_when(lambda route: route['state'] == 'port-busy')['module'] == '9'
+        occupied.close()
+        # Recommit must clean up the old listener and retry the same port.
+        osc_engine.call('loadGraph', patch=minimal())
+        osc_engine.call('loadGraph', patch=osc_patch)
+        listening = osc_route_when(lambda route: route['state'] == 'lan-not-confirmed')
+        assert listening['bind'] == '127.0.0.1' and listening['port'] == port
+        packet = b'/pico1/knob/1\0'
+        packet += b'\0' * ((-len(packet)) % 4)
+        packet += b',f\0\0' + struct.pack('>f', 0.5)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+            sender.sendto(packet, ('127.0.0.1', port))
+        assert osc_route_when(lambda route: route['received'] > 0)['received'] >= 1
+        # Successful live edits must restart ingress against the newly committed
+        # generation. The same listener remains localhost-only and usable.
+        edited_gen = osc_engine.call('addModule', moduleId=11, moduleType='essentials.vco')['gen']
+        assert edited_gen != gen
+        assert osc_route_when(lambda route: route['state'] == 'lan-not-confirmed')['port'] == port
+
+        # Removing the source must retire the worker/port before graph disposal.
+        removed_gen = osc_engine.call('removeModule', moduleId=9)['gen']
+        assert removed_gen != edited_gen
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            message = osc_engine.pushes.pop(0) if osc_engine.pushes else osc_engine.receive()
+            if message.get('type') == 'status' and message['gen'] == removed_gen:
+                assert message['status']['osc'] == dict(
+                    enabled=False, bind='127.0.0.1', port=0, lan=False, routes=[])
+                break
+        else:
+            raise AssertionError('OSC source removal did not clear status')
+        # Repeated accepted reload/remove cycles must release the same port and
+        # fence the prior worker generation. No non-loopback socket is opened.
+        for cycle in range(4):
+            reloaded_gen = osc_engine.call('loadGraph', patch=osc_patch)['gen']
+            assert reloaded_gen != removed_gen
+            assert osc_route_when(lambda route: route['state'] == 'lan-not-confirmed')['port'] == port
+            removed_gen = osc_engine.call('loadGraph', patch=minimal())['gen']
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline:
+                message = osc_engine.pushes.pop(0) if osc_engine.pushes else osc_engine.receive()
+                if message.get('type') == 'status' and message['gen'] == removed_gen:
+                    assert message['status']['osc']['routes'] == []
+                    break
+            else:
+                raise AssertionError('OSC reload churn left stale routes')
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as released:
+            released.bind(('127.0.0.1', port))  # packet worker was joined/closed
+        osc_engine.close()
+        # The null-sink test mode additionally forces loopback even if the
+        # launcher forwards --confirm-lan and the patch sets lan:true.
+        confirmed = Engine(Path(osc_dir) / 'null-consent.json', '--confirm-lan')
+        confirmed.call('loadGraph', patch=osc_patch)
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            message = confirmed.pushes.pop(0) if confirmed.pushes else confirmed.receive()
+            if message.get('type') != 'status' or message['gen'] != confirmed.last_gen:
+                continue
+            osc = message['status']['osc']
+            if len(osc['routes']) == 1 and osc['routes'][0]['state'] == 'lan-not-confirmed':
+                assert osc['enabled'] is True and osc['lan'] is False
+                assert osc['bind'] == '127.0.0.1'
+                assert osc['routes'][0]['bind'] == '127.0.0.1'
+                break
+        else:
+            raise AssertionError('Null sink did not enforce loopback-only OSC ingress')
+        confirmed.close()
+        # #612: a module with every row `enabled:false` ("Clear") binds no socket
+        # and reports state "disabled" (not an error); one enabled row keeps it listening.
+        rows_off = minimal()
+        rows_off['modules'].append(dict(id=9, module='osc.in', config=dict(
+            port=port, rows=[dict(pattern='/pico1/knob/%d' % (i + 1), enabled=False) for i in range(8)])))
+        rows_off['modules'].append(dict(id=10, module='monitor'))
+        rows_off['connections'] = [edge('event', 9, 'messages', 10, 'events')]
+        # End-to-end CV check: an enabled OSC row controls a running VCA and
+        # thus moves a real null-sink output meter, not only the route counter.
+        rows_off['modules'] += [
+            dict(id=11, module='essentials.vco', parameters=dict(frequency=220)),
+            dict(id=12, module='essentials.vca', parameters=dict(gain=1)),
+        ]
+        rows_off['connections'] += [
+            edge('signal', 11, 'audio', 12, 'audio'),
+            edge('signal', 9, 'row2', 12, 'gain_cv'),
+            edge('signal', 12, 'audio', 7, 'audio'),
+        ]
+        rows_off['outputs'] = [dict(module=7, port='audio', bus_channel=0)]
+        cleared = Engine(Path(osc_dir) / 'cleared.json')
+        assert 'telemetry.monitor' in cleared.hello['capabilities']
+        cleared.call('loadGraph', patch=rows_off)
+
+        def cleared_route(state):
+            until = time.monotonic() + 8
+            while time.monotonic() < until:
+                message = cleared.pushes.pop(0) if cleared.pushes else cleared.receive()
+                if message.get('type') != 'status' or message.get('gen') != cleared.last_gen:
+                    continue
+                osc = message['status']['osc']
+                if len(osc['routes']) == 1 and osc['routes'][0]['state'] == state:
+                    return osc
+            raise AssertionError('No OSC route in state ' + state + ': ' + cleared.stderr())
+
+        osc = cleared_route('disabled')
+        assert osc['enabled'] is False and 'last_error' not in osc
+        assert osc['routes'][0]['module'] == '9' and osc['routes'][0]['port'] == port
+        idle = telemetry_when(cleared, cleared.last_gen, lambda t: '7' in t['meters'])
+        assert idle['meters']['7'][0] == 0, 'all disabled OSC rows must hold VCA at zero'
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as free:
+            free.bind(('127.0.0.1', port))  # a cleared module holds no listener
+        rows_off['modules'][1]['config']['rows'][1]['enabled'] = True
+        cleared.call('loadGraph', patch=rows_off)
+        assert cleared_route('listening')['enabled'] is True
+
+        def osc_float(address):
+            data = address.encode() + b'\0'
+            data += b'\0' * ((-len(data)) % 4)
+            return data + b',f\0\0' + struct.pack('>f', 0.5)
+
+        def received_at_least(count):
+            until = time.monotonic() + 8
+            while True:
+                seen = cleared_route('listening')['routes'][0]['received']
+                if seen >= count:
+                    return seen
+                assert time.monotonic() < until, 'Partially enabled OSC module stopped receiving'
+
+        # Ingress filter: row1 (disabled) is dropped on the worker before any engine
+        # event or Monitor capture; row2 (enabled) and unmatched addresses still pass.
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+            sender.sendto(osc_float('/pico1/knob/1'), ('127.0.0.1', port))
+            sender.sendto(osc_float('/pico1/knob/2'), ('127.0.0.1', port))
+            assert received_at_least(1) == 1
+            active = telemetry_when(cleared, cleared.last_gen,
+                                    lambda t: t['meters'].get('7', [0])[0] > 0.05)
+            assert active['meters']['7'][0] > 0.05, 'enabled OSC row must drive native VCA output'
+            time.sleep(0.3)
+            assert received_at_least(1) == 1, 'disabled-only OSC address reached the engine'
+            sender.sendto(osc_float('/not/a/row'), ('127.0.0.1', port))
+            assert received_at_least(2) == 2
+
+            # Filter each bundle child independently: an allowed sibling must
+            # never carry a disabled-only message through ingress capture.
+            children = [osc_float('/pico1/knob/1'), osc_float('/pico1/knob/2'),
+                        osc_float('/not/a/bundle-row'), osc_float('/pico1/knob/3')]
+            bundle = b'#bundle\0' + struct.pack('>Q', 1)
+            bundle += b''.join(struct.pack('>I', len(child)) + child for child in children)
+            sender.sendto(bundle, ('127.0.0.1', port))
+            assert received_at_least(4) == 4
+
+        captured = telemetry_when(
+            cleared, cleared.last_gen,
+            lambda t: len(t.get('monitor', {}).get('10', [])) >= 4)
+        entries = captured['monitor']['10']
+        assert [entry['address'] for entry in entries] == [
+            '/pico1/knob/2', '/not/a/row', '/pico1/knob/2', '/not/a/bundle-row'], entries
+        assert all(entry['kind'] == 'osc' and entry['args'] == [0.5] for entry in entries)
+        # The following status is after the telemetry wait and catches a
+        # delayed leak without accepting a stale, earlier snapshot.
+        assert received_at_least(4) == 4, 'disabled bundle child reached the engine'
+        cleared.close()
+
+        # #657: the same real OSC worker accepts future additive keys,
+        # diagnoses only those keys once per successful graph load, and keeps
+        # #612's known enabled:false behavior and strict authored version gate.
+        tolerant = Engine(Path(osc_dir) / 'tolerant.json')
+        future_patch = json.loads(json.dumps(rows_off))
+        cfg = future_patch['modules'][1]['config']
+        cfg['futureOption'] = dict(nested=1)
+        cfg['rows'][1]['futureField'] = [1, 2]
+        loaded_gen = tolerant.call('loadGraph', patch=future_patch)['gen']
+        assert loaded_gen != '0'
+        cfg.pop('futureOption')
+        cfg['rows'][1].pop('futureField')
+        cfg['version'] = 1
+        accepted_gen = tolerant.call('loadGraph', patch=future_patch)['gen']
+        assert accepted_gen != loaded_gen
+        for unsupported_version in (0, 2, '1', 1.5, None):
+            cfg['version'] = unsupported_version
+            refusal = tolerant.call('loadGraph', expected=False, patch=future_patch)
+            # The sidecar intentionally uses a generic public refusal; the native parser
+            # asserts the specific version diagnostic in runtime_module_config_tests.
+            assert refusal['code'] == 'refused' and refusal['message'] == 'Graph configuration or state refused', refusal
+            assert refusal['gen'] == accepted_gen, 'refused OSC version committed a graph'
+        tolerant.close()
+        diagnostics = tolerant.stderr()
+        assert diagnostics.count('OSC load ignored unknown config keys:') == 1, diagnostics
+        assert 'osc.in#9.futureOption' in diagnostics, diagnostics
+        assert 'osc.in#9.rows[1].futureField' in diagnostics, diagnostics
+        assert 'osc.in#9.rows[1].enabled' not in diagnostics, diagnostics
+
+# OSC C2: direct Monitor ingress capture, bounded chronological telemetry, and reset.
+# The sidecar is always --null-audio; all packets stay on 127.0.0.1.
+with tempfile.TemporaryDirectory() as monitor_dir:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as available:
+        available.bind(('127.0.0.1', 0))
+        monitor_port = available.getsockname()[1]
+
+    def monitor_packet(address, values):
+        name = (address if isinstance(address, bytes) else address.encode()) + b'\0'
+        name += b'\0' * (-len(name) % 4)
+        tags = b',' + b'f' * len(values) + b'\0'
+        tags += b'\0' * (-len(tags) % 4)
+        return name + tags + b''.join(struct.pack('>f', value) for value in values)
+
+    monitor_engine = Engine(Path(monitor_dir) / 'monitor.json')
+    assert 'telemetry.monitor' in monitor_engine.hello['capabilities']
+    monitor_patch = minimal()
+    monitor_patch['modules'] += [
+        dict(id=31, module='osc.in',
+             config=dict(port=monitor_port, lan=False,
+                         rows=[dict(pattern='/observe/*', kind='cv', smoothing_ms=0)])),
+        dict(id=32, module='monitor'),
+        dict(id=33, module='host.keyboard'),
+        dict(id=34, module='essentials.chord'),
+        dict(id=35, module='monitor'),
+    ]
+    monitor_patch['connections'] = [
+        edge('event', 31, 'messages', 32, 'events'),
+        edge('event', 33, 'notes', 34, 'notes'),
+        edge('event', 34, 'notes', 35, 'events'),
+    ]
+    monitor_gen = monitor_engine.call('loadGraph', patch=monitor_patch)['gen']
+    telemetry_when(monitor_engine, monitor_gen,
+                   lambda t: not t.get('monitor'))
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+        for index in range(40):
+            sender.sendto(monitor_packet(f'/observe/{index:02d}', [index / 40.]),
+                          ('127.0.0.1', monitor_port))
+            time.sleep(0.02)
+        # Invalid UTF-8, and a valid multibyte codepoint crossing byte 64.
+        sender.sendto(monitor_packet(b'/\xff/x', [0.125]), ('127.0.0.1', monitor_port))
+        sender.sendto(monitor_packet('/' + 'x' * 62 + 'é', [0.25]), ('127.0.0.1', monitor_port))
+        sender.sendto(monitor_packet('/observe/long/' + 'x' * 75, [0.25]),
+                      ('127.0.0.1', monitor_port))
+        sender.sendto(monitor_packet('/observe/finite', [0.1, 0.2, 0.3, 0.4, 0.5]),
+                      ('127.0.0.1', monitor_port))
+        sender.sendto(monitor_packet('/observe/nonfinite', [float('nan'), 0.75]),
+                      ('127.0.0.1', monitor_port))
+    entries_snapshot = telemetry_when(
+        monitor_engine, monitor_gen,
+        lambda t: any(row.get('address') == '/observe/nonfinite'
+                      for row in t.get('monitor', {}).get('32', [])))
+    entries = entries_snapshot['monitor']['32']
+    assert len(entries) == 32 and entries == sorted(entries, key=lambda entry: entry['t'])
+    assert all(entry['kind'] == 'osc' and len(entry['args']) <= 4 for entry in entries)
+    assert all(len(entry['address'].encode()) <= 64 for entry in entries)
+    assert entries[-5]['address'] == '/?/x'
+    assert entries[-4]['address'] == '/' + 'x' * 62 + '?'
+    assert entries[-3]['address'] == ('/observe/long/' + 'x' * 75)[:64]
+    assert entries[-2]['address'] == '/observe/finite' and len(entries[-2]['args']) == 4
+    assert entries[-1]['address'] == '/observe/nonfinite' and entries[-1]['args'] == [0.75]
+    assert '35' not in entries_snapshot['monitor'], 'indirect Monitor must not capture'
+
+    # An event reaches the indirect keyboard -> chord -> Monitor route, but
+    # ingress-only capture must still omit that Monitor.
+    monitor_engine.call('noteOn', note=60, velocity=0.8)
+    monitor_engine.call('noteOff', note=60)
+    no_indirect = telemetry_when(
+        monitor_engine, monitor_gen,
+        lambda t: len(t.get('monitor', {}).get('32', [])) == 32)
+    assert '35' not in no_indirect.get('monitor', {})
+
+    # Commit resets the old ring and its per-node generation. No new packet is sent.
+    new_gen = monitor_engine.call('loadGraph', patch=monitor_patch)['gen']
+    assert new_gen != monitor_gen
+    reset = telemetry_when(monitor_engine, new_gen, lambda t: not t.get('monitor'))
+    assert 'monitor' not in reset or not reset['monitor']
+    monitor_engine.close()
+
 # Real, short, device-free end-to-end benchmark ingestion on the production sidecar.
 harness = Path(__file__).resolve().parents[2] / 'tools' / 'sidecar_edit_soak.py'
 smoke = subprocess.run([sys.executable, str(harness), '--engine', BINARY,
                         '--seconds', '2', '--seed', '278'], capture_output=True, text=True, timeout=30)
-assert smoke.returncode == 0, smoke.stderr[-1200:] + smoke.stdout[-1200:]
+assert smoke.returncode == 0, smoke.stderr[-4000:] + smoke.stdout[-1200:]
 summary = json.loads(smoke.stdout, object_pairs_hook=strict_object)
 metrics = summary.get('performance_evidence')
+retry = summary.get('wake_retry')
+if retry is not None:
+    assert isinstance(retry, dict) and retry.get('attempt2') == 'passed'
+    first = retry.get('attempt1')
+    assert isinstance(first, str) and 'overrun_wake_count=' in first and len(first) <= 3000
+    # The subprocess stderr was captured even on success. Re-emit first failure
+    # and clean second outcome so the Windows job logs can be audited.
+    print(f'hosted Windows wake-only attempt 1 failed: {first}', file=sys.stderr)
+    print('hosted Windows wake-only attempt 2 passed', file=sys.stderr)
+    step_summary = os.environ.get('GITHUB_STEP_SUMMARY')
+    if step_summary:
+        with Path(step_summary).open('a', encoding='utf-8') as report:
+            print('- Windows wake-only retry: attempt 1 wake-only, attempt 2 clean (count 1)', file=report)
 assert summary['status'] == 'passed' and summary['seed'] == 278 and summary['seconds'] == 2
 assert isinstance(metrics, dict) and metrics['blocks'] >= 0.9 * 2 * 48000 / 256
 assert metrics['faults'] == 0 and metrics['overruns'] == 0

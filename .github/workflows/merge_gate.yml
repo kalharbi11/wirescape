@@ -4,7 +4,7 @@
 name: Merge gate
 on:
   pull_request_target:
-    types: [labeled, ready_for_review]
+    types: [labeled, ready_for_review, synchronize]
   issue_comment:
     types: [created]
 permissions:
@@ -19,15 +19,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Disable auto-merge on new push
+        if: github.event_name == 'pull_request_target' && github.event.action == 'synchronize'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # Disable only when auto-merge is actually on: GitHub's error text for a no-op disable varies
+          # ("Can't disable auto-merge for this pull request"), and a harmless no-op must not go red.
+          armed=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json autoMergeRequest --jq '.autoMergeRequest != null')
+          if [ "$armed" = true ]; then gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto; fi
       - uses: actions/checkout@v7
+        if: github.event.action != 'synchronize'
         with:
           ref: main
           persist-credentials: false
       - name: Decide and enable auto-merge
+        if: github.event.action != 'synchronize'
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: |
-          if python tools/merge_gate.py --pr "$PR"; then
-            gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash
+          if decision=$(python tools/merge_gate.py --pr "$PR"); then
+            echo "$decision"
+            SHA=$(printf '%s\n' "$decision" | sed -n 's/^head: //p')
+            [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+            gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash --match-head-commit "$SHA"
+          else
+            armed=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json autoMergeRequest --jq '.autoMergeRequest != null')
+            if [ "$armed" = true ]; then gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto; fi
           fi

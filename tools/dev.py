@@ -174,6 +174,10 @@ def command_build(args: argparse.Namespace) -> int:
         write_json(BUILD_DIR / "build-metadata.json", previous)
     configure = [cmake, "-S", str(ROOT / "native"), "-B", str(BUILD_DIR), "-G", generator]
     configure += ["-A", "x64"] if generator.startswith("Visual Studio") else [f"-DCMAKE_BUILD_TYPE={args.config}"]
+    # Cloud fallback: tools/cloud/git_deps.py writes this when codeload is blocked.
+    git_deps_cache = ROOT / "build" / "deps-cache" / "fetchcontent.cmake"
+    if git_deps_cache.is_file():
+        configure[1:1] = ["-C", str(git_deps_cache)]
     steps = [{"name": "configure", **run_logged(configure, ROOT, _unique_report_path("build-configure", ".log"))}]
     if steps[-1]["exit_code"] == 0:
         command = [cmake, "--build", str(BUILD_DIR), "--config", args.config, "--parallel"]

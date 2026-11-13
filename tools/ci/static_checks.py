@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Run static checks without rewriting sources; summarize failures and counts."""
 import argparse
+import difflib
 import hashlib
 import json
 import os
@@ -26,6 +27,11 @@ def changed_ranges(diff):
     return files
 
 
+def cppcheck_model(root, source, dependencies):
+    """Every compiled translation unit gets strict native C++ analysis."""
+    return "native"
+
+
 def build_units(root, files, build):
     """Use compiler-recorded Ninja dependencies, including nested/X-macro includes."""
     database = json.loads((build / "compile_commands.json").read_text())
@@ -49,7 +55,8 @@ def build_units(root, files, build):
         key = os.path.relpath(obj, build)
         reached = ({source} | dependencies.get(key, set())) & wanted
         if reached:
-            selected.append({**entry, "file": str(source), "build": str(build)})
+            selected.append({**entry, "file": str(source), "build": str(build),
+                             "cppcheck_model": cppcheck_model(root, source, dependencies.get(key, set()))})
             covered.update(reached)
     return selected, covered
 
@@ -115,6 +122,31 @@ def pinned_cppcheck_baseline(root, output, code):
     return filtered, code, matched
 
 
+def format_patch(root, name, command):
+    """Emit an applicable patch for the exact failed changed-line format command."""
+    source = (root / name).read_text(encoding="utf-8")
+    formatted = subprocess.run([command[0], *command[3:]], cwd=root, text=True,
+                               capture_output=True, timeout=600, check=True).stdout
+    return "".join(difflib.unified_diff(
+        source.splitlines(keepends=True), formatted.splitlines(keepends=True),
+        fromfile="a/" + name, tofile="b/" + name))
+
+
+def publish_format_patch(root, patches):
+    if not patches:
+        return
+    content = "".join(patches)
+    target = root / "build/static/format.patch"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    print("=== format.patch begin ===\n" + content + "\n=== format.patch end ===", flush=True)
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as out:
+            out.write("### clang-format fix patch\n\n```diff\n" +
+                      content[:60000] + "\n```\n")
+
+
 def run_checks(root, diff, tidy_diff):
     files = changed_ranges(diff)
     jobs = []
@@ -131,13 +163,17 @@ def run_checks(root, diff, tidy_diff):
             jobs.append(("clang-tidy diff " + entry["file"], ["clang-tidy-18", "-p", entry["build"],
                          "--header-filter=.*", "--line-filter=" + line_filter, entry["file"]], None))
         if units:
+            # Every compiled owner is analyzed; no model-specific exemptions.
             project = root / "build/static/cppcheck_changed.json"
             project.parent.mkdir(parents=True, exist_ok=True)
-            project.write_text(json.dumps([{k: v for k, v in entry.items() if k != "build"}
-                                           for entry in units]), encoding="utf-8")
-            jobs.append(("cppcheck changed files", ["cppcheck", "--enable=warning,performance",
-                         "--error-exitcode=42", "--suppress=missingIncludeSystem", "--inline-suppr", "--template=gcc",
-                         "--library=qt", "--project=" + str(project)], None))
+            project.write_text(json.dumps([
+                {k: v for k, v in entry.items() if k not in ("build", "cppcheck_model")}
+                for entry in units
+            ]), encoding="utf-8")
+            command = ["cppcheck", "--enable=warning,performance",
+                       "--error-exitcode=42", "--suppress=missingIncludeSystem",
+                       "--inline-suppr", "--template=gcc", "--project=" + str(project)]
+            jobs.append(("cppcheck changed files", command, None))
         for name, ranges in files.items():
             if ranges:
                 jobs.append(("clang-format " + name, ["clang-format-18", "--dry-run", "--Werror",
@@ -152,7 +188,7 @@ def run_checks(root, diff, tidy_diff):
     if python_files:
         jobs.append(("ruff changed files", ["ruff", "check", "--output-format", "concise",
                                            "--", *dict.fromkeys(python_files)], None))
-    rows = []
+    rows, patches = [], []
     for name, command, stdin in jobs:
         try:
             result = subprocess.run(command, cwd=root, input=stdin, text=True, capture_output=True, timeout=600)
@@ -174,9 +210,17 @@ def run_checks(root, diff, tidy_diff):
         count = len(re.findall(r"^.*?:\d+:\d+:\s", output, re.M))
         failed = code != 0 or count > 0
         rows.append((name, count, "failed" if failed else "passed"))
+        if failed and name.startswith("clang-format "):
+            try:
+                patch_text = format_patch(root, name[len("clang-format "):], command)
+                if patch_text:
+                    patches.append(patch_text)
+            except (OSError, subprocess.SubprocessError) as error:
+                print(f"format.patch for {name} not generated: {error}", flush=True)
         notice = f"{name}: {rows[-1][2]}; diagnostics={count}"
         print("::notice title=Static analysis::" + notice.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
         print(f"\n{name}: {rows[-1][2]} ({count} diagnostics)\n{output}", flush=True)
+    publish_format_patch(root, patches)
     if not files:
         rows.insert(0, ("C++ diff checks", 0, "not applicable: no changed C++ lines"))
     if not python_files:

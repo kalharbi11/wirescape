@@ -6,7 +6,14 @@ import { mockBridge } from './mock-bridge/bridge';
 test('browser preserves built-in test bundles separately from editable shared patches', async ({ page }) => {
   await boot(page);
   await page.getByTestId('open-patch-browser').click();
-  await expect(page.getByTestId('patch-browser').locator('[data-testid^="bundled-patch-"]')).toHaveCount(9);
+  const bundles = page.getByTestId('patch-browser').locator('[data-testid^="bundled-patch-"]');
+  // The six retired Qt starters no longer occupy the read-only bundle list.
+  // MIDI and the three class demos remain in the browser.
+  await expect(bundles).toHaveCount(4);
+  await expect(bundles.nth(0)).toContainText('MIDI · Keys, Knobs and Wheels');
+  await expect(bundles.nth(1)).toContainText('Class demo · CHAOS');
+  await expect(bundles.nth(2)).toContainText('Class demo · Subtractive');
+  await expect(bundles.nth(3)).toContainText('Class demo · Macro');
   await page.getByTestId('bundled-patch-0').click();
   await expect(page.getByTestId('patch-browser')).toBeHidden();
   expect((await state(page)).modules.length).toBeGreaterThan(0);
@@ -81,7 +88,7 @@ test('declining the unsaved-edit prompt keeps the current patch and browser open
   expect((await state(page)).modules).toEqual(before.modules);
 });
 
-test('failed bundle reset forces Save As while graph loading is pending', async ({ page }) => {
+test('failed bundle reset defers Save until graph loading finishes and still forces Save As', async ({ page }) => {
   await mockBridge(page);
   await boot(page);
   await page.evaluate(() => {
@@ -93,20 +100,28 @@ test('failed bundle reset forces Save As while graph loading is pending', async 
       if (request?.library === 'reset') throw new Error('Reset failed');
       return { name: 'User patches', text: '[]' };
     };
-    bridge.savePatch = async (_text, options) => {
+    bridge.savePatch = async (text, options) => {
       (window as any).__saveOptions = options;
+      (window as any).__savedPatch = JSON.parse(text);
       return { name: 'Copy.json' };
     };
   });
   await page.getByTestId('open-patch-browser').click();
   await page.getByTestId('bundled-patch-0').click();
   await page.waitForFunction(() => typeof (window as any).__finishGraphLoad === 'function');
-  // The browser remains open while loadGraph awaits; invoke the actual Save
-  // button handler to exercise a concurrent menu/keyboard-style save.
+  const pending = await state(page);
+  // Even a programmatic Save cannot write a document whose load is unsettled.
   await page.evaluate(() => (document.querySelector('[data-testid="save-patch"]') as HTMLButtonElement).click());
-  expect(await page.evaluate(() => (window as any).__saveOptions)).toEqual({ saveAs: true });
+  expect(await page.evaluate(() => (window as any).__saveOptions)).toBeUndefined();
+  expect(await page.evaluate(() => (window as any).__savedPatch)).toBeUndefined();
+  expect(await state(page)).toEqual(pending);
   await page.evaluate(() => (window as any).__finishGraphLoad());
+  await expect(page.getByTestId('app')).toHaveJSProperty('inert', false);
   await expect(page.getByTestId('patch-browser')).toBeHidden();
+  expect(await state(page)).toEqual(pending);
+  await page.getByTestId('save-patch').click();
+  expect(await page.evaluate(() => (window as any).__saveOptions)).toEqual({ saveAs: true });
+  expect(await page.evaluate(() => (window as any).__savedPatch)).toEqual(pending);
 });
 
 test('malformed user patch keeps the document and cannot silently redirect Save', async ({ page }) => {

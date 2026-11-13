@@ -52,12 +52,13 @@ export class Ticker {
     if (this.latest && !preserveTelemetry) {
       const prev = this.latest;
       const t = this.latest = {
-        ...prev, effective: { ...prev.effective }, phase: { ...prev.phase },
+        ...prev, effective: { ...prev.effective }, effective_pitch: { ...prev.effective_pitch }, phase: { ...prev.phase },
         envelope: { ...prev.envelope }, meters: { ...prev.meters },
         scope: { ...prev.scope }, eventActivity: { ...prev.eventActivity },
         outputs: prev.outputs ? { ...prev.outputs } : undefined,
       };
       delete t.effective[moduleId];
+      if (t.effective_pitch) delete t.effective_pitch[moduleId];
       delete t.phase[moduleId];
       delete t.envelope[moduleId];
       delete t.meters[moduleId];
@@ -78,7 +79,7 @@ export class Ticker {
   push(t: Telemetry): void {
     // Complete snapshots: an absent key is unavailable, never a retained value.
     this.latest = {
-      ...t, effective: t.effective ?? {}, phase: t.phase ?? {},
+      ...t, effective: t.effective ?? {}, effective_pitch: t.effective_pitch ?? {}, phase: t.phase ?? {},
       envelope: t.envelope ?? {}, eventActivity: t.eventActivity ?? {},
     };
   }

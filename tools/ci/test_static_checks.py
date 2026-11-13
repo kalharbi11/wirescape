@@ -36,7 +36,9 @@ class StaticChecksTests(unittest.TestCase):
             deps += "\n    " + str(root / "native/catalog.inc") + "\n"
             with patch.object(static_checks.subprocess, "check_output", return_value=deps):
                 self.assertEqual(ANALYSIS_UNITS(root, {"native/nested.h": [], "native/catalog.inc": []},
-                                                builds=("build/static",)), [{**e, "build": str(build)} for e in entries])
+                                                builds=("build/static",)), [{**e, "build": str(build),
+                                                                           "cppcheck_model": "native"}
+                                                                          for e in entries])
                 with self.assertRaisesRegex(ValueError, "No compiled owner"):
                     ANALYSIS_UNITS(root, {"native/orphan.h": []}, builds=("build/static",))
 
@@ -61,6 +63,68 @@ class StaticChecksTests(unittest.TestCase):
                 (root / "build/static-web/compile_commands.json").unlink()
                 with self.assertRaises(FileNotFoundError):
                     ANALYSIS_UNITS(root, {"native/test.cpp": []})
+
+
+    def test_transitive_compiled_native_header_ownership(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            build = root / "build/static"
+            build.mkdir(parents=True)
+            cases = [
+                ("native/engine2/core.cpp", "core.o", ["native/engine2/common.h"]),
+                ("native/document/reader.cpp", "reader.o",
+                 ["native/modules2/macro.inc", "native/engine2/common.h"]),
+                ("native/web/writer.cpp", "writer.o", ["native/sidecar/session.h"]),
+                ("native/misc/unknown.cpp", "unknown.o", ["native/misc/local.h"]),
+            ]
+            entries, blocks = [], []
+            for source, obj, deps in cases:
+                entries.append({"directory": str(build), "file": str(root / source),
+                                "command": f"c++ -DKEEP_COMPILE_FLAGS -o {obj} -c {root / source}"})
+                blocks.append(f"{obj}: #deps {len(deps)}, deps mtime 1 (VALID)")
+                blocks.extend("    " + str(root / dep) for dep in deps)
+            (build / "compile_commands.json").write_text(json.dumps(entries))
+            with patch.object(static_checks.subprocess, "check_output",
+                              return_value="\n".join(blocks) + "\n"):
+                wanted = {source: [(1, 1)] for source, _, _ in cases}
+                selected = ANALYSIS_UNITS(root, wanted, builds=("build/static",))
+                self.assertEqual([(Path(x["file"]).relative_to(root).as_posix(), x["cppcheck_model"])
+                                  for x in selected], [(source, "native") for source, _, _ in cases])
+                selected = ANALYSIS_UNITS(root, {"native/engine2/common.h": []}, builds=("build/static",))
+                self.assertEqual({Path(x["file"]).name for x in selected}, {"core.cpp", "reader.cpp"})
+                selected = ANALYSIS_UNITS(root, {"native/modules2/macro.inc": []}, builds=("build/static",))
+                self.assertEqual([Path(x["file"]).name for x in selected], ["reader.cpp"])
+                with self.assertRaisesRegex(ValueError, "No compiled owner"):
+                    ANALYSIS_UNITS(root, {"native/absent.h": []}, builds=("build/static",))
+
+    def test_cppcheck_single_native_project_preserves_commands_and_gate_options(self):
+        entries = [
+            {"file": "/repo/native/document/reader.cpp", "directory": "/repo",
+             "command": "c++ -DKEEP_FLAG -c reader.cpp", "build": "/repo/build/static",
+             "cppcheck_model": "native"},
+            {"file": "/repo/native/engine2/core.cpp", "directory": "/repo",
+             "command": "c++ -DKEEP_FLAG -c core.cpp", "build": "/repo/build/static",
+             "cppcheck_model": "native"},
+        ]
+        diff = ("+++ b/native/document/reader.cpp\n@@ -1 +1 @@\n+int x;\n"
+                "+++ b/native/engine2/core.cpp\n@@ -1 +1 @@\n+int y;\n")
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(static_checks, "analysis_units", return_value=entries), \
+                patch.object(static_checks.subprocess, "run",
+                             return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
+            self.assertEqual(static_checks.run_checks(Path(tmp), diff, "unused"), 0)
+            cpp = [x.args[0] for x in run.call_args_list if x.args[0][0] == "cppcheck"]
+            self.assertEqual(len(cpp), 1)
+            command = cpp[0]
+            self.assertFalse(any(arg.startswith("--library=") for arg in command))
+            self.assertTrue(all(flag in command for flag in
+                                ("--inline-suppr", "--error-exitcode=42",
+                                 "--suppress=missingIncludeSystem", "--enable=warning,performance")))
+            project = next(arg.partition("=")[2] for arg in command if arg.startswith("--project="))
+            self.assertEqual(json.loads(Path(project).read_text()),
+                             [{k: v for k, v in entry.items() if k not in ("build", "cppcheck_model")}
+                              for entry in entries])
+            self.assertTrue(all("-DKEEP_FLAG" in entry["command"] for entry in entries))
 
     def test_tidy_selects_each_units_build(self):
         entries = [{"file": "native/web/test.cpp", "directory": "/repo", "command": "c++ -c test.cpp",
@@ -108,7 +172,7 @@ class StaticChecksTests(unittest.TestCase):
             self.assertEqual(static_checks.run_checks(Path("."), diff, "tidy.py"), 0)
         commands = [c.args[0] for c in run.call_args_list if c.args[0][0] == "cppcheck"]
         self.assertEqual(len(commands), 1)
-        self.assertIn("--library=qt", commands[0])
+        self.assertFalse(any(arg.startswith("--library=") for arg in commands[0]))
         # Honour vendor annotations such as nlohmann/json_fwd.hpp's "cppcheck-suppress syntaxError".
         self.assertIn("--inline-suppr", commands[0])
         project = next(arg.split("=", 1)[1] for arg in commands[0] if arg.startswith("--project="))
@@ -180,6 +244,79 @@ class StaticChecksTests(unittest.TestCase):
             own = str(root / "native/test.h") + ":10:2: warning: Real defect [uninitMemberVar]"
             filtered, code, count = static_checks.pinned_cppcheck_baseline(root, known + "\n" + own, 42)
             self.assertEqual((filtered, code, count), (own, 42, 1))
+
+
+    def test_format_patch_applies_and_passes_formatter(self):
+        import shutil
+        formatter = shutil.which("clang-format-18") or shutil.which("clang-format")
+        if not formatter:
+            self.skipTest("clang-format not installed")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "native/test.cpp"
+            source.parent.mkdir()
+            source.write_text("int  main( ){return  0;}\n", encoding="utf-8")
+            command = [formatter, "--dry-run", "--Werror", "--lines=1:1", "./native/test.cpp"]
+            patch_text = static_checks.format_patch(root, "native/test.cpp", command)
+            self.assertIn("--- a/native/test.cpp", patch_text)
+            patch_file = root / "format.patch"
+            patch_file.write_text(patch_text, encoding="utf-8")
+            subprocess.run(["git", "apply", "--check", str(patch_file)], cwd=root, check=True)
+            subprocess.run(["git", "apply", str(patch_file)], cwd=root, check=True)
+            subprocess.run(command, cwd=root, check=True, capture_output=True)
+
+
+    def test_failed_format_jobs_publish_combined_applyable_patch(self):
+        import contextlib
+        import io
+        import shutil
+        formatter = shutil.which("clang-format-18") or shutil.which("clang-format")
+        if not formatter:
+            self.skipTest("clang-format not installed")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            cases = {
+                "native/one.cpp": ("int  alpha( ){return  1;}\n"
+                                   "int keep = 0;\n"
+                                   "int  beta( ){return  2;}\n"),
+                "native/two.cpp": "int  other( ){return  3;}\n",
+            }
+            for name, content in cases.items():
+                source = root / name
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text(content, encoding="utf-8")
+            diff = ("+++ b/native/one.cpp\n@@ -1 +1 @@\n+x\n"
+                    "@@ -3 +3 @@\n+x\n"
+                    "+++ b/native/two.cpp\n@@ -1 +1 @@\n+x\n")
+            real_run = subprocess.run
+
+            def execute(command, **kwargs):
+                if command[0] == "clang-format-18":
+                    return real_run([formatter, *command[1:]], **kwargs)
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            output = io.StringIO()
+            summary = root / "summary.md"
+            with (patch.object(static_checks.subprocess, "run", side_effect=execute),
+                  patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}),
+                  contextlib.redirect_stdout(output)):
+                self.assertEqual(static_checks.run_checks(root, diff, "unused"), 1)
+
+            patch_file = root / "build/static/format.patch"
+            self.assertTrue(patch_file.is_file())
+            patch_content = patch_file.read_text(encoding="utf-8")
+            for name in cases:
+                self.assertIn("--- a/" + name, patch_content)
+                self.assertIn("+++ b/" + name, patch_content)
+            self.assertIn("=== format.patch begin ===", output.getvalue())
+            self.assertIn("=== format.patch end ===", output.getvalue())
+            self.assertIn("### clang-format fix patch", summary.read_text(encoding="utf-8"))
+            real_run(["git", "apply", "--check", str(patch_file)], cwd=root, check=True)
+            real_run(["git", "apply", str(patch_file)], cwd=root, check=True)
+            for name in cases:
+                real_run([formatter, "--dry-run", "--Werror", "./" + name],
+                         cwd=root, check=True, capture_output=True)
+
 
 
 if __name__ == "__main__":

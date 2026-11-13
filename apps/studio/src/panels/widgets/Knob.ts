@@ -4,7 +4,7 @@ import type { Connection } from '../../patch/types';
 import type { Ticker } from '../../runtime/Ticker';
 import type { KnobTier } from '../layouts';
 import { formatValue, formatRange, normToValue, valueToNorm, parseTyped, displayValue, quantize } from '../../modules/registry';
-import { C0_HZ, G9_HZ, noteAndCents, formatBaseHz, formatVcoTune, parseVcoTune } from '../../modules/musicalPitch';
+import { C0_HZ, G9_HZ, noteAndCents, midiToHz, formatHz, formatBaseHz, formatVcoTune, parseVcoTune } from '../../modules/musicalPitch';
 import { el, svgEl } from '../../app/dom';
 import { attachParamInfo, type InfoSource } from './InfoBox';
 
@@ -60,6 +60,7 @@ export class Knob {
   private readonly travel: ModuleParam;
   private pitchWasConnected = false;
   private readonly liveEl: HTMLElement;
+  private readonly pitchValue: HTMLElement | null;
   private readonly chips: HTMLElement | null;
   private unbind: () => void;
   private info: { destroy(): void };
@@ -164,6 +165,11 @@ export class Knob {
     this.readout.title = 'Click to type a value';
     this.liveEl = el('div', 'knob-live');
     labels.append(this.readout, this.liveEl);
+    this.pitchValue = o.musical ? el('div', 'knob-pitch-value', '—') : null;
+    if (this.pitchValue) {
+      this.pitchValue.dataset.testid = `pitch-${o.moduleId}`;
+      labels.append(el('div', 'knob-pitch-caption', 'NOMINAL BASE · FM NOT SHOWN'), this.pitchValue);
+    }
     this.chips = o.tier === 'L' ? el('div', 'knob-chips') : null;
     if (this.chips) labels.append(this.chips);
     this.root.append(wrap, labels);
@@ -191,6 +197,13 @@ export class Knob {
 
     this.refresh();
     this.unbind = o.ticker.bind(o.moduleId, t => {
+      // An engine observation is independent of the selected knob value.
+      if (this.pitchValue) {
+        const midi = t.effective_pitch?.[o.moduleId];
+        const shown = typeof midi === 'number' && Number.isFinite(midi)
+          ? `${noteAndCents(midi)} · ${formatHz(midiToHz(midi))}` : '—';
+        if (this.pitchValue.textContent !== shown) this.pitchValue.textContent = shown;
+      }
       // Connections can change without a parameter write; refresh the Tune label.
       if (o.pitchConnected && o.pitchConnected() !== this.pitchWasConnected) this.refresh();
       const effective = t.effective[o.moduleId]?.[p.id];

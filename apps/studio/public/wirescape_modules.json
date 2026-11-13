@@ -94,7 +94,7 @@
   },
   {
    "id": "essentials.chaos_lite",
-   "name": "CHAOS-lite",
+   "name": "CHAOS",
    "category": "Instrument",
    "ports": [
     {
@@ -492,6 +492,36 @@
      "step": 0,
      "decimals": 3,
      "modulatable": true
+    },
+    {
+     "id": "lfo_shape",
+     "name": "LFO shape",
+     "minimum": 0,
+     "maximum": 3,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Sine"
+      },
+      {
+       "value": 1,
+       "label": "Triangle"
+      },
+      {
+       "value": 2,
+       "label": "Sample & hold"
+      },
+      {
+       "value": 3,
+       "label": "Smooth random"
+      }
+     ]
     }
    ],
    "version": 1,
@@ -521,7 +551,8 @@
     "lfo_target": 22,
     "lfo_self": 23,
     "cutoff": 24,
-    "level": 25
+    "level": 25,
+    "lfo_shape": 26
    }
   },
   {
@@ -1655,6 +1686,15 @@
      "hint": "ev_notes",
      "poly": "poly",
      "stereo_pair": null
+    },
+    {
+     "id": "last_note",
+     "name": "Last note",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "pitch",
+     "poly": "poly",
+     "stereo_pair": null
     }
    ],
    "parameters": [
@@ -2158,6 +2198,292 @@
    }
   },
   {
+   "id": "essentials.quad_vca",
+   "name": "Quad VCA",
+   "category": "Dynamics",
+   "ports": [
+    {
+     "id": "in1",
+     "name": "Input 1",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "in2",
+     "name": "Input 2",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "in3",
+     "name": "Input 3",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "in4",
+     "name": "Input 4",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "cv1",
+     "name": "CV 1",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_uni",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "cv2",
+     "name": "CV 2",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_uni",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "cv3",
+     "name": "CV 3",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_uni",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "cv4",
+     "name": "CV 4",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_uni",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "out1",
+     "name": "Out 1",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "out2",
+     "name": "Out 2",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "out3",
+     "name": "Out 3",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "out4",
+     "name": "Out 4",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "mix",
+     "name": "Mix",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "audio",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [
+    {
+     "id": "level1",
+     "name": "Level 1",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "level2",
+     "name": "Level 2",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "level3",
+     "name": "Level 3",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "level4",
+     "name": "Level 4",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "mode1",
+     "name": "Mode 1",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "VCA"
+      },
+      {
+       "value": 1,
+       "label": "LPG"
+      }
+     ]
+    },
+    {
+     "id": "mode2",
+     "name": "Mode 2",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "VCA"
+      },
+      {
+       "value": 1,
+       "label": "LPG"
+      }
+     ]
+    },
+    {
+     "id": "mode3",
+     "name": "Mode 3",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "VCA"
+      },
+      {
+       "value": 1,
+       "label": "LPG"
+      }
+     ]
+    },
+    {
+     "id": "mode4",
+     "name": "Mode 4",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "VCA"
+      },
+      {
+       "value": 1,
+       "label": "LPG"
+      }
+     ]
+    },
+    {
+     "id": "response",
+     "name": "Response",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.4,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    }
+   ],
+   "version": 1,
+   "legacy_parameters": {
+    "level1": 0,
+    "level2": 1,
+    "level3": 2,
+    "level4": 3,
+    "mode1": 4,
+    "mode2": 5,
+    "mode3": 6,
+    "mode4": 7,
+    "response": 8
+   }
+  },
+  {
    "id": "essentials.vca",
    "name": "VCA",
    "category": "Dynamics",
@@ -2500,7 +2826,7 @@
      "id": "length",
      "name": "Length",
      "minimum": 1,
-     "maximum": 8,
+     "maximum": 16,
      "default": 8,
      "unit": "",
      "taper": "linear",
@@ -2907,9 +3233,409 @@
      "step": 0,
      "decimals": 3,
      "modulatable": true
+    },
+    {
+     "id": "pitch9",
+     "name": "Pitch 9",
+     "minimum": -2,
+     "maximum": 2,
+     "default": 0,
+     "unit": "oct",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "gate9",
+     "name": "Gate 9",
+     "minimum": 0,
+     "maximum": 2,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Rest"
+      },
+      {
+       "value": 1,
+       "label": "Note"
+      },
+      {
+       "value": 2,
+       "label": "Tie"
+      }
+     ]
+    },
+    {
+     "id": "vel9",
+     "name": "Velocity 9",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.8,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "pitch10",
+     "name": "Pitch 10",
+     "minimum": -2,
+     "maximum": 2,
+     "default": 0,
+     "unit": "oct",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "gate10",
+     "name": "Gate 10",
+     "minimum": 0,
+     "maximum": 2,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Rest"
+      },
+      {
+       "value": 1,
+       "label": "Note"
+      },
+      {
+       "value": 2,
+       "label": "Tie"
+      }
+     ]
+    },
+    {
+     "id": "vel10",
+     "name": "Velocity 10",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.8,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "pitch11",
+     "name": "Pitch 11",
+     "minimum": -2,
+     "maximum": 2,
+     "default": 0,
+     "unit": "oct",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "gate11",
+     "name": "Gate 11",
+     "minimum": 0,
+     "maximum": 2,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Rest"
+      },
+      {
+       "value": 1,
+       "label": "Note"
+      },
+      {
+       "value": 2,
+       "label": "Tie"
+      }
+     ]
+    },
+    {
+     "id": "vel11",
+     "name": "Velocity 11",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.8,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "pitch12",
+     "name": "Pitch 12",
+     "minimum": -2,
+     "maximum": 2,
+     "default": 0,
+     "unit": "oct",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "gate12",
+     "name": "Gate 12",
+     "minimum": 0,
+     "maximum": 2,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Rest"
+      },
+      {
+       "value": 1,
+       "label": "Note"
+      },
+      {
+       "value": 2,
+       "label": "Tie"
+      }
+     ]
+    },
+    {
+     "id": "vel12",
+     "name": "Velocity 12",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.8,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "pitch13",
+     "name": "Pitch 13",
+     "minimum": -2,
+     "maximum": 2,
+     "default": 0,
+     "unit": "oct",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "gate13",
+     "name": "Gate 13",
+     "minimum": 0,
+     "maximum": 2,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Rest"
+      },
+      {
+       "value": 1,
+       "label": "Note"
+      },
+      {
+       "value": 2,
+       "label": "Tie"
+      }
+     ]
+    },
+    {
+     "id": "vel13",
+     "name": "Velocity 13",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.8,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "pitch14",
+     "name": "Pitch 14",
+     "minimum": -2,
+     "maximum": 2,
+     "default": 0,
+     "unit": "oct",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "gate14",
+     "name": "Gate 14",
+     "minimum": 0,
+     "maximum": 2,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Rest"
+      },
+      {
+       "value": 1,
+       "label": "Note"
+      },
+      {
+       "value": 2,
+       "label": "Tie"
+      }
+     ]
+    },
+    {
+     "id": "vel14",
+     "name": "Velocity 14",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.8,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "pitch15",
+     "name": "Pitch 15",
+     "minimum": -2,
+     "maximum": 2,
+     "default": 0,
+     "unit": "oct",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "gate15",
+     "name": "Gate 15",
+     "minimum": 0,
+     "maximum": 2,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Rest"
+      },
+      {
+       "value": 1,
+       "label": "Note"
+      },
+      {
+       "value": 2,
+       "label": "Tie"
+      }
+     ]
+    },
+    {
+     "id": "vel15",
+     "name": "Velocity 15",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.8,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "pitch16",
+     "name": "Pitch 16",
+     "minimum": -2,
+     "maximum": 2,
+     "default": 0,
+     "unit": "oct",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "gate16",
+     "name": "Gate 16",
+     "minimum": 0,
+     "maximum": 2,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Rest"
+      },
+      {
+       "value": 1,
+       "label": "Note"
+      },
+      {
+       "value": 2,
+       "label": "Tie"
+      }
+     ]
+    },
+    {
+     "id": "vel16",
+     "name": "Velocity 16",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.8,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
     }
    ],
-   "version": 1,
+   "version": 2,
    "legacy_parameters": {
     "run": 0,
     "length": 1,
@@ -2936,7 +3662,31 @@
     "vel7": 22,
     "pitch8": 23,
     "gate8": 24,
-    "vel8": 25
+    "vel8": 25,
+    "pitch9": 26,
+    "gate9": 27,
+    "vel9": 28,
+    "pitch10": 29,
+    "gate10": 30,
+    "vel10": 31,
+    "pitch11": 32,
+    "gate11": 33,
+    "vel11": 34,
+    "pitch12": 35,
+    "gate12": 36,
+    "vel12": 37,
+    "pitch13": 38,
+    "gate13": 39,
+    "vel13": 40,
+    "pitch14": 41,
+    "gate14": 42,
+    "vel14": 43,
+    "pitch15": 44,
+    "gate15": 45,
+    "vel15": 46,
+    "pitch16": 47,
+    "gate16": 48,
+    "vel16": 49
    }
   },
   {
@@ -3113,7 +3863,7 @@
      "id": "mode",
      "name": "Mode",
      "minimum": 0,
-     "maximum": 5,
+     "maximum": 7,
      "default": 0,
      "unit": "",
      "taper": "linear",
@@ -3144,6 +3894,14 @@
       {
        "value": 5,
        "label": "A \u2212 B"
+      },
+      {
+       "value": 6,
+       "label": "Interleave"
+      },
+      {
+       "value": 7,
+       "label": "Vocoder"
       }
      ]
     },
@@ -3280,6 +4038,100 @@
      "step": 0,
      "decimals": 3,
      "modulatable": true
+    },
+    {
+     "id": "chunk_a",
+     "name": "Frames of A",
+     "minimum": 1,
+     "maximum": 64,
+     "default": 5,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "chunk_b",
+     "name": "Frames of B",
+     "minimum": 1,
+     "maximum": 64,
+     "default": 5,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "phase",
+     "name": "Interleave phase",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false,
+     "choices": [
+      {
+       "value": 0,
+       "label": "Phase vocoder"
+      },
+      {
+       "value": 1,
+       "label": "Source phase"
+      }
+     ]
+    },
+    {
+     "id": "bands",
+     "name": "Bands",
+     "minimum": 6,
+     "maximum": 64,
+     "default": 24,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "flatten",
+     "name": "Flatten carrier",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.85,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "release",
+     "name": "Release",
+     "minimum": 0.005,
+     "maximum": 0.4,
+     "default": 0.05,
+     "unit": "s",
+     "taper": "log",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
+    },
+    {
+     "id": "noise",
+     "name": "Noise",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0.2,
+     "unit": "",
+     "taper": "linear",
+     "step": 0,
+     "decimals": 3,
+     "modulatable": true
     }
    ],
    "version": 1,
@@ -3292,7 +4144,14 @@
     "amount": 5,
     "smooth": 6,
     "b_level": 7,
-    "level": 8
+    "level": 8,
+    "chunk_a": 9,
+    "chunk_b": 10,
+    "phase": 11,
+    "bands": 12,
+    "flatten": 13,
+    "release": 14,
+    "noise": 15
    }
   },
   {
@@ -3628,9 +4487,36 @@
   },
   {
    "id": "sequencing.groove",
-   "name": "Groove (S0)",
+   "name": "Groove",
    "category": "Sequencer",
    "ports": [
+    {
+     "id": "clock",
+     "name": "Clock",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "trigger",
+     "poly": "first",
+     "stereo_pair": null
+    },
+    {
+     "id": "run",
+     "name": "Run",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "gate",
+     "poly": "first",
+     "stereo_pair": null
+    },
+    {
+     "id": "reset",
+     "name": "Reset",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "trigger",
+     "poly": "first",
+     "stereo_pair": null
+    },
     {
      "id": "t1_pitch",
      "name": "T1 Pitch",
@@ -3675,12 +4561,129 @@
      "hint": "ev_notes",
      "poly": "poly",
      "stereo_pair": null
+    },
+    {
+     "id": "t2_pitch",
+     "name": "T2 Pitch",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "pitch",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_gate",
+     "name": "T2 Gate",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "gate",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_mod1",
+     "name": "T2 Mod 1",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_mod2",
+     "name": "T2 Mod 2",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_notes",
+     "name": "T2 Notes",
+     "direction": "output",
+     "kind": "event",
+     "hint": "ev_notes",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t1_pos",
+     "name": "T1 Position",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_pos",
+     "name": "T2 Position",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t1_loop_lo",
+     "name": "T1 Loop Low",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_loop_lo",
+     "name": "T2 Loop Low",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t1_fired",
+     "name": "T1 Fired",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "gate",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_fired",
+     "name": "T2 Fired",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "gate",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t1_loop_hi",
+     "name": "T1 Loop High",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "t2_loop_hi",
+     "name": "T2 Loop High",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
     }
    ],
    "parameters": [
     {
      "id": "run",
-     "name": "Run (edge)",
+     "name": "Start",
      "minimum": 0,
      "maximum": 1,
      "default": 0,
@@ -3688,22 +4691,129 @@
      "taper": "linear",
      "step": 1,
      "decimals": 0,
-     "modulatable": false,
-     "choices": [
-      {
-       "value": 0,
-       "label": "Stopped"
-      },
-      {
-       "value": 1,
-       "label": "Running"
-      }
-     ]
+     "modulatable": false
+    },
+    {
+     "id": "stop",
+     "name": "Stop",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "reset",
+     "name": "Reset",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "mute",
+     "name": "Mute",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "t1_run",
+     "name": "T1 Start",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "t1_stop",
+     "name": "T1 Stop",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "t1_mute",
+     "name": "T1 Mute",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "t2_run",
+     "name": "T2 Start",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "t2_stop",
+     "name": "T2 Stop",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "t2_mute",
+     "name": "T2 Mute",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
     }
    ],
-   "version": 1,
+   "version": 2,
    "legacy_parameters": {
-    "run": 0
+    "run": 0,
+    "stop": 1,
+    "reset": 2,
+    "mute": 3,
+    "t1_run": 4,
+    "t1_stop": 5,
+    "t1_mute": 6,
+    "t2_run": 7,
+    "t2_stop": 8,
+    "t2_mute": 9
    }
   },
   {
@@ -4140,6 +5250,329 @@
     "n9": 13,
     "n10": 14,
     "n11": 15
+   }
+  },
+  {
+   "id": "osc.in",
+   "name": "OSC In",
+   "category": "MIDI / control",
+   "ports": [
+    {
+     "id": "row1",
+     "name": "Row 1",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row2",
+     "name": "Row 2",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row3",
+     "name": "Row 3",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row4",
+     "name": "Row 4",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row5",
+     "name": "Row 5",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row6",
+     "name": "Row 6",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row7",
+     "name": "Row 7",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "row8",
+     "name": "Row 8",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "messages",
+     "name": "Messages",
+     "direction": "output",
+     "kind": "event",
+     "hint": "ev_message",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [],
+   "version": 1,
+   "legacy_parameters": {}
+  },
+  {
+   "id": "monitor",
+   "name": "Monitor",
+   "category": "Utility",
+   "ports": [
+    {
+     "id": "events",
+     "name": "Events",
+     "direction": "input",
+     "kind": "event",
+     "hint": "ev_message",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "in1",
+     "name": "Signal 1",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "in2",
+     "name": "Signal 2",
+     "direction": "input",
+     "kind": "signal",
+     "hint": "cv_bi",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [],
+   "version": 1,
+   "legacy_parameters": {}
+  },
+  {
+   "id": "essentials.chord",
+   "name": "Chord",
+   "category": "Pitch",
+   "ports": [
+    {
+     "id": "notes",
+     "name": "Notes",
+     "direction": "input",
+     "kind": "event",
+     "hint": "ev_notes",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "notes",
+     "name": "Notes",
+     "direction": "output",
+     "kind": "event",
+     "hint": "ev_notes",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [
+    {
+     "id": "enable1",
+     "name": "Enable 1",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "shift1",
+     "name": "Shift 1",
+     "minimum": -24,
+     "maximum": 24,
+     "default": 4,
+     "unit": "st",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "enable2",
+     "name": "Enable 2",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 1,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "shift2",
+     "name": "Shift 2",
+     "minimum": -24,
+     "maximum": 24,
+     "default": 7,
+     "unit": "st",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "enable3",
+     "name": "Enable 3",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "shift3",
+     "name": "Shift 3",
+     "minimum": -24,
+     "maximum": 24,
+     "default": 12,
+     "unit": "st",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "enable4",
+     "name": "Enable 4",
+     "minimum": 0,
+     "maximum": 1,
+     "default": 0,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    },
+    {
+     "id": "shift4",
+     "name": "Shift 4",
+     "minimum": -24,
+     "maximum": 24,
+     "default": -12,
+     "unit": "st",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 0,
+     "modulatable": false
+    }
+   ],
+   "version": 1,
+   "legacy_parameters": {
+    "enable1": 0,
+    "shift1": 1,
+    "enable2": 2,
+    "shift2": 3,
+    "enable3": 4,
+    "shift3": 5,
+    "enable4": 6,
+    "shift4": 7
+   }
+  },
+  {
+   "id": "essentials.notes_to_cv",
+   "name": "Notes to CV",
+   "category": "MIDI / control",
+   "ports": [
+    {
+     "id": "notes",
+     "name": "Notes",
+     "direction": "input",
+     "kind": "event",
+     "hint": "ev_notes",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "pitch",
+     "name": "Pitch",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "pitch",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "gate",
+     "name": "Gate",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "gate",
+     "poly": "poly",
+     "stereo_pair": null
+    },
+    {
+     "id": "velocity",
+     "name": "Velocity",
+     "direction": "output",
+     "kind": "signal",
+     "hint": "cv_uni",
+     "poly": "poly",
+     "stereo_pair": null
+    }
+   ],
+   "parameters": [
+    {
+     "id": "voices",
+     "name": "Voices",
+     "minimum": 1,
+     "maximum": 16,
+     "default": 4,
+     "unit": "",
+     "taper": "linear",
+     "step": 1,
+     "decimals": 3,
+     "modulatable": false
+    }
+   ],
+   "version": 1,
+   "legacy_parameters": {
+    "voices": 0
    }
   }
  ]

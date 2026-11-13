@@ -17,6 +17,12 @@ export interface Device {
   sampleRates?: number[];
   /** Audio: PortAudio host API (e.g. "Windows WASAPI"); the id is `hostApi|name[#n]`. */
   hostApi?: string;
+  /** Optional audio backend capabilities, supplied by the native device enumerator. */
+  backend?: string;
+  outputChannels?: number;
+  supported?: boolean;
+  unsupportedReason?: string;
+  defaultSampleRate?: number;
   enabled?: boolean;
   kind: 'audio' | 'midi';
 }
@@ -37,6 +43,8 @@ export interface MidiLearn {
 export interface SystemStatus {
   audio: {
     state: AudioState;
+    /** A refused hardware configuration; it does not imply device loss or retry. */
+    reason?: string;
     deviceId: string | null;
     deviceName: string | null;
     sampleRate: number;
@@ -55,23 +63,46 @@ export interface SystemStatus {
   };
   /** Present only while a Clock module exists in the graph. */
   clock?: { bpm: number; running: boolean };
-  /**
-   * Optional (phase 5): OSC server status. An engine without OSC omits it and
-   * the UI hides the OSC settings. `recent` holds the last few messages in.
-   */
+  /** Optional OSC host routes. Real route counters come from the sidecar, not the UI. */
   osc?: OscStatus;
 }
 
 export interface OscStatus {
   enabled: boolean;
   port: number;
-  /** Off by default: listen on localhost only. On: accept from the network. */
-  allowNetwork: boolean;
-  recent: { time: number; address: string; args: (number | string)[] }[];
+  /** Actual bind address and LAN authorization, never inferred from saved config. */
+  bind?: string;
+  lan?: boolean;
+  last_error?: string;
+  routes?: { module: string; port: number; bind: string;
+    state: 'listening' | 'lan-not-confirmed' | 'port-busy' | 'disabled'; received: number; dropped: number }[];
+  /** Older fake OSC controls are unrelated to the per-module OSC host. */
+  allowNetwork?: boolean;
+  recent?: { time: number; address: string; args: (number | string)[] }[];
 }
 
 /** Live values, pushed ~30x a second. Each message is a complete snapshot. */
+export interface GrooveTrackObservation {
+  /** Measured index, or -1 only after transport and owed releases stop. */
+  step: number;
+  loop: number;
+  playing: boolean;
+  fired: boolean;
+}
+
+export interface MonitorEntry {
+  t: number;
+  kind: 'osc' | 'midi';
+  address?: string;
+  note?: number;
+  args: number[];
+}
+
 export interface Telemetry {
+  /** Actual outer wire generation, attached by RealEngine. */
+  gen?: string;
+  playhead?: Record<number, [number, number]>;
+  groove?: Record<number, [GrooveTrackObservation, GrooveTrackObservation]>;
   /** Monotonic tick counter. */
   tick: number;
   /** Seconds since the engine started. */
@@ -81,6 +112,12 @@ export interface Telemetry {
    * `effective[moduleId][paramId] = value in the parameter's own units`.
    */
   effective: Record<number, Record<string, number>>;
+  /**
+   * Optional complete observation map: module ID -> nominal equal-tempered MIDI
+   * note (floating-point semitones, 60 = C4), pre-FM. One most recently
+   * triggered voice per VCO/Macro instance, never a measured post-FM fundamental.
+   */
+  effective_pitch?: Record<number, number>;
   /** LFO-ish phase 0..1 per module, for phase dots. */
   phase: Record<number, number>;
   /** Envelope position 0..1 per module (the loudest live voice). */
@@ -98,6 +135,10 @@ export interface Telemetry {
    * and the info-box sparklines. An engine that omits it still conforms.
    */
   outputs?: Record<string, number>;
+  /** Latest <=32 control-ingress entries per directly observed Monitor (oldest first). */
+  monitor?: Record<number, MonitorEntry[]>;
+  /** Renderer-only capability marker; not a wire protocol field. */
+  monitorAvailable?: boolean;
   /** MIDI note numbers currently held. */
   heldNotes: number[];
 }
@@ -133,6 +174,8 @@ export interface EngineClient {
   panic(): void;
 
   // ---- live values -----------------------------------------------------
+  /** Release-safe, current-generation stopped Apply gate; ACK alone is insufficient. */
+  canApplyGroove?(moduleId: number): boolean;
   onTelemetry(cb: (t: Telemetry) => void): () => void;
   onStatus(cb: (s: SystemStatus) => void): () => void;
   /** Async refusals of optimistic real-engine edits (FakeEngine remains synchronous). */
@@ -151,4 +194,3 @@ export interface EngineClient {
   setBufferFrames?(frames: number): void;
   setOsc?(cfg: Partial<Pick<OscStatus, 'enabled' | 'port' | 'allowNetwork'>>): void;
 }
-

@@ -7,10 +7,12 @@
 #include "../io/audio/callback_render.h"
 #include "../io/audio/portaudio_service.h"
 #include "../tests2/allocation_watch.h"
+#include "d5_gap_deadline.h"
 #include "devices.h"
 #include "midi_service.h"
-#include "session.h"
+#include "null_sink_wait.h"
 #include "runtime_patch.h"
+#include "session.h"
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -109,6 +111,102 @@ void midi_learn_observation() {
     check(fake.learning().is_null());
 }
 
+void d5_phase_deadline_regression() {
+    using Clock = std::chrono::steady_clock;
+    using Ms = std::chrono::milliseconds;
+    using Ns = std::chrono::nanoseconds;
+    const Ms period{512};               // 4096 frames at 8000 Hz
+    const auto gap_budget = 3 * period; // same long-block budget as production
+    const Clock::time_point first_fade = Clock::time_point(Ms{1000000});
+    const auto since_epoch = std::chrono::duration_cast<Ns>(first_fade.time_since_epoch());
+    const auto first_ns = uint64_t(since_epoch.count());
+    const auto actual_deadline = d5_gap_deadline(first_ns, gap_budget);
+    check(actual_deadline == first_fade + gap_budget);
+    for (const auto wait_before_fade : {Ms{1}, period - Ms{1}}) {
+        const auto request = first_fade - wait_before_fade;
+        const auto fade_in = first_fade + 2 * period + Ms{10};
+        check(fade_in < actual_deadline);
+        if (wait_before_fade == period - Ms{1}) {
+            check(fade_in > request + gap_budget); // fails the old request-origin clock
+        } else {
+            check(fade_in < request + gap_budget);
+        }
+        // The unchanged bounded request/mute watchdog still expires independently.
+        check(request + gap_budget < actual_deadline);
+    }
+    check(first_fade + gap_budget + Ns{1} > actual_deadline); // late fade-in refuses
+    check(d5_gap_deadline(first_ns, Ms{150}) == first_fade + Ms{150});
+    check(first_fade + Ms{151} > d5_gap_deadline(first_ns, Ms{150}));
+}
+
+void sink_wait_deadline_regression() {
+    using Clock = std::chrono::steady_clock;
+    using Ns = std::chrono::nanoseconds;
+    using Us = std::chrono::microseconds;
+    const Clock::time_point zero{};
+    const auto deadline = zero + Ns(5333333); // 256 frames / 48 kHz, rounded to nanoseconds
+    check(sink_due_100ns(zero, zero) == 0);
+    check(sink_due_100ns(zero, zero + Ns(1)) == -1);
+    check(sink_due_100ns(zero, zero + Ns(100)) == -1);
+    check(sink_due_100ns(zero, zero + Ns(101)) == -2);
+    check(sink_due_100ns(zero, deadline) == -53334);
+
+    // A timer signalled early must be rearmed for the same absolute deadline,
+    // not let the next render start early or drift the periodic schedule.
+    auto now = zero;
+    unsigned arms = 0;
+    allocation_watch::count.store(0);
+    allocation_watch::enabled.store(true);
+    const auto reached = sink_wait_until(
+        deadline, [&] { return now; },
+        [&](int64_t due) {
+            ++arms;
+            if (arms == 1) {
+                check(due == -53334);
+                now = zero + Us(5000);
+            } else {
+                check(arms == 2 && due == -3334);
+                now = deadline;
+            }
+            return SinkWaitResult::deadline;
+        });
+    check(reached == SinkWaitResult::deadline && arms == 2 && now == deadline);
+
+    // A stop signal interrupts a long-block wait without waiting for the timer;
+    // an unavailable kernel timer delegates to the existing CV fallback.
+    arms = 0;
+    const auto stopped = sink_wait_until(
+        zero + Us(512000), [&] { return zero; },
+        [&](int64_t due) {
+            check(due == -5120000);
+            ++arms;
+            return SinkWaitResult::stopped;
+        });
+    check(stopped == SinkWaitResult::stopped && arms == 1);
+    const auto unavailable =
+        sink_wait_until(deadline, [&] { return zero; }, [&](int64_t) { return SinkWaitResult::unavailable; });
+    check(unavailable == SinkWaitResult::unavailable);
+    arms = 0;
+    const auto early_storm = sink_wait_until(
+        deadline, [&] { return zero; },
+        [&](int64_t due) {
+            check(due == -53334);
+            ++arms;
+            return SinkWaitResult::deadline;
+        });
+    check(early_storm == SinkWaitResult::unavailable && arms == 16);
+    arms = 0;
+    const auto overdue = sink_wait_until(
+        zero, [&] { return zero + Us(1); },
+        [&](int64_t) {
+            ++arms;
+            return SinkWaitResult::unavailable;
+        });
+    check(overdue == SinkWaitResult::deadline && arms == 0);
+    allocation_watch::enabled.store(false);
+    check(allocation_watch::count.load() == 0);
+}
+
 int run_tests() {
     midi_learn_observation();
     RenderHistogram histogram;
@@ -131,6 +229,26 @@ int run_tests() {
     check(histogram.percentile(50) == 50 && histogram.percentile(99) == 99);
     check(histogram.percentile(100) == 200 && histogram.max_percent == 255.25);
 
+    // Synthetic absolute deadlines prove equality, delayed wakes, long renders,
+    // and catch-up blocks without relying on host scheduling or sleeping.
+    RenderHistogram timing;
+    using Clock = std::chrono::steady_clock;
+    using Us = std::chrono::microseconds;
+    const Clock::time_point zero{};
+    allocation_watch::count.store(0);
+    allocation_watch::enabled.store(true);
+    timing.record_timing(100, zero, zero + Us(100), zero, zero + Us(100));
+    timing.record_timing(1, zero + Us(201), zero + Us(202), zero + Us(100), zero + Us(200));
+    timing.record_timing(101, zero + Us(200), zero + Us(301), zero + Us(200), zero + Us(300));
+    timing.record_timing(1, zero + Us(500), zero + Us(501), zero + Us(300), zero + Us(400));
+    allocation_watch::enabled.store(false);
+    check(allocation_watch::count.load() == 0);
+    check(timing.blocks == 4 && timing.overruns == 3);
+    check(timing.overrun_render_count == 1 && timing.overrun_render_max_us == 101);
+    check(timing.overrun_wake_count == 2 && timing.overrun_wake_max_us == 200);
+
+    sink_wait_deadline_regression();
+    d5_phase_deadline_regression();
     midi_hotplug_observation();
     for (const auto &bad : {"{\"x\":1,\"x\":2}", "{\"x\":{\"y\":1,\"y\":2}}", "[]"}) {
         bool refused = false;
@@ -280,15 +398,23 @@ int run_tests() {
         check(app_engine_render_channels(left, wet_rows, 1, 128) == WS_OK);
         check(app_engine_render_channels(right, dry_rows, 1, 128) == WS_OK);
     };
+    auto render_at = [&](uint64_t callback_ns) {
+        check(app_engine_render_live(faded.get(), wet_rows, 1, 128, callback_ns) == WS_OK);
+        check(app_engine_render_channels(reference.get(), dry_rows, 1, 128) == WS_OK);
+    };
     render(faded.get(), reference.get()); // both graphs initially at unity
     app_engine_begin_master_fade_out(faded.get());
+    check(app_engine_master_fade_out_started_ns(faded.get()) == 0);
     float expected_gain = 1.0f;
     const float step = 1.0f / 480.0f;
     int blocks = 0, nonzero_old = 0;
     allocation_watch::count.store(0);
     allocation_watch::enabled.store(true);
+    // Normal order: the callback timestamp follows the request and wins the max().
+    const uint64_t first_fade_ns = app_engine_clock_ns() + 1000000000ULL;
+    check(first_fade_ns > app_engine_master_fade_out_requested_ns(faded.get()));
     while (!app_engine_master_fade_silent(faded.get()) && blocks < 8) {
-        render(faded.get(), reference.get());
+        render_at(first_fade_ns + uint64_t(blocks) * 2666667ULL);
         ++blocks;
         for (int i = 0; i < 128; ++i) {
             expected_gain = std::max(0.0f, expected_gain - step);
@@ -298,9 +424,34 @@ int run_tests() {
     }
     allocation_watch::enabled.store(false);
     check(app_engine_master_fade_silent(faded.get()) && nonzero_old > 0);
+    check(app_engine_master_fade_out_started_ns(faded.get()) == first_fade_ns);
     check(blocks * 128 <= 480 + 256); // fade edge + a complete zero block
     check(allocation_watch::count.load() == 0);
     for (float sample : wet) check(sample == 0.0f);
+
+    // Forced callback/request overlap: render entered before control's fade request.
+    // Its entry timestamp is therefore older even if it applies the fade after render.
+    app_engine_begin_master_fade_out(reference.get());
+    const uint64_t requested_ns = app_engine_master_fade_out_requested_ns(reference.get());
+    check(requested_ns > 1 && app_engine_master_fade_out_started_ns(reference.get()) == 0);
+    allocation_watch::count.store(0);
+    allocation_watch::enabled.store(true);
+    const bool overlap_ok = app_engine_render_live(reference.get(), dry_rows, 1, 128, requested_ns - 1) == WS_OK;
+    allocation_watch::enabled.store(false);
+    check(overlap_ok && allocation_watch::count.load() == 0);
+    check(app_engine_master_fade_out_started_ns(reference.get()) == requested_ns);
+    // The once-only render publication must not move if another faded block arrives.
+    check(app_engine_render_live(reference.get(), dry_rows, 1, 128, requested_ns + 1000000) == WS_OK);
+    check(app_engine_master_fade_out_started_ns(reference.get()) == requested_ns);
+
+    // No callback: zero timestamp, no synthetic fade-start proof, bounded watchdog.
+    wirescape::audio::EngineOwner stalled(
+        wirescape::document::load_runtime_patch(patch, catalogue.get(), config, error), app_engine_destroy);
+    check(bool(stalled));
+    app_engine_begin_master_fade_out(stalled.get());
+    check(app_engine_master_fade_out_started_ns(stalled.get()) == 0);
+    check(!app_engine_master_fade_silent(stalled.get()));
+    app_engine_resume_master_fade(stalled.get());
 
     // New graph starts hard muted and rises only during its own render blocks.
     wirescape::audio::EngineOwner next(wirescape::document::load_runtime_patch(patch, catalogue.get(), config, error),

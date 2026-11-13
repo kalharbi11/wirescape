@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#include "dsp.h"
+#include "../../engine2/engine2.h"
 #include "../../sdk/examples/test_support.h"
 #include "../../tests2/allocation_watch.h"
-#include "../../engine2/engine2.h"
-#include <vector>
+#include "dsp.h"
 #include <chrono>
+#include <cstring>
 #include <string>
+#include <vector>
 
 struct Arena {
     std::vector<unsigned char> bytes = std::vector<unsigned char>(4 * 1024 * 1024);
@@ -25,7 +26,7 @@ struct Rig {
     ws2_host host{sizeof(host), &arena, Arena::alloc};
     const ws2_descriptor* descriptor = ws::Module<chaos_lite::ChaosLite>::descriptor();
     void* instance = nullptr;
-    static constexpr uint32_t max_frames = 256, max_channels = 16, parameters = 26;
+    static constexpr uint32_t max_frames = 256, max_channels = 16, parameters = 27;
     struct Buffers { float out[2][max_channels][max_frames]{}; };
     std::unique_ptr<Buffers> buffers = std::make_unique<Buffers>();
     float input_values[4][max_channels]{};
@@ -133,6 +134,117 @@ static void components() {
     bad[20] = 0; bad[21] = 0; bad[22] = 0xc0; bad[23] = 0x7f;
     REQUIRE(r.load(bad) == WS2_INVALID); REQUIRE(r.save() == prior);
 }
+static void lfo_shapes_and_legacy_state() {
+    // Every waveform must be independent of the host's process block cuts.
+    // Use fast enough modulation to cross multiple seeded random cycles.
+    for (double rate : {44100., 48000., 96000.}) {
+        for (uint32_t shape = 0; shape < 4; ++shape) {
+            Rig whole(rate, 4), cut(rate, 4);
+            whole.values[26] = cut.values[26] = static_cast<float>(shape);
+            whole.values[20] = cut.values[20] = 12.f;
+            whole.values[21] = cut.values[21] = .6f;
+            REQUIRE(render(whole, 256) == render(cut, 17));
+            for (uint32_t k = 0; k < 24; ++k) {
+                whole.run(256);
+                cut.run(256);
+            }
+            REQUIRE(whole.save() == cut.save());
+        }
+    }
+    // A live switch returns to sine without clicks from stale random state;
+    // default zero still renders through the unchanged sine path.
+    Rig switched;
+    switched.run(256);
+    for (uint32_t shape : {3u, 2u, 1u, 0u}) {
+        switched.values[26] = static_cast<float>(shape);
+        for (uint32_t k = 0; k < 12; ++k) switched.run(256);
+    }
+    // Load an authentic v1 byte layout (64 bytes per voice) extracted from
+    // the preserved prefix of v2. v1 has no LFO random generator/shape data.
+    Rig original;
+    original.run(256);
+    const Bytes modern = original.save();
+    REQUIRE(modern.size() == 4 + 8 * (64 + 40));
+    Bytes legacy;
+    for (uint8_t b : {uint8_t(1), uint8_t(0), uint8_t(0), uint8_t(0)}) legacy.push_back(b);
+    for (uint32_t c = 0; c < 8; ++c) {
+        const size_t offset = 4 + c * (64 + 40);
+        for (size_t i = 0; i < 64; ++i) legacy.push_back(modern[offset + i]);
+    }
+    Rig restored;
+    REQUIRE(restored.load(legacy) == WS2_OK);
+    const Bytes new_state = restored.save();
+    for (size_t c = 0; c < 8; ++c) {
+        REQUIRE(std::equal(legacy.begin() + 4 + c * 64, legacy.begin() + 4 + (c + 1) * 64,
+                           new_state.begin() + 4 + c * (64 + 40)));
+    }
+    restored.run(256); // accepts a migrated old patch without changing old ID semantics
+    // A state captured mid-shape-switch at 96 kHz may have 959 samples
+    // of its 10 ms fade left; loading at 44.1 kHz must not reject it.
+    Rig high_rate(96000, 4);
+    high_rate.values[26] = 3.f;
+    high_rate.run(1);
+    const Bytes high_rate_state = high_rate.save();
+    Rig same_rate(96000, 4);
+    REQUIRE(same_rate.load(high_rate_state) == WS2_OK);
+    REQUIRE(same_rate.save() == high_rate_state);
+    Rig lower_rate(44100, 4);
+    REQUIRE(lower_rate.load(high_rate_state) == WS2_OK);
+    lower_rate.values[26] = 3.f;
+    lower_rate.run(256);
+}
+
+// State-byte offsets for voice 0 (state v2: 4-byte header, 104 bytes per voice).
+static float state_float(const Bytes &state, size_t offset) {
+    float v;
+    std::memcpy(&v, state.items + offset, 4);
+    return v;
+}
+static void lfo_switch_steps_and_triangle_phase() {
+    constexpr size_t phase_offset = 4 + 16 + 2 * 4, previous_offset = 4 + 16 + 3 * 4;
+    constexpr size_t last_shape_offset = 4 + 64 + 32, fade_offset = last_shape_offset + 4;
+    // Switching lfo_shape mid-note crossfades (10 ms): the LFO value moves by at most
+    // |difference| / fade length plus the target shape's own slope per sample. Sampled
+    // one sample at a time at 48 kHz, 12 Hz, no self-modulation, before the first wrap.
+    for (uint32_t from = 0; from < 4; ++from) {
+        for (uint32_t to = 0; to < 4; ++to) {
+            if (from == to) continue;
+            Rig r(48000, 1);
+            r.values[20] = 12.f;
+            r.values[21] = .5f;
+            r.values[23] = 0.f;
+            r.values[26] = static_cast<float>(from);
+            r.run(256);
+            r.run(256);
+            r.run(88); // Initial crossfade is over; phase is far from a wrap (4000 samples).
+            float last = state_float(r.save(), previous_offset);
+            float worst = 0;
+            r.values[26] = static_cast<float>(to);
+            for (int i = 0; i < 500; ++i) {
+                r.run(1);
+                const float now = state_float(r.save(), previous_offset);
+                worst = std::max(worst, std::abs(now - last));
+                last = now;
+            }
+            REQUIRE(worst < 2.f / 480.f + .002f); // 0.0062: crossfade step + shape slope
+        }
+    }
+    // Triangle phase: at phase 0 the triangle is +1 (peak), 4|phase - .5| - 1.
+    Rig t(48000, 1);
+    t.run(1);
+    Bytes state = t.save();
+    const float zero = 0.f;
+    const uint32_t one = 1, none = 0;
+    std::memcpy(state.items + phase_offset, &zero, 4);
+    std::memcpy(state.items + last_shape_offset, &one, 4);
+    std::memcpy(state.items + fade_offset, &none, 4);
+    t.values[26] = 1.f;
+    t.values[23] = 0.f;
+    REQUIRE(t.load(state) == WS2_OK);
+    t.run(1);
+    REQUIRE(std::abs(state_float(t.save(), previous_offset) - 1.f) < 1e-6f);
+}
+
 static int benchmark() {
     using namespace wirescape::engine2;
     Config config; config.max_block = 128; config.max_channels = 4; config.seed = 42;
@@ -154,7 +266,35 @@ static int benchmark() {
     std::printf("{\"graph\":\"chaos_lite_2x4\",\"rate\":48000,\"block\":128,\"blocks\":10000,\"median_us\":%.3f,\"p95_us\":%.3f,\"worst_us\":%.3f,\"setup_bytes\":%zu}\n", (times[4999] + times[5000]) * .5, times[9499], times.back(), engine.meter().setup_bytes);
     return times.back() < 1333.333333 ? 0 : 1;
 }
+// Owner v1 report: with the gate unpatched (constant 1) a fall never restarted,
+// so the pitch stayed at the floor after Fall returned to zero, until panic.
+static void fall_recovers_and_retriggers() {
+    constexpr float rate = 48000;
+    chaos_lite::Drift d; d.reset(42, 0);
+    float drop = 0;
+    for (int i = 0; i < 48000; ++i) drop = -d.process(1, 0, 0, 1, rate);
+    REQUIRE(drop > .99f && drop < 1.01f);
+    // Constant gate, fall knob back to zero: the drop returns (16 oct/s), no edge needed.
+    for (int i = 0; i < 2999; ++i) drop = -d.process(1, 0, 0, 0, rate);
+    REQUIRE(drop > 0);
+    for (int i = 0; i < 4; ++i) drop = -d.process(1, 0, 0, 0, rate);
+    REQUIRE(drop == 0);
+    // Held gate, fall on: a new note restarts the drop.
+    for (int i = 0; i < 24000; ++i) drop = -d.process(1, 0, 0, 1, rate);
+    REQUIRE(drop > .49f);
+    drop = -d.process(1, 0, 0, 1, rate, true);
+    REQUIRE(drop > 0 && drop < 2.f / rate);
+    // The maximum drop stays bounded at four octaves.
+    for (int i = 0; i < 5 * 48000; ++i) drop = -d.process(1, 0, 0, 1, rate);
+    REQUIRE(drop == 4.f);
+}
 int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--benchmark") return benchmark();
-    matrix(); state_and_extremes(); components(); std::puts("CHAOS-lite callback matrix/state/extremes/allocation checks passed");
+    matrix();
+    state_and_extremes();
+    components();
+    lfo_shapes_and_legacy_state();
+    lfo_switch_steps_and_triangle_phase();
+    fall_recovers_and_retriggers();
+    std::puts("CHAOS-lite callback matrix/state/extremes/allocation checks passed");
 }

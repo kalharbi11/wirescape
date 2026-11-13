@@ -9,20 +9,38 @@
 
 namespace spectral {
 
-enum Mode : uint8_t { Morph, Cross, Max, Mean, Min, Diff, kModes };
-enum Param : uint8_t { P_MODE, P_SIZE, P_MORPH, P_CURVE, P_PITCH, P_AMOUNT, P_SMOOTH, P_BLEVEL, P_LEVEL, kParams };
+enum Mode : uint8_t { Morph, Cross, Max, Mean, Min, Diff, Interleave, Vocoder, kModes };
+enum Param : uint8_t {
+    P_MODE,
+    P_SIZE,
+    P_MORPH,
+    P_CURVE,
+    P_PITCH,
+    P_AMOUNT,
+    P_SMOOTH,
+    P_BLEVEL,
+    P_LEVEL,
+    P_CHUNK_A,
+    P_CHUNK_B,
+    P_PHASE,
+    P_BANDS,
+    P_FLATTEN,
+    P_RELEASE,
+    P_NOISE,
+    kParams
+};
 constexpr uint32_t kBaseSize[4] = {512, 1024, 2048, 4096}; // at 44.1/48 kHz
-constexpr uint32_t kDefaultSize = 2, kFadeFrames = 4, kStateVersion = 1;
+constexpr uint32_t kDefaultSize = 2, kFadeFrames = 4, kStateVersion = 2, kMaxBands = 64;
 constexpr uint32_t kStepMod = WS2_STEPPED | WS2_MODULATABLE | WS2_AUTOMATABLE, kStep = WS2_STEPPED | WS2_AUTOMATABLE;
 constexpr float kTau = 6.28318530717958647692f;
 
 // FFT sizes double at 88.2/96 kHz (and again above 132 kHz), so resolution in Hz and time smear match.
 inline uint32_t rate_factor(double rate) { return rate > 132000 ? 4u : rate > 66000 ? 2u : 1u; }
 inline uint32_t max_size(double rate) { return kBaseSize[3] * rate_factor(rate); }
-// Floats: FFT tables + work, window, rings A/B, OLA, frame, then 17 bin rows (+1 for the prefix sum).
+// Floats: FFT tables + work, window, rings A/B, OLA, frame, then 28 bin rows (+1 for the prefix sum).
 inline size_t storage_floats(double rate) {
     const size_t n = max_size(rate), k = n / 2 + 1;
-    return RealFft::floats(uint32_t(n)) + 5 * n + 17 * k + 1;
+    return RealFft::floats(uint32_t(n)) + 5 * n + 28 * k + 1;
 }
 inline float principal(float x) { return x - kTau * std::floor(x / kTau + .5f); }
 inline float magnitude(float re, float im) { return std::sqrt(re * re + im * im); }
@@ -40,12 +58,21 @@ struct Spectral {
         ws::param("amount", "Cross amount", 0, 1, 1, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, P_AMOUNT),
         ws::param("smooth", "Cross smoothing", 0, 1, .15f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, P_SMOOTH),
         ws::param("b_level", "B level", 0, 2, 1, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, P_BLEVEL),
-        ws::param("level", "Level", 0, 2, 1, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, P_LEVEL)};
+        ws::param("level", "Level", 0, 2, 1, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, P_LEVEL),
+        ws::param("chunk_a", "Frames of A", 1, 64, 5, "", kStepMod, WS2_LINEAR, P_CHUNK_A, 4, 1),
+        ws::param("chunk_b", "Frames of B", 1, 64, 5, "", kStepMod, WS2_LINEAR, P_CHUNK_B, 4, 1),
+        ws::param("phase", "Interleave phase", 0, 1, 0, "", kStep, WS2_LINEAR, P_PHASE, 4, 1),
+        ws::param("bands", "Bands", 6, kMaxBands, 24, "", kStepMod, WS2_LINEAR, P_BANDS, 4, 1),
+        ws::param("flatten", "Flatten carrier", 0, 1, .85f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR,
+                  P_FLATTEN),
+        ws::param("release", "Release", .005f, .4f, .05f, "s", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LOG, P_RELEASE),
+        ws::param("noise", "Noise", 0, 1, .2f, "", WS2_MODULATABLE | WS2_AUTOMATABLE, WS2_LINEAR, P_NOISE)};
 
     static ws2_memory memory_requirements(const ws2_config &c) {
         return {sizeof(ws2_memory), 0, storage_floats(c.sample_rate) * sizeof(float), 64};
     }
     bool prepare(const ws::Setup &s) {
+        rate_ = s.sample_rate();
         factor_ = rate_factor(s.sample_rate());
         nmax_ = max_size(s.sample_rate());
         mask_ = nmax_ - 1;
@@ -65,11 +92,20 @@ struct Spectral {
         p += nmax_;
         frame_ = p;
         p += nmax_;
-        float **rows[] = {&ar_,   &ai_,   &br_,   &bi_,  &yr_,  &yi_, &zr_, &zi_,    &ua_r_,
-                          &ua_i_, &ub_r_, &ub_i_, &p_r_, &p_i_, &ea_, &eb_, &prefix_};
+        float **rows[] = {&ar_,   &ai_,   &br_,  &bi_,  &yr_,  &yi_,   &zr_,   &zi_,    &ua_r_, &ua_i_,
+                          &ub_r_, &ub_i_, &p_r_, &p_i_, &q_r_, &q_i_,  &ma_,   &mb_,    &ra_r_, &ra_i_,
+                          &rb_r_, &rb_i_, &ea_,  &eb_,  &pos_, &freq_, &unit_, &prefix_};
         for (float **r : rows) {
             *r = p;
             p += k;
+        }
+        // Vocoder: each bin's place on the 70 Hz .. min(12 kHz, 0.45 fs) log axis, as 0..1, for the
+        // largest FFT; smaller sizes read it by stride, so a band-count change on the audio thread
+        // never takes a logarithm per bin.
+        voc_span_ = std::log(std::min(12000.0, .45 * rate_) / kVocoderLow);
+        for (uint32_t j = 0; j < k; ++j) {
+            const double f = std::max(kVocoderLow, j * rate_ / nmax_);
+            unit_[j] = float(std::clamp(std::log(f / kVocoderLow) / voc_span_, 0.0, 1.0));
         }
         seed_ = s.config.seed;
         reset();
@@ -86,6 +122,7 @@ struct Spectral {
         drain_ = 0;
         set_size(kDefaultSize);
         pending_ = size_idx_;
+        chunk_pos_ = 0;
         rng_.seed(seed_);
     }
     uint32_t latency_frames() const { return latency_.load(std::memory_order_relaxed); }
@@ -134,7 +171,8 @@ struct Spectral {
                                   uint32_t(r.state),
                                   uint32_t(r.state >> 32),
                                   uint32_t(r.sequence),
-                                  uint32_t(r.sequence >> 32)};
+                                  uint32_t(r.sequence >> 32),
+                                  chunk_pos_};
         for (uint32_t v : words)
             if (!w.u32(v)) return WS2_CAPACITY;
         return WS2_OK;
@@ -142,10 +180,11 @@ struct Spectral {
     int load_state(ws::Reader r) {
         uint32_t version;
         if (!r.u32(version)) return WS2_INVALID;
-        if (version != kStateVersion) return WS2_UNSUPPORTED;
-        uint32_t v[11];
-        for (uint32_t &x : v)
-            if (!r.u32(x)) return WS2_INVALID;
+        if (version != 1 && version != kStateVersion) return WS2_UNSUPPORTED;
+        uint32_t v[12]{}; // v1 has no interleave position (word 11)
+        for (uint32_t w = 0; w < (version == 1 ? 11u : 12u); ++w)
+            if (!r.u32(v[w])) return WS2_INVALID;
+        if (v[11] >= 2 * 64) return WS2_INVALID;
         const uint32_t hop_pos = v[0], mode = v[1], prev = v[2], fade = v[3], size = v[4], drain = v[5], pending = v[6];
         if (mode >= kModes || prev >= kModes || fade > kFadeFrames || size > 3 || pending > 3) return WS2_INVALID;
         const uint32_t n = kBaseSize[size] * factor_;
@@ -161,15 +200,16 @@ struct Spectral {
         drain_ = drain;
         pending_ = drain ? pending : size;
         rng_.restore({uint64_t(v[7]) | uint64_t(v[8]) << 32, uint64_t(v[9]) | uint64_t(v[10]) << 32});
+        chunk_pos_ = v[11];
         return WS2_OK;
     }
 
   private:
     // A stepped control at block offset i, rounded and clamped to its declared range.
     static uint32_t stepped(const ws::Block &b, Param p, uint32_t i) {
-        const long top = std::lround(params[p].maximum);
+        const long low = std::lround(params[p].minimum), top = std::lround(params[p].maximum);
         const long v = std::lround(b.param(p).value(0, i));
-        return uint32_t(std::clamp<long>(v, 0, long(top)));
+        return uint32_t(std::clamp<long>(v, low, top));
     }
     void set_size(uint32_t idx) {
         size_idx_ = idx;
@@ -180,14 +220,29 @@ struct Spectral {
         clear_bins();
         latency_.store(n_, std::memory_order_relaxed);
     }
-    // Phase-vocoder state as unit phasors: previous A, previous B and the output phase, all at angle 0.
+    // Phase state as unit phasors at angle 0: previous A and B, Morph's and Interleave's output
+    // phase. Vocoder band envelopes start closed.
     void clear_bins() {
         const uint32_t k = nmax_ / 2 + 1;
-        for (float *re : {ua_r_, ub_r_, p_r_}) std::fill_n(re, k, 1.f);
-        for (float *im : {ua_i_, ub_i_, p_i_}) std::fill_n(im, k, 0.f);
+        for (float *re : {ua_r_, ub_r_, p_r_, q_r_}) std::fill_n(re, k, 1.f);
+        for (float *im : {ua_i_, ub_i_, p_i_, q_i_}) std::fill_n(im, k, 0.f);
+        env_a_.fill(0);
+        env_b_.fill(0);
     }
     void enter(uint32_t mode) {
-        if (mode == Morph) clear_bins();
+        const uint32_t k = nmax_ / 2 + 1;
+        if (mode == Morph) {
+            std::fill_n(p_r_, k, 1.f);
+            std::fill_n(p_i_, k, 0.f);
+        }
+        if (mode == Interleave) {
+            std::fill_n(q_r_, k, 1.f);
+            std::fill_n(q_i_, k, 0.f);
+        }
+        if (mode == Vocoder) {
+            env_a_.fill(0);
+            env_b_.fill(0);
+        }
     }
 
     // One hop boundary at block offset i: read controls, analyse, render, overlap-add.
@@ -208,6 +263,11 @@ struct Spectral {
             fade_ = kFadeFrames;
             enter(mode_);
         }
+        // Interleave schedule runs on the frame clock in every mode, silent frames included.
+        const uint32_t chunk_a = stepped(b, P_CHUNK_A, i), cycle = chunk_a + stepped(b, P_CHUNK_B, i);
+        chunk_pos_ %= cycle;
+        const bool use_b = chunk_pos_ >= chunk_a;
+        chunk_pos_ = (chunk_pos_ + 1) % cycle;
         if (silent_a_ >= n_ && silent_b_ >= n_) { // silent-frame rule: same in every code path
             clear_bins();
             if (fade_) --fade_;
@@ -215,8 +275,19 @@ struct Spectral {
         }
         analyse(ring_a_, ar_, ai_);
         analyse(ring_b_, br_, bi_);
-        const Controls c{b.param(P_MORPH).value(0, i),  stepped(b, P_CURVE, i),        stepped(b, P_PITCH, i),
-                         b.param(P_AMOUNT).value(0, i), b.param(P_SMOOTH).value(0, i), b.param(P_BLEVEL).value(0, i)};
+        track();
+        const Controls c{b.param(P_MORPH).value(0, i),
+                         stepped(b, P_CURVE, i),
+                         stepped(b, P_PITCH, i),
+                         b.param(P_AMOUNT).value(0, i),
+                         b.param(P_SMOOTH).value(0, i),
+                         b.param(P_BLEVEL).value(0, i),
+                         use_b,
+                         stepped(b, P_PHASE, i),
+                         stepped(b, P_BANDS, i),
+                         b.param(P_FLATTEN).value(0, i),
+                         b.param(P_RELEASE).value(0, i),
+                         b.param(P_NOISE).value(0, i)};
         render(mode_, c, yr_, yi_);
         if (fade_) {
             render(prev_mode_, c, zr_, zi_);
@@ -243,11 +314,40 @@ struct Spectral {
         for (uint32_t j = 0; j < n_; ++j) frame_[j] = ring[(start + j) & mask_] * hann_[j * stride] * scale;
         fft_.forward(n_, frame_, {re, im});
     }
+    // Once per frame for every mode: magnitudes, and each source's phase rotation since the last
+    // frame as a unit phasor (u * conj(previous u)). The rotation is the bin's frequency.
+    void track() {
+        for (uint32_t k = 0; k < bins_; ++k) {
+            const float x = magnitude(ar_[k], ai_[k]), y = magnitude(br_[k], bi_[k]);
+            const float ur = x > 0 ? ar_[k] / x : 1.f, ui = x > 0 ? ai_[k] / x : 0.f;
+            const float vr = y > 0 ? br_[k] / y : 1.f, vi = y > 0 ? bi_[k] / y : 0.f;
+            ma_[k] = x;
+            mb_[k] = y;
+            ra_r_[k] = ur * ua_r_[k] + ui * ua_i_[k];
+            ra_i_[k] = ui * ua_r_[k] - ur * ua_i_[k];
+            rb_r_[k] = vr * ub_r_[k] + vi * ub_i_[k];
+            rb_i_[k] = vi * ub_r_[k] - vr * ub_i_[k];
+            ua_r_[k] = ur;
+            ua_i_[k] = ui;
+            ub_r_[k] = vr;
+            ub_i_[k] = vi;
+        }
+    }
+    // Advance an output phasor by a rotation and keep it unit length.
+    static void rotate(float &pr, float &pi, float rr, float ri) {
+        const float r = pr * rr - pi * ri, i = pr * ri + pi * rr;
+        const float norm = 1.f / std::max(magnitude(r, i), 1e-20f);
+        pr = r * norm;
+        pi = i * norm;
+    }
 
     struct Controls {
         float morph;
         uint32_t curve, pitch;
         float amount, smooth, b_level;
+        bool use_b;
+        uint32_t phase, bands;
+        float flatten, release, noise;
     };
     void render(uint32_t mode, const Controls &c, float *yr, float *yi) {
         // Synthesis gain N/4 restores the analysis scale; folded into every write below.
@@ -259,6 +359,12 @@ struct Spectral {
         case Cross:
             cross(c, s, yr, yi);
             break;
+        case Interleave:
+            interleave(c, s, yr, yi);
+            break;
+        case Vocoder:
+            vocoder(c, s, yr, yi);
+            break;
         default:
             combine(Mode(mode), c, s, yr, yi);
             break;
@@ -269,44 +375,113 @@ struct Spectral {
     void morph(const Controls &c, float s, float *yr, float *yi) {
         const float m = std::clamp(c.morph, 0.f, 1.f);
         for (uint32_t k = 0; k < bins_; ++k) {
-            const float x = magnitude(ar_[k], ai_[k]), y = magnitude(br_[k], bi_[k]);
-            const float ur = x > 0 ? ar_[k] / x : 1.f, ui = x > 0 ? ai_[k] / x : 0.f;
-            const float vr = y > 0 ? br_[k] / y : 1.f, vi = y > 0 ? bi_[k] / y : 0.f;
-            const float ra = ur * ua_r_[k] + ui * ua_i_[k], ia = ui * ua_r_[k] - ur * ua_i_[k]; // u * conj(previous)
-            const float rb = vr * ub_r_[k] + vi * ub_i_[k], ib = vi * ub_r_[k] - vr * ub_i_[k];
-            ua_r_[k] = ur;
-            ua_i_[k] = ui;
-            ub_r_[k] = vr;
-            ub_i_[k] = vi;
+            const float x = ma_[k], y = mb_[k];
             float rr, ri;
             if (c.pitch == 1) {
                 // Blend the two frequency deviations from the bin centre. The centre advances by
                 // pi/2 * k per hop at overlap 4: an exact quarter-turn rotation (k mod 4).
                 const uint32_t quarter = k & 3u;
                 const float centre = approx::kHalfPi * float(quarter);
-                const float da = principal(approx::atan2(ia, ra) - centre);
-                const float db = principal(approx::atan2(ib, rb) - centre);
+                const float da = principal(approx::atan2(ra_i_[k], ra_r_[k]) - centre);
+                const float db = principal(approx::atan2(rb_i_[k], rb_r_[k]) - centre);
                 const approx::SinCos turn = approx::sincos(da * (1 - m) + db * m);
                 const float sn = turn.sine, cs = turn.cosine;
                 const float turn_r[4] = {cs, -sn, -cs, sn}, turn_i[4] = {sn, cs, -sn, -cs};
                 rr = turn_r[quarter];
                 ri = turn_i[quarter];
             } else if ((1 - m) * x >= m * y) {
-                rr = ra;
-                ri = ia;
+                rr = ra_r_[k];
+                ri = ra_i_[k];
             } else {
-                rr = rb;
-                ri = ib;
+                rr = rb_r_[k];
+                ri = rb_i_[k];
             }
-            const float pr = p_r_[k] * rr - p_i_[k] * ri, pi = p_r_[k] * ri + p_i_[k] * rr;
-            const float norm = 1.f / std::max(magnitude(pr, pi), 1e-20f);
-            p_r_[k] = pr * norm;
-            p_i_[k] = pi * norm;
+            rotate(p_r_[k], p_i_[k], rr, ri);
             const float mag = c.curve == 0
                                   ? approx::exp2((1 - m) * approx::log2(x + 1e-7f) + m * approx::log2(y + 1e-7f))
                                   : x * (1 - m) + y * m;
             yr[k] = s * mag * p_r_[k];
             yi[k] = s * mag * p_i_[k];
+        }
+    }
+    // Chunks of A frames, then chunks of B frames. Phase vocoder: the output phase keeps running and
+    // takes each frame's advance from the source playing, so partials glide across a switch.
+    // Source phase: plain switching.
+    void interleave(const Controls &c, float s, float *yr, float *yi) {
+        const float g = c.use_b ? std::clamp(c.b_level, 0.f, 2.f) : 1.f;
+        const float *re = c.use_b ? br_ : ar_, *im = c.use_b ? bi_ : ai_, *mag = c.use_b ? mb_ : ma_;
+        const float *rot_r = c.use_b ? rb_r_ : ra_r_, *rot_i = c.use_b ? rb_i_ : ra_i_;
+        for (uint32_t k = 0; k < bins_; ++k) {
+            if (c.phase == 1) {
+                yr[k] = s * g * re[k];
+                yi[k] = s * g * im[k];
+            } else {
+                rotate(q_r_[k], q_i_[k], rot_r[k], rot_i[k]);
+                yr[k] = s * g * mag[k] * q_r_[k];
+                yi[k] = s * g * mag[k] * q_i_[k];
+            }
+        }
+    }
+    // Band layout for the vocoder: log-spaced centres 70 Hz .. min(12 kHz, 0.45 fs); each bin's
+    // position in band units; triangular bands at least one bin spacing wide on each side, so low
+    // bands never come out empty at small FFT sizes.
+    void vocoder_layout(uint32_t nb) {
+        if (nb == layout_bands_ && n_ == layout_n_) return;
+        layout_bands_ = nb;
+        layout_n_ = n_;
+        const double lo = kVocoderLow, span = voc_span_, hz = rate_ / n_;
+        const size_t stride = nmax_ / n_;
+        const float top = float(nb - 1);
+        for (uint32_t k = 0; k < bins_; ++k) {
+            freq_[k] = float(k * hz);
+            pos_[k] = unit_[k * stride] * top;
+        }
+        for (uint32_t j = 0; j < nb; ++j) {
+            const double centre = lo * std::exp(span * j / (nb - 1)) / hz; // in bins
+            width_[j] = float(std::max(1.0, (nb - 1) / (span * std::max(centre, .5))));
+            const float *first = std::lower_bound(pos_, pos_ + bins_, float(j) - width_[j]);
+            const float *last = std::upper_bound(pos_, pos_ + bins_, float(j) + width_[j]);
+            band_lo_[j] = uint32_t(first - pos_);
+            band_hi_[j] = uint32_t(last - pos_);
+        }
+    }
+    // A is the modulator, B the carrier: A's band envelopes, divided by B's own (flatten), shape B.
+    void vocoder(const Controls &c, float s, float *yr, float *yi) {
+        const uint32_t nb = std::clamp<uint32_t>(c.bands, 6, kMaxBands);
+        vocoder_layout(nb);
+        const double hop_s = hop_ / rate_;
+        const float attack = float(std::exp(-hop_s / .004)),
+                    release = float(std::exp(-hop_s / std::clamp(c.release, .005f, .4f)));
+        const float carrier = float(std::exp(-hop_s / .0114)), flatten = std::clamp(c.flatten, 0.f, 1.f);
+        for (uint32_t j = 0; j < nb; ++j) {
+            float ea = 0, eb = 0, weights = 0;
+            for (uint32_t k = band_lo_[j]; k < band_hi_[j]; ++k) {
+                const float w = 1.f - std::abs(pos_[k] - float(j)) / width_[j];
+                if (w <= 0) continue;
+                ea += w * ma_[k] * ma_[k];
+                eb += w * mb_[k] * mb_[k];
+                weights += w;
+            }
+            const float xa = std::sqrt(ea / std::max(weights, 1e-20f)), xb = std::sqrt(eb / std::max(weights, 1e-20f));
+            env_a_[j] = xa + (env_a_[j] - xa) * (xa > env_a_[j] ? attack : release);
+            env_b_[j] = xb + (env_b_[j] - xb) * carrier;
+            gain_[j] = std::min(env_a_[j] / std::pow(env_b_[j] + 1e-6f, flatten), 1e3f);
+        }
+        const float noise = std::clamp(c.noise, 0.f, 1.f);
+        for (uint32_t k = 0; k < bins_; ++k) {
+            const float x = pos_[k];
+            const uint32_t j = std::min(nb - 2, uint32_t(x));
+            const float fr = x - float(j);
+            const float g = gain_[j] + (gain_[j + 1] - gain_[j]) * fr;
+            float re = br_[k] * g, im = bi_[k] * g;
+            if (noise > 0) { // hiss in the upper bands, following A, so sibilants survive a tonal carrier
+                const float e = env_a_[j] + (env_a_[j + 1] - env_a_[j]) * fr;
+                const float w = noise * e * .25f * std::min(1.f, freq_[k] / 3000.f) * 1.3f;
+                re += w * rng_.bipolar();
+                im += w * rng_.bipolar();
+            }
+            yr[k] = s * re;
+            yi[k] = s * im;
         }
     }
     // Constant-Q-ish moving average of a magnitude row (in place), via a prefix sum.
@@ -321,10 +496,8 @@ struct Spectral {
         }
     }
     void cross(const Controls &c, float s, float *yr, float *yi) {
-        for (uint32_t k = 0; k < bins_; ++k) {
-            ea_[k] = magnitude(ar_[k], ai_[k]);
-            eb_[k] = magnitude(br_[k], bi_[k]);
-        }
+        std::copy_n(ma_, bins_, ea_);
+        std::copy_n(mb_, bins_, eb_);
         const float width = std::clamp(c.smooth, 0.f, 1.f) * 24.f, amount = std::clamp(c.amount, 0.f, 1.f);
         smooth_row(ea_, width);
         smooth_row(eb_, width);
@@ -338,7 +511,7 @@ struct Spectral {
     void combine(Mode mode, const Controls &c, float s, float *yr, float *yi) {
         const float gb = std::clamp(c.b_level, 0.f, 2.f);
         for (uint32_t k = 0; k < bins_; ++k) {
-            const float x = magnitude(ar_[k], ai_[k]), y = magnitude(br_[k], bi_[k]) * gb;
+            const float x = ma_[k], y = mb_[k] * gb;
             const bool a_louder = x >= y;
             float re = 0, im = 0;
             if (mode == Max) {
@@ -370,8 +543,15 @@ struct Spectral {
     float *hann_ = nullptr, *ring_a_ = nullptr, *ring_b_ = nullptr, *ola_ = nullptr, *frame_ = nullptr;
     float *ar_ = nullptr, *ai_ = nullptr, *br_ = nullptr, *bi_ = nullptr, *yr_ = nullptr, *yi_ = nullptr;
     float *zr_ = nullptr, *zi_ = nullptr, *ua_r_ = nullptr, *ua_i_ = nullptr, *ub_r_ = nullptr, *ub_i_ = nullptr;
-    float *p_r_ = nullptr, *p_i_ = nullptr;
-    float *ea_ = nullptr, *eb_ = nullptr, *prefix_ = nullptr;
+    float *p_r_ = nullptr, *p_i_ = nullptr, *q_r_ = nullptr, *q_i_ = nullptr, *ma_ = nullptr, *mb_ = nullptr;
+    float *ra_r_ = nullptr, *ra_i_ = nullptr, *rb_r_ = nullptr, *rb_i_ = nullptr;
+    float *ea_ = nullptr, *eb_ = nullptr, *pos_ = nullptr, *freq_ = nullptr, *prefix_ = nullptr;
+    std::array<float, kMaxBands> env_a_{}, env_b_{}, gain_{}, width_{};
+    std::array<uint32_t, kMaxBands> band_lo_{}, band_hi_{};
+    uint32_t layout_bands_ = 0, layout_n_ = 0, chunk_pos_ = 0;
+    static constexpr double kVocoderLow = 70;
+    double rate_ = 48000, voc_span_ = 1;
+    float *unit_ = nullptr;
     uint32_t factor_ = 1, nmax_ = 0, mask_ = 0, n_ = 0, hop_ = 1, bins_ = 0, size_idx_ = kDefaultSize,
              pending_ = kDefaultSize;
     uint32_t write_ = 0, hop_pos_ = 0, silent_a_ = 0, silent_b_ = 0, live_ = 0, drain_ = 0;

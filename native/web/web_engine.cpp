@@ -61,7 +61,9 @@ Json identity(const Json &c) {
     return Json::array({c.at("from").at("module"), c.at("from").at("port"), c.at("to").at("module"),
                         c.at("to").at("port"), c.value("kind", "signal")});
 }
-bool web_module(const char *id) { return std::strncmp(id, "midi.", 5) != 0; }
+// Browser AudioWorklet has neither MIDI devices nor an OSC UDP ingress worker.
+// Keep the live catalogue and loadGraph/addModule validation on the same gate.
+bool web_module(const char *id) { return std::strncmp(id, "midi.", 5) != 0 && std::strncmp(id, "osc.", 4) != 0; }
 
 struct Web {
     double rate = 48000;
@@ -135,11 +137,29 @@ struct Web {
         candidate = execution(std::move(candidate));
         std::string error;
         wirescape::document::telemetry::Sampler next_telemetry(
-            wirescape::document::telemetry::plan(candidate, catalogue.get(), /*phase_enabled=*/true));
+            wirescape::document::telemetry::plan(candidate, catalogue.get(), /*phase_enabled=*/true, /*groove_enabled=*/true));
         using wirescape::document::load_runtime_patch;
         Owner next(load_runtime_patch(candidate.dump(), catalogue.get(), config, error, &next_telemetry.taps()),
                    app_engine_destroy);
-        need(bool(next), "refused", "Graph configuration refused");
+        if (!next) {
+            // Explain the fixed-rate module's prepare failure without changing reply fields.
+            if (rate != 48000) {
+                for (const auto &module : candidate["modules"])
+                    if (module.at("module") == "ports.macro_oscillator") {
+                        error.insert(0, "ports.macro_oscillator requires 48000 Hz; ");
+                        break;
+                    }
+            }
+            // Loader errors are control-path diagnostics; keep messages bounded and valid UTF-8.
+            error.resize(std::min(error.size(), size_t(240)));
+            for (char &c : error)
+                if (static_cast<unsigned char>(c) < 32 || static_cast<unsigned char>(c) > 126) c = '?';
+            std::string message = "Graph configuration refused at ";
+            message += std::to_string(static_cast<uint32_t>(rate));
+            message += " Hz: ";
+            message += error;
+            throw Refusal{"refused", std::move(message)};
+        }
         if (live) {
             app_engine_panic(live.get());
             old = std::move(live);

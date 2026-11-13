@@ -1,12 +1,13 @@
 {
   "name": "wirescape-desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "main": "build/main.js",
   "scripts": {
     "build-ui": "cd ../studio && npm run build",
     "build": "npm run build-ui && node ../studio/node_modules/typescript/bin/tsc -p tsconfig.json",
     "start": "npm run build && electron .",
+    "pretest": "npm --prefix ../studio ci --no-audit --no-fund && npm run build",
     "test": "node ../studio/node_modules/playwright/cli.js test --config=playwright.config.cjs"
   },
   "devDependencies": {

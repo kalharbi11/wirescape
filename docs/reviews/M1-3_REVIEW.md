@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # M1-3 review: ABI 2 slice fixes and the performance gate
 
-Reviewer: Claude (planner). Date: 2026-10-27. PR #22, issue #6, head `54cb790`. Scope: the diff against `main` `6cc87f9` (23 files, +556/−61), the handoff comments on #6 and the CI checks. Spec: `docs/reviews/M1-R_PLANNER_REVIEW.md` ("Go/no-go for M2") and `docs/tasks/M1-3_SLICE_FIXES.md`.
+Reviewer: Claude (planner). Date: 2026-10-27. PR #22, issue #6, head `54cb790`. Scope: the diff against `main` `6cc87f9` (23 files, +556/−61), the handoff comments on #6 and the CI checks. Spec: `docs/reviews/M1-R_PLANNER_REVIEW.md` ("Go/no-go for M2") and `docs/tasks/done/M1-3_SLICE_FIXES.md`.
 
 ## Verdict
 **Conditional go.** Merge PR #22. M2-1 to M2-5 may start. One gate is still open: Windows mono. It moves to a new issue, **M1-3b (#32)**, which must be merged before **M2-6** (engine2 becomes the app engine) starts. The gate is not waived and its threshold doesn't change.

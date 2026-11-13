@@ -13,6 +13,13 @@ foreach(case_name adsr-notes frequency-step blend-selection)
       --configuration "$<CONFIG>")
   set_tests_properties(render_evidence_${test_name} PROPERTIES TIMEOUT 90)
 endforeach()
+# Device-free, real AppEngine regression for every published Studio patch.
+# The existing evidence SILENT_PEAK threshold is reused by library_smoke.py.
+add_test(NAME render_evidence_library_smoke
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/library_smoke.py
+    --render $<TARGET_FILE:wirescape_render>
+    --patches ${CMAKE_CURRENT_SOURCE_DIR}/../../../apps/studio/patches)
+set_tests_properties(render_evidence_library_smoke PROPERTIES TIMEOUT 240)
 add_test(NAME render_evidence_late_negative
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/evidence.py
     --render $<TARGET_FILE:wirescape_render>

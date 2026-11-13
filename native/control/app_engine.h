@@ -33,6 +33,10 @@ uint64_t app_engine_clock_ns();
 int app_engine_render_live(AppEngine *, float *const *, uint32_t, uint32_t, uint64_t callback_time_ns);
 // Internal D5 mute-gap controls; only the callback owns the current gain.
 void app_engine_begin_master_fade_out(AppEngine *) noexcept;
+// First fade-out render callback in steady-clock ns; 0 until a callback observes it.
+uint64_t app_engine_master_fade_out_started_ns(const AppEngine *) noexcept;
+// Test/diagnostic-only off-RT accessor for the clock-origin overlap contract.
+uint64_t app_engine_master_fade_out_requested_ns(const AppEngine *) noexcept;
 bool app_engine_master_fade_silent(const AppEngine *) noexcept;
 void app_engine_prepare_master_fade_in(AppEngine *) noexcept; // only on a quiescent engine
 void app_engine_resume_master_fade(AppEngine *) noexcept;
@@ -43,6 +47,8 @@ int app_engine_deactivate(AppEngine*);
 int app_engine_panic(AppEngine*);
 uint64_t app_engine_generation(const AppEngine*);
 int app_engine_get_meter(const AppEngine*,ws_meter*);
+/** Last rendered block's peak on one bus channel (0 for channels >= 16 or before rendering). */
+float app_engine_channel_peak(const AppEngine*,uint32_t channel);
 int app_engine_build_essentials(AppEngine*,const char*);
 wirescape::engine2::Engine& app_engine_native(AppEngine*);
 
