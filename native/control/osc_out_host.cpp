@@ -57,8 +57,7 @@ OutHost::OutHost(const std::string &document) {
         route->node = module.at("id").get<uint32_t>();
         const auto config = module.value("config", nlohmann::json::object());
         const auto bytes = document::runtime_module_config("osc.out", config, route->node);
-        if (bytes.size() != sizeof(route->config))
-            throw std::runtime_error("OSC Out configuration was not prepared");
+        if (bytes.size() != sizeof(route->config)) throw std::runtime_error("OSC Out configuration was not prepared");
         std::memcpy(&route->config, bytes.data(), sizeof(route->config));
         route->config.bus = route->bus.get();
         for (const auto &row : route->config.rows) route->enabled |= row.enabled != 0;
@@ -223,8 +222,7 @@ std::vector<OutState> OutHost::states() const {
         s.port = route.config.port;
         s.state = !route.enabled ? "disabled" : socket_error_.load(std::memory_order_acquire) ? "error" : "sending";
         s.sent = route.sent.load(std::memory_order_relaxed);
-        s.dropped = route.dropped.load(std::memory_order_relaxed) +
-                    route.bus->dropped.load(std::memory_order_relaxed);
+        s.dropped = route.dropped.load(std::memory_order_relaxed) + route.bus->dropped.load(std::memory_order_relaxed);
         if (socket_error_.load(std::memory_order_relaxed)) s.last_error = "socket-error";
         else if (route.error.load(std::memory_order_relaxed)) s.last_error = "send-error";
         result.push_back(s);
