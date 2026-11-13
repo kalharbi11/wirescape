@@ -23,7 +23,7 @@ struct OutState {
 // All buses outlive the module instances; the worker never touches AppEngine.
 class OutHost {
     struct RowCursor {
-        uint32_t blocks = 0, rises = 0, falls = 0;
+        uint32_t rises = 0, falls = 0;
         float previous = 0;
         bool initialized = false, gate_high = false;
         std::chrono::steady_clock::time_point last_send{};
