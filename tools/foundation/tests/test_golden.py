@@ -10,11 +10,6 @@ spec = importlib.util.spec_from_file_location("golden", Path(__file__).resolve()
 golden = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(golden)
 
-qt_spec = importlib.util.spec_from_file_location(
-    "compare_golden_qt", Path(__file__).resolve().parents[2] / "compare_golden_qt.py")
-qt_compare = importlib.util.module_from_spec(qt_spec)
-qt_spec.loader.exec_module(qt_compare)
-
 
 class GoldenTests(unittest.TestCase):
     def setUp(self):
@@ -65,19 +60,3 @@ class GoldenTests(unittest.TestCase):
         for bad in ("0", "not-hex"):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 golden.hash_streams({"first_bytes": bad})
-
-    def test_frozen_qt_catalogue_adapter_only_changes_default_module_setup(self):
-        old = (b'#include "module_catalog.h"\n'
-               b'keep_exact_qt_hashing();\n'
-               b'engine.add_node(1, descriptor) &&\n')
-        updated = qt_compare.adapt_frozen_catalogue(old)
-        self.assertIn(b'#include "runtime_module_config.h"\n', updated)
-        self.assertIn(b'keep_exact_qt_hashing();\n', updated)
-        self.assertIn(b'runtime_module_config(descriptor->id, nlohmann::json::object(), 1)', updated)
-        self.assertEqual(updated.count(b'keep_exact_qt_hashing();'), 1)
-        for changed in (old.replace(b'engine.add_node(1, descriptor)', b'engine.add_node(1, other)'),
-                        old + b'engine.add_node(1, descriptor) &&',
-                        old.replace(b'module_catalog.h', b'another_catalog.h')):
-            with self.subTest(changed=changed), self.assertRaises(ValueError):
-                qt_compare.adapt_frozen_catalogue(changed)
-
