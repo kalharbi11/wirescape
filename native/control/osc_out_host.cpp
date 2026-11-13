@@ -3,6 +3,7 @@
 #include "../document/runtime_module_config.h"
 #include "../io/osc/codec.h"
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
