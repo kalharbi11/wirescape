@@ -147,7 +147,7 @@ endif()
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
 execute_process(COMMAND git rev-parse --short=12 HEAD WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   OUTPUT_VARIABLE engine_sha OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-add_library(wirescape_osc_host STATIC control/osc_host.cpp)
+add_library(wirescape_osc_host STATIC control/osc_host.cpp control/osc_out_host.cpp)
 target_include_directories(wirescape_osc_host PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/control)
 target_link_libraries(wirescape_osc_host PUBLIC wirescape_osc_service wirescape_runtime_document
   nlohmann_json::nlohmann_json)

@@ -3,11 +3,28 @@
 #include "../modules2/groove/config.h"
 #include "../modules2/midi_cc_to_cv/config.h"
 #include "../modules2/osc_in/config.h"
+#include "../modules2/osc_out/config.h"
+#include <cstring>
+#include <map>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
 #include <vector>
 namespace wirescape::document {
+// This control-thread-only scope injects a host-owned bus during graph prepare.
+// Its pointer never enters a saved patch or the audio callback.
+inline thread_local const std::map<uint32_t, osc::OutBus *> *staged_out_buses = nullptr;
+class ScopedOutBuses {
+    const std::map<uint32_t, osc::OutBus *> *previous_;
+
+  public:
+    explicit ScopedOutBuses(const std::map<uint32_t, osc::OutBus *> &buses) noexcept : previous_(staged_out_buses) {
+        staged_out_buses = &buses;
+    }
+    ~ScopedOutBuses() { staged_out_buses = previous_; }
+    ScopedOutBuses(const ScopedOutBuses &) = delete;
+    ScopedOutBuses &operator=(const ScopedOutBuses &) = delete;
+};
 // Quiescent JSON-to-module adapter. The JSON shape, not struct padding, is saved.
 inline std::vector<uint8_t> runtime_module_config_impl(const std::string &type, const nlohmann::json &value,
                                                        uint32_t instance_id, std::vector<std::string> *ignored_keys) {
@@ -20,7 +37,8 @@ inline std::vector<uint8_t> runtime_module_config_impl(const std::string &type, 
         return {uint8_t(instance_id), uint8_t(instance_id >> 8), uint8_t(instance_id >> 16),
                 uint8_t(instance_id >> 24)};
     }
-    if (value.empty()) return {};
+    // OSC Out always needs its complete binary config: the host injects OutBus* on prepare.
+    if (value.empty() && type != "osc.out") return {};
     if (type == "sequencing.groove") {
         using namespace groove;
         require(value.size() == 3 && value.contains("version") && value.contains("bpm") && value.contains("tracks"),
@@ -162,6 +180,84 @@ inline std::vector<uint8_t> runtime_module_config_impl(const std::string &type, 
         Config validated;
         require(decode(reinterpret_cast<const uint8_t *>(&config), sizeof(config), validated),
                 "Invalid Groove configuration");
+        std::vector<uint8_t> bytes(sizeof(config));
+        std::memcpy(bytes.data(), &config, sizeof(config));
+        return bytes;
+    }
+    if (type == "osc.out") {
+        using wirescape::osc::OutConfiguration;
+        OutConfiguration config;
+        require(wirescape::osc::out_configuration(nullptr, 0, config), "OSC Out defaults invalid");
+        auto record = [&](std::string name) {
+            if (!ignored_keys || ignored_keys->size() >= 16) return;
+            for (char &ch : name)
+                if (static_cast<unsigned char>(ch) < 0x21 || static_cast<unsigned char>(ch) > 0x7e) ch = '?';
+            if (name.size() > 64) name.resize(64);
+            ignored_keys->push_back("osc.out#" + std::to_string(instance_id) + "." + name);
+        };
+        auto address = [&](const nlohmann::json &item, char(&dest)[64]) {
+            require(item.is_string(), "OSC Out address must be a string");
+            const std::string s = item.get<std::string>();
+            require(s.size() >= 2 && s.size() <= 63, "OSC Out address length invalid");
+            std::memset(dest, 0, sizeof(dest));
+            std::memcpy(dest, s.data(), s.size());
+        };
+        for (auto it = value.begin(); it != value.end(); ++it) {
+            const auto &key = it.key();
+            if (key == "host" || key == "lan") require(false, "OSC Out destinations are loopback-only in version 1");
+            if (key != "version" && key != "port" && key != "rate_hz" && key != "rows" && key != "notes") record(key);
+        }
+        if (value.contains("version")) {
+            const auto &v = value.at("version");
+            require(v.is_number_integer() && v.get<int64_t>() == 1, "Unsupported OSC Out version");
+        }
+        for (const char *key : {"port", "rate_hz"}) {
+            if (!value.contains(key)) continue;
+            const auto &item = value.at(key);
+            require(item.is_number_integer(), "OSC Out port/rate must be an integer");
+            const auto n = item.get<int64_t>();
+            require(n >= 1 && n <= (std::strcmp(key, "port") == 0 ? 65535 : 500),
+                    "OSC Out port/rate outside allowed range");
+            if (std::strcmp(key, "port") == 0) config.port = static_cast<uint32_t>(n);
+            else config.rate_hz = static_cast<uint32_t>(n);
+        }
+        auto row = [&](const nlohmann::json &src, wirescape::osc::OutRowConfig &dst, const std::string &prefix,
+                       bool note) {
+            require(src.is_object(), "OSC Out row/notes must be objects");
+            for (auto it = src.begin(); it != src.end(); ++it) {
+                const auto &key = it.key();
+                const auto &item = it.value();
+                if (key == "address") address(item, dst.address);
+                else if (key == "enabled") {
+                    require(item.is_boolean(), "OSC Out enabled must be boolean");
+                    dst.enabled = item.get<bool>() ? 1u : 0u;
+                } else if (!note && key == "kind") {
+                    require(item.is_string(), "OSC Out kind must be a string");
+                    const auto v = item.get<std::string>();
+                    require(v == "cv" || v == "gate", "Invalid OSC Out row kind");
+                    dst.kind = v == "gate" ? 1u : 0u;
+                } else if (!note && key == "deadband") {
+                    require(item.is_number() && std::isfinite(item.get<double>()), "OSC Out deadband must be finite");
+                    const double n = item.get<double>();
+                    require(n >= 0 && n <= 1, "OSC Out deadband outside 0..1");
+                    dst.deadband = static_cast<float>(n);
+                } else {
+                    std::string ignored = prefix;
+                    ignored += '.';
+                    ignored += key;
+                    record(ignored);
+                }
+            }
+        };
+        if (value.contains("rows")) {
+            const auto &rows = value.at("rows");
+            require(rows.is_array() && rows.size() <= 8, "At most eight OSC Out rows");
+            for (size_t i = 0; i < rows.size(); ++i)
+                row(rows.at(i), config.rows[i], "rows[" + std::to_string(i) + "]", false);
+        }
+        if (value.contains("notes")) row(value.at("notes"), config.notes, "notes", true);
+        require(wirescape::osc::out_configuration(reinterpret_cast<const uint8_t *>(&config), sizeof(config), config),
+                "Invalid OSC Out configuration");
         std::vector<uint8_t> bytes(sizeof(config));
         std::memcpy(bytes.data(), &config, sizeof(config));
         return bytes;
@@ -315,6 +411,16 @@ inline std::vector<uint8_t> runtime_module_config(const std::string &type, const
 // Control-thread diagnostics come from the parser's unknown-field fall-through.
 inline std::vector<uint8_t> runtime_module_config(const std::string &type, const nlohmann::json &value,
                                                   uint32_t instance_id, std::vector<std::string> *ignored_keys) {
-    return runtime_module_config_impl(type, value, instance_id, ignored_keys);
+    auto bytes = runtime_module_config_impl(type, value, instance_id, ignored_keys);
+    if (type == "osc.out" && staged_out_buses) {
+        const auto it = staged_out_buses->find(instance_id);
+        if (it == staged_out_buses->end() || bytes.size() != sizeof(osc::OutConfiguration))
+            throw std::runtime_error("OSC output bus unavailable");
+        osc::OutConfiguration config{};
+        std::memcpy(&config, bytes.data(), sizeof(config));
+        config.bus = it->second;
+        std::memcpy(bytes.data(), &config, sizeof(config));
+    }
+    return bytes;
 }
 }

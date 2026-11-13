@@ -394,8 +394,12 @@ def command_launch(args: argparse.Namespace) -> int:
     if problem:
         record.update(status="failed", summary=f"Launch refused: {problem}. Run: python tools/dev.py build --config {args.config}")
         return _finish(record, args, 2)
-    consent = [flag for flag, allowed in (("--confirm-audio", args.confirm_audio), ("--confirm-midi", args.confirm_midi)) if allowed]
-    command = [str(electron), str(ROOT / "apps/desktop"), "--engine", str(engine), *(consent or ["--null-audio"])]
+    consent = [flag for flag, allowed in (
+        ("--confirm-audio", args.confirm_audio), ("--confirm-midi", args.confirm_midi),
+        ("--confirm-lan", args.confirm_lan)) if allowed]
+    audio_midi = [flag for flag in consent if flag != "--confirm-lan"]
+    command = [str(electron), str(ROOT / "apps/desktop"), "--engine", str(engine),
+               *(audio_midi or ["--null-audio"]), *(["--confirm-lan"] if args.confirm_lan else [])]
     log = _unique_report_path("electron-launch", ".log")
     log.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -529,6 +533,8 @@ def make_parser() -> argparse.ArgumentParser:
     child.add_argument("--json", action="store_true")
     child.add_argument("--confirm-audio", action="store_true")
     child.add_argument("--confirm-midi", action="store_true")
+    child.add_argument("--confirm-lan", action="store_true",
+                       help="allow OSC In rows with LAN ticked to listen on the network (owner only)")
     child.set_defaults(func=command_launch)
     return parser
 

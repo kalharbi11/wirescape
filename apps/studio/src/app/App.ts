@@ -22,6 +22,7 @@ import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
 import { showOscEditor, type OscConfig } from './OscEditor';
 import { showOscOutEditor, type OscOutConfig } from './OscOutEditor';
+import { readOscRaw } from './oscCapture';
 import { STARTERS, BUNDLED_STARTERS, DEFAULT_STARTER, type Starter } from './starters';
 import { CURATED_PATCHES } from './curated';
 import { sharedPatches } from './SharedPatches';
@@ -936,7 +937,9 @@ export class App {
     const mod = this.doc.modules.get(id);
     if (this.documentBusy || !mod) return;
     if (mod.module === 'osc.in') showOscEditor(this.oscEditor, mod.config,
-      async (config: OscConfig) => this.commitOscConfig(id, config, 'osc.in'));
+      async (config: OscConfig) => this.commitOscConfig(id, config, 'osc.in'),
+      row => readOscRaw(this.doc, this.ticker.last, id, row),
+      refresh => this.ticker.bindGlobal(refresh));
     else if (mod.module === 'osc.out') showOscOutEditor(this.oscEditor, mod.config,
       async (config: OscOutConfig) => this.commitOscConfig(id, config, 'osc.out'));
   }

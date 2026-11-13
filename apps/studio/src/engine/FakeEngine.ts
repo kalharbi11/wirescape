@@ -5,25 +5,10 @@ import type {
 import { EngineRefusal } from './EngineClient';
 import type { PatchV2, Connection } from '../patch/types';
 import type { ModuleRegistry } from '../modules/registry';
-import type { ModuleDescriptor } from '../modules/types';
 import { findParam, findPort, normToValue, valueToNorm } from '../modules/registry';
 import { hzToMidi } from '../modules/musicalPitch';
 
 const TICK_HZ = 30;
-
-/** Test-only catalogue entry until O1's generated native catalogue lands. */
-const OSC_OUT: ModuleDescriptor = {
-  id: 'osc.out', name: 'OSC Out', category: 'I/O', parameters: [],
-  ports: [
-    ...Array.from({ length: 8 }, (_, i) => ({
-      id: `row${i + 1}`, name: `Row ${i + 1}`,
-      direction: 'input' as const, kind: 'signal' as const, hint: 'cv_bi',
-      poly: 'first', stereo_pair: null,
-    })),
-    { id: 'notes', name: 'Notes', direction: 'input', kind: 'event',
-      hint: 'ev_notes', poly: 'poly', stereo_pair: null },
-  ],
-};
 
 interface Node { id: number; type: string; params: Record<string, number>; ccRows?: Record<string, unknown>[] }
 interface Voice { note: number; velocity: number; on: boolean; since: number; level: number; stage: 'a' | 'd' | 's' | 'r' | 'off' }
@@ -102,7 +87,6 @@ export class FakeEngine implements EngineClient {
   constructor(private readonly registry: ModuleRegistry) {
     // Browser Web mode cannot host UDP or advertise the osc.out capability.
     this.capabilities = window.wirescape?.web ? [] : ['osc.out'];
-    if (!window.wirescape && !registry.has('osc.out')) registry.replace([...registry.all, OSC_OUT]);
     this.status.midi.devices = this.midiDevices.map(d => ({ ...d }));
     this.recomputeLatency();
   }
