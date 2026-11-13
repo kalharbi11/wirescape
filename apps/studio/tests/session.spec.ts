@@ -597,6 +597,18 @@ test.describe('OSC Out', () => {
   await settle(page);
 });
 
+test('a Web-simulated FakeEngine never advertises OSC Out support', async ({ page }) => {
+  const capabilities = await page.evaluate(() => {
+    const oldBridge = window.wirescape;
+    try {
+      (window as any).wirescape = { web: true };
+      const Fake = (window.__wirescapeTest.engine as any).constructor;
+      return (new Fake(window.__wirescapeTest.registry) as { capabilities: string[] }).capabilities;
+    } finally { (window as any).wirescape = oldBridge; }
+  });
+  expect(capabilities).not.toContain('osc.out');
+});
+
 test('OSC Out fake catalogue, channel-0 warning and sender counters', async ({ page }) => {
   await expect(page.getByTestId('library-item-osc.out')).toBeVisible();
   await expect(page.getByTestId('module-1')).toContainText('Sends to this computer (127.0.0.1) only');

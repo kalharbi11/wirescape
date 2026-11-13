@@ -46,8 +46,8 @@ export interface DebugSwitches {
  * is the only place in the app where a value is invented.
  */
 export class FakeEngine implements EngineClient {
-  /** Simulated hello capability; no UDP socket is opened by FakeEngine. */
-  readonly capabilities = ['osc.out'];
+  /** Simulated hello capability; Web preview cannot host OSC Out. */
+  readonly capabilities: string[];
   private nodes = new Map<number, Node>();
   private conns: Connection[] = [];
   private voices: Voice[] = [];
@@ -100,7 +100,8 @@ export class FakeEngine implements EngineClient {
   ];
 
   constructor(private readonly registry: ModuleRegistry) {
-    // Desktop preview uses the native catalogue. Web must never advertise OSC Out.
+    // Browser Web mode cannot host UDP or advertise the osc.out capability.
+    this.capabilities = window.wirescape?.web ? [] : ['osc.out'];
     if (!window.wirescape && !registry.has('osc.out')) registry.replace([...registry.all, OSC_OUT]);
     this.status.midi.devices = this.midiDevices.map(d => ({ ...d }));
     this.recomputeLatency();
