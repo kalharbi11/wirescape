@@ -99,6 +99,10 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
     rc, dirty = git(root, "status", "--porcelain", "--untracked-files=normal")
     check("clean tree", rc == 0 and not dirty,
           "Commit or separately save owner changes before updating; never reset or clean automatically.")
+    # CMAKE_PREFIX_PATH affects native find_package too; reject inherited overrides
+    # without changing the owner's environment or silently selecting foreign tools.
+    check("no inherited CMake prefix", not os.environ.get("CMAKE_PREFIX_PATH"),
+          "Unset process-local CMAKE_PREFIX_PATH before this source build; leave global settings untouched.")
     # tools/dev.py configures -S native -B build/native; never delete foreign caches.
     expected_generator = discover_toolchain().get("generator")
     for cache in (root / "build/CMakeCache.txt", root / "build/native/CMakeCache.txt"):
@@ -119,10 +123,11 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
         same_generator = bool(expected_generator and values.get("CMAKE_GENERATOR") == expected_generator)
         # Keep source, architecture and generator refusals; legacy UI options
         # are no longer part of the current native CMake contract.
-        predicates = {"source": same_source, "architecture": same_arch, "generator": same_generator}
+        predicates = {"source": same_source, "architecture": same_arch, "generator": same_generator,
+                      "prefix": not values.get("CMAKE_PREFIX_PATH", "")}
         failed = ",".join(key for key, ok in predicates.items() if not ok)
         detail = "; ".join(f"{key}={sanitize(values.get(key, '<missing>')[:160], root)}" for key in
-                           ("CMAKE_HOME_DIRECTORY", "CMAKE_SYSTEM_PROCESSOR", "CMAKE_GENERATOR"))
+                           ("CMAKE_HOME_DIRECTORY", "CMAKE_SYSTEM_PROCESSOR", "CMAKE_GENERATOR", "CMAKE_PREFIX_PATH"))
         check(f"cache:{cache.relative_to(root).as_posix()}",
               all(predicates.values()), f"Cache mismatch ({failed}): {detail}; "
               "move incompatible build directory aside, never delete it automatically.")
