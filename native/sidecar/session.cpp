@@ -449,9 +449,9 @@ void Session::open_at_driver_block(int64_t frames) {
     std::string error;
     auto next_out = std::make_unique<osc::OutHost>(patch_.dump());
     document::ScopedOutBuses staged_out(next_out->buses());
-    audio::EngineOwner prepared(document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config, error,
-                                                             &next_telemetry.taps()),
-                                app_engine_destroy);
+    audio::EngineOwner prepared(
+        document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config, error, &next_telemetry.taps()),
+        app_engine_destroy);
     if (!prepared)
         throw std::runtime_error("Graph cannot prepare at the ASIO driver's " + std::to_string(block) + " frames");
     app_engine_prepare_master_fade_in(prepared.get());
@@ -679,9 +679,9 @@ void Session::commit(Json patch, bool new_namespace) {
         document::telemetry::plan(patch, catalogue_.get(), /*phase_enabled=*/true, /*groove_enabled=*/true));
     auto next_out = std::make_unique<osc::OutHost>(patch_bytes);
     document::ScopedOutBuses staged_out(next_out->buses());
-    audio::EngineOwner candidate(document::load_runtime_patch(patch_bytes, catalogue_.get(), config_, error,
-                                                              &next_telemetry.taps()),
-                                 app_engine_destroy);
+    audio::EngineOwner candidate(
+        document::load_runtime_patch(patch_bytes, catalogue_.get(), config_, error, &next_telemetry.taps()),
+        app_engine_destroy);
     need(bool(candidate), "refused", "Graph configuration or state refused");
     // Stage all potentially throwing document/ID work before accepting a live graph.
     std::set<uint32_t> ids = new_namespace ? std::set<uint32_t>{} : used_ids_;
