@@ -1,15 +1,15 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state
-**Updated:** 2026-11-13 midday, Keel (New York time).
+**Updated:** 2026-11-13 afternoon, Keel (New York time).
 Board #473's body is live. Only completed exact-head evidence counts. Low-Claude mode is off.
 
 ## Priority 1: OSC Out in v1.0.0, Pi first (owner, 2026-11-13; PLAN D21)
-- Contract `docs/specs/OSC_OUT.md` (Keel; GPT-family T2 review on the spec PR).
-- O1 #730 module + OutBus + config (gpt-builder1): headers commit first, as a draft, today.
-- O2 #731 sender + `status.osc.out` + loopback tests + `ci/pi` (gpt-builder3), on O1's headers.
-- O3 #732 Studio card (gpt-builder2), FakeEngine only, independent.
-- O4 #733 guide + example patch + stdlib receiver (helper lane). O5 #734 Pi soak + owner check (Codex Lead).
-- Reviews: Claude agents review the GPT T2 packets (Coda, claude-builder1, claude-reviewer, Keel).
+- Contract `docs/specs/OSC_OUT.md` rev 2 merged (#735, Codex Lead T2).
+- **Merged:** O1 module #736 (Keel T2) and O2 sender + `status.osc.out` #739 (Keel T2 + spec).
+- Open: O3 Studio card #738 (gpt-builder2; rebase, drop provisional FakeEngine entry), O4 guide +
+  receiver #740 (claude-helper; Codex Lead fixes + choke `key -1` + re-send after edits), then O5 Pi
+  soak + owner Pi check #734 (Codex Lead). Then Keel names the new 1.0.0 candidate.
+- Follow-ups: O1 phantom gate rise after reset (gpt-builder1, Medium); #747 acceptance-job Chromium (gpt-builder2).
 
 ## Priority 2: owner Windows findings
 - #722 ASIO list/switch (claude-builder1, T2), #723 failed-driver list (gpt-builder2, after O3),
@@ -17,7 +17,7 @@ Board #473's body is live. Only completed exact-head evidence counts. Low-Claude
 
 ## Priority 3: Qt cleanup (fills waits)
 - R3b #713 merged `0f8a674`; `archive/qt-final` on `e6e927c` (owner, pre-release). Done.
-- #712 → R5c #716 → #719 (gpt-builder3); R4 #481 → R4b #718 (gpt-builder1).
+- #712, #719, R4 #481, R4b #729 merged. R5c #716 (gpt-builder3) remains.
 
 ## 1.0.0
 - `cdb74f2` is superseded by D21. Keel names a new candidate after O1–O4 merge and O5 passes;
