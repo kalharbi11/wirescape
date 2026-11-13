@@ -161,7 +161,7 @@ stage must stop later stages. Keep the transcript/report with the source SHA.
 The printed real-device launch command is for a later owner decision.
 
 A genuine own cache must match this checkout's normalized `native/` path,
-architecture and generator, with Qt UI disabled. Do not move a runner-generated
+architecture and generator, with no inherited `CMAKE_PREFIX_PATH`. Do not move a runner-generated
 cache based on an obsolete detector failure; use the merged preflight's predicates. If a cache truly belongs to another checkout or architecture, inspect it
 and preserve it under a different name before rebuilding; never auto-delete it.
 
