@@ -113,6 +113,8 @@ def decide(pr, files, comments, owner):
         return False, 'no status/ready-to-merge label'
     if 'status/blocked' in labels:
         return False, 'status/blocked is set'
+    if len(labels & {'tier/T0', 'tier/T1', 'tier/T2'}) != 1:
+        return False, 'needs exactly one tier/* label'
     sha7 = pr['head']['sha'][:7]
     protected = matching(files, PROTECTED_PATHS)
     t0_markdown_only = ('tier/T0' in labels and
