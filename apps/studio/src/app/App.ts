@@ -21,6 +21,7 @@ import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
 import { showOscEditor, type OscConfig } from './OscEditor';
+import { readOscRaw } from './oscCapture';
 import { STARTERS, BUNDLED_STARTERS, DEFAULT_STARTER, type Starter } from './starters';
 import { CURATED_PATCHES } from './curated';
 import { sharedPatches } from './SharedPatches';
@@ -934,7 +935,9 @@ export class App {
   private openOscEditor(id: number): void {
     if (this.documentBusy || this.doc.modules.get(id)?.module !== 'osc.in') return;
     showOscEditor(this.oscEditor, this.doc.modules.get(id)?.config,
-      async (config: OscConfig) => this.commitOscConfig(id, config));
+      async (config: OscConfig) => this.commitOscConfig(id, config),
+      row => readOscRaw(this.doc, this.ticker.last, id, row),
+      refresh => this.ticker.bindGlobal(refresh));
   }
 
   /** A config save is one authored edit and one ordinary whole-graph replan. */

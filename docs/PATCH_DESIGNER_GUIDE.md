@@ -583,6 +583,25 @@ The `monitor` module's `events`, `in1` and `in2` ports are available;
 connect `osc.in.messages` → `monitor.events` for the message log.
 No existing module/port/parameter IDs change.
 
+### Scaling a controller (OSC In)
+
+A hardware knob may report raw values such as **121…1689**, not 0…1.
+Patch `osc.in.messages` → `monitor.events` **directly** (not through another module).
+Turn the controller fully right, open OSC In **Edit…**, and press **Set max** beside
+the matching CV row; then turn it fully left and press **Set min**. You can also
+read the two values from Monitor and type them into **Raw min / Raw max**.
+The live raw readout and Set buttons require fresh Monitor entries, a matching
+OSC address and numeric argument 0–3; no value is fabricated if observation is
+unavailable. The new values take effect only on **Save and apply**.
+
+Choose **Unipolar 0…1** for a signal that should stay positive, or **Bipolar
+−1…1** for modulation that swings both directions. **Custom** lets you set a
+different Output min/max (including **1 → 0** to invert a knob). Values beyond
+Raw min/max are **clamped**; the OSC In card notes any observed clamping.
+Every CV row has smoothing, **5 ms** by default, under **Advanced**, along
+with argument index, timeout and stale behavior. This UI uses the existing
+input/output range config keys and requires no new patch format.
+
 ### Monitor message log (OSC C2 #604; builds advertising `telemetry.monitor`)
 
 Patch `osc.in.messages` → `monitor.events` to see incoming OSC addresses,

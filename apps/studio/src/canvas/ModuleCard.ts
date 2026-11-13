@@ -7,6 +7,8 @@ import type { PanelOverride } from '../panels/layouts';
 import { attachModuleInfo } from '../panels/widgets/InfoBox';
 import { el, motionOff } from '../app/dom';
 import type { Telemetry, OscStatus } from '../engine/EngineClient';
+import { readOscConfig } from '../app/OscEditor';
+import { readOscRaw } from '../app/oscCapture';
 
 export interface PortAnchor { x: number; y: number }
 
@@ -78,6 +80,7 @@ export class ModuleCard {
   private readonly polyBadge: HTMLElement;
   private readonly info: { destroy(): void } | null = null;
   private monitorOff: (() => void) | null = null;
+  private oscClampOff: (() => void) | null = null;
   private oscLabel?: HTMLElement;
   private oscCount?: HTMLElement;
   private oscDot?: HTMLElement;
@@ -153,8 +156,35 @@ export class ModuleCard {
       const edit = el('button', 'btn osc-edit', 'Edit…') as HTMLButtonElement;
       edit.type = 'button'; edit.dataset.testid = `osc-edit-${o.moduleId}`;
       edit.addEventListener('click', () => o.onEditOsc?.());
-      box.append(status, this.oscCount, edit);
+      const clamps = el('div', 'osc-clamp-hints');
+      const hints = Array.from({ length: 8 }, (_, i) => {
+        const hint = el('small', 'osc-clamp-hint');
+        hint.dataset.testid = `osc-clamp-${o.moduleId}-row${i + 1}`;
+        hint.hidden = true;
+        clamps.append(hint);
+        return hint;
+      });
+      clamps.hidden = true;
+      box.append(status, this.oscCount, edit, clamps);
       this.body.append(box);
+      const renderClamps = (t: Telemetry | null) => {
+        const { config } = readOscConfig(o.host.doc.modules.get(o.moduleId)?.config);
+        let visible = false;
+        config.rows.forEach((row, i) => {
+          const raw = row.kind === 'cv' && row.enabled !== false
+            ? readOscRaw(o.host.doc, t, o.moduleId, row).value : undefined;
+          const hint = hints[i];
+          const message = raw === undefined ? '' :
+            raw < row.input_min ? `raw ${raw} < min ${row.input_min} (clamped)` :
+            raw > row.input_max ? `raw ${raw} > max ${row.input_max} (clamped)` : '';
+          if (hint.textContent !== message) hint.textContent = message;
+          hint.hidden = !message;
+          visible ||= !!message;
+        });
+        clamps.hidden = !visible;
+      };
+      this.oscClampOff = o.host.ticker.bind(o.moduleId, t => renderClamps(t));
+      renderClamps(o.host.ticker.last);
       this.setOscStatus(o.oscStatus?.());
     }
     this.sigIns = ins;
@@ -644,7 +674,7 @@ export class ModuleCard {
     });
   }
 
-  destroy(): void { this.monitorOff?.(); this.info?.destroy(); this.panel?.destroy(); this.root.remove(); }
+  destroy(): void { this.monitorOff?.(); this.oscClampOff?.(); this.info?.destroy(); this.panel?.destroy(); this.root.remove(); }
 
   static describeValue = formatValue;
 }

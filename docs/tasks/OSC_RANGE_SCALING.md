@@ -50,7 +50,7 @@ tier: T1
 budget: 1 Codex session
 size: <= 600 changed lines, <= 10 files
 must_pass:
-  - bash -lc 'cd apps/studio && npm ci && npm test'
+  - bash -lc 'cd apps/studio && npm ci && browser=$(command -v chromium || command -v chromium-browser || command -v google-chrome) && test -x "$browser" && WIRESCAPE_CHROMIUM="$browser" npm test'
   - ci: guard green          # Studio Playwright runs inside the acceptance job
 stops: [native/engine change, new config key, changed/removed existing test or data-testid, new dependency]
 ```
