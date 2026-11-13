@@ -163,6 +163,7 @@ export function showOscEditor(modal: Modal, raw: unknown,
     const raw = el('span', 'osc-raw', 'raw —');
     raw.dataset.testid = `osc-row${i + 1}-raw`;
     const reason = el('small', 'osc-capture-reason');
+    reason.dataset.testid = `osc-row${i + 1}-capture-reason`;
     const setMax = el('button', 'btn', 'Set max') as HTMLButtonElement;
     const setMin = el('button', 'btn', 'Set min') as HTMLButtonElement;
     setMax.type = setMin.type = 'button';
@@ -192,7 +193,7 @@ export function showOscEditor(modal: Modal, raw: unknown,
       reason.textContent = reading.reason ?? '';
       setMax.title = setMin.title = reading.reason ?? '';
     };
-    const setFromMonitor = (control: HTMLInputElement) => {
+    const setFromMonitor = (control: HTMLInputElement | HTMLSelectElement) => {
       const reading = readRaw(captureRow());
       if (reading.value === undefined) { controls.refreshRaw(); return; }
       control.value = String(reading.value);
