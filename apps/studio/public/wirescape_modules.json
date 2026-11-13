@@ -5346,7 +5346,7 @@
   {
    "id": "osc.out",
    "name": "OSC Out",
-   "category": "MIDI / control",
+   "category": "I/O",
    "ports": [
     {
      "id": "row1",
