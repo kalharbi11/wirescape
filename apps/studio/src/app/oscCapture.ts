@@ -6,6 +6,8 @@ import type { Telemetry } from '../engine/EngineClient';
 type Token = { kind: 'literal' | 'any' | 'star' | 'class' | 'alt';
   byte?: number; mask?: Uint8Array; options?: Token[][] };
 const patterns = new Map<string, Token[] | null>();
+/** Address matching is independent of live values; cache bounded recent pairs. */
+const results = new Map<string, boolean>();
 const utf8 = new TextEncoder();
 
 function compile(pattern: string): Token[] | null {
@@ -105,8 +107,14 @@ export function matchOscAddress(pattern: string, address: string): boolean {
     if (patterns.size >= 128) patterns.clear();
     patterns.set(pattern, compile(pattern));
   }
+  const key = `${pattern.length}:${pattern}${address}`;
+  const cached = results.get(key);
+  if (cached !== undefined) return cached;
   const tokens = patterns.get(pattern);
-  return !!tokens && walk(tokens, bytes, new Set([0])).has(bytes.length);
+  const matches = !!tokens && walk(tokens, bytes, new Set([0])).has(bytes.length);
+  if (results.size >= 512) results.clear();
+  results.set(key, matches);
+  return matches;
 }
 
 export interface RawReading { value?: number; reason?: string }
