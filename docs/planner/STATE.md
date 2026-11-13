@@ -1,29 +1,28 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state
-**Updated:** 2026-11-12 evening, Keel (New York time).
-Board #473's body is live. Only completed exact-head evidence counts.
+**Updated:** 2026-11-12 late night, Keel (New York time).
+Board #473's body is live. Only completed exact-head evidence counts. `usage/low-claude` is on.
 
 ## 1.0.0
-- Candidate **`cdb74f2`** (#700 versions + #703 PowerShell 5.1 + #706 cables) posted on #581.
-  `cdb74f2..9c903ad` is docs-only and `main@9c903ad` CI/CodeQL are green.
-- Owner tests that exact SHA (#581). On pass: Codex Lead or owner tags annotated `v1.0.0`
-  on `cdb74f2`, plus `archive/chaos-performance-strip-554` on `73bfe95`. On fail: #597 → new SHA.
-- #700's 9 files vs ≤8: accepted by Keel (version strings span 9 files; no extra scope).
+- Candidate **`cdb74f2`** waits on the owner test (#581). On pass: annotated `v1.0.0` on that SHA,
+  plus `archive/chaos-performance-strip-554` on `73bfe95`. On fail: #597 → new SHA from Keel.
 
 ## Qt removal #661
-- R3a #482 `e57fd80` (gpt-builder2): Keel ruled the frozen-renderer default-graph adapter
-  acceptable; Claude T2 review has no High. Approve when Windows shows
-  `PASS frozen Qt vs Qt-free` and ASan is green.
-- R3b-pre #704/#707 (gpt-builder1): size raised to ≤650 lines/≤10 files (formatted tests).
-  Needs exact-head green, `accept 704`, Claude T2 review. R3b #468 waits on it.
-- Keel tags `archive/qt-final` on the R3b base commit before R3b merges.
+- R3a #482 merged `e336fc7`. Its auto-merge was armed and all required checks were green, but it
+  didn't fire, so Keel merged it on the approved head `e57fd80`. R3b-pre #707 merged `cec2c69`.
+- R3b #713 (gpt-builder2): unblocked. Integrate main → retarget → exact head green → Claude T2 →
+  lightweight `archive/qt-final` on its main parent → merge.
+- R4 #481 (gpt-builder1) keeps its #469 inventory and budget. Keel ruling: the extra Qt tool paths
+  (Pi UI probe, Pi preflight, Windows setup, cloud setup) are **R4b #718** (T1), after #481.
+- R5c #716 (gpt-builder3, T0) after R3b; it also drops `legacy/**` and `docs/history/**` from AGENTS.md lists.
 
 ## CI
-- #693 CI speed 1 (gpt-builder3): Keel CI-policy approval on `622441a`; gate merges.
-- #702 board/post-merge watcher (Keel) `8f79c1e`: both Mediums fixed; needs GPT T2
-  re-review. Board `followups` is red on PRs until it lands.
-- #710 OSC fuzz (claude-builder1): protected-path line added; needs GPT T2, then Keel approval.
-- #701 gate fails closed on missing tier (gpt-builder3): not started.
+- #712 (#701 gate tier fail-closed, gpt-builder3): two test bugs (High), source OK. `accept 701`
+  needs #715's task file on main. #715 (Codex Lead) now conflicts on STATE.md: take main's copy.
+- #719 (gpt-builder3, T2, after #712): guard `is_test()` flags `docs/**.md` named "*test*".
+  #708 hit it; Keel applied `allow-test-removal` for its four task-file moves only.
+- #708 task sweep (Keel, T0): fresh approval on `4f937ca`, guard re-run; gate merges on green.
+- #710 OSC fuzz (claude-builder1): waits for low-Claude mode to end, a discoverable #676 task, and a GPT T2.
 
 ## Parked
 R6 #470, Web AudioWorklet (#658 P1.2), #600, #337, #332, #91, #594 until the owner's next plan.

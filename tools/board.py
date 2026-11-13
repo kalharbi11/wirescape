@@ -7,6 +7,7 @@ belongs to (`agent/<name>`), its open PR, how long it has been idle and its `Nex
   python tools/board.py             # print the auto section (needs GH_TOKEN or GITHUB_TOKEN)
   python tools/board.py --write 473 # replace the section in issue #473's body
   python tools/board.py --followups # finish what gate merges skip (see followups())
+  python tools/board.py --watch-merges 12 # wait for armed auto-merges, then verify main (post_merge.yml)
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -175,6 +177,12 @@ FOLLOW_DAYS = 7
 MARKER = '<!-- board:closed-by-merge #{pr} -->'
 
 
+def _prose(body):
+    """The body without fenced code blocks and inline code: `Closes #N` quoted there is not a directive."""
+    body = re.sub(r'^(```|~~~).*?^\1[^\n]*$', '', body or '', flags=re.M | re.S)
+    return re.sub(r'`[^`\n]*`', '', body)
+
+
 def pending_closes(merged, now, days=FOLLOW_DAYS):
     """(issue, pr, merge sha) for every `Closes #N` in a PR merged into main in the last `days`."""
     out = []
@@ -183,7 +191,7 @@ def pending_closes(merged, now, days=FOLLOW_DAYS):
             continue
         if now - _when(pr['merged_at']) > timedelta(days=days):
             continue
-        for n in sorted({int(n) for n in CLOSES.findall(pr.get('body') or '')}):
+        for n in sorted({int(n) for n in CLOSES.findall(_prose(pr.get('body')))}):
             out.append((n, pr['number'], pr.get('merge_commit_sha') or ''))
     return out
 
@@ -206,9 +214,30 @@ def stale_status(items):
 def followups(token, now):
     """Merges the gate makes run as GITHUB_TOKEN, and GitHub starts no follow-ups for those:
     `Closes #N` is not applied, no push CI runs on main and schedules never register. This runs on
-    agents' own issue/PR events instead: it closes the linked issues and starts main_verify.yml
-    once per main commit (that workflow dispatches whatever CI the commit is missing). It also clears
-    status/* labels from recently closed issues and PRs, however they were closed."""
+    agents' own issue/PR events instead. Three independent steps, most important first:
+    1. start main_verify.yml once per main commit (it dispatches whatever CI the commit is missing);
+    2. close the issues that recent main merges name with `Closes #N`;
+    3. clear status/* labels from recently closed issues and PRs, however they were closed.
+    A failing step never skips a later one (#696); any failure still makes the job exit 1."""
+    failed = []
+    for step in (_verify_main, _close_linked, _clear_closed_status):
+        try:
+            step(token, now)
+        except (urllib.error.URLError, OSError, KeyError, ValueError) as error:
+            failed.append(step.__name__)
+            print(f'board.py: {step.__name__} failed: {error}', file=sys.stderr)
+    return 1 if failed else 0
+
+
+def _verify_main(token, now):
+    sha = _api('commits/main', token)['sha']
+    runs = _api(f'actions/workflows/main_verify.yml/runs?head_sha={sha}&per_page=1', token)
+    if not runs.get('total_count'):
+        _api('actions/workflows/main_verify.yml/dispatches', token, 'POST', {'ref': 'main'})
+        print(f'board.py: dispatched main_verify.yml for main@{sha[:7]}')
+
+
+def _close_linked(token, now):
     merged = _api('pulls?state=closed&base=main&sort=updated&direction=desc&per_page=50', token)
     for n, pr, sha in pending_closes(merged, now):
         issue = _api(f'issues/{n}', token)
@@ -220,7 +249,9 @@ def followups(token, now):
         _api(f'issues/{n}', token, 'PATCH', {'state': 'closed', 'state_reason': 'completed'})
         _api(f'issues/{n}/comments', token, 'POST', {'body': note})
         print(f'board.py: closed #{n} (from #{pr})')
-    # After the closes above, so issues closed in this run are cleared in this run too.
+
+
+def _clear_closed_status(token, now):
     recent = _api('issues?state=closed&sort=updated&direction=desc&per_page=50', token)
     for n, name in stale_status(recent):
         try:
@@ -229,24 +260,50 @@ def followups(token, now):
         except urllib.error.HTTPError as error:  # already removed by someone else
             if error.code != 404:
                 raise
-    sha = _api('commits/main', token)['sha']
-    runs = _api(f'actions/workflows/main_verify.yml/runs?head_sha={sha}&per_page=1', token)
-    if not runs.get('total_count'):
-        _api('actions/workflows/main_verify.yml/dispatches', token, 'POST', {'ref': 'main'})
-        print(f'board.py: dispatched main_verify.yml for main@{sha[:7]}')
-    return 0
+
+
+def watch_merges(token, minutes, sleep=time.sleep, clock=time.monotonic):
+    """Durable post-merge wakeup (#702, gpt-reviewer High). The gate's GITHUB_TOKEN auto-merge
+    starts no workflow, and an event that ran just before it saw the old main. post_merge.yml runs
+    this after every CI, Guard and Merge gate run: while any open PR has auto-merge armed it waits,
+    bounded by `minutes`, and as soon as one has merged it verifies main (main_verify.yml reads
+    main's live head and is idempotent per SHA). It always verifies main once before returning."""
+    deadline = clock() + minutes * 60
+    watched, first = set(), True
+    while True:
+        armed = {pr['number'] for pr in _all('pulls?state=open', token) if pr.get('auto_merge')}
+        merged_now = False
+        # A merged PR leaves the open list, so check the ones watched last pass that are gone
+        # (gpt-builder1 pre-review: with a second PR still armed it was never seen merging).
+        for n in sorted(watched - armed):
+            if _api(f'pulls/{n}', token).get('merged'):
+                merged_now = True
+                print(f'board.py: #{n} merged; verifying main')
+        watched = armed
+        # The first pass also verifies: a merge that landed before this watcher started is
+        # never in `watched`. main_verify is idempotent per SHA, so a repeat costs one read.
+        if first or merged_now or not armed or clock() >= deadline:
+            _verify_main(token, None)
+        first = False
+        if not armed or clock() >= deadline:
+            return 0
+        sleep(20)
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--write', type=int, metavar='ISSUE', help='update this issue body in place')
     ap.add_argument('--followups', action='store_true', help='close issues of gate merges, clear stale status labels, verify main')
+    ap.add_argument('--watch-merges', type=float, metavar='MINUTES',
+                    help='wait (bounded) for armed auto-merges to land, then verify main')
     args = ap.parse_args(argv)
     token = os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN')
     if not token:
         sys.exit('board.py: set GH_TOKEN or GITHUB_TOKEN')
     if args.followups:
         return followups(token, datetime.now(timezone.utc))
+    if args.watch_merges is not None:
+        return watch_merges(token, min(max(args.watch_merges, 0), 30))
     issues = [i for i in _all('issues?state=open', token) if 'pull_request' not in i]
     prs = _all('pulls?state=open', token)
     auto = render(issues, prs, datetime.now(timezone.utc), board=args.write or 473)

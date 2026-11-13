@@ -4,9 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
-    # No label events: a label-triggered run that skips the native jobs hides the required
-    # linux-arm64/windows-x64 results. ci/windows takes effect on the next push.
-    types: [opened, synchronize, reopened, ready_for_review]
+    # Label changes do not trigger redundant required-check runs.
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 permissions:
   contents: read
@@ -132,7 +131,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON((github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && (!github.event.pull_request.draft || contains(github.event.pull_request.labels.*.name, 'ci/windows')))) && '[{"os":"linux-arm64","runner":"ubuntu-24.04-arm"},{"os":"windows-x64","runner":"windows-latest"}]' || '[{"os":"linux-arm64","runner":"ubuntu-24.04-arm"}]') }}
+        include: ${{ fromJSON((github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'pull_request') && '[{"os":"linux-arm64","runner":"ubuntu-24.04-arm"},{"os":"windows-x64","runner":"windows-latest"}]' || '[{"os":"linux-arm64","runner":"ubuntu-24.04-arm"}]') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     env:
@@ -147,6 +146,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -245,6 +246,10 @@ jobs:
           fi
           python tools/dev.py test
           if [[ '${{ matrix.os }}' == windows-x64 ]]; then python tools/dev.py ui-test; fi
+      - name: Compare frozen Qt and Qt-free golden renderers
+        if: runner.os == 'Windows' && env.CODE == 'true'
+        shell: pwsh
+        run: python tools/compare_golden_qt.py --qt-prefix "$env:QT_ROOT_DIR"
       - name: Summarize ABI2 benchmark
         env:
           ABI2_RUNNER: ${{ matrix.os }}

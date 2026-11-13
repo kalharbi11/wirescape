@@ -39,6 +39,10 @@ jobs:
           : > "$RUNNER_TEMP/issue.md"
           if [ -n "$ISSUE" ]; then
             echo "Linked issue: #$ISSUE"
-            gh api "repos/${{ github.repository }}/issues/$ISSUE" --jq '.body // ""' > "$RUNNER_TEMP/issue.md"
+            # Only an issue written by the owner or a collaborator can name protected paths: anyone
+            # can open an issue on a public repo, and a PR could link it with "Closes #N".
+            gh api "repos/${{ github.repository }}/issues/$ISSUE" \
+              --jq 'if (.author_association | IN("OWNER", "MEMBER", "COLLABORATOR")) then (.body // "") else "" end' \
+              > "$RUNNER_TEMP/issue.md"
           fi
           python tools/ci/guard.py --base "$BASE" --head "$HEAD" --labels-json "$LABELS" --issue-body-file "$RUNNER_TEMP/issue.md"
