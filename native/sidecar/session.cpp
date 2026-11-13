@@ -292,8 +292,10 @@ Session::Session(Options options)
               {"connections", Json::array()}};
     patch_ = execution(patch_);
     monitor_->configure(patch_);
+    osc_out_ = std::make_unique<osc::OutHost>(patch_.dump());
     std::string error;
-    engine_.reset(document::load_runtime_patch(patch_.dump(), catalogue_.get(), config_, error));
+    engine_.reset(document::load_runtime_patch(patch_.dump(), catalogue_.get(), config_, error,
+                                               nullptr, &osc_out_->buses()));
     need(bool(engine_), "unavailable", "Cannot create startup graph");
     active_ = engine_.get();
     refresh_devices();
@@ -307,6 +309,7 @@ void Session::start(std::chrono::steady_clock::time_point now) {
         start_osc();
         if (stream_) persist();
     } catch (...) {
+        osc_out_->stop();
         osc_->stop();
         midi_->stop();
         stop_audio();
@@ -321,6 +324,7 @@ Session::~Session() {
     }
 }
 void Session::shutdown() {
+    osc_out_->stop();
     osc_->stop(); // stop/join packet acquisition before audio or engine teardown
     midi_->stop();
     stop_audio();
@@ -442,8 +446,10 @@ void Session::open_at_driver_block(int64_t frames) {
     ws_engine_config next_config = config_;
     next_config.max_block_frames = block;
     std::string error;
+    auto next_out = std::make_unique<osc::OutHost>(patch_.dump());
     audio::EngineOwner prepared(
-        document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config, error, &next_telemetry.taps()),
+        document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config, error, &next_telemetry.taps(),
+                                     &next_out->buses()),
         app_engine_destroy);
     if (!prepared)
         throw std::runtime_error("Graph cannot prepare at the ASIO driver's " + std::to_string(block) + " frames");
@@ -453,12 +459,14 @@ void Session::open_at_driver_block(int64_t frames) {
     // Join both producers before replacing it; resume OSC against whichever
     // graph is committed (new on success, restored on failed retry).
     const bool had_osc = !osc_->states().empty();
+    osc_out_->stop();
     osc_->stop();
     auto resume_osc = [this, had_osc](void *) noexcept {
         if (!had_osc) return;
         try {
             start_osc();
         } catch (...) {
+            osc_out_->stop();
             osc_->stop();
         }
     };
@@ -488,6 +496,7 @@ void Session::open_at_driver_block(int64_t frames) {
         throw;
     }
     restore_midi_on_failure = false; // caller start()/poll_audio()/apply() resumes MIDI
+    osc_out_.swap(next_out); // previous engine has stopped; keep its bus alive until retirement
     if (!requested_block_) requested_block_ = options_.block;
     config_ = next_config;
     options_.block = block;
@@ -516,7 +525,10 @@ void Session::start_midi() {
     std::string error;
     need(midi_->start(active_, patch_.dump(), error), "unavailable", "Cannot start MIDI subscriptions");
 }
-void Session::start_osc() { osc_->start(active_, patch_.dump()); }
+void Session::start_osc() {
+    osc_->start(active_, patch_.dump());
+    osc_out_->start(); // control-owned loopback sender; never touches the render thread
+}
 bool Session::refresh_devices(bool audio, bool probe_rates, const std::string &target) {
     bool enumerated = audio;
     if (audio) try {
@@ -664,8 +676,9 @@ void Session::commit(Json patch, bool new_namespace) {
     // Stage metadata and cursor storage before any live graph swap.
     document::telemetry::Sampler next_telemetry(
         document::telemetry::plan(patch, catalogue_.get(), /*phase_enabled=*/true, /*groove_enabled=*/true));
+    auto next_out = std::make_unique<osc::OutHost>(patch_bytes);
     audio::EngineOwner candidate(document::load_runtime_patch(patch_bytes, catalogue_.get(), config_, error,
-                                                             &next_telemetry.taps()),
+                                                              &next_telemetry.taps(), &next_out->buses()),
                                  app_engine_destroy);
     need(bool(candidate), "refused", "Graph configuration or state refused");
     // Stage all potentially throwing document/ID work before accepting a live graph.
@@ -674,11 +687,13 @@ void Session::commit(Json patch, bool new_namespace) {
     // Pause the OSC ingress before any live replan, fade/swap or graph retirement.
     // The destructor restarts the worker against whichever graph actually commits
     // (including the original graph on refusal). Socket errors never refuse patches.
+    osc_out_->stop();
     osc_->stop();
     auto resume_osc = [this](void *) noexcept {
         try {
             start_osc();
         } catch (...) {
+            osc_out_->stop();
             osc_->stop();
         }
     };
@@ -689,6 +704,7 @@ void Session::commit(Json patch, bool new_namespace) {
         // A busy MIDI dispatch is transient; a graph refusal is not. Never stop for busy.
         for (unsigned attempt = 0; attempt < 4; ++attempt) {
             if (midi_->replan(candidate.get(), patch_bytes, timeout_ns, error)) {
+                osc_out_.swap(next_out); // rendered graph now owns the new bus
                 patch_.swap(patch);
                 used_ids_.swap(ids);
                 // Rebuild direct-only routing and clear old ring on commit.
@@ -819,6 +835,7 @@ void Session::commit(Json patch, bool new_namespace) {
             throw;
         }
     }
+    osc_out_.swap(next_out); // only after a successful D5 commit; rollback retains the old bus
     ++generation_;
     keyboard_.fill(false);
     used_ids_.swap(ids);
@@ -883,11 +900,13 @@ Json Session::apply(const Json &command) {
         const auto old_rate = options_.rate, old_block = options_.block, old_requested = requested_block_;
         const auto old_preferences = preferences_;
         // The stream change destroys/replaces the engine; suspend ingress first.
+        osc_out_->stop();
         osc_->stop();
         auto resume_osc = [this](void *) noexcept {
             try {
                 start_osc();
             } catch (...) {
+                osc_out_->stop();
                 osc_->stop();
             }
         };
@@ -904,8 +923,9 @@ Json Session::apply(const Json &command) {
             next_config.sample_rate = next_rate;
             next_config.max_block_frames = next_block;
             std::string error;
+            auto next_out = std::make_unique<osc::OutHost>(patch_.dump());
             audio::EngineOwner prepared(document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config,
-                                                                     error, &next_telemetry.taps()),
+                                                                     error, &next_telemetry.taps(), &next_out->buses()),
                                         app_engine_destroy);
             need(bool(prepared), "unavailable", "Graph cannot prepare at requested stream configuration");
             app_engine_prepare_master_fade_in(prepared.get());
@@ -943,6 +963,7 @@ Json Session::apply(const Json &command) {
             if (rate_refused) refuse_rate();
             throw Refusal("unavailable", "Stream change refused; previous configuration restored");
         }
+        osc_out_.swap(next_out); // previous stream and graph are retired
     }
     if (type == "selectAudioDevice") {
         need(command.at("deviceId").is_string());
@@ -966,11 +987,13 @@ Json Session::apply(const Json &command) {
         // A device switch also tears down an audio worker. Join the packet
         // producer first, and resume against the same committed graph on
         // both success and restored-device failure paths.
+        osc_out_->stop();
         osc_->stop();
         auto resume_osc = [this](void *) noexcept {
             try {
                 start_osc();
             } catch (...) {
+                osc_out_->stop();
                 osc_->stop();
             }
         };
@@ -1208,7 +1231,7 @@ Json Session::midi_status() const {
 }
 Json Session::hello() const {
     Json capabilities = Json::array(
-        {"midiLearn", "telemetry.playhead", "telemetry.monitor", "setSampleRate", "setBufferFrames", "osc"});
+        {"midiLearn", "telemetry.playhead", "telemetry.monitor", "setSampleRate", "setBufferFrames", "osc", "osc.out"});
     return {{"v", 0},
             {"session", token_},
             {"type", "hello"},
@@ -1252,6 +1275,14 @@ Json Session::status() const {
     osc_status["bind"] = any_lan ? "0.0.0.0" : "127.0.0.1";
     if (port_busy) osc_status["last_error"] = "port-busy";
     osc_status["routes"] = std::move(osc_routes);
+    Json out_routes = Json::array();
+    for (const auto &route : osc_out_->states()) {
+        Json entry = {{"module", std::to_string(route.node)}, {"port", route.port},
+                      {"state", route.state}, {"sent", route.sent}, {"dropped", route.dropped}};
+        if (route.last_error) entry["last_error"] = route.last_error;
+        out_routes.push_back(std::move(entry));
+    }
+    osc_status["out"] = std::move(out_routes);
     value["status"]["osc"] = std::move(osc_status);
     return value;
 }
@@ -1317,11 +1348,13 @@ bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumera
     if (stream_ && (!stream_->running() || (enumerated && matches == 0))) {
         // A hot-unplug retires an audio callback while preserving the graph.
         // Quiesce OSC ingress until the owned audio stream is joined.
+        osc_out_->stop();
         osc_->stop();
         auto resume_osc = [this](void *) noexcept {
             try {
                 start_osc();
             } catch (...) {
+                osc_out_->stop();
                 osc_->stop();
             }
         };
