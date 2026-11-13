@@ -22,3 +22,15 @@ test('OSC matcher mirrors native wildcard, class and nested-alternative fixtures
     expect(matchOscAddress(pattern, '/a')).toBe(false);
   }
 });
+
+test('pathological consecutive stars are bounded instead of backtracking', () => {
+  const longPattern = '/' + '*'.repeat(22) + 'b';
+  const nonmatch = '/' + 'a'.repeat(35);
+  const start = performance.now();
+  for (let i = 0; i < 100; i++) {
+    expect(matchOscAddress(longPattern, nonmatch)).toBe(false);
+    expect(matchOscAddress(longPattern, nonmatch + 'b')).toBe(true);
+  }
+  // A small deterministic workload must never freeze a 3-second Playwright test.
+  expect(performance.now() - start).toBeLessThan(2000);
+});
