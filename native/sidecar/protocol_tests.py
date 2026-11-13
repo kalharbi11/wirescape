@@ -764,6 +764,119 @@ with tempfile.TemporaryDirectory() as monitor_dir:
     assert 'monitor' not in reset or not reset['monitor']
     monitor_engine.close()
 
+# OSC Out O2: localhost only, an OS-chosen receiver, real graph render and
+# notes from the fake host keyboard. Never opens a physical audio/MIDI device.
+with tempfile.TemporaryDirectory() as outgoing_dir:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
+        receiver.bind(('127.0.0.1', 0))
+        receiver.settimeout(0.1)
+        output_port = receiver.getsockname()[1]
+        out_engine = Engine(Path(outgoing_dir) / 'out.json')
+        assert 'osc.out' in out_engine.hello['capabilities']
+        assert 'osc.out' in {m['id'] for m in out_engine.hello['catalogue']['modules']}
+        outgoing_patch = minimal()
+        outgoing_patch['modules'] += [
+            dict(id=19, module='osc.out', config=dict(
+                port=output_port, rate_hz=20,
+                rows=[dict(address='/ws/row/1', kind='cv', deadband=0)] +
+                     [dict(enabled=False) for _ in range(7)],
+                notes=dict(address='/ws/note', enabled=True))),
+            dict(id=20, module='essentials.lfo'),
+            dict(id=21, module='host.keyboard')
+        ]
+        outgoing_patch['connections'] += [
+            edge('signal', 20, 'control', 19, 'row1'),
+            edge('event', 21, 'notes', 19, 'notes')
+        ]
+        outgoing_gen = out_engine.call('loadGraph', patch=outgoing_patch)['gen']
+
+        def unpack_outgoing(packet):
+            def field(at):
+                end = packet.find(b'\0', at)
+                assert end >= at, packet
+                value = packet[at:end].decode('ascii')
+                return value, (end + 4) & ~3
+            address, at = field(0)
+            tags, at = field(at)
+            assert tags and tags[0] == ','
+            values = []
+            for tag in tags[1:]:
+                assert tag in 'if' and at + 4 <= len(packet)
+                values.append(struct.unpack('>i' if tag == 'i' else '>f', packet[at:at + 4])[0])
+                at += 4
+            assert at == len(packet)
+            return address, tags, values
+
+        # Gate-free CV should send its initial value and never exceed the
+        # configured 20 Hz by more than one datagram per whole second.
+        row_samples = []
+        received_notes = []
+        started = time.monotonic()
+        while time.monotonic() - started < 0.6:
+            try:
+                payload, source = receiver.recvfrom(1500)
+            except socket.timeout:
+                continue
+            assert source[0] == '127.0.0.1'
+            address, tags, values = unpack_outgoing(payload)
+            if address == '/ws/row/1':
+                assert tags == ',f' and len(values) == 1
+                row_samples.append((time.monotonic(), values[0]))
+            else:
+                assert address == '/ws/note', address
+                received_notes.append(values)
+        assert 1 <= len(row_samples) <= 14, row_samples
+        assert len({round(value, 4) for _, value in row_samples}) >= 2, row_samples
+        assert not received_notes
+        for left, right in zip(row_samples, row_samples[1:]):
+            assert right[0] - left[0] >= 0.035, row_samples
+
+        out_engine.call('noteOn', note=64, velocity=0.8)
+        out_engine.call('noteOff', note=64)
+        deadline = time.monotonic() + 2.0
+        while len(received_notes) < 2 and time.monotonic() < deadline:
+            try:
+                payload, _ = receiver.recvfrom(1500)
+            except socket.timeout:
+                continue
+            address, tags, values = unpack_outgoing(payload)
+            if address == '/ws/note':
+                assert tags == ',ifi'
+                received_notes.append(values)
+        assert len(received_notes) >= 2, received_notes
+        assert [row[0] for row in received_notes[:2]] == [64, 64], received_notes
+        assert received_notes[0][1] > 0 and received_notes[1][1] == 0, received_notes
+
+        # Runtime status is bounded and never contains OSC packet contents.
+        observed_out = None
+        status_deadline = time.monotonic() + 3
+        while time.monotonic() < status_deadline:
+            message = out_engine.pushes.pop(0) if out_engine.pushes else out_engine.receive()
+            if message.get('type') != 'status' or message['gen'] != outgoing_gen:
+                continue
+            routes = message['status']['osc']['out']
+            if len(routes) == 1 and routes[0]['sent'] >= len(received_notes):
+                observed_out = routes[0]
+                break
+        assert observed_out is not None
+        assert (observed_out['module'] == '19' and observed_out['port'] == output_port
+                and observed_out['state'] == 'sending' and observed_out['dropped'] >= 0)
+        assert 'payload' not in observed_out and 'address' not in observed_out
+
+        clean_gen = out_engine.call('loadGraph', patch=minimal())['gen']
+        assert clean_gen != outgoing_gen
+        # No sender remains after replan, and EOF must join worker before exit.
+        saw_clear = False
+        until = time.monotonic() + 3
+        while time.monotonic() < until:
+            message = out_engine.pushes.pop(0) if out_engine.pushes else out_engine.receive()
+            if (message.get('type') == 'status' and message['gen'] == clean_gen and
+                    message['status']['osc']['out'] == []):
+                saw_clear = True
+                break
+        assert saw_clear
+        out_engine.close()
+
 # Real, short, device-free end-to-end benchmark ingestion on the production sidecar.
 harness = Path(__file__).resolve().parents[2] / 'tools' / 'sidecar_edit_soak.py'
 smoke = subprocess.run([sys.executable, str(harness), '--engine', BINARY,
