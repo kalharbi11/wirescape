@@ -33,7 +33,7 @@ constexpr Socket invalid_socket = -1;
 void close_socket(Socket s) noexcept { close(s); }
 #endif
 // Only the sender thread performs network operations; all endpoints are loopback.
-bool send_message(Socket sock, uint16_t port, const Message &message) noexcept {
+bool send_message(Socket sock, const Message &message, uint16_t port) noexcept {
     std::array<uint8_t, 1472> buffer{};
     bool truncated = false;
     const auto size = encode(message, buffer.data(), buffer.size(), truncated);
@@ -42,9 +42,9 @@ bool send_message(Socket sock, uint16_t port, const Message &message) noexcept {
     address.sin_family = AF_INET;
     address.sin_port = htons(port);
     address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    const int result = sendto(sock, reinterpret_cast<const char *>(buffer.data()), int(size), 0,
+    const auto result = sendto(sock, reinterpret_cast<const char *>(buffer.data()), int(size), 0,
                               reinterpret_cast<const sockaddr *>(&address), sizeof(address));
-    return result == int(size);
+    return result == static_cast<decltype(result)>(size);
 }
 } // namespace
 
@@ -124,7 +124,7 @@ void OutHost::loop() noexcept {
         message.address = path;
         message.count = count;
         for (uint32_t a = 0; a < count; ++a) message.arguments[a] = args[a];
-        if (send_message(sock, uint16_t(route.config.port), message))
+        if (send_message(sock, message, uint16_t(route.config.port)))
             route.sent.fetch_add(1, std::memory_order_relaxed);
         else {
             route.dropped.fetch_add(1, std::memory_order_relaxed);
