@@ -20,6 +20,7 @@
 #include "../modules2/noise/dsp.h"
 #include "../modules2/notes_to_cv/dsp.h"
 #include "../modules2/osc_in/dsp.h"
+#include "../modules2/osc_out/dsp.h"
 #include "../modules2/output/dsp.h"
 #include "../modules2/quad_vca/dsp.h"
 #include "../modules2/quantizer/dsp.h"
