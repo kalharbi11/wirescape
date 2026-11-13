@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# OSC libFuzzer smoke (#676, Keel CI-policy ruling on #676). Non-required: never add this
+# job to the merge gate or branch protection. Commands are copied from the #94 acceptance
+# block in docs/tasks/Wh_FUZZ.md; change both together. Devices off, no LAN.
+name: osc-fuzz
+
+on:
+  pull_request:
+    paths:
+      - 'native/io/osc/**'
+      - '.github/workflows/osc_fuzz.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'native/io/osc/**'
+      - '.github/workflows/osc_fuzz.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: osc-fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  osc-fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install build tools
+        run: |
+          python -m pip install cmake==4.2.3 ninja==1.13.0
+          # Transient mirror/DNS failures: bounded retries; a third failure still fails CI.
+          for i in 1 2 3; do
+            sudo apt-get -o Acquire::Retries=3 update && sudo apt-get -o Acquire::Retries=3 install -y clang-18 libclang-rt-18-dev && break
+            [ "$i" = 3 ] && exit 1
+            sleep 60
+          done
+      - name: Build fuzz targets
+        run: |
+          bash -lc 'if ! command -v clang++-18 >/dev/null 2>&1; then sudo apt-get update -qq && sudo apt-get install -y clang-18 libclang-rt-18-dev; fi; cmake -S native -B build/fuzz -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DWIRESCAPE_OSC_FUZZ=ON && cmake --build build/fuzz --target abi2_osc_codec_fuzz abi2_osc_pattern_fuzz'
+      - name: Fuzz codec (60 s, existing corpus)
+        run: |
+          set -o pipefail
+          python3 -c "import pathlib as p; d=p.Path('build/fuzz/seed/codec'); d.mkdir(parents=True, exist_ok=True); [(d/(f.stem+'.bin')).write_bytes(bytes.fromhex(''.join(x for x in f.read_text().splitlines() if not x.lstrip().startswith('#')))) for f in p.Path('native/io/osc/fuzz_corpus/codec').glob('*.hex')]"
+          bash -lc 'build/fuzz/abi2_osc_codec_fuzz -max_total_time=60 -artifact_prefix=build/fuzz/ build/fuzz/seed/codec' 2>&1 | tee build/fuzz/codec.log
+      - name: Fuzz pattern (60 s, existing corpus)
+        run: |
+          set -o pipefail
+          { python3 -c "import pathlib as p; d=p.Path('build/fuzz/seed/pattern'); d.mkdir(parents=True, exist_ok=True); [(d/(f.stem+'.bin')).write_bytes(bytes.fromhex(''.join(x for x in f.read_text().splitlines() if not x.lstrip().startswith('#')))) for f in p.Path('native/io/osc/fuzz_corpus/pattern').glob('*.hex')]" && build/fuzz/abi2_osc_pattern_fuzz -max_total_time=60 -artifact_prefix=build/fuzz/ build/fuzz/seed/pattern; } 2>&1 | tee build/fuzz/pattern.log
+      # A red run: file an issue, add the minimized input to native/io/osc/fuzz_corpus/ and fix.
+      # No automatic issue creation (that would need issues: write).
+      - name: Upload crash inputs and logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: osc-fuzz-crash
+          path: |
+            build/fuzz/crash-*
+            build/fuzz/leak-*
+            build/fuzz/timeout-*
+            build/fuzz/oom-*
+            build/fuzz/*.log
+          if-no-files-found: ignore
+          retention-days: 14
