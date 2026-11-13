@@ -112,6 +112,51 @@ static void osc_future_keys() {
     CHECK(ignored.size() == 16);
     for (const auto &name : ignored) CHECK(name.size() <= 80 && name.find('\n') == std::string::npos);
 }
+static void osc_out_config_validation() {
+    using Json = nlohmann::json;
+    auto source = Json::parse(
+        R"({"port":9002,"rate_hz":200,"rows":[{"address":"/dev/gate","kind":"gate","enabled":false},{"deadband":0.02}],"notes":{"enabled":true}})");
+    std::vector<std::string> ignored;
+    auto raw = runtime_module_config("osc.out", source, 42, &ignored);
+    wirescape::osc::OutConfiguration cfg;
+    CHECK(wirescape::osc::out_configuration(raw.data(), static_cast<uint32_t>(raw.size()), cfg));
+    CHECK(cfg.port == 9002 && cfg.rate_hz == 200 && ignored.empty());
+    CHECK(cfg.rows[0].kind == 1 && cfg.rows[0].enabled == 0);
+    CHECK(std::strcmp(cfg.rows[0].address, "/dev/gate") == 0);
+    CHECK(cfg.rows[1].deadband == .02f && cfg.rows[2].deadband == .001f);
+    CHECK(cfg.notes.enabled == 1 && std::strcmp(cfg.notes.address, "/ws/note") == 0);
+    source["unknown"] = Json::array({1, 2});
+    source["rows"][0]["extra"] = Json::object({{"a", 1}});
+    source["notes"]["future"] = true;
+    ignored.clear();
+    raw = runtime_module_config("osc.out", source, 42, &ignored);
+    CHECK(ignored ==
+          std::vector<std::string>({"osc.out#42.unknown", "osc.out#42.rows[0].extra", "osc.out#42.notes.future"}));
+    CHECK(source["unknown"].is_array() && source["rows"][0]["extra"].is_object());
+    auto rejected = [&](const char *json) {
+        bool invalid = false;
+        try {
+            (void)runtime_module_config("osc.out", Json::parse(json));
+        } catch (const std::exception &) {
+            invalid = true;
+        }
+        CHECK(invalid);
+    };
+    for (const char *bad :
+         {R"({"version":2})", R"({"version":"1"})", R"({"port":65536})", R"({"port":0})", R"({"rate_hz":501})",
+          R"({"rate_hz":0})", R"({"host":"127.0.0.1"})", R"({"lan":false})", R"({"rows":{}})",
+          R"({"rows":[{"address":"missing-slash"}]})", R"({"rows":[{"address":"/a*"}]})",
+          R"({"rows":[{"kind":"trigger"}]})", R"({"rows":[{"enabled":1}]})", R"({"rows":[{"deadband":-0.1}]})",
+          R"({"rows":[{"deadband":1.1}]})", R"({"notes":{"enabled":1}})", R"({"notes":{"address":"/a b"}})"})
+        rejected(bad);
+    const auto defaults = runtime_module_config("osc.out", Json::object());
+    CHECK(defaults.size() == sizeof(wirescape::osc::OutConfiguration));
+    wirescape::osc::OutConfiguration binary_defaults;
+    CHECK(wirescape::osc::out_configuration(defaults.data(), static_cast<uint32_t>(defaults.size()), binary_defaults));
+    CHECK(binary_defaults.bus == nullptr && binary_defaults.port == 9001);
+    CHECK(binary_defaults.rows[0].enabled == 1 && binary_defaults.notes.enabled == 0);
+    CHECK(std::strcmp(binary_defaults.rows[0].address, "/ws/row/1") == 0);
+}
 int main() try {
  auto encode=[](const char*s){return runtime_module_config("midi.cc_to_cv",nlohmann::json::parse(s));};
  auto bytes=encode(R"({"rows":[{"channel":16,"controller":31,"fourteen_bit":true,"bipolar":true,"smoothing_ms":0}]})");
@@ -235,6 +280,7 @@ int main() try {
  instance_config_union();
  osc_row_enabled();
  osc_future_keys();
+ osc_out_config_validation();
  std::puts("PASS bounded typed MIDI and Groove configurations and invalid row rejection");
 } catch(const std::exception& error) {
  std::fprintf(stderr,"FAIL runtime module configuration: %s\n",error.what());return EXIT_FAILURE;
