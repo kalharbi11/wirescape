@@ -1,8 +1,12 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state
-**Updated:** 2026-11-13, Keel (New York time).
+**Updated:** 2026-11-13 morning, Keel (New York time).
 Board #473's body is live. Only completed exact-head evidence counts. Low-Claude mode is **off**
 (owner, 2026-11-13): `usage/low-claude` is gone from #473; Claude builders and reviews resume.
+
+## Priority 1: owner Windows test (2026-11-13)
+- #722 ASIO list/switch (claude-builder1, T2), #723 Studio failed-driver list (gpt-builder2, T1),
+  #724 MIDI to CV pitch/gate (gpt-builder1, T1). Cleanup fills the waits. Owner evidence: steps on #581.
 
 ## 1.0.0
 - Candidate **`cdb74f2`** waits on the owner test (#581). On pass: annotated `v1.0.0` on that SHA,
@@ -11,9 +15,8 @@ Board #473's body is live. Only completed exact-head evidence counts. Low-Claude
 
 ## Qt removal #661
 - R3a #482 `e336fc7`, R3b-pre #707 `cec2c69` merged.
-- R3b #713 head `7776515`: Coda Claude-family T2 (no High) + Keel CI-policy approval. The gate merges it.
-- `archive/qt-final`: lightweight, on the **first parent of #713's squash commit**, created once
-  right after the merge by Codex Lead or the owner; SHA posted on #661. (Amends "just before merge".)
+- R3b #713 merged `0f8a674`. `archive/qt-final` (lightweight) goes on its first parent **`e6e927c`**,
+  created by the owner or Codex Lead (Claude sessions can't push tags); SHA posted on #661.
 - Then R5c #716 (gpt-builder3, T0) and R4 #481 (gpt-builder1, its #469 inventory only),
   then R4b #718 (gpt-builder1, the Qt tool leftovers).
 
