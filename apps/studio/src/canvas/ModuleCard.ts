@@ -171,9 +171,8 @@ export class ModuleCard {
         const { config } = readOscConfig(o.host.doc.modules.get(o.moduleId)?.config);
         let visible = false;
         config.rows.forEach((row, i) => {
-          const reading = row.kind === 'cv' && row.enabled !== false
-            ? readOscRaw(o.host.doc, t, o.moduleId, row) : {};
-          const raw = reading.value;
+          const raw = row.kind === 'cv' && row.enabled !== false
+            ? readOscRaw(o.host.doc, t, o.moduleId, row).value : undefined;
           const hint = hints[i];
           const message = raw === undefined ? '' :
             raw < row.input_min ? `raw ${raw} < min ${row.input_min} (clamped)` :
