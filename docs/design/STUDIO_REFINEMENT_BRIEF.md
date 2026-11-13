@@ -23,7 +23,7 @@ Agents never open devices or SSH to test this; a green build does not prove soun
 | #140 | [Audio recovery](../tasks/STUDIO_AUDIO_RECOVERY.md) | Codex | priority, blocks audible checkpoint |
 | #141 | [Layout/cables](../tasks/done/STUDIO_LAYOUT_CABLES.md) | ChatGPT | independent |
 | #142 | [Controls/hierarchy](../tasks/done/STUDIO_CONTROL_HIERARCHY.md) | ChatGPT | independent; coordinate shared QML/test files |
-| #143 | [Modulation telemetry](../tasks/STUDIO_MODULATION_FEEDBACK.md) | Codex | control API plus actual engine telemetry |
+| #143 | [Modulation telemetry](../tasks/done/STUDIO_MODULATION_FEEDBACK.md) | Codex | control API plus actual engine telemetry |
 
 Layout agent owns Main.qml sidebar/footer/cable regions. Controls agent owns
 ParameterControl/ModuleCard/new controls and presentation metadata. Sequence

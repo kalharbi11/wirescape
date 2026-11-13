@@ -15,7 +15,7 @@ Historical source snapshot: 2026-10-30. PR statuses below are as observed during
 
 #145 is sidebar/footer and distance-aware cable layout; its open head does not remove the 55-pixel minimum in current main. #147 owns the shared control presentation files; #153 also edits those files, so coordinate before assigning more `ModuleCard.qml`/`ParameterControl.qml` work. These PRs are not merged evidence. Exact audited heads above were read from GitHub on the audit date.
 
-The control-hierarchy task already says modulation indication may stay hidden/unavailable until real values exist. The separate [modulation feedback task](../tasks/STUDIO_MODULATION_FEEDBACK.md) requires tracing actual effective values and bounded snapshots. Do not infer a parameter target from a nearby CV cable, animate a decorative indicator, or read mutable DSP state from QML/audio callbacks.
+The control-hierarchy task already says modulation indication may stay hidden/unavailable until real values exist. The separate [modulation feedback task](../tasks/done/STUDIO_MODULATION_FEEDBACK.md) requires tracing actual effective values and bounded snapshots. Do not infer a parameter target from a nearby CV cable, animate a decorative indicator, or read mutable DSP state from QML/audio callbacks.
 
 ## Candidate bounded work (not approved)
 
