@@ -918,6 +918,27 @@ with tempfile.TemporaryDirectory() as outgoing_dir:
             assert False, f'disabled OSC output unexpectedly sent: {payload[:64]!r}'
         except socket.timeout:
             pass
+
+        # Unconnected UDP has no receiver-delivery guarantee. A free port with
+        # no listener must not crash/block the engine; drops are not asserted.
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as free_port:
+            free_port.bind(('127.0.0.1', 0))
+            no_listener_port = free_port.getsockname()[1]
+        no_listener_patch = json.loads(json.dumps(outgoing_patch))
+        no_listener_patch['modules'][1]['config']['port'] = no_listener_port
+        no_listener_gen = out_engine.call('loadGraph', patch=no_listener_patch)['gen']
+        saw_no_listener = False
+        until = time.monotonic() + 3
+        while time.monotonic() < until:
+            message = out_engine.pushes.pop(0) if out_engine.pushes else out_engine.receive()
+            if message.get('type') != 'status' or message['gen'] != no_listener_gen:
+                continue
+            routes = message['status']['osc']['out']
+            if len(routes) == 1 and routes[0]['port'] == no_listener_port:
+                assert routes[0]['state'] in ('sending', 'error')
+                saw_no_listener = True
+                break
+        assert saw_no_listener
         out_engine.close()
 
 # Real, short, device-free end-to-end benchmark ingestion on the production sidecar.

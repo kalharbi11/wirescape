@@ -43,7 +43,7 @@ bool send_message(Socket sock, const Message &message, uint16_t port) noexcept {
     address.sin_port = htons(port);
     address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     const auto result = sendto(sock, reinterpret_cast<const char *>(buffer.data()), int(size), 0,
-                              reinterpret_cast<const sockaddr *>(&address), sizeof(address));
+                               reinterpret_cast<const sockaddr *>(&address), sizeof(address));
     return result == static_cast<decltype(result)>(size);
 }
 } // namespace
