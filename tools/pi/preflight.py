@@ -127,7 +127,8 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
                       "prefix": not values.get("CMAKE_PREFIX_PATH", "")}
         failed = ",".join(key for key, ok in predicates.items() if not ok)
         detail = "; ".join(f"{key}={sanitize(values.get(key, '<missing>')[:160], root)}" for key in
-                           ("CMAKE_HOME_DIRECTORY", "CMAKE_SYSTEM_PROCESSOR", "CMAKE_GENERATOR", "CMAKE_PREFIX_PATH"))
+                           ("CMAKE_HOME_DIRECTORY", "CMAKE_SYSTEM_PROCESSOR", "CMAKE_GENERATOR"))
+        detail += "; CMAKE_PREFIX_PATH=" + ("<set>" if values.get("CMAKE_PREFIX_PATH") else "<missing>")
         check(f"cache:{cache.relative_to(root).as_posix()}",
               all(predicates.values()), f"Cache mismatch ({failed}): {detail}; "
               "move incompatible build directory aside, never delete it automatically.")
