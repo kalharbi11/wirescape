@@ -114,7 +114,8 @@ static void osc_future_keys() {
 }
 static void osc_out_config_validation() {
     using Json = nlohmann::json;
-    auto source = Json::parse(R"({"port":9002,"rate_hz":200,"rows":[{"address":"/dev/gate","kind":"gate","enabled":false},{"deadband":0.02}],"notes":{"enabled":true}})");
+    auto source = Json::parse(
+        R"({"port":9002,"rate_hz":200,"rows":[{"address":"/dev/gate","kind":"gate","enabled":false},{"deadband":0.02}],"notes":{"enabled":true}})");
     std::vector<std::string> ignored;
     auto raw = runtime_module_config("osc.out", source, 42, &ignored);
     wirescape::osc::OutConfiguration cfg;
@@ -129,28 +130,29 @@ static void osc_out_config_validation() {
     source["notes"]["future"] = true;
     ignored.clear();
     raw = runtime_module_config("osc.out", source, 42, &ignored);
-    CHECK(ignored == std::vector<std::string>({"osc.out#42.unknown", "osc.out#42.rows[0].extra", "osc.out#42.notes.future"}));
+    CHECK(ignored ==
+          std::vector<std::string>({"osc.out#42.unknown", "osc.out#42.rows[0].extra", "osc.out#42.notes.future"}));
     CHECK(source["unknown"].is_array() && source["rows"][0]["extra"].is_object());
     auto rejected = [&](const char *json) {
         bool invalid = false;
-        try { (void)runtime_module_config("osc.out", Json::parse(json)); }
-        catch (const std::exception &) { invalid = true; }
+        try {
+            (void)runtime_module_config("osc.out", Json::parse(json));
+        } catch (const std::exception &) {
+            invalid = true;
+        }
         CHECK(invalid);
     };
-    for (const char *bad : {R"({"version":2})", R"({"version":"1"})", R"({"port":65536})",
-                            R"({"port":0})", R"({"rate_hz":501})", R"({"rate_hz":0})",
-                            R"({"host":"127.0.0.1"})", R"({"lan":false})", R"({"rows":{}})",
-                            R"({"rows":[{"address":"missing-slash"}]})",
-                            R"({"rows":[{"address":"/a*"}]})",
-                            R"({"rows":[{"kind":"trigger"}]})", R"({"rows":[{"enabled":1}]})",
-                            R"({"rows":[{"deadband":-0.1}]})", R"({"rows":[{"deadband":1.1}]})",
-                            R"({"notes":{"enabled":1}})", R"({"notes":{"address":"/a b"}})"})
+    for (const char *bad :
+         {R"({"version":2})", R"({"version":"1"})", R"({"port":65536})", R"({"port":0})", R"({"rate_hz":501})",
+          R"({"rate_hz":0})", R"({"host":"127.0.0.1"})", R"({"lan":false})", R"({"rows":{}})",
+          R"({"rows":[{"address":"missing-slash"}]})", R"({"rows":[{"address":"/a*"}]})",
+          R"({"rows":[{"kind":"trigger"}]})", R"({"rows":[{"enabled":1}]})", R"({"rows":[{"deadband":-0.1}]})",
+          R"({"rows":[{"deadband":1.1}]})", R"({"notes":{"enabled":1}})", R"({"notes":{"address":"/a b"}})"})
         rejected(bad);
     const auto defaults = runtime_module_config("osc.out", Json::object());
     CHECK(defaults.size() == sizeof(wirescape::osc::OutConfiguration));
     wirescape::osc::OutConfiguration binary_defaults;
-    CHECK(wirescape::osc::out_configuration(
-        defaults.data(), static_cast<uint32_t>(defaults.size()), binary_defaults));
+    CHECK(wirescape::osc::out_configuration(defaults.data(), static_cast<uint32_t>(defaults.size()), binary_defaults));
     CHECK(binary_defaults.bus == nullptr && binary_defaults.port == 9001);
     CHECK(binary_defaults.rows[0].enabled == 1 && binary_defaults.notes.enabled == 0);
     CHECK(std::strcmp(binary_defaults.rows[0].address, "/ws/row/1") == 0);
