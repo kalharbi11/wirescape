@@ -27,6 +27,14 @@ export interface Device {
   kind: 'audio' | 'midi';
 }
 
+/** An installed driver whose native backend could not initialize. Not a selectable output. */
+export interface UnavailableAudioDriver {
+  hostApi: string;
+  name: string;
+  reason?: string;
+  detail?: string;
+}
+
 export type AudioState =
   | 'starting' | 'running' | 'no-device' | 'device-lost' | 'reconnecting';
 
@@ -53,6 +61,7 @@ export interface SystemStatus {
     latencyMs: number;
     cpuPercent: number;
     dropouts: number;
+    unavailableDrivers?: UnavailableAudioDriver[];
   };
   midi: {
     devices: Device[];

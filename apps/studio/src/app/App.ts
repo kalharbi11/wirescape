@@ -1457,7 +1457,10 @@ export class App {
     void engine.listAudioDevices().then(devices => {
       // The dialog may have been rebuilt while device enumeration was pending.
       if (!b.contains(audioFields)) return;
-      if (!devices.length) {
+      const reported = this.lastStatus?.audio.unavailableDrivers;
+      const unavailable = Array.isArray(reported) ? reported.filter(d =>
+        d && typeof d.hostApi === 'string' && typeof d.name === 'string') : [];
+      if (!devices.length && !unavailable.length) {
         const missing = this.lastStatus?.audio.deviceId;
         const empty = el('div', 'muted', missing
           ? `Selected physical route ${this.lastStatus?.audio.deviceName ?? missing} is unavailable; no audio devices listed.`
@@ -1471,7 +1474,7 @@ export class App {
       // Group by the native host API, never by mutable PortAudio device index.
       const driverOf = (d: Device) => d.hostApi ?? d.backend
         ?? (d.id.includes('|') ? d.id.split('|')[0]! : 'Other');
-      const drivers = [...new Set(routes.map(driverOf))];
+      const drivers = [...new Set([...routes.map(driverOf), ...unavailable.map(d => d.hostApi)])];
       // A missing or duplicate remembered identity must not select the first device.
       const count = (id: string) => routes.filter(d => d.id === id).length;
       const usable = (d: Device) => count(d.id) === 1 && d.supported !== false;
@@ -1540,13 +1543,21 @@ export class App {
       const refreshDevices = () => {
         const visible = routes.filter(d => driverOf(d) === driver.value);
         const active = visible.find(d => d.id === currentId && usable(d));
-        const choices = visible.map(d => ({ value: d.id, label: label(d) }));
-        if (!active) choices.unshift({ value: '', label: 'Choose an output device…' });
+        const choices = [
+          ...visible.map(d => ({ value: d.id, label: label(d), disabled: false })),
+          ...unavailable.filter(d => d.hostApi === driver.value).map((d, i) => ({
+            value: `unavailable:${i}`,
+            label: `${d.name}: installed, but failed to start${d.detail ? ` — ${d.detail}` : ''}`,
+            disabled: true,
+          })),
+        ];
+        if (!active) choices.unshift({ value: '', label: 'Choose an output device…', disabled: false });
         sel.replaceChildren(...choices.map(choice => {
           const option = document.createElement('option');
           option.value = choice.value;
           option.textContent = choice.label;
-          option.disabled = !!choice.value && !visible.some(d => d.id === choice.value && usable(d));
+          option.disabled = choice.disabled
+            || (!!choice.value && !visible.some(d => d.id === choice.value && usable(d)));
           return option;
         }));
         sel.value = active?.id ?? '';
@@ -1560,6 +1571,15 @@ export class App {
       };
       sel.dataset.testid = 'audio-device';
       audioFields.append(field('Output device (not graph Output)', sel));
+      if (unavailable.length) {
+        const hint = el('div', 'muted', 'Close other audio apps using this driver, check its settings, then Refresh.');
+        hint.dataset.testid = 'audio-unavailable-hint';
+        const refresh = el('button', 'action', 'Refresh') as HTMLButtonElement;
+        refresh.type = 'button';
+        refresh.dataset.testid = 'audio-driver-refresh';
+        refresh.addEventListener('click', () => { this.settings.close(); this.openSettings(); });
+        audioFields.append(hint, refresh);
+      }
       refreshDevices();
       if (engine.setSampleRate) {
         audioFields.append(field('Sample rate', rates));
