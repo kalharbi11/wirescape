@@ -154,6 +154,21 @@ static void rows_and_gate_edges() {
     REQUIRE(bus.rows[0].blocks == 2); // never zero consumer-visible counters on reset
 }
 
+static void gate_threshold_matches_sender() {
+    osc::OutBus bus;
+    osc::OutConfiguration cfg;
+    cfg.rows[0].kind = 1;
+    cfg.bus = &bus;
+    Rig r(&cfg);
+    // Sender §4 uses value >= 0.5; DSP must count that same threshold.
+    r.samples[0][0][0] = .5f;
+    r.samples[0][0][1] = .5f;
+    r.samples[0][0][2] = .499f;
+    r.run({}, 3);
+    REQUIRE(bus.rows[0].rises == 1 && bus.rows[0].falls == 1);
+    REQUIRE(bus.rows[0].blocks == 1 && bus.rows[0].value == .499f);
+}
+
 static void thousand_gate_crossings_in_one_block() {
     osc::OutBus bus;
     osc::OutConfiguration cfg;
@@ -197,6 +212,7 @@ static void note_ring_and_no_bus() {
 int main() {
     configuration_checks();
     rows_and_gate_edges();
+    gate_threshold_matches_sender();
     thousand_gate_crossings_in_one_block();
     note_ring_and_no_bus();
 }
