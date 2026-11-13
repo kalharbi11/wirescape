@@ -496,6 +496,7 @@ body.hide-port-labels .port-label { display: none; }
 .osc-range { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .osc-range-output, .osc-range-preview, .osc-range-advanced, .osc-range-capture { grid-column: 1 / -1; }
 .osc-range-output .osc-output-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.osc-range [hidden], .osc-clamp-hints[hidden], .osc-clamp-hint[hidden] { display: none; }
 .osc-range-capture:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .osc-range-capture .osc-raw { font: 600 11px var(--mono); margin-right: auto; }
 .osc-capture-reason { width: 100%; color: var(--sub); }
