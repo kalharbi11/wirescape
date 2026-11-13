@@ -9,7 +9,7 @@ Read first: `docs/specs/OSC_OUT.md` §1, §2, §4, §6, then `native/modules2/os
 
 ```acceptance
 tier: T2
-size: <= 650 changed lines, <= 12 files
+size: <= 650 changed lines, <= 13 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
