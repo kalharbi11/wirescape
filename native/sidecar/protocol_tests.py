@@ -522,7 +522,7 @@ with tempfile.TemporaryDirectory() as osc_dir:
             message = osc_engine.pushes.pop(0) if osc_engine.pushes else osc_engine.receive()
             if message.get('type') == 'status' and message['gen'] == removed_gen:
                 assert message['status']['osc'] == dict(
-                    enabled=False, bind='127.0.0.1', port=0, lan=False, routes=[])
+                    enabled=False, bind='127.0.0.1', port=0, lan=False, routes=[], out=[])
                 break
         else:
             raise AssertionError('OSC source removal did not clear status')
