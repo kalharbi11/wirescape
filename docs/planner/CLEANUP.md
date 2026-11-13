@@ -32,6 +32,7 @@ owner's 1.0 test commit is unaffected.
 | 3 | **R3b** #468: delete the ~30 Qt files only (manifest on #468), Qt in CI/Static/CodeQL, `--library=qt`, and `tools/compare_golden_qt.py` once R3a's comparison has passed | T2 | gpt-builder2 → Claude family | R3a, R3b-pre, #700 merged |
 | 4 | **R5c**: Qt/pre-1A clauses out of `AGENTS.md`/`CLAUDE.md`; remove the 192 `legacy/**` + `docs/history/**` files; Qt-free docs | T0 | claude-builder2 → Compass | R3b |
 | 5 | **R4** #481: `tools/dev.py` around Electron (merge `main` forward; don't rebuild the PR) | T1 | gpt-builder1 → another session | R3b |
+| 5b | **R4b** #718: Qt out of `tools/pi_ui_probe.py`, `tools/pi/preflight.py`, `tools/windows/setup.ps1`, `tools/cloud/*` (split from R4 to keep #481 in budget; Keel 2026-11-12) | T1 | gpt-builder1 → another session | R4 |
 | 6 | Private `wirescape-pi`: drop `laptop.py`'s Qt mode (`WIRESCAPE_QT_DIR`) and its tests | — | Codex Lead or owner | R3b |
 | 7 | Task sweep: move task files for closed issues to `docs/tasks/done/` | T0 | helper | none |
 | 8 | **R6** ABI1 retirement #470 | T2 | Keel-led | not scheduled; the owner decides after the Qt removal (D20) |
