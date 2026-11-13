@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""Headless launch provenance regression tests."""
-
+"""Electron launch provenance/consent regressions; no real app or device is started."""
 import argparse
+import contextlib
+import io
 import json
+import os
+from pathlib import Path
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -14,109 +17,157 @@ import dev  # noqa: E402
 
 
 class LaunchFreshnessTests(unittest.TestCase):
-    def test_launch_requires_matching_gui_evidence(self):
-        cases = {
-            "matching": (None, 0),
-            "source_changed": ("source", 2),
-            "binary_changed": ("binary", 2),
-            "missing_metadata": ("missing", 2),
-            "corrupt_metadata": ("corrupt", 2),
-            "config_mismatch": ("config", 2),
-            "headless_build": ("headless", 2),
-            "ui_disabled": ("ui_off", 2),
-        }
-        for name, (change, expected) in cases.items():
-            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp)
-                build = root / "build"
-                build.mkdir()
-                exe = build / "wirescape_studio.exe"
-                exe.write_bytes(b"verified")
-                metadata = {
-                    "configuration": "Release", "ui_verified": True, "source_stable": True,
-                    "source": {"sha256": "original"},
-                    "binaries": {"wirescape_studio.exe": dev.sha256_file(exe)},
-                }
-                cache = "WIRESCAPE_BUILD_UI:BOOL=ON\n"
-                source = "original"
-                if change == "source":
-                    source = "changed"
-                elif change == "binary":
-                    exe.write_bytes(b"altered")
-                elif change == "config":
-                    metadata["configuration"] = "Debug"
-                elif change == "headless":
-                    metadata["ui_verified"] = False
-                elif change == "ui_off":
-                    cache = "WIRESCAPE_BUILD_UI:BOOL=OFF\n"
-                (build / "CMakeCache.txt").write_text(cache)
-                if change != "missing":
-                    (build / "build-metadata.json").write_text(
-                        "not json" if change == "corrupt" else json.dumps(metadata))
-                captured = []
-                def save(record):
-                    captured.append(record)
-                    return root / "report.json"
-                with patch.object(dev, "ROOT", root), \
-                     patch.object(dev, "BUILD_DIR", build), \
-                     patch.object(dev, "_studio_executable", return_value=exe), \
-                     patch.object(dev, "_base_record", return_value={"action": "launch"}), \
-                     patch.object(dev, "source_provenance", return_value={"sha256": source}), \
-                     patch.object(dev, "_save_record", side_effect=save), \
-                     patch.object(dev, "_print_record"), \
-                     patch.object(dev, "_qt_runtime_env", return_value={}), \
-                     patch.object(dev, "_launcher_dependencies", return_value={"qt": {"path": str(root / "qt")}, "portaudio": {"path": str(root / "libportaudio64bit.dll")}}), \
-                     patch.object(dev, "wait_for_readiness", return_value={"ready": True}) as ready:
-                    result = dev.command_launch(argparse.Namespace(config="Release", json=False))
-                self.assertEqual(result, expected)
-                if expected:
-                    ready.assert_not_called()
-                    self.assertIn("python tools/dev.py build --config Release", captured[0]["summary"])
-                else:
-                    ready.assert_called_once()
-                    self.assertEqual(ready.call_args.args[0], [str(exe), "--interactive-ready-report"])
-                    self.assertIn("audio has not started", captured[0]["summary"])
+    def tree(self, root):
+        build = root / 'build'
+        engine = build / 'sidecar' / ('wirescape-engine.exe' if os.name == 'nt' else 'wirescape-engine')
+        files = [engine, build/'libws2_fixture.so', root/'native/source.cpp', root/'apps/desktop/main.ts',
+                 root/'apps/studio/src/App.ts', root/'apps/desktop/build/main.js',
+                 root/'apps/desktop/build/preload.js', root/'apps/studio/dist/index.html',
+                 root/'apps/desktop/node_modules/electron/dist/electron']
+        for file in files:
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(b'verified')
+        (root/'apps/desktop/node_modules/electron/path.txt').write_text('electron')
+        (build/'CMakeCache.txt').write_text('CMAKE_BUILD_TYPE:STRING=Release\n')
+        return build, engine
 
-    def test_failed_build_invalidates_previous_gui_certificate(self):
-        for results in ([{"exit_code": 7}], [{"exit_code": 0}, {"exit_code": 7}]):
-            with self.subTest(stage=len(results)), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp)
-                (root / "native").mkdir()
-                (root / "native/CMakeLists.txt").touch()
-                build = root / "build"
-                build.mkdir()
-                metadata = build / "build-metadata.json"
-                metadata.write_text(json.dumps({"ui_verified": True}))
-                with patch.object(dev, "ROOT", root), \
-                     patch.object(dev, "BUILD_DIR", build), \
-                     patch.object(dev, "_base_record", return_value={"source": {}}), \
-                     patch.object(dev, "_cmake_and_generator", return_value=("cmake", "Ninja", "x64")), \
-                     patch.object(dev, "_qt_prefix", return_value=None), \
-                     patch.object(dev, "run_logged", side_effect=results), \
-                     patch.object(dev, "_save_record"), patch.object(dev, "_print_record"):
-                    args = argparse.Namespace(config="Release", qt_prefix=None, headless=False, json=False)
-                    self.assertEqual(dev.command_build(args), 7)
-                self.assertIs(json.loads(metadata.read_text())["ui_verified"], False)
+    def certify(self):
+        metadata, stable = dev._refresh_build_metadata('Release', dev.source_provenance(dev.ROOT),
+                                                      True, dev._desktop_inventory())
+        self.assertTrue(stable)
+        self.assertTrue(metadata['desktop_verified'])
+        return metadata
 
-    def test_metadata_refresh_cannot_certify_leftover_gui(self):
-        for ui_built, cache_value, expected in ((False, "ON", False),
-                                                (True, "OFF", False),
-                                                (True, "ON", True)):
-            with self.subTest(ui_built=ui_built, cache=cache_value), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp)
-                build = root / "build"
-                build.mkdir()
-                (build / "CMakeCache.txt").write_text(f"WIRESCAPE_BUILD_UI:BOOL={cache_value}\n")
-                (build / "wirescape_studio.exe").write_bytes(b"leftover")
-                with patch.object(dev, "ROOT", root), \
-                     patch.object(dev, "BUILD_DIR", build), \
-                     patch.object(dev, "source_provenance", return_value={"sha256": "same"}):
-                    metadata, stable = dev._refresh_build_metadata(
-                        "Release", {"sha256": "same"}, ui_built=ui_built)
-                self.assertTrue(stable)
-                self.assertIs(metadata["ui_verified"], expected)
+    def test_launch_requires_matching_desktop_and_engine_evidence(self):
+        for change in ('matching', 'native_source', 'desktop_source', 'engine', 'artifact', 'electron',
+                       'missing', 'corrupt', 'config', 'headless', 'unstable', 'missing_entry', 'missing_digest',
+                       'library_changed', 'library_missing', 'cache_changed'):
+            with self.subTest(change=change), tempfile.TemporaryDirectory(prefix='electron launch ') as folder:
+                root = Path(folder)
+                build, engine = self.tree(root)
+                records = []
+                with patch.object(dev, 'ROOT', root), patch.object(dev, 'BUILD_DIR', build):
+                    metadata = self.certify()
+                    if change == 'native_source':
+                        (root/'native/source.cpp').write_bytes(b'changed')
+                    elif change == 'desktop_source':
+                        (root/'apps/desktop/main.ts').write_bytes(b'changed')
+                    elif change == 'library_changed':
+                        (build/'libws2_fixture.so').write_bytes(b'changed')
+                    elif change == 'library_missing':
+                        (build/'libws2_fixture.so').unlink()
+                    elif change == 'cache_changed':
+                        (build/'CMakeCache.txt').write_text('CMAKE_BUILD_TYPE:STRING=Debug\n')
+                    elif change == 'engine':
+                        engine.write_bytes(b'changed')
+                    elif change == 'artifact':
+                        (root/'apps/desktop/build/main.js').write_bytes(b'changed')
+                    elif change == 'electron':
+                        dev._electron_executable().write_bytes(b'changed')
+                    elif change == 'missing_entry':
+                        (root/'apps/desktop/build/preload.js').unlink()
+                    elif change in ('config', 'headless', 'unstable', 'missing_digest'):
+                        if change == 'config':
+                            metadata['configuration'] = 'Debug'
+                        elif change == 'headless':
+                            metadata['desktop_verified'] = False
+                        elif change == 'unstable':
+                            metadata['source_stable'] = False
+                        else:
+                            metadata['binaries'] = {}
+                        (build/'build-metadata.json').write_text(json.dumps(metadata))
+                    elif change == 'missing':
+                        (build/'build-metadata.json').unlink()
+                    elif change == 'corrupt':
+                        (build/'build-metadata.json').write_text('not json')
+                    # Mock only the GUI child; leave provenance's git subprocess real.
+                    original = dev.subprocess.Popen
+                    def child(command, **kwargs):
+                        if command[0] == str(dev._electron_executable()):
+                            return SimpleNamespace(pid=42, poll=lambda: None)
+                        return original(command, **kwargs)
+                    with patch.object(dev, 'REPORT_DIR', root/'reports'), \
+                         patch.object(dev, '_base_record', return_value={'action': 'launch'}), \
+                         patch.object(dev, '_save_record', side_effect=lambda record: records.append(record) or root/'report'), \
+                         patch.object(dev, '_print_record'), patch.object(dev.subprocess, 'Popen', side_effect=child) as spawn:
+                        code = dev.command_launch(dev.make_parser().parse_args(['launch']))
+                    self.assertEqual(code, 0 if change == 'matching' else 2)
+                    gui = [call for call in spawn.call_args_list if call.args[0][0] != 'git']
+                    self.assertEqual(len(gui), 1 if change == 'matching' else 0)
+                    if change != 'matching':
+                        self.assertIn('python tools/dev.py build --config Release', records[-1]['summary'])
+                    else:
+                        self.assertEqual(records[-1]['status'], 'started')  # Not a GUI-readiness claim.
+
+    def test_all_four_device_consent_combinations_use_separate_argv(self):
+        for flags in ([], ['--confirm-audio'], ['--confirm-midi'], ['--confirm-audio', '--confirm-midi']):
+            with self.subTest(flags=flags), tempfile.TemporaryDirectory(prefix='electron with spaces ') as folder:
+                root = Path(folder)
+                build, engine = self.tree(root)
+                with patch.object(dev, 'ROOT', root), patch.object(dev, 'BUILD_DIR', build):
+                    self.certify()
+                    with patch.object(dev, '_launch_freshness_error', return_value=None), \
+                         patch.object(dev, '_base_record', return_value={'action': 'launch'}), \
+                         patch.object(dev, 'REPORT_DIR', root/'reports'), patch.object(dev, '_print_record'), \
+                         patch.object(dev.subprocess, 'Popen', return_value=SimpleNamespace(pid=42, poll=lambda: None)) as spawn:
+                        self.assertEqual(dev.command_launch(dev.make_parser().parse_args(['launch', *flags])), 0)
+                    argv = spawn.call_args.args[0]
+                    self.assertEqual(argv[:4], [str(dev._electron_executable()), str(root/'apps/desktop'), '--engine', str(engine)])
+                    self.assertEqual(argv[4:], flags or ['--null-audio'])
+                    self.assertFalse(spawn.call_args.kwargs.get('shell', False))
+
+    def test_failed_build_invalidates_previous_desktop_certificate(self):
+        for results in ([{'exit_code': 7}], [{'exit_code': 0}, {'exit_code': 7}],
+                        [{'exit_code': 0}, {'exit_code': 0}, {'exit_code': 7}]):
+            with self.subTest(stage=len(results)), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                build, _ = self.tree(root)
+                (root/'native/CMakeLists.txt').touch()
+                metadata = build/'build-metadata.json'
+                metadata.write_text(json.dumps({'desktop_verified': True}))
+                with patch.object(dev, 'ROOT', root), patch.object(dev, 'BUILD_DIR', build), \
+                     patch.object(dev, '_base_record', return_value={'source': {}}), \
+                     patch.object(dev, '_cmake_and_generator', return_value=('cmake', 'Ninja', 'x64')), \
+                     patch.object(dev, '_node_npm', return_value=('node', 'npm-cli.js')), \
+                     patch.object(dev, 'run_logged', side_effect=results), \
+                     patch.object(dev, '_save_record'), patch.object(dev, '_print_record'):
+                    self.assertEqual(dev.command_build(argparse.Namespace(config='Release', headless=False, json=False)), 7)
+                self.assertIs(json.loads(metadata.read_text())['desktop_verified'], False)
+
+    def test_metadata_refresh_cannot_certify_leftover_or_unstable_desktop(self):
+        for built, missing, changed in ((False, False, False), (True, True, False), (True, False, True), (True, False, False)):
+            with self.subTest(built=built, missing=missing, changed=changed), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                build, _ = self.tree(root)
+                with patch.object(dev, 'ROOT', root), patch.object(dev, 'BUILD_DIR', build):
+                    before = dev._desktop_inventory()
+                    if missing:
+                        (root/'apps/desktop/build/main.js').unlink()
+                    if changed:
+                        (root/'apps/desktop/main.ts').write_bytes(b'changed')
+                    metadata, stable = dev._refresh_build_metadata('Release', dev.source_provenance(root), built, before)
+                self.assertIs(stable, not changed)
+                self.assertIs(metadata['desktop_verified'], built and not missing and not changed)
+
+    def test_test_build_preserves_only_an_unchanged_desktop_certificate(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            build, engine = self.tree(root)
+            with patch.object(dev, 'ROOT', root), patch.object(dev, 'BUILD_DIR', build):
+                self.certify()
+                self.assertTrue(dev._refresh_build_metadata('Release')[0]['desktop_verified'])
+                (build/'libws2_fixture.so').write_bytes(b'changed')
+                self.assertFalse(dev._refresh_build_metadata('Release')[0]['desktop_verified'])
+                self.certify()
+                engine.write_bytes(b'changed')
+                self.assertFalse(dev._refresh_build_metadata('Release')[0]['desktop_verified'])
+
+    def test_retired_qt_commands_are_not_accepted(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            for command in ('ui-test', 'startup-test', 'package', 'updates'):
+                with self.assertRaises(SystemExit):
+                    dev.make_parser().parse_args([command])
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()
-

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-import os
+"""Node/npm layout selection without running a shell or loading a runtime."""
 from pathlib import Path
 import sys
 import tempfile
@@ -8,22 +8,40 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import dev
 
+
 class MigrationPortabilityTests(unittest.TestCase):
-    def test_qt_environment_priority_and_exact_fallback(self):
+    def test_resolved_npm_cli_layout(self):
         with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder).resolve()
-            paths = [root/'environment', root/'prefix', root/'.tools/qt/6.10.3/msvc2022_64']
-            for path in paths:
-                config = path/'lib/cmake/Qt6/Qt6Config.cmake'
-                config.parent.mkdir(parents=True)
-                config.touch()
-            with patch.object(dev, 'ROOT', root), patch.dict(os.environ, {'WIRESCAPE_QT_DIR':str(paths[0]), 'CMAKE_PREFIX_PATH':str(paths[1])}):
-                self.assertEqual(dev._qt_prefix(None), paths[0])
-                self.assertIsNone(dev._qt_prefix(str(root/'missing')))
-                os.environ['WIRESCAPE_QT_DIR']=''
-                self.assertEqual(dev._qt_prefix(None), paths[1])
-                os.environ['CMAKE_PREFIX_PATH']=''
-                self.assertEqual(dev._qt_prefix(None), paths[2])
+            root = Path(folder)
+            cli = root/'npm/npm-cli.js'
+            cli.parent.mkdir()
+            cli.touch()
+            node = str(root/'node')
+            with patch.object(dev.shutil, 'which', side_effect=lambda name: node if name == 'node' else str(root/'npm/../npm/npm-cli.js')):
+                self.assertEqual(dev._node_npm(), (node, str(cli.resolve())))
+
+    def test_windows_adjacent_npm_cli_with_spaces_and_shims(self):
+        for location in ('node', 'npm'):
+            with self.subTest(location=location), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                node, npm = root/'Node With Spaces/node.exe', root/'npm shims/npm.cmd'
+                for file in (node, npm):
+                    file.parent.mkdir(parents=True)
+                    file.touch()
+                cli = (node if location == 'node' else npm).parent/'node_modules/npm/bin/npm-cli.js'
+                cli.parent.mkdir(parents=True)
+                cli.touch()
+                with patch.object(dev.shutil, 'which', side_effect=lambda name: str(node if name == 'node' else npm)):
+                    self.assertEqual(dev._node_npm(), (str(node), str(cli)))
+
+    def test_missing_cli_is_not_replaced_by_an_unrelated_wrapper(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            wrapper = root/'npm.cmd'
+            wrapper.touch()
+            with patch.object(dev.shutil, 'which', side_effect=lambda name: str(root/'node.exe' if name == 'node' else wrapper)):
+                self.assertEqual(dev._node_npm(), (str(root/'node.exe'), None))
+
 
 if __name__ == '__main__':
     unittest.main()
