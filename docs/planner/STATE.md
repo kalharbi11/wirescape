@@ -1,31 +1,32 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state
-**Updated:** 2026-11-13 morning, Keel (New York time).
-Board #473's body is live. Only completed exact-head evidence counts. Low-Claude mode is **off**
-(owner, 2026-11-13): `usage/low-claude` is gone from #473; Claude builders and reviews resume.
+**Updated:** 2026-11-13, Keel (New York time).
+Board #473's body is live. Only completed exact-head evidence counts.
 
-## Priority 1: owner Windows test (2026-11-13)
-- #722 ASIO list/switch (claude-builder1, T2), #723 Studio failed-driver list (gpt-builder2, T1),
-  #724 MIDI to CV pitch/gate (gpt-builder1, T1). Cleanup fills the waits. Owner evidence: steps on #581.
+## Priority 1: owner Windows test fixes (2026-11-13)
+- #724 MIDI to CV pitch/gate (gpt-builder1, T1): draft #727.
+- #722 ASIO list/switch (claude-builder1, T2): not started.
+- #723 Studio failed-driver list: merged #726 `f25223a` (Coda T1).
+- Owner evidence and steps: #581, triage #597.
 
 ## 1.0.0
 - Candidate **`cdb74f2`** waits on the owner test (#581). On pass: annotated `v1.0.0` on that SHA,
-  plus `archive/chaos-performance-strip-554` on `73bfe95`. On fail: #597 → new SHA from Keel.
-- Claude cloud sessions can't push tags (the proxy refuses). The owner or Codex Lead creates the tags.
+  plus `archive/chaos-performance-strip-554` on `73bfe95`. On fail: fixes via #597 → new SHA from Keel.
+- Claude cloud sessions can't push tags; the owner or Codex Lead creates them.
 
 ## Qt removal #661
-- R3a #482 `e336fc7`, R3b-pre #707 `cec2c69` merged.
-- R3b #713 merged `0f8a674`. `archive/qt-final` (lightweight) goes on its first parent **`e6e927c`**,
-  created by the owner or Codex Lead (Claude sessions can't push tags); SHA posted on #661.
-- Then R5c #716 (gpt-builder3, T0) and R4 #481 (gpt-builder1, its #469 inventory only),
-  then R4b #718 (gpt-builder1, the Qt tool leftovers).
+- Merged: R3a #482 `e336fc7`, R3b-pre #707 `cec2c69`, R3b #713 `0f8a674`, R4 #481 `9ad4260`.
+- `archive/qt-final` exists (lightweight) on `e6e927c`, R3b's first parent.
+- Next: R5c #716 (gpt-builder3, T0; unblocked now that R3b merged), R4b #718 (gpt-builder1, Qt tool leftovers).
 
 ## CI
-- #710 OSC fuzz merged `d4cce43` (non-required, read-only). Keel checked it after the merge: OK. The gate doesn't
-  enforce Keel's extra CI-policy approval; reviewers wait for it on required or write-permission workflows.
-- #715 merged: #701's task file is on main. #712 (gpt-builder3): new head, CI running → `accept 701`
-  → Claude-family T2 + Keel.
-- #719 (gpt-builder3, after #712): task file corrected to `tools/ci/test_guard.py`.
+- #712 (#701 gate fails closed on a missing tier, gpt-builder3): Coda cross-family + Keel CI-policy approved
+  `d6768bd`; the gate merges it on green. Then #719 (guard `is_test` docs false positive, gpt-builder3).
+- #710 OSC fuzz workflow merged `d4cce43` (non-required).
+- Post-merge watcher (#702) dispatches `main_verify` per main commit.
+
+## Pi
+- #296 60-min Pi edit soak (gpt-builder2): waits on a Claude-family T2 review of its private runner PR.
 
 ## Parked
 R6 #470, Web AudioWorklet (#658 P1.2), #600, #337, #332, #91, #594, #676's Pi nightly part, until
