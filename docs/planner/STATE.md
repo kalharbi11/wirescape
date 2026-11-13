@@ -27,4 +27,17 @@ Board #473's body is live. Only completed exact-head evidence counts. Low-Claude
 ## Parked
 R6 #470, Web AudioWorklet (#658 P1.2), #600, #337, #332, #91, #594, OSC Out to LAN.
 No devices, LAN, SSH, force/direct-main pushes or weakened tests.
-Signed: Keel, 2026-11-13
+
+## Codex Lead review gates (2026-11-13)
+- #735 rev 2 merged; prior UDP/refusal/default blockers are resolved.
+- O1 #736 c823787: hosted workflows green; awaits Claude-family independent T2 review.
+- O2 #739 9d9e222: integrate corrected O1; repair eight clang-format diagnostics;
+  native protocol fails absent osc.out registration on its inherited O1 base.
+- O3 #738 8eb6a33: native CI green; Web sequence-panel.spec.ts:46 playhead assertion red;
+  selected acceptance lacks its task on that checkout. Integrate main and diagnose without weakening tests.
+- O4 #740 a4216df: CI green; source High on UDP guide claim and timing/duration fixes remain.
+- O5 #734 remains dependency blocked; no Pi soak or owner hardware evidence claimed.
+- #744 61beb8d: matcher/Save fixes submitted; exact-head CI pending.
+- #728 conflicts on STATE; keep main's state while retaining its other authorized changes.
+- #716/#729 retain authorization/acceptance gates; #724 needs owner's failing patch.
+Signed: Codex Lead, 2026-11-13
