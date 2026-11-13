@@ -288,7 +288,7 @@ int main() {
             };
             auto hello = s.hello();
             const auto caps = Json::array(
-                {"midiLearn", "telemetry.playhead", "telemetry.monitor", "setSampleRate", "setBufferFrames", "osc"});
+                {"midiLearn", "telemetry.playhead", "telemetry.monitor", "setSampleRate", "setBufferFrames", "osc", "osc.out"});
             check(hello["audioDevices"].size() == 2 && hello["capabilities"] == caps,
                   "hello must expose the supported device catalogue and methods");
             auto listed = call("list", "listAudioDevices")["result"]["devices"];
