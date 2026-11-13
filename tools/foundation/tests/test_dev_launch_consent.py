@@ -46,6 +46,3 @@ class LaunchLanConsentTests(unittest.TestCase):
                 self.assertIs(spawn.call_args.kwargs['stdin'], dev.subprocess.DEVNULL)
                 self.assertFalse(spawn.call_args.kwargs.get('shell', False))
 
-
-if __name__ == '__main__':
-    unittest.main()
