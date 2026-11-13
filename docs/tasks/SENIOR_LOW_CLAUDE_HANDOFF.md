@@ -14,7 +14,7 @@ must_pass:
   - python -c "from pathlib import Path; p=Path('docs/planner/STATE.md'); assert len(p.read_text(encoding='utf-8').splitlines()) <= 60"
   - python -m unittest discover -s tools/foundation/tests -p test_doc_links.py
   - python -m unittest discover -s tools/foundation/tests
-  - git diff --check
+  - bash -c 'git diff --check origin/main...HEAD'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [product change, CI policy change, protected workflow edit, acceptance weakening]
 ```

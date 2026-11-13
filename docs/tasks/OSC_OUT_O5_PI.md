@@ -10,7 +10,7 @@ Read first: `docs/specs/OSC_OUT.md` §6, `docs/PI_RUNNER.md`, #731's `pi:` line.
 tier: T0
 size: <= 60 changed lines, <= 2 files
 must_pass:
-  - git diff --check
+  - bash -c 'git diff --check origin/main...HEAD'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [real device, LAN or SSH, a threshold set after seeing the result]
 ```
