@@ -8,7 +8,7 @@ const defaultRows = () => Array.from({ length: 8 }, (_, i) => ({
   smoothing_ms: 5, timeout_ms: 1000, stale: 'hold',
 }));
 const patch = (rows = defaultRows(), connection: 'direct' | 'other' | 'none' = 'direct') => ({
-  format: 'wirescape.native.patch', version: 2,
+  format: 'wirescape.native.patch' as const, version: 2 as const,
   modules: [
     { id: 1, module: 'osc.in', config: { port: 9000, lan: false, rows } },
     { id: 2, module: 'monitor' },
@@ -16,10 +16,11 @@ const patch = (rows = defaultRows(), connection: 'direct' | 'other' | 'none' = '
     { id: 4, module: 'osc.in' },
   ],
   connections: connection === 'none' ? [] : [
-    { kind: 'event', from: { module: connection === 'direct' ? 1 : 4, port: 'messages' },
+    { kind: 'event' as const, from: { module: connection === 'direct' ? 1 : 4, port: 'messages' },
       to: { module: 2, port: 'events' } },
   ],
-  ui: { positions: { 1: [10, 35], 2: [490, 35], 3: [900, 35], 4: [1000, 300] },
+  ui: { positions: { 1: [10, 35] as [number, number], 2: [490, 35] as [number, number],
+      3: [900, 35] as [number, number], 4: [1000, 300] as [number, number] },
     view: { x: 0, y: 0, zoom: 1 } },
 });
 const open = async (page: Page) => {
