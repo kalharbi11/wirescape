@@ -4,6 +4,7 @@
 #include "../adsr/dsp.h"
 #include "../midi_cc_to_cv/dsp.h"
 #include "../midi_in/dsp.h"
+#include "../notes_to_cv/dsp.h"
 #include "../output/dsp.h"
 #include "../vca/dsp.h"
 #include "../vcf/dsp.h"
@@ -87,6 +88,79 @@ static void graph_fixtures() {
         REQUIRE(e.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, source_choke(), e.meter().frame) == WS2_OK); REQUIRE(e.render(out, 1, 128) == WS2_OK);
         for (uint32_t c = 0; c < voices; ++c) REQUIRE(e.output_sample(2, 1, c, 127) == 0);
     }
+}
+
+// Regression for Windows owner report #724: rotating poly voices must remain
+// playable at the *default* voice counts, including after lane 0 is reused.
+// Test both raw MIDI -> CV and MIDI -> notes events -> Notes to CV -> CV.
+static void sequential_pitch_gate_regression(bool via_notes) {
+    using namespace engine2;
+    Config config;
+    config.max_block = 128;
+    Engine e(config);
+    const auto producer = uint32_t(e.register_producer());
+    REQUIRE(e.add_node(1, ws::Module<MidiIn>::descriptor()));
+    REQUIRE(e.add_node(2, ws::Module<MidiToCv>::descriptor()));
+    if (via_notes) REQUIRE(e.add_node(7, ws::Module<notes_to_cv::NotesToCv>::descriptor()));
+    REQUIRE(e.add_node(3, ws::Module<ws2ports::Vco>::descriptor()));
+    REQUIRE(e.add_node(4, ws::Module<ws2ports::Adsr>::descriptor()));
+    REQUIRE(e.add_node(5, ws::Module<ws2ports::Vca>::descriptor()));
+    REQUIRE(e.add_node(6, ws::Module<ws2ports::Output>::descriptor()));
+    REQUIRE(e.connect(1, 0, 2, 0));
+    const uint32_t cv = via_notes ? 7 : 2;
+    if (via_notes) REQUIRE(e.connect(2, 7, 7, 0));
+    REQUIRE(e.connect(cv, 0, 3, 0) && e.connect(cv, 1, 4, 0));
+    REQUIRE(e.connect(3, 0, 5, 0) && e.connect(4, 0, 5, 1));
+    REQUIRE(e.connect(5, 0, 6, 0) && e.output(6, 0, 0));
+    REQUIRE(e.prepare());
+
+    float samples[128]{};
+    float *out[]{samples};
+    const int keys[]{60, 62, 64, 67, 69};
+    for (uint32_t index = 0; index < 5; ++index) {
+        const uint32_t lane = index % 4;
+        const int key = keys[index];
+        REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x90, uint8_t(key), 110),
+                          e.meter().frame) == WS2_OK);
+        {
+            allocation_watch::Scope scope;
+            REQUIRE(e.render(out, 1, 128) == WS2_OK);
+            REQUIRE(scope.allocations() == 0);
+        }
+        REQUIRE(e.output_channels(cv, 0) == 4 && e.output_channels(3, 0) == 4);
+        REQUIRE(e.output_channels(4, 0) == 4 && e.output_channels(6, 0) == 1);
+        REQUIRE(e.output_sample(cv, 1, lane, 127) == 1.f);
+        REQUIRE(std::abs(e.output_sample(cv, 0, lane, 127) - float(key - 60) / 12.f) < .00001f);
+
+        // From sin(theta-d) + sin(theta+d) = 2*sin(theta)*cos(d):
+        // recover the rendered oscillator frequency independently of its
+        // accumulated phase, including the fifth note on the reused lane.
+        bool measured = false;
+        for (uint32_t frame = 2; frame < 126; ++frame) {
+            const double center = e.output_sample(3, 0, lane, frame);
+            if (std::abs(center) < .8) continue;
+            const double adjacent = e.output_sample(3, 0, lane, frame - 1) +
+                                    e.output_sample(3, 0, lane, frame + 1);
+            const double cosine = std::clamp(adjacent / (2 * center), -1., 1.);
+            const double hz = std::acos(cosine) * config.sample_rate /
+                              6.2831853071795864769;
+            const double target = 261.6255653005986 * std::pow(2., double(key - 60) / 12.);
+            REQUIRE(std::abs(hz - target) < 5.);
+            measured = true;
+            break;
+        }
+        REQUIRE(measured);
+        const float envelope = e.output_sample(4, 0, lane, 127);
+        REQUIRE(envelope > 0.01f);
+        REQUIRE(e.output_sample(5, 0, lane, 127) != 0.f);
+
+        REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x80, uint8_t(key), 0),
+                          e.meter().frame) == WS2_OK);
+        REQUIRE(e.render(out, 1, 128) == WS2_OK);
+        REQUIRE(e.output_sample(cv, 1, lane, 127) == 0.f);
+        REQUIRE(e.output_sample(4, 0, lane, 127) < envelope);
+    }
+    REQUIRE(e.meter().faults == 0 && e.meter().dropped == 0);
 }
 
 static void partitioned_graph_fixtures() {
@@ -393,5 +467,7 @@ int main(int argc, char **argv) {
     sustain_bend_expression();
     modes_state_and_bounds();
     graph_fixtures();
+    sequential_pitch_gate_regression(false);
+    sequential_pitch_gate_regression(true);
     partitioned_graph_fixtures();
 }
