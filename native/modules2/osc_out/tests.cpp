@@ -12,7 +12,7 @@ struct Rig {
     ws2_host host{sizeof(host), &arena, MidiArena::alloc};
     const ws2_descriptor *desc = ws::Module<osc::OscOut>::descriptor();
     void *state = nullptr;
-    float samples[8][2][256]{};
+    float samples[8][2][1024]{};
     const float *channel_ptrs[8][2]{};
     ws2_signal inputs[9]{};
     ws2_event_list event_inputs[9]{};
@@ -21,8 +21,13 @@ struct Rig {
     explicit Rig(const osc::OutConfiguration *config = nullptr) {
         state = desc->create(&host);
         REQUIRE(state);
-        ws2_config setup{sizeof(setup), 48000., 256, 16, 1,
-                         reinterpret_cast<const uint8_t *>(config), config ? uint32_t(sizeof(*config)) : 0u};
+        ws2_config setup{sizeof(setup),
+                         48000.,
+                         1024,
+                         16,
+                         1,
+                         reinterpret_cast<const uint8_t *>(config),
+                         config ? uint32_t(sizeof(*config)) : 0u};
         REQUIRE(desc->prepare(state, &setup, &host) == WS2_OK);
         for (uint32_t i = 0; i < 8; ++i) {
             channel_ptrs[i][0] = samples[i][0];
@@ -67,6 +72,12 @@ static ws2_event note(uint32_t kind, int32_t key, float velocity = .75f, int32_t
 }
 static void configuration_checks() {
     osc::OutConfiguration config;
+    // The public type itself must be safe for the sender, even without a parser call.
+    REQUIRE(config.version == 1 && config.port == 9001 && config.rate_hz == 100);
+    REQUIRE(config.bus == nullptr && config.notes.enabled == 0);
+    REQUIRE(std::strcmp(config.rows[0].address, "/ws/row/1") == 0);
+    REQUIRE(std::strcmp(config.rows[7].address, "/ws/row/8") == 0);
+    REQUIRE(std::strcmp(config.notes.address, "/ws/note") == 0);
     REQUIRE(osc::out_configuration(nullptr, 0, config));
     REQUIRE(config.port == 9001 && config.rate_hz == 100 && config.notes.enabled == 0);
     REQUIRE(std::strcmp(config.rows[0].address, "/ws/row/1") == 0);
@@ -116,8 +127,8 @@ static void rows_and_gate_edges() {
     osc::OutBus bus;
     osc::OutConfiguration cfg;
     REQUIRE(osc::out_configuration(nullptr, 0, cfg));
-    cfg.rows[0].kind = 1;     // gate, with two short pulses within one callback
-    cfg.rows[2].enabled = 0;  // disabled rows do not publish
+    cfg.rows[0].kind = 1;    // gate, with two short pulses within one callback
+    cfg.rows[2].enabled = 0; // disabled rows do not publish
     cfg.bus = &bus;
     Rig r(&cfg);
     r.samples[0][0][1] = 1.f;
@@ -141,6 +152,20 @@ static void rows_and_gate_edges() {
         REQUIRE(no_alloc.allocations() == 0);
     }
     REQUIRE(bus.rows[0].blocks == 2); // never zero consumer-visible counters on reset
+}
+
+static void thousand_gate_crossings_in_one_block() {
+    osc::OutBus bus;
+    osc::OutConfiguration cfg;
+    cfg.rows[0].kind = 1;
+    cfg.bus = &bus;
+    Rig r(&cfg);
+    // A render block may contain far more crossings than the sender's per-poll budget.
+    for (uint32_t i = 0; i < 1000; ++i) r.samples[0][0][i] = i % 2 == 0 ? 1.f : 0.f;
+    r.run({}, 1001);
+    REQUIRE(bus.rows[0].rises == 500);
+    REQUIRE(bus.rows[0].falls == 500);
+    REQUIRE(bus.rows[0].blocks == 1 && bus.rows[0].value == 0.f);
 }
 
 static void note_ring_and_no_bus() {
@@ -172,5 +197,6 @@ static void note_ring_and_no_bus() {
 int main() {
     configuration_checks();
     rows_and_gate_edges();
+    thousand_gate_crossings_in_one_block();
     note_ring_and_no_bus();
 }
