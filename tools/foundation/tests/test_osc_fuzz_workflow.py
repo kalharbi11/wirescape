@@ -15,6 +15,20 @@ def block(text, key):
     return match.group(1) if match else ''
 
 
+def run_scripts(text):
+    """Executable `run: |` bodies only: comment lines and other YAML keys are excluded."""
+    lines, out, indent = text.splitlines(), [], None
+    for line in lines:
+        if indent is not None and line.strip() and len(line) - len(line.lstrip()) <= indent:
+            indent = None
+        if indent is not None and line.strip() and not line.lstrip().startswith('#'):
+            out.append(line.strip())
+        match = re.match(r'^(\s*)(?:- )?run: \|\s*$', line)
+        if match:
+            indent = len(match.group(1))
+    return '\n'.join(out)
+
+
 class OscFuzzWorkflowTests(unittest.TestCase):
     def setUp(self):
         self.text = WORKFLOW.read_text(encoding='utf-8')
@@ -40,7 +54,8 @@ class OscFuzzWorkflowTests(unittest.TestCase):
         commands = [line.strip()[2:] for line in fence.splitlines()
                     if line.strip().startswith('- ') and ('fuzz' in line)]
         self.assertEqual(len(commands), 4)
+        scripts = run_scripts(self.text)
         for command in commands:
-            self.assertIn(command, self.text)
-        self.assertEqual(self.text.count('-max_total_time=60'), 2)
+            self.assertIn(command, scripts)
+        self.assertEqual(scripts.count('-max_total_time=60'), 2)
 
