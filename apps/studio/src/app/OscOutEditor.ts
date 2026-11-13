@@ -48,13 +48,17 @@ export function showOscOutEditor(modal: Modal, raw: unknown,
   save: (value: OscOutConfig) => Promise<boolean>): void {
   const config = readOscOutConfig(raw);
   const unsupportedVersion = record(raw).version !== undefined && record(raw).version !== 1;
+  const forbiddenDestination = ['host', 'lan'].some(key =>
+    Object.prototype.hasOwnProperty.call(record(raw), key));
   const body = modal.body;
   body.replaceChildren();
   const intro = el('p', 'osc-help', 'Sends to this computer (127.0.0.1) only. Each CV/gate row reads channel 0 (FIRST).');
   const hint = el('p', 'osc-help', 'Unknown config properties are preserved when saved.');
   const warning = el('p', 'osc-warning', unsupportedVersion
-    ? 'Unsupported OSC Out version; editing is disabled until the patch is migrated.' : '');
-  warning.hidden = !unsupportedVersion;
+    ? 'Unsupported OSC Out version; editing is disabled until the patch is migrated.'
+    : forbiddenDestination
+      ? 'OSC Out v1 does not support host or lan fields; saving is disabled without migration.' : '');
+  warning.hidden = !unsupportedVersion && !forbiddenDestination;
 
   const number = (value: number, min: string, max: string, id: string, step = '1'): HTMLInputElement => {
     const input = el('input', 'input-number') as HTMLInputElement;
@@ -118,6 +122,10 @@ export function showOscOutEditor(modal: Modal, raw: unknown,
   submit.addEventListener('click', async () => {
     errors.textContent = '';
     if (unsupportedVersion) { errors.textContent = 'Unsupported OSC Out config version.'; return; }
+    if (forbiddenDestination) {
+      errors.textContent = 'OSC Out v1 does not support host or lan configuration fields; the patch is unchanged.';
+      return;
+    }
     const integer = (input: HTMLInputElement, min: number, max: number): number | null => {
       const n = Number(input.value);
       return input.value.trim() && Number.isInteger(n) && n >= min && n <= max ? n : null;
