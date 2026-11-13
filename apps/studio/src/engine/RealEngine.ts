@@ -458,8 +458,23 @@ export class RealEngine implements EngineClient {
   panic(): void { this.control('panic'); }
   async listAudioDevices(): Promise<Device[]> {
     const result = await this.request('listAudioDevices');
-    const devices = (result.result as { devices?: Device[] } | undefined)?.devices;
-    if (Array.isArray(devices)) this.audioDevices = devices;
+    const body = isRecord(result.result) ? result.result : {};
+    if (Array.isArray(body.devices)) this.audioDevices = body.devices as Device[];
+    // Registry failures are informational, never extra selectable output IDs.
+    const reported = isRecord(body.audio) ? body.audio.unavailableDrivers : undefined;
+    const unavailable = Array.isArray(reported) ? reported.filter(v =>
+      isRecord(v) && typeof v.hostApi === 'string' && typeof v.name === 'string'
+    ).map(v => ({
+      hostApi: v.hostApi as string, name: v.name as string,
+      ...(typeof v.reason === 'string' ? { reason: v.reason } : {}),
+      ...(typeof v.detail === 'string' ? { detail: v.detail } : {}),
+    })) : [];
+    if (this.status) {
+      const audio = { ...this.status.audio };
+      delete audio.unavailableDrivers;
+      if (unavailable.length) audio.unavailableDrivers = unavailable;
+      this.emitStatus({ ...this.status, audio });
+    }
     return this.audioDevices.slice();
   }
   selectAudioDevice(deviceId: string): void { this.control('selectAudioDevice', { deviceId }); }

@@ -81,6 +81,45 @@ test.describe('system', () => {
     await expect(page.getByTestId('audio-driver-type')).toHaveValue('ASIO');
   });
 
+  test('failed installed ASIO drivers render disabled with detail and can be refreshed', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => {
+      const e = window.__wirescapeTest.engine as any;
+      e.unavailableDrivers = [{ hostApi: 'ASIO', name: 'FlexASIO',
+        reason: 'driver-init-failed', detail: 'Could not open host interface' }];
+      e.selectedAudioCalls = [];
+      e.selectAudioDevice = (id: string) => { e.selectedAudioCalls.push(id); };
+    });
+    await page.getByTestId('open-settings').click();
+    await page.getByTestId('audio-driver-type').selectOption('ASIO');
+    const failed = page.getByTestId('audio-device').locator('option', { hasText: 'FlexASIO' });
+    await expect(failed).toBeDisabled();
+    await expect(failed).toContainText('installed, but failed to start');
+    await expect(failed).toContainText('Could not open host interface');
+    await expect(page.getByTestId('audio-unavailable-hint')).toContainText('then Refresh.');
+    expect(await page.evaluate(() => (window.__wirescapeTest.engine as any).selectedAudioCalls)).toEqual([]);
+    await page.evaluate(() => { (window.__wirescapeTest.engine as any).unavailableDrivers = undefined; });
+    await page.getByTestId('audio-driver-refresh').click();
+    await expect(page.getByTestId('audio-unavailable-hint')).toHaveCount(0);
+    await expect(page.getByTestId('audio-driver-type').locator('option[value="ASIO"]')).toHaveCount(0);
+    expect(await page.evaluate(() => (window.__wirescapeTest.engine as any).selectedAudioCalls)).toEqual([]);
+  });
+
+  test('failed drivers remain visible when there are no selectable audio outputs', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => {
+      const e = window.__wirescapeTest.engine as any;
+      e.unavailableDrivers = [{ hostApi: 'ASIO', name: 'FlexASIO', reason: 'driver-init-failed' }];
+      const list = e.listAudioDevices.bind(e);
+      e.listAudioDevices = async () => { await list(); return []; };
+    });
+    await page.getByTestId('open-settings').click();
+    await expect(page.getByTestId('audio-no-devices')).toHaveCount(0);
+    await expect(page.getByTestId('audio-driver-type')).toHaveValue('ASIO');
+    await expect(page.getByTestId('audio-device').locator('option', { hasText: 'FlexASIO' })).toBeDisabled();
+    await expect(page.getByTestId('audio-device')).toHaveValue('');
+  });
+
   test('audio settings tolerate no devices and missing optional capabilities', async ({ page }) => {
     await boot(page);
     const errors: string[] = [];
