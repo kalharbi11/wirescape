@@ -2,67 +2,104 @@
 import type { PatchDoc } from '../patch/PatchDoc';
 import type { Telemetry } from '../engine/EngineClient';
 
-/** A small UI-side matcher for native/io/osc/pattern.h. Wildcards never cross '/'. */
-const patterns = new Map<string, RegExp | null>();
-const escaped = (c: string): string => /[\\^$.*+?()[\]{}|]/.test(c) ? '\\' + c : c;
-const classChar = (c: string): string => /[\\\]\-^]/.test(c) ? '\\' + c : c;
+/** UI counterpart of native/io/osc/pattern.h: bounded byte-level matching, no regex backtracking. */
+type Token = { kind: 'literal' | 'any' | 'star' | 'class' | 'alt';
+  byte?: number; mask?: Uint8Array; options?: Token[][] };
+const patterns = new Map<string, Token[] | null>();
+const utf8 = new TextEncoder();
 
-function compile(pattern: string): RegExp | null {
-  if (new TextEncoder().encode(pattern).length > 255) return null;
+function compile(pattern: string): Token[] | null {
+  const bytes = utf8.encode(pattern);
+  if (bytes.length > 255) return null;
   let i = 0;
-  const group = (nested: boolean, depth: number): string => {
-    const choices: string[] = [];
-    let part = '';
-    while (i < pattern.length) {
-      const c = pattern[i++];
-      if (c === '}') {
-        if (!nested) throw Error('unpaired }');
-        choices.push(part);
-        return '(?:' + choices.join('|') + ')';
+  const parts = (depth: number): Token[][] => {
+    const choices: Token[][] = [[]];
+    while (i < bytes.length) {
+      const c = bytes[i++];
+      if (c === 125) { // }
+        if (!depth) throw Error('unmatched }');
+        return choices;
       }
-      if (c === ',' && nested) { choices.push(part); part = ''; continue; }
-      if (c === '{') {
-        if (depth >= 4) throw Error('nested alternatives');
-        part += group(true, depth + 1);
-      } else if (c === '*') part += '[^/]*';
-      else if (c === '?') part += '[^/]';
-      else if (c === '[') {
-        const negated = pattern[i] === '!';
+      if (c === 44) { // ,
+        if (!depth) throw Error('comma outside alternatives');
+        choices.push([]); continue;
+      }
+      let token: Token;
+      if (c === 123) { // {
+        if (depth >= 4) throw Error('alternatives nesting limit');
+        token = { kind: 'alt', options: parts(depth + 1) };
+      } else if (c === 42) token = { kind: 'star' };
+      else if (c === 63) token = { kind: 'any' };
+      else if (c === 91) { // [
+        const negated = bytes[i] === 33; // !
         if (negated) i++;
-        let content = '';
-        while (i < pattern.length && pattern[i] !== ']') {
-          const lo = pattern[i++];
-          if (pattern[i] === '-' && i + 1 < pattern.length && pattern[i + 1] !== ']') {
-            i++;
-            const hi = pattern[i++];
-            if (hi.charCodeAt(0) < lo.charCodeAt(0)) throw Error('invalid range');
-            content += classChar(lo) + '-' + classChar(hi);
-          } else content += classChar(lo);
+        const mask = new Uint8Array(256);
+        let any = false;
+        while (i < bytes.length && bytes[i] !== 93) {
+          const lo = bytes[i++];
+          let hi = lo;
+          if (bytes[i] === 45 && i + 1 < bytes.length && bytes[i + 1] !== 93) {
+            i++; hi = bytes[i++];
+            if (hi < lo) throw Error('reversed class range');
+          }
+          for (let n = lo; n <= hi; n++) mask[n] = 1;
+          any = true;
         }
-        if (!content || pattern[i] !== ']') throw Error('invalid class');
+        if (!any || bytes[i] !== 93) throw Error('unclosed class');
         i++;
-        part += negated ? '[^/' + content + ']' : '(?=[^/])[' + content + ']';
-      } else if (c === ']') throw Error('unpaired ]');
-      else if (c === '\\') {
-        if (i === pattern.length) throw Error('trailing escape');
-        part += escaped(pattern[i++]);
-      } else part += escaped(c);
+        if (negated) for (let n = 0; n < 256; n++) mask[n] ^= 1;
+        mask[47] = 0; // Native classes cannot consume '/'.
+        token = { kind: 'class', mask };
+      } else {
+        if (c === 93) throw Error('unmatched ]');
+        let byte = c;
+        if (c === 92) { // escaped literal
+          if (i === bytes.length) throw Error('trailing escape');
+          byte = bytes[i++];
+        }
+        token = { kind: 'literal', byte };
+      }
+      choices[choices.length - 1].push(token);
     }
-    if (nested) throw Error('unclosed {');
-    return part;
+    if (depth) throw Error('unclosed alternatives');
+    return choices;
   };
-  try { return new RegExp('^(?:' + group(false, 0) + ')(?![\\s\\S])'); }
-  catch { return null; }
+  try { return parts(0)[0]; } catch { return null; }
+}
+
+/** All possible byte offsets after each token, at most 256 states per token. */
+function walk(tokens: Token[], bytes: Uint8Array, starts: Set<number>): Set<number> {
+  let positions = starts;
+  for (const token of tokens) {
+    const next = new Set<number>();
+    for (const at of positions) {
+      if (token.kind === 'alt') {
+        for (const option of token.options ?? [])
+          for (const end of walk(option, bytes, new Set([at]))) next.add(end);
+      } else if (token.kind === 'star') {
+        next.add(at);
+        for (let j = at; j < bytes.length && bytes[j] !== 47; j++) next.add(j + 1);
+      } else if (at < bytes.length &&
+        (token.kind === 'literal' && bytes[at] === token.byte ||
+          token.kind === 'any' && bytes[at] !== 47 ||
+          token.kind === 'class' && token.mask?.[bytes[at]] === 1)) next.add(at + 1);
+    }
+    positions = next;
+    if (!positions.size) break;
+  }
+  return positions;
 }
 
 /** False for invalid patterns, as in native Pattern::compile/match. */
 export function matchOscAddress(pattern: string, address: string): boolean {
-  if (new TextEncoder().encode(address).length > 255) return false;
+  const bytes = utf8.encode(address);
+  if (bytes.length > 255) return false;
   if (!patterns.has(pattern)) {
     if (patterns.size >= 128) patterns.clear();
     patterns.set(pattern, compile(pattern));
   }
-  return patterns.get(pattern)?.test(address) ?? false;
+  const tokens = patterns.get(pattern);
+  return !!tokens && walk(tokens, bytes, new Set([0])).has(bytes.length);
 }
 
 export interface RawReading { value?: number; reason?: string }
