@@ -9,16 +9,15 @@
 namespace wirescape::osc {
 struct OscOut {
     static constexpr ws::Info info{"osc.out", "OSC Out", 1};
-    static constexpr std::array inputs{
-        ws::port("row1", "Row 1", WS2_CV_BI, WS2_FIRST),
-        ws::port("row2", "Row 2", WS2_CV_BI, WS2_FIRST),
-        ws::port("row3", "Row 3", WS2_CV_BI, WS2_FIRST),
-        ws::port("row4", "Row 4", WS2_CV_BI, WS2_FIRST),
-        ws::port("row5", "Row 5", WS2_CV_BI, WS2_FIRST),
-        ws::port("row6", "Row 6", WS2_CV_BI, WS2_FIRST),
-        ws::port("row7", "Row 7", WS2_CV_BI, WS2_FIRST),
-        ws::port("row8", "Row 8", WS2_CV_BI, WS2_FIRST),
-        ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
+    static constexpr std::array inputs{ws::port("row1", "Row 1", WS2_CV_BI, WS2_FIRST),
+                                       ws::port("row2", "Row 2", WS2_CV_BI, WS2_FIRST),
+                                       ws::port("row3", "Row 3", WS2_CV_BI, WS2_FIRST),
+                                       ws::port("row4", "Row 4", WS2_CV_BI, WS2_FIRST),
+                                       ws::port("row5", "Row 5", WS2_CV_BI, WS2_FIRST),
+                                       ws::port("row6", "Row 6", WS2_CV_BI, WS2_FIRST),
+                                       ws::port("row7", "Row 7", WS2_CV_BI, WS2_FIRST),
+                                       ws::port("row8", "Row 8", WS2_CV_BI, WS2_FIRST),
+                                       ws::port("notes", "Notes", WS2_EV_NOTES, WS2_POLY, 0, nullptr, WS2_EVENT)};
     static constexpr std::array<ws2_port, 0> outputs{};
     static constexpr std::array<ws2_param, 0> params{};
 
@@ -62,17 +61,16 @@ struct OscOut {
         }
         if (!config.notes.enabled) return;
         for (const auto &event : block.events()) {
-            if (event.type != WS2_NOTE_ON && event.type != WS2_NOTE_OFF &&
-                event.type != WS2_NOTE_CHOKE) continue;
+            if (event.type != WS2_NOTE_ON && event.type != WS2_NOTE_OFF && event.type != WS2_NOTE_CHOKE) continue;
             const uint32_t head = bus->note_head.load(std::memory_order_relaxed);
             const uint32_t tail = bus->note_tail.load(std::memory_order_acquire);
             if (head - tail >= bus->notes.size()) {
                 bus->dropped.fetch_add(1, std::memory_order_relaxed);
                 continue;
             }
-            bus->notes[head % bus->notes.size()] = OutNote{
-                static_cast<int16_t>(event.key), static_cast<int16_t>(event.channel),
-                event.type == WS2_NOTE_ON ? event.value : 0.f};
+            bus->notes[head % bus->notes.size()] =
+                OutNote{static_cast<int16_t>(event.key), static_cast<int16_t>(event.channel),
+                        event.type == WS2_NOTE_ON ? event.value : 0.f};
             bus->note_head.store(head + 1, std::memory_order_release);
         }
     }
