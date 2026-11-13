@@ -449,9 +449,9 @@ void Session::open_at_driver_block(int64_t frames) {
     std::string error;
     auto next_out = std::make_unique<osc::OutHost>(patch_.dump());
     document::ScopedOutBuses staged_out(next_out->buses());
-    audio::EngineOwner prepared(
-        document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config, error, &next_telemetry.taps()),
-        app_engine_destroy);
+    audio::EngineOwner prepared(document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config, error,
+                                                             &next_telemetry.taps()),
+                                app_engine_destroy);
     if (!prepared)
         throw std::runtime_error("Graph cannot prepare at the ASIO driver's " + std::to_string(block) + " frames");
     app_engine_prepare_master_fade_in(prepared.get());
@@ -497,7 +497,7 @@ void Session::open_at_driver_block(int64_t frames) {
         throw;
     }
     restore_midi_on_failure = false; // caller start()/poll_audio()/apply() resumes MIDI
-    osc_out_.swap(next_out); // previous engine has stopped; keep its bus alive until retirement
+    osc_out_.swap(next_out);         // previous engine has stopped; keep its bus alive until retirement
     if (!requested_block_) requested_block_ = options_.block;
     config_ = next_config;
     options_.block = block;
@@ -1280,8 +1280,11 @@ Json Session::status() const {
     osc_status["routes"] = std::move(osc_routes);
     Json out_routes = Json::array();
     for (const auto &route : osc_out_->states()) {
-        Json entry = {{"module", std::to_string(route.node)}, {"port", route.port},
-                      {"state", route.state}, {"sent", route.sent}, {"dropped", route.dropped}};
+        Json entry = {{"module", std::to_string(route.node)},
+                      {"port", route.port},
+                      {"state", route.state},
+                      {"sent", route.sent},
+                      {"dropped", route.dropped}};
         if (route.last_error) entry["last_error"] = route.last_error;
         out_routes.push_back(std::move(entry));
     }
