@@ -24,8 +24,6 @@ sys.dont_write_bytecode = True
 from helpers import discover_toolchain, tool_version  # noqa: E402
 
 NODE_LTS = {22, 24, 26}  # Maintained even-numbered LTS releases in Nov 2026.
-SYSTEM_QT_DIRS = tuple(Path(p) / "cmake/Qt6" for p in
-                       ("/usr/lib", "/usr/lib64", "/usr/lib/aarch64-linux-gnu"))
 REQUIRED_LIBS = {
     "portaudio": "libportaudio2", "nss3": "libnss3", "gtk-3": "libgtk-3-0t64",
     "atk-1.0": "libatk1.0-0t64", "atk-bridge-2.0": "libatk-bridge2.0-0t64",
@@ -101,10 +99,10 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
     rc, dirty = git(root, "status", "--porcelain", "--untracked-files=normal")
     check("clean tree", rc == 0 and not dirty,
           "Commit or separately save owner changes before updating; never reset or clean automatically.")
-    inherited = ("CMAKE_PREFIX_PATH", "Qt6_DIR", "QT_PLUGIN_PATH", "QML2_IMPORT_PATH", "WIRESCAPE_QT_DIR")
-    present = [key for key in inherited if os.environ.get(key)]
-    check("no inherited Qt overrides", not present,
-          "Unset process-local Qt/CMake overrides: " + ", ".join(present) + ". Do not change global user settings.")
+    # CMAKE_PREFIX_PATH affects native find_package too; reject inherited overrides
+    # without changing the owner's environment or silently selecting foreign tools.
+    check("no inherited CMake prefix", not os.environ.get("CMAKE_PREFIX_PATH"),
+          "Unset process-local CMAKE_PREFIX_PATH before this source build; leave global settings untouched.")
     # tools/dev.py configures -S native -B build/native; never delete foreign caches.
     expected_generator = discover_toolchain().get("generator")
     for cache in (root / "build/CMakeCache.txt", root / "build/native/CMakeCache.txt"):
@@ -123,18 +121,14 @@ def inspect(root: Path) -> tuple[list[tuple[str, bool, str]], dict]:
         cache_arch = values.get("CMAKE_SYSTEM_PROCESSOR", "").lower()
         same_arch = not cache_arch or cache_arch in ("aarch64", "arm64")
         same_generator = bool(expected_generator and values.get("CMAKE_GENERATOR") == expected_generator)
-        qt_value = values.get("Qt6_DIR", "")
-        qt = Path(qt_value).resolve()
-        config = qt / "Qt6Config.cmake"
-        system_qt = qt in SYSTEM_QT_DIRS and config.is_file() and config.resolve().parent == qt
-        qt_cache = bool(values.get("CMAKE_PREFIX_PATH")) or bool(qt_value and not qt_value.endswith("-NOTFOUND") and not system_qt)
-        ui_off = values.get("WIRESCAPE_BUILD_UI", "").upper() in ("OFF", "FALSE", "NO", "0")
+        # Keep source, architecture and generator refusals; legacy UI options
+        # are no longer part of the current native CMake contract.
         predicates = {"source": same_source, "architecture": same_arch, "generator": same_generator,
-                      "Qt": not qt_cache, "UI-off": ui_off}
+                      "prefix": not values.get("CMAKE_PREFIX_PATH", "")}
         failed = ",".join(key for key, ok in predicates.items() if not ok)
         detail = "; ".join(f"{key}={sanitize(values.get(key, '<missing>')[:160], root)}" for key in
-                           ("CMAKE_HOME_DIRECTORY", "CMAKE_SYSTEM_PROCESSOR", "CMAKE_GENERATOR",
-                            "Qt6_DIR", "CMAKE_PREFIX_PATH", "WIRESCAPE_BUILD_UI"))
+                           ("CMAKE_HOME_DIRECTORY", "CMAKE_SYSTEM_PROCESSOR", "CMAKE_GENERATOR"))
+        detail += "; CMAKE_PREFIX_PATH=" + ("<set>" if values.get("CMAKE_PREFIX_PATH") else "<missing>")
         check(f"cache:{cache.relative_to(root).as_posix()}",
               all(predicates.values()), f"Cache mismatch ({failed}): {detail}; "
               "move incompatible build directory aside, never delete it automatically.")
