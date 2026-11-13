@@ -23,7 +23,7 @@ class MergeGateTests(unittest.TestCase):
         return gate.decide(p, list(files), list(comments), 'owner')[0]
 
     def test_tier_is_required_even_with_signed_or_legacy_approval(self):
-        approval = [say('Approved for merge abc1234\\nSigned: gpt-reviewer, 2026-11-12')]
+        approval = [say('Approved for merge abc1234\nSigned: gpt-reviewer, 2026-11-12')]
         for labels in ((), ('tier/T0', 'tier/T2'), ('tier/T1', 'tier/T2')):
             with self.subTest(labels=labels):
                 p = pr(*labels)
@@ -104,7 +104,7 @@ class ApprovalsV3Tests(unittest.TestCase):
                      'native/include/wirescape/module2.h'):
             self.assertFalse(self.check(pr('tier/T2', ref='claude/x'), files=[path]), path)
             self.assertTrue(self.check(pr('tier/T2', ref='claude/x'), files=[path], comments=[claude]), path)
-            self.assertTrue(self.check(pr(ref='claude/x'), files=[path], comments=[chatgpt]), path)
+            self.assertTrue(self.check(pr('tier/T2', ref='claude/x'), files=[path], comments=[chatgpt]), path)
 
 
 class StrictApprovalLineTests(unittest.TestCase):
