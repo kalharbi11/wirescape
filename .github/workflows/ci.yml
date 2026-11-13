@@ -146,6 +146,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -244,6 +246,10 @@ jobs:
           fi
           python tools/dev.py test
           if [[ '${{ matrix.os }}' == windows-x64 ]]; then python tools/dev.py ui-test; fi
+      - name: Compare frozen Qt and Qt-free golden renderers
+        if: runner.os == 'Windows' && env.CODE == 'true'
+        shell: pwsh
+        run: python tools/compare_golden_qt.py --qt-prefix "$env:QT_ROOT_DIR"
       - name: Summarize ABI2 benchmark
         env:
           ABI2_RUNNER: ${{ matrix.os }}
