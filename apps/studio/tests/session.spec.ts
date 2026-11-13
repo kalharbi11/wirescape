@@ -256,6 +256,31 @@ test.describe('the catalogue', () => {
     }
   });
 
+  test('MIDI to CV pitch/gate drags make saved signal ports, not parameter modulation', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__wirescapeTest.zoomTo(0.5));
+    const midi = await addModuleAt(page, 'midi.in', 80, 240);
+    const cv = await addModuleAt(page, 'midi.to_cv', 490, 240);
+    const vco = await addModuleAt(page, 'essentials.vco', 980, 240);
+    const adsr = await addModuleAt(page, 'essentials.adsr', 980, 740);
+
+    await patch(page, { module: midi, port: 'midi' }, { module: cv, port: 'midi' });
+    await patch(page, { module: cv, port: 'pitch' }, { module: vco, port: 'pitch' });
+    await patch(page, { module: cv, port: 'gate' }, { module: adsr, port: 'gate' });
+    const saved = await state(page);
+    expect(saved.connections.map((c: any) =>
+      [c.kind, c.from.module, c.from.port, c.to.module, c.to.port])).toEqual([
+        ['event', midi, 'midi', cv, 'midi'],
+        ['signal', cv, 'pitch', vco, 'pitch'],
+        ['signal', cv, 'gate', adsr, 'gate'],
+      ]);
+    await page.evaluate(() => window.__wirescapeTest.autosaveNow());
+    await page.reload();
+    await page.waitForFunction(() => document.body.dataset.ready === 'true');
+    await settle(page);
+    expect((await state(page)).connections).toEqual(saved.connections);
+  });
+
   test('Notes→CV patch round-trips voices and poly connections', async ({ page }) => {
     await boot(page);
     await page.evaluate(() => window.__wirescapeTest.zoomTo(0.5));
