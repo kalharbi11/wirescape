@@ -48,7 +48,7 @@ bool send_message(Socket sock, const Message &message, uint16_t port) noexcept {
 }
 } // namespace
 
-OutHost::OutHost(const std::string &document) {
+OutHost::OutHost(const std::string &document, SendOverride send_override) : send_override_(send_override) {
     const auto patch = nlohmann::json::parse(document);
     for (const auto &module : patch.at("modules")) {
         if (module.value("module", std::string{}) != "osc.out") continue;
@@ -119,78 +119,101 @@ void OutHost::loop() noexcept {
 #endif
         return;
     }
-    auto send = [&](Route &route, const char *path, uint32_t count, const Argument *args) {
+    auto send = [&](Route &route, uint32_t &budget, const char *path, uint32_t count,
+                    const Argument *args) -> bool {
+        if (!budget) return false;
+        --budget;
         Message message{};
         message.address = path;
         message.count = count;
         for (uint32_t a = 0; a < count; ++a) message.arguments[a] = args[a];
-        if (send_message(sock, message, uint16_t(route.config.port)))
+        const bool accepted = send_override_ ? send_override_(message, uint16_t(route.config.port))
+                                             : send_message(sock, message, uint16_t(route.config.port));
+        if (accepted)
             route.sent.fetch_add(1, std::memory_order_relaxed);
         else {
             route.dropped.fetch_add(1, std::memory_order_relaxed);
             route.error.store(1, std::memory_order_relaxed);
         }
+        return accepted;
     };
     while (running_.load(std::memory_order_acquire)) {
         const auto now = std::chrono::steady_clock::now();
         for (const auto &item : routes_) {
             auto &route = *item;
             if (!route.enabled) continue;
+            uint32_t budget = 64; // Per module per poll, including CV, gates and notes.
             for (size_t i = 0; i < route.config.rows.size(); ++i) {
                 const auto &cfg = route.config.rows[i];
                 if (!cfg.enabled) continue;
                 const auto &row = route.bus->rows[i];
                 auto &cursor = route.cursors[i];
                 const auto blocks = row.blocks.load(std::memory_order_acquire);
-                if (!blocks) continue; // no rendered block yet
+                if (!blocks) continue;
                 if (cfg.kind == 1) {
-                    // Counters retain even a rise and fall inside one block. A gate
-                    // alternates, so the preceding level determines the edge order.
                     const auto rises = row.rises.load(std::memory_order_relaxed);
                     const auto falls = row.falls.load(std::memory_order_relaxed);
-                    const bool pending = cursor.rises != rises || cursor.falls != falls;
-                    if (!cursor.initialized && !pending) {
-                        Argument arg{};
-                        arg.type = 'f';
-                        arg.real = row.value.load(std::memory_order_relaxed) >= 0.5f ? 1.0f : 0.0f;
-                        send(route, cfg.address, 1, &arg);
-                        cursor.gate_high = arg.real >= 0.5f;
+                    // Unsigned deltas remain correct across a 32-bit counter wrap.
+                    const uint64_t edges = uint64_t(uint32_t(rises - cursor.rises)) +
+                                           uint32_t(falls - cursor.falls);
+                    const bool high = row.value.load(std::memory_order_relaxed) >= 0.5f;
+                    Argument arg{};
+                    arg.type = 'f';
+                    if (!cursor.initialized && !edges && budget) {
+                        arg.real = high ? 1.0f : 0.0f;
+                        send(route, budget, cfg.address, 1, &arg);
+                        cursor.gate_high = high;
+                        cursor.initialized = true;
                     }
-                    for (uint32_t edge = 0; edge < 64; ++edge) {
-                        if (cursor.rises == rises && cursor.falls == falls) break;
-                        const bool next_high = !cursor.gate_high;
-                        if (next_high && cursor.rises == rises) break;
-                        if (!next_high && cursor.falls == falls) break;
-                        Argument arg{};
-                        arg.type = 'f';
-                        arg.real = next_high ? 1.0f : 0.0f;
-                        send(route, cfg.address, 1, &arg);
-                        cursor.gate_high = next_high;
-                        if (next_high) ++cursor.rises;
-                        else ++cursor.falls;
+                    if (edges) {
+                        // At most four edges; on overflow preserve the first
+                        // pulse and then reconcile with the true current level.
+                        const uint32_t first = edges > 4 ? 2u : uint32_t(edges);
+                        uint32_t emitted = 0;
+                        while (emitted < first && budget) {
+                            cursor.gate_high = !cursor.gate_high;
+                            arg.real = cursor.gate_high ? 1.0f : 0.0f;
+                            send(route, budget, cfg.address, 1, &arg);
+                            ++emitted;
+                        }
+                        if (edges > 4 && budget && cursor.gate_high != high) {
+                            arg.real = high ? 1.0f : 0.0f;
+                            send(route, budget, cfg.address, 1, &arg);
+                            cursor.gate_high = high;
+                            ++emitted;
+                        }
+                        route.dropped.fetch_add(edges - emitted, std::memory_order_relaxed);
+                        cursor.rises = rises;
+                        cursor.falls = falls;
+                        cursor.initialized |= emitted != 0;
+                    } else if (cursor.initialized && cursor.gate_high != high && budget) {
+                        // A previous poll may have exhausted the datagram budget.
+                        arg.real = high ? 1.0f : 0.0f;
+                        send(route, budget, cfg.address, 1, &arg);
+                        cursor.gate_high = high;
                     }
-                    cursor.initialized = true;
                 } else {
                     const float value = row.value.load(std::memory_order_relaxed);
                     const auto interval = std::chrono::duration<double>(1.0 / route.config.rate_hz);
-                    if ((!cursor.initialized || std::abs(value - cursor.previous) > cfg.deadband) &&
+                    if (budget && (!cursor.initialized || cursor.retry ||
+                                   std::abs(value - cursor.previous) > cfg.deadband) &&
                         (!cursor.initialized || now - cursor.last_send >= interval)) {
                         Argument arg{};
                         arg.type = 'f';
                         arg.real = value;
-                        send(route, cfg.address, 1, &arg);
-                        cursor.previous = value;
+                        const bool accepted = send(route, budget, cfg.address, 1, &arg);
                         cursor.last_send = now;
                         cursor.initialized = true;
+                        cursor.retry = !accepted;
+                        if (accepted) cursor.previous = value;
                     }
                 }
             }
             if (route.config.notes.enabled) {
-                // SPSC: render owns head and writes the event before release; this
-                // worker owns tail and publishes consumption only after encoding.
+                // Leave over-budget notes in the SPSC ring for the next poll.
                 const auto head = route.bus->note_head.load(std::memory_order_acquire);
                 auto tail = route.bus->note_tail.load(std::memory_order_relaxed);
-                for (uint32_t n = 0; n < 64 && tail != head; ++n) {
+                while (tail != head && budget) {
                     const auto event = route.bus->notes[tail % route.bus->notes.size()];
                     Argument args[3]{};
                     args[0].type = 'i';
@@ -199,7 +222,7 @@ void OutHost::loop() noexcept {
                     args[1].real = event.velocity;
                     args[2].type = 'i';
                     args[2].integer = event.channel;
-                    send(route, route.config.notes.address, 3, args);
+                    send(route, budget, route.config.notes.address, 3, args);
                     ++tail;
                     route.bus->note_tail.store(tail, std::memory_order_release);
                 }

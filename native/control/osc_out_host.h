@@ -12,6 +12,9 @@
 #include <vector>
 
 namespace wirescape::osc {
+struct Message;
+// Test-only deterministic send seam; production always uses the loopback socket.
+using SendOverride = bool (*)(const Message &, uint16_t);
 struct OutState {
     uint32_t node = 0, port = 0;
     const char *state = "disabled"; // sending | disabled | error
@@ -25,7 +28,7 @@ class OutHost {
     struct RowCursor {
         uint32_t rises = 0, falls = 0;
         float previous = 0;
-        bool initialized = false, gate_high = false;
+        bool initialized = false, gate_high = false, retry = false;
         std::chrono::steady_clock::time_point last_send{};
     };
     struct Route {
@@ -42,11 +45,12 @@ class OutHost {
     std::atomic<bool> running_{false};
     std::thread worker_;
     std::atomic<uint32_t> socket_error_{0};
+    SendOverride send_override_ = nullptr;
 
     void loop() noexcept;
 
   public:
-    explicit OutHost(const std::string &document);
+    explicit OutHost(const std::string &document, SendOverride send_override = nullptr);
     ~OutHost() { stop(); }
     OutHost(const OutHost &) = delete;
     OutHost &operator=(const OutHost &) = delete;
