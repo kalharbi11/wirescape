@@ -137,6 +137,26 @@ test('a failed start followed by Try again starts the engine', async ({ page }) 
   await page.keyboard.up('a');
 });
 
+test('OSC Out is Desktop/Pi only and unavailable in the Web AudioWorklet', async ({ page }) => {
+  await page.goto('./');
+  await page.getByTestId('web-start').click();
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  const option = page.getByTestId('library-item-osc.out');
+  await expect(option).toBeVisible();
+  await expect(option).toBeDisabled();
+  await expect(option).toContainText('Desktop and Pi only');
+  const result = await page.evaluate(() => {
+    const api = (window as any).__wirescapeTest;
+    const previous = JSON.stringify(api.state().modules);
+    const inserted = api.addModule('osc.out');
+    return { inserted, unchanged: previous === JSON.stringify(api.state().modules),
+      catalogue: api.registry.all.map((m: { id: string }) => m.id) };
+  });
+  expect(result.catalogue).not.toContain('osc.out');
+  expect(result.inserted).toBeNull();
+  expect(result.unchanged).toBe(true);
+});
+
 test('web demo lists only starters and modules its engine can play', async ({ page }) => {
   await page.goto('./');
   await page.getByTestId('web-start').click();
