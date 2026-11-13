@@ -11,8 +11,8 @@ Read first: #723, `native/sidecar/session.cpp` (`unavailableDrivers` in `listAud
 tier: T1
 size: <= 200 changed lines, <= 5 files
 must_pass:
-  - cd apps/studio && npm ci && npm test
-  - git diff --check
+  - bash -c 'cd apps/studio && npm ci && npm test'
+  - bash -c 'git diff --check origin/main...HEAD'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [protocol change, new dependency]
 ```
