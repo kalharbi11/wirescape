@@ -15,3 +15,4 @@ Only tasks for **open** issues live here; the board is issue #473. When an issue
 - [MERGE_GATE_TIER_701.md](MERGE_GATE_TIER_701.md) — Merge gate: require exactly one tier (#701)
 - [MIDI_TO_CV_PITCH_GATE.md](MIDI_TO_CV_PITCH_GATE.md) — 724 MIDI to CV: pitch and gate reach VCO/ADSR for every note (priority 1)
 - [R4B_QT_TOOLS_TAIL.md](R4B_QT_TOOLS_TAIL.md) — 718 R4b: retire Qt from the Pi probe, Pi preflight, Windows setup and cloud setup
+- [Wh_FUZZ.md](Wh_FUZZ.md) — W-h: OSC/UDP codec fuzzing; live reference for `.github/workflows/osc_fuzz.yml`
