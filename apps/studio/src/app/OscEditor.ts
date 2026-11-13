@@ -103,6 +103,25 @@ export function showOscEditor(modal: Modal, raw: unknown,
     refreshLayout: () => void; refreshRaw: () => void;
   };
   const fields: RowControls[] = [];
+  let capturedRangeInvalid = false;
+  const checkCapturedRanges = () => {
+    if (!capturedRangeInvalid) return;
+    const bad = fields.findIndex(c => {
+      const min = c.input_min.value.trim(), max = c.input_max.value.trim();
+      return !min || !max || !Number.isFinite(Number(min)) || !Number.isFinite(Number(max)) ||
+        Math.fround(Number(max)) <= Math.fround(Number(min));
+    });
+    submit.disabled = bad >= 0;
+    if (bad >= 0) errors.textContent = `row${bad + 1}: input max must exceed input min.`;
+    else {
+      capturedRangeInvalid = false;
+      if (/^row\d+: input max must exceed input min\.$/.test(errors.textContent ?? '')) errors.textContent = '';
+      fields.forEach(c => {
+        c.input_min.removeAttribute('aria-invalid');
+        c.input_max.removeAttribute('aria-invalid');
+      });
+    }
+  };
   const activeCount = el('p', 'osc-active');
   activeCount.dataset.testid = 'osc-editor-active';
   const refreshActive = () => {
@@ -198,11 +217,8 @@ export function showOscEditor(modal: Modal, raw: unknown,
       if (reading.value === undefined) { controls.refreshRaw(); return; }
       control.value = String(reading.value);
       refreshPreview();
-      const min = Number(controls.input_min.value), max = Number(controls.input_max.value);
-      const invalid = Math.fround(max) <= Math.fround(min);
-      errors.textContent = invalid ? `row${i + 1}: input max must exceed input min.` : '';
-      submit.disabled = invalid;
-      control.setAttribute('aria-invalid', String(invalid));
+      capturedRangeInvalid = true;
+      checkCapturedRanges();
       controls.refreshRaw();
     };
     setMax.addEventListener('click', () => setFromMonitor(controls.input_max));
@@ -229,12 +245,7 @@ export function showOscEditor(modal: Modal, raw: unknown,
       controls.output_min, controls.output_max, controls.smoothing_ms]) {
       control.addEventListener('input', () => {
         refreshPreview(); controls.refreshRaw();
-        if (submit.disabled && Math.fround(Number(controls.input_max.value)) >
-            Math.fround(Number(controls.input_min.value))) {
-          submit.disabled = false; errors.textContent = '';
-          controls.input_min.removeAttribute('aria-invalid');
-          controls.input_max.removeAttribute('aria-invalid');
-        }
+        checkCapturedRanges();
       });
     }
     group.append(toggle, field('Address pattern (* allowed)', pattern), field('Kind', controls.kind), range);
@@ -263,6 +274,8 @@ export function showOscEditor(modal: Modal, raw: unknown,
       }
       refreshExample();
       refreshActive();
+      capturedRangeInvalid = false;
+      submit.disabled = false;
       errors.textContent = '';
     });
     presets.append(button);
