@@ -3,7 +3,7 @@
 
 Read first: `docs/specs/OSC_OUT.md` §1, §2, §4, §6, then `native/modules2/osc_in/` (config.h, dsp.h, tests.cpp, module.json), `native/document/runtime_module_config.h` (the `osc.in` branch), and the `new-module` skill or `docs/SDK_AUTHOR_GUIDE.md`.
 
-- **First commit, pushed as a draft PR today:** `native/io/osc/out_bus.h` (the `OutBus`: 8 rows of atomic value/rises/falls, a 64-entry SPSC note ring, a `dropped` counter) and `native/modules2/osc_out/config.h` (`OutConfiguration` with `bus` pointer + validation). O2 (#731) and O3 (#732) build on these; after that, change them only with a note on #731.
+- **First commit, as a draft PR today:** copy the spec §4 types verbatim into `native/io/osc/out_bus.h` and `native/modules2/osc_out/config.h`, then implement `out_configuration()`. O2 (#731) codes against the same types in parallel. Any change to them is a stop (Keel).
 - Then: module DSP (`dsp.h`, `module.cpp`, `module.json`, README, DESIGN), `runtime_module_config("osc.out", …)` with strict validation and unknown-key preservation, catalogue regeneration, unit tests per spec §6 (module half).
 - Realtime: the DSP only does atomic stores and ring pushes. Poly inputs read channel 0 (`FIRST`).
 

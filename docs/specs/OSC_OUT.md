@@ -46,6 +46,32 @@ On load, after the first rendered block, each enabled row sends its current valu
 - The bus pointer is delivered in the binary config struct (`osc::OutConfiguration::bus`), the same
   pattern as `osc::Configuration::statistics`. With `bus == nullptr` (unit tests, web), the module
   writes to a private bus and nothing is sent.
+- **Exact shared types** (O1 lands them verbatim in `native/io/osc/out_bus.h` and
+  `native/modules2/osc_out/config.h`; O2 codes against them from day one):
+```cpp
+namespace wirescape::osc {
+struct OutRow {                                  // render writes, sender reads
+    std::atomic<float> value{0};                 // channel 0, last sample of the latest block
+    std::atomic<uint32_t> rises{0}, falls{0};    // gate rows: monotonic crossing counters (wrap ok)
+    std::atomic<uint32_t> blocks{0};             // bumped after value/rises/falls are stored (release)
+};
+struct OutNote { int16_t key = 0; int16_t channel = 0; float velocity = 0; }; // velocity 0 = off
+struct OutBus {
+    std::array<OutRow, 8> rows{};
+    std::array<OutNote, 64> notes{};
+    std::atomic<uint32_t> note_head{0}, note_tail{0}; // SPSC: render pushes head, sender pops tail
+    std::atomic<uint32_t> dropped{0};                // ring full on the render side
+};
+struct OutRowConfig { char address[64]{}; uint32_t kind = 0; /*0 cv, 1 gate*/ float deadband = 0.001f; uint32_t enabled = 1; };
+struct OutConfiguration {
+    uint32_t version = 1, port = 9001, rate_hz = 100;
+    std::array<OutRowConfig, 8> rows{};          // defaults "/ws/row/<n>"
+    OutRowConfig notes{};                        // defaults "/ws/note", enabled = 0; kind/deadband unused
+    OutBus *bus = nullptr;                       // host-owned; outlives the module instance
+};
+bool out_configuration(const uint8_t *data, uint32_t bytes, OutConfiguration &c); // like configuration()
+}
+```
 - **Control (sender):** one control-owned worker thread in the sidecar, beside the OSC In worker (it
   may share the `osc_service` worker loop). It polls each bus every 1 ms (up to 2 ms when idle),
   encodes with `native/io/osc/codec.h` `encode`, and calls `sendto` on one unconnected non-blocking UDP socket bound to

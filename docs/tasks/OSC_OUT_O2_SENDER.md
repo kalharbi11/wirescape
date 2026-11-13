@@ -3,7 +3,7 @@
 
 Read first: `docs/specs/OSC_OUT.md` §3–§6, `native/control/osc_host.*`, `native/io/net/osc_service.*`, `native/io/osc/codec.h` (`encode`), `native/sidecar/session.cpp` (OSC status), `native/sidecar/protocol_tests.py` (OSC In loopback tests), `docs/specs/ENGINE_PROTOCOL.md` §status.
 
-- Branch from O1's (#730) header commit. Merge after O1.
+- Code against the spec §4 types now. If O1's (#730) header commit is out, branch from it; otherwise add the identical headers and drop them when you rebase. Merge after O1.
 - Sender worker: polls OutBus ≤1 ms, rate limit + deadband + trailing send per row, ordered gate edges, notes in order. One unconnected non-blocking UDP socket to `127.0.0.1:<port>`; errors count as `dropped`. Host fills `OutConfiguration::bus` before prepare; stop/join before retirement/replan/teardown.
 - `hello.capabilities` `"osc.out"`; `status.osc.out` per spec §5. Add the additive lines to `ENGINE_PROTOCOL.md` (Keel approves the spec part).
 - Protocol tests: OS-assigned localhost receiver; rate cap, a 1-sample gate pulse → 1 then 0, note order, replan and EOF join, no listener → `dropped` grows and the engine lives. `--null-audio` only.
