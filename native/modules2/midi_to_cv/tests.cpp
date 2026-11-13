@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "../../engine2/engine2.h"
-#include "../../io/midi/module_test_support.h"
 #include "../../io/midi/midi_service.h"
+#include "../../io/midi/module_test_support.h"
 #include "../adsr/dsp.h"
 #include "../midi_cc_to_cv/dsp.h"
 #include "../midi_in/dsp.h"
@@ -146,13 +146,13 @@ static void sequential_pitch_gate_regression(bool via_notes, bool via_fake_backe
         uint32_t refused = 0;
     } ingress{&e, producer};
     Sink sink{&ingress, [](void *context, uint32_t node, const ws2_event &event, uint64_t) noexcept -> int {
-        auto &target = *static_cast<Ingress *>(context);
-        const int status = target.engine->enqueue(target.producer, node, WS2_DIRECT_PORT, event,
-                                                  target.engine->meter().frame);
-        if (status == WS2_OK) ++target.received;
-        else ++target.refused;
-        return status;
-    }};
+                  auto &target = *static_cast<Ingress *>(context);
+                  const int status = target.engine->enqueue(target.producer, node, WS2_DIRECT_PORT, event,
+                                                            target.engine->meter().frame);
+                  if (status == WS2_OK) ++target.received;
+                  else ++target.refused;
+                  return status;
+              }};
     Service service(backend, sink);
     if (via_fake_backend) {
         REQUIRE(service.enable({backend.endpoint.name, backend.endpoint.system_name}));
@@ -171,7 +171,8 @@ static void sequential_pitch_gate_regression(bool via_notes, bool via_fake_backe
             backend.send(0x90, uint8_t(key), 110);
             service.poll();
             REQUIRE(ingress.received == index * 2 + 1);
-        } else REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x90, uint8_t(key), 110), e.meter().frame) == WS2_OK);
+        } else
+            REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x90, uint8_t(key), 110), e.meter().frame) == WS2_OK);
         {
             allocation_watch::Scope scope;
             REQUIRE(e.render(out, 1, 128) == WS2_OK);
@@ -206,7 +207,8 @@ static void sequential_pitch_gate_regression(bool via_notes, bool via_fake_backe
             backend.send(0x80, uint8_t(key), 0);
             service.poll();
             REQUIRE(ingress.received == index * 2 + 2);
-        } else REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x80, uint8_t(key), 0), e.meter().frame) == WS2_OK);
+        } else
+            REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x80, uint8_t(key), 0), e.meter().frame) == WS2_OK);
         REQUIRE(e.render(out, 1, 128) == WS2_OK);
         REQUIRE(e.output_sample(cv, 1, lane, 127) == 0.f);
         REQUIRE(e.output_sample(4, 0, lane, 127) < envelope);
