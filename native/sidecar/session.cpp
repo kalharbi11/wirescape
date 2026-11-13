@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "session.h"
+#include "../document/runtime_module_config.h"
 #include "d5_gap_deadline.h"
 #include "null_sink_wait.h"
 #include "runtime_patch.h"
@@ -293,9 +294,9 @@ Session::Session(Options options)
     patch_ = execution(patch_);
     monitor_->configure(patch_);
     osc_out_ = std::make_unique<osc::OutHost>(patch_.dump());
+    document::ScopedOutBuses staged_out(osc_out_->buses());
     std::string error;
-    engine_.reset(document::load_runtime_patch(patch_.dump(), catalogue_.get(), config_, error,
-                                               nullptr, &osc_out_->buses()));
+    engine_.reset(document::load_runtime_patch(patch_.dump(), catalogue_.get(), config_, error));
     need(bool(engine_), "unavailable", "Cannot create startup graph");
     active_ = engine_.get();
     refresh_devices();
@@ -447,9 +448,9 @@ void Session::open_at_driver_block(int64_t frames) {
     next_config.max_block_frames = block;
     std::string error;
     auto next_out = std::make_unique<osc::OutHost>(patch_.dump());
+    document::ScopedOutBuses staged_out(next_out->buses());
     audio::EngineOwner prepared(
-        document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config, error, &next_telemetry.taps(),
-                                     &next_out->buses()),
+        document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config, error, &next_telemetry.taps()),
         app_engine_destroy);
     if (!prepared)
         throw std::runtime_error("Graph cannot prepare at the ASIO driver's " + std::to_string(block) + " frames");
@@ -677,8 +678,9 @@ void Session::commit(Json patch, bool new_namespace) {
     document::telemetry::Sampler next_telemetry(
         document::telemetry::plan(patch, catalogue_.get(), /*phase_enabled=*/true, /*groove_enabled=*/true));
     auto next_out = std::make_unique<osc::OutHost>(patch_bytes);
+    document::ScopedOutBuses staged_out(next_out->buses());
     audio::EngineOwner candidate(document::load_runtime_patch(patch_bytes, catalogue_.get(), config_, error,
-                                                              &next_telemetry.taps(), &next_out->buses()),
+                                                              &next_telemetry.taps()),
                                  app_engine_destroy);
     need(bool(candidate), "refused", "Graph configuration or state refused");
     // Stage all potentially throwing document/ID work before accepting a live graph.
@@ -914,6 +916,7 @@ Json Session::apply(const Json &command) {
         // Keep candidate taps alive through rollback, until its render thread is joined.
         document::telemetry::Sampler next_telemetry(
             document::telemetry::plan(patch_, catalogue_.get(), /*phase_enabled=*/true));
+        auto next_out = std::make_unique<osc::OutHost>(patch_.dump());
         midi_->stop();
         app_engine_panic(active_); // release held notes before replacing DSP state
         stop_audio();
@@ -923,9 +926,9 @@ Json Session::apply(const Json &command) {
             next_config.sample_rate = next_rate;
             next_config.max_block_frames = next_block;
             std::string error;
-            auto next_out = std::make_unique<osc::OutHost>(patch_.dump());
+            document::ScopedOutBuses staged_out(next_out->buses());
             audio::EngineOwner prepared(document::load_runtime_patch(patch_.dump(), catalogue_.get(), next_config,
-                                                                     error, &next_telemetry.taps(), &next_out->buses()),
+                                                                     error, &next_telemetry.taps()),
                                         app_engine_destroy);
             need(bool(prepared), "unavailable", "Graph cannot prepare at requested stream configuration");
             app_engine_prepare_master_fade_in(prepared.get());
@@ -945,6 +948,7 @@ Json Session::apply(const Json &command) {
             ++generation_;
             keyboard_.fill(false);
             telemetry_.swap(next_telemetry);
+            osc_out_.swap(next_out); // replace only after the new stream succeeds
             return nullptr;
         } catch (...) {
             const bool rate_refused = audio_reason_ == "rate-unsupported";
@@ -963,7 +967,6 @@ Json Session::apply(const Json &command) {
             if (rate_refused) refuse_rate();
             throw Refusal("unavailable", "Stream change refused; previous configuration restored");
         }
-        osc_out_.swap(next_out); // previous stream and graph are retired
     }
     if (type == "selectAudioDevice") {
         need(command.at("deviceId").is_string());
