@@ -22,4 +22,4 @@ Configure **OSC 1.0 over UDP**, host `127.0.0.1`, port `9000` (or your OSC In ed
 
 The OSC card reports actual bind state, received count and active rows. **Port busy**, **LAN not confirmed** and **All rows off · not listening** describe different states, not guaranteed remote reception. The Monitor displays at most 32 recent messages (address and up to four numeric arguments) when directly wired; Pause/Clear change the view only.
 
-Only native OSC In is supported: no OSC Out, browser UDP or automatic controller discovery. Without explicit owner LAN consent, the listener stays on localhost. Omitted `config.version` means 1; unknown future versions are refused by older engines.
+Native OSC In is the controller input; OSC Out is loopback-only (Patch Designer Guide). No browser UDP or automatic controller discovery. Without explicit owner LAN consent, the listener stays on localhost. Omitted `config.version` means 1; unknown future versions are refused by older engines.
