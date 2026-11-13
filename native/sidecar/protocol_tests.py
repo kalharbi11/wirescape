@@ -889,6 +889,35 @@ with tempfile.TemporaryDirectory() as outgoing_dir:
                 saw_clear = True
                 break
         assert saw_clear
+        # A configured but entirely disabled OSC Out module must never start
+        # the UDP sender. Drain old-generation datagrams before this assertion.
+        while True:
+            try:
+                receiver.recvfrom(1500)
+            except socket.timeout:
+                break
+        disabled_patch = json.loads(json.dumps(outgoing_patch))
+        disabled_cfg = disabled_patch['modules'][1]['config']
+        for row in disabled_cfg['rows']:
+            row['enabled'] = False
+        disabled_cfg['notes']['enabled'] = False
+        disabled_gen = out_engine.call('loadGraph', patch=disabled_patch)['gen']
+        saw_disabled = False
+        until = time.monotonic() + 3
+        while time.monotonic() < until:
+            message = out_engine.pushes.pop(0) if out_engine.pushes else out_engine.receive()
+            if message.get('type') != 'status' or message['gen'] != disabled_gen:
+                continue
+            routes = message['status']['osc']['out']
+            if routes and routes[0]['state'] == 'disabled' and routes[0]['sent'] == 0:
+                saw_disabled = True
+                break
+        assert saw_disabled
+        try:
+            payload, _ = receiver.recvfrom(1500)
+            assert False, f'disabled OSC output unexpectedly sent: {payload[:64]!r}'
+        except socket.timeout:
+            pass
         out_engine.close()
 
 # Real, short, device-free end-to-end benchmark ingestion on the production sidecar.
