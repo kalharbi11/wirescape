@@ -458,7 +458,7 @@ void Session::open_at_driver_block(int64_t frames) {
     // OSC/MIDI workers can still hold the old graph while stream_ is null.
     // Join both producers before replacing it; resume OSC against whichever
     // graph is committed (new on success, restored on failed retry).
-    const bool had_osc = !osc_->states().empty();
+    const bool had_osc = !osc_->states().empty() || !osc_out_->states().empty();
     osc_out_->stop();
     osc_->stop();
     auto resume_osc = [this, had_osc](void *) noexcept {
