@@ -12,8 +12,9 @@ python3 tools/dev.py test
 
 The engine, Qt-free document loader and CLI build without Qt. FetchContent downloads
 nlohmann/json at its pinned commit; Internet access is required on first configure.
-QtCore document editing tests are optional. The Pi UI remains a stretch; the
-headless runner is the supported checkpoint path.
+QtCore document editing tests and the old Qt UI were removed in R3b.
+Electron/Studio is the application; headless native tests remain the device-off
+checkpoint. The owner still verifies actual Pi display, audio and MIDI separately.
 
 First verify an offline patch. Without `--confirm-audio`, `play` renders ten seconds
 to `build/play-offline.wav` and prints peak/RMS and block timing statistics:

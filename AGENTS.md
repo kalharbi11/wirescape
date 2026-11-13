@@ -8,10 +8,10 @@ Every agent has a name and owns the items labelled with it: **claim → work →
 3. `docs/PLAN.md` "Now" only (leads also read "Decisions"). Then the files the task lists under "Read first".
 4. Area guides only when you work there: UI `apps/studio/AGENTS.md`; modules the `new-module` skill or `docs/SDK_AUTHOR_GUIDE.md` + `native/sdk/examples/`; patch design `docs/PATCH_DESIGNER_GUIDE.md`.
 
-Never read `legacy/`, `docs/history/`, `docs/tasks/done/`, `build*/`, `build_reports/`, third-party sources or generated files unless the task says so. Grep; don't read whole files.
+Never read `docs/tasks/done/`, `build*/`, `build_reports/`, third-party sources or generated files unless the task says so. Grep; don't read whole files.
 
 ## Project in one paragraph
-Open-source modular synth. A C++17 realtime engine (ABI 2 modules: `native/engine2`, `native/modules2`) runs as a separate process, `wirescape-engine` (`native/sidecar`), talking over stdin/stdout JSON lines to an Electron app (`apps/desktop`) around a TypeScript web UI (`apps/studio`). Raspberry Pi 5 (ARM64) first, Windows next; module DSP stays portable to plugins and Daisy-class hardware. Contracts: `docs/specs/ABI2_PLAN.md`, `docs/specs/ENGINE_PROTOCOL.md`. Built today: `docs/ARCHITECTURE.md`. Qt (`native/ui/`) and ABI1 (`native/src`, `native/modules`) are being removed: don't touch or extend them.
+Open-source modular synth. A C++17 realtime engine (ABI 2 modules: `native/engine2`, `native/modules2`) runs as a separate process, `wirescape-engine` (`native/sidecar`), talking over stdin/stdout JSON lines to an Electron app (`apps/desktop`) around a TypeScript web UI (`apps/studio`). Raspberry Pi 5 (ARM64) first, Windows next; module DSP stays portable to plugins and Daisy-class hardware. Contracts: `docs/specs/ABI2_PLAN.md`, `docs/specs/ENGINE_PROTOCOL.md`. Built today: `docs/ARCHITECTURE.md`. ABI1 (`native/src`, `native/modules`) remains until R6: don't touch or extend it.
 
 ## Who's who
 | Role | Names (model family) | Does |
@@ -51,7 +51,7 @@ Open-source modular synth. A C++17 realtime engine (ABI 2 modules: `native/engin
 ABI header edit · a design choice outside the spec/plan that changes IDs, formats, ABI or realtime behaviour · removing a test or loosening a tolerance/threshold · a new dependency not named in the task or PLAN D12 · diff >50 % over the size budget · two failed attempts at the same failure. Keel rules on technical stops, Compass on plan stops.
 
 ## Safety rails
-- **Label-only paths** (need `allow-protected` from the owner, Compass or Keel): `AGENTS.md`, `CLAUDE.md`, `tools/ci/**`, `.github/workflows/guard.yml`, `.github/CODEOWNERS`, `native/include/wirescape/*.h`, `LICENSE*`, `LICENSES/**`, `docs/history/**`, `legacy/**`. **Protected** (the label, or a `Protected path named:` line with the path in backticks in the linked issue): `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`, `.github/**`. Who may write those lines: `docs/planner/LEADS.md`.
+- **Label-only paths** (need `allow-protected` from the owner, Compass or Keel): `AGENTS.md`, `CLAUDE.md`, `tools/ci/**`, `.github/workflows/guard.yml`, `.github/CODEOWNERS`, `native/include/wirescape/*.h`, `LICENSE*`, `LICENSES/**`. **Protected** (the label, or a `Protected path named:` line with the path in backticks in the linked issue): `docs/PLAN.md`, `docs/PLANNER_HANDOFF.md`, `docs/specs/**`, `.github/**`. Who may write those lines: `docs/planner/LEADS.md`.
 - Never weaken CI to pass, force-push, rewrite published history or commit to `main`.
 - Never commit generated/binary files, fonts, `user_data/`, `local_backups/`, `.tools/`, `node_modules/`, `dist/`, credentials or machine-specific absolute paths.
 
