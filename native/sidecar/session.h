@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
+#include "../control/osc_out_host.h"
 #include "../document/telemetry_taps.h"
 #include "../io/audio/engine_slot.h"
 #include "../io/audio/portaudio_service.h"
 #include "devices.h"
 #include "midi_host.h"
 #include "osc_host.h"
-#include "../control/osc_out_host.h"
 #include <array>
 #include <chrono>
 #include <optional>
