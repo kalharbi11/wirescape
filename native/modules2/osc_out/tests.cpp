@@ -58,10 +58,11 @@ struct Rig {
     }
 };
 
-static ws2_event note(uint32_t kind, int32_t key) {
+enum class NoteKind : uint8_t { On, Off, Choke };
+static ws2_event note(NoteKind kind, int32_t key) {
     ws2_event event{};
     event.struct_size = sizeof(event);
-    event.type = kind;
+    event.type = kind == NoteKind::On ? WS2_NOTE_ON : kind == NoteKind::Off ? WS2_NOTE_OFF : WS2_NOTE_CHOKE;
     event.port = 8;
     event.key = key;
     event.channel = 2;
@@ -190,23 +191,23 @@ static void note_ring_and_no_bus() {
     cfg.notes.enabled = 1;
     cfg.bus = &bus;
     Rig r(&cfg);
-    r.run({note(WS2_NOTE_ON, 60), note(WS2_NOTE_OFF, 60)}, 1);
+    r.run({note(NoteKind::On, 60), note(NoteKind::Off, 60)}, 1);
     REQUIRE(bus.note_head == 2 && bus.note_tail == 0 && bus.dropped == 0);
     REQUIRE(bus.notes[0].key == 60 && bus.notes[0].channel == 2 && bus.notes[0].velocity == .75f);
     REQUIRE(bus.notes[1].key == 60 && bus.notes[1].velocity == 0.f);
     std::vector<ws2_event> burst;
     burst.reserve(64);
-    for (int i = 0; i < 64; ++i) burst.push_back(note(WS2_NOTE_ON, i));
+    for (int i = 0; i < 64; ++i) burst.push_back(note(NoteKind::On, i));
     r.run(burst, 1);
     REQUIRE(bus.note_head == 64 && bus.dropped == 2); // head 2 + 62 slots available
     bus.note_tail.store(64, std::memory_order_release);
-    r.run({note(WS2_NOTE_CHOKE, 70)}, 1);
+    r.run({note(NoteKind::Choke, 70)}, 1);
     REQUIRE(bus.note_head == 65 && bus.dropped == 2 && bus.notes[0].velocity == 0.f);
 
     cfg.bus = nullptr;
     Rig detached(&cfg);
     detached.samples[0][0][0] = .2f;
-    detached.run({note(WS2_NOTE_ON, 60)}, 1); // private bus, no sender or device
+    detached.run({note(NoteKind::On, 60)}, 1); // private bus, no sender or device
     Rig defaults;
     defaults.run({}, 1); // no binary config also initializes defaults
 }
