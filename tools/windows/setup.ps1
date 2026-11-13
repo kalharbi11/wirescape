@@ -181,7 +181,7 @@ if ($Ref -notmatch '^[0-9a-fA-F]{40}$') {
     throw 'Specify -Ref with the full 40-character commit SHA of the version (docs/INSTALL.md).'
 }
 # Isolate process-local runtime overrides; no global PATH or installer mutations.
-foreach ($name in @('WIRESCAPE_PORTAUDIO', 'ELECTRON_RUN_AS_NODE', 'WIRESCAPE_TEST_STUB')) {
+foreach ($name in @('CMAKE_PREFIX_PATH', 'WIRESCAPE_PORTAUDIO', 'ELECTRON_RUN_AS_NODE', 'WIRESCAPE_TEST_STUB')) {
     Remove-Item "Env:$name" -ErrorAction SilentlyContinue
 }
 $env:Path = (($env:Path -split ';') | Where-Object {
