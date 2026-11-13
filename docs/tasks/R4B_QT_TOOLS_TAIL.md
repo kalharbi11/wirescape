@@ -16,8 +16,8 @@ tier: T1
 size: <= 600 changed lines, <= 10 files
 must_pass:
   - python -m unittest discover -s tools/foundation/tests
-  - git grep -nE "WIRESCAPE_BUILD_UI|QT_QPA_PLATFORM|Qt6_DIR|WIRESCAPE_QT_DIR" -- tools/pi_ui_probe.py tools/pi tools/windows tools/cloud ; test $? -eq 1
-  - git diff --check
+  - bash -c 'git grep -nE "WIRESCAPE_BUILD_UI|QT_QPA_PLATFORM|Qt6_DIR|WIRESCAPE_QT_DIR" -- tools/pi_ui_probe.py tools/pi tools/windows tools/cloud; test $? -eq 1'
+  - bash -c 'git diff --check origin/main...HEAD'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [non-Qt test removed, new dependency, required check renamed, ABI or protocol change]
 ```

@@ -13,7 +13,7 @@ tier: T1
 size: <= 400 changed lines, <= 7 files
 must_pass:
   - python -m unittest discover -s tools/foundation/tests
-  - git diff --check
+  - bash -c 'git diff --check origin/main...HEAD'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [new dependency, non-loopback default, patch-library ID change]
 ```
