@@ -38,7 +38,6 @@ class PiPreflightTests(unittest.TestCase):
             patch.object(preflight.shutil, "disk_usage", return_value=shutil._ntuple_diskusage(10**10, 10**9, 9*10**9)),
             patch.object(preflight.os, "access", return_value=True),
             patch.object(preflight, "git", side_effect=lambda root, *args: (0, SHA) if args[0] == "rev-parse" else (0, "")),
-            patch.dict(os.environ, {k: "" for k in ("CMAKE_PREFIX_PATH", "Qt6_DIR", "QT_PLUGIN_PATH", "QML2_IMPORT_PATH", "WIRESCAPE_QT_DIR")}),
         ]
         for mock in mocks:
             mock.start()
@@ -74,7 +73,7 @@ class PiPreflightTests(unittest.TestCase):
     def test_stale_arch_and_checkout_cache_refused_without_removal(self):
         (self.root / "build").mkdir()
         cache = self.root / "build/CMakeCache.txt"
-        cache.write_text("CMAKE_HOME_DIRECTORY:INTERNAL=/elsewhere/native\nCMAKE_SYSTEM_PROCESSOR:STRING=x86_64\nQt6_DIR:PATH=/old/qt\n")
+        cache.write_text("CMAKE_HOME_DIRECTORY:INTERNAL=/elsewhere/native\nCMAKE_SYSTEM_PROCESSOR:STRING=x86_64\n")
         self.assertIn("cache:build/CMakeCache.txt", self.failures())
         self.assertTrue(cache.is_file())
 
@@ -82,40 +81,22 @@ class PiPreflightTests(unittest.TestCase):
         (self.root / "build/native").mkdir(parents=True, exist_ok=True)
         cache = self.root / "build/native/CMakeCache.txt"
         cache.write_text("CMAKE_HOME_DIRECTORY:INTERNAL=" + str((self.root / "native").resolve()) +
-                         "\nCMAKE_SYSTEM_PROCESSOR:STRING=aarch64\nCMAKE_GENERATOR:INTERNAL=Ninja"
-                         "\nWIRESCAPE_BUILD_UI:BOOL=OFF\nQt6_DIR:PATH=Qt6_DIR-NOTFOUND\n")
+                         "\nCMAKE_SYSTEM_PROCESSOR:STRING=aarch64\nCMAKE_GENERATOR:INTERNAL=Ninja\n")
         return cache
 
-    def test_own_headless_ninja_cache_passes_and_notfound_is_not_qt(self):
+    def test_own_native_ninja_cache_passes_without_ui_options(self):
         cache = self.own_cache()
         before = cache.read_bytes()
         self.assertNotIn("cache:build/native/CMakeCache.txt", self.failures())
         self.assertEqual(cache.read_bytes(), before)
 
-    def test_own_headless_system_qtcore_cache_and_symlink_escape(self):
-        cache = self.own_cache()
-        qt = (self.root / 'usr/lib/aarch64-linux-gnu/cmake/Qt6').resolve()
-        qt.mkdir(parents=True)
-        config = qt / 'Qt6Config.cmake'
-        config.write_text('# discovered QtCore package')
-        cache.write_text(cache.read_text().replace('Qt6_DIR-NOTFOUND', str(qt)))
-        with patch.object(preflight, 'SYSTEM_QT_DIRS', (qt,)):
-            self.assertNotIn('cache:build/native/CMakeCache.txt', self.failures())
-            if os.name != 'nt':
-                foreign = self.root / 'foreign-Qt6Config.cmake'
-                foreign.write_text('# foreign SDK')
-                config.unlink()
-                config.symlink_to(foreign)
-                self.assertIn('cache:build/native/CMakeCache.txt', self.failures())
-
-    def test_wrong_generator_or_ui_enabled_cache_is_rejected(self):
+    def test_wrong_generator_architecture_or_checkout_is_rejected(self):
         cache = self.own_cache()
         original = cache.read_text()
         cases = (
-            ("Ninja", "Unix Makefiles"), ("WIRESCAPE_BUILD_UI:BOOL=OFF", "WIRESCAPE_BUILD_UI:BOOL=ON"),
-            ("Qt6_DIR-NOTFOUND", "/old/qt"), ("aarch64", "x86_64"),
-            ("Qt6_DIR:PATH=Qt6_DIR-NOTFOUND", "CMAKE_PREFIX_PATH:STRING=token=private-word"),
-            ("WIRESCAPE_BUILD_UI:BOOL=OFF", ""),
+            ("Ninja", "Unix Makefiles"),
+            ("aarch64", "x86_64"),
+            ("CMAKE_GENERATOR:INTERNAL=Ninja", "CMAKE_GENERATOR:INTERNAL=token=private-word"),
             (str((self.root / "native").resolve()), "/other/checkout/native"),
         )
         for old, new in cases:
@@ -150,11 +131,6 @@ class PiPreflightTests(unittest.TestCase):
         self.assertEqual(snapshot(), before)
         self.assertFalse((tools / "foundation/__pycache__").exists())
         self.assertFalse((self.root / "build_reports").exists())
-
-    def test_inherited_qt_state_is_rejected_without_modifying_env(self):
-        with patch.dict(os.environ, {"QT_PLUGIN_PATH": "/old/qt"}):
-            self.assertIn("no inherited Qt overrides", self.failures())
-            self.assertEqual(os.environ["QT_PLUGIN_PATH"], "/old/qt")
 
     @unittest.skipIf(os.name == "nt", "Pi source-build stage runner uses POSIX process groups")
     def test_native_and_npm_failures_keep_codes_and_redact_logs(self):
