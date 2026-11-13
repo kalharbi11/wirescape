@@ -197,5 +197,12 @@ class GuardTests(unittest.TestCase):
         path.write_text(content, encoding='utf-8')
 
 
+class GuardWorkflowTests(unittest.TestCase):
+    def test_issue_named_paths_only_from_trusted_issue_authors(self):
+        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/guard.yml').read_text(encoding='utf-8')
+        self.assertIn('IN("OWNER", "MEMBER", "COLLABORATOR")) then (.body // "") else "" end', workflow)
+        self.assertNotIn("--jq '.body // \"\"'", workflow)
+
+
 if __name__ == '__main__':
     unittest.main()

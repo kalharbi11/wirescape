@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
+import io
 import sys
 import unittest
+import urllib.error
+from unittest import mock
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -119,6 +122,130 @@ class BoardTests(unittest.TestCase):
         ]
         self.assertEqual(board.stale_status(items),
                          [(1, 'status/in-progress'), (3, 'status/ready-to-merge'), (3, 'status/blocked')])
+
+    def test_closes_quoted_in_code_is_not_a_directive(self):
+        body = 'Use `Closes #5` in the PR.\n```\nCloses #6\n```\nCloses #7'
+        pr = {'number': 20, 'body': body, 'merged_at': '2026-11-12T09:00:00Z', 'base': {'ref': 'main'},
+              'merge_commit_sha': 'abc1234'}
+        self.assertEqual(board.pending_closes([pr], NOW), [(7, 20, 'abc1234')])
+
+    def _fake_api(self, calls, label_error=None):
+        closed_pr = {'number': 30, 'state': 'closed', 'pull_request': {}, 'labels': [{'name': 'status/review'}]}
+
+        def api(path, token, method='GET', data=None):
+            calls.append((method, path))
+            if path == 'commits/main':
+                return {'sha': 'f' * 40}
+            if path.startswith('actions/workflows/main_verify.yml/runs'):
+                return {'total_count': 0}
+            if path.startswith('pulls?'):
+                return []
+            if path.startswith('issues?state=closed'):
+                return [closed_pr]
+            if method == 'DELETE' and label_error:
+                raise urllib.error.HTTPError(path, label_error, 'denied', {}, io.BytesIO())
+            return {}
+        return api
+
+    def test_followups_verify_main_first_and_label_403_stays_visible(self):
+        calls = []
+        with mock.patch.object(board, '_api', self._fake_api(calls, label_error=403)), \
+                mock.patch.object(sys, 'stderr', io.StringIO()) as err:
+            self.assertEqual(board.followups('t', NOW), 1)
+        methods = [c for c in calls if c[0] != 'GET']
+        self.assertEqual(methods[0], ('POST', 'actions/workflows/main_verify.yml/dispatches'))
+        self.assertIn(('DELETE', 'issues/30/labels/status%2Freview'), methods)
+        self.assertIn('_clear_closed_status failed', err.getvalue())
+
+    def test_followups_label_404_is_idempotent(self):
+        calls = []
+        with mock.patch.object(board, '_api', self._fake_api(calls, label_error=404)):
+            self.assertEqual(board.followups('t', NOW), 0)
+
+    def _watch_api(self, polls, calls):
+        """Open PR #40 has auto-merge armed for `polls` reads, then GitHub merges it."""
+        seen = {'n': 0}
+
+        def api(path, token, method='GET', data=None):
+            calls.append((method, path))
+            if path.startswith('pulls?state=open'):
+                seen['n'] += 1
+                return [{'number': 40, 'auto_merge': {'merge_method': 'squash'}}] if seen['n'] <= polls else []
+            if path == 'pulls/40':
+                return {'merged': False}
+            if path == 'commits/main':
+                return {'sha': 'a' * 40 if seen['n'] <= polls else 'b' * 40}
+            if path.startswith('actions/workflows/main_verify.yml/runs'):
+                return {'total_count': 0}
+            return {}
+        return api
+
+    def test_watch_verifies_main_after_a_merge_that_lands_after_the_board_ran(self):
+        # #702 High: the approval comment's Board run saw the old main; the gate's auto-merge lands
+        # afterwards and starts no workflow. The watcher (started by the gate run) must catch it.
+        calls, sleeps = [], []
+        with mock.patch.object(board, '_api', self._watch_api(2, calls)), \
+                mock.patch.object(board, '_all', lambda path, token: board._api(path, token)):
+            self.assertEqual(board.watch_merges('t', 12, sleep=sleeps.append, clock=lambda: 0), 0)
+        self.assertEqual(len(sleeps), 2)
+        self.assertEqual(calls[-1], ('POST', 'actions/workflows/main_verify.yml/dispatches'))
+        reads = [i for i, c in enumerate(calls) if c[1] == 'commits/main']
+        self.assertEqual(len(reads), 2)  # once on start, once after the merge (against the new main)
+        self.assertIn(('GET', 'pulls/40'), calls[:reads[1]])
+
+    def test_watch_without_armed_prs_verifies_main_once(self):
+        calls, sleeps = [], []
+        with mock.patch.object(board, '_api', self._watch_api(0, calls)), \
+                mock.patch.object(board, '_all', lambda path, token: board._api(path, token)):
+            self.assertEqual(board.watch_merges('t', 12, sleep=sleeps.append, clock=lambda: 0), 0)
+        self.assertEqual(sleeps, [])
+        self.assertIn(('POST', 'actions/workflows/main_verify.yml/dispatches'), calls)
+
+    def test_watch_is_bounded_when_auto_merge_never_lands(self):
+        calls, sleeps, now = [], [], [0.0]
+        def clock():
+            return now[0]
+        def sleep(s):
+            sleeps.append(s)
+            now[0] += s
+        with mock.patch.object(board, '_api', self._watch_api(10 ** 6, calls)), \
+                mock.patch.object(board, '_all', lambda path, token: board._api(path, token)):
+            self.assertEqual(board.watch_merges('t', 1, sleep=sleep, clock=clock), 0)
+        self.assertLessEqual(len(sleeps), 4)
+        self.assertIn(('POST', 'actions/workflows/main_verify.yml/dispatches'), calls)
+
+    def test_watch_sees_a_merge_while_another_pr_stays_armed(self):
+        # gpt-builder1 pre-review: #40 merges and leaves the open list while #41 stays armed.
+        calls, sleeps, state = [], [], {'polls': 0}
+        def api(path, token, method='GET', body=None):
+            calls.append((method, path))
+            if path.startswith('pulls?state=open'):
+                state['polls'] += 1
+                prs = [{'number': 41, 'auto_merge': {'merge_method': 'squash'}}]
+                return ([{'number': 40, 'auto_merge': {'merge_method': 'squash'}}] if state['polls'] == 1 else []) + prs
+            if path == 'pulls/40':
+                return {'merged': True}
+            if path == 'commits/main':
+                return {'sha': ('a' if state['polls'] == 1 else 'b') * 40}
+            if path.startswith('actions/workflows/main_verify.yml/runs'):
+                return {'total_count': 1 if path.endswith('a' * 40 + '&per_page=1') else 0}
+            return {}
+        now = [0.0]
+        def sleep(s):
+            sleeps.append(s)
+            now[0] += s
+        with mock.patch.object(board, '_api', api), \
+                mock.patch.object(board, '_all', lambda path, token: board._api(path, token)):
+            self.assertEqual(board.watch_merges('t', 1, sleep=sleep, clock=lambda: now[0]), 0)
+        dispatch = calls.index(('POST', 'actions/workflows/main_verify.yml/dispatches'))
+        self.assertEqual(sum(1 for c in calls[:dispatch] if c[1].startswith('pulls?state=open')), 2)
+        self.assertNotIn(('GET', 'pulls/41'), calls)
+
+    def test_post_merge_watch_runs_after_ci_guard_and_gate(self):
+        workflow = (Path(__file__).resolve().parents[3] / '.github/workflows/post_merge.yml').read_text(encoding='utf-8')
+        self.assertIn('workflows: [CI, Guard, Merge gate]', workflow)
+        self.assertIn("conclusion != 'skipped'", workflow)
+        self.assertIn('--watch-merges', workflow)
 
 if __name__ == '__main__':
     unittest.main()
