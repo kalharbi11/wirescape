@@ -344,7 +344,7 @@ signal values, gate crossing counters, and a 64-event SPSC note ring to a
 host-owned lock-free `osc::OutBus`; no render callback allocates, locks,
 formats OSC or touches a socket. The sidecar's worker polls these buses every
 millisecond, applies per-row rate limits and CV deadbands with trailing
-updates, preserves gate edges and note order, and writes one OSC 1.0 message
+updates, sends ordered gate edges within a four-edge-per-row and 64-datagram-per-module poll budget (coalescing excess crossings), preserves note order, and writes one OSC 1.0 message
 per datagram to a nonblocking socket bound to and sending solely over
 `127.0.0.1`. The bus survives while its graph is active; the worker is
 joined before live replan, graph retirement, stream replacement or shutdown.
