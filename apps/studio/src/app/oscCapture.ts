@@ -84,7 +84,7 @@ export function readOscRaw(doc: PatchDoc, t: Telemetry | null, source: number,
     for (const entry of t.monitor?.[id] ?? []) {
       const next = entry.args?.[row.argument];
       if (entry.kind !== 'osc' || !entry.address || !Number.isFinite(entry.t) ||
-          !Number.isFinite(next) || !matchOscAddress(row.pattern, entry.address)) continue;
+          (typeof next !== 'number' || !Number.isFinite(next)) || !matchOscAddress(row.pattern, entry.address)) continue;
       if (entry.t >= newest) { newest = entry.t; value = next; }
     }
   }
