@@ -8,7 +8,7 @@ The isolated foundation is implemented and functional offline acceptance passes.
 
 ## Read order and preservation
 
-Read [spec](../specs/ABI2_SPEC.md), [SDK author guide](../SDK_AUTHOR_GUIDE.md), [communication log](../history/CLAUDE_CODEX_COMMUNICATION.md), then module2.h, SDK, engine2 scheduler/ingress, allocator and test drivers. The adopted [ABI2 plan](../specs/ABI2_PLAN.md) and [communication plan](../specs/COMMUNICATION_MODULES_PLAN.md) remain the parent direction; the pasted foundation-slice instruction sets the hard stop.
+Read [spec](../specs/ABI2_SPEC.md), [SDK author guide](../SDK_AUTHOR_GUIDE.md), [communication log (archived)](https://github.com/kalharbi11/wirescape/blob/e6e927c4d52cb65aa0ca7948bba02acaa1ddf119/docs/history/CLAUDE_CODEX_COMMUNICATION.md), then module2.h, SDK, engine2 scheduler/ingress, allocator and test drivers. The adopted [ABI2 plan](../specs/ABI2_PLAN.md) and [communication plan](../specs/COMMUNICATION_MODULES_PLAN.md) remain the parent direction; the pasted foundation-slice instruction sets the hard stop.
 
 All **92 protected source hashes match** [baseline manifest](ABI2_BASELINE_MANIFEST.json): module.h, engine.h, engine.cpp, native/modules/** and native/ui/**. No user_data, Surge binaries or old patch format were changed. Baseline tag and private backups remain intact. The only preexisting build-source edit is three root native/CMakeLists.txt lines adding the isolated engine2 subdirectory; existing targets/logic are unchanged. START_HERE's two-line Claude edit and Claude's two supplied plans were adopted, not replaced.
 
