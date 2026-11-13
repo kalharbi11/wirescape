@@ -2,6 +2,7 @@
 #pragma once
 #include "../modules2/osc_out/config.h"
 #include <array>
+#include <chrono>
 #include <atomic>
 #include <cstdint>
 #include <map>
