@@ -31,6 +31,7 @@ class PiPreflightTests(unittest.TestCase):
                           for name in ("git", "c++", "cmake", "ninja", "node", "npm", "python")}
         mocks = [
             patch.object(preflight, "versions", return_value=self.tool_info),
+            patch.dict(os.environ, {"CMAKE_PREFIX_PATH": ""}),
             patch.object(preflight, "discover_toolchain", return_value={"generator": "Ninja"}),
             patch.object(preflight.platform, "system", return_value="Linux"),
             patch.object(preflight.platform, "machine", return_value="aarch64"),
@@ -89,6 +90,22 @@ class PiPreflightTests(unittest.TestCase):
         before = cache.read_bytes()
         self.assertNotIn("cache:build/native/CMakeCache.txt", self.failures())
         self.assertEqual(cache.read_bytes(), before)
+
+    def test_inherited_generic_cmake_prefix_is_refused_without_mutation(self):
+        with patch.dict(os.environ, {"CMAKE_PREFIX_PATH": "/owner/local-packages"}):
+            self.assertIn("no inherited CMake prefix", self.failures())
+            self.assertEqual(os.environ["CMAKE_PREFIX_PATH"], "/owner/local-packages")
+
+    def test_cached_generic_cmake_prefix_is_refused_without_removal(self):
+        cache = self.own_cache()
+        cache.write_text(cache.read_text() + "CMAKE_PREFIX_PATH:PATH=/owner/private-prefix\n")
+        before = cache.read_bytes()
+        self.assertIn("cache:build/native/CMakeCache.txt", self.failures())
+        self.assertEqual(cache.read_bytes(), before)
+        reason = next(row[2] for row in preflight.inspect(self.root)[0]
+                      if row[0] == "cache:build/native/CMakeCache.txt")
+        self.assertIn("Cache mismatch (prefix)", reason)
+        self.assertNotIn("private-prefix", reason)
 
     def test_wrong_generator_architecture_or_checkout_is_rejected(self):
         cache = self.own_cache()
