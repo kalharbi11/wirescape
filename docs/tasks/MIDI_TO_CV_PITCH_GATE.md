@@ -14,8 +14,8 @@ size: <= 350 changed lines, <= 7 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
-  - cd apps/studio && npm ci && npm test
-  - git diff --check
+  - bash -c 'cd apps/studio && npm ci && npm test'
+  - bash -c 'git diff --check origin/main...HEAD'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [module/port/parameter ID change, default-value change without Keel, ABI header edit]
 ```
