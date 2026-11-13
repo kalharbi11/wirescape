@@ -156,7 +156,7 @@ void OutHost::loop() noexcept {
                     // Unsigned deltas remain correct across a 32-bit counter wrap.
                     const uint64_t edges = uint64_t(uint32_t(rises - cursor.rises)) +
                                            uint32_t(falls - cursor.falls);
-                    const bool high = row.value.load(std::memory_order_relaxed) >= 0.5f;
+                    const bool high = row.value.load(std::memory_order_relaxed) > 0.5f;
                     Argument arg{};
                     arg.type = 'f';
                     if (!cursor.initialized && !edges && budget) {
