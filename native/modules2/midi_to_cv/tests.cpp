@@ -120,8 +120,7 @@ static void sequential_pitch_gate_regression(bool via_notes) {
     for (uint32_t index = 0; index < 5; ++index) {
         const uint32_t lane = index % 4;
         const int key = keys[index];
-        REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x90, uint8_t(key), 110),
-                          e.meter().frame) == WS2_OK);
+        REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x90, uint8_t(key), 110), e.meter().frame) == WS2_OK);
         {
             allocation_watch::Scope scope;
             REQUIRE(e.render(out, 1, 128) == WS2_OK);
@@ -139,11 +138,9 @@ static void sequential_pitch_gate_regression(bool via_notes) {
         for (uint32_t frame = 2; frame < 126; ++frame) {
             const double center = e.output_sample(3, 0, lane, frame);
             if (std::abs(center) < .8) continue;
-            const double adjacent = e.output_sample(3, 0, lane, frame - 1) +
-                                    e.output_sample(3, 0, lane, frame + 1);
+            const double adjacent = e.output_sample(3, 0, lane, frame - 1) + e.output_sample(3, 0, lane, frame + 1);
             const double cosine = std::clamp(adjacent / (2 * center), -1., 1.);
-            const double hz = std::acos(cosine) * config.sample_rate /
-                              6.2831853071795864769;
+            const double hz = std::acos(cosine) * config.sample_rate / 6.2831853071795864769;
             const double target = 261.6255653005986 * std::pow(2., double(key - 60) / 12.);
             REQUIRE(std::abs(hz - target) < 5.);
             measured = true;
@@ -154,8 +151,7 @@ static void sequential_pitch_gate_regression(bool via_notes) {
         REQUIRE(envelope > 0.01f);
         REQUIRE(e.output_sample(5, 0, lane, 127) != 0.f);
 
-        REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x80, uint8_t(key), 0),
-                          e.meter().frame) == WS2_OK);
+        REQUIRE(e.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x80, uint8_t(key), 0), e.meter().frame) == WS2_OK);
         REQUIRE(e.render(out, 1, 128) == WS2_OK);
         REQUIRE(e.output_sample(cv, 1, lane, 127) == 0.f);
         REQUIRE(e.output_sample(4, 0, lane, 127) < envelope);
