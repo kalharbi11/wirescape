@@ -6,6 +6,7 @@
 #include "devices.h"
 #include "midi_host.h"
 #include "osc_host.h"
+#include "../control/osc_out_host.h"
 #include <array>
 #include <chrono>
 #include <optional>
@@ -71,6 +72,7 @@ class Session {
     std::unique_ptr<monitor::Capture> monitor_;
     std::unique_ptr<midi::Host> midi_;
     std::unique_ptr<osc::Host> osc_;
+    std::unique_ptr<osc::OutHost> osc_out_;
     Json patch_, preferences_ = Json::object(), audio_devices_, midi_devices_;
     Json unavailable_audio_drivers_ = Json::array(); // optional, control-thread ASIO diagnostics
     std::string token_, device_, audio_state_ = "no-device", audio_reason_, audio_error_;
