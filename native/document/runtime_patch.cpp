@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "runtime_patch.h"
 #include "runtime_module_config.h"
-#include "../modules2/osc_out/config.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -27,7 +26,7 @@ std::vector<uint8_t> state_bytes(const Json&s){
  }return out;
 }
 }
-AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws_engine_config&config,std::string&error,const std::vector<engine2::Tap>*telemetry_taps,const std::map<uint32_t,osc::OutBus*>*osc_out_buses){
+AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws_engine_config&config,std::string&error,const std::vector<engine2::Tap>*telemetry_taps){
  try{
   need(bytes.size()<=RuntimePatchLimit,"Patch exceeds 2 MiB limit");std::vector<std::set<std::string>> keys;
   auto callback=[&](int depth,Json::parse_event_t event,Json&value){need(depth<=64,"JSON nesting exceeds 64");
@@ -61,15 +60,6 @@ AppEngine* load_runtime_patch(const std::string&bytes,AppEngine*catalog,const ws
    if(version==2){need(m.at("version").is_number_integer()&&m.at("version").get<int64_t>()>0,"Invalid module version");if(m.contains("config"))need(m["config"].is_object(),"Module config must be an object");}
    const auto authored_config = version == 2 ? m.value("config", Json::object()) : Json::object();
    auto module_config = runtime_module_config(type, authored_config, node, &ignored_osc_keys);
-   if (type == "osc.out" && osc_out_buses) {
-       const auto it = osc_out_buses->find(node);
-       need(it != osc_out_buses->end() && module_config.size() == sizeof(osc::OutConfiguration),
-            "OSC output bus unavailable");
-       osc::OutConfiguration decoded{};
-       std::memcpy(&decoded, module_config.data(), sizeof(decoded));
-       decoded.bus = it->second; // control-time injection, never part of authored JSON
-       std::memcpy(module_config.data(), &decoded, sizeof(decoded));
-   }
    need(app_engine_add_node_config(engine.get(),node,type.c_str(),module_config)==WS_OK,"Module unavailable or prepare failed");
    nodes[node] = descriptor;
   }
