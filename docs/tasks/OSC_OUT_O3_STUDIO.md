@@ -12,8 +12,8 @@ Read first: `docs/specs/OSC_OUT.md` §1, §2, §5, `apps/studio/AGENTS.md`, the 
 tier: T1
 size: <= 600 changed lines, <= 8 files
 must_pass:
-  - cd apps/studio && npm ci && npm test
-  - git diff --check
+  - bash -c 'cd apps/studio && npm ci && npm test'
+  - bash -c 'git diff --check origin/main...HEAD'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [config shape differs from the spec, LAN/host field added, new dependency]
 ```

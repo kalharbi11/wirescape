@@ -119,8 +119,7 @@ void OutHost::loop() noexcept {
 #endif
         return;
     }
-    auto send = [&](Route &route, uint32_t &budget, const char *path, uint32_t count,
-                    const Argument *args) -> bool {
+    auto send = [&](Route &route, uint32_t &budget, const char *path, uint32_t count, const Argument *args) -> bool {
         if (!budget) return false;
         --budget;
         Message message{};
@@ -129,8 +128,7 @@ void OutHost::loop() noexcept {
         for (uint32_t a = 0; a < count; ++a) message.arguments[a] = args[a];
         const bool accepted = send_override_ ? send_override_(message, uint16_t(route.config.port))
                                              : send_message(sock, message, uint16_t(route.config.port));
-        if (accepted)
-            route.sent.fetch_add(1, std::memory_order_relaxed);
+        if (accepted) route.sent.fetch_add(1, std::memory_order_relaxed);
         else {
             route.dropped.fetch_add(1, std::memory_order_relaxed);
             route.error.store(1, std::memory_order_relaxed);
@@ -154,9 +152,8 @@ void OutHost::loop() noexcept {
                     const auto rises = row.rises.load(std::memory_order_relaxed);
                     const auto falls = row.falls.load(std::memory_order_relaxed);
                     // Unsigned deltas remain correct across a 32-bit counter wrap.
-                    const uint64_t edges = uint64_t(uint32_t(rises - cursor.rises)) +
-                                           uint32_t(falls - cursor.falls);
-                    const bool high = row.value.load(std::memory_order_relaxed) > 0.5f;
+                    const uint64_t edges = uint64_t(uint32_t(rises - cursor.rises)) + uint32_t(falls - cursor.falls);
+                    const bool high = row.value.load(std::memory_order_relaxed) >= 0.5f;
                     Argument arg{};
                     arg.type = 'f';
                     if (!cursor.initialized && !edges && budget) {
@@ -195,8 +192,8 @@ void OutHost::loop() noexcept {
                 } else {
                     const float value = row.value.load(std::memory_order_relaxed);
                     const auto interval = std::chrono::duration<double>(1.0 / route.config.rate_hz);
-                    if (budget && (!cursor.initialized || cursor.retry ||
-                                   std::abs(value - cursor.previous) > cfg.deadband) &&
+                    if (budget &&
+                        (!cursor.initialized || cursor.retry || std::abs(value - cursor.previous) > cfg.deadband) &&
                         (!cursor.initialized || now - cursor.last_send >= interval)) {
                         Argument arg{};
                         arg.type = 'f';

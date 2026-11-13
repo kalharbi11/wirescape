@@ -9,11 +9,11 @@ Read first: `docs/specs/OSC_OUT.md` §1, §2, §4, §6, then `native/modules2/os
 
 ```acceptance
 tier: T2
-size: <= 650 changed lines, <= 12 files
+size: <= 650 changed lines, <= 13 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
-  - git diff --check
+  - bash -c 'git diff --check origin/main...HEAD'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [ID or config-shape change from the spec, ABI header edit, allocation or lock in process, new dependency]
 ```

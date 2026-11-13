@@ -12,7 +12,7 @@ struct Rig {
     ws2_host host{sizeof(host), &arena, MidiArena::alloc};
     const ws2_descriptor *desc = ws::Module<osc::OscOut>::descriptor();
     void *state = nullptr;
-    float samples[8][2][256]{};
+    float samples[8][2][1024]{};
     const float *channel_ptrs[8][2]{};
     ws2_signal inputs[9]{};
     ws2_event_list event_inputs[9]{};
@@ -21,8 +21,13 @@ struct Rig {
     explicit Rig(const osc::OutConfiguration *config = nullptr) {
         state = desc->create(&host);
         REQUIRE(state);
-        ws2_config setup{sizeof(setup), 48000., 256, 16, 1,
-                         reinterpret_cast<const uint8_t *>(config), config ? uint32_t(sizeof(*config)) : 0u};
+        ws2_config setup{sizeof(setup),
+                         48000.,
+                         1024,
+                         16,
+                         1,
+                         reinterpret_cast<const uint8_t *>(config),
+                         config ? uint32_t(sizeof(*config)) : 0u};
         REQUIRE(desc->prepare(state, &setup, &host) == WS2_OK);
         for (uint32_t i = 0; i < 8; ++i) {
             channel_ptrs[i][0] = samples[i][0];
@@ -53,20 +58,27 @@ struct Rig {
     }
 };
 
-static ws2_event note(uint32_t kind, int32_t key, float velocity = .75f, int32_t channel = 2) {
+enum class NoteKind : uint8_t { On, Off, Choke };
+static ws2_event note(NoteKind kind, int32_t key) {
     ws2_event event{};
     event.struct_size = sizeof(event);
-    event.type = kind;
+    event.type = kind == NoteKind::On ? WS2_NOTE_ON : kind == NoteKind::Off ? WS2_NOTE_OFF : WS2_NOTE_CHOKE;
     event.port = 8;
     event.key = key;
-    event.channel = channel;
+    event.channel = 2;
     event.note_id = key;
     event.source_id = 1;
-    event.value = velocity;
+    event.value = .75f;
     return event;
 }
 static void configuration_checks() {
     osc::OutConfiguration config;
+    // The public type itself must be safe for the sender, even without a parser call.
+    REQUIRE(config.version == 1 && config.port == 9001 && config.rate_hz == 100);
+    REQUIRE(config.bus == nullptr && config.notes.enabled == 0);
+    REQUIRE(std::strcmp(config.rows[0].address, "/ws/row/1") == 0);
+    REQUIRE(std::strcmp(config.rows[7].address, "/ws/row/8") == 0);
+    REQUIRE(std::strcmp(config.notes.address, "/ws/note") == 0);
     REQUIRE(osc::out_configuration(nullptr, 0, config));
     REQUIRE(config.port == 9001 && config.rate_hz == 100 && config.notes.enabled == 0);
     REQUIRE(std::strcmp(config.rows[0].address, "/ws/row/1") == 0);
@@ -116,8 +128,8 @@ static void rows_and_gate_edges() {
     osc::OutBus bus;
     osc::OutConfiguration cfg;
     REQUIRE(osc::out_configuration(nullptr, 0, cfg));
-    cfg.rows[0].kind = 1;     // gate, with two short pulses within one callback
-    cfg.rows[2].enabled = 0;  // disabled rows do not publish
+    cfg.rows[0].kind = 1;    // gate, with two short pulses within one callback
+    cfg.rows[2].enabled = 0; // disabled rows do not publish
     cfg.bus = &bus;
     Rig r(&cfg);
     r.samples[0][0][1] = 1.f;
@@ -143,6 +155,35 @@ static void rows_and_gate_edges() {
     REQUIRE(bus.rows[0].blocks == 2); // never zero consumer-visible counters on reset
 }
 
+static void gate_threshold_matches_sender() {
+    osc::OutBus bus;
+    osc::OutConfiguration cfg;
+    cfg.rows[0].kind = 1;
+    cfg.bus = &bus;
+    Rig r(&cfg);
+    // Sender §4 uses value >= 0.5; DSP must count that same threshold.
+    r.samples[0][0][0] = .5f;
+    r.samples[0][0][1] = .5f;
+    r.samples[0][0][2] = .499f;
+    r.run({}, 3);
+    REQUIRE(bus.rows[0].rises == 1 && bus.rows[0].falls == 1);
+    REQUIRE(bus.rows[0].blocks == 1 && bus.rows[0].value == .499f);
+}
+
+static void thousand_gate_crossings_in_one_block() {
+    osc::OutBus bus;
+    osc::OutConfiguration cfg;
+    cfg.rows[0].kind = 1;
+    cfg.bus = &bus;
+    Rig r(&cfg);
+    // A render block may contain far more crossings than the sender's per-poll budget.
+    for (uint32_t i = 0; i < 1000; ++i) r.samples[0][0][i] = i % 2 == 0 ? 1.f : 0.f;
+    r.run({}, 1001);
+    REQUIRE(bus.rows[0].rises == 500);
+    REQUIRE(bus.rows[0].falls == 500);
+    REQUIRE(bus.rows[0].blocks == 1 && bus.rows[0].value == 0.f);
+}
+
 static void note_ring_and_no_bus() {
     osc::OutBus bus;
     osc::OutConfiguration cfg;
@@ -150,27 +191,30 @@ static void note_ring_and_no_bus() {
     cfg.notes.enabled = 1;
     cfg.bus = &bus;
     Rig r(&cfg);
-    r.run({note(WS2_NOTE_ON, 60), note(WS2_NOTE_OFF, 60)}, 1);
+    r.run({note(NoteKind::On, 60), note(NoteKind::Off, 60)}, 1);
     REQUIRE(bus.note_head == 2 && bus.note_tail == 0 && bus.dropped == 0);
     REQUIRE(bus.notes[0].key == 60 && bus.notes[0].channel == 2 && bus.notes[0].velocity == .75f);
     REQUIRE(bus.notes[1].key == 60 && bus.notes[1].velocity == 0.f);
     std::vector<ws2_event> burst;
-    for (int i = 0; i < 64; ++i) burst.push_back(note(WS2_NOTE_ON, i));
+    burst.reserve(64);
+    for (int i = 0; i < 64; ++i) burst.push_back(note(NoteKind::On, i));
     r.run(burst, 1);
     REQUIRE(bus.note_head == 64 && bus.dropped == 2); // head 2 + 62 slots available
     bus.note_tail.store(64, std::memory_order_release);
-    r.run({note(WS2_NOTE_CHOKE, 70)}, 1);
+    r.run({note(NoteKind::Choke, 70)}, 1);
     REQUIRE(bus.note_head == 65 && bus.dropped == 2 && bus.notes[0].velocity == 0.f);
 
     cfg.bus = nullptr;
     Rig detached(&cfg);
     detached.samples[0][0][0] = .2f;
-    detached.run({note(WS2_NOTE_ON, 60)}, 1); // private bus, no sender or device
+    detached.run({note(NoteKind::On, 60)}, 1); // private bus, no sender or device
     Rig defaults;
     defaults.run({}, 1); // no binary config also initializes defaults
 }
 int main() {
     configuration_checks();
     rows_and_gate_edges();
+    gate_threshold_matches_sender();
+    thousand_gate_crossings_in_one_block();
     note_ring_and_no_bus();
 }

@@ -159,8 +159,8 @@ void test_osc_out_budget() {
     config["rows"].push_back({{"kind", "gate"}});
     for (int i = 1; i < 8; ++i) config["rows"].push_back({{"enabled", false}});
     const Json patch = {{"modules", Json::array({{{"id", 19}, {"module", "osc.out"}, {"config", config}}})}};
-    for (const auto hook : {wirescape::osc::SendOverride(fail_outgoing),
-                            wirescape::osc::SendOverride(accept_outgoing)}) {
+    for (const auto hook :
+         {wirescape::osc::SendOverride(fail_outgoing), wirescape::osc::SendOverride(accept_outgoing)}) {
         injected_calls.store(0, std::memory_order_relaxed);
         injected_values.fill(-1);
         wirescape::osc::OutHost sender(patch.dump(), hook);
@@ -171,8 +171,7 @@ void test_osc_out_budget() {
         bus->rows[0].blocks.store(1, std::memory_order_release);
         sender.start();
         const auto deadline = std::chrono::steady_clock::now() + 2s;
-        while (injected_calls.load(std::memory_order_relaxed) < 2 &&
-               std::chrono::steady_clock::now() < deadline)
+        while (injected_calls.load(std::memory_order_relaxed) < 2 && std::chrono::steady_clock::now() < deadline)
             std::this_thread::sleep_for(5ms);
         sender.stop();
         const auto state = sender.states().at(0);
