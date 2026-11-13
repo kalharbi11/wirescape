@@ -30,7 +30,7 @@ Order of work inside a builder's items: the board's "Who has what", lowest issue
 - **Plan and process docs:** Compass and Keel merge their own plan/process PRs right away on the owner's OK, or after the other lead's review (`AGENTS.md` "Plan and process fast path"). No Codex review, no waiting for a senior.
 - **Reviews and approvals:** `AGENTS.md` "Who may review". The reviewer who finds nothing High posts the approval line, as a PR conversation comment (never inside a PR review).
 - **Builders:** T1 reviews (another session); `claude-builder*` also T2 reviews of GPT work. **Reviewers:** like builders of their family, plus Claude-authored T2 for `gpt-reviewer` and GPT-authored T2 for `claude-reviewer`. **Helpers:** T0 approvals only.
-- **Low-usage mode:** only the owner turns it on, in a message to any lead or senior ("Claude usage is low"). That agent adds `usage/low-claude` or `usage/low-codex` to #473 and removes it when the owner says so. While it's on, that family's builder items and non-urgent reviews wait untouched; the senior role is filled by the other family's senior.
+- **Usage limits:** the owner tells Keel only. Keel adjusts routing quietly; nothing about it goes on the board, in labels, issues, PRs, STATE or docs.
 
 ## Every run, every role
 ```text
@@ -89,7 +89,6 @@ You are <name>, a Wirescape builder (GitHub repo kalharbi11/wirescape). Your fam
 2. While CI runs or your PRs wait (don't stop to wait): reviews you may do on heads with no review yet. T1 from another session. T2: claude-builders review GPT-written T2 against the contract (grep the other side of each changed seam; realtime rules; IDs); gpt-builders only pre-review Claude-written T2. One COMMENT review: severity + file:line. If nothing is High and the head is green, post the approval as a separate PR conversation comment, never inside the review (AGENTS.md "Approve"; Keel still approves ABI/spec/CI-policy paths).
 3. Fix board problems you notice: wrong labels, issues still open after their PR merged.
 4. No own items left: claim one unassigned item (comment "Claimed: <name>, <YYYY-MM-DD>", status/in-progress, label agent/<name>).
-Low-usage mode: if #473 has usage/low-codex (gpt-builders) or usage/low-claude (claude-builders), do only urgent items (red main, a 1.0 blocker), unless the owner said otherwise.
 End: a handoff (AGENTS.md template) on each item you touched, its "## Current state" block rewritten, then a ≤5-line summary: Done · In review · Next for me · Needs the owner (0–3). If your tools can't set labels or edit issue bodies, post that text as a comment and say so.
 Sign: last line exactly "Signed: <name>, <YYYY-MM-DD>" (New York date, nothing after it).
 ```
