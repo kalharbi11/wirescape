@@ -9,11 +9,12 @@ have separate acceptance and hardware-evidence boundaries.
 ## Product boundaries
 
 The current desktop application uses the Electron shell, Studio renderer and
-Qt-free C++17 `wirescape-engine` sidecar. The former Qt Quick application is retired; the ABI1 engine remains separately
-until R6 and is not the Electron renderer.
+Qt-free C++17 `wirescape-engine` sidecar. R3b retired the Qt Quick shell and
+QtCore inspector; only the ABI1 engine remains until its separate R6 cleanup.
 Python build tools and device APIs stay outside DSP processing.
-Earlier Python/browser prototype sources remain available through the historical archive tag,
-not the supported runtime. No Surge binaries are bundled.
+The earlier Python/browser prototype lives only in the immutable
+[`archive/qt-final`](https://github.com/kalharbi11/wirescape/tree/e6e927c4d52cb65aa0ca7948bba02acaa1ddf119/legacy)
+Git tree; it is not built or maintained. No Surge binaries are bundled.
 
 ## Web UI
 
@@ -31,7 +32,7 @@ selects P1C's `RealEngine` when the native bridge is present and retains
 `FakeEngine` for browser tests. Native File-menu intents use that bridge without
 exposing file paths to the renderer.
 A protocol stub with null audio/fake MIDI is used by desktop Playwright tests.
-The retired Qt UI is not part of the supported build.
+The retired Qt/QML UI is preserved in Git history, not in the active build.
 
 ### Merged feature integrations (2026-11-10)
 
@@ -72,20 +73,16 @@ chokes precede reconnect callbacks. Sidecar device pushes reflect worker snapsho
 while enabled selections remain remembered. Fake hot-plug tests cover these paths
 without opening hardware; no audio-thread polling or new protocol command is used.
 
-## ABI1 engine (retained until R6)
+## ABI1 engine (retained until R6; not the Electron app)
 
 - `native/include/wirescape/module.h`: experimental C module boundary; immutable descriptors,
   mono float AUDIO/CONTROL ports, numeric parameter IDs, lifecycle/event/process callbacks.
 - `native/include/wirescape/engine.h`, `native/src/engine.cpp`: dynamic module loading,
   prepared mono DAG, preallocated buffers, one SPSC event producer and one render consumer.
   Topology changes happen quiescently. Cycles and multiple signal sources per input are rejected.
-- `native/ui/studio_controller.*`: authoritative patch document, validation, staged replacement,
-  generic module catalogue, parameters, save/load and offline rendering.
-- `native/document/`: optional QtCore legacy inspector and native v1/v2 reader, lossless v1
-  migration, relational validation and atomic v2 writer with v1 backups. The engine remains Qt-free.
-- `native/ui/audio_device.*`: dynamically loaded PortAudio bridge, explicit start/stop,
-  format probing, callback fault counters and cleanup ownership. Audio never auto-starts.
-- `native/ui/qml/`: canvas, module library/cards, generic controls, cables, keyboard and dialogs.
+- Qt Quick UI, QtCore document inspection and Qt-specific audio bridge sources are
+  removed. The current app uses Studio's patch codec, `native/document/runtime_patch.*`
+  and the separate sidecar audio service, not the retired ABI1/Qt UI.
 - `native/control/provider_bridge.*`: offline single-owner timestamp/coalescing proof;
   no real MIDI/network service.
 
@@ -121,7 +118,7 @@ Source copying alone does not install a module. Native code is trusted, not isol
 `native/modules2/` and `native/tests2/` contain the ABI2 engine, module contract
 and offline proofs. The Electron sidecar uses ABI2 through `AppEngine`; its SDK
 and port equivalence tests are not substitutes for live-device verification.
-The Qt/ABI1 plugin host remains a separate legacy build during retirement.
+The ABI1 module bridge remains pending R6; the Qt plugin host was removed.
 
 The proof includes planar1–16 voice signals, CONSTANT views, normalized parameter modulation,
 event outputs, deterministic SCC/back-edge delays, transport context, bounded producer queues,
@@ -152,24 +149,24 @@ Synthetic legacy fixtures are public test inputs, not personal patches.
 benchmarks and local package checks. `tools/foundation/` supplies reporting/tests;
 `tools/experiments/reference_kernels.py` is required by a helper test.
 `tools/bench/abi2_foundation.py` collects ABI2 CTest/Debug CRT, hashes and WAV statistics.
-Retired prototype tooling remains in the historical archive, not the active build.
+Retired prototype tooling is accessible only through the `archive/qt-final` Git tag.
 
 ```powershell
 $env:CMAKE_BUILD_PARALLEL_LEVEL = '2'
 python tools/dev.py doctor
-python tools/dev.py build
+python tools/dev.py build --headless
 python tools/dev.py test
-python tools/dev.py check --package
-python tools/dev.py launch
+# For the Electron app and owner-device launch, follow docs/INSTALL.md
 ```
 
+The obsolete Qt-specific `tools/dev.py` launcher options are being removed in R4 (#481).
+No Qt SDK or compiler is checked into this repository.
 PortAudio is dynamically loaded via WIRESCAPE_PORTAUDIO or a library beside the executable.
 Packaging accepts --portaudio, WIRESCAPE_PORTAUDIO or `.tools/portaudio/libportaudio64bit.dll`.
 CI must acquire/build the backend separately and pin its dependency version.
 
-The private optional font loads only with --local-font pointing to an untracked external file.
-Normal startup uses system fonts and requires no proprietary font. Icon PNG/ICO assets are source
-assets, not compiled application binaries. Shortcut installer takes a mandatory package path.
+Electron uses the app's own assets and system fonts; the deleted Qt launcher,
+Qt font option and Qt shortcut/package tooling are not part of the supported app.
 `build/`, `build_reports/`, `.tools/`, `user_data/` and private backups are ignored local-only data.
 The generated build/cache/test reports contain local paths and must never be committed.
 Manual real-device probes require explicit confirmation/authorization and are never in CTest.
@@ -221,20 +218,16 @@ Device and input-selection controls remain stop-only.
 
 `native/control/app_engine.*` adapts app control and metadata to engine2; built-in
 Essentials use native ABI2 descriptors, while dynamically loaded ABI1 modules use
-the shim. `native/document/app_patch.*` builds engine2 graphs from the v1/v2 reader.
-The UI callback and CLI renderer call this facade. The planner accepted the app-only
+the shim. `native/document/runtime_patch.*` builds engine2 graphs from native patch data.
+The Electron sidecar and CLI renderer call the Qt-free control facade. The planner accepted the app-only
 Six Essentials reference-render delta (<=1e-7); explicit Noise default initialization
 differs between ABI1 double-ramp and ABI2 cached-float parameter handling. Per-module
-equivalence remains exact. Qt-backed app-document and real-loader soak evidence is
-still required before this integration is ready.
-
-With Qt Core available at build time, `wirescape_soak --patch <native-v1-or-v2.json>`
-uses the app document reader, catalogue and callback facade, rather than a hardcoded
-graph. The Pi evidence command is `wirescape_soak --patch
-native/examples/Six_Essentials_Demo.json --rate 48000 --block 128 --seconds 600`.
-Without Qt development files, the command fails explicitly instead of substituting
-a graph. The six browser-era legacy fixtures remain non-executable, byte-preserved
-documents; they are never silently converted to native patches.
+equivalence remains exact. The Qt-free runtime document loader and R3b-pre
+coverage now exercise patch-load, graph, rollback and device-off paths without
+QtCore. Offline soak runs use the active native runner and require no Qt SDK;
+see [PI_SETUP.md](PI_SETUP.md) for its documented commands. The six historical
+legacy-document fixtures remain byte-preserved and are not silently imported
+as executable patches.
 
 The ABI2 built-in catalogue has one registration list,
 `native/control/module_catalog.inc`: add `WS_APP_MODULE(Class)` and include the
@@ -254,15 +247,15 @@ Only the first Keyboard module receives app keys. New patches connect Keyboard
 pitch to VCO and gate to ADSR. Output uses SUM input policy; voices collapse at
 that module before the stereo device duplication. Cable badges display configured
 signal widths propagated through the document graph without reading render-owned
-metadata concurrently. Computer key-repeat suppression and focus-loss release
-remain in the existing QML key handler. Panic resets every voice at render boundary.
+metadata concurrently. Computer key-repeat suppression and focus-loss release belong to the
+Studio/Electron input path, not the retired QML UI. Panic resets every voice at render boundary.
 
 ## J3 runtime candidate
 
 `native/document/runtime_patch.*` is the Qt-free v1/v2 parser and graph builder
-used by `app_patch` and `wirescape_cli play`. The pinned MIT nlohmann/json library
-is used only quiescently. Qt document migration/preservation and the atomic writer
-remain separate. Runtime input rejects duplicates, oversized/deep documents,
+used by the sidecar and `wirescape_cli play`. The pinned MIT nlohmann/json
+library is used only quiescently. Studio's patch codec owns lossless editing and
+persistence; the retired QtCore writer is not part of the runtime. Runtime input rejects duplicates, oversized/deep documents,
 unknown modules/parameters and unsupported nonempty module config. Service-specific
 config adapters are left to J4/J5 rather than silently dropping configuration.
 

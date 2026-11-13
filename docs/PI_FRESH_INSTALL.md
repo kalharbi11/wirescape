@@ -89,9 +89,9 @@ use the preflight's missing-library report and the distribution's package names.
 Bookworm and newer releases can differ on `t64` package names. Do not blindly
 copy package names from another distribution or disable loader checks.
 
-The Qt SDK is not a prerequisite for this source app. Full private-runner
-legacy document tests have their own Qt Core requirement in
-[PI_RUNNER.md](PI_RUNNER.md); do not confuse that with Qt UI installation.
+The Qt SDK is not required for this Electron/sidecar source app or its
+public native document tests. The retired QtCore suite is preserved in Git
+history; see [PI_RUNNER.md](PI_RUNNER.md) for device-off runner boundaries.
 
 ## 3. Select the single accepted source revision
 
@@ -161,7 +161,7 @@ stage must stop later stages. Keep the transcript/report with the source SHA.
 The printed real-device launch command is for a later owner decision.
 
 A genuine own cache must match this checkout's normalized `native/` path,
-architecture and generator, with Qt UI disabled. Do not move a runner-generated
+architecture and generator; there is no Qt UI target. Do not move a runner-generated
 cache based on an obsolete detector failure; use the merged preflight's predicates. If a cache truly belongs to another checkout or architecture, inspect it
 and preserve it under a different name before rebuilding; never auto-delete it.
 

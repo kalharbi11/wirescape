@@ -28,25 +28,8 @@ def changed_ranges(diff):
 
 
 def cppcheck_model(root, source, dependencies):
-    """Choose a model from the compiled TU and its *transitive* headers.
-
-    Qt UI/moc sources require the Qt model even when they include product
-    headers. For other TUs, product headers win over Qt dependencies.
-    Unknown/unmapped owners default to native.
-    """
-    relative = source.relative_to(root) if source.is_relative_to(root) else None
-    if source.is_relative_to(root / "native/ui") or (
-            relative is not None and relative.parts[0].startswith("build")
-            and any(part.endswith("_autogen") for part in relative.parts[:-1])):
-        return "qt"
-    paths = {source, *dependencies}
-    product = ("native/modules2", "native/engine2", "native/sidecar")
-    if any(path.is_relative_to(root / directory)
-           for path in paths for directory in product):
-        return "native"
-    qt_parts = {"QtCore", "QtGui", "QtWidgets", "QtNetwork", "QtOpenGL",
-                "QtQml", "QtQuick", "QtSvg", "QtTest"}
-    return "qt" if any(qt_parts.intersection(path.parts) for path in paths) else "native"
+    """Every compiled translation unit gets strict native C++ analysis."""
+    return "native"
 
 
 def build_units(root, files, build):
@@ -179,30 +162,17 @@ def run_checks(root, diff, tidy_diff):
         for entry in units if any(files.values()) else []:
             jobs.append(("clang-tidy diff " + entry["file"], ["clang-tidy-18", "-p", entry["build"],
                          "--header-filter=.*", "--line-filter=" + line_filter, entry["file"]], None))
-        for model in ("native", "qt"):
-            owners = [entry for entry in units if entry.get("cppcheck_model", "native") == model]
-            if not owners:
-                continue
-            # Preserve the historical check name and all analyzer options. Only
-            # the project membership and Qt keyword model differ per TU.
-            suffix = "_qt" if model == "qt" else ""
-            project = root / ("build/static/cppcheck_changed" + suffix + ".json")
+        if units:
+            # Every compiled owner is analyzed; no model-specific exemptions.
+            project = root / "build/static/cppcheck_changed.json"
             project.parent.mkdir(parents=True, exist_ok=True)
             project.write_text(json.dumps([
                 {k: v for k, v in entry.items() if k not in ("build", "cppcheck_model")}
-                for entry in owners
+                for entry in units
             ]), encoding="utf-8")
             command = ["cppcheck", "--enable=warning,performance",
                        "--error-exitcode=42", "--suppress=missingIncludeSystem",
-                       "--inline-suppr", "--template=gcc"]
-            if model == "qt":
-                command.append("--library=qt")
-                # Generated moc TUs: cppcheck can't see Qt's system headers, so moc's
-                # own "doesn't include <QObject>" #error guard fires on every Qt TU
-                # reached through a product header (#487). Only that ID, only in
-                # generated *_autogen/ files; authored #error directives still fail.
-                command.append("--suppress=preprocessorErrorDirective:*_autogen/*")
-            command.append("--project=" + str(project))
+                       "--inline-suppr", "--template=gcc", "--project=" + str(project)]
             jobs.append(("cppcheck changed files", command, None))
         for name, ranges in files.items():
             if ranges:

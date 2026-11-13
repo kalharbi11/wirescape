@@ -14,12 +14,12 @@ python tools/dev.py build --headless --config Release
 python tools/dev.py test --config Release
 ```
 
-Use `python3` on the Pi. `--headless` builds the engine, CLI and device-free
-native tests without a GUI toolkit; this is also the default after R1. The retained
-The supported application is Electron with the Qt-free sidecar; use the headless build and app setup paths below.
-The historical UI and ABI1 code remain in
-the tree while the [cleanup plan](../docs/planner/CLEANUP.md) moves coverage and
-retires them; they are not the application setup path.
+Use `python3` on the Pi. `--headless` builds the native engine, CLI and
+physical-device-free tests without Qt. The supported app is Electron + Studio
+with the Qt-free `wirescape-engine` sidecar. The former Qt UI and QtCore document
+inspector were removed by [R3b](../docs/planner/CLEANUP.md); their sources
+remain in the immutable `archive/qt-final` Git tree, not the active build.
+ABI1 engine and module sources remain only until the separate R6 retirement.
 
 The sidecar uses bounded newline-delimited JSON over stdin/stdout, with logs on
 stderr. It owns device services; Studio owns the editable patch document.
