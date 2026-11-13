@@ -58,16 +58,16 @@ struct Rig {
     }
 };
 
-static ws2_event note(uint32_t kind, int32_t key, float velocity = .75f, int32_t channel = 2) {
+static ws2_event note(uint32_t kind, int32_t key) {
     ws2_event event{};
     event.struct_size = sizeof(event);
     event.type = kind;
     event.port = 8;
     event.key = key;
-    event.channel = channel;
+    event.channel = 2;
     event.note_id = key;
     event.source_id = 1;
-    event.value = velocity;
+    event.value = .75f;
     return event;
 }
 static void configuration_checks() {
@@ -195,6 +195,7 @@ static void note_ring_and_no_bus() {
     REQUIRE(bus.notes[0].key == 60 && bus.notes[0].channel == 2 && bus.notes[0].velocity == .75f);
     REQUIRE(bus.notes[1].key == 60 && bus.notes[1].velocity == 0.f);
     std::vector<ws2_event> burst;
+    burst.reserve(64);
     for (int i = 0; i < 64; ++i) burst.push_back(note(WS2_NOTE_ON, i));
     r.run(burst, 1);
     REQUIRE(bus.note_head == 64 && bus.dropped == 2); // head 2 + 62 slots available
