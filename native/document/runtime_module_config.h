@@ -18,8 +18,7 @@ class ScopedOutBuses {
     const std::map<uint32_t, osc::OutBus *> *previous_;
 
   public:
-    explicit ScopedOutBuses(const std::map<uint32_t, osc::OutBus *> &buses) noexcept
-        : previous_(staged_out_buses) {
+    explicit ScopedOutBuses(const std::map<uint32_t, osc::OutBus *> &buses) noexcept : previous_(staged_out_buses) {
         staged_out_buses = &buses;
     }
     ~ScopedOutBuses() { staged_out_buses = previous_; }
