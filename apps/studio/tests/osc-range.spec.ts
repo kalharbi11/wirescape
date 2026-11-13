@@ -160,3 +160,24 @@ test('editing another valid row cannot enable Save while captured row is invalid
   await page.getByTestId('osc-row1-input_max').fill('201');
   await expect(page.getByTestId('osc-editor-save')).toBeEnabled();
 });
+
+test('output-only fields follow Custom selection and gate/trigger rows keep existing fields', async ({ page }) => {
+  await page.evaluate(p => window.__wirescapeTest.load(p), patch());
+  await settle(page);
+  await open(page);
+  const mode = page.getByTestId('osc-row1-output-mode');
+  const min = page.getByTestId('osc-row1-output_min');
+  await expect(mode).toBeVisible();
+  await expect(min).toBeHidden();
+  await mode.selectOption('custom');
+  await expect(min).toBeVisible();
+  await mode.selectOption('bipolar');
+  await expect(min).toBeHidden();
+  await page.getByTestId('osc-row1-kind').selectOption('gate');
+  await expect(mode).toBeHidden();
+  await expect(min).toBeVisible();
+  await expect(page.getByTestId('osc-row1-argument')).toBeVisible();
+  await page.getByTestId('osc-row1-kind').selectOption('cv');
+  await expect(mode).toBeVisible();
+  await expect(min).toBeHidden();
+});
