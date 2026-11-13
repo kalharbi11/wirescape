@@ -92,13 +92,14 @@ static void saved_midi_cv_patch(AppEngine *catalog, const ws_engine_config &cfg)
         Owner loaded(wirescape::document::load_runtime_patch(patch.dump(), catalog, cfg, error), app_engine_destroy);
         check(bool(loaded), "saved MIDI CV graph loads without port conversion");
         auto &graph = app_engine_native(loaded.get());
-        const int producer = graph.register_producer();
-        check(producer >= 0, "saved MIDI producer registered");
+        // AppEngine reserves producer 1 for MIDI ingress before the loader prepares
+        // the graph; registration after prepare is intentionally forbidden.
+        constexpr uint32_t producer = 1;
         const uint8_t keys[]{60, 62, 64, 67, 69};
         float samples[128]{};
         for (uint32_t i = 0; i < 5; ++i) {
             const uint32_t lane = i % 4;
-            check(graph.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, midi1(0x90, keys[i], 110),
+            check(graph.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x90, keys[i], 110),
                                 graph.meter().frame) == WS2_OK, "saved graph accepts MIDI note-on");
             {
                 allocation_watch::Scope scope;
@@ -116,7 +117,7 @@ static void saved_midi_cv_patch(AppEngine *catalog, const ws_engine_config &cfg)
                 audible |= std::abs(sample) > 1e-6f;
             }
             check(audible, "saved pitch and gate reach audible output on every rotating voice");
-            check(graph.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, midi1(0x80, keys[i], 0),
+            check(graph.enqueue(producer, 1, WS2_DIRECT_PORT, midi1(0x80, keys[i], 0),
                                 graph.meter().frame) == WS2_OK, "saved graph accepts MIDI note-off");
             check(app_engine_render(loaded.get(), samples, 128) == WS_OK,
                   "saved graph renders note release");
