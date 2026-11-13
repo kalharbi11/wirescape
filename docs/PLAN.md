@@ -4,6 +4,7 @@ Owner: the planner. Anyone may tick a checkbox or add a "Signed" line in an issu
 How work is picked up and signed: `AGENTS.md`. Earlier plans (M0–M3, J, W) live in git history; their results are summarised under "Where we are".
 
 ## Now
+- **Priority 1 (owner, 2026-11-13): Windows test fixes.** ASIO driver list + device switch #722 (`claude-builder1`), Studio shows failed ASIO drivers #723 (`gpt-builder2`), MIDI to CV pitch/gate #724 (`gpt-builder1`). They go first; the Qt cleanup below continues whenever an agent is waiting on review or an owner test.
 - **Owner scope (2026-11-12, Compass):** OSC, Quad VCA/LPG, ASIO, Groove clock and D5 are merged. Until the owner sets the next plan, work is limited to the three groups below. Nothing else starts (D18).
 - **1.0.0:** the owner tests candidate `cdb74f2` (#581; Keel #593 tags exactly that SHA). Fixes the test finds (#597) go to `main` and get a new candidate SHA.
 - **A. Qt removal #661** (order and rules: `docs/planner/CLEANUP.md`): R3a #482 (`gpt-builder2`) and R3b-pre #704/#707 (`gpt-builder1`) → R3b #468 deletes Qt (`gpt-builder2`; Keel tags `archive/qt-final`) → R5c archives + docs (`claude-builder2`) and R4 #481 `tools/dev.py` (`gpt-builder1`) → the private Pi runner drops its Qt mode. The hold condition is met (#700 merged, SHA on #581), so R3b merges as soon as it is green and reviewed. The owner's test runs on its pinned SHA, so deletion on `main` doesn't affect it.
