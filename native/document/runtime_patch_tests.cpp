@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "runtime_patch.h"
 #include "../engine2/engine2.h"
+#include "../io/midi/module_test_support.h"
 #include <filesystem>
 #include <cstring>
 #include "../tests2/allocation_watch.h"
@@ -54,10 +55,82 @@ static void saved_lfo_patch(const char *demo, AppEngine *catalog, const ws_engin
     std::cout << "saved qt-lfo-filter loads unchanged; 96000 control samples bit-identical to pre-phase renderer\\n";
 }
 
+// Cover the Studio-saved JSON -> native loader seam, not only manually built
+// engine2 graphs. Each note must remain audible in a four-channel rotating CV
+// patch, including with Notes to CV between MIDI to CV and the consumers.
+static void saved_midi_cv_patch(AppEngine *catalog, const ws_engine_config &cfg) {
+    const Json base = Json::parse(R"({
+      "format":"wirescape.native.patch","version":2,"settings":{},
+      "modules":[
+        {"id":1,"module":"midi.in","version":1},
+        {"id":2,"module":"midi.to_cv","version":1},
+        {"id":3,"module":"essentials.vco","version":1},
+        {"id":4,"module":"essentials.adsr","version":1},
+        {"id":5,"module":"essentials.vca","version":1},
+        {"id":6,"module":"essentials.output","version":1}],
+      "connections":[
+        {"kind":"event","from":{"module":1,"port":"midi"},"to":{"module":2,"port":"midi"}},
+        {"kind":"signal","from":{"module":2,"port":"pitch"},"to":{"module":3,"port":"pitch"}},
+        {"kind":"signal","from":{"module":2,"port":"gate"},"to":{"module":4,"port":"gate"}},
+        {"kind":"signal","from":{"module":3,"port":"audio"},"to":{"module":5,"port":"audio"}},
+        {"kind":"signal","from":{"module":4,"port":"envelope"},"to":{"module":5,"port":"gain_cv"}},
+        {"kind":"signal","from":{"module":5,"port":"audio"},"to":{"module":6,"port":"audio"}}],
+      "outputs":[{"module":6,"port":"audio","bus_channel":0}]
+    })");
+    for (const bool notes_route : {false, true}) {
+        Json patch = base;
+        const uint32_t cv = notes_route ? 7u : 2u;
+        if (notes_route) {
+            patch["modules"].push_back({{"id", 7}, {"module", "essentials.notes_to_cv"}, {"version", 1}});
+            patch["connections"][1]["from"]["module"] = 7;
+            patch["connections"][2]["from"]["module"] = 7;
+            patch["connections"].push_back({{"kind", "event"},
+                                             {"from", {{"module", 2}, {"port", "notes"}}},
+                                             {"to", {{"module", 7}, {"port", "notes"}}}});
+        }
+        std::string error;
+        Owner loaded(wirescape::document::load_runtime_patch(patch.dump(), catalog, cfg, error), app_engine_destroy);
+        check(bool(loaded), "saved MIDI CV graph loads without port conversion");
+        auto &graph = app_engine_native(loaded.get());
+        const int producer = graph.register_producer();
+        check(producer >= 0, "saved MIDI producer registered");
+        const uint8_t keys[]{60, 62, 64, 67, 69};
+        float samples[128]{};
+        for (uint32_t i = 0; i < 5; ++i) {
+            const uint32_t lane = i % 4;
+            check(graph.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, midi1(0x90, keys[i], 110),
+                                graph.meter().frame) == WS2_OK, "saved graph accepts MIDI note-on");
+            {
+                allocation_watch::Scope scope;
+                check(app_engine_render(loaded.get(), samples, 128) == WS_OK && scope.allocations() == 0,
+                      "saved graph renders without allocations");
+            }
+            check(graph.output_channels(cv, 0) == 4 && graph.output_channels(3, 0) == 4,
+                  "saved graph preserves polyphonic pitch across load");
+            check(graph.output_sample(cv, 1, lane, 127) == 1.f, "saved graph gate follows rotating lane");
+            check(std::abs(graph.output_sample(cv, 0, lane, 127) - float(keys[i] - 60) / 12.f) < 1e-5f,
+                  "saved graph pitch CV follows every key");
+            bool audible = false;
+            for (float sample : samples) {
+                check(std::isfinite(sample), "saved graph finite mono audio");
+                audible |= std::abs(sample) > 1e-6f;
+            }
+            check(audible, "saved pitch and gate reach audible output on every rotating voice");
+            check(graph.enqueue(uint32_t(producer), 1, WS2_DIRECT_PORT, midi1(0x80, keys[i], 0),
+                                graph.meter().frame) == WS2_OK, "saved graph accepts MIDI note-off");
+            check(app_engine_render(loaded.get(), samples, 128) == WS_OK,
+                  "saved graph renders note release");
+            check(graph.output_sample(cv, 1, lane, 127) == 0.f, "saved graph releases each lane");
+        }
+        check(graph.meter().faults == 0 && graph.meter().dropped == 0, "saved graph fault-free");
+    }
+}
+
 int main(int argc,char**argv){try{
  check(argc==2,"demo argument");std::ifstream input(argv[1]);std::string bytes((std::istreambuf_iterator<char>(input)),{});check(!bytes.empty(),"read demo");
  ws_engine_config cfg{sizeof(cfg),48000,128,64,2048};Owner catalog(app_engine_create(&cfg),app_engine_destroy);std::string error;
  saved_lfo_patch(argv[1], catalog.get(), cfg);
+ saved_midi_cv_patch(catalog.get(), cfg);
  // Qt's inspection-only legacy formats must never become executable native graphs.
  const auto fixtures = std::filesystem::path(argv[1]).parent_path().parent_path() / "tests/fixtures/legacy_documents";
  for (const char *name : {"patch_v1.json", "patch_v2.json", "patch_v3_unknown.json", "visual_study_v4.json",
