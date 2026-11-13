@@ -44,7 +44,7 @@ struct OscOut {
             if (config.rows[i].kind == 1) {
                 bool was = high[i];
                 for (uint32_t s = 0; s < frames; ++s) {
-                    const bool now = signal[constant ? 0 : s] > .5f;
+                    const bool now = signal[constant ? 0 : s] >= .5f;
                     if (now != was) {
                         if (now) ++rises;
                         else ++falls;
