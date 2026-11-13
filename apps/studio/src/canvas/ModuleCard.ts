@@ -140,20 +140,22 @@ export class ModuleCard {
 
     this.body.append(coreEl);
     if (d?.id === 'monitor') this.mountMonitorLog();
-    if (d?.id === 'osc.in') {
+    if (d?.id === 'osc.in' || d?.id === 'osc.out') {
       const box = el('div', 'osc-card');
       this.oscLabel = el('span', 'osc-status-label', 'OSC status unavailable');
-      this.oscLabel.dataset.testid = `osc-status-${o.moduleId}`;
-      this.oscCount = el('span', 'osc-counter', 'Received: 0');
-      this.oscCount.dataset.testid = `osc-received-${o.moduleId}`;
+      this.oscLabel.dataset.testid = `${d.id === 'osc.out' ? 'osc-out-status' : 'osc-status'}-${o.moduleId}`;
+      this.oscCount = el('span', 'osc-counter', d.id === 'osc.out' ? 'Sent: 0 · Dropped: 0' : 'Received: 0');
+      this.oscCount.dataset.testid = `${d.id === 'osc.out' ? 'osc-out-count' : 'osc-received'}-${o.moduleId}`;
       this.oscDot = el('span', 'osc-activity-dot');
       this.oscDot.setAttribute('aria-hidden', 'true');
       const status = el('div', 'osc-status-row');
       status.append(this.oscDot, this.oscLabel);
       const edit = el('button', 'btn osc-edit', 'Edit…') as HTMLButtonElement;
-      edit.type = 'button'; edit.dataset.testid = `osc-edit-${o.moduleId}`;
+      edit.type = 'button'; edit.dataset.testid = `${d.id === 'osc.out' ? 'osc-out-edit' : 'osc-edit'}-${o.moduleId}`;
       edit.addEventListener('click', () => o.onEditOsc?.());
       box.append(status, this.oscCount, edit);
+      if (d.id === 'osc.out') box.prepend(el('div', 'osc-help',
+        'Sends to this computer (127.0.0.1) only · rows use channel 0 (FIRST)'));
       this.body.append(box);
       this.setOscStatus(o.oscStatus?.());
     }
@@ -499,7 +501,9 @@ export class ModuleCard {
   private buildMissingCore(): HTMLElement {
     const core = el('div', 'panel-core missing-core');
     core.append(el('div', 'missing-note',
-      'This module type is not in the catalogue. Its ports and values are kept exactly as saved.'));
+      this.o.savedType === 'osc.out' && window.wirescape?.web
+        ? 'Desktop and Pi only. OSC Out is unavailable on Web; its patch data is preserved.'
+        : 'This module type is not in the catalogue. Its ports and values are kept exactly as saved.'));
     const m = this.o.host.doc.modules.get(this.o.moduleId);
     const params = Object.entries(m?.parameters ?? {});
     if (params.length) {
@@ -552,6 +556,16 @@ export class ModuleCard {
   /** Actual route counters are per-module, not the global OSC aggregate. */
   setOscStatus(osc?: OscStatus): void {
     if (!this.oscLabel || !this.oscCount || !this.oscDot) return;
+    if (this.o.savedType === 'osc.out') {
+      const route = osc?.out?.find(r => r.module === String(this.o.moduleId));
+      this.oscLabel.textContent = !route ? 'OSC Out sender unavailable' :
+        route.state === 'sending' ? `Sending to 127.0.0.1:${route.port}` :
+        route.state === 'disabled' ? 'OSC Out disabled' :
+        `OSC Out error: ${route.last_error ?? 'unknown'}`;
+      this.oscCount.textContent = `Sent: ${route?.sent ?? 0} · Dropped: ${route?.dropped ?? 0}`;
+      this.oscDot.classList.toggle('listening', route?.state === 'sending');
+      return;
+    }
     const route = osc?.routes?.find(r => r.module === String(this.o.moduleId));
     const rows = (this.o.host.doc.modules.get(this.o.moduleId)?.config as { rows?: unknown } | undefined)?.rows;
     const off = Array.isArray(rows) ? rows.slice(0, 8)
