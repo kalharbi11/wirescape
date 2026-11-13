@@ -195,7 +195,7 @@ inline std::vector<uint8_t> runtime_module_config_impl(const std::string &type, 
             if (name.size() > 64) name.resize(64);
             ignored_keys->push_back("osc.out#" + std::to_string(instance_id) + "." + name);
         };
-        auto address = [&](const nlohmann::json &item, char (&dest)[64]) {
+        auto address = [&](const nlohmann::json &item, char(&dest)[64]) {
             require(item.is_string(), "OSC Out address must be a string");
             const std::string s = item.get<std::string>();
             require(s.size() >= 2 && s.size() <= 63, "OSC Out address length invalid");
@@ -204,10 +204,8 @@ inline std::vector<uint8_t> runtime_module_config_impl(const std::string &type, 
         };
         for (auto it = value.begin(); it != value.end(); ++it) {
             const auto &key = it.key();
-            if (key == "host" || key == "lan")
-                require(false, "OSC Out destinations are loopback-only in version 1");
-            if (key != "version" && key != "port" && key != "rate_hz" && key != "rows" && key != "notes")
-                record(key);
+            if (key == "host" || key == "lan") require(false, "OSC Out destinations are loopback-only in version 1");
+            if (key != "version" && key != "port" && key != "rate_hz" && key != "rows" && key != "notes") record(key);
         }
         if (value.contains("version")) {
             const auto &v = value.at("version");
@@ -223,8 +221,8 @@ inline std::vector<uint8_t> runtime_module_config_impl(const std::string &type, 
             if (std::strcmp(key, "port") == 0) config.port = static_cast<uint32_t>(n);
             else config.rate_hz = static_cast<uint32_t>(n);
         }
-        auto row = [&](const nlohmann::json &src, wirescape::osc::OutRowConfig &dst,
-                       const std::string &prefix, bool note) {
+        auto row = [&](const nlohmann::json &src, wirescape::osc::OutRowConfig &dst, const std::string &prefix,
+                       bool note) {
             require(src.is_object(), "OSC Out row/notes must be objects");
             for (auto it = src.begin(); it != src.end(); ++it) {
                 const auto &key = it.key();
@@ -239,12 +237,16 @@ inline std::vector<uint8_t> runtime_module_config_impl(const std::string &type, 
                     require(v == "cv" || v == "gate", "Invalid OSC Out row kind");
                     dst.kind = v == "gate" ? 1u : 0u;
                 } else if (!note && key == "deadband") {
-                    require(item.is_number() && std::isfinite(item.get<double>()),
-                            "OSC Out deadband must be finite");
+                    require(item.is_number() && std::isfinite(item.get<double>()), "OSC Out deadband must be finite");
                     const double n = item.get<double>();
                     require(n >= 0 && n <= 1, "OSC Out deadband outside 0..1");
                     dst.deadband = static_cast<float>(n);
-                } else record(prefix + "." + key);
+                } else {
+                    std::string ignored = prefix;
+                    ignored += '.';
+                    ignored += key;
+                    record(ignored);
+                }
             }
         };
         if (value.contains("rows")) {
@@ -254,8 +256,7 @@ inline std::vector<uint8_t> runtime_module_config_impl(const std::string &type, 
                 row(rows.at(i), config.rows[i], "rows[" + std::to_string(i) + "]", false);
         }
         if (value.contains("notes")) row(value.at("notes"), config.notes, "notes", true);
-        require(wirescape::osc::out_configuration(
-                    reinterpret_cast<const uint8_t *>(&config), sizeof(config), config),
+        require(wirescape::osc::out_configuration(reinterpret_cast<const uint8_t *>(&config), sizeof(config), config),
                 "Invalid OSC Out configuration");
         std::vector<uint8_t> bytes(sizeof(config));
         std::memcpy(bytes.data(), &config, sizeof(config));
