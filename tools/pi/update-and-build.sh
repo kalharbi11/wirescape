@@ -67,7 +67,7 @@ fi
 stage studio-ci npm ci
 stage studio-build npm run build
 stage desktop-ci npm ci
-stage desktop-build npm run build
+stage desktop-build python3 "$root/tools/dev.py" build --config Release
 
 if [ ! -f "$root/apps/studio/dist/index.html" ] ||
    [ ! -f "$root/apps/desktop/build/main.js" ]; then
@@ -83,11 +83,6 @@ import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
-desktop = root / "apps/desktop"
-cmd = [
-    str(desktop / "node_modules/.bin/electron"), str(desktop / "build/main.js"),
-    "--engine", str(root / "build/native/wirescape-engine"),
-    "--confirm-audio", "--confirm-midi",
-]
-print("  cd " + shlex.quote(str(desktop)) + " && " + shlex.join(cmd))
+print("  cd " + shlex.quote(str(root)) +
+      " && python3 tools/dev.py launch --confirm-audio --confirm-midi")
 PY
