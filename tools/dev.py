@@ -388,6 +388,10 @@ def _launch_freshness_error(executable: Path, config: str) -> str | None:
     return None
 
 def command_launch(args: argparse.Namespace) -> int:
+    if args.confirm_lan and not (args.confirm_audio or args.confirm_midi):
+        print("Warning: --confirm-lan alone keeps --null-audio; OSC In remains on loopback "
+              "(127.0.0.1), not LAN. Add --confirm-audio or --confirm-midi for LAN listening.",
+              file=sys.stderr)
     record = _base_record("launch", args.config)
     engine, electron = _sidecar_executable(args.config), _electron_executable()
     problem = _launch_freshness_error(engine, args.config) if engine and electron else "engine or Electron is missing"
@@ -534,7 +538,9 @@ def make_parser() -> argparse.ArgumentParser:
     child.add_argument("--confirm-audio", action="store_true")
     child.add_argument("--confirm-midi", action="store_true")
     child.add_argument("--confirm-lan", action="store_true",
-                       help="allow OSC In rows with LAN ticked to listen on the network (owner only)")
+                       help="owner only: allow LAN-ticked OSC In rows to listen on the network; "
+                            "without --confirm-audio/--confirm-midi launch keeps --null-audio "
+                            "and OSC stays on loopback")
     child.set_defaults(func=command_launch)
     return parser
 
