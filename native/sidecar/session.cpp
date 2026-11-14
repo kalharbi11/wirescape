@@ -531,15 +531,18 @@ void Session::start_osc() {
     osc_out_->start(); // control-owned loopback sender; never touches the render thread
 }
 bool Session::refresh_devices(bool audio, bool probe_rates, const std::string &target) {
-    bool enumerated = audio;
-    if (audio) try {
-            const bool playing = stream_ && stream_->running();
+    // PortAudio ASIO drivers cannot be safely reinitialized while any stream
+    // still owns the backend, even if it has stopped producing callbacks.
+    // Serve the catalogue published at the last quiescent enumeration.
+    const bool cold = audio && !stream_;
+    bool enumerated = cold;
+    if (cold) try {
+            std::string asio_detail;
             auto next = audio_devices(options_.directory, options_.null_audio,
-                                      {probe_rates, target, playing ? device_ : std::string{}});
+                                      {probe_rates, target, {}, &asio_detail});
             for (auto &entry : next) {
                 const auto id = entry.at("id").get<std::string>();
-                const bool active = playing && id == device_;
-                if (!probe_rates || active || (!target.empty() && target != id)) {
+                if (!probe_rates || (!target.empty() && target != id)) {
                     const auto old = std::find_if(audio_devices_.begin(), audio_devices_.end(),
                                                   [&](const Json &d) { return d.at("id") == id; });
                     if (old != audio_devices_.end() &&
@@ -549,16 +552,6 @@ bool Session::refresh_devices(bool audio, bool probe_rates, const std::string &t
                             if (old->contains(key)) entry[key] = (*old)[key];
                         }
                 }
-                if (active && entry.value("outputChannels", 2) >= 2) {
-                    entry["supported"] = true;
-                    entry.erase("unsupportedReason");
-                    // A cached known set includes the rate proven by the running stream.
-                    // Unknown remains omitted; a singleton would falsely exclude other rates.
-                    if (entry.contains("sampleRates") &&
-                        std::find(entry["sampleRates"].begin(), entry["sampleRates"].end(), Json(options_.rate)) ==
-                            entry["sampleRates"].end())
-                        entry["sampleRates"].push_back(options_.rate);
-                }
             }
             // Registry discovery is read-only and never initializes an audio driver.
             // The fake-backend test supplies the registry list through this seam.
@@ -567,8 +560,14 @@ bool Session::refresh_devices(bool audio, bool probe_rates, const std::string &t
                 if (entry.value("hostApi", std::string{}) == "ASIO")
                     visible.push_back({entry.at("name").get<std::string>(), "ASIO"});
             Json unavailable = Json::array();
-            for (const auto &name : audio::unavailable_asio_drivers(audio::installed_asio_drivers(), visible))
-                unavailable.push_back({{"hostApi", "ASIO"}, {"name", name}, {"reason", "driver-init-failed"}});
+            const auto missing = audio::unavailable_asio_drivers(audio::installed_asio_drivers(), visible);
+            for (const auto &name : missing) {
+                Json entry = {{"hostApi", "ASIO"}, {"name", name}, {"reason", "driver-init-failed"}};
+                // A host error is not per-driver; avoid falsely assigning one
+                // to several missing registry names.
+                if (missing.size() == 1 && !asio_detail.empty()) entry["detail"] = asio_detail;
+                unavailable.push_back(std::move(entry));
+            }
             audio_devices_ = std::move(next);
             unavailable_audio_drivers_ = std::move(unavailable);
         } catch (...) {
@@ -987,6 +986,7 @@ Json Session::apply(const Json &command) {
             refuse_rate();
         need(options_.audio || options_.null_audio, "unavailable", "Audio device access is not authorized");
         auto old_device = device_;
+        if (id == old_device && stream_ && stream_->running()) return nullptr;
         // A device switch also tears down an audio worker. Join the packet
         // producer first, and resume against the same committed graph on
         // both success and restored-device failure paths.
@@ -1002,9 +1002,24 @@ Json Session::apply(const Json &command) {
         };
         std::unique_ptr<void, decltype(resume_osc)> osc_restart(this, resume_osc);
         midi_->stop();
-        stop_audio();
+        stop_audio(); // Joins callbacks and runs Pa_Terminate before any fresh enumeration.
         device_ = id;
+        audio_error_.clear();
         try {
+            if (options_.audio) {
+                // Revalidate against the now quiescent backend. No ASIO
+                // discovery or format probe was allowed before stop_audio().
+                refresh_devices(true, true, id);
+                const auto selected = std::find_if(audio_devices_.begin(), audio_devices_.end(),
+                                                    [&](const Json &d) { return d.at("id") == id; });
+                need(selected != audio_devices_.end(), "not-found", "Audio output disappeared during switch");
+                need(selected->value("supported", true), "refused",
+                     selected->value("unsupportedReason", std::string("unsupported")).c_str());
+                if (selected->contains("sampleRates") &&
+                    std::find((*selected)["sampleRates"].begin(), (*selected)["sampleRates"].end(),
+                              Json(options_.rate)) == (*selected)["sampleRates"].end())
+                    refuse_rate();
+            }
             start_audio();
             need(!options_.audio || bool(stream_), "unavailable", "Cannot open audio output");
             start_midi();
@@ -1017,7 +1032,15 @@ Json Session::apply(const Json &command) {
             midi_->stop();
             stop_audio();
             device_ = old_device;
-            start_audio();
+            if (!options_.audio || !old_device.empty()) {
+                start_audio();
+            } else {
+                // An explicitly refused selection must never silently choose
+                // a newly discovered default if no prior route existed.
+                audio_state_ = "no-device";
+                audio_reason_.clear();
+                audio_error_ = failed_open;
+            }
             start_midi();
             if (rate_refused) refuse_rate();
             if (!failed_open.empty()) throw Refusal("unavailable", failed_open.c_str());
@@ -1372,7 +1395,9 @@ bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumera
         audio_backoff_ = std::chrono::milliseconds(100);
         audio_retry_ = now + audio_backoff_;
     } else if (!stream_) {
-        if (audio_reason_ == "rate-unsupported") return false;
+        // Startup may choose a default, but a refused explicit selection with
+        // no remembered route must remain unselected until the user chooses.
+        if (device_.empty() || audio_reason_ == "rate-unsupported") return false;
         if (audio_state_ == "device-lost") audio_state_ = "reconnecting";
         if (now < audio_retry_) return previous != audio_state_;
         start_audio(now);

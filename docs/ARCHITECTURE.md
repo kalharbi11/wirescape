@@ -348,8 +348,13 @@ OSC Out never enables LAN, regardless of `--confirm-lan`.
 
 `native/sidecar` builds the Qt-free `wirescape-engine` process. Its reader and
 writer isolate bounded NDJSON transport from the single control executor; audio
-uses the existing AppEngine/PortAudio callback and MIDI host. Null mode runs a
-paced discard sink and fake endpoints without device access. The UI owns saved
+uses the existing AppEngine/PortAudio callback and MIDI host. The audio
+control side publishes a device snapshot after a quiescent PortAudio enumeration;
+while a stream owns the backend, polling and UI Refresh reuse that snapshot
+without reinitializing ASIO or probing another driver. A device switch stops,
+closes and terminates the old stream before cold enumeration and new open;
+rejected opens restore the previous stream when possible and preserve the error.
+Null mode runs a paced discard sink and fake endpoints without device access. The UI owns saved
 documents; sidecar candidates are disposable execution copies. Details and
 shutdown ownership are in `native/sidecar/DESIGN.md`.
 

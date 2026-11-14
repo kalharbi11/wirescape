@@ -208,7 +208,21 @@ void list_devices(const std::string &directory) {
 }
 std::vector<Device> devices(const std::string &directory, const DeviceQuery &query) {
     Backend b(directory);
-    return enumerate(b, query);
+    auto listed = enumerate(b, query);
+    if (query.asio_detail) {
+        query.asio_detail->clear();
+#ifdef _WIN32
+        // Last host error is a host-level observation, not proof that a
+        // particular registry driver failed. The sidecar only attributes it
+        // when exactly one registered ASIO name is absent from the device list.
+        if (b.last_host_error) {
+            const auto *host = b.last_host_error();
+            if (host && host->hostApiType == paASIO && host->errorText && *host->errorText)
+                *query.asio_detail = bounded_audio_error(host->errorText);
+        }
+#endif
+    }
+    return listed;
 }
 struct Stream::Impl {
     std::unique_ptr<Backend> backend;
