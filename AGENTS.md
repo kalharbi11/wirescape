@@ -30,7 +30,7 @@ Open-source modular synth. A C++17 realtime engine (ABI 2 modules: `native/engin
 - **Board = issue #473's body, the only live list.** Its auto section is rebuilt from labels on every issue/PR change (`tools/board.py`). It lists who has what. Lead notes below it are edited in place, never re-posted as a new list.
 - **Reading an item:** its `## Current state` block, then only the newest handoff, then the diff. Older comments are history; skip them.
 - **A run covers your whole role, not other agents' work.** Before stopping, finish every duty on your role's checklist (`docs/planner/LEADS.md` "Role checklists"): for builders that is your own items plus the reviews you may do; for leads and the senior it is reviews, rulings, unblocking, task revisions, assignments and the state file, including problems that aren't on the board yet; a specific ask goes first, then the rest of the run. It never means building or fixing items that belong to someone else: write a brief or a review comment for the owner of the item instead. Save usage in *how* you read (labels, Current state, diffs, log tails), not by skipping duties. Don't end a run with "nothing to do" while your checklist has open entries.
-- **Low-usage mode** (only the owner turns it on, by telling any lead; the lead adds `usage/low-claude` or `usage/low-codex` to #473 and removes it when told): that family's builder items and non-urgent reviews wait, untouched and unreassigned. Urgent (red `main`, a 1.0 blocker) still goes ahead.
+- **Usage limits** are between the owner and Keel only. They never appear on the board, in labels, issues, PRs, STATE or docs.
 
 ## The loop
 1. **Claim:** your own item, or an unassigned one: comment `Claimed: <name>, <date>`, set `status/in-progress`, add `agent/<name>`.
@@ -79,7 +79,7 @@ No agent reaches the Pi or the laptop (no SSH or anything else). Engine/DSP/side
 - Bundle related small changes into one PR (target size/m): if a diff is smaller than its handoff + review comments, it should have been bundled.
 
 ## Labels
-`status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · `tier/T0|T1|T2` · `size/s|m|l` · `phase/0..5` · `checkpoint` · `lane/helper` (an item a helper may build; set by builders and up) · `agent/<name>` (whose item it is) · `usage/low-claude|low-codex` (on #473, owner-triggered) · overrides `allow-protected`, `allow-test-removal` (owner, Compass or Keel). Old `agent/codex` labels mean an unnamed Codex claim.
+`status/todo|in-progress|review|ready-to-merge|handoff-ready|blocked` · `tier/T0|T1|T2` · `size/s|m|l` · `phase/0..5` · `checkpoint` · `lane/helper` (an item a helper may build; set by builders and up) · `agent/<name>` (whose item it is) · overrides `allow-protected`, `allow-test-removal` (owner, Compass or Keel). Old `agent/codex` labels mean an unnamed Codex claim.
 
 ## Handoff template
 ```
