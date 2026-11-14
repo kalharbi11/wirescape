@@ -635,8 +635,10 @@ parameters.
 - CV row (`/ws/row/<n>`, one `f`): sent when the value moves more than the deadband
   (default 0.001), at most `rate_hz` times per second per row (default 100, max 500). The
   latest value is always sent eventually. Each enabled row also sends once after load.
-- Gate row (`kind: "gate"`, `f` 1.0/0.0): every crossing of 0.5 is sent, in order, never
-  rate-limited. A pulse shorter than a block still sends 1 then 0.
+- Gate row (`kind: "gate"`, `f` 1.0/0.0): crossings of 0.5 are sent in order,
+  not rate-limited, up to four edges per row per sender poll. On overload, the sender
+  keeps the first pulse and (if different) the final level; skipped edges count toward
+  `dropped`. A pulse shorter than a block still sends 1 then 0.
 - Notes (`/ws/note`, `i` key, `f` velocity with 0 = off, `i` channel): off by default; each
   note on/off in order. Up to 64 queued; overflow counts as `dropped`.
 
@@ -644,14 +646,14 @@ parameters.
 5 ms at 256 frames, 48 kHz), and the sender polls about every 1 ms, so a gate or note
 is normally a block plus a poll late. A CV row can be later than that: `rate_hz` limits
 sends per row (at `rate_hz` 1 the trailing value can wait about a second), and the sender
-thread's scheduling adds jitter. Do not use it for sample-accurate work. If the gate budget
-(spec section 4) is exceeded, extra gate edges are coalesced and counted in `dropped`.
+thread's scheduling adds jitter. Do not use it for sample-accurate work. Each patch edit
+re-creates OSC Out, so enabled rows send their current value once after the first block.
 
 **Delivery:** UDP to loopback is fire-and-forget. `sent` means the engine handed the
 packet to the local network stack, not that anything received it. With no listener `sent`
-still counts and audio is unaffected; `dropped` counts only the engine's own overflow
-(a full 64-note queue or the gate budget), so it does not tell you whether a program is
-listening. Check the receiver, not the counters.
+still counts and audio is unaffected; `dropped` covers observed `sendto` failures,
+note-ring overflow, coalesced gate edges and messages the per-poll budget cannot carry,
+not missing listeners. Check the receiver, not the counters.
 
 **Notes and choke:** a note-off or a choke is sent as velocity 0. A choke can carry key
 `-1` (all notes); a receiver must handle that key (treat it as all-off) and never use the
@@ -659,7 +661,7 @@ key unchecked as a table index.
 
 **Config** (`modules[i].config`, defaults shown; an invalid known value refuses the **whole graph** load or edit atomically, and the
 running graph is untouched):
-`{"version":1,"port":9001,"rate_hz":100,"rows":[{"address":"/ws/row/1","kind":"cv","deadband":0.001}],"notes":{"address":"/ws/note","enabled":true}}`.
+`{"version":1,"port":9001,"rate_hz":100,"rows":[{"address":"/ws/row/1","kind":"cv","deadband":0.001}],"notes":{"address":"/ws/note","enabled":false}}`.
 Addresses start with `/`, are 2..63 printable ASCII bytes, with none of `#*,?[]{}` or spaces.
 
 **Pi recipe:** (1) on the Pi run `python tools/examples/osc_out_receiver.py` (stdlib only;
