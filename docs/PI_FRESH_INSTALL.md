@@ -89,9 +89,10 @@ use the preflight's missing-library report and the distribution's package names.
 Bookworm and newer releases can differ on `t64` package names. Do not blindly
 copy package names from another distribution or disable loader checks.
 
-The Qt SDK is not a prerequisite for this source app. Full private-runner
-legacy document tests have their own Qt Core requirement in
-[PI_RUNNER.md](PI_RUNNER.md); do not confuse that with Qt UI installation.
+The Qt SDK is not required for this Electron/sidecar source app or its
+public native document tests. The retired QtCore suite is preserved at the immutable
+[`archive/qt-final`](https://github.com/kalharbi11/wirescape/tree/e6e927c4d52cb65aa0ca7948bba02acaa1ddf119)
+Git revision; see [PI_RUNNER.md](PI_RUNNER.md) for device-off runner boundaries.
 
 ## 3. Select the single accepted source revision
 
