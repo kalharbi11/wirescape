@@ -190,6 +190,13 @@ or parameter IDs.
   unbent V/oct value (0=C4). It follows accepted NoteOn even when mono priority
   keeps another note sounding, survives release/choke,
   and resets to 0 on reset/restore; poly pitch/gate outputs keep their behavior.
+  For a playable polyphonic voice chain, use `midi.to_cv.pitch` →
+  `essentials.vco.pitch` and `midi.to_cv.gate` → `essentials.adsr.gate`
+  as **signal** cables. Four rotating voices (the MIDI→CV default) occupy
+  channels 0–3; reading channel 0 alone misses notes on the other lanes.
+  The VCO and ADSR preserve poly channels, and an Output input uses `SUM`
+  when a mono output bus is needed. `last_note` is a held mono pitch history,
+  not a substitute for per-voice gate.
 - CC range wiring: `midi.in.midi` → `midi.cc_to_cv.midi`, then `cc1` → a CV input.
   For row 1 use `config.rows[0]` with `controller:21`, `min:0`, `max:1`.
   Finite optional endpoints override the matching bipolar default; inverted and
