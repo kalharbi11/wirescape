@@ -31,6 +31,8 @@ export interface DebugSwitches {
  * is the only place in the app where a value is invented.
  */
 export class FakeEngine implements EngineClient {
+  /** Simulated hello capability; Web preview cannot host OSC Out. */
+  readonly capabilities: string[];
   private nodes = new Map<number, Node>();
   private conns: Connection[] = [];
   private voices: Voice[] = [];
@@ -83,6 +85,8 @@ export class FakeEngine implements EngineClient {
   ];
 
   constructor(private readonly registry: ModuleRegistry) {
+    // Browser Web mode cannot host UDP or advertise the osc.out capability.
+    this.capabilities = window.wirescape?.web ? [] : ['osc.out'];
     this.status.midi.devices = this.midiDevices.map(d => ({ ...d }));
     this.recomputeLatency();
   }
@@ -139,6 +143,18 @@ export class FakeEngine implements EngineClient {
         received: 0, dropped: 0,
       };
     });
+    this.osc.out = patch.modules.filter(m => m.module === 'osc.out').map(m => {
+      const cfg = m.config && typeof m.config === 'object' && !Array.isArray(m.config)
+        ? m.config as Record<string, unknown> : {};
+      const rows = Array.isArray(cfg.rows) ? cfg.rows : [];
+      const allOff = rows.length >= 8 && rows.slice(0, 8)
+        .every(r => (r as { enabled?: unknown } | null)?.enabled === false);
+      const notes = cfg.notes && typeof cfg.notes === 'object' && !Array.isArray(cfg.notes)
+        ? cfg.notes as Record<string, unknown> : {};
+      return { module: String(m.id), port: typeof cfg.port === 'number' ? cfg.port : 9001,
+        state: (allOff && notes.enabled !== true ? 'disabled' : 'sending') as 'disabled' | 'sending',
+        sent: 0, dropped: 0 };
+    });
     this.osc.enabled = this.osc.routes.some(r => r.state !== 'disabled') || this.legacyOsc.enabled;
     this.osc.bind = '127.0.0.1';
     this.osc.lan = false;
@@ -161,6 +177,14 @@ export class FakeEngine implements EngineClient {
     const route = this.osc.routes?.find(r => r.module === String(moduleId));
     if (!route) return;
     route.received = count;
+    this.pushStatus();
+  }
+
+  /** Deterministic, device-free OSC Out status injection for Playwright. */
+  setOscOutStatus(moduleId: number, sent: number, dropped: number, state: 'sending' | 'disabled' | 'error' = 'sending'): void {
+    const route = this.osc.out?.find(r => r.module === String(moduleId));
+    if (!route) return;
+    Object.assign(route, { sent, dropped, state });
     this.pushStatus();
   }
 
@@ -793,6 +817,7 @@ export class FakeEngine implements EngineClient {
         ...(this.status.midi.learn ? { learn: { ...this.status.midi.learn } } : {}) },
       osc: { ...this.osc,
         routes: this.osc.routes?.map(r => ({ ...r })),
+        out: this.osc.out?.map(r => ({ ...r })),
         recent: (this.osc.recent ?? []).map(m => ({ ...m, args: [...m.args] })) },
       ...(clockNode
         ? { clock: { bpm: clockNode.params.bpm ?? 120, running: (clockNode.params.run ?? 1) >= 0.5 } }

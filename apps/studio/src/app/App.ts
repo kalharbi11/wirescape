@@ -21,6 +21,7 @@ import { OnScreenKeyboard } from './OnScreenKeyboard';
 import { DevPanel } from './DevPanel';
 import { Modal, field, select, switchButton } from './Modal';
 import { showOscEditor, type OscConfig } from './OscEditor';
+import { showOscOutEditor, type OscOutConfig } from './OscOutEditor';
 import { readOscRaw } from './oscCapture';
 import { STARTERS, BUNDLED_STARTERS, DEFAULT_STARTER, type Starter } from './starters';
 import { CURATED_PATCHES } from './curated';
@@ -933,17 +934,21 @@ export class App {
    * with a message if the engine refuses.
    */
   private openOscEditor(id: number): void {
-    if (this.documentBusy || this.doc.modules.get(id)?.module !== 'osc.in') return;
-    showOscEditor(this.oscEditor, this.doc.modules.get(id)?.config,
-      async (config: OscConfig) => this.commitOscConfig(id, config),
+    const mod = this.doc.modules.get(id);
+    if (this.documentBusy || !mod) return;
+    if (mod.module === 'osc.in') showOscEditor(this.oscEditor, mod.config,
+      async (config: OscConfig) => this.commitOscConfig(id, config, 'osc.in'),
       row => readOscRaw(this.doc, this.ticker.last, id, row),
       refresh => this.ticker.bindGlobal(refresh));
+    else if (mod.module === 'osc.out') showOscOutEditor(this.oscEditor, mod.config,
+      async (config: OscOutConfig) => this.commitOscConfig(id, config, 'osc.out'));
   }
 
   /** A config save is one authored edit and one ordinary whole-graph replan. */
-  private async commitOscConfig(id: number, config: OscConfig): Promise<boolean> {
+  private async commitOscConfig(id: number, config: OscConfig | OscOutConfig,
+    type: 'osc.in' | 'osc.out'): Promise<boolean> {
     const mod = this.doc.modules.get(id);
-    if (this.documentBusy || !mod || mod.module !== 'osc.in') return false;
+    if (this.documentBusy || !mod || mod.module !== type) return false;
     const previous = mod.config === undefined ? undefined : structuredClone(mod.config);
     const epoch = this.viewEpoch;
     this.history.flush();
@@ -952,7 +957,7 @@ export class App {
       await this.editEngine().loadGraph(this.doc.toJSON());
       if (epoch !== this.viewEpoch) return false;
       this.history.flush();
-      this.toasts.show('OSC addresses applied.');
+      this.toasts.show(`${type === 'osc.out' ? 'OSC Out' : 'OSC'} addresses applied.`);
       return true;
     } catch (e) {
       if (epoch === this.viewEpoch) {

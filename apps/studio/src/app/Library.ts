@@ -72,7 +72,9 @@ export class Library {
     const matches = this.registry.search(query);
     this.countEl.textContent = `${matches.length} of ${this.registry.all.length}`;
     this.list.replaceChildren();
-    if (!matches.length) {
+    const webOut = !!window.wirescape?.web &&
+      (!query.trim() || ['osc out', 'osc.out', 'osc', 'i/o'].some(s => s.includes(query.trim().toLowerCase())));
+    if (!matches.length && !webOut) {
       this.list.append(el('div', 'library-empty', 'No module matches that.'));
       return;
     }
@@ -84,18 +86,31 @@ export class Library {
       }
       this.list.append(this.item(m));
     }
+    if (webOut && !matches.some(m => m.id === 'osc.out')) {
+      if (!seen.has('I/O')) this.list.append(el('div', 'library-group', 'I/O'));
+      const disabled = el('button', 'library-item muted') as HTMLButtonElement;
+      disabled.type = 'button'; disabled.disabled = true;
+      disabled.dataset.testid = 'library-item-osc.out';
+      disabled.title = 'Desktop and Pi only';
+      disabled.append(el('span', 'library-info', 'OSC Out · Desktop and Pi only'));
+      this.list.append(disabled);
+    }
   }
 
   private item(m: ModuleDescriptor): HTMLElement {
     const b = el('button', 'library-item') as HTMLButtonElement;
     b.type = 'button';
-    b.draggable = true;
+    const webOnly = !!window.wirescape?.web && m.id === 'osc.out';
+    b.disabled = webOnly;
+    b.draggable = !webOnly;
     b.dataset.type = m.id;
     b.dataset.testid = `library-item-${m.id}`;
     b.title = `${m.name} — ${inputs(m).length} in, ${outputs(m).length} out, ${m.parameters.length} parameters`;
 
     const info = el('span', 'library-info');
-    info.append(el('strong', '', m.name), el('small', '', `${inputs(m).length} in · ${outputs(m).length} out · ${m.parameters.length} params`));
+    info.append(el('strong', '', m.name), el('small', '', webOnly
+      ? 'Desktop and Pi only'
+      : `${inputs(m).length} in · ${outputs(m).length} out · ${m.parameters.length} params`));
     b.append(info, el('span', 'library-plus', '+'));
 
     b.addEventListener('click', () => this.hooks.add(m.id));
