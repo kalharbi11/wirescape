@@ -77,6 +77,9 @@ export interface SystemStatus {
 }
 
 export interface OscStatus {
+  /** Optional OSC Out sender routes; absent until the native sender is installed. */
+  out?: { module: string; port: number; state: 'sending' | 'disabled' | 'error';
+    sent: number; dropped: number; last_error?: string }[];
   enabled: boolean;
   port: number;
   /** Actual bind address and LAN authorization, never inferred from saved config. */
