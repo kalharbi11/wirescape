@@ -59,7 +59,13 @@ case "$1" in
     esac ;;
 esac
 printf 'python3 %s (jobs=%s)\n' "$*" "$CMAKE_BUILD_PARALLEL_LEVEL" >> "$WS_LOG"
-[ "$WS_FAIL_BUILD" != 1 ]
+[ "$WS_FAIL_BUILD" != 1 ] || exit 11
+case "$*" in
+  *"/tools/dev.py build --config Release")
+    [ "$WS_FAIL_DESKTOP_BUILD" != 1 ] || exit 17
+    mkdir -p "$WS_ROOT/apps/desktop/build"
+    touch "$WS_ROOT/apps/desktop/build/main.js" ;;
+esac
 """)
         self.add_fake("npm", r"""#!/bin/sh
 printf 'npm %s : %s\n' "$PWD" "$*" >> "$WS_LOG"
@@ -99,18 +105,27 @@ esac
         calls = self.log.read_text().splitlines()
         fetch = next(i for i, line in enumerate(calls) if "fetch --prune origin" in line)
         checkout = next(i for i, line in enumerate(calls) if "switch --detach" in line)
-        build = next(i for i, line in enumerate(calls) if "dev.py build" in line)
-        npm = next(i for i, line in enumerate(calls) if line.startswith("npm "))
+        native = next(i for i, line in enumerate(calls) if "dev.py build --headless" in line)
+        desktop = next(i for i, line in enumerate(calls) if "dev.py build --config Release" in line)
+        studio_build = next(i for i, line in enumerate(calls) if
+                            line.startswith("npm ") and "/apps/studio : run build" in line)
+        desktop_ci = next(i for i, line in enumerate(calls) if
+                          line.startswith("npm ") and "/apps/desktop : ci" in line)
         self.assertLess(fetch, checkout)
-        self.assertLess(checkout, build)
-        self.assertLess(build, npm)
-        self.assertIn("tools/dev.py build --headless --config Release", calls[build])
+        self.assertLess(checkout, native)
+        self.assertLess(native, studio_build)
+        self.assertLess(studio_build, desktop_ci)
+        self.assertLess(desktop_ci, desktop)
+        self.assertIn("tools/dev.py build --headless --config Release", calls[native])
+        self.assertIn("tools/dev.py build --config Release", calls[desktop])
         self.assertEqual(calls.count("preflight --check-only"), 2)
-        self.assertIn("jobs=2", calls[build])
+        self.assertIn("jobs=2", calls[native])
+        self.assertIn("jobs=2", calls[desktop])
         self.assertEqual(sum(line.startswith("npm ") and line.endswith(" : ci") for line in calls), 2)
-        self.assertEqual(sum("run build" in line for line in calls), 2)
+        self.assertEqual(sum("run build" in line for line in calls), 1)
+        self.assertFalse(any("--confirm-audio" in line or "--confirm-midi" in line for line in calls))
         self.assertIn(SHA, done.stdout)
-        self.assertIn("--confirm-audio --confirm-midi", done.stdout)
+        self.assertIn("python3 tools/dev.py launch --confirm-audio --confirm-midi", done.stdout)
         self.assertIn(str(self.root), done.stdout)
         self.assertNotIn("--null-audio", done.stdout)
 
@@ -125,6 +140,15 @@ esac
         done = self.run_update(SHA, WS_FAIL_BUILD="1")
         self.assertNotEqual(done.returncode, 0)
         self.assertNotIn("npm ", self.log.read_text())
+        self.assertNotIn("To launch", done.stdout)
+
+    def test_full_desktop_provenance_build_failure_propagates(self):
+        done = self.run_update(SHA, WS_FAIL_DESKTOP_BUILD="1")
+        self.assertEqual(done.returncode, 17, done.stderr)
+        self.assertIn("Stage desktop-build failed (exit 17)", done.stderr)
+        self.assertIn("dev.py build --headless --config Release", self.log.read_text())
+        self.assertIn("dev.py build --config Release", self.log.read_text())
+        self.assertNotIn("Built " + SHA, done.stdout)
         self.assertNotIn("To launch", done.stdout)
 
     def test_preflight_failure_never_fetches(self):

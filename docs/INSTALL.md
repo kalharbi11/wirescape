@@ -162,7 +162,7 @@ cd ~/wirescape-test
 Ref=$(git rev-parse origin/main) && git switch --detach "$Ref"
 python3 tools/pi/preflight.py --check-only
 sh tools/pi/update-and-build.sh "$Ref"
-python3 tools/dev.py build --config Release   # records the Electron build so `launch` accepts it
+# The updater already records the Release Electron build provenance for launch.
 ```
 
 **Launch with sound, MIDI and LAN OSC** (for an ESP32 or another network
@@ -215,8 +215,9 @@ python3 tools/dev.py test                    # headless tests, devices off
 python3 tools/pi/app_smoke.py --report build_reports/pi-app-smoke
 ```
 
-Then launch with sound and MIDI using the command the updater prints, or:
-`apps/desktop/node_modules/.bin/electron apps/desktop/build/main.js --engine "$PWD/build/native/wirescape-engine" --confirm-audio --confirm-midi`.
+Then launch with sound and MIDI using the updater's printed command, or from the checkout:
+`python3 tools/dev.py launch --confirm-audio --confirm-midi`.
+The launcher checks the Release engine and Electron provenance; it refuses stale or incomplete builds.
 
 To go back, `git switch --detach <old sha>` and rerun the same build commands.
 `build_reports\windows-setup\summary.txt` (Windows) and
