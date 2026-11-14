@@ -25,6 +25,21 @@ class CITriggers(unittest.TestCase):
         self.assertIn("windows-x64", matrix)
         self.assertNotIn("draft", matrix)
         self.assertNotIn("ci/windows", matrix)
+    def test_studio_acceptance_locates_host_chromium_before_running(self):
+        workflow = source('.github/workflows/ci.yml')
+        step = workflow.split('      - name: Run task acceptance when specified', 1)[1]
+        conditional = "if re.search(r'apps/studio.*(npm test|playwright test)', task.read_text()):"
+        self.assertIn(conditional, step)
+        setup = step.split(conditional, 1)[1].split("subprocess.check_call([sys.executable, '-m', 'pip'", 1)[0]
+        self.assertIn('npx playwright install ffmpeg', setup)
+        self.assertIn("('chromium', 'chromium-browser', 'google-chrome')", setup)
+        self.assertIn('shutil.which(name)', setup)
+        self.assertIn('if not browser or not os.access(browser, os.X_OK):', setup)
+        self.assertIn("os.environ['WIRESCAPE_CHROMIUM'] = browser", setup)
+        self.assertLess(setup.index('npx playwright install ffmpeg'),
+                        setup.index("os.environ['WIRESCAPE_CHROMIUM'] = browser"))
+        self.assertIn("'tools/dev.py', 'accept'", step)
+
     def test_cloud_clang_format_is_pinned(self):
         setup = source("tools/ci/codex_cloud_setup.sh")
         self.assertIn("clang-format==18.", setup)
