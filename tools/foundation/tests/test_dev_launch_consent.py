@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """LAN launch consent is argv-only in tests; never start Electron or devices."""
+from contextlib import redirect_stderr, redirect_stdout
 from itertools import product
 from pathlib import Path
+import io
 from types import SimpleNamespace
 import sys
 import tempfile
@@ -35,7 +37,16 @@ class LaunchLanConsentTests(unittest.TestCase):
                                  return_value=SimpleNamespace(pid=42, poll=lambda: None)) as spawn,
                 ):
                     args = dev.make_parser().parse_args(['launch', *flags])
-                    self.assertEqual(dev.command_launch(args), 0)
+                    warning = io.StringIO()
+                    with redirect_stderr(warning):
+                        self.assertEqual(dev.command_launch(args), 0)
+                warning_text = warning.getvalue()
+                self.assertEqual(warning_text.count("Warning:"), int(lan and not (audio or midi)))
+                if lan and not (audio or midi):
+                    self.assertIn("--null-audio", warning_text)
+                    self.assertIn("loopback", warning_text)
+                else:
+                    self.assertEqual(warning_text, "")
                 audio_midi = [f for f in flags if f != '--confirm-lan']
                 expected = [str(electron), str(dev.ROOT / 'apps/desktop'),
                             '--engine', str(engine), *(audio_midi or ['--null-audio']),
@@ -45,4 +56,14 @@ class LaunchLanConsentTests(unittest.TestCase):
                 self.assertEqual(recorded['device_confirmations'], flags)
                 self.assertIs(spawn.call_args.kwargs['stdin'], dev.subprocess.DEVNULL)
                 self.assertFalse(spawn.call_args.kwargs.get('shell', False))
+
+    def test_launch_help_explains_lan_only_null_audio(self):
+        output = io.StringIO()
+        with redirect_stdout(output), self.assertRaises(SystemExit) as result:
+            dev.make_parser().parse_args(['launch', '--help'])
+        self.assertEqual(result.exception.code, 0)
+        help_text = output.getvalue()
+        self.assertIn('--confirm-lan', help_text)
+        self.assertIn('--null-audio', help_text)
+        self.assertIn('loopback', help_text)
 
