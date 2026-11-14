@@ -8,6 +8,7 @@
 #include <unistd.h>
 #endif
 #include "../io/osc/codec.h"
+#include "../modules2/osc_out/dsp.h"
 #include "session.h"
 #include <algorithm>
 #include <cerrno>
@@ -182,6 +183,69 @@ void test_osc_out_budget() {
               "coalesced edges and deterministic EWOULDBLOCK count as observed drops");
     }
 }
+// A deterministic sender seam observes the actual OSC Out DSP bus. Panic
+// while a gate stays high must not inject an extra 0/1 pair on the wire.
+void test_osc_out_held_gate_reset_sender() {
+    Json config = {{"port", 9001}, {"rows", Json::array()}, {"notes", {{"enabled", false}}}};
+    config["rows"].push_back({{"kind", "gate"}});
+    for (int i = 1; i < 8; ++i) config["rows"].push_back({{"enabled", false}});
+    const Json patch = {{"modules", Json::array({{{"id", 19}, {"module", "osc.out"}, {"config", config}}})}};
+    injected_calls.store(0, std::memory_order_relaxed);
+    injected_values.fill(-1.f);
+    wirescape::osc::OutHost sender(patch.dump(), accept_outgoing);
+    auto *bus = sender.buses().at(19);
+
+    wirescape::osc::OutConfiguration cfg;
+    cfg.rows[0].kind = 1;
+    cfg.bus = bus;
+    ws2_config setup{sizeof(setup), 48000., 16, 16, 1,
+                     reinterpret_cast<const uint8_t *>(&cfg), uint32_t(sizeof(cfg))};
+    ws2_host host{};
+    host.struct_size = sizeof(host);
+    wirescape::osc::OscOut module;
+    check(module.prepare(ws::Setup{setup, host}), "OSC Out gate module accepts test bus");
+    module.reset();
+    float level = 0.f;
+    const float *channel[] = {&level};
+    std::array<ws2_signal, 9> inputs{};
+    inputs[0] = {sizeof(ws2_signal), channel, 1, WS2_CONNECTED | WS2_CONSTANT};
+    ws2_process context{};
+    context.frames = 1;
+    context.input_count = uint32_t(inputs.size());
+    context.inputs = inputs.data();
+    ws::Block block(context);
+
+    auto consume = [&](uint32_t expected) {
+        sender.start();
+        const auto deadline = std::chrono::steady_clock::now() + 2s;
+        while (injected_calls.load(std::memory_order_acquire) < expected &&
+               std::chrono::steady_clock::now() < deadline)
+            std::this_thread::sleep_for(5ms);
+        sender.stop();
+        check(injected_calls.load(std::memory_order_acquire) == expected,
+              "sender publishes the expected gate level once");
+    };
+    module.process(block); // cold start: publish low as the initial value
+    consume(1);
+    level = 1.f;
+    module.process(block); // a real rising edge
+    consume(2);
+    check(bus->rows[0].rises == 1 && bus->rows[0].falls == 0,
+          "before panic, only the actual rise is counted");
+
+    module.reset(); // panic while the source continues holding high
+    module.process(block);
+    check(bus->rows[0].rises == 1 && bus->rows[0].falls == 0,
+          "held-high panic cannot invent a rise or fall");
+    level = 0.f;
+    module.process(block); // a real falling edge must still be transmitted
+    check(bus->rows[0].rises == 1 && bus->rows[0].falls == 1,
+          "first fall after panic is counted exactly once");
+    consume(3);
+    check(injected_values[0] == 0.f && injected_values[1] == 1.f && injected_values[2] == 0.f,
+          "sender emits only the initial low, actual rise and actual fall");
+}
+
 int main() {
     const auto root = std::filesystem::temp_directory_path() /
                       ("wirescape-audio-recovery-" + std::to_string(app_engine_clock_ns()));
@@ -192,6 +256,7 @@ int main() {
     try {
         std::filesystem::create_directories(root);
         test_osc_out_budget();
+        test_osc_out_held_gate_reset_sender();
         using wirescape::audio::classify_rates;
         const auto supported = classify_rates({0, -1, 0}, -1);
         const auto invalid = classify_rates({-1, -1, -1}, -1);
