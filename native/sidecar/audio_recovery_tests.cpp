@@ -21,7 +21,9 @@ std::vector<wirescape::audio::Device> outputs;
 std::vector<std::string> attempts;
 std::string refuse_id;  // fake a single device-specific PortAudio open failure
 std::string open_error; // injected malformed/multibyte host diagnostic
+std::string asio_host_detail; // injected PortAudio last-host-error, no real driver
 std::vector<std::string> installed_asio;
+std::vector<std::string> lifecycle; // fake cold enumerate / stop / open ordering
 bool active = true, refuse = false, enumeration_throws = false, render = false;
 uint32_t rejected_rate = 0;
 // Fake ASIO buffer negotiation: when accept_block is set, any other block fails to
@@ -43,6 +45,8 @@ namespace wirescape::audio {
 std::vector<std::string> installed_asio_drivers() { return fake::installed_asio; }
 std::vector<Device> devices(const std::string &, const DeviceQuery &query) {
     fake::queries.push_back(query);
+    fake::lifecycle.push_back("enumerate");
+    if (query.asio_detail) *query.asio_detail = fake::asio_host_detail;
     if (fake::enumeration_throws) throw std::runtime_error("fake enumeration failure");
     return fake::outputs;
 }
@@ -59,6 +63,7 @@ Stream::Stream(EngineOwner &owner, const StreamSelection &selection, double rate
                std::function<void()> producers, bool allow_preferred_retry)
     : impl_(std::make_unique<Impl>()) {
     fake::attempts.push_back(selection.name);
+    fake::lifecycle.push_back("open:" + selection.name);
     fake::blocks.push_back(block);
     if (fake::accept_block && block != fake::accept_block) {
         if (allow_preferred_retry && fake::preferred) throw PreferredBufferSize(fake::preferred);
@@ -91,6 +96,7 @@ EngineOwner Stream::stop() {
     if (impl_->callback.joinable()) impl_->callback.join();
     if (impl_->engine) {
         if (impl_->producers) impl_->producers();
+        fake::lifecycle.push_back("stop");
         ++fake::stopped;
     }
     return std::move(impl_->engine);
@@ -279,8 +285,11 @@ int main() {
             saved >> settings;
             check(settings["audioDeviceId"] == "Remembered" && settings["opaque"] == 17, "preferences preserved");
             fake::outputs = {output("Other default", 0, true)};
-            check(s.poll(base + 800ms) && audio(s)["state"] == "device-lost",
-                  "enumerated removal must retire even before backend activity reports loss");
+            check(!s.poll(base + 800ms) && audio(s)["state"] == "running",
+                  "an active stream keeps its published catalogue until the backend stops");
+            fake::active = false;
+            check(s.poll(base + 810ms) && audio(s)["state"] == "device-lost",
+                  "backend-reported loss stops and retires the stream without reinitializing ASIO");
             s.shutdown();
             check(fake::stopped == 2, "clean shutdown retires recovered stream");
         }
@@ -320,7 +329,8 @@ int main() {
         fake::outputs = {
             {"USB Stereo", "USB Stereo", "FakeAudio", 3, true, "FakeAudio", 2, {44100, 48000, 96000}, true, ""},
             {"Mono DAC", "Mono DAC", "FakeAudio", 4, false, "FakeAudio", 1, {}, false, "mono-output"},
-            {"No Output", "No Output", "FakeAudio", 5, false, "FakeAudio", 0, {}, false, "no-output"}};
+            {"No Output", "No Output", "FakeAudio", 5, false, "FakeAudio", 0, {}, false, "no-output"},
+            {"Rate DAC", "Rate DAC", "FakeAudio", 6, false, "FakeAudio", 2, {44100, 48000, 96000}, true, ""}};
         {
             Session s(options);
             s.start();
@@ -334,10 +344,10 @@ int main() {
             auto hello = s.hello();
             const auto caps = Json::array({"midiLearn", "telemetry.playhead", "telemetry.monitor", "setSampleRate",
                                            "setBufferFrames", "osc", "osc.out"});
-            check(hello["audioDevices"].size() == 2 && hello["capabilities"] == caps,
+            check(hello["audioDevices"].size() == 3 && hello["capabilities"] == caps,
                   "hello must expose the supported device catalogue and methods");
             auto listed = call("list", "listAudioDevices")["result"]["devices"];
-            check(listed.size() == 2 && listed[0]["backend"] == "FakeAudio" && listed[0]["outputChannels"] == 2 &&
+            check(listed.size() == 3 && listed[0]["backend"] == "FakeAudio" && listed[0]["outputChannels"] == 2 &&
                       listed[0]["supported"] == true,
                   "backend/channels must be reported honestly");
             check(listed[1]["supported"] == false && listed[1]["unsupportedReason"] == "mono-output" &&
@@ -353,13 +363,13 @@ int main() {
                 const auto entry = s.devices()["audioDevices"][0];
                 check(entry["supported"] == true && entry["sampleRates"] == known_rates,
                       "repeated warm polls preserve active support and known rates");
-                check(!fake::queries.back().probe_rates && fake::queries.back().active_id == "USB Stereo",
-                      "warm polls never request format probes and identify the held endpoint");
+                check(fake::queries.empty(),
+                      "warm polls never create another PortAudio backend while a stream exists");
             }
             const auto active_list = call("held-list", "listAudioDevices")["result"]["devices"];
-            check(fake::queries.back().probe_rates && fake::queries.back().active_id == "USB Stereo" &&
-                      active_list[0]["supported"] == true && active_list[0]["sampleRates"] == known_rates,
-                  "explicit enumeration probes only endpoints not held by the current stream");
+            check(fake::queries.empty() && active_list[0]["supported"] == true &&
+                      active_list[0]["sampleRates"] == known_rates,
+                  "explicit listAudioDevices reuses the published catalogue with no ASIO reinitialization");
             fake::outputs[0].sample_rates = {44100, 48000, 96000};
             fake::outputs[0].supported = true;
             fake::outputs[0].unsupported_reason.clear();
@@ -367,11 +377,11 @@ int main() {
             const auto playing = fake::engine;
             auto missing = call("missing", "selectAudioDevice", {{"deviceId", "outdated-id"}});
             auto mono = call("mono", "selectAudioDevice", {{"deviceId", "Mono DAC"}});
-            fake::outputs.push_back(fake::outputs.front()); // volatile index is never a disambiguator
+            fake::outputs.push_back(fake::outputs.front()); // a new duplicate appears in a foreign backend
             s.poll();
-            auto duplicate = call("duplicate", "selectAudioDevice", {{"deviceId", "USB Stereo"}});
-            check(duplicate["code"] == "duplicate" && fake::stopped == stopped,
-                  "duplicate IDs must be refused before stopping the old stream");
+            const auto held = call("held", "listAudioDevices")["result"]["devices"];
+            check(held.size() == 3 && fake::queries.empty() && fake::stopped == stopped,
+                  "in-flight ASIO stream cannot see a new duplicate through unsafe reinitialization");
             fake::outputs.pop_back();
             s.poll();
             check(missing["ok"] == false && missing["code"] == "not-found" && mono["ok"] == false &&
@@ -408,8 +418,7 @@ int main() {
             Json after;
             saved_after >> after;
             check(after["audio"] == prefs["audio"], "rejected stream config must not persist");
-            fake::outputs.push_back({"Rate DAC", "Rate DAC", "FakeAudio", 6, false});
-            s.poll();
+            // Rate DAC was present in the last safe (pre-stream) catalogue.
             fake::rate_refused_id = "Rate DAC";
             auto route_rate = call("route-rate", "selectAudioDevice", {{"deviceId", "Rate DAC"}});
             check(route_rate["code"] == "refused" && route_rate["message"] == "rate-unsupported" &&
@@ -605,6 +614,7 @@ int main() {
         // Registry and PortAudio enumeration are separately faked: no OS registry,
         // PortAudio DLL or physical device is ever touched by this test executable.
         fake::installed_asio = {"ASIO4ALL v2", "FlexASIO"};
+        fake::asio_host_detail = "Could not initialize FlexASIO host interface";
         fake::outputs = {{"ASIO|ASIO4ALL v2", "ASIO4ALL v2", "ASIO", 3, true}};
         options.settings = (root / "asio-diagnostics.json").string();
         {
@@ -616,7 +626,8 @@ int main() {
             check(all["audio"]["unavailableDrivers"].size() == 1 &&
                       all["audio"]["unavailableDrivers"][0]["name"] == "FlexASIO" &&
                       all["audio"]["unavailableDrivers"][0]["hostApi"] == "ASIO" &&
-                      all["audio"]["unavailableDrivers"][0]["reason"] == "driver-init-failed",
+                      all["audio"]["unavailableDrivers"][0]["reason"] == "driver-init-failed" &&
+                      all["audio"]["unavailableDrivers"][0]["detail"] == fake::asio_host_detail,
                   "missing ASIO init is a separate optional diagnostic, not a selectable endpoint");
             const auto listed = s.reply({{{"v", 0}, {"id", "asio-list"}, {"type", "listAudioDevices"}}, {}, {}});
             check(listed["ok"] == true && listed["result"]["devices"].size() == 1 &&
@@ -624,6 +635,7 @@ int main() {
                       s.hello()["audio"]["unavailableDrivers"].size() == 1,
                   "hello and explicit enumeration expose the same optional unavailable-driver diagnostic");
         }
+        fake::asio_host_detail.clear();
         fake::refuse = true;
         options.settings = (root / "asio-error.json").string();
         {

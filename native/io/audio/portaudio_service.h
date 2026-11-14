@@ -140,6 +140,8 @@ inline RateSupport classify_rates(const std::array<int, 3> &results, int invalid
 struct DeviceQuery {
     bool probe_rates = true;
     std::string target_id, active_id;
+    // Cold enumeration only. PortAudio host errors are not an output device.
+    std::string *asio_detail = nullptr;
 };
 std::vector<Device> devices(const std::string &directory, const DeviceQuery &query = {});
 // Control-owned stream. Context exclusively owns the engine until stop proves

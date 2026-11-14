@@ -33,3 +33,14 @@ from that backend clock to the MIDI steady clock is established here. Offline
 WAV rendering stays on `app_engine_render_channels` for deterministic frame time.
 The internal `callback_render.h` seam shares the exact live render, interleave,
 gain/clamp and fault path with device-free tests; its scratch is preallocated.
+
+**ASIO driver lifetime and switching (#722).** A running PortAudio stream owns
+its initialized backend, and device/ASIO lists are snapshots until that stream
+is stopped and terminated. Warm polls and manual Refresh never initialize a
+second PortAudio backend or probe another ASIO driver. A device change first
+joins callbacks and terminates the old backend, then performs a cold device
+listing and attempts the selected driver; a rejected open restores the prior
+route when available, or reports a bounded reason without inventing audio.
+An unavailable registry-only driver may include one sanitized PortAudio ASIO
+host-error `detail` when exactly one registered driver is missing (not proof
+of the individual driver's diagnosis). Driver tests use a fake backend only.
