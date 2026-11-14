@@ -32,8 +32,11 @@ different things; the evidence below keeps those boundaries explicit.
 - OSC In over localhost UDP merged (#562); the Monitor log UI (slice C) is 1.1 work. MIDI Learn UI has merged (#500),
   but real-controller validation remains separate. The SDK is experimental;
   no ABI freeze or Daisy/plugin cross-build certification is claimed.
-- Qt/ABI1 retirement is staged in [CLEANUP](planner/CLEANUP.md). Old tests and
-  fixture coverage stay until their reviewed replacements land.
+- R3b retired the Qt shell, QtCore inspector and Qt CI in
+  [#713](https://github.com/kalharbi11/wirescape/pull/713). The immutable
+  `archive/qt-final` tag preserves the last Qt tree; R5c removes archival
+  folders from current `main`. ABI1 remains until R6, and Qt-only development
+  tooling is separately retired under R4/R4b ([CLEANUP](planner/CLEANUP.md)).
 
 Required hosted checks are `guard`, `linux-arm64`, `windows-x64` and `sanitizers`,
 plus task/Web/WASM/Pi evidence where applicable. Read the exact PR head and report

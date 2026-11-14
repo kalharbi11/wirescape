@@ -17,8 +17,9 @@ All commands keep physical audio and MIDI devices off.
    on the runner user's PATH. On Raspberry Pi OS, install pinned Python packages
    in a venv; system `pip install --user` may be rejected under PEP 668.
    The bridge adds `~/.local/bin` and can find CTest beside the resolved CMake.
-   Use the private README's venv setup; never override system Python protections. The runner also needs Qt Core >=6.5 development files for
-   document-loader tests and soaks. Jobs never use sudo or install system packages. Ensure the
+   Use the private README's venv setup; never override system Python protections.
+   Native document-loader tests and soaks are Qt-free after R3b. Jobs never use
+   sudo or install system packages. Ensure the
    runner has Git and can reach GitHub and the package registry. GitHub CLI is
    only needed by operators using the optional dispatch commands below.
 3. In **wirescape-pi → Settings → Secrets and variables → Actions**, add the
@@ -139,6 +140,7 @@ public build environment; unavailable CI evidence stays explicitly unavailable.
 
 `laptop.yml` uses `self-hosted`, `Windows`, `laptop` labels in the private repo.
 Its hourly job builds/tests/benchmarks new public main SHAs and updates one
-**Laptop nightly summary** issue. Set system `WIRESCAPE_QT_DIR` to the MSVC Qt
-SDK prefix and run the runner as a service; do not also launch `run.cmd`.
+**Laptop nightly summary** issue. The private runner's old Qt mode awaits a
+separate removal; no Qt SDK path is required by the current public native build.
+Run the runner as a service; do not also launch `run.cmd`.
 The runner name and registration token are not workflow selectors.
