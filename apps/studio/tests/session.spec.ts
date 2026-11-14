@@ -235,10 +235,8 @@ test.describe('the catalogue', () => {
     const knownIds: string[] = readFileSync(resolve('../../tools/foundation/fixtures/known_module_ids.txt'), 'utf8')
       .split('\n').map((line: string) => line.trim()).filter((line: string) => line && !line.startsWith('#'));
     const reportIds = report.map(r => r.id);
-    // Exactly the generated catalogue plus the provisional FakeEngine OSC Out descriptor
-    // until O1 generates it. No other substitution, omission or duplicate is allowed.
-    const expectedIds = catalogueIds.includes('osc.out') ? catalogueIds : [...catalogueIds, 'osc.out'];
-    expect([...reportIds].sort()).toEqual([...expectedIds].sort());
+    // The catalogue is generated from native module manifests; FakeEngine must not add or omit IDs.
+    expect([...reportIds].sort()).toEqual([...catalogueIds].sort());
     expect(new Set(reportIds).size).toBe(reportIds.length);
     expect(knownIds.filter(id => !reportIds.includes(id))).toEqual([]);
     expect(report.some(r => r.id === 'essentials.notes_to_cv')).toBe(true);
