@@ -540,11 +540,9 @@ bool Session::refresh_devices(bool audio, bool probe_rates, const std::string &t
             std::string asio_detail;
             auto next = audio_devices(options_.directory, options_.null_audio,
                                       {probe_rates, target, {}, &asio_detail});
-            const bool playing = false;
             for (auto &entry : next) {
                 const auto id = entry.at("id").get<std::string>();
-                const bool active = playing && id == device_;
-                if (!probe_rates || active || (!target.empty() && target != id)) {
+                if (!probe_rates || (!target.empty() && target != id)) {
                     const auto old = std::find_if(audio_devices_.begin(), audio_devices_.end(),
                                                   [&](const Json &d) { return d.at("id") == id; });
                     if (old != audio_devices_.end() &&
@@ -553,16 +551,6 @@ bool Session::refresh_devices(bool audio, bool probe_rates, const std::string &t
                             entry.erase(key);
                             if (old->contains(key)) entry[key] = (*old)[key];
                         }
-                }
-                if (active && entry.value("outputChannels", 2) >= 2) {
-                    entry["supported"] = true;
-                    entry.erase("unsupportedReason");
-                    // A cached known set includes the rate proven by the running stream.
-                    // Unknown remains omitted; a singleton would falsely exclude other rates.
-                    if (entry.contains("sampleRates") &&
-                        std::find(entry["sampleRates"].begin(), entry["sampleRates"].end(), Json(options_.rate)) ==
-                            entry["sampleRates"].end())
-                        entry["sampleRates"].push_back(options_.rate);
                 }
             }
             // Registry discovery is read-only and never initializes an audio driver.
