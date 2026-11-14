@@ -1,30 +1,37 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Planner state
-**Updated:** 2026-11-13 afternoon, Keel (New York time).
-Board #473's body is live. Only completed exact-head evidence counts. Low-Claude mode is off.
+Updated: 2026-11-14, Codex Lead (New York date).
+Board #473 is live. Only completed exact-head evidence counts.
 
-## Priority 1: OSC Out in v1.0.0, Pi first (owner, 2026-11-13; PLAN D21)
-- Contract `docs/specs/OSC_OUT.md` rev 2 merged (#735, Codex Lead T2).
-- **Merged:** O1 module #736 (Keel T2) and O2 sender + `status.osc.out` #739 (Keel T2 + spec).
-- Open: O3 Studio card #738 (gpt-builder2; rebase, drop provisional FakeEngine entry), O4 guide +
-  receiver #740 (claude-helper; Codex Lead fixes + choke `key -1` + re-send after edits), then O5 Pi
-  soak + owner Pi check #734 (Codex Lead). Then Keel names the new 1.0.0 candidate.
-- Follow-ups: O1 phantom gate rise after reset (gpt-builder1, Medium); #747 acceptance-job Chromium (gpt-builder2).
+## Release path: OSC Out, Pi first
+- Merged: #735 rev-2 contract, O1 #736, O2 #739, OSC In scaling #744; R4b #729.
+- O3 #732/#738 3d842c8: fresh T1 source review; native/Web/Static workflows green.
+  Selected acceptance remains red on browser setup; restore direct catalogue equality.
+- #747/#750: senior added missing CI_ACCEPTANCE_CHROMIUM task on existing branch.
+  New head needs actual selected Studio acceptance, Claude T2 and Keel workflow authorization/policy approval.
+- O4 #733/#740 a4216df: source High remains (UDP claims); timing, finite duration,
+  choke key -1 and example/re-send guidance still assigned to claude-helper. Main integration conflicts.
+- O5 #734 waits O3/O4 and receiver/example/evidence collector; no Pi soak claimed.
+- Keel names a new candidate only after integration and O5; cdb74f2 superseded.
 
-## Priority 2: owner Windows findings
-- #722 ASIO list/switch (claude-builder1, T2), #723 failed-driver list (gpt-builder2, after O3),
-  #724 MIDI to CV pitch/gate (gpt-builder1, after O1). Evidence steps on #581.
+## Other active tasks
+- #752 gpt-builder1: updater launch provenance; new task PI_UPDATE_LAUNCH_PROVENANCE.
+- #722 claude-builder1: ASIO lifetime/switch fix not started; fake-backend T2 tests required.
+- #724/#727 gpt-builder1: synthetic tests green; owner's failing patch/symptom still needed.
+- #296 private runner dc2a585: Claude T2 + exact-head unit suite before genuine 3600 s evidence.
+- O1 reset phantom-rise Medium still needs gpt-builder1/Keel tracked disposition.
+- #716 R5c: merge conflicts, scoped historical test-removal authorization and selected acceptance ruling.
+- #728: owner branch resolves STATE conflict using current main; retains other process edits.
+- Superseded #741 closed at Keel's request.
 
-## Priority 3: Qt cleanup (fills waits)
-- R3b #713 merged `0f8a674`; `archive/qt-final` on `e6e927c` (owner, pre-release). Done.
-- #712, #719, R4 #481, R4b #729 merged. R5c #716 (gpt-builder3) remains.
-
-## 1.0.0
-- `cdb74f2` is superseded by D21. Keel names a new candidate after O1–O4 merge and O5 passes;
-  the owner tests it (Pi first, then Windows; #581). Annotated `v1.0.0` on that SHA, plus
-  `archive/chaos-performance-strip-554` on `73bfe95`. Claude sessions can't push tags (the owner does).
+## Health and owner checks
+- Main is 2f68ff7. Public main-only Actions query returned Service Unavailable; not certified.
+- #122 latest private laptop nightly on that main failed electron_build; summary's Qt label stale; root cause unproven.
+- #101 Pi evidence is older 5de0a92, not O5 or current-main acceptance.
+- Owner: failing Windows MIDI patch + audible/indicator clarification; FlexASIO evidence on #581.
+- Later: exact candidate Pi/Windows hardware test, then tag exactly the accepted SHA.
 
 ## Parked
-R6 #470, Web AudioWorklet (#658 P1.2), #600, #337, #332, #91, #594, OSC Out to LAN.
-No devices, LAN, SSH, force/direct-main pushes or weakened tests.
-Signed: Keel, 2026-11-13
+R6 #470, Web AudioWorklet, #600, #337, #332, #91, #594, OSC Out LAN.
+No devices, LAN, SSH, force/direct-main pushes or weakened checks.
+Signed: Codex Lead, 2026-11-14
