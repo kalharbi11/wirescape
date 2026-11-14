@@ -155,6 +155,56 @@ static void rows_and_gate_edges() {
     REQUIRE(bus.rows[0].blocks == 2); // never zero consumer-visible counters on reset
 }
 
+// Panic/reset must preserve consumer-owned counters and must not manufacture a
+// fresh gate rise when the input stayed high. The initial un-reset first block
+// still counts a real leading rise (covered above and by the threshold test).
+static void gate_reset_primes_without_phantom_edges() {
+    osc::OutBus bus;
+    osc::OutConfiguration cfg;
+    cfg.bus = &bus;
+    cfg.rows[0].kind = 1;
+    Rig r(&cfg);
+    r.inputs[0].flags |= WS2_CONSTANT;
+    r.samples[0][0][0] = 1.f;
+    r.run();
+    REQUIRE(bus.rows[0].rises == 1 && bus.rows[0].falls == 0);
+    {
+        allocation_watch::Scope no_alloc;
+        r.desc->reset(r.state);
+        REQUIRE(no_alloc.allocations() == 0);
+    }
+    r.run({}, 0); // No samples: do not consume the reset baseline.
+    REQUIRE(bus.rows[0].blocks == 1);
+    r.run();
+    REQUIRE(bus.rows[0].blocks == 2 && bus.rows[0].value == 1.f);
+    REQUIRE(bus.rows[0].rises == 1 && bus.rows[0].falls == 0);
+
+    // A genuine fall after a held-high reset baseline must still count.
+    r.inputs[0].flags &= ~WS2_CONSTANT;
+    r.samples[0][0][0] = 1.f;
+    r.samples[0][0][1] = 0.f;
+    r.desc->reset(r.state);
+    r.run({}, 2);
+    REQUIRE(bus.rows[0].rises == 1 && bus.rows[0].falls == 1);
+    REQUIRE(bus.rows[0].value == 0.f);
+
+    // A genuine rise after a held-low reset baseline must also count.
+    r.samples[0][0][0] = 0.f;
+    r.samples[0][0][1] = 1.f;
+    r.desc->reset(r.state);
+    r.run({}, 2);
+    REQUIRE(bus.rows[0].rises == 2 && bus.rows[0].falls == 1);
+    REQUIRE(bus.rows[0].value == 1.f);
+
+    // Also exercise OscOut::process's zero-frame guard directly (the SDK
+    // adapter short-circuits zero frames before calling the module).
+    osc::OscOut direct;
+    ws2_process empty{};
+    ws::Block block(empty);
+    direct.process(block);
+    REQUIRE(direct.local_bus.rows[0].blocks == 0);
+}
+
 static void gate_threshold_matches_sender() {
     osc::OutBus bus;
     osc::OutConfiguration cfg;
@@ -214,6 +264,7 @@ static void note_ring_and_no_bus() {
 int main() {
     configuration_checks();
     rows_and_gate_edges();
+    gate_reset_primes_without_phantom_edges();
     gate_threshold_matches_sender();
     thousand_gate_crossings_in_one_block();
     note_ring_and_no_bus();
