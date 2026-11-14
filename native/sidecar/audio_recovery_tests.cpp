@@ -636,6 +636,64 @@ int main() {
                   "hello and explicit enumeration expose the same optional unavailable-driver diagnostic");
         }
         fake::asio_host_detail.clear();
+        // Device-off ASIO A -> B -> A: every switch fully terminates the
+        // prior driver before a fresh enumeration and the next open.
+        fake::outputs = {
+            {"ASIO|ASIO4ALL v2", "ASIO4ALL v2", "ASIO", 3, true, "ASIO", 2, {48000}, true, ""},
+            {"ASIO|FlexASIO", "FlexASIO", "ASIO", 4, false, "ASIO", 2, {48000}, true, ""}};
+        options.settings = (root / "asio-switch.json").string();
+        {
+            fake::lifecycle.clear();
+            Session s(options);
+            s.start(base);
+            check(audio(s)["deviceId"] == "ASIO|ASIO4ALL v2" && audio(s)["state"] == "running",
+                  "ASIO A starts on fake driver without real device access");
+            auto call = [&](const char *id, const std::string &device) {
+                return s.reply({{{"v", 0}, {"id", id}, {"type", "selectAudioDevice"}, {"deviceId", device}},
+                                {}, {}});
+            };
+            auto switch_to = [&](const char *id, const std::string &device) {
+                const auto start = fake::lifecycle.size();
+                const auto result = call(id, device);
+                const std::vector<std::string> events(fake::lifecycle.begin() + start, fake::lifecycle.end());
+                check(result["ok"] == true && events ==
+                          std::vector<std::string>{"stop", "enumerate", "open:" + device} &&
+                          audio(s)["deviceId"] == device && audio(s)["state"] == "running",
+                      "ASIO switch stops and terminates before cold re-enumeration and new driver open");
+            };
+            const auto before = fake::queries.size();
+            s.poll();
+            s.reply({{{"v", 0}, {"id", "asio-refresh"}, {"type", "listAudioDevices"}}, {}, {}});
+            check(fake::queries.size() == before,
+                  "ASIO manual Refresh and timer never reinitialize an open driver");
+            switch_to("asio-a-b", "ASIO|FlexASIO");
+            switch_to("asio-b-a", "ASIO|ASIO4ALL v2");
+            fake::refuse_id = "ASIO|FlexASIO";
+            const auto start = fake::lifecycle.size();
+            const auto failed = call("asio-refuse-b", "ASIO|FlexASIO");
+            const std::vector<std::string> events(fake::lifecycle.begin() + start, fake::lifecycle.end());
+            check(failed["ok"] == false && failed["code"] == "unavailable" &&
+                      failed["message"] == "fake unavailable/ambiguous output" &&
+                      events == std::vector<std::string>{"stop", "enumerate", "open:ASIO|FlexASIO",
+                                                         "open:ASIO|ASIO4ALL v2"} &&
+                      audio(s)["deviceId"] == "ASIO|ASIO4ALL v2" && audio(s)["state"] == "running",
+                  "failed B open keeps its real error and restores A after complete A shutdown");
+            fake::refuse_id.clear();
+            s.shutdown();
+        }
+        // A duplicate in a genuinely cold catalogue is still rejected;
+        // a warm ASIO list may not discover an unverified duplicate.
+        fake::outputs.push_back(fake::outputs.front());
+        options.settings = (root / "asio-duplicate.json").string();
+        {
+            Session s(options);
+            s.start(base);
+            const auto response = s.reply({{{"v", 0}, {"id", "duplicate-cold"}, {"type", "selectAudioDevice"},
+                                            {"deviceId", "ASIO|ASIO4ALL v2"}}, {}, {}});
+            check(response["code"] == "duplicate", "cold duplicate ASIO identities remain unselectable");
+        }
+        fake::outputs.pop_back();
+        fake::outputs.resize(1);
         fake::refuse = true;
         options.settings = (root / "asio-error.json").string();
         {
