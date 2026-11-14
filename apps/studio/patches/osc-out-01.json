@@ -1,0 +1,156 @@
+{
+  "SPDX-License-Identifier": "GPL-3.0-only",
+  "format": "wirescape.native.patch",
+  "version": 2,
+  "settings": {
+    "sample_rate": 48000,
+    "max_block_frames": 128,
+    "max_channels": 16,
+    "feedback_block": 32,
+    "seed": 42,
+    "timing_mode": "immediate"
+  },
+  "name": "OSC Out 1 · Send to a Program",
+  "description": "Sends three things to a program on the same machine (127.0.0.1:9001): a slow LFO as /ws/row/1, a 120 BPM clock gate as /ws/row/2 and your keyboard notes as /ws/note. Run tools/examples/osc_out_receiver.py to see the values. Needs a desktop or Pi build advertising osc.out; the web demo has no UDP. Keyboard notes are also audible through a simple voice.",
+  "modules": [
+    {
+      "id": 1,
+      "module": "essentials.lfo",
+      "version": 2,
+      "parameters": { "rate": 0.5, "depth": 1, "offset": 0 }
+    },
+    {
+      "id": 2,
+      "module": "essentials.clock",
+      "version": 2,
+      "parameters": { "bpm": 120, "ticks_per_beat": 1, "run": 1 }
+    },
+    {
+      "id": 3,
+      "module": "host.keyboard",
+      "version": 1,
+      "parameters": { "voices": 4 }
+    },
+    {
+      "id": 4,
+      "module": "osc.out",
+      "version": 1,
+      "parameters": {},
+      "config": {
+        "version": 1,
+        "port": 9001,
+        "rate_hz": 100,
+        "rows": [
+          { "address": "/ws/row/1", "kind": "cv", "deadband": 0.001 },
+          { "address": "/ws/row/2", "kind": "gate" }
+        ],
+        "notes": {
+          "address": "/ws/note",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": 5,
+      "module": "essentials.vco",
+      "version": 2,
+      "parameters": { "frequency": 220 }
+    },
+    {
+      "id": 6,
+      "module": "essentials.adsr",
+      "version": 2,
+      "parameters": { "attack": 0.02, "decay": 0.3, "sustain": 0.6, "release": 0.5 }
+    },
+    {
+      "id": 7,
+      "module": "essentials.vca",
+      "version": 2,
+      "parameters": { "gain": 0.22 }
+    },
+    {
+      "id": 8,
+      "module": "essentials.output",
+      "version": 2,
+      "parameters": {}
+    }
+  ],
+  "connections": [
+    {
+      "kind": "signal",
+      "from": { "module": 1, "port": "control" },
+      "to": { "module": 4, "port": "row1" }
+    },
+    {
+      "kind": "signal",
+      "from": { "module": 2, "port": "clock" },
+      "to": { "module": 4, "port": "row2" }
+    },
+    {
+      "kind": "event",
+      "from": { "module": 3, "port": "notes" },
+      "to": { "module": 4, "port": "notes" }
+    },
+    {
+      "kind": "signal",
+      "from": { "module": 3, "port": "pitch" },
+      "to": { "module": 5, "port": "pitch" }
+    },
+    {
+      "kind": "signal",
+      "from": { "module": 3, "port": "gate" },
+      "to": { "module": 6, "port": "gate" }
+    },
+    {
+      "kind": "signal",
+      "from": { "module": 5, "port": "audio" },
+      "to": { "module": 7, "port": "audio" }
+    },
+    {
+      "kind": "signal",
+      "from": { "module": 6, "port": "envelope" },
+      "to": { "module": 7, "port": "gain_cv" }
+    },
+    {
+      "kind": "signal",
+      "from": { "module": 7, "port": "audio" },
+      "to": { "module": 8, "port": "audio" }
+    }
+  ],
+  "outputs": [
+    {
+      "module": 8,
+      "port": "audio",
+      "bus_channel": 0
+    },
+    {
+      "module": 8,
+      "port": "audio",
+      "bus_channel": 1
+    }
+  ],
+  "ui": {
+    "positions": {
+      "1": [70, 140],
+      "2": [70, 700],
+      "3": [70, 1260],
+      "4": [800, 400],
+      "5": [800, 1000],
+      "6": [800, 1500],
+      "7": [1500, 1000],
+      "8": [2100, 1000]
+    },
+    "labels": {
+      "1": "Slow LFO → row 1",
+      "2": "Clock gate → row 2",
+      "3": "Keyboard notes",
+      "4": "OSC Out (loopback)",
+      "8": "Out"
+    },
+    "view": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  }
+}
