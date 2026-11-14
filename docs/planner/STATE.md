@@ -26,7 +26,7 @@ Board #473 is live. Only completed exact-head evidence counts.
 
 ## Health and owner checks
 - Main is 2f68ff7. Public main-only Actions query returned Service Unavailable; not certified.
-- #122 latest private laptop nightly on that main failed its obsolete Qt UI build; triage to Keel.
+- #122 latest private laptop nightly on that main failed electron_build; summary's Qt label stale; root cause unproven.
 - #101 Pi evidence is older 5de0a92, not O5 or current-main acceptance.
 - Owner: failing Windows MIDI patch + audible/indicator clarification; FlexASIO evidence on #581.
 - Later: exact candidate Pi/Windows hardware test, then tag exactly the accepted SHA.
