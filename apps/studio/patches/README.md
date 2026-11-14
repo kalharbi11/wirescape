@@ -11,6 +11,7 @@ FM/filter/LFO, echo and reverb, sequencer and quantizer, random melody, CHAOS ke
 and **Scene 1–8** (`scene-NN-*.json`, the revised cinematic patches). The MIDI example is bundled
 in the app (`src/app/bundled/`) because this folder excludes `midi.*` modules. The old
 `hollow-chapel`…`neon-elegy` files were replaced by the `scene-*` versions; Qt starters are retired.
+**OSC Out example:** `osc-out-01.json` sends an LFO, a clock gate and keyboard notes to `127.0.0.1:9001` (run `tools/examples/osc_out_receiver.py`); it needs a desktop/Pi build advertising `osc.out`, the web demo has no UDP.
 Your private saved patches are not uploaded automatically.
 Keep filenames lowercase-with-hyphens.json; put the display title in patch.name.
 Use Studio's saved/exported native patch-v2 format at48k, stereo0/1.

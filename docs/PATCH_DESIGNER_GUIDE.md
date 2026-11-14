@@ -547,7 +547,7 @@ CI uses localhost only. One worker shares each listening UDP port across
 module instances, up to 32 routes. Busy/failed bindings do not refuse a patch;
 affected OSC inputs remain inactive and `status.osc.routes` reports
 `port-busy`. An unconfirmed LAN toggle still works on localhost and reports
-`lan-not-confirmed`. No OSC Out, browser/WASM networking or native OSC
+`lan-not-confirmed`. No browser/WASM networking or native OSC
 listener exists in builds lacking B.
 The browser/WASM AudioWorklet has no UDP ingress: its live catalogue excludes
 `osc.in`, and a browser patch containing it is refused rather than silently
@@ -617,6 +617,62 @@ The engine discards the captured ring on each successful graph commit. If
 the engine does not advertise `telemetry.monitor`, Studio reports
 **not available** rather than inventing messages. The original input ports,
 OSC bind consent and LAN restrictions are unchanged.
+
+## OSC Out: send CV, gates and notes to a program on the same machine (#733)
+
+**Availability:** native Electron sidecar (Desktop and Raspberry Pi) in builds that
+advertise `osc.out` in `hello.capabilities` (contract: `docs/specs/OSC_OUT.md`; packets
+#730-#732). The browser/WASM demo has no UDP: `osc.out` is not in its catalogue and Studio
+shows it greyed out. **Loopback only:** v1 always sends to `127.0.0.1`; there is no host or
+LAN setting. The patch cannot reach another machine; run a small program on the same
+computer and forward from there (serial, I2C, ...).
+
+**Ports.** `row1`..`row8` are signal inputs (**FIRST-poly: only channel 0 is read**, so
+sum or pick a voice before the row) and `notes` is a poly note-event input. No outputs, no
+parameters.
+
+**What is sent** (OSC 1.0, one message per datagram, default port 9001):
+- CV row (`/ws/row/<n>`, one `f`): sent when the value moves more than the deadband
+  (default 0.001), at most `rate_hz` times per second per row (default 100, max 500). The
+  latest value is always sent eventually. Each enabled row also sends once after load.
+- Gate row (`kind: "gate"`, `f` 1.0/0.0): crossings of 0.5 are sent in order,
+  not rate-limited, up to four edges per row per sender poll. On overload, the sender
+  keeps the first pulse and (if different) the final level; skipped edges count toward
+  `dropped`. A pulse shorter than a block still sends 1 then 0.
+- Notes (`/ws/note`, `i` key, `f` velocity with 0 = off, `i` channel): off by default; each
+  note on/off in order. Up to 64 queued; overflow counts as `dropped`.
+
+**Timing:** each row is sampled once per audio block (the last sample of the block, about
+5 ms at 256 frames, 48 kHz), and the sender polls about every 1 ms, so a gate or note
+is normally a block plus a poll late. A CV row can be later than that: `rate_hz` limits
+sends per row (at `rate_hz` 1 the trailing value can wait about a second), and the sender
+thread's scheduling adds jitter. Do not use it for sample-accurate work. Each patch edit
+re-creates OSC Out, so enabled rows send their current value once after the first block.
+
+**Delivery:** UDP to loopback is fire-and-forget. `sent` means the engine handed the
+packet to the local network stack, not that anything received it. With no listener `sent`
+still counts and audio is unaffected; `dropped` covers observed `sendto` failures,
+note-ring overflow, coalesced gate edges and messages the per-poll budget cannot carry,
+not missing listeners. Check the receiver, not the counters.
+
+**Notes and choke:** a note-off or a choke is sent as velocity 0. A choke can carry key
+`-1` (all notes); a receiver must handle that key (treat it as all-off) and never use the
+key unchecked as a table index.
+
+**Config** (`modules[i].config`, defaults shown; an invalid known value refuses the **whole graph** load or edit atomically, and the
+running graph is untouched):
+`{"version":1,"port":9001,"rate_hz":100,"rows":[{"address":"/ws/row/1","kind":"cv","deadband":0.001}],"notes":{"address":"/ws/note","enabled":false}}`.
+Addresses start with `/`, are 2..63 printable ASCII bytes, with none of `#*,?[]{}` or spaces.
+
+**Pi recipe:** (1) on the Pi run `python tools/examples/osc_out_receiver.py` (stdlib only;
+`--port N` to match the config); (2) add `osc.out`, patch an LFO to `row1` and a clock gate
+to `row2` (set row 2 `kind` to `gate`); (3) the receiver prints `address value` lines and a
+messages-per-second count. `--count-seconds 60` prints a JSON summary instead. The
+forwarding hook is `forward()` in the script. `status.osc.out` reports `sent`/`dropped`;
+a missing listener changes neither counter meaningfully (see Delivery). Load the example
+patch `osc-out-01` (LFO to row 1, 120 BPM clock gate to row 2 set to `gate`, keyboard
+notes to `notes`) and play keys: the receiver prints `/ws/row/1`, `/ws/row/2` and
+`/ws/note` lines.
 
 ## Groove editor in Studio (G2a #498; builds containing this integration)
 
