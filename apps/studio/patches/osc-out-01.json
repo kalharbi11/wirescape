@@ -17,29 +17,19 @@
       "id": 1,
       "module": "essentials.lfo",
       "version": 2,
-      "parameters": {
-        "rate": 0.5,
-        "depth": 1,
-        "offset": 0
-      }
+      "parameters": { "rate": 0.5, "depth": 1, "offset": 0 }
     },
     {
       "id": 2,
       "module": "essentials.clock",
       "version": 2,
-      "parameters": {
-        "bpm": 120,
-        "ticks_per_beat": 1,
-        "run": 1
-      }
+      "parameters": { "bpm": 120, "ticks_per_beat": 1, "run": 1 }
     },
     {
       "id": 3,
       "module": "host.keyboard",
       "version": 1,
-      "parameters": {
-        "voices": 4
-      }
+      "parameters": { "voices": 4 }
     },
     {
       "id": 4,
@@ -51,15 +41,8 @@
         "port": 9001,
         "rate_hz": 100,
         "rows": [
-          {
-            "address": "/ws/row/1",
-            "kind": "cv",
-            "deadband": 0.001
-          },
-          {
-            "address": "/ws/row/2",
-            "kind": "gate"
-          }
+          { "address": "/ws/row/1", "kind": "cv", "deadband": 0.001 },
+          { "address": "/ws/row/2", "kind": "gate" }
         ],
         "notes": {
           "address": "/ws/note",
@@ -71,28 +54,19 @@
       "id": 5,
       "module": "essentials.vco",
       "version": 2,
-      "parameters": {
-        "frequency": 220
-      }
+      "parameters": { "frequency": 220 }
     },
     {
       "id": 6,
       "module": "essentials.adsr",
       "version": 2,
-      "parameters": {
-        "attack": 0.02,
-        "decay": 0.3,
-        "sustain": 0.6,
-        "release": 0.5
-      }
+      "parameters": { "attack": 0.02, "decay": 0.3, "sustain": 0.6, "release": 0.5 }
     },
     {
       "id": 7,
       "module": "essentials.vca",
       "version": 2,
-      "parameters": {
-        "gain": 0.22
-      }
+      "parameters": { "gain": 0.22 }
     },
     {
       "id": 8,
@@ -104,91 +78,43 @@
   "connections": [
     {
       "kind": "signal",
-      "from": {
-        "module": 1,
-        "port": "control"
-      },
-      "to": {
-        "module": 4,
-        "port": "row1"
-      }
+      "from": { "module": 1, "port": "control" },
+      "to": { "module": 4, "port": "row1" }
     },
     {
       "kind": "signal",
-      "from": {
-        "module": 2,
-        "port": "clock"
-      },
-      "to": {
-        "module": 4,
-        "port": "row2"
-      }
+      "from": { "module": 2, "port": "clock" },
+      "to": { "module": 4, "port": "row2" }
     },
     {
       "kind": "event",
-      "from": {
-        "module": 3,
-        "port": "notes"
-      },
-      "to": {
-        "module": 4,
-        "port": "notes"
-      }
+      "from": { "module": 3, "port": "notes" },
+      "to": { "module": 4, "port": "notes" }
     },
     {
       "kind": "signal",
-      "from": {
-        "module": 3,
-        "port": "pitch"
-      },
-      "to": {
-        "module": 5,
-        "port": "pitch"
-      }
+      "from": { "module": 3, "port": "pitch" },
+      "to": { "module": 5, "port": "pitch" }
     },
     {
       "kind": "signal",
-      "from": {
-        "module": 3,
-        "port": "gate"
-      },
-      "to": {
-        "module": 6,
-        "port": "gate"
-      }
+      "from": { "module": 3, "port": "gate" },
+      "to": { "module": 6, "port": "gate" }
     },
     {
       "kind": "signal",
-      "from": {
-        "module": 5,
-        "port": "audio"
-      },
-      "to": {
-        "module": 7,
-        "port": "audio"
-      }
+      "from": { "module": 5, "port": "audio" },
+      "to": { "module": 7, "port": "audio" }
     },
     {
       "kind": "signal",
-      "from": {
-        "module": 6,
-        "port": "envelope"
-      },
-      "to": {
-        "module": 7,
-        "port": "gain_cv"
-      }
+      "from": { "module": 6, "port": "envelope" },
+      "to": { "module": 7, "port": "gain_cv" }
     },
     {
       "kind": "signal",
-      "from": {
-        "module": 7,
-        "port": "audio"
-      },
-      "to": {
-        "module": 8,
-        "port": "audio"
-      }
+      "from": { "module": 7, "port": "audio" },
+      "to": { "module": 8, "port": "audio" }
     }
   ],
   "outputs": [
@@ -205,38 +131,14 @@
   ],
   "ui": {
     "positions": {
-      "1": [
-        70,
-        140
-      ],
-      "2": [
-        70,
-        700
-      ],
-      "3": [
-        70,
-        1260
-      ],
-      "4": [
-        800,
-        400
-      ],
-      "5": [
-        800,
-        1000
-      ],
-      "6": [
-        800,
-        1500
-      ],
-      "7": [
-        1500,
-        1000
-      ],
-      "8": [
-        2100,
-        1000
-      ]
+      "1": [70, 140],
+      "2": [70, 700],
+      "3": [70, 1260],
+      "4": [800, 400],
+      "5": [800, 1000],
+      "6": [800, 1500],
+      "7": [1500, 1000],
+      "8": [2100, 1000]
     },
     "labels": {
       "1": "Slow LFO → row 1",
