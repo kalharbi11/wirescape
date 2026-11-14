@@ -14,7 +14,7 @@ size: <= 80 changed lines, <= 2 files
 must_pass:
   - python -m unittest discover -s tools/ci -p test_guard.py -v
   - python -m unittest discover -s tools/foundation/tests
-  - git diff --check
+  - bash -c 'git diff --check origin/main...HEAD'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [any existing guard assertion weakened, test detection narrowed outside docs/**.md, workflow edit]
 ```

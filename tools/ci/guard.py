@@ -26,6 +26,11 @@ MACHINE = re.compile(r'(?i)(?:[a-z]:[\\/]Users[\\/]|/ho' r'me/[^/\s]+(?:/|$))')
 
 def is_test(path):
     p = PurePosixPath(path)
+    # Markdown task and design docs with "test" in the filename are not test files.
+    # Keep every test*/ directory guarded, including docs/tests/*.md.
+    if p.parts[0] == 'docs' and p.suffix.lower() == '.md' and not any(
+            part.lower().startswith('test') for part in p.parts[:-1]):
+        return False
     return any(part.lower().startswith('test') for part in p.parts) or 'test' in p.stem.lower()
 
 
@@ -141,6 +146,13 @@ def check_staged_format():
     return errors
 
 
+
+def tier_errors(labels):
+    if len(set(labels) & {'tier/T0', 'tier/T1', 'tier/T2'}) != 1:
+        return ['add exactly one tier/* label']
+    return []
+
+
 def warn_tier(body=None):
     if body is None:
         number, repo = os.environ.get('PR'), os.environ.get('GITHUB_REPOSITORY')
@@ -180,6 +192,7 @@ if __name__ == '__main__':
             with open(args.issue_body_file, encoding='utf-8') as body:
                 named = named_paths(body.read())
             print('unlocked by issue:', sorted(named) or 'none')
-        errors = check(args.base, args.head, set(json.loads(args.labels_json)), named)
+        labels = set(json.loads(args.labels_json))
+        errors = tier_errors(labels) + check(args.base, args.head, labels, named)
     print('\n'.join(errors) if errors else 'guard: passed')
     raise SystemExit(bool(errors))

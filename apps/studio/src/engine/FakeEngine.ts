@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import type {
-  EngineClient, OscStatus, Telemetry, SystemStatus, Device, EngineError, MonitorEntry,
+  EngineClient, OscStatus, Telemetry, SystemStatus, Device, EngineError, MonitorEntry, UnavailableAudioDriver,
 } from './EngineClient';
 import { EngineRefusal } from './EngineClient';
 import type { PatchV2, Connection } from '../patch/types';
@@ -71,6 +71,8 @@ export class FakeEngine implements EngineClient {
     midi: { devices: [], activity: {} },
   };
 
+  /** Optional test fixture for installed ASIO drivers that could not initialize. */
+  unavailableDrivers?: UnavailableAudioDriver[];
   private readonly audioDevices: Device[] = [
     { id: 'hw:0', name: 'Built-in Audio', kind: 'audio', sampleRates: [44100, 48000] },
     { id: 'usb:1', name: 'Scarlett 2i2 USB', kind: 'audio', sampleRates: [44100, 48000, 96000] },
@@ -286,7 +288,12 @@ export class FakeEngine implements EngineClient {
 
   // ---- EngineClient: devices -------------------------------------------
 
-  async listAudioDevices(): Promise<Device[]> { return this.audioDevices.map(d => ({ ...d })); }
+  async listAudioDevices(): Promise<Device[]> {
+    if (this.unavailableDrivers === undefined) delete this.status.audio.unavailableDrivers;
+    else this.status.audio.unavailableDrivers = this.unavailableDrivers.map(d => ({ ...d }));
+    this.pushStatus();
+    return this.audioDevices.map(d => ({ ...d }));
+  }
   selectAudioDevice(id: string): void {
     const d = this.audioDevices.find(d => d.id === id);
     if (!d) return;

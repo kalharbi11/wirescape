@@ -1,0 +1,21 @@
+{
+  "schema_version": 2,
+  "abi_version": 2,
+  "id": "osc.out",
+  "name": "OSC Out",
+  "library": "ws2_osc_out",
+  "license": "GPL-3.0-only",
+  "parameters": {},
+  "inputs": {
+    "row1": "signal",
+    "row2": "signal",
+    "row3": "signal",
+    "row4": "signal",
+    "row5": "signal",
+    "row6": "signal",
+    "row7": "signal",
+    "row8": "signal",
+    "notes": "event"
+  },
+  "outputs": {}
+}

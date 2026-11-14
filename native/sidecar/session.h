@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
+#include "../control/osc_out_host.h"
 #include "../document/telemetry_taps.h"
 #include "../io/audio/engine_slot.h"
 #include "../io/audio/portaudio_service.h"
@@ -71,6 +72,7 @@ class Session {
     std::unique_ptr<monitor::Capture> monitor_;
     std::unique_ptr<midi::Host> midi_;
     std::unique_ptr<osc::Host> osc_;
+    std::unique_ptr<osc::OutHost> osc_out_;
     Json patch_, preferences_ = Json::object(), audio_devices_, midi_devices_;
     Json unavailable_audio_drivers_ = Json::array(); // optional, control-thread ASIO diagnostics
     std::string token_, device_, audio_state_ = "no-device", audio_reason_, audio_error_;

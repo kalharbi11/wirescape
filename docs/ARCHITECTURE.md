@@ -159,7 +159,7 @@ python tools/dev.py test
 # For the Electron app and owner-device launch, follow docs/INSTALL.md
 ```
 
-The obsolete Qt-specific `tools/dev.py` launcher options are being removed in R4 (#481).
+The obsolete Qt-specific `tools/dev.py` launcher options were removed by R4 (#481).
 No Qt SDK or compiler is checked into this repository.
 PortAudio is dynamically loaded via WIRESCAPE_PORTAUDIO or a library beside the executable.
 Packaging accepts --portaudio, WIRESCAPE_PORTAUDIO or `.tools/portaudio/libportaudio64bit.dll`.
@@ -325,8 +325,24 @@ port reports an inactive route without refusing the patch. Loopback
 `0.0.0.0` requires **both** the owner-launcher `--confirm-lan` flag and the
 route's explicit `lan:true` consent; tests send UDP only over loopback.
 The bounded additive `status.osc` reports actual bind state, per-route
-observations and errors, not packet payloads. OSC Out and Monitor UI are not
-part of this host slice.
+observations and errors, not packet payloads. OSC In's receiver never
+sends outbound packets.
+
+OSC Out uses an independent control-owned sender in
+`native/control/osc_out_host.*`. Each prepared `osc.out` instance writes
+signal values, gate crossing counters, and a 64-event SPSC note ring to a
+host-owned lock-free `osc::OutBus`; no render callback allocates, locks,
+formats OSC or touches a socket. The sidecar's worker polls these buses every
+millisecond, applies per-row rate limits and CV deadbands with trailing
+updates, sends ordered gate edges within a four-edge-per-row and 64-datagram-per-module poll budget (coalescing excess crossings), preserves note order, and writes one OSC 1.0 message
+per datagram to a nonblocking socket bound to and sending solely over
+`127.0.0.1`. The bus survives while its graph is active; the worker is
+joined before live replan, graph retirement, stream replacement or shutdown.
+Its bounded `status.osc.out` list reports per-module sending state and
+send/drop counters without packet payloads. `sent` counts local `sendto`
+acceptance, not confirmed UDP delivery; `dropped` counts only observed send
+errors, ring overflow and coalesced gate edges, never an absent receiver.
+OSC Out never enables LAN, regardless of `--confirm-lan`.
 
 ## Stdio engine sidecar (P1B)
 
