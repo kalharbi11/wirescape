@@ -25,25 +25,34 @@ struct OscOut {
     OutBus local_bus{};
     OutBus *bus = &local_bus;
     std::array<bool, 8> high{};
+    bool has_processed = false;
+    bool prime_after_reset = false;
 
     bool prepare(const ws::Setup &setup) {
         if (!out_configuration(setup.config.data, setup.config.bytes, config)) return false;
         bus = config.bus ? config.bus : &local_bus;
         return true;
     }
-    void reset() { high.fill(false); } // Consumer owns shared bus counters and ring tails.
+    void reset() {
+        // prepare() calls reset() too: preserve the initial block's real edges.
+        // On panic, use the next nonempty block's first sample as a new baseline.
+        prime_after_reset = has_processed;
+        high.fill(false); // Consumer owns shared bus counters and ring tails.
+    }
 
     void process(ws::Block &block) {
+        const uint32_t frames = block.frames();
+        if (!frames) return; // No sample available to establish a gate baseline.
+        const bool prime = prime_after_reset;
         for (uint32_t i = 0; i < 8; ++i) {
             if (!config.rows[i].enabled) continue;
             const auto signal = block.in(i).ch(0); // FIRST poly policy: only voice 0
             const bool constant = block.in(i).constant();
-            const uint32_t frames = block.frames();
             const float last = signal[constant ? 0 : frames - 1];
             uint32_t rises = 0, falls = 0;
             if (config.rows[i].kind == 1) {
-                bool was = high[i];
-                for (uint32_t s = 0; s < frames; ++s) {
+                bool was = prime ? signal[0] >= .5f : high[i];
+                for (uint32_t s = prime ? 1u : 0u; s < frames; ++s) {
                     const bool now = signal[constant ? 0 : s] >= .5f;
                     if (now != was) {
                         if (now) ++rises;
@@ -59,6 +68,8 @@ struct OscOut {
             if (falls) row.falls.fetch_add(falls, std::memory_order_relaxed);
             row.blocks.fetch_add(1, std::memory_order_release);
         }
+        has_processed = true;
+        prime_after_reset = false;
         if (!config.notes.enabled) return;
         for (const auto &event : block.events()) {
             if (event.type != WS2_NOTE_ON && event.type != WS2_NOTE_OFF && event.type != WS2_NOTE_CHOKE) continue;
