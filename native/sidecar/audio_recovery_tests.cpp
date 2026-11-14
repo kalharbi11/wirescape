@@ -681,6 +681,39 @@ int main() {
             fake::refuse_id.clear();
             s.shutdown();
         }
+        // A failed explicit choice with no previous route must not silently
+        // substitute an ASIO default that appeared after session startup.
+        fake::outputs[0].is_default = false;
+        fake::outputs[1].is_default = false;
+        options.settings = (root / "asio-no-prior-route.json").string();
+        {
+            Session s(options);
+            s.start(base);
+            check(audio(s)["state"] == "no-device" && audio(s)["deviceId"].is_null(),
+                  "no default at startup leaves audio unselected");
+            fake::outputs[0].is_default = true; // an unrelated default appears
+            fake::refuse_id = "ASIO|FlexASIO";
+            const auto failed = s.reply({{{"v", 0}, {"id", "asio-no-prior"},
+                                          {"type", "selectAudioDevice"}, {"deviceId", "ASIO|FlexASIO"}},
+                                         {}, {}});
+            const auto after_refusal = fake::attempts.size();
+            check(failed["ok"] == false && failed["code"] == "unavailable" &&
+                      audio(s)["state"] == "no-device" && audio(s)["deviceId"].is_null(),
+                  "refused driver with no previous route leaves no implicit default active");
+            s.poll(base + 500ms);
+            check(audio(s)["state"] == "no-device" && audio(s)["deviceId"].is_null() &&
+                      fake::attempts.size() == after_refusal,
+                  "timer may refresh devices but must not open an unrequested default");
+            fake::refuse_id.clear();
+            const auto selected = s.reply({{{"v", 0}, {"id", "asio-explicit-default"},
+                                            {"type", "selectAudioDevice"},
+                                            {"deviceId", "ASIO|ASIO4ALL v2"}},
+                                           {}, {}});
+            check(selected["ok"] == true && audio(s)["deviceId"] == "ASIO|ASIO4ALL v2" &&
+                      audio(s)["state"] == "running",
+                  "explicit subsequent ASIO selection still opens successfully");
+            s.shutdown();
+        }
         // A duplicate in a genuinely cold catalogue is still rejected;
         // a warm ASIO list may not discover an unverified duplicate.
         fake::outputs.push_back(fake::outputs.front());

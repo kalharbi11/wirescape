@@ -1032,7 +1032,15 @@ Json Session::apply(const Json &command) {
             midi_->stop();
             stop_audio();
             device_ = old_device;
-            start_audio();
+            if (!options_.audio || !old_device.empty()) {
+                start_audio();
+            } else {
+                // An explicitly refused selection must never silently choose
+                // a newly discovered default if no prior route existed.
+                audio_state_ = "no-device";
+                audio_reason_.clear();
+                audio_error_ = failed_open;
+            }
             start_midi();
             if (rate_refused) refuse_rate();
             if (!failed_open.empty()) throw Refusal("unavailable", failed_open.c_str());
@@ -1387,7 +1395,9 @@ bool Session::poll_audio(std::chrono::steady_clock::time_point now, bool enumera
         audio_backoff_ = std::chrono::milliseconds(100);
         audio_retry_ = now + audio_backoff_;
     } else if (!stream_) {
-        if (audio_reason_ == "rate-unsupported") return false;
+        // Startup may choose a default, but a refused explicit selection with
+        // no remembered route must remain unselected until the user chooses.
+        if (device_.empty() || audio_reason_ == "rate-unsupported") return false;
         if (audio_state_ == "device-lost") audio_state_ = "reconnecting";
         if (now < audio_retry_) return previous != audio_state_;
         start_audio(now);
