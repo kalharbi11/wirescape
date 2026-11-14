@@ -47,6 +47,28 @@ class GuardTests(unittest.TestCase):
         self.assertFalse(self.check('native/tests/a.cpp', status='D', labels=['allow-test-removal']))
         self.assertFalse(self.check('native/tests/a.cpp', status='M'))
 
+    def test_markdown_documentation_named_test_can_be_removed_or_renamed(self):
+        old = 'docs/tasks/OWNER_TEST_SESSION_271.md'
+        new = 'docs/tasks/done/OWNER_TEST_SESSION_271.md'
+        self.assertFalse(self.check(old, status='D'))
+        self.assertEqual(violations('R100', [old, new], [], set()), [])
+        self.assertFalse(self.check('docs/reviews/TEST_REPORT.md', status='D'))
+        self.assertFalse(self.check('docs/tasks/SYSTEM_TEST.md', status='D'))
+        # The exception is only for Markdown below docs/ outside test* folders.
+        self.assertTrue(self.check('docs/tasks/test_runner.py', status='D'))
+        self.assertTrue(self.check('README_TEST.md', status='D'))
+
+    def test_test_directories_and_source_fixtures_stay_guarded(self):
+        for path in ('tools/ci/test_guard.py', 'native/tests/x.cpp',
+                     'apps/studio/tests/a.spec.ts', 'docs/tests/x.md',
+                     'docs/testdata/report.md', 'apps/desktop/tests/x.json'):
+            with self.subTest(path=path):
+                self.assertIn('test deletion/rename requires allow-test-removal',
+                              self.check(path, status='D', labels=['allow-protected']))
+                self.assertNotIn('test deletion/rename requires allow-test-removal',
+                                 self.check(path, status='D',
+                                            labels=['allow-protected', 'allow-test-removal']))
+
     def test_binary_private_cannot_be_overridden(self):
         for path in ('x.DLL', 'x.exe', 'x.zip', 'x.wav', 'x.ttf', 'x.otf',
                      'x.so', 'x.dylib', 'x.lib', 'x.pdb', 'x.obj', 'x.a', 'x.woff', 'x.woff2',

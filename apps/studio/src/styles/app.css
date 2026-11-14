@@ -492,6 +492,19 @@ body.hide-port-labels .port-label { display: none; }
   gap: 8px; border: 1px solid var(--hair); padding: 12px; }
 .osc-row legend { font: 600 11px var(--mono); }
 .osc-row.osc-row-off { opacity: .55; }
+/* Raw OSC scaling uses the same OSC editor controls and keeps each row compact. */
+.osc-range { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.osc-range-output, .osc-range-preview, .osc-range-advanced, .osc-range-capture { grid-column: 1 / -1; }
+.osc-range-output .osc-output-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.osc-range [hidden], .osc-clamp-hints[hidden], .osc-clamp-hint[hidden] { display: none; }
+.osc-range-capture:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.osc-range-capture .osc-raw { font: 600 11px var(--mono); margin-right: auto; }
+.osc-capture-reason { width: 100%; color: var(--sub); }
+.osc-range-preview { margin: 2px 0; font: 11px var(--mono); color: var(--sub); }
+.osc-range-advanced { border-top: 1px solid var(--hair); padding-top: 6px; }
+.osc-range-advanced summary { cursor: pointer; font-size: 11px; color: var(--sub); }
+.osc-range-advanced .osc-field { margin-top: 6px; }
+.osc-clamp-hint:not([hidden]) { display: block; color: #a04234; font: 10px var(--mono); margin-top: 4px; }
 .osc-active { margin: 4px 0; font: 600 11px var(--mono); }
 .osc-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; min-width: 0; }
 .osc-field input, .osc-field select { min-width: 0; width: 100%; box-sizing: border-box; }

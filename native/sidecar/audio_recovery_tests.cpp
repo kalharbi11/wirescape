@@ -10,6 +10,7 @@
 #include "../io/osc/codec.h"
 #include "session.h"
 #include <algorithm>
+#include <cerrno>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -138,6 +139,49 @@ void send_local_osc(uint16_t port) {
 #endif
     check(sent == int(size), "send OSC packet to localhost only");
 }
+// A deterministic EWOULDBLOCK seam verifies honest send-error accounting and
+// bounded coalescing without relying on UDP receiver liveness.
+std::atomic<uint32_t> injected_calls{0};
+std::array<float, 4> injected_values{};
+bool fail_outgoing(const wirescape::osc::Message &message, uint16_t) {
+    const auto n = injected_calls.fetch_add(1, std::memory_order_relaxed);
+    if (n < injected_values.size()) injected_values[n] = message.arguments[0].real;
+    errno = EWOULDBLOCK;
+    return false;
+}
+bool accept_outgoing(const wirescape::osc::Message &message, uint16_t) {
+    const auto n = injected_calls.fetch_add(1, std::memory_order_relaxed);
+    if (n < injected_values.size()) injected_values[n] = message.arguments[0].real;
+    return true;
+}
+void test_osc_out_budget() {
+    Json config = {{"port", 9001}, {"rows", Json::array()}, {"notes", {{"enabled", false}}}};
+    config["rows"].push_back({{"kind", "gate"}});
+    for (int i = 1; i < 8; ++i) config["rows"].push_back({{"enabled", false}});
+    const Json patch = {{"modules", Json::array({{{"id", 19}, {"module", "osc.out"}, {"config", config}}})}};
+    for (const auto hook :
+         {wirescape::osc::SendOverride(fail_outgoing), wirescape::osc::SendOverride(accept_outgoing)}) {
+        injected_calls.store(0, std::memory_order_relaxed);
+        injected_values.fill(-1);
+        wirescape::osc::OutHost sender(patch.dump(), hook);
+        auto *bus = sender.buses().at(19);
+        bus->rows[0].rises.store(500, std::memory_order_relaxed);
+        bus->rows[0].falls.store(500, std::memory_order_relaxed);
+        bus->rows[0].value.store(0, std::memory_order_relaxed);
+        bus->rows[0].blocks.store(1, std::memory_order_release);
+        sender.start();
+        const auto deadline = std::chrono::steady_clock::now() + 2s;
+        while (injected_calls.load(std::memory_order_relaxed) < 2 && std::chrono::steady_clock::now() < deadline)
+            std::this_thread::sleep_for(5ms);
+        sender.stop();
+        const auto state = sender.states().at(0);
+        check(injected_calls.load() == 2 && injected_values[0] == 1 && injected_values[1] == 0,
+              "1000 gate crossings coalesce to one ordered pulse");
+        check(state.sent == (hook == accept_outgoing ? 2u : 0u) &&
+                  state.dropped == (hook == accept_outgoing ? 998u : 1000u),
+              "coalesced edges and deterministic EWOULDBLOCK count as observed drops");
+    }
+}
 int main() {
     const auto root = std::filesystem::temp_directory_path() /
                       ("wirescape-audio-recovery-" + std::to_string(app_engine_clock_ns()));
@@ -147,6 +191,7 @@ int main() {
     } cleanup{root};
     try {
         std::filesystem::create_directories(root);
+        test_osc_out_budget();
         using wirescape::audio::classify_rates;
         const auto supported = classify_rates({0, -1, 0}, -1);
         const auto invalid = classify_rates({-1, -1, -1}, -1);
@@ -287,8 +332,8 @@ int main() {
                 return s.reply({cmd, {}, {}});
             };
             auto hello = s.hello();
-            const auto caps = Json::array(
-                {"midiLearn", "telemetry.playhead", "telemetry.monitor", "setSampleRate", "setBufferFrames", "osc"});
+            const auto caps = Json::array({"midiLearn", "telemetry.playhead", "telemetry.monitor", "setSampleRate",
+                                           "setBufferFrames", "osc", "osc.out"});
             check(hello["audioDevices"].size() == 2 && hello["capabilities"] == caps,
                   "hello must expose the supported device catalogue and methods");
             auto listed = call("list", "listAudioDevices")["result"]["devices"];

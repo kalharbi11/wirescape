@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# Qt-free source bootstrap; never installs software, starts devices or edits old profiles.
+# Native + Electron source bootstrap; never installs software, starts devices or edits old profiles.
 [CmdletBinding()]
 param([switch]$CheckOnly, [string]$Ref = '', [switch]$NoLaunch, [switch]$NoAsio)
 Set-StrictMode -Version Latest
@@ -163,9 +163,8 @@ function Preflight {
         $lines = Get-Content -LiteralPath $cache
         $cmakeHome = @($lines | Where-Object { $_ -like 'CMAKE_HOME_DIRECTORY:INTERNAL=*' })
         $expected = (Join-Path $root 'native') -replace '\\','/'
-        if ($cmakeHome.Count -ne 1 -or (($cmakeHome[0] -split '=',2)[1] -replace '\\','/') -ne $expected -or
-            -not ($lines -contains 'WIRESCAPE_BUILD_UI:BOOL=OFF')) {
-            throw 'Stale/Qt-enabled CMake cache. Preserve it; use a fresh checkout.'
+        if ($cmakeHome.Count -ne 1 -or (($cmakeHome[0] -split '=',2)[1] -replace '\\','/') -ne $expected) {
+            throw 'Stale CMake source cache. Preserve it; use a fresh checkout.'
         }
     }
     foreach ($lock in @('apps\studio\package-lock.json','apps\desktop\package-lock.json')) {
@@ -181,14 +180,12 @@ if ($CheckOnly) {
 if ($Ref -notmatch '^[0-9a-fA-F]{40}$') {
     throw 'Specify -Ref with the full 40-character commit SHA of the version (docs/INSTALL.md).'
 }
-# Process-local quarantine of inherited Qt; no global PATH or installer mutations.
-foreach ($name in @('WIRESCAPE_QT_DIR','WIRESCAPE_PORTAUDIO','CMAKE_PREFIX_PATH',
-                    'QT_PLUGIN_PATH','QML2_IMPORT_PATH','QT_QPA_PLATFORM_PLUGIN_PATH',
-                    'ELECTRON_RUN_AS_NODE','WIRESCAPE_TEST_STUB')) {
+# Isolate process-local runtime overrides; no global PATH or installer mutations.
+foreach ($name in @('CMAKE_PREFIX_PATH', 'WIRESCAPE_PORTAUDIO', 'ELECTRON_RUN_AS_NODE', 'WIRESCAPE_TEST_STUB')) {
     Remove-Item "Env:$name" -ErrorAction SilentlyContinue
 }
 $env:Path = (($env:Path -split ';') | Where-Object {
-    $_ -and $_ -notmatch '(?i)(^|[\\/])Qt([\\/]|$)|wirescape'
+    $_ -and $_ -notmatch '(?i)wirescape'
 }) -join ';'
 $tools = Join-Path $root '.tools\windows-setup'
 $logs = Join-Path $root 'build_reports\windows-setup'
@@ -262,7 +259,7 @@ try {
     } finally { $reader.Dispose() }
     Assert-GeneratedOutputs
     Run cmake @('-S',(Join-Path $root 'native'),'-B',(Join-Path $root 'build\native'),
-        '-G',$script:generator,'-A','x64','-DWIRESCAPE_BUILD_UI=OFF')
+        '-G',$script:generator,'-A','x64')
     Run cmake @('--build',(Join-Path $root 'build\native'),'--config','Release','--parallel','2')
     $engine = Join-Path $root 'build\native\Release\wirescape-engine.exe'
     if (-not (Test-Path -LiteralPath $engine)) { throw 'Sidecar executable missing.' }

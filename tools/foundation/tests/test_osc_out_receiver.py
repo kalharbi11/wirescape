@@ -36,5 +36,14 @@ class DecodeTests(unittest.TestCase):
             rx.decode(b"/unterminated")
 
 
+class DurationArgumentTests(unittest.TestCase):
+    def test_count_seconds_must_be_finite_and_positive(self):
+        for bad in ("nan", "inf", "-inf", "0", "-1"):
+            with self.subTest(value=bad):
+                with self.assertRaises(SystemExit) as ctx:
+                    rx.main(["--count-seconds", bad])  # rejected before any socket opens
+                self.assertEqual(ctx.exception.code, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

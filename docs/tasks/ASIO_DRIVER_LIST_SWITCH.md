@@ -15,7 +15,7 @@ size: <= 450 changed lines, <= 8 files
 must_pass:
   - python tools/dev.py build --headless
   - python tools/dev.py test
-  - git diff --check
+  - bash -c 'git diff --check origin/main...HEAD'
   - ci: guard, linux-arm64, windows-x64, sanitizers green
 stops: [ABI header edit, protocol field renamed or removed, realtime-path change, tolerance loosened]
 ```

@@ -583,6 +583,25 @@ The `monitor` module's `events`, `in1` and `in2` ports are available;
 connect `osc.in.messages` → `monitor.events` for the message log.
 No existing module/port/parameter IDs change.
 
+### Scaling a controller (OSC In)
+
+A hardware knob may report raw values such as **121…1689**, not 0…1.
+Patch `osc.in.messages` → `monitor.events` **directly** (not through another module).
+Turn the controller fully right, open OSC In **Edit…**, and press **Set max** beside
+the matching CV row; then turn it fully left and press **Set min**. You can also
+read the two values from Monitor and type them into **Raw min / Raw max**.
+The live raw readout and Set buttons require fresh Monitor entries, a matching
+OSC address and numeric argument 0–3; no value is fabricated if observation is
+unavailable. The new values take effect only on **Save and apply**.
+
+Choose **Unipolar 0…1** for a signal that should stay positive, or **Bipolar
+−1…1** for modulation that swings both directions. **Custom** lets you set a
+different Output min/max (including **1 → 0** to invert a knob). Values beyond
+Raw min/max are **clamped**; the OSC In card notes any observed clamping.
+Every CV row has smoothing, **5 ms** by default, under **Advanced**, along
+with argument index, timeout and stale behavior. This UI uses the existing
+input/output range config keys and requires no new patch format.
+
 ### Monitor message log (OSC C2 #604; builds advertising `telemetry.monitor`)
 
 Patch `osc.in.messages` → `monitor.events` to see incoming OSC addresses,
@@ -621,11 +640,25 @@ parameters.
 - Notes (`/ws/note`, `i` key, `f` velocity with 0 = off, `i` channel): off by default; each
   note on/off in order. Up to 64 queued; overflow counts as `dropped`.
 
-**Timing:** values are sampled once per audio block, so a message is at most one block
-late (about 5 ms at 256 frames, 48 kHz) plus up to the 1 ms sender poll. Do not use it for
-sample-accurate work.
+**Timing:** each row is sampled once per audio block (the last sample of the block, about
+5 ms at 256 frames, 48 kHz), and the sender polls about every 1 ms, so a gate or note
+is normally a block plus a poll late. A CV row can be later than that: `rate_hz` limits
+sends per row (at `rate_hz` 1 the trailing value can wait about a second), and the sender
+thread's scheduling adds jitter. Do not use it for sample-accurate work. If the gate budget
+(spec section 4) is exceeded, extra gate edges are coalesced and counted in `dropped`.
 
-**Config** (`modules[i].config`, defaults shown; invalid known values refuse that module):
+**Delivery:** UDP to loopback is fire-and-forget. `sent` means the engine handed the
+packet to the local network stack, not that anything received it. With no listener `sent`
+still counts and audio is unaffected; `dropped` counts only the engine's own overflow
+(a full 64-note queue or the gate budget), so it does not tell you whether a program is
+listening. Check the receiver, not the counters.
+
+**Notes and choke:** a note-off or a choke is sent as velocity 0. A choke can carry key
+`-1` (all notes); a receiver must handle that key (treat it as all-off) and never use the
+key unchecked as a table index.
+
+**Config** (`modules[i].config`, defaults shown; an invalid known value refuses the **whole graph** load or edit atomically, and the
+running graph is untouched):
 `{"version":1,"port":9001,"rate_hz":100,"rows":[{"address":"/ws/row/1","kind":"cv","deadband":0.001}],"notes":{"address":"/ws/note","enabled":true}}`.
 Addresses start with `/`, are 2..63 printable ASCII bytes, with none of `#*,?[]{}` or spaces.
 
@@ -634,8 +667,10 @@ Addresses start with `/`, are 2..63 printable ASCII bytes, with none of `#*,?[]{
 to `row2` (set row 2 `kind` to `gate`); (3) the receiver prints `address value` lines and a
 messages-per-second count. `--count-seconds 60` prints a JSON summary instead. The
 forwarding hook is `forward()` in the script. `status.osc.out` reports `sent`/`dropped`;
-with no listener `dropped` grows and audio is unaffected. The example patch `osc-out-01`
-follows in a later PR once the module lands.
+a missing listener changes neither counter meaningfully (see Delivery). Load the example
+patch `osc-out-01` (LFO to row 1, 120 BPM clock gate to row 2 set to `gate`, keyboard
+notes to `notes`) and play keys: the receiver prints `/ws/row/1`, `/ws/row/2` and
+`/ws/note` lines.
 
 ## Groove editor in Studio (G2a #498; builds containing this integration)
 

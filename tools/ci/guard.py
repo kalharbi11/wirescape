@@ -26,6 +26,11 @@ MACHINE = re.compile(r'(?i)(?:[a-z]:[\\/]Users[\\/]|/ho' r'me/[^/\s]+(?:/|$))')
 
 def is_test(path):
     p = PurePosixPath(path)
+    # Markdown task and design docs with "test" in the filename are not test files.
+    # Keep every test*/ directory guarded, including docs/tests/*.md.
+    if p.parts[0] == 'docs' and p.suffix.lower() == '.md' and not any(
+            part.lower().startswith('test') for part in p.parts[:-1]):
+        return False
     return any(part.lower().startswith('test') for part in p.parts) or 'test' in p.stem.lower()
 
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import socket
 import struct
 import sys
@@ -107,6 +108,8 @@ def main(argv: list[str] | None = None) -> int:
     opts = parser.parse_args(argv)
     if not 1 <= opts.port <= 65535:
         parser.error("--port must be 1..65535")
+    if opts.count_seconds is not None and not (math.isfinite(opts.count_seconds) and opts.count_seconds > 0):
+        parser.error("--count-seconds must be a finite number greater than 0")
     return run(opts.port, opts.count_seconds)
 
 

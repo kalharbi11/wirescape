@@ -152,9 +152,31 @@ apps/desktop/node_modules/.bin/electron apps/desktop/build/main.js \
 ```
 
 The Pi needs Node 22, Python 3.12, `build-essential`, `pkg-config`,
-`libasound2-dev` and `libportaudio2`. Only build a commit that has Pi evidence
-recorded in the release notes or the [Pi nightly summary #101](https://github.com/kalharbi11/wirescape/issues/101)
-(newest nightly pass: `5de0a92`, 2026-11-12).
+`libasound2-dev` and `libportaudio2`. Build in a **new folder** with the full SHA
+of current `main` (it includes the OSC In range scaling, #742, and the ESP32
+launcher, #748):
+
+```sh
+git clone https://github.com/kalharbi11/wirescape.git ~/wirescape-test
+cd ~/wirescape-test
+Ref=$(git rev-parse origin/main) && git switch --detach "$Ref"
+python3 tools/pi/preflight.py --check-only
+sh tools/pi/update-and-build.sh "$Ref"
+python3 tools/dev.py build --config Release   # records the Electron build so `launch` accepts it
+```
+
+**Launch with sound, MIDI and LAN OSC** (for an ESP32 or another network
+controller; all three flags are needed, because LAN consent alone keeps null audio
+and loopback-only OSC):
+
+```sh
+python3 tools/dev.py launch --confirm-audio --confirm-midi --confirm-lan
+```
+
+ESP32 wiring, sketch settings and OSC In scaling: [CONTROLLERS.md](CONTROLLERS.md).
+Pi status: since the Qt removal (2026-11-13), the private Pi runner hasn't
+reported on `main`. CI's `linux-arm64` job (same CPU architecture) and a full
+headless build/test are green, but report anything odd on #581.
 
 ## Update to a later version
 

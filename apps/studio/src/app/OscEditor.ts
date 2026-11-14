@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { el } from './dom';
 import { Modal } from './Modal';
+import type { RawReading } from './oscCapture';
 
 /** The authored osc.in schema. Row ids are positional (row1 … row8). */
 export interface OscRow {
@@ -51,6 +52,10 @@ export function readOscConfig(raw: unknown): { config: OscConfig; unsupported: s
   return { config, unsupported };
 }
 
+const outputMode = (row: Pick<OscRow, 'output_min' | 'output_max'>): string =>
+  row.output_min === 0 && row.output_max === 1 ? 'unipolar' :
+  row.output_min === -1 && row.output_max === 1 ? 'bipolar' : 'custom';
+
 const choices = (items: { value: string; name: string }[], selected: string): HTMLSelectElement => {
   const control = el('select', 'input-select') as HTMLSelectElement;
   for (const { value, name } of items) {
@@ -63,7 +68,10 @@ const choices = (items: { value: string; name: string }[], selected: string): HT
 
 /** Render an isolated draft; only Save mutates the patch and initiates a replan. */
 export function showOscEditor(modal: Modal, raw: unknown,
-  save: (value: OscConfig) => Promise<boolean>): void {
+  save: (value: OscConfig) => Promise<boolean>,
+  readRaw: (row: Pick<OscRow, 'pattern' | 'argument' | 'enabled'>) => RawReading = () =>
+    ({ reason: 'Patch OSC In messages → Monitor events to capture.' }),
+  subscribe: (refresh: () => void) => () => void = () => () => {}): void {
   const { config, unsupported } = readOscConfig(raw);
   const authored = object(raw);
   const invalidVersion = 'version' in authored && authored.version !== 1;
@@ -90,8 +98,30 @@ export function showOscEditor(modal: Modal, raw: unknown,
   const rows = el('div', 'osc-rows');
   const errors = el('p', 'osc-error'); errors.dataset.testid = 'osc-editor-errors';
   errors.setAttribute('role', 'alert');
-  type RowControls = Record<typeof rowKeys[number], HTMLInputElement | HTMLSelectElement> & { enabled: HTMLInputElement };
+  type RowControls = Record<typeof rowKeys[number], HTMLInputElement | HTMLSelectElement> & {
+    enabled: HTMLInputElement; outputMode: HTMLSelectElement;
+    refreshLayout: () => void; refreshRaw: () => void;
+  };
   const fields: RowControls[] = [];
+  let capturedRangeInvalid = false;
+  const checkCapturedRanges = () => {
+    if (!capturedRangeInvalid) return;
+    const bad = fields.findIndex(c => {
+      const min = c.input_min.value.trim(), max = c.input_max.value.trim();
+      return !min || !max || !Number.isFinite(Number(min)) || !Number.isFinite(Number(max)) ||
+        Math.fround(Number(max)) <= Math.fround(Number(min));
+    });
+    submit.disabled = bad >= 0;
+    if (bad >= 0) errors.textContent = `row${bad + 1}: input max must exceed input min.`;
+    else {
+      capturedRangeInvalid = false;
+      if (/^row\d+: input max must exceed input min\.$/.test(errors.textContent ?? '')) errors.textContent = '';
+      fields.forEach(c => {
+        c.input_min.removeAttribute('aria-invalid');
+        c.input_max.removeAttribute('aria-invalid');
+      });
+    }
+  };
   const activeCount = el('p', 'osc-active');
   activeCount.dataset.testid = 'osc-editor-active';
   const refreshActive = () => {
@@ -114,7 +144,10 @@ export function showOscEditor(modal: Modal, raw: unknown,
     controls.enabled = enabled;
     const toggle = el('label', 'osc-lan');
     toggle.append(enabled, el('span', '', 'Listen (row on)'));
-    const mark = () => { group.classList.toggle('osc-row-off', !enabled.checked); refreshActive(); refreshExample(); };
+    const mark = () => {
+      group.classList.toggle('osc-row-off', !enabled.checked);
+      refreshActive(); refreshExample(); controls.refreshRaw();
+    };
     enabled.addEventListener('change', mark);
     group.classList.toggle('osc-row-off', !enabled.checked);
     const pattern = el('input', 'input-text') as HTMLInputElement;
@@ -132,12 +165,91 @@ export function showOscEditor(modal: Modal, raw: unknown,
       input.value = String(row[key]); input.dataset.testid = `osc-row${i + 1}-${key}`;
       controls[key] = input;
     }
-    group.append(toggle, field('Address pattern (* allowed)', pattern), field('Kind', controls.kind),
-      field('Argument index (0–31)', controls.argument),
-      field('Input min', controls.input_min), field('Input max', controls.input_max),
-      field('Output min', controls.output_min), field('Output max', controls.output_max),
+    const range = el('div', 'osc-range');
+    const out = el('div', 'osc-range-output');
+    const mode = choices([
+      { value: 'unipolar', name: 'Unipolar 0…1' },
+      { value: 'bipolar', name: 'Bipolar −1…1' },
+      { value: 'custom', name: 'Custom' },
+    ], outputMode(row));
+    mode.dataset.testid = `osc-row${i + 1}-output-mode`;
+    controls.outputMode = mode;
+    const modeField = field('Output', mode);
+    const outputFields = el('div', 'osc-output-fields');
+    outputFields.append(field('Output min', controls.output_min), field('Output max', controls.output_max));
+    out.append(modeField, outputFields);
+    const live = el('div', 'osc-range-capture');
+    const raw = el('span', 'osc-raw', 'raw —');
+    raw.dataset.testid = `osc-row${i + 1}-raw`;
+    const reason = el('small', 'osc-capture-reason');
+    reason.dataset.testid = `osc-row${i + 1}-capture-reason`;
+    const setMax = el('button', 'btn', 'Set max') as HTMLButtonElement;
+    const setMin = el('button', 'btn', 'Set min') as HTMLButtonElement;
+    setMax.type = setMin.type = 'button';
+    setMax.dataset.testid = `osc-row${i + 1}-set-max`;
+    setMin.dataset.testid = `osc-row${i + 1}-set-min`;
+    live.append(raw, setMax, setMin, reason);
+    const preview = el('p', 'osc-range-preview');
+    const advanced = el('details', 'osc-range-advanced') as HTMLDetailsElement;
+    const summary = el('summary', '', 'Advanced');
+    advanced.append(summary, field('Argument index (0–31)', controls.argument),
       field('Smoothing (ms)', controls.smoothing_ms),
-      field('Timeout (ms; 0 disables)', controls.timeout_ms), field('On timeout', controls.stale));
+      field('Timeout (ms; 0 disables)', controls.timeout_ms),
+      field('On timeout', controls.stale));
+    range.append(field('Raw min', controls.input_min), field('Raw max', controls.input_max),
+      out, live, preview, advanced);
+    const refreshPreview = () => {
+      preview.textContent = `${controls.input_min.value} → ${controls.output_min.value}, ${controls.input_max.value} → ${controls.output_max.value} · outside is clamped · smoothed ${controls.smoothing_ms.value} ms`;
+    };
+    const captureRow = (): Pick<OscRow, 'pattern' | 'argument' | 'enabled'> => ({
+      pattern: pattern.value, argument: Number(controls.argument.value),
+      ...(enabled.checked ? {} : { enabled: false }),
+    });
+    controls.refreshRaw = () => {
+      const reading = readRaw(captureRow());
+      raw.textContent = reading.value === undefined ? 'raw —' : `raw ${reading.value}`;
+      setMax.disabled = setMin.disabled = reading.value === undefined;
+      reason.textContent = reading.reason ?? '';
+      setMax.title = setMin.title = reading.reason ?? '';
+    };
+    const setFromMonitor = (control: HTMLInputElement | HTMLSelectElement) => {
+      const reading = readRaw(captureRow());
+      if (reading.value === undefined) { controls.refreshRaw(); return; }
+      control.value = String(reading.value);
+      refreshPreview();
+      capturedRangeInvalid = true;
+      checkCapturedRanges();
+      controls.refreshRaw();
+    };
+    setMax.addEventListener('click', () => setFromMonitor(controls.input_max));
+    setMin.addEventListener('click', () => setFromMonitor(controls.input_min));
+    mode.addEventListener('change', () => {
+      if (mode.value !== 'custom') {
+        controls.output_min.value = mode.value === 'bipolar' ? '-1' : '0';
+        controls.output_max.value = '1';
+      }
+      controls.refreshLayout();
+    });
+    controls.refreshLayout = () => {
+      const isCv = controls.kind.value === 'cv';
+      modeField.hidden = !isCv;
+      outputFields.hidden = isCv && mode.value !== 'custom';
+      live.hidden = preview.hidden = !isCv;
+      advanced.open = !isCv;
+      summary.hidden = !isCv;
+      refreshPreview();
+      controls.refreshRaw();
+    };
+    controls.kind.addEventListener('change', controls.refreshLayout);
+    for (const control of [pattern, controls.argument, controls.input_min, controls.input_max,
+      controls.output_min, controls.output_max, controls.smoothing_ms]) {
+      control.addEventListener('input', () => {
+        refreshPreview(); controls.refreshRaw();
+        checkCapturedRanges();
+      });
+    }
+    group.append(toggle, field('Address pattern (* allowed)', pattern), field('Kind', controls.kind), range);
+    controls.refreshLayout();
     fields.push(controls);
     rows.append(group);
   }
@@ -152,6 +264,8 @@ export function showOscEditor(modal: Modal, raw: unknown,
         for (const key of rowKeys) controls[key].value = String(next[key]);
         controls.enabled.checked = next.enabled !== false;
         controls.enabled.closest('fieldset')?.classList.toggle('osc-row-off', next.enabled === false);
+        controls.outputMode.value = outputMode(next);
+        controls.refreshLayout();
       });
       if (resetConnection) {
         const defaults = picoDefaults();
@@ -160,6 +274,8 @@ export function showOscEditor(modal: Modal, raw: unknown,
       }
       refreshExample();
       refreshActive();
+      capturedRangeInvalid = false;
+      submit.disabled = false;
       errors.textContent = '';
     });
     presets.append(button);
@@ -195,7 +311,7 @@ export function showOscEditor(modal: Modal, raw: unknown,
   });
   const help = el('section', 'osc-help');
   help.append(el('h3', '', 'How to send'), example, copy,
-    el('p', '', 'Connect the OSC In messages jack to a Monitor events jack to inspect traffic (message list arrives in #604).'));
+    el('p', '', 'Patch OSC In messages → Monitor events, move a control, then use Set max / Set min (or type its raw range).'));
 
   const actions = el('div', 'osc-actions');
   const cancel = el('button', 'btn', 'Cancel') as HTMLButtonElement;
@@ -246,5 +362,6 @@ export function showOscEditor(modal: Modal, raw: unknown,
   });
   actions.append(cancel, submit);
   body.append(intro, warning, portRow, lanRow, presets, activeCount, rows, errors, help, actions);
-  modal.open('OSC In · addresses and listening');
+  const stopRaw = subscribe(() => { if (modal.isOpen) fields.forEach(c => c.refreshRaw()); });
+  modal.open('OSC In · addresses and listening', stopRaw);
 }
